@@ -1,30 +1,38 @@
 # veoveo
 
-Veoveo's media MCP exposes image, video, audio, 3D, and LLM generation models through a
-single protocol-maximal MCP server. Long-running generation is handled by MCP **tasks**
-(SEP-1319) and provider webhooks instead of blocking calls.
+Veoveo exposes hosted MCP servers through a production gateway. The current hosted server
+is `media-mcp`, which exposes image, video, audio, 3D, and LLM generation models.
+Long-running generation is handled by MCP **tasks** (SEP-1319) and provider webhooks
+instead of blocking calls.
 
-The media server lives in its own crate; the generic full-protocol conformance CLI lives in
-the contract crate.
+The gateway is the normal client entrypoint. The media server lives in its own crate; the
+generic full-protocol conformance CLI lives in the contract crate.
 
 ## Architecture
 
 ```
-┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────────┐   provider API     ┌───────────┐
-│  client   │ ────────────────────────▶ │  server (axum, :8787)   │ ◀────────────────▶ │ provider  │
-│  (rmcp)   │ ◀──── notifications ───── │ /media/mcp /media/...   │                   │           │
-└──────────┘                            └─────────────────────────┘                    └───────────┘
-                                              ▲ public base URL via Cloudflare Tunnel
+┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────────┐   internal MCP     ┌─────────────────────────┐
+│  client  │ ────────────────────────▶ │ gateway (axum, :8788)  │ ─────────────────▶ │ media-mcp (axum, :8787)│
+│  (rmcp)  │ ◀──── notifications ───── │ /mcp/default           │ ◀───────────────── │ /media/mcp /media/...  │
+└──────────┘                            └─────────────────────────┘                   └───────────┬─────────────┘
+                                              ▲ public base URL via Cloudflare Tunnel              │ provider API/webhook
+                                                                                                   ▼
+                                                                                              ┌───────────┐
+                                                                                              │ provider  │
+                                                                                              └───────────┘
 ```
 
-- `/media/mcp` — MCP over streamable HTTP (rmcp 2.0)
+- `/mcp/default` — gateway MCP profile over streamable HTTP (rmcp 2.0)
+- `/media/mcp` — direct media MCP endpoint for internal conformance and service composition
 - `/media/webhooks` — internal provider callback receiver
 - `/media/files/*` — optional static dir so the provider can fetch input media by URL
 - `/media/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
 
 ## MCP surface
 
-One tool, everything else is protocol:
+One media tool, everything else is protocol. Direct media exposes `run`; the gateway exposes
+that tool as `media__run` because it collapses all hosted servers into one outward MCP
+surface.
 
 | Surface | What |
 |---|---|
@@ -54,11 +62,16 @@ opaque to the contract; `https://veoveo.bioma.ai`,
 `https://staging.veoveo.bioma.ai`, and an enterprise-owned hostname are all equivalent
 as long as they route to the deployment.
 
-Each MCP server owns one path segment below that origin:
+External MCP clients use the gateway profile endpoint. Hosted servers still own provider
+plumbing paths below the same origin:
 
-| Server | MCP endpoint | Provider webhook | Input files |
-|---|---|---|---|
-| media | `{PUBLIC_BASE_URL}/media/mcp` | `{PUBLIC_BASE_URL}/media/webhooks` | `{PUBLIC_BASE_URL}/media/files/*` |
+| Surface | Endpoint |
+|---|---|
+| gateway profile | `{PUBLIC_BASE_URL}/mcp/default` |
+| media direct MCP | `{PUBLIC_BASE_URL}/media/mcp` |
+| media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
+| media input files | `{PUBLIC_BASE_URL}/media/files/*` |
+| media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
 
 ## Setup
 
@@ -67,6 +80,8 @@ Each MCP server owns one path segment below that origin:
 ```
 MEDIA_PROVIDER_API_KEY=...
 MEDIA_PROVIDER_WEBHOOK_SECRET=whsec_...   # optional; enables webhook signature verification
+VEOVEO_INTERNAL_TOKEN_SECRET=...           # signs gateway-to-server assertions
+VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64=...
 PUBLIC_BASE_URL=https://veoveo.bioma.ai
 ```
 
@@ -74,15 +89,18 @@ PUBLIC_BASE_URL=https://veoveo.bioma.ai
 
 ### Docker Compose
 
-The default development stack runs `media-mcp`, RustFS, and the managed Cloudflare
-tunnel. RustFS image/version and local S3-compatible wiring are defined in `compose.yaml`.
+The default development stack runs `mcp-gateway`, `media-mcp`, RustFS, an OpenTelemetry
+collector, and the managed Cloudflare tunnel. RustFS image/version and local
+S3-compatible wiring are defined in `compose.yaml`.
 
 ```sh
 cp .env.example .env
-# fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_BASE_URL, and
-# CLOUDFLARED_TUNNEL_TOKEN for the managed Cloudflare tunnel.
+# fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_BASE_URL,
+# VEOVEO_INTERNAL_TOKEN_SECRET, VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64,
+# and CLOUDFLARED_TUNNEL_TOKEN for the managed Cloudflare tunnel.
 
 just compose-up
+just info
 ```
 
 The media image uses BuildKit cache mounts for Cargo registry, git, and target output.
@@ -98,8 +116,9 @@ Task, prediction, artifact metadata, and usage metadata are persisted in DuckDB.
 shared contract crate owns the DuckDB usage analytics schema so every MCP server can
 record estimates and actual billing rows the same way. Local runs default to
 `state.duckdb`; Compose stores the media server's state at
-`/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. RustFS stores artifact
-bytes only.
+`/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. Gateway runtime state
+and audit evidence live at `/var/lib/veoveo/gateway/state.duckdb` on the `gateway_state`
+volume. RustFS stores artifact bytes only.
 
 ### Logs
 
@@ -107,6 +126,7 @@ The server writes operational logs to stdout/stderr. Docker Compose exposes thos
 through:
 
 ```sh
+just logs mcp-gateway
 just logs media-mcp
 just logs cloudflared
 ```
@@ -130,29 +150,44 @@ assertions.
 
 ### Local Process
 
+Run the media server and gateway in separate shells, with the same
+`VEOVEO_INTERNAL_TOKEN_SECRET` value in both.
+
 ```sh
 # 1. ensure PUBLIC_BASE_URL routes to this process, using your ingress/proxy/tunnel
 
-# 2. server (requires a reachable S3-compatible artifact store)
+# 2. media server (requires a reachable S3-compatible artifact store)
 export AWS_ACCESS_KEY_ID=rustfsadmin
 export AWS_SECRET_ACCESS_KEY=rustfsadmin
 export AWS_DEFAULT_REGION=us-east-1
+export VEOVEO_INTERNAL_TOKEN_SECRET=local-development-secret-at-least-32-bytes
 cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
     --public-base-url https://veoveo.bioma.ai \
     --artifact-endpoint http://localhost:9000 --artifact-bucket media-artifacts
 
-# 3. conformance CLI
-cargo run -p veoveo-mcp-contract --bin conformance -- info
-cargo run -p veoveo-mcp-contract --bin conformance -- prompts
-cargo run -p veoveo-mcp-contract --bin conformance -- prompt media-image-edit \
+# 3. gateway
+export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo-mcp-contract --bin conformance -- gateway-private-key-der-b64)"
+cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
+    --public-base-url https://veoveo.bioma.ai \
+    --control-plane configs/gateway.local.json \
+    --state-db data/gateway/state.duckdb
+
+# 4. conformance CLI through the gateway
+unset VEOVEO_INTERNAL_TOKEN_SECRET
+export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-contract --bin conformance -- gateway-token-exchange \
+    --token-url http://localhost:8788/oauth/default/token --scope media:use)"
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default info
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default prompts
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default prompt media-image-edit \
     --arguments '{"image_url":"https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg","edit_goal":"add a red wizard hat"}'
-cargo run -p veoveo-mcp-contract --bin conformance -- models kling --type image-to-video
-cargo run -p veoveo-mcp-contract --bin conformance -- complete gpt-image
-cargo run -p veoveo-mcp-contract --bin conformance -- schema openai/gpt-image-2/edit
-cargo run -p veoveo-mcp-contract --bin conformance -- run openai/gpt-image-2/edit \
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default models kling --type image-to-video
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default complete gpt-image
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default schema openai/gpt-image-2/edit
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default run openai/gpt-image-2/edit \
+    --tool-name media__run \
     --input '{"prompt":"add a red wizard hat","images":["https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg"]}'
-cargo run -p veoveo-mcp-contract --bin conformance -- usage <task-id>
-cargo run -p veoveo-mcp-contract --bin conformance -- artifact <sha256>
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default usage <task-id>
+cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default artifact <sha256>
 ```
 
 `--public-base-url` is required for generation because providers must be able to deliver
@@ -169,6 +204,10 @@ crates/mcp-contract/src/analytics.rs           shared DuckDB usage analytics sch
 crates/mcp-contract/src/deployment.rs          shared public URL/server mount contract
 crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
+crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
+crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler
+crates/mcp-gateway/src/state.rs                gateway DuckDB runtime/audit state
+configs/gateway.local.json                     typed local gateway control plane
 crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
 crates/media-mcp/src/artifacts.rs              S3-compatible artifact store implementation
 crates/media-mcp/src/provider.rs               internal provider API client + types
@@ -188,5 +227,6 @@ Use `just --list` for the maintained command recipes. The common path is:
 ```sh
 just compose-up
 just health https://veoveo.bioma.ai
+just info
 just e2e https://veoveo.bioma.ai
 ```

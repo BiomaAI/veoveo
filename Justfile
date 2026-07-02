@@ -2,7 +2,8 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
 compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
-mcp-url := "http://localhost:8787/media/mcp"
+mcp-url := "http://localhost:8788/mcp/default"
+gateway-token-url := "http://localhost:8788/oauth/default/token"
 gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-contract --bin conformance --"
@@ -555,7 +556,7 @@ smoke-gateway-task-run:
 compose-build:
     {{compose}} build media-mcp mcp-gateway
 
-# Build and start RustFS, media-mcp, and the managed Cloudflare tunnel.
+# Build and start RustFS, media-mcp, mcp-gateway, and the managed Cloudflare tunnel.
 compose-up:
     {{compose}} up --build -d
 
@@ -572,46 +573,52 @@ compose-ps:
     {{compose}} ps
 
 # Follow logs for one service.
-logs service='media-mcp':
+logs service='mcp-gateway':
     {{compose}} logs -f --tail=200 {{service}}
 
 # Check local health and, optionally, public tunnel health.
 health public_base_url='':
+    curl -fsS http://localhost:8788/healthz
+    @echo
     curl -fsS http://localhost:8787/media/healthz
     @echo
-    if [ -n '{{public_base_url}}' ]; then curl -fsS '{{public_base_url}}/media/healthz'; echo; fi
+    if [ -n '{{public_base_url}}' ]; then curl -fsS '{{public_base_url}}/healthz'; echo; fi
 
-# Show MCP server info and resource templates.
+# Mint a local gateway access token for the default profile.
+gateway-token scope='media:use':
+    {{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope '{{scope}}'
+
+# Show gateway MCP server info and resource templates.
 info:
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} info
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} info
 
-# List models, optionally with a local query string.
+# List models through the gateway, optionally with a local query string.
 models query='':
-    if [ -n '{{query}}' ]; then env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} models; fi
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; if [ -n '{{query}}' ]; then env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models; fi
 
-# Complete model ids by prefix.
+# Complete model ids by prefix through the gateway.
 complete prefix:
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
 
-# Read one model schema.
+# Read one model schema through the gateway.
 schema model:
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} schema '{{model}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} schema '{{model}}'
 
-# Run an arbitrary model with a raw JSON input object.
+# Run an arbitrary model through the gateway with a raw JSON input object.
 run model input output_dir='output':
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} run '{{model}}' --input '{{input}}' --output-dir '{{output_dir}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{model}}' --tool-name media__run --input '{{input}}' --output-dir '{{output_dir}}'
 
 # Run the default image edit e2e against the public base URL and save returned artifacts.
 run-edit public_base_url output_dir='output/e2e':
-    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
+    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --tool-name media__run --input "$input" --output-dir '{{output_dir}}'
 
-# Read one task usage report.
+# Read one gateway task usage report.
 usage task_id:
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
 
-# Read and save one artifact by sha256.
+# Read and save one artifact by sha256 through the gateway.
 artifact sha256 output_dir='output':
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} artifact '{{sha256}}' --output-dir '{{output_dir}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} artifact '{{sha256}}' --output-dir '{{output_dir}}'
 
 # Start the stack, check health, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':
