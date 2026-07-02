@@ -48,4 +48,5 @@ tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 url = "2.5.8"
 uuid = { version = "1.23.4", features = ["v4"] }
+vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "crates/mcp-contract", default-features = false }

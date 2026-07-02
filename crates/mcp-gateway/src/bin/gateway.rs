@@ -597,13 +597,14 @@ async fn authorization_server_jwks(
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let jwks = match authorization_server_jwks_from_signing_key(&catalog, authorization_server) {
-        Ok(jwks) => jwks,
-        Err(err) => {
-            tracing::error!("failed to build authorization server JWKS: {err}");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
+    let jwks =
+        match authorization_server_jwks_from_signing_key(&catalog, authorization_server).await {
+            Ok(jwks) => jwks,
+            Err(err) => {
+                tracing::error!("failed to build authorization server JWKS: {err}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        };
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(
@@ -1127,11 +1128,14 @@ async fn authorization_callback(
             authorization_request.client_state.as_ref(),
         );
     };
-    let client_secret = match GatewaySecretResolver::new().resolve_string(
-        &catalog,
-        &oidc_client.credential_secret,
-        SecretPurpose::OAuthClientSecret,
-    ) {
+    let client_secret = match GatewaySecretResolver::new()
+        .resolve_string(
+            &catalog,
+            &oidc_client.credential_secret,
+            SecretPurpose::OAuthClientSecret,
+        )
+        .await
+    {
         Ok(secret) => secret,
         Err(err) => {
             tracing::error!("failed to resolve OIDC client secret: {err}");
@@ -1678,7 +1682,9 @@ async fn token_endpoint(
         profile,
         &client_id,
         &scopes,
-    ) {
+    )
+    .await
+    {
         Ok(token) => token,
         Err(err) => {
             tracing::error!("failed to issue client credentials access token: {err}");
@@ -2020,7 +2026,9 @@ async fn token_endpoint_authorization_code(
         PrincipalKind::User,
         Some(&code_record.principal),
         &code_record.scopes,
-    ) {
+    )
+    .await
+    {
         Ok(token) => token,
         Err(err) => {
             tracing::error!("failed to issue browser authorization-code access token: {err}");
@@ -2439,7 +2447,9 @@ async fn token_endpoint_id_jag(
         PrincipalKind::User,
         Some(&verified_id_jag.principal),
         &scopes,
-    ) {
+    )
+    .await
+    {
         Ok(token) => token,
         Err(err) => {
             tracing::error!("failed to issue ID-JAG access token: {err}");
@@ -3071,7 +3081,7 @@ fn redirect_with_oauth_error(
     redirect_response(url.as_str())
 }
 
-fn issue_client_credentials_access_token(
+async fn issue_client_credentials_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
     profile: &GatewayProfile,
@@ -3088,9 +3098,10 @@ fn issue_client_credentials_access_token(
         None,
         scopes,
     )
+    .await
 }
 
-fn issue_access_token(
+async fn issue_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
     profile: &GatewayProfile,
@@ -3103,7 +3114,8 @@ fn issue_access_token(
         catalog,
         &authorization_server.access_token_signing_key,
         SecretPurpose::JwksPrivateKey,
-    )?;
+    )
+    .await?;
     let now = Utc::now();
     let expires_at = now
         .checked_add_signed(TimeDelta::seconds(ACCESS_TOKEN_TTL_SECONDS))
@@ -3166,7 +3178,7 @@ fn issue_access_token(
     })
 }
 
-fn authorization_server_jwks_from_signing_key(
+async fn authorization_server_jwks_from_signing_key(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
 ) -> anyhow::Result<JwkSet> {
@@ -3174,19 +3186,21 @@ fn authorization_server_jwks_from_signing_key(
         catalog,
         &authorization_server.access_token_signing_key,
         SecretPurpose::JwksPrivateKey,
-    )?;
+    )
+    .await?;
     let mut jwk = Jwk::from_encoding_key(&signing_key, Algorithm::RS256)?;
     jwk.common.key_id = Some(authorization_server.access_token_key_id.to_string());
     Ok(JwkSet { keys: vec![jwk] })
 }
 
-fn access_token_signing_key(
+async fn access_token_signing_key(
     catalog: &GatewayCatalog,
     secret_id: &SecretReferenceId,
     expected_purpose: SecretPurpose,
 ) -> anyhow::Result<EncodingKey> {
-    let value =
-        GatewaySecretResolver::new().resolve_string(catalog, secret_id, expected_purpose)?;
+    let value = GatewaySecretResolver::new()
+        .resolve_string(catalog, secret_id, expected_purpose)
+        .await?;
     let der = BASE64_STANDARD
         .decode(value.expose_secret().trim())
         .context("access-token signing key must be base64-encoded RSA DER")?;

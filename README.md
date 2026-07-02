@@ -117,6 +117,12 @@ Datadog, or an OpenTelemetry collector. Veoveo does not store application logs i
 or RustFS. DuckDB is for task, artifact, prediction, and usage analytics state; object
 storage is for artifact bytes.
 
+Gateway secret references are resolved by source, not stored in control data. Local
+`env` secrets name the required variable. HashiCorp Vault and HCP Vault use KV v2 locators
+such as `kv2://secret/veoveo/gateway#client_secret` or
+`kv2://secret/veoveo/gateway?version=3#client_secret`, and require explicit `VAULT_ADDR`
+and `VAULT_TOKEN`.
+
 ### Local Process
 
 ```sh

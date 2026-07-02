@@ -298,6 +298,11 @@ Gateway data must be split by sensitivity and lifecycle:
   in control data, never secret values. Local development may use `.env`; enterprise
   deployments should use Vault, HCP Vault, cloud secret managers, KMS-backed stores, or
   their approved secret infrastructure.
+  The gateway has a typed secret resolver boundary. `env` secrets resolve from the named
+  variable, and `vault`/`hcp_vault` secrets resolve from HashiCorp Vault KV v2 locators in
+  the form `kv2://{mount}/{path}#field` with optional `?version={n}`. Vault-backed
+  resolution requires explicit `VAULT_ADDR` and `VAULT_TOKEN`; no local Vault default is
+  accepted. Secret-manager sources that are not implemented fail closed.
 - **Runtime state**: gateway task id to upstream task id mapping, subscription ownership,
   request correlation ids, token revocation entries, replay-protection ids, OAuth state,
   ID-JAG exchange state, and short-lived session metadata. This state is operationally
