@@ -130,6 +130,8 @@ enum Cmd {
     Complete { prefix: String },
     /// List prompt templates.
     Prompts,
+    /// Read one JSON resource by URI.
+    Resource { uri: String },
     /// Render one prompt template.
     Prompt {
         name: String,
@@ -652,6 +654,12 @@ async fn cmd_prompts(client: &Client) -> Result<()> {
     Ok(())
 }
 
+async fn cmd_resource(client: &Client, uri: String) -> Result<()> {
+    let value = read_resource_json(client, &uri).await?;
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    Ok(())
+}
+
 async fn cmd_prompt(client: &Client, name: String, arguments: Option<String>) -> Result<()> {
     let arguments = arguments
         .map(|raw| serde_json::from_str::<Value>(&raw))
@@ -938,6 +946,7 @@ async fn main() -> Result<()> {
         }
         Cmd::Complete { prefix } => cmd_complete(&client, &uris, prefix).await,
         Cmd::Prompts => cmd_prompts(&client).await,
+        Cmd::Resource { uri } => cmd_resource(&client, uri).await,
         Cmd::Prompt { name, arguments } => cmd_prompt(&client, name, arguments).await,
         Cmd::Schema { model_id } => {
             let value = read_resource_json(&client, &uris.model_uri(&model_id)).await?;

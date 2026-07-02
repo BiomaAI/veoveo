@@ -170,6 +170,7 @@ smoke-gateway-authenticated:
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
     token="$({{conformance}} gateway-token --scope media:use --jwt-id smoke-gateway-authenticated)"
     {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" info >/dev/null
+    {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" resource media://usage >/dev/null
     {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
     kill "${gateway_pid}"
     wait "${gateway_pid}" 2>/dev/null || true
