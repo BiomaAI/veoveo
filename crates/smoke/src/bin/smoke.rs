@@ -72,6 +72,15 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Cmd {
+    /// Run the full production gateway smoke suite.
+    GatewaySuite {
+        /// Local gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.local.json")]
+        control_plane: PathBuf,
+        /// Gateway control-plane JSON used by smoke scenarios.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        smoke_control_plane: PathBuf,
+    },
     /// Smoke-test Compose edge routing and published-port shape.
     ComposeConfig,
     /// Smoke-test contract schema export for external implementations.
@@ -230,6 +239,10 @@ impl Drop for ContainerGuard {
 async fn main() -> Result<()> {
     let args = Args::parse();
     match args.cmd {
+        Cmd::GatewaySuite {
+            control_plane,
+            smoke_control_plane,
+        } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::ComposeConfig => compose_config().await,
         Cmd::ContractSchemas { conformance_bin } => contract_schemas(&conformance_bin),
         Cmd::Otel {
@@ -270,6 +283,111 @@ async fn main() -> Result<()> {
             control_plane,
         } => gateway_task_run(&conformance_bin, &media_bin, &gateway_bin, &control_plane).await,
     }
+}
+
+async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Path) -> Result<()> {
+    let conformance = Path::new("target/debug/conformance");
+    let gateway = Path::new("target/debug/gateway");
+    let media = Path::new("target/debug/server");
+
+    suite_step("workspace contract and gateway tests");
+    run_checked(
+        Path::new("cargo"),
+        [
+            "test".into(),
+            "-p".into(),
+            "veoveo-mcp-contract".into(),
+            "-p".into(),
+            "veoveo-mcp-gateway".into(),
+        ],
+        [],
+    )?;
+
+    suite_step("smoke binary dependencies");
+    run_checked(
+        Path::new("cargo"),
+        [
+            "build".into(),
+            "-p".into(),
+            "veoveo-mcp-contract".into(),
+            "--bin".into(),
+            "conformance".into(),
+            "-p".into(),
+            "veoveo-mcp-gateway".into(),
+            "--bin".into(),
+            "gateway".into(),
+            "-p".into(),
+            "veoveo-media-mcp".into(),
+            "--bin".into(),
+            "server".into(),
+        ],
+        [],
+    )?;
+
+    suite_step("contract schema export");
+    contract_schemas(conformance)?;
+
+    suite_step("gateway control-plane validation");
+    run_checked(
+        gateway,
+        [
+            "validate".into(),
+            "--control-plane".into(),
+            control_plane.as_os_str().to_os_string(),
+        ],
+        [],
+    )?;
+    run_checked(
+        gateway,
+        [
+            "validate".into(),
+            "--control-plane".into(),
+            smoke_control_plane.as_os_str().to_os_string(),
+        ],
+        [],
+    )?;
+
+    suite_step("self-hosted deployment validation");
+    run_checked(
+        conformance,
+        [
+            "deployment-validate".into(),
+            "--file".into(),
+            "configs/deployments.json".into(),
+        ],
+        [],
+    )?;
+
+    suite_step("compose edge configuration");
+    compose_config().await?;
+
+    suite_step("gateway HTTP and OAuth boundary");
+    gateway_http(conformance, gateway, smoke_control_plane).await?;
+
+    suite_step("gateway OpenTelemetry export");
+    otel(conformance, gateway, smoke_control_plane).await?;
+
+    suite_step("media MCP auth boundary");
+    media_mcp_auth(conformance, media).await?;
+
+    suite_step("direct media task run");
+    media_task_run(conformance, media).await?;
+
+    suite_step("authenticated gateway forwarding and policy");
+    gateway_authenticated(conformance, media, gateway, smoke_control_plane).await?;
+
+    suite_step("gateway with two hosted servers");
+    gateway_two_servers(conformance, gateway, smoke_control_plane).await?;
+
+    suite_step("gateway task run with artifacts and usage");
+    gateway_task_run(conformance, media, gateway, smoke_control_plane).await?;
+
+    println!("gateway smoke suite ok");
+    Ok(())
+}
+
+fn suite_step(name: &str) {
+    println!("==> {name}");
 }
 
 async fn compose_config() -> Result<()> {

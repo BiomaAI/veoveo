@@ -60,19 +60,8 @@ gateway-prune-revoked-jwts profile='default':
 
 # Smoke-test gateway contract/control-plane behavior without external services.
 smoke-gateway:
-    cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
-    just smoke-contract-schemas
-    just gateway-validate
-    just deployments-validate
-    cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-smoke-control-plane}}
-    just smoke-compose-config
-    just smoke-gateway-http
-    just smoke-otel
-    just smoke-media-mcp-auth
-    just smoke-media-task-run
-    just smoke-gateway-authenticated
-    just smoke-gateway-two-servers
-    just smoke-gateway-task-run
+    cargo build -p veoveo-smoke --bin smoke
+    target/debug/smoke gateway-suite --control-plane {{gateway-control-plane}} --smoke-control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
