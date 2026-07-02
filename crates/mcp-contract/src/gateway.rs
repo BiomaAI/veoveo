@@ -691,6 +691,88 @@ pub struct AuditEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AuthAuditEvent {
+    pub event_id: TraceId,
+    pub timestamp: DateTime<Utc>,
+    pub trace_id: TraceId,
+    pub profile: GatewayProfileId,
+    pub protected_resource: ProtectedResourceId,
+    pub outcome: AuthOutcome,
+    pub reason: AuthReasonCode,
+    pub method: AuthMethod,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal: Option<PrincipalId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<TenantId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_issuer: Option<TokenIssuer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_subject: Option<TokenSubject>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jwt_id: Option<JwtId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u64>,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthOutcome {
+    Allow,
+    Deny,
+}
+
+impl AuthOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Deny => "deny",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthMethod {
+    BearerJwt,
+}
+
+impl AuthMethod {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::BearerJwt => "bearer_jwt",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthReasonCode {
+    AuthAllow,
+    MissingAuthorizationHeader,
+    InvalidAuthorizationHeader,
+    UnknownIdentityProvider,
+    IdentityProviderUnavailable,
+    InvalidAuthConfig,
+    InvalidBearerToken,
+}
+
+impl AuthReasonCode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::AuthAllow => "auth_allow",
+            Self::MissingAuthorizationHeader => "missing_authorization_header",
+            Self::InvalidAuthorizationHeader => "invalid_authorization_header",
+            Self::UnknownIdentityProvider => "unknown_identity_provider",
+            Self::IdentityProviderUnavailable => "identity_provider_unavailable",
+            Self::InvalidAuthConfig => "invalid_auth_config",
+            Self::InvalidBearerToken => "invalid_bearer_token",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayTaskMapping {
     pub gateway_task_id: GatewayTaskId,
     pub upstream_server: ServerSlug,

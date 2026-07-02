@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
@@ -19,12 +19,13 @@ use rmcp::transport::streamable_http_server::{
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
-    InternalTokenSecret, PublicDeployment, TokenIssuer,
+    AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GATEWAY_INTERNAL_TOKEN_ISSUER,
+    GatewayInternalTokenIssuer, GatewayProfile, GatewayProfileId, InternalTokenSecret,
+    PublicDeployment, TokenIssuer, TraceId,
 };
 use veoveo_mcp_gateway::{
-    AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, JwtAuthConfig, JwtVerifier,
-    www_authenticate_challenge,
+    AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
+    JwtVerifier, www_authenticate_challenge,
 };
 
 #[derive(Parser, Debug)]
@@ -41,6 +42,12 @@ enum Command {
         /// JSON control plane file.
         #[arg(long)]
         control_plane: PathBuf,
+    },
+    /// Print aggregate gateway audit counts as JSON.
+    AuditCounts {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
     },
     /// Start the gateway process.
     Serve {
@@ -70,6 +77,7 @@ struct AppState {
 #[derive(Clone)]
 struct ProfileAuthState {
     catalog: Arc<GatewayCatalog>,
+    gateway_state: GatewayState,
     profile_id: GatewayProfileId,
     public_base_url: String,
     http: reqwest::Client,
@@ -101,6 +109,11 @@ async fn main() -> anyhow::Result<()> {
                 catalog.server_count(),
                 catalog.profile_count()
             );
+            Ok(())
+        }
+        Command::AuditCounts { state_db } => {
+            let state = GatewayState::open(&state_db)?;
+            println!("{}", serde_json::to_string(&state.audit_counts()?)?);
             Ok(())
         }
         Command::Serve {
@@ -181,6 +194,7 @@ async fn serve(
         );
         let auth_state = ProfileAuthState {
             catalog: catalog.clone(),
+            gateway_state: gateway_state.clone(),
             profile_id: profile_id.clone(),
             public_base_url: deployment.base_url().to_string(),
             http: http.clone(),
@@ -239,11 +253,22 @@ async fn authenticate_mcp(
     mut request: Request,
     next: Next,
 ) -> axum::response::Response {
+    let started_at = Instant::now();
     let Some(profile) = state.catalog.profile(&state.profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Some(identity_provider) = state.catalog.identity_provider(&profile.identity_provider)
     else {
+        if let Err(err) = record_auth_audit(
+            &state,
+            profile,
+            AuthOutcome::Deny,
+            AuthReasonCode::UnknownIdentityProvider,
+            None,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
         return unauthorized(&state, "unknown identity provider");
     };
 
@@ -252,12 +277,32 @@ async fn authenticate_mcp(
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
     else {
+        if let Err(err) = record_auth_audit(
+            &state,
+            profile,
+            AuthOutcome::Deny,
+            AuthReasonCode::MissingAuthorizationHeader,
+            None,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
         return unauthorized(&state, "missing authorization header");
     };
     let token = match BearerToken::from_authorization_header(header) {
         Ok(token) => token,
         Err(err) => {
             tracing::warn!("rejected gateway request: {err}");
+            if let Err(err) = record_auth_audit(
+                &state,
+                profile,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidAuthorizationHeader,
+                None,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
             return unauthorized(&state, "invalid authorization header");
         }
     };
@@ -266,6 +311,16 @@ async fn authenticate_mcp(
         Ok(jwks) => jwks,
         Err(err) => {
             tracing::warn!("failed to fetch identity provider JWKS: {err}");
+            if let Err(err) = record_auth_audit(
+                &state,
+                profile,
+                AuthOutcome::Deny,
+                AuthReasonCode::IdentityProviderUnavailable,
+                None,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
             return unauthorized(&state, "identity provider unavailable");
         }
     };
@@ -278,6 +333,16 @@ async fn authenticate_mcp(
         Ok(config) => config,
         Err(err) => {
             tracing::error!("invalid gateway auth config: {err}");
+            if let Err(err) = record_auth_audit(
+                &state,
+                profile,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidAuthConfig,
+                None,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -285,9 +350,29 @@ async fn authenticate_mcp(
         Ok(subject) => subject,
         Err(err) => {
             tracing::warn!("rejected gateway token: {err}");
+            if let Err(err) = record_auth_audit(
+                &state,
+                profile,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidBearerToken,
+                None,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
             return unauthorized(&state, "invalid bearer token");
         }
     };
+    if let Err(err) = record_auth_audit(
+        &state,
+        profile,
+        AuthOutcome::Allow,
+        AuthReasonCode::AuthAllow,
+        Some(&subject),
+        started_at,
+    ) {
+        return auth_audit_error_response(err);
+    }
 
     request
         .extensions_mut()
@@ -298,6 +383,48 @@ async fn authenticate_mcp(
 async fn fetch_jwks(http: &reqwest::Client, url: &str) -> anyhow::Result<JwkSet> {
     let response = http.get(url).send().await?.error_for_status()?;
     Ok(response.json::<JwkSet>().await?)
+}
+
+fn record_auth_audit(
+    state: &ProfileAuthState,
+    profile: &GatewayProfile,
+    outcome: AuthOutcome,
+    reason: AuthReasonCode,
+    subject: Option<&AuthenticatedSubject>,
+    started_at: Instant,
+) -> anyhow::Result<()> {
+    let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let principal = subject.map(|value| value.principal.id.clone());
+    let tenant = subject.and_then(|value| value.principal.tenant.clone());
+    let token_issuer = subject.map(|value| value.access_token.issuer.clone());
+    let token_subject = subject.map(|value| value.access_token.subject.clone());
+    let jwt_id = subject.and_then(|value| value.access_token.jwt_id.clone());
+    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    state
+        .gateway_state
+        .record_auth_audit_event(&AuthAuditEvent {
+            event_id,
+            timestamp: chrono::Utc::now(),
+            trace_id,
+            profile: profile.id.clone(),
+            protected_resource: profile.protected_resource.clone(),
+            outcome,
+            reason,
+            method: AuthMethod::BearerJwt,
+            principal,
+            tenant,
+            token_issuer,
+            token_subject,
+            jwt_id,
+            latency_ms: Some(latency_ms),
+            metadata: Default::default(),
+        })
+}
+
+fn auth_audit_error_response(err: anyhow::Error) -> axum::response::Response {
+    tracing::error!("failed to record gateway auth audit event: {err}");
+    StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
 fn unauthorized(state: &ProfileAuthState, reason: &'static str) -> axum::response::Response {

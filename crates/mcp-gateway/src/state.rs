@@ -2,14 +2,36 @@ use std::path::Path;
 
 use anyhow::Result;
 use duckdb::{OptionalExt, params};
+use serde::Serialize;
 use veoveo_mcp_contract::{
-    AuditEvent, GatewayProfileId, GatewayTaskId, GatewayTaskMapping, PrincipalId,
+    AuditEvent, AuthAuditEvent, GatewayProfileId, GatewayTaskId, GatewayTaskMapping, PrincipalId,
     SharedDuckDbConnection, UpstreamTaskId, open_duckdb,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct GatewayAuditCounts {
+    pub auth_events: u64,
+    pub policy_events: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct GatewayState {
     conn: SharedDuckDbConnection,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GatewayAuditTable {
+    Auth,
+    Policy,
+}
+
+impl GatewayAuditTable {
+    fn count_sql(self) -> &'static str {
+        match self {
+            Self::Auth => "SELECT COUNT(*) FROM gateway_auth_audit_events",
+            Self::Policy => "SELECT COUNT(*) FROM gateway_audit_events",
+        }
+    }
 }
 
 impl GatewayState {
@@ -62,9 +84,40 @@ impl GatewayState {
 
             CREATE INDEX IF NOT EXISTS idx_gateway_audit_principal_time
             ON gateway_audit_events(principal, timestamp);
+
+            CREATE TABLE IF NOT EXISTS gateway_auth_audit_events (
+                event_id TEXT PRIMARY KEY,
+                trace_id TEXT NOT NULL,
+                profile TEXT NOT NULL,
+                protected_resource TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                method TEXT NOT NULL,
+                principal TEXT,
+                tenant TEXT,
+                token_issuer TEXT,
+                token_subject TEXT,
+                jwt_id TEXT,
+                timestamp TIMESTAMP NOT NULL,
+                latency_ms UBIGINT,
+                event_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_auth_audit_profile_time
+            ON gateway_auth_audit_events(profile, timestamp);
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_auth_audit_principal_time
+            ON gateway_auth_audit_events(principal, timestamp);
             "#,
         )?;
         Ok(())
+    }
+
+    pub fn audit_counts(&self) -> Result<GatewayAuditCounts> {
+        Ok(GatewayAuditCounts {
+            auth_events: self.count_rows(GatewayAuditTable::Auth)?,
+            policy_events: self.count_rows(GatewayAuditTable::Policy)?,
+        })
     }
 
     pub fn record_task_mapping(&self, mapping: &GatewayTaskMapping) -> Result<()> {
@@ -189,14 +242,67 @@ impl GatewayState {
         Ok(())
     }
 
+    pub fn record_auth_audit_event(&self, event: &AuthAuditEvent) -> Result<()> {
+        let event_json = serde_json::to_string(event)?;
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO gateway_auth_audit_events (
+                event_id, trace_id, profile, protected_resource, outcome, reason, method,
+                principal, tenant, token_issuer, token_subject, jwt_id, timestamp, latency_ms,
+                event_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            ON CONFLICT(event_id) DO UPDATE SET
+                trace_id = excluded.trace_id,
+                profile = excluded.profile,
+                protected_resource = excluded.protected_resource,
+                outcome = excluded.outcome,
+                reason = excluded.reason,
+                method = excluded.method,
+                principal = excluded.principal,
+                tenant = excluded.tenant,
+                token_issuer = excluded.token_issuer,
+                token_subject = excluded.token_subject,
+                jwt_id = excluded.jwt_id,
+                timestamp = excluded.timestamp,
+                latency_ms = excluded.latency_ms,
+                event_json = excluded.event_json
+            "#,
+            params![
+                event.event_id.as_str(),
+                event.trace_id.as_str(),
+                event.profile.as_str(),
+                event.protected_resource.as_str(),
+                event.outcome.as_str(),
+                event.reason.as_str(),
+                event.method.as_str(),
+                event.principal.as_ref().map(|value| value.as_str()),
+                event.tenant.as_ref().map(|value| value.as_str()),
+                event.token_issuer.as_ref().map(|value| value.as_str()),
+                event.token_subject.as_ref().map(|value| value.as_str()),
+                event.jwt_id.as_ref().map(|value| value.as_str()),
+                event.timestamp,
+                event.latency_ms,
+                event_json,
+            ],
+        )?;
+        Ok(())
+    }
+
     #[cfg(test)]
     fn audit_event_count(&self) -> Result<u64> {
+        self.count_rows(GatewayAuditTable::Policy)
+    }
+
+    #[cfg(test)]
+    fn auth_audit_event_count(&self) -> Result<u64> {
+        self.count_rows(GatewayAuditTable::Auth)
+    }
+
+    fn count_rows(&self, table: GatewayAuditTable) -> Result<u64> {
         let conn = self.conn.lock().expect("gateway state mutex poisoned");
-        let count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM gateway_audit_events", [], |row| {
-                row.get(0)
-            })?;
-        Ok(count as u64)
+        let count: i64 = conn.query_row(table.count_sql(), [], |row| row.get(0))?;
+        Ok(u64::try_from(count)?)
     }
 
     fn query_mapping<P>(&self, sql: &str, params: P) -> Result<Option<GatewayTaskMapping>>
@@ -221,8 +327,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use veoveo_mcp_contract::{
-        GatewayAction, McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
-        ServerSlug, TraceId, UpstreamTaskId,
+        AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, McpMethodName, PolicyDecision,
+        PolicyEffect, PolicyReasonCode, PolicyTarget, ProtectedResourceId, ServerSlug, TraceId,
+        UpstreamTaskId,
     };
 
     use super::*;
@@ -315,6 +422,37 @@ mod tests {
             .unwrap();
 
         assert_eq!(state.audit_event_count().unwrap(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn auth_audit_event_records_structured_evidence() {
+        let path = temp_path("auth-audit");
+        let state = GatewayState::open(&path).unwrap();
+
+        state
+            .record_auth_audit_event(&AuthAuditEvent {
+                event_id: TraceId::new("event-1").unwrap(),
+                timestamp: Utc::now(),
+                trace_id: TraceId::new("trace-1").unwrap(),
+                profile: GatewayProfileId::new("default").unwrap(),
+                protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
+                    .unwrap(),
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::MissingAuthorizationHeader,
+                method: AuthMethod::BearerJwt,
+                principal: None,
+                tenant: None,
+                token_issuer: None,
+                token_subject: None,
+                jwt_id: None,
+                latency_ms: Some(3),
+                metadata: BTreeMap::new(),
+            })
+            .unwrap();
+
+        assert_eq!(state.auth_audit_event_count().unwrap(), 1);
 
         let _ = std::fs::remove_file(path);
     }

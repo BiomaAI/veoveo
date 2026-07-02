@@ -48,9 +48,12 @@ smoke-gateway-http:
     body="${tmpdir}/body"
     state_db="${tmpdir}/state.duckdb"
     internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    pid=""
     cleanup() {
-        kill "${pid}" 2>/dev/null || true
-        wait "${pid}" 2>/dev/null || true
+        if [ -n "${pid}" ]; then
+            kill "${pid}" 2>/dev/null || true
+            wait "${pid}" 2>/dev/null || true
+        fi
         rm -rf "${tmpdir}"
     }
     cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" --internal-token-secret "${internal_secret}" >"${log}" 2>&1 &
@@ -67,6 +70,10 @@ smoke-gateway-http:
     status="$(curl -sS -D "${headers}" -o "${body}" -w "%{http_code}" "${base}/mcp/default")"
     test "${status}" = "401"
     grep -Fi 'www-authenticate: Bearer resource_metadata="https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default", scope="media:use"' "${headers}"
+    kill "${pid}"
+    wait "${pid}" 2>/dev/null || true
+    pid=""
+    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":1'
 
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:
