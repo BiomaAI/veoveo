@@ -21,7 +21,10 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode, jwk::JwkSet};
+use jsonwebtoken::{
+    Algorithm, EncodingKey, Header, encode,
+    jwk::{Jwk, JwkSet},
+};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
@@ -121,6 +124,7 @@ struct AppState {
     catalog: SharedCatalog,
     gateway_state: GatewayState,
     http: reqwest::Client,
+    public_base_url: String,
 }
 
 #[derive(Clone)]
@@ -296,6 +300,7 @@ async fn serve(
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
         http: http.clone(),
+        public_base_url: deployment.base_url().to_string(),
     };
 
     let mut router = Router::new()
@@ -310,6 +315,7 @@ async fn serve(
             "/.well-known/oauth-authorization-server/oauth/{profile}",
             get(authorization_server_metadata),
         )
+        .route("/oauth/{profile}/jwks.json", get(authorization_server_jwks))
         .with_state(state);
 
     for profile in initial_catalog.profiles() {
@@ -422,13 +428,49 @@ async fn authorization_server_metadata(
     };
     let catalog = current_catalog(&state.catalog);
     match catalog.authorization_server_metadata(&profile_id) {
-        Ok(metadata) => {
+        Ok(mut metadata) => {
+            metadata.jwks_uri = Some(format!(
+                "{}/oauth/{}/jwks.json",
+                state.public_base_url.trim_end_matches('/'),
+                profile_id
+            ));
             let mut headers = HeaderMap::new();
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
             (StatusCode::OK, headers, Json(metadata)).into_response()
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+async fn authorization_server_jwks(
+    State(state): State<AppState>,
+    AxumPath(profile): AxumPath<String>,
+) -> axum::response::Response {
+    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&profile_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let jwks = match authorization_server_jwks_from_signing_key(&catalog, authorization_server) {
+        Ok(jwks) => jwks,
+        Err(err) => {
+            tracing::error!("failed to build authorization server JWKS: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=300, must-revalidate"),
+    );
+    (StatusCode::OK, headers, Json(jwks)).into_response()
 }
 
 async fn token_endpoint(
@@ -1135,6 +1177,20 @@ fn issue_client_credentials_access_token(
         access_token,
         jwt_id,
     })
+}
+
+fn authorization_server_jwks_from_signing_key(
+    catalog: &GatewayCatalog,
+    authorization_server: &ResourceAuthorizationServer,
+) -> anyhow::Result<JwkSet> {
+    let signing_key = access_token_signing_key(
+        catalog,
+        &authorization_server.access_token_signing_key,
+        SecretPurpose::JwksPrivateKey,
+    )?;
+    let mut jwk = Jwk::from_encoding_key(&signing_key, Algorithm::RS256)?;
+    jwk.common.key_id = Some(authorization_server.access_token_key_id.to_string());
+    Ok(JwkSet { keys: vec![jwk] })
 }
 
 fn access_token_signing_key(

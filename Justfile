@@ -59,6 +59,7 @@ smoke-gateway-http:
     log="${tmpdir}/gateway.log"
     state_db="${tmpdir}/state.duckdb"
     internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
     pid=""
     cleanup() {
         if [ -n "${pid}" ]; then
@@ -67,7 +68,7 @@ smoke-gateway-http:
         fi
         rm -rf "${tmpdir}"
     }
-    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" >"${log}" 2>&1 &
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" >"${log}" 2>&1 &
     pid=$!
     trap cleanup EXIT
     for _ in {1..50}; do
@@ -80,9 +81,11 @@ smoke-gateway-http:
     {{conformance}} --url "${base}/mcp/default" auth-discovery \
         --metadata-url "${base}/.well-known/oauth-protected-resource/mcp/default" \
         --authorization-server-metadata-url "${base}/.well-known/oauth-authorization-server/oauth/default" \
+        --authorization-server-jwks-url "${base}/oauth/default/jwks.json" \
         --required-scope media:use \
         --required-extension io.modelcontextprotocol/enterprise-managed-authorization \
         --required-extension io.modelcontextprotocol/oauth-client-credentials \
+        --required-jwks-key-id test-key \
         --required-grant-type authorization_code \
         --required-grant-type client_credentials \
         --required-grant-type urn:ietf:params:oauth:grant-type:jwt-bearer \

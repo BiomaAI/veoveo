@@ -85,6 +85,12 @@ enum Cmd {
         /// Authorization-server metadata URL to verify.
         #[arg(long)]
         authorization_server_metadata_url: Option<String>,
+        /// Authorization-server JWKS URL to verify. Overrides metadata jwks_uri when set.
+        #[arg(long)]
+        authorization_server_jwks_url: Option<String>,
+        /// JWKS key id that must appear in the authorization server JWKS.
+        #[arg(long = "required-jwks-key-id")]
+        required_jwks_key_ids: Vec<String>,
         /// OAuth grant type that must appear in authorization-server metadata.
         #[arg(long = "required-grant-type")]
         required_grant_types: Vec<String>,
@@ -201,6 +207,8 @@ struct AuthDiscoveryMetadata {
 struct AuthorizationServerDiscoveryMetadata {
     issuer: String,
     token_endpoint: String,
+    #[serde(default)]
+    jwks_uri: Option<String>,
     #[serde(default)]
     grant_types_supported: Vec<String>,
     #[serde(default)]
@@ -328,6 +336,8 @@ async fn cmd_auth_discovery(
     required_scopes: &[String],
     required_extensions: &[String],
     authorization_server_metadata_url: Option<&str>,
+    authorization_server_jwks_url: Option<&str>,
+    required_jwks_key_ids: &[String],
     required_grant_types: &[String],
     required_grant_profiles: &[String],
     required_token_auth_methods: &[String],
@@ -395,6 +405,9 @@ async fn cmd_auth_discovery(
                 "authorization-server metadata has empty token endpoint"
             ));
         }
+        if authorization_server_metadata.jwks_uri.is_none() {
+            return Err(anyhow!("authorization-server metadata has no jwks_uri"));
+        }
         for grant_type in required_grant_types {
             if !authorization_server_metadata
                 .grant_types_supported
@@ -426,6 +439,29 @@ async fn cmd_auth_discovery(
                 return Err(anyhow!(
                     "authorization-server metadata is missing required token auth method `{auth_method}`"
                 ));
+            }
+        }
+        if !required_jwks_key_ids.is_empty() {
+            let jwks_url = authorization_server_jwks_url
+                .or(authorization_server_metadata.jwks_uri.as_deref())
+                .ok_or_else(|| anyhow!("authorization-server JWKS URL is required"))?;
+            let jwks = http
+                .get(jwks_url)
+                .send()
+                .await?
+                .error_for_status()?
+                .json::<JwkSet>()
+                .await?;
+            for key_id in required_jwks_key_ids {
+                if !jwks
+                    .keys
+                    .iter()
+                    .any(|key| key.common.key_id.as_deref() == Some(key_id.as_str()))
+                {
+                    return Err(anyhow!(
+                        "authorization-server JWKS is missing required key id `{key_id}`"
+                    ));
+                }
             }
         }
     }
@@ -1062,6 +1098,8 @@ async fn main() -> Result<()> {
             required_scopes,
             required_extensions,
             authorization_server_metadata_url,
+            authorization_server_jwks_url,
+            required_jwks_key_ids,
             required_grant_types,
             required_grant_profiles,
             required_token_auth_methods,
@@ -1072,6 +1110,8 @@ async fn main() -> Result<()> {
                 required_scopes,
                 required_extensions,
                 authorization_server_metadata_url.as_deref(),
+                authorization_server_jwks_url.as_deref(),
+                required_jwks_key_ids,
                 required_grant_types,
                 required_grant_profiles,
                 required_token_auth_methods,
