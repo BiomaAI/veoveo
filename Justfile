@@ -57,11 +57,7 @@ compose-ps:
 
 # Follow logs for one service.
 logs service='media-mcp':
-    {{compose-env}}; docker compose --profile dev logs -f --tail=200 {{service}}
-
-# Start a Cloudflare quick tunnel for the media server.
-tunnel protocol='http2':
-    cloudflared tunnel --config /dev/null --protocol {{protocol}} --url http://127.0.0.1:8787
+    {{compose-env}}; docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel logs -f --tail=200 {{service}}
 
 # Check local health and, optionally, public tunnel health.
 health public_base_url='':

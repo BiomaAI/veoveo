@@ -14,10 +14,10 @@ use rmcp::{
     model::{
         ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams, ClientCapabilities,
         ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock, GetTaskParams,
-        GetTaskPayloadParams, Implementation, LoggingMessageNotificationParam, NumberOrString,
-        ProgressNotificationParam, ProgressToken, ReadResourceRequestParams, Reference, Request,
-        RequestParamsMeta, ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams,
-        TaskMetadata, TaskStatus, TaskStatusNotificationParam,
+        GetTaskPayloadParams, Implementation, NumberOrString, ProgressNotificationParam,
+        ProgressToken, ReadResourceRequestParams, Reference, Request, RequestParamsMeta,
+        ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams, TaskMetadata,
+        TaskStatus, TaskStatusNotificationParam,
     },
     service::NotificationContext,
     transport::StreamableHttpClientTransport,
@@ -129,14 +129,6 @@ impl ClientHandler for CliHandler {
 
     async fn on_resource_list_changed(&self, _context: NotificationContext<rmcp::RoleClient>) {
         println!("  [resource list changed]");
-    }
-
-    async fn on_logging_message(
-        &self,
-        params: LoggingMessageNotificationParam,
-        _context: NotificationContext<rmcp::RoleClient>,
-    ) {
-        println!("  [log {:?}] {}", params.level, params.data);
     }
 }
 

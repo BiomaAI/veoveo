@@ -101,19 +101,33 @@ record estimates and actual billing rows the same way. Local runs default to
 `/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. RustFS stores artifact
 bytes only.
 
+### Logs
+
+The server writes operational logs to stdout/stderr. Docker Compose exposes those logs
+through:
+
+```sh
+just logs media-mcp
+just logs cloudflared
+```
+
+Enterprise deployments should collect container stdout/stderr with their platform-native
+logging stack, such as Kubernetes logging, Docker logging drivers, CloudWatch, Splunk,
+Datadog, or an OpenTelemetry collector. Veoveo does not store application logs in DuckDB
+or RustFS. DuckDB is for task, artifact, prediction, and usage analytics state; object
+storage is for artifact bytes.
+
 ### Local Process
 
 ```sh
-# 1. public endpoint so the provider can reach the webhook + input files
-just tunnel
-# note the printed https://….trycloudflare.com URL
+# 1. ensure PUBLIC_BASE_URL routes to this process, using your ingress/proxy/tunnel
 
 # 2. server (requires a reachable S3-compatible artifact store)
 export AWS_ACCESS_KEY_ID=rustfsadmin
 export AWS_SECRET_ACCESS_KEY=rustfsadmin
 export AWS_DEFAULT_REGION=us-east-1
 cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
-    --public-base-url https://….trycloudflare.com \
+    --public-base-url https://veoveo.bioma.ai \
     --artifact-endpoint http://localhost:9000 --artifact-bucket media-artifacts
 
 # 3. conformance CLI
@@ -122,7 +136,7 @@ cargo run -p veoveo-mcp-contract --bin conformance -- models kling --type image-
 cargo run -p veoveo-mcp-contract --bin conformance -- complete gpt-image
 cargo run -p veoveo-mcp-contract --bin conformance -- schema openai/gpt-image-2/edit
 cargo run -p veoveo-mcp-contract --bin conformance -- run openai/gpt-image-2/edit \
-    --input '{"prompt":"add a red wizard hat","images":["https://….trycloudflare.com/media/files/gol-real-roblox.jpeg"]}'
+    --input '{"prompt":"add a red wizard hat","images":["https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg"]}'
 cargo run -p veoveo-mcp-contract --bin conformance -- usage <task-id>
 cargo run -p veoveo-mcp-contract --bin conformance -- artifact <sha256>
 ```
