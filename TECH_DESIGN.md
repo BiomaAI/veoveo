@@ -283,6 +283,9 @@ Gateway data must be split by sensitivity and lifecycle:
   OAuth client registrations, data-label definitions, and secret references. This data is
   dynamic and durable. It should start as typed files plus hot reload or an explicit admin
   API, then move to a control-plane store without changing the MCP contract.
+  The file-backed gateway exposes an authenticated admin reload path for mounted profiles;
+  the set of mounted profile route ids is immutable during reload and changing it is a
+  deploy operation.
 - **Secret data**: provider API keys, webhook secrets, OAuth client secrets, gateway
   signing keys, JWKS private keys, and token-exchange credentials. Store secret references
   in control data, never secret values. Local development may use `.env`; enterprise

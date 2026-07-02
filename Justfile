@@ -79,10 +79,12 @@ smoke-gateway-http:
         --required-scope media:use \
         --required-extension io.modelcontextprotocol/enterprise-managed-authorization \
         --required-extension io.modelcontextprotocol/oauth-client-credentials
+    status="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${base}/admin/default/reload-control-plane")"
+    test "${status}" = "401"
     kill "${pid}"
     wait "${pid}" 2>/dev/null || true
     pid=""
-    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":1'
+    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":2'
     cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db "${state_db}" --profile default --issuer https://idp.example.com --jwt-id smoke-jwt --expires-at 2999-01-01T00:00:00Z --reason smoke >/dev/null
     test "$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db "${state_db}")" = "0"
 

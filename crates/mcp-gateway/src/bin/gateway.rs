@@ -1,7 +1,8 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 
@@ -14,7 +15,7 @@ use axum::{
     },
     middleware::{self, Next},
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
 };
 use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
@@ -25,16 +26,18 @@ use rmcp::transport::streamable_http_server::{
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GATEWAY_INTERNAL_TOKEN_ISSUER,
-    GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayProfile, GatewayProfileId,
-    InternalTokenSecret, JwtId, PublicDeployment, TokenIssuer, TraceId,
+    AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayInternalTokenIssuer, GatewayJwtRevocation,
+    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwtId, McpMethodName, PolicyDecision,
+    PolicyEffect, PolicyTarget, PublicDeployment, TokenIssuer, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
-    JwtVerifier, www_authenticate_challenge,
+    JwtVerifier, PolicyRequest, www_authenticate_challenge,
 };
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -106,20 +109,36 @@ enum Command {
 
 #[derive(Clone)]
 struct AppState {
-    catalog: Arc<GatewayCatalog>,
+    catalog: SharedCatalog,
 }
 
 #[derive(Clone)]
 struct ProfileAuthState {
-    catalog: Arc<GatewayCatalog>,
+    catalog: SharedCatalog,
     gateway_state: GatewayState,
     profile_id: GatewayProfileId,
     public_base_url: String,
     http: reqwest::Client,
 }
 
+#[derive(Clone)]
+struct AdminState {
+    catalog: SharedCatalog,
+    mounted_profiles: Arc<BTreeSet<GatewayProfileId>>,
+    control_plane: PathBuf,
+    gateway_state: GatewayState,
+    profile_id: GatewayProfileId,
+}
+
 #[derive(Debug, Serialize)]
 struct Readiness {
+    status: &'static str,
+    servers: usize,
+    profiles: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ReloadResult {
     status: &'static str,
     servers: usize,
     profiles: usize,
@@ -202,7 +221,9 @@ async fn serve(
     state_db: PathBuf,
     internal_token_secret: String,
 ) -> anyhow::Result<()> {
-    let catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
+    let initial_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
+    let mounted_profiles = Arc::new(profile_ids(&initial_catalog));
+    let catalog = Arc::new(RwLock::new(initial_catalog.clone()));
     let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
@@ -233,7 +254,7 @@ async fn serve(
         )
         .with_state(state);
 
-    for profile in catalog.profiles() {
+    for profile in initial_catalog.profiles() {
         let profile_id = profile.id.clone();
         let profile_internal_token_issuer = internal_token_issuer.clone();
         let mcp_service = StreamableHttpService::new(
@@ -242,8 +263,9 @@ async fn serve(
                 let gateway_state = gateway_state.clone();
                 let profile_id = profile_id.clone();
                 move || {
+                    let catalog = current_catalog(&catalog);
                     Ok(GatewayMcp::new(
-                        catalog.clone(),
+                        catalog,
                         profile_id.clone(),
                         gateway_state.clone(),
                         profile_internal_token_issuer.clone(),
@@ -268,13 +290,33 @@ async fn serve(
             .route_service("/{*path}", mcp_service)
             .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
         router = router.nest(&format!("/mcp/{profile_id}"), profile_router);
+
+        let admin_state = AdminState {
+            catalog: catalog.clone(),
+            mounted_profiles: mounted_profiles.clone(),
+            control_plane: control_plane.clone(),
+            gateway_state: gateway_state.clone(),
+            profile_id: profile_id.clone(),
+        };
+        let auth_state = ProfileAuthState {
+            catalog: catalog.clone(),
+            gateway_state: gateway_state.clone(),
+            profile_id: profile_id.clone(),
+            public_base_url: deployment.base_url().to_string(),
+            http: http.clone(),
+        };
+        let admin_router = Router::new()
+            .route("/reload-control-plane", post(reload_control_plane))
+            .with_state(admin_state)
+            .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
+        router = router.nest(&format!("/admin/{profile_id}"), admin_router);
     }
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(
         "veoveo-mcp-gateway listening on http://{addr} with {} server(s), {} profile(s)",
-        catalog.server_count(),
-        catalog.profile_count()
+        initial_catalog.server_count(),
+        initial_catalog.profile_count()
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)
@@ -287,10 +329,11 @@ async fn serve(
 }
 
 async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
+    let catalog = current_catalog(&state.catalog);
     Json(Readiness {
         status: "ready",
-        servers: state.catalog.server_count(),
-        profiles: state.catalog.profile_count(),
+        servers: catalog.server_count(),
+        profiles: catalog.profile_count(),
     })
 }
 
@@ -301,7 +344,8 @@ async fn protected_resource_metadata(
     let Ok(profile_id) = GatewayProfileId::new(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    match state.catalog.protected_resource_metadata(&profile_id) {
+    let catalog = current_catalog(&state.catalog);
+    match catalog.protected_resource_metadata(&profile_id) {
         Ok(metadata) => {
             let mut headers = HeaderMap::new();
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -311,17 +355,105 @@ async fn protected_resource_metadata(
     }
 }
 
+async fn reload_control_plane(
+    State(state): State<AdminState>,
+    request: Request,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let Some(subject) = request.extensions().get::<AuthenticatedSubject>().cloned() else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&state.profile_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
+        Ok(trace_id) => trace_id,
+        Err(err) => return internal_error_response(err),
+    };
+    let target = PolicyTarget::Gateway;
+    let decision = catalog.decide(PolicyRequest {
+        principal: &subject.principal,
+        profile: &state.profile_id,
+        action: GatewayAction::AdminWrite,
+        target: &target,
+        trace_id: &trace_id,
+    });
+    if let Err(err) = record_admin_audit(
+        &state.gateway_state,
+        profile,
+        &subject,
+        GatewayAction::AdminWrite,
+        target,
+        decision.clone(),
+        started_at,
+    ) {
+        return internal_error_response(err);
+    }
+    if decision.effect != PolicyEffect::Allow {
+        tracing::warn!(
+            profile = %state.profile_id,
+            principal = %subject.principal.id,
+            reason = ?decision.reason,
+            "gateway admin reload denied"
+        );
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let new_catalog = match GatewayCatalog::load_json(&state.control_plane) {
+        Ok(catalog) => Arc::new(catalog),
+        Err(err) => {
+            tracing::error!("failed to reload gateway control plane: {err}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to reload gateway control plane",
+            )
+                .into_response();
+        }
+    };
+    let new_profile_ids = profile_ids(&new_catalog);
+    if new_profile_ids != *state.mounted_profiles {
+        tracing::error!(
+            mounted = ?state.mounted_profiles,
+            reloaded = ?new_profile_ids,
+            "gateway control-plane reload changed mounted profile routes"
+        );
+        return (
+            StatusCode::CONFLICT,
+            "control-plane reload cannot change mounted profile routes",
+        )
+            .into_response();
+    }
+
+    let servers = new_catalog.server_count();
+    let profiles = new_catalog.profile_count();
+    replace_catalog(&state.catalog, new_catalog);
+    tracing::info!(
+        profile = %state.profile_id,
+        principal = %subject.principal.id,
+        servers,
+        profiles,
+        "gateway control plane reloaded"
+    );
+    Json(ReloadResult {
+        status: "reloaded",
+        servers,
+        profiles,
+    })
+    .into_response()
+}
+
 async fn authenticate_mcp(
     State(state): State<ProfileAuthState>,
     mut request: Request,
     next: Next,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let Some(profile) = state.catalog.profile(&state.profile_id) else {
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&state.profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(identity_provider) = state.catalog.identity_provider(&profile.identity_provider)
-    else {
+    let Some(identity_provider) = catalog.identity_provider(&profile.identity_provider) else {
         if let Err(err) = record_auth_audit(
             &state,
             profile,
@@ -481,6 +613,53 @@ async fn fetch_jwks(http: &reqwest::Client, url: &str) -> anyhow::Result<JwkSet>
     Ok(response.json::<JwkSet>().await?)
 }
 
+fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
+    catalog
+        .read()
+        .expect("gateway catalog lock poisoned")
+        .clone()
+}
+
+fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
+    *catalog.write().expect("gateway catalog lock poisoned") = new_catalog;
+}
+
+fn profile_ids(catalog: &GatewayCatalog) -> BTreeSet<GatewayProfileId> {
+    catalog
+        .profiles()
+        .map(|profile| profile.id.clone())
+        .collect()
+}
+
+fn record_admin_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    subject: &AuthenticatedSubject,
+    action: GatewayAction,
+    target: PolicyTarget,
+    decision: PolicyDecision,
+    started_at: Instant,
+) -> anyhow::Result<()> {
+    let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    gateway_state.record_audit_event(&AuditEvent {
+        event_id,
+        timestamp: decision.evaluated_at,
+        trace_id: decision.trace_id.clone(),
+        profile: profile.id.clone(),
+        method: McpMethodName::new("admin/reload-control-plane")?,
+        action,
+        target,
+        decision,
+        principal: Some(subject.principal.id.clone()),
+        tenant: subject.principal.tenant.clone(),
+        token_issuer: Some(subject.access_token.issuer.clone()),
+        latency_ms: Some(latency_ms),
+        metadata: BTreeMap::new(),
+    })?;
+    Ok(())
+}
+
 fn record_auth_audit(
     state: &ProfileAuthState,
     profile: &GatewayProfile,
@@ -523,8 +702,14 @@ fn auth_audit_error_response(err: anyhow::Error) -> axum::response::Response {
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
+fn internal_error_response(err: impl std::fmt::Display) -> axum::response::Response {
+    tracing::error!("gateway internal error: {err}");
+    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+}
+
 fn unauthorized(state: &ProfileAuthState, reason: &'static str) -> axum::response::Response {
-    let Some(profile) = state.catalog.profile(&state.profile_id) else {
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&state.profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let metadata_url = format!(

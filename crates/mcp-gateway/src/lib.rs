@@ -126,14 +126,30 @@ impl GatewayCatalog {
         Ok(ProtectedResourceMetadata {
             resource: profile.protected_resource.to_string(),
             authorization_servers: vec![identity_provider.issuer.to_string()],
-            scopes_supported: profile
-                .required_scopes
-                .iter()
-                .map(ToString::to_string)
+            scopes_supported: self
+                .profile_supported_scopes(profile)
+                .into_iter()
+                .map(|scope| scope.to_string())
                 .collect(),
             bearer_methods_supported: vec!["header".to_string()],
             extensions: authorization_extensions(profile),
         })
+    }
+
+    fn profile_supported_scopes(&self, profile: &GatewayProfile) -> BTreeSet<ScopeName> {
+        let mut scopes = profile
+            .required_scopes
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if let Some(policy) = self.policy(&profile.policy_version) {
+            for rule in &policy.rules {
+                if rule.profiles.is_empty() || rule.profiles.contains(&profile.id) {
+                    scopes.extend(rule.required_scopes.iter().cloned());
+                }
+            }
+        }
+        scopes
     }
 
     pub fn server(&self, server_slug: &ServerSlug) -> Option<&ServerManifest> {
@@ -684,7 +700,12 @@ fn rule_match_detail(
 
 fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
     match target {
-        PolicyTarget::Gateway => true,
+        PolicyTarget::Gateway => {
+            rule.servers.is_empty()
+                && rule.tools.is_empty()
+                && rule.resource_schemes.is_empty()
+                && rule.prompts.is_empty()
+        }
         PolicyTarget::Server { server } => {
             filter_matches(&rule.servers, server)
                 && rule.tools.is_empty()
@@ -1103,6 +1124,63 @@ mod tests {
                 .extensions
                 .contains_key(MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION)
         );
+    }
+
+    #[test]
+    fn protected_resource_metadata_includes_policy_required_scopes() {
+        let mut policy = policy();
+        policy.rules.push(PolicyRule {
+            id: PolicyRuleId::new("allow_gateway_admin_write").unwrap(),
+            effect: PolicyEffect::Allow,
+            actions: BTreeSet::from([GatewayAction::AdminWrite]),
+            profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+            servers: BTreeSet::new(),
+            tools: BTreeSet::new(),
+            resource_schemes: BTreeSet::new(),
+            prompts: BTreeSet::new(),
+            principal_ids: BTreeSet::new(),
+            tenant_ids: BTreeSet::new(),
+            groups: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            required_scopes: BTreeSet::from([ScopeName::new("gateway:admin").unwrap()]),
+            required_data_labels: BTreeSet::new(),
+            metadata: Value::Null,
+        });
+        let catalog = catalog_with_policy(policy);
+        let metadata = catalog
+            .protected_resource_metadata(&GatewayProfileId::new("default").unwrap())
+            .unwrap();
+
+        assert!(
+            metadata
+                .scopes_supported
+                .iter()
+                .any(|scope| scope == "media:use")
+        );
+        assert!(
+            metadata
+                .scopes_supported
+                .iter()
+                .any(|scope| scope == "gateway:admin")
+        );
+    }
+
+    #[test]
+    fn gateway_policy_target_ignores_filtered_admin_rules() {
+        let mut policy = policy();
+        policy.rules[0].actions = BTreeSet::from([GatewayAction::AdminWrite]);
+        let catalog = catalog_with_policy(policy);
+        let principal = principal(&["media:use"]);
+        let decision = catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::AdminWrite,
+            target: &PolicyTarget::Gateway,
+            trace_id: &TraceId::new("trace-admin-filtered").unwrap(),
+        });
+
+        assert_eq!(decision.effect, PolicyEffect::Deny);
+        assert_eq!(decision.reason, PolicyReasonCode::PolicyDeny);
     }
 
     #[test]
