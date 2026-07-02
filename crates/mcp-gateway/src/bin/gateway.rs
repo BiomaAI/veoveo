@@ -39,15 +39,15 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayAuthorizationCodeRecord,
-    GatewayAuthorizationRequest, GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayProfile,
-    GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
-    OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthGrantType, OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce,
-    PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect,
-    PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
-    ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, SecretSource,
-    TokenIssuer, TokenSubject, TraceId,
+    CertificateAuthoritySource, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction,
+    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayInternalTokenIssuer,
+    GatewayJwtRevocation, GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId,
+    McpMethodName, OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId,
+    OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OAuthStateValue,
+    OidcClientAuthMethod, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier,
+    PolicyDecision, PolicyEffect, PolicyTarget, Principal, PrincipalId, PrincipalKind,
+    PublicDeployment, ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId,
+    SecretSource, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
@@ -63,6 +63,7 @@ const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 const AUTHORIZATION_REQUEST_TTL_SECONDS: i64 = 10 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS: i64 = 5 * 60;
 type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
+type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -136,7 +137,7 @@ enum Command {
 struct AppState {
     catalog: SharedCatalog,
     gateway_state: GatewayState,
-    http: reqwest::Client,
+    http: SharedHttpClient,
     public_base_url: String,
 }
 
@@ -146,12 +147,13 @@ struct ProfileAuthState {
     gateway_state: GatewayState,
     profile_id: GatewayProfileId,
     public_base_url: String,
-    http: reqwest::Client,
+    http: SharedHttpClient,
 }
 
 #[derive(Clone)]
 struct AdminState {
     catalog: SharedCatalog,
+    http: SharedHttpClient,
     mounted_profiles: Arc<BTreeSet<GatewayProfileId>>,
     control_plane: PathBuf,
     gateway_state: GatewayState,
@@ -363,10 +365,7 @@ async fn serve(
         "::1".to_string(),
         deployment.host_authority().to_string(),
     ];
-    let http = reqwest::Client::builder()
-        .timeout(GATEWAY_AUTH_HTTP_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
+    let http = Arc::new(RwLock::new(build_http_client(&initial_catalog)?));
     let state = AppState {
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
@@ -430,6 +429,7 @@ async fn serve(
 
         let admin_state = AdminState {
             catalog: catalog.clone(),
+            http: http.clone(),
             mounted_profiles: mounted_profiles.clone(),
             control_plane: control_plane.clone(),
             gateway_state: gateway_state.clone(),
@@ -1091,8 +1091,9 @@ async fn authorization_callback(
     drop(catalog);
     drop(identity_provider);
     drop(oidc_client);
+    let http = current_http_client(&state.http);
     let token_response =
-        match exchange_oidc_authorization_code(&state.http, token_exchange, idp_code).await {
+        match exchange_oidc_authorization_code(&http, token_exchange, idp_code).await {
             Ok(response) => response,
             Err(err) => {
                 tracing::warn!("OIDC token exchange failed: {err}");
@@ -1119,7 +1120,7 @@ async fn authorization_callback(
                 );
             }
         };
-    let idp_jwks = match load_jwks(&state.http, &idp_jwks_source).await {
+    let idp_jwks = match load_jwks(&http, &idp_jwks_source).await {
         Ok(jwks) => jwks,
         Err(err) => {
             tracing::warn!("failed to load identity provider JWKS for OIDC: {err}");
@@ -1452,7 +1453,8 @@ async fn token_endpoint(
             "client authentication is not configured",
         );
     };
-    let client_jwks = match load_jwks(&state.http, client_jwks_source).await {
+    let http = current_http_client(&state.http);
+    let client_jwks = match load_jwks(&http, client_jwks_source).await {
         Ok(jwks) => jwks,
         Err(err) => {
             tracing::warn!(client = %client_id, "failed to load OAuth client JWKS: {err}");
@@ -2178,7 +2180,8 @@ async fn token_endpoint_id_jag(
             "identity provider is unavailable",
         );
     };
-    let idp_jwks = match load_jwks(&state.http, &identity_provider.jwks).await {
+    let http = current_http_client(&state.http);
+    let idp_jwks = match load_jwks(&http, &identity_provider.jwks).await {
         Ok(jwks) => jwks,
         Err(err) => {
             tracing::warn!("failed to load identity provider JWKS for ID-JAG: {err}");
@@ -2492,9 +2495,21 @@ async fn reload_control_plane(
         )
             .into_response();
     }
+    let new_http = match build_http_client(&new_catalog) {
+        Ok(client) => client,
+        Err(err) => {
+            tracing::error!("failed to rebuild gateway HTTP client: {err}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to rebuild gateway HTTP client",
+            )
+                .into_response();
+        }
+    };
 
     let servers = new_catalog.server_count();
     let profiles = new_catalog.profile_count();
+    replace_http_client(&state.http, new_http);
     replace_catalog(&state.catalog, new_catalog);
     tracing::info!(
         profile = %state.profile_id,
@@ -2571,7 +2586,8 @@ async fn authenticate_mcp(
         }
     };
 
-    let jwks = match load_jwks(&state.http, &authorization_server.jwks).await {
+    let http = current_http_client(&state.http);
+    let jwks = match load_jwks(&http, &authorization_server.jwks).await {
         Ok(jwks) => jwks,
         Err(err) => {
             tracing::warn!("failed to load resource authorization server JWKS: {err}");
@@ -3100,8 +3116,50 @@ fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
         .clone()
 }
 
+fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
+    http.read()
+        .expect("gateway HTTP client lock poisoned")
+        .clone()
+}
+
 fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
     *catalog.write().expect("gateway catalog lock poisoned") = new_catalog;
+}
+
+fn replace_http_client(http: &SharedHttpClient, new_client: reqwest::Client) {
+    *http.write().expect("gateway HTTP client lock poisoned") = new_client;
+}
+
+fn build_http_client(catalog: &GatewayCatalog) -> anyhow::Result<reqwest::Client> {
+    let mut builder = reqwest::Client::builder()
+        .timeout(GATEWAY_AUTH_HTTP_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none());
+
+    for identity_provider in catalog.identity_providers() {
+        for trust_anchor in &identity_provider.trusted_certificate_authorities {
+            match trust_anchor {
+                CertificateAuthoritySource::File { path } => {
+                    let bytes = std::fs::read(path.as_str()).with_context(|| {
+                        format!(
+                            "failed to read trusted CA certificate `{path}` for identity provider `{}`",
+                            identity_provider.id
+                        )
+                    })?;
+                    let certificate = reqwest::Certificate::from_pem(&bytes).with_context(|| {
+                        format!(
+                            "failed to parse trusted CA certificate `{path}` for identity provider `{}`",
+                            identity_provider.id
+                        )
+                    })?;
+                    builder = builder.add_root_certificate(certificate);
+                }
+            }
+        }
+    }
+
+    builder
+        .build()
+        .context("failed to build gateway HTTP client")
 }
 
 fn profile_ids(catalog: &GatewayCatalog) -> BTreeSet<GatewayProfileId> {

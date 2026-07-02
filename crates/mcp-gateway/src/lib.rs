@@ -127,6 +127,10 @@ impl GatewayCatalog {
         self.control_plane.profiles.iter()
     }
 
+    pub fn identity_providers(&self) -> impl Iterator<Item = &IdentityProvider> {
+        self.control_plane.identity_providers.iter()
+    }
+
     pub fn server_count(&self) -> usize {
         self.control_plane.servers.len()
     }
@@ -1042,6 +1046,7 @@ mod tests {
             jwks: JwksSource::Remote {
                 jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
             },
+            trusted_certificate_authorities: Vec::new(),
             authorization_endpoint: Some(
                 HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
             ),

@@ -1780,6 +1780,8 @@ pub struct IdentityProvider {
     pub id: IdentityProviderId,
     pub issuer: TokenIssuer,
     pub jwks: JwksSource,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trusted_certificate_authorities: Vec<CertificateAuthoritySource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authorization_endpoint: Option<HttpsUrl>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1811,6 +1813,12 @@ pub struct ResourceAuthorizationServer {
 pub enum JwksSource {
     Remote { jwks_uri: HttpsUrl },
     File { path: JwksFilePath },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "source")]
+pub enum CertificateAuthoritySource {
+    File { path: CertificateAuthorityFilePath },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -2653,6 +2661,56 @@ impl From<JwksFilePath> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+pub struct CertificateAuthorityFilePath(String);
+
+impl CertificateAuthorityFilePath {
+    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        validate_local_file_path(&value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for CertificateAuthorityFilePath {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for CertificateAuthorityFilePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for CertificateAuthorityFilePath {
+    type Error = IdentifierError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl FromStr for CertificateAuthorityFilePath {
+    type Err = IdentifierError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::new(value.to_string())
+    }
+}
+
+impl From<CertificateAuthorityFilePath> for String {
+    fn from(value: CertificateAuthorityFilePath) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
 pub struct ResourceUri(String);
 
 impl ResourceUri {
@@ -3113,6 +3171,7 @@ mod tests {
             jwks: JwksSource::Remote {
                 jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
             },
+            trusted_certificate_authorities: Vec::new(),
             authorization_endpoint: Some(
                 HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
             ),
