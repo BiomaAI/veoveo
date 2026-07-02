@@ -33,6 +33,22 @@ and explicit domain types whenever the shape is known or controlled by our contr
 Use raw JSON only at genuinely open-ended boundaries, such as provider-specific model
 input schemas or opaque provider payloads that cannot be modeled honestly yet.
 
+## Module Boundaries
+
+Do not create monolithic god files. Rust files should have a focused responsibility and
+compose through explicit modules instead of growing into thousands of lines of mixed
+types, HTTP routes, state, auth, policy, CLI, tests, and helpers.
+
+When a source file is approaching roughly 1,000 lines, prefer extracting a cohesive
+module before adding more behavior. Files above roughly 1,500 lines require a concrete
+reason to remain that large. Generated files, schema snapshots, and intentionally dense
+test fixtures are the only normal exceptions.
+
+Binary entrypoints should stay thin: parse CLI/config, initialize dependencies, wire
+routes/services, and delegate real behavior to modules. New gateway work should be split
+into modules such as auth routes, admin routes, OAuth flows, metadata, application state,
+HTTP wiring, and command handlers instead of continuing to expand one file.
+
 ## Justfile Discipline
 
 Do not abuse the Justfile as a smoke-test framework or scripting language. Keep recipes as
