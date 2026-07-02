@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use object_store::{ObjectStore, ObjectStoreExt, aws::AmazonS3Builder, path::Path};
+use object_store::{
+    Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, aws::AmazonS3Builder,
+    path::Path,
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactStore as ArtifactStoreContract,
-    ProviderUris, artifact_object_key, now_iso,
+    ProviderUris, artifact_object_key, now_utc,
 };
 
-use crate::state::SqliteState;
+use crate::state::DuckdbState;
 
 #[derive(Debug, Clone)]
 pub struct S3ArtifactConfig {
@@ -23,7 +25,7 @@ pub struct S3ArtifactConfig {
 #[derive(Clone)]
 pub struct S3ArtifactStore {
     inner: Arc<dyn ObjectStore>,
-    state: SqliteState,
+    state: DuckdbState,
     uris: ProviderUris,
     download_base_url: String,
 }
@@ -31,7 +33,7 @@ pub struct S3ArtifactStore {
 impl S3ArtifactStore {
     pub fn new(
         config: S3ArtifactConfig,
-        state: SqliteState,
+        state: DuckdbState,
         uris: ProviderUris,
         download_base_url: impl Into<String>,
     ) -> Result<Self> {
@@ -64,7 +66,6 @@ impl S3ArtifactStore {
     }
 }
 
-#[async_trait]
 impl ArtifactStoreContract for S3ArtifactStore {
     async fn put(&self, artifact: ArtifactPut) -> Result<ArtifactMetadata> {
         let sha256 = hex::encode(Sha256::digest(&artifact.bytes));
@@ -76,8 +77,13 @@ impl ArtifactStoreContract for S3ArtifactStore {
             return Ok(existing);
         }
 
+        let mut put_options = PutOptions::default();
+        if let Some(mime_type) = &artifact.mime_type {
+            put_options.attributes =
+                Attributes::from_iter([(Attribute::ContentType, mime_type.clone())]);
+        }
         self.inner
-            .put(&path, artifact.bytes.clone().into())
+            .put_opts(&path, artifact.bytes.clone().into(), put_options)
             .await
             .with_context(|| format!("writing artifact object {sha256}"))?;
 
@@ -88,7 +94,7 @@ impl ArtifactStoreContract for S3ArtifactStore {
             filename: artifact.filename,
             artifact_uri: self.uris.artifact_uri(&sha256),
             download_url: Some(self.download_url(&sha256)),
-            created_at: now_iso(),
+            created_at: now_utc(),
             compliance: artifact.compliance,
             metadata: match artifact.metadata {
                 Value::Null => Value::Object(Default::default()),

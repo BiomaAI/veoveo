@@ -64,26 +64,34 @@ cp .env.example .env
 # fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_URL, and
 # CLOUDFLARED_TUNNEL_TOKEN for the named tunnel.
 
+just compose-build
 just compose-up
 
 # include the tunnel service when the named tunnel token is configured
 docker compose --profile dev --profile tunnel up --build
 ```
 
+The media image uses BuildKit cache mounts for Cargo registry, git, and target output.
+The workspace also pins `DUCKDB_DOWNLOAD_LIB=1` in `.cargo/config.toml`, so builds link
+the matching prebuilt DuckDB library instead of compiling DuckDB C++ sources. First builds
+still download crates and DuckDB; rebuilds reuse the BuildKit caches.
+
 RustFS is available locally at `http://localhost:9000` with the development credentials
 defined in Compose. Compose also creates the `media-artifacts` bucket. Those credentials
 are for the local stack only.
 
-Task, prediction, artifact metadata, and usage metadata are persisted in SQLite. Local
-runs default to `state.sqlite`; Compose stores the media server's state at
-`/var/lib/veoveo/media/state.sqlite` on the `media_state` volume. RustFS stores artifact
+Task, prediction, artifact metadata, and usage metadata are persisted in DuckDB. The
+shared contract crate owns the DuckDB usage analytics schema so every MCP server can
+record estimates and actual billing rows the same way. Local runs default to
+`state.duckdb`; Compose stores the media server's state at
+`/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. RustFS stores artifact
 bytes only.
 
 ### Local Process
 
 ```sh
 # 1. public endpoint so the provider can reach the webhook + input files
-cloudflared tunnel --url http://localhost:8787
+cloudflared tunnel --config /dev/null --url http://127.0.0.1:8787
 # note the printed https://….trycloudflare.com URL
 
 # 2. server (requires a reachable S3-compatible artifact store)
@@ -115,12 +123,13 @@ provider.
 Cargo.toml                                      veoveo workspace manifest
 crates/mcp-contract/                           reusable Veoveo MCP contract crate
 crates/mcp-contract/src/bin/conformance.rs     generic Veoveo MCP conformance CLI
+crates/mcp-contract/src/analytics.rs           shared DuckDB usage analytics schema/store
 crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
 crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
 crates/media-mcp/src/artifacts.rs              S3-compatible artifact store implementation
 crates/media-mcp/src/provider.rs               internal provider API client + types
-crates/media-mcp/src/state.rs                  per-server SQLite task/prediction/artifact/usage state
+crates/media-mcp/src/state.rs                  per-server DuckDB task/prediction/artifact state
 crates/media-mcp/src/webhook.rs                internal webhook signature verification
 crates/media-mcp/src/uris.rs                   media:// URI scheme
 crates/media-mcp/src/bin/server.rs             MCP server

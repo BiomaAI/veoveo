@@ -26,6 +26,13 @@ Provider job completion is webhook-only. Do not add provider status polling, pol
 fallbacks, backup status checks, or timeout recovery paths that query the provider.
 Missing webhook delivery is an operational failure.
 
+## Strong Types
+
+Strong types are extremely important in this repository. Prefer typed structs, enums,
+and explicit domain types whenever the shape is known or controlled by our contract.
+Use raw JSON only at genuinely open-ended boundaries, such as provider-specific model
+input schemas or opaque provider payloads that cannot be modeled honestly yet.
+
 ## Naming
 
 The workspace is `veoveo`. Crates are Veoveo crates. Folder names should stay concise and

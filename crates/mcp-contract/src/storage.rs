@@ -1,5 +1,7 @@
+use std::future::Future;
+
 use anyhow::Result;
-use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -17,7 +19,7 @@ pub struct ComplianceMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retention_expires_at: Option<String>,
+    pub retention_expires_at: Option<DateTime<Utc>>,
 }
 
 /// Canonical metadata for an artifact managed by a server-owned store.
@@ -36,7 +38,7 @@ pub struct ArtifactMetadata {
     pub artifact_uri: String,
     #[serde(default)]
     pub download_url: Option<String>,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub compliance: ComplianceMetadata,
     #[serde(default)]
@@ -77,9 +79,8 @@ pub struct ArtifactObject {
 /// Implementations can target local disk, S3-compatible stores, or any other
 /// content-addressed object store. MCP servers depend on this port, not on a
 /// concrete storage service.
-#[async_trait]
 pub trait ArtifactStore: Clone + Send + Sync + 'static {
-    async fn put(&self, artifact: ArtifactPut) -> Result<ArtifactMetadata>;
-    async fn get(&self, sha256: &str) -> Result<Option<ArtifactObject>>;
-    async fn head(&self, sha256: &str) -> Result<Option<ArtifactMetadata>>;
+    fn put(&self, artifact: ArtifactPut) -> impl Future<Output = Result<ArtifactMetadata>> + Send;
+    fn get(&self, sha256: &str) -> impl Future<Output = Result<Option<ArtifactObject>>> + Send;
+    fn head(&self, sha256: &str) -> impl Future<Output = Result<Option<ArtifactMetadata>>> + Send;
 }

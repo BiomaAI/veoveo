@@ -1,5 +1,6 @@
 //! Minimal provider API client: model registry and prediction submit.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -30,7 +31,7 @@ pub struct Prediction {
     pub urls: Option<PredictionUrls>,
     pub status: String,
     #[serde(default)]
-    pub created_at: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub error: Option<String>,
     #[serde(rename = "executionTime", default)]
@@ -46,6 +47,59 @@ impl Prediction {
     pub fn is_terminal(&self) -> bool {
         matches!(self.status.as_str(), "completed" | "failed")
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BillingSearchResult {
+    #[serde(default)]
+    pub items: Vec<BillingRecord>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BillingRecord {
+    pub uuid: String,
+    pub billing_type: String,
+    #[serde(default)]
+    pub price: Option<f64>,
+    #[serde(default)]
+    pub created_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub updated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub order: Option<BillingOrder>,
+    #[serde(default)]
+    pub prediction: Option<BillingPrediction>,
+}
+
+impl BillingRecord {
+    pub fn signed_amount(&self) -> Option<f64> {
+        let price = self.price?;
+        match self.billing_type.as_str() {
+            "deduct" => Some(price),
+            "refund" => Some(-price),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BillingOrder {
+    #[serde(default)]
+    pub uuid: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BillingPrediction {
+    #[serde(default)]
+    pub uuid: Option<String>,
+    #[serde(default)]
+    pub model_uuid: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 /// One entry from `GET /api/v3/models`.
@@ -177,6 +231,28 @@ impl ProviderClient {
             .await?;
         Self::unwrap_envelope(resp).await
     }
+
+    /// Fetch billing rows related to one completed prediction. This is billing
+    /// reconciliation, not task-status retrieval.
+    pub async fn billing_records(
+        &self,
+        prediction_id: &str,
+    ) -> Result<Vec<BillingRecord>, ProviderError> {
+        let resp = self
+            .http
+            .post(format!("{}/api/v3/billings/search", self.base))
+            .bearer_auth(&self.api_key)
+            .json(&serde_json::json!({
+                "page": 1,
+                "page_size": 100,
+                "prediction_uuids": [prediction_id],
+                "sort": "created_at ASC",
+            }))
+            .send()
+            .await?;
+        let result: BillingSearchResult = Self::unwrap_envelope(resp).await?;
+        Ok(result.items)
+    }
 }
 
 fn urlencode(s: &str) -> String {
@@ -219,5 +295,40 @@ mod tests {
             entry.request_schema(),
             Some(&serde_json::json!({"type": "object"}))
         );
+    }
+
+    #[test]
+    fn billing_record_amounts_are_signed_by_type() {
+        let deduct = BillingRecord {
+            uuid: "bill-1".into(),
+            billing_type: "deduct".into(),
+            price: Some(0.06),
+            created_at: None,
+            updated_at: None,
+            order: None,
+            prediction: None,
+        };
+        let refund = BillingRecord {
+            uuid: "bill-2".into(),
+            billing_type: "refund".into(),
+            price: Some(0.06),
+            created_at: None,
+            updated_at: None,
+            order: None,
+            prediction: None,
+        };
+        let unknown = BillingRecord {
+            uuid: "bill-3".into(),
+            billing_type: "adjustment".into(),
+            price: Some(0.06),
+            created_at: None,
+            updated_at: None,
+            order: None,
+            prediction: None,
+        };
+
+        assert_eq!(deduct.signed_amount(), Some(0.06));
+        assert_eq!(refund.signed_amount(), Some(-0.06));
+        assert_eq!(unknown.signed_amount(), None);
     }
 }

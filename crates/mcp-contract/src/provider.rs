@@ -1,5 +1,6 @@
+use std::future::Future;
+
 use anyhow::Result;
-use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -9,7 +10,6 @@ use serde_json::Value;
 /// on common concepts: catalog models, predictions, terminal states, and output
 /// URLs. The trait is intentionally small; higher-level semantics such as MCP
 /// task status and artifact policy live outside individual providers.
-#[async_trait]
 pub trait Provider: Clone + Send + Sync + 'static {
     type Model: Clone + Send + Sync + Serialize + 'static;
     type Prediction: Clone + Send + Sync + Serialize + DeserializeOwned + 'static;
@@ -17,13 +17,13 @@ pub trait Provider: Clone + Send + Sync + 'static {
     fn name(&self) -> &'static str;
     fn uri_scheme(&self) -> &'static str;
 
-    async fn list_models(&self) -> Result<Vec<Self::Model>>;
-    async fn submit_prediction(
+    fn list_models(&self) -> impl Future<Output = Result<Vec<Self::Model>>> + Send;
+    fn submit_prediction(
         &self,
         model_id: &str,
         input: &Value,
         webhook_url: Option<&str>,
-    ) -> Result<Self::Prediction>;
+    ) -> impl Future<Output = Result<Self::Prediction>> + Send;
 
     fn model_id<'a>(&self, model: &'a Self::Model) -> &'a str;
     fn model_type<'a>(&self, model: &'a Self::Model) -> &'a str;

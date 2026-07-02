@@ -246,7 +246,8 @@ without changing MCP behavior.
 
 For regulated data, the important separation is bytes vs. metadata. Artifact bytes live
 behind the injected object store; task, prediction, artifact, and usage metadata live in
-per-server SQLite by default. Artifact metadata already has optional classification,
+per-server DuckDB by default. The shared contract owns the DuckDB usage analytics schema
+so every MCP server records estimates and actual billing rows the same way. Artifact metadata already has optional classification,
 tenant, owner, and retention fields. Server logs must avoid prompts, webhook bodies,
 provider output URLs, signed URLs, and raw provider payloads; log only correlation ids
 such as `task_id`, `prediction_id`, `artifact_sha256`, `model_id`, and future `tenant_id`.
@@ -263,7 +264,7 @@ compiled into those servers, not deployed as a runtime service. The default Comp
 should include batteries-included infrastructure:
 
 - one container per MCP server (`veoveo-media-mcp`, future provider servers),
-- a mounted SQLite volume per server for durable task/prediction metadata,
+- a mounted DuckDB volume per server for durable task/prediction metadata and shared usage analytics,
 - RustFS as the default S3-compatible artifact store,
 - an OpenTelemetry collector,
 - optional Loki/Grafana or equivalent local log UI.
@@ -293,15 +294,15 @@ Both paths were proven against a production media provider, through a real cloud
 
 Plus: schema validation rejects bad input before submission, `tasks/cancel` aborts
 in-flight work, and completions rank prefix matches across the full 988-model registry.
-The local workspace tests cover the current artifact/usage URI contract, SQLite-backed
-state helpers, webhook signature verification, schema extraction, and conformance CLI
+The local workspace tests cover the current artifact/usage URI contract, DuckDB-backed
+state and analytics helpers, webhook signature verification, schema extraction, and conformance CLI
 build.
 
 ## Known gaps
 
-- **Provider actual billing is not available yet.** The usage ledger records provider-accepted
-  estimates from registry pricing/formula metadata. It does not invent actual usage rows
-  until a provider payload exposes billable actuals.
+- **Provider billing timing is asynchronous.** The usage ledger records estimates at submit
+  time and provider-confirmed actual billing rows after completion through billing
+  reconciliation keyed by the completed prediction id.
 - **Subscription identity is coarse.** Unsubscribe clears all peers for a URI — fine for
   owned single-client deployments, wrong for multi-tenant.
 - **No task/artifact GC.** Completed task entries and artifacts need explicit retention

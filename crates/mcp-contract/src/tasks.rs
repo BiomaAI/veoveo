@@ -11,8 +11,12 @@ use rmcp::{
 use serde_json::Value;
 use tokio::{sync::RwLock, task::JoinHandle};
 
+pub fn now_utc() -> chrono::DateTime<chrono::Utc> {
+    chrono::Utc::now()
+}
+
 pub fn now_iso() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    now_utc().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
 struct TaskEntry {

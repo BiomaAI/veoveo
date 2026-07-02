@@ -32,6 +32,7 @@ use axum::{
     routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -57,18 +58,20 @@ use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactPut, ArtifactStore, ProviderUris, SubscriptionHub, TaskPayloadState,
     TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status,
-    now_iso,
+    now_iso, now_utc,
 };
 use veoveo_media_mcp::{
     artifacts::{S3ArtifactConfig, S3ArtifactStore},
-    provider::{ModelEntry, Prediction, ProviderClient},
-    state::SqliteState,
+    provider::{BillingRecord, ModelEntry, Prediction, ProviderClient},
+    state::DuckdbState,
     uris, webhook,
 };
 
 const REGISTRY_TTL: Duration = Duration::from_secs(3600);
 const TASK_POLL_INTERVAL_MS: u64 = 3000;
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
+const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Parser, Debug)]
 #[command(name = "server", about = "Media MCP server (streamable HTTP)")]
@@ -83,8 +86,8 @@ struct Args {
     /// Directory served at /files/* so the media provider can fetch input media by URL.
     #[arg(long)]
     static_dir: Option<PathBuf>,
-    /// SQLite state database path for task and prediction metadata.
-    #[arg(long, default_value = "state.sqlite")]
+    /// DuckDB state database path for task, prediction, artifact, and usage metadata.
+    #[arg(long, default_value = "state.duckdb")]
     state_db: PathBuf,
     /// S3-compatible endpoint used for server-owned artifacts.
     #[arg(long, default_value = "http://localhost:9000")]
@@ -139,7 +142,7 @@ struct AppState {
     webhook_secret: Option<String>,
     registry: RwLock<Option<RegistryCache>>,
     tasks: TaskStore,
-    durable: SqliteState,
+    durable: DuckdbState,
     artifacts: S3ArtifactStore,
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
@@ -186,7 +189,7 @@ impl AppState {
     }
 
     /// Record a prediction, resolve any waiter, and push resources/updated to subscribers.
-    async fn ingest_prediction(&self, prediction: Prediction) {
+    async fn ingest_prediction(self: &Arc<Self>, prediction: Prediction) {
         let id = prediction.id.clone();
         let terminal = prediction.is_terminal();
         if let Err(e) = self.durable.record_prediction(&prediction) {
@@ -213,7 +216,10 @@ impl AppState {
             .await;
     }
 
-    async fn complete_task_without_peer(&self, prediction: &Prediction) -> anyhow::Result<()> {
+    async fn complete_task_without_peer(
+        self: &Arc<Self>,
+        prediction: &Prediction,
+    ) -> anyhow::Result<()> {
         let Some(task_id) = self.durable.task_id_for_provider_job_id(&prediction.id)? else {
             return Ok(());
         };
@@ -258,6 +264,9 @@ impl AppState {
                 error.as_deref(),
                 Some(&prediction.id),
             )?;
+        }
+        if prediction.status == "completed" {
+            spawn_actual_usage_reconciliation(self.clone(), task_id.clone(), prediction.clone());
         }
         Ok(())
     }
@@ -338,8 +347,18 @@ async fn update_task(
 }
 
 fn usage_estimate(task_id: &str, provider_job_id: &str, entry: &ModelEntry) -> UsageRecord {
+    #[derive(serde::Serialize)]
+    struct EstimateUsageMetadata<'a> {
+        source: &'static str,
+        model_type: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        formula: Option<&'a str>,
+        cost_kind: &'static str,
+    }
+
     UsageRecord {
         task_id: task_id.to_string(),
+        source_id: None,
         provider_job_id: Some(provider_job_id.to_string()),
         model_id: entry.model_id.clone(),
         kind: UsageKind::Estimate,
@@ -347,14 +366,80 @@ fn usage_estimate(task_id: &str, provider_job_id: &str, entry: &ModelEntry) -> U
         unit: Some("run".to_string()),
         amount: entry.base_price,
         currency: entry.base_price.map(|_| "USD".to_string()),
-        recorded_at: now_iso(),
-        metadata: json!({
-            "source": "model_registry",
-            "model_type": entry.model_type.as_str(),
-            "formula": entry.formula.as_deref(),
-            "actual_usage_available": false,
-        }),
+        recorded_at: now_utc(),
+        metadata: serde_json::to_value(EstimateUsageMetadata {
+            source: "model_registry",
+            model_type: entry.model_type.as_str(),
+            formula: entry.formula.as_deref(),
+            cost_kind: "estimate",
+        })
+        .expect("estimate usage metadata serializes"),
     }
+}
+
+fn actual_usage_record(
+    task_id: &str,
+    prediction: &Prediction,
+    billing: &BillingRecord,
+) -> Option<UsageRecord> {
+    #[derive(serde::Serialize)]
+    struct ActualUsageMetadata<'a> {
+        source: &'static str,
+        billing_type: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_created_at: Option<DateTime<Utc>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_updated_at: Option<DateTime<Utc>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        order_id: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        order_state: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        order_status: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        job_status: Option<&'a str>,
+    }
+
+    let amount = billing.signed_amount()?;
+    Some(UsageRecord {
+        task_id: task_id.to_string(),
+        source_id: Some(billing.uuid.clone()),
+        provider_job_id: Some(prediction.id.clone()),
+        model_id: billing
+            .prediction
+            .as_ref()
+            .and_then(|p| p.model_uuid.clone())
+            .unwrap_or_else(|| prediction.model.clone()),
+        kind: UsageKind::Actual,
+        quantity: Some(1.0),
+        unit: Some("billing_record".to_string()),
+        amount: Some(amount),
+        currency: Some("USD".to_string()),
+        recorded_at: now_utc(),
+        metadata: serde_json::to_value(ActualUsageMetadata {
+            source: "billing_record",
+            billing_type: billing.billing_type.as_str(),
+            source_created_at: billing.created_at,
+            source_updated_at: billing.updated_at,
+            order_id: billing
+                .order
+                .as_ref()
+                .and_then(|order| order.uuid.as_deref()),
+            order_state: billing
+                .order
+                .as_ref()
+                .and_then(|order| order.state.as_deref()),
+            order_status: billing
+                .order
+                .as_ref()
+                .and_then(|order| order.status.as_deref()),
+            job_status: billing
+                .prediction
+                .as_ref()
+                .and_then(|p| p.status.as_deref()),
+        })
+        .expect("actual usage metadata serializes"),
+    })
 }
 
 fn record_usage_estimate(
@@ -370,6 +455,121 @@ fn record_usage_estimate(
             provider_job_id,
             "failed to persist usage estimate: {e}"
         );
+    }
+}
+
+async fn reconcile_actual_usage_once(
+    state: &AppState,
+    task_id: &str,
+    prediction: &Prediction,
+) -> anyhow::Result<bool> {
+    if state.durable.has_actual_usage(task_id, &prediction.id)? {
+        return Ok(true);
+    }
+
+    let billing_records = state.provider.billing_records(&prediction.id).await?;
+    let mut recorded = 0usize;
+    for billing in billing_records {
+        let Some(record) = actual_usage_record(task_id, prediction, &billing) else {
+            tracing::warn!(
+                task_id,
+                provider_job_id = prediction.id.as_str(),
+                billing_id = billing.uuid,
+                billing_type = billing.billing_type.as_str(),
+                "provider billing row has no supported billable amount"
+            );
+            continue;
+        };
+        state.durable.record_usage(&record)?;
+        recorded += 1;
+    }
+
+    if recorded > 0 {
+        state
+            .subscribers
+            .notify_resource_updated(uris::usage_task_uri(task_id))
+            .await;
+    }
+    Ok(recorded > 0 || state.durable.has_actual_usage(task_id, &prediction.id)?)
+}
+
+fn spawn_actual_usage_reconciliation(
+    state: Arc<AppState>,
+    task_id: String,
+    prediction: Prediction,
+) {
+    tokio::spawn(async move {
+        let mut delay = Duration::ZERO;
+        loop {
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+
+            match reconcile_actual_usage_once(&state, &task_id, &prediction).await {
+                Ok(true) => {
+                    tracing::info!(
+                        task_id,
+                        provider_job_id = prediction.id.as_str(),
+                        "actual usage recorded"
+                    );
+                    break;
+                }
+                Ok(false) => {
+                    tracing::info!(
+                        task_id,
+                        provider_job_id = prediction.id.as_str(),
+                        "actual usage not available yet"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        task_id,
+                        provider_job_id = prediction.id.as_str(),
+                        "actual usage reconciliation failed: {e}"
+                    );
+                }
+            }
+
+            delay = if delay.is_zero() {
+                BILLING_RECONCILE_INITIAL_DELAY
+            } else {
+                (delay * 2).min(BILLING_RECONCILE_MAX_DELAY)
+            };
+        }
+    });
+}
+
+async fn spawn_missing_actual_usage_reconciliations(state: Arc<AppState>) {
+    let predictions: Vec<Prediction> = state
+        .predictions
+        .read()
+        .await
+        .values()
+        .filter(|prediction| prediction.status == "completed")
+        .cloned()
+        .collect();
+
+    for prediction in predictions {
+        let task_id = match state.durable.task_id_for_provider_job_id(&prediction.id) {
+            Ok(Some(task_id)) => task_id,
+            Ok(None) => continue,
+            Err(e) => {
+                tracing::warn!(
+                    provider_job_id = prediction.id,
+                    "failed to find task for actual usage reconciliation: {e}"
+                );
+                continue;
+            }
+        };
+        match state.durable.has_actual_usage(&task_id, &prediction.id) {
+            Ok(true) => {}
+            Ok(false) => spawn_actual_usage_reconciliation(state.clone(), task_id, prediction),
+            Err(e) => tracing::warn!(
+                task_id,
+                provider_job_id = prediction.id,
+                "failed to check actual usage state: {e}"
+            ),
+        }
     }
 }
 
@@ -398,6 +598,45 @@ fn filename_from_url(url: &str, index: usize) -> String {
         .unwrap_or_else(|| format!("output-{index}.bin"))
 }
 
+#[derive(serde::Serialize)]
+struct PublicPrediction<'a> {
+    id: &'a str,
+    model_id: &'a str,
+    status: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    created_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    execution_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timings: Option<&'a Value>,
+    output_count: usize,
+}
+
+fn public_prediction(prediction: &Prediction) -> PublicPrediction<'_> {
+    PublicPrediction {
+        id: prediction.id.as_str(),
+        model_id: prediction.model.as_str(),
+        status: prediction.status.as_str(),
+        created_at: prediction.created_at,
+        error: prediction
+            .error
+            .as_deref()
+            .filter(|error| !error.is_empty()),
+        execution_ms: prediction.execution_time,
+        timings: prediction.timings.as_ref(),
+        output_count: prediction.outputs.len(),
+    }
+}
+
+#[derive(serde::Serialize)]
+struct OutputArtifactMetadata<'a> {
+    job_id: &'a str,
+    model_id: &'a str,
+    output_index: usize,
+}
+
 async fn ingest_output_artifact(
     state: &AppState,
     prediction: &Prediction,
@@ -420,12 +659,11 @@ async fn ingest_output_artifact(
     let mut artifact = ArtifactPut::new(bytes);
     artifact.mime_type = header_mime.or_else(|| guess_mime(url).map(str::to_string));
     artifact.filename = Some(filename_from_url(url, index));
-    artifact.metadata = json!({
-        "provider": "wavespeed",
-        "provider_job_id": prediction.id,
-        "model_id": prediction.model,
-        "output_index": index,
-    });
+    artifact.metadata = serde_json::to_value(OutputArtifactMetadata {
+        job_id: prediction.id.as_str(),
+        model_id: prediction.model.as_str(),
+        output_index: index,
+    })?;
     state.artifacts.put(artifact).await
 }
 
@@ -455,7 +693,7 @@ async fn prediction_result(
     }
     let mut result = CallToolResult::success(blocks);
     result.structured_content = Some(json!({
-        "prediction": prediction,
+        "prediction": public_prediction(prediction),
         "artifacts": artifacts,
     }));
     Ok(result)
@@ -622,6 +860,7 @@ async fn run_task(
         None,
     )
     .await;
+    spawn_actual_usage_reconciliation(state.clone(), task_id.clone(), prediction.clone());
 }
 
 impl MediaMcp {
@@ -928,7 +1167,7 @@ impl ServerHandler for MediaMcp {
                 .ok_or_else(|| {
                     McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
                 })?;
-            serde_json::to_string(&prediction)
+            serde_json::to_string(&public_prediction(&prediction))
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(task_id) = uris::parse_usage_task_uri(uri) {
             let records = self
@@ -1121,7 +1360,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let args = Args::parse();
     let public_url = args.public_url()?;
-    let durable = SqliteState::open(&args.state_db)?;
+    let durable = DuckdbState::open(&args.state_db)?;
     let artifacts = S3ArtifactStore::new(
         S3ArtifactConfig {
             endpoint: args.artifact_endpoint.clone(),
@@ -1164,6 +1403,8 @@ async fn main() -> anyhow::Result<()> {
         predictions: RwLock::new(predictions),
         subscribers: SubscriptionHub::new(),
     });
+
+    spawn_missing_actual_usage_reconciliations(state.clone()).await;
 
     // Warm the registry so first completions/reads are instant.
     {

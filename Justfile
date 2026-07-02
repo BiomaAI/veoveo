@@ -27,6 +27,10 @@ check:
 compose-config public_url='':
     {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; : "${PUBLIC_URL:?set PUBLIC_URL}"; docker compose --profile dev config | sed -E 's/(MEDIA_PROVIDER_API_KEY: ).*/\1[redacted]/; s/(MEDIA_PROVIDER_WEBHOOK_SECRET: ).*/\1[redacted]/; s/(AWS_SECRET_ACCESS_KEY: ).*/\1[redacted]/'
 
+# Build the media MCP image.
+compose-build:
+    docker compose --profile dev build media-mcp
+
 # Build and start RustFS plus media-mcp. Pass a public tunnel URL for real provider webhooks.
 compose-up public_url='':
     {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; : "${PUBLIC_URL:?set PUBLIC_URL}"; docker compose --profile dev up --build -d
