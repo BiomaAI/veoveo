@@ -182,6 +182,8 @@ struct Readiness {
 #[derive(Debug, Serialize)]
 struct ReloadResult {
     status: &'static str,
+    revision_id: GatewayControlPlaneRevisionId,
+    sha256: String,
     servers: usize,
     profiles: usize,
 }
@@ -2603,6 +2605,81 @@ async fn reload_control_plane(
                 .into_response();
         }
     };
+    let control_plane = new_catalog.control_plane().clone();
+    let sha256 = match control_plane_sha256(&control_plane) {
+        Ok(sha256) => sha256,
+        Err(err) => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::ControlPlaneSha),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
+            return internal_error_response(err);
+        }
+    };
+    let revision_id =
+        match GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::new_v4())) {
+            Ok(revision_id) => revision_id,
+            Err(err) => {
+                if let Err(audit_err) = record_admin_operation_audit(
+                    &state,
+                    &profile,
+                    &subject,
+                    AdminOperationAuditRecord {
+                        action: GatewayAction::AdminWrite,
+                        method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                        started_at,
+                        status: AdminOperationStatus::Failed,
+                        failure: Some(AdminOperationFailure::RevisionId),
+                        metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
+                    },
+                ) {
+                    return internal_error_response(audit_err);
+                }
+                return internal_error_response(err);
+            }
+        };
+    let revision = GatewayControlPlaneRevision {
+        revision_id: revision_id.clone(),
+        sha256: sha256.clone(),
+        source: GatewayControlPlaneRevisionSource::MountedFileReload,
+        applied_at: Utc::now(),
+        applied_by: subject.principal.id.clone(),
+        tenant: subject.principal.tenant.clone(),
+        control_plane,
+    };
+    if let Err(err) = state.gateway_state.record_control_plane_revision(&revision) {
+        tracing::error!("failed to persist gateway control-plane reload revision: {err}");
+        if let Err(audit_err) = record_admin_operation_audit(
+            &state,
+            &profile,
+            &subject,
+            AdminOperationAuditRecord {
+                action: GatewayAction::AdminWrite,
+                method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                started_at,
+                status: AdminOperationStatus::Failed,
+                failure: Some(AdminOperationFailure::PersistControlPlaneRevision),
+                metadata: BTreeMap::from([
+                    ("revision_id".to_string(), revision_id.to_string()),
+                    ("sha256".to_string(), sha256.clone()),
+                ]),
+            },
+        ) {
+            return internal_error_response(audit_err);
+        }
+        return internal_error_response(err);
+    }
 
     let servers = new_catalog.server_count();
     let profiles = new_catalog.profile_count();
@@ -2617,6 +2694,8 @@ async fn reload_control_plane(
             status: AdminOperationStatus::Succeeded,
             failure: None,
             metadata: BTreeMap::from([
+                ("revision_id".to_string(), revision_id.to_string()),
+                ("sha256".to_string(), sha256.clone()),
                 ("servers".to_string(), servers.to_string()),
                 ("profiles".to_string(), profiles.to_string()),
             ]),
@@ -2629,12 +2708,16 @@ async fn reload_control_plane(
     tracing::info!(
         profile = %state.profile_id,
         principal = %subject.principal.id,
+        revision_id = %revision_id,
+        sha256 = %sha256,
         servers,
         profiles,
         "gateway control plane reloaded"
     );
     Json(ReloadResult {
         status: "reloaded",
+        revision_id,
+        sha256,
         servers,
         profiles,
     })

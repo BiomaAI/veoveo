@@ -374,6 +374,7 @@ impl GatewayState {
         let revision_json = serde_json::to_string(revision)?;
         let source = match revision.source {
             GatewayControlPlaneRevisionSource::AdminApi => "admin_api",
+            GatewayControlPlaneRevisionSource::MountedFileReload => "mounted_file_reload",
         };
         let conn = self.conn.lock().expect("gateway state mutex poisoned");
         conn.execute(
@@ -1153,26 +1154,41 @@ mod tests {
     #[test]
     fn control_plane_revision_round_trips_latest_across_restart() {
         let path = temp_path("control-plane-revision");
-        let revision = GatewayControlPlaneRevision {
+        let applied_at = Utc::now();
+        let admin_revision = GatewayControlPlaneRevision {
             revision_id: GatewayControlPlaneRevisionId::new("revision-1").unwrap(),
             sha256: "abc123".to_string(),
             source: GatewayControlPlaneRevisionSource::AdminApi,
-            applied_at: Utc::now(),
+            applied_at,
+            applied_by: PrincipalId::new("issuer#admin").unwrap(),
+            tenant: None,
+            control_plane: empty_control_plane(),
+        };
+        let reload_revision = GatewayControlPlaneRevision {
+            revision_id: GatewayControlPlaneRevisionId::new("revision-2").unwrap(),
+            sha256: "def456".to_string(),
+            source: GatewayControlPlaneRevisionSource::MountedFileReload,
+            applied_at: applied_at + TimeDelta::seconds(1),
             applied_by: PrincipalId::new("issuer#admin").unwrap(),
             tenant: None,
             control_plane: empty_control_plane(),
         };
 
         let state = GatewayState::open(&path).unwrap();
-        state.record_control_plane_revision(&revision).unwrap();
-        assert_eq!(state.control_plane_revision_count().unwrap(), 1);
+        state
+            .record_control_plane_revision(&admin_revision)
+            .unwrap();
+        state
+            .record_control_plane_revision(&reload_revision)
+            .unwrap();
+        assert_eq!(state.control_plane_revision_count().unwrap(), 2);
         let state = GatewayState::open(&path).unwrap();
 
         assert_eq!(
             state.latest_control_plane_revision().unwrap(),
-            Some(revision)
+            Some(reload_revision)
         );
-        assert_eq!(state.control_plane_revision_count().unwrap(), 1);
+        assert_eq!(state.control_plane_revision_count().unwrap(), 2);
 
         let _ = std::fs::remove_file(path);
     }

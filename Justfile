@@ -526,10 +526,12 @@ smoke-gateway-authenticated:
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${edge_token}" {{conformance}} --url "${edge_base}/mcp/default" info >/dev/null
     token_endpoint="${gateway_base}/oauth/default/token"
     admin_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use --scope gateway:admin)"
-    status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"
-    test "${status}" = "200"
+    reload_result="$(curl -fsS -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"
+    echo "${reload_result}" | jq -e '.status == "reloaded" and .servers == 1 and .profiles == 1 and (.revision_id | startswith("gcp-")) and (.sha256 | length == 64)' >/dev/null
+    reload_revision_id="$(echo "${reload_result}" | jq -r '.revision_id')"
     control_status="$(curl -fsS -H "Authorization: Bearer ${admin_token}" "${gateway_base}/admin/default/control-plane")"
     echo "${control_status}" | jq -e '.status == "ok" and .servers == 1 and .profiles == 1' >/dev/null
+    test "$(echo "${control_status}" | jq -r '.revision_id')" = "${reload_revision_id}"
     control_apply="$(curl -fsS -X PUT -H "Authorization: Bearer ${admin_token}" -H "Content-Type: application/json" --data-binary @{{gateway-smoke-control-plane}} "${gateway_base}/admin/default/control-plane")"
     echo "${control_apply}" | jq -e '.status == "applied" and .servers == 1 and .profiles == 1' >/dev/null
     revision_id="$(echo "${control_apply}" | jq -r '.revision_id')"
