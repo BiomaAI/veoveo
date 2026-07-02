@@ -1345,6 +1345,13 @@ impl ServerHandler for GatewayMcp {
                 result.task.task_id = mapping.gateway_task_id.to_string();
                 Ok(result)
             }
+            ServerResult::GetTaskResult(upstream_result) => {
+                let mut task = upstream_result.task;
+                task.task_id = mapping.gateway_task_id.to_string();
+                let mut result = CancelTaskResult::new(task);
+                result.meta = upstream_result.meta;
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tasks/cancel", other)),
         }
     }

@@ -1720,6 +1720,14 @@ async fn save_output_uri(
     Ok(())
 }
 
+fn task_from_cancel_result(result: ServerResult) -> Result<rmcp::model::Task> {
+    match result {
+        ServerResult::CancelTaskResult(result) => Ok(result.task),
+        ServerResult::GetTaskResult(result) => Ok(result.task),
+        other => Err(anyhow!("expected task-shaped cancel result, got {other:?}")),
+    }
+}
+
 async fn cmd_run(
     client: &Client,
     uris: &ProviderUris,
@@ -1761,7 +1769,50 @@ async fn cmd_run(
                 CancelTaskParams::new(task_id.clone()),
             )))
             .await?;
-        println!("cancel result: {result:?}");
+        let cancelled = task_from_cancel_result(result)?;
+        if cancelled.task_id != task_id {
+            return Err(anyhow!(
+                "tasks/cancel returned task id `{}`, expected `{task_id}`",
+                cancelled.task_id
+            ));
+        }
+        if cancelled.status != TaskStatus::Cancelled {
+            return Err(anyhow!(
+                "tasks/cancel returned status {:?}, expected Cancelled",
+                cancelled.status
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let info = client
+            .send_request(ClientRequest::GetTaskRequest(Request::new(
+                GetTaskParams::new(task_id.clone()),
+            )))
+            .await?;
+        let ServerResult::GetTaskResult(info) = info else {
+            return Err(anyhow!("expected GetTaskResult after cancel, got {info:?}"));
+        };
+        if info.task.task_id != task_id {
+            return Err(anyhow!(
+                "tasks/get returned task id `{}`, expected `{task_id}`",
+                info.task.task_id
+            ));
+        }
+        if info.task.status != TaskStatus::Cancelled {
+            return Err(anyhow!(
+                "tasks/get returned status {:?}, expected Cancelled",
+                info.task.status
+            ));
+        }
+        if client
+            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
+                GetTaskPayloadParams::new(task_id.clone()),
+            )))
+            .await
+            .is_ok()
+        {
+            return Err(anyhow!("tasks/result unexpectedly succeeded after cancel"));
+        }
+        println!("cancelled task {task_id} (status Cancelled)");
         return Ok(());
     }
 

@@ -308,6 +308,9 @@ impl AppState {
         let Some(task_id) = self.durable.task_id_for_provider_job_id(&prediction.id)? else {
             return Ok(());
         };
+        if self.tasks.is_terminal(&task_id).await {
+            return Ok(());
+        }
         let owner = task_owner(self, &task_id)
             .await
             .map_err(|err| anyhow::anyhow!("task ownership lookup failed: {err}"))?;
@@ -970,6 +973,9 @@ async fn run_task(
             .filter(|e| !e.is_empty())
             .unwrap_or_else(|| "prediction failed".to_string());
         fail!(format!("prediction {prediction_id} failed: {msg}"));
+    }
+    if state.tasks.is_terminal(&task_id).await {
+        return;
     }
     notify_progress(&peer, &progress_token, 1.0, "completed").await;
     let result = match prediction_result(&state, &prediction, &task_id, &owner).await {

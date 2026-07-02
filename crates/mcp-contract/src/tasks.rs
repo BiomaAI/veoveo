@@ -12,6 +12,13 @@ use rmcp::{
 use serde_json::Value;
 use tokio::{sync::RwLock, task::JoinHandle};
 
+fn is_terminal(status: &TaskStatus) -> bool {
+    matches!(
+        status,
+        TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
+    )
+}
+
 pub fn now_utc() -> chrono::DateTime<chrono::Utc> {
     chrono::Utc::now()
 }
@@ -28,6 +35,7 @@ struct TaskEntry {
     join: Option<JoinHandle<()>>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum TaskPayloadState {
     Completed(Value),
     Failed(String),
@@ -106,6 +114,9 @@ impl TaskStore {
     ) -> Option<Task> {
         let mut tasks = self.tasks.write().await;
         let entry = tasks.get_mut(task_id)?;
+        if is_terminal(&entry.task.status) {
+            return None;
+        }
         entry.task.status = status;
         entry.task.status_message = Some(message.into());
         entry.task.last_updated_at = now_iso();
@@ -124,6 +135,14 @@ impl TaskStore {
             .await
             .get(task_id)
             .map(|entry| entry.task.clone())
+    }
+
+    pub async fn is_terminal(&self, task_id: &str) -> bool {
+        self.tasks
+            .read()
+            .await
+            .get(task_id)
+            .is_some_and(|entry| is_terminal(&entry.task.status))
     }
 
     pub async fn list(&self) -> Vec<Task> {
@@ -169,10 +188,7 @@ impl TaskStore {
     pub async fn cancel(&self, task_id: &str) -> Option<Task> {
         let mut tasks = self.tasks.write().await;
         let entry = tasks.get_mut(task_id)?;
-        if !matches!(
-            entry.task.status,
-            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
-        ) {
+        if !is_terminal(&entry.task.status) {
             if let Some(join) = entry.join.take() {
                 join.abort();
             }
@@ -190,10 +206,7 @@ impl TaskStore {
         let mut tasks = self.tasks.write().await;
         let mut expired = Vec::new();
         for (task_id, entry) in tasks.iter() {
-            if !matches!(
-                entry.task.status,
-                TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
-            ) {
+            if !is_terminal(&entry.task.status) {
                 continue;
             }
             let updated_at =
@@ -286,5 +299,35 @@ mod tests {
         assert!(store.get("old-completed").await.is_none());
         assert!(store.get("old-working").await.is_some());
         assert!(store.get("fresh-completed").await.is_some());
+    }
+
+    #[tokio::test]
+    async fn update_does_not_overwrite_terminal_task() {
+        let store = TaskStore::new();
+        let now = Utc::now();
+        store
+            .insert(task("cancelled", TaskStatus::Cancelled, now), None)
+            .await;
+
+        assert!(
+            store
+                .update(
+                    "cancelled",
+                    TaskStatus::Completed,
+                    "late provider webhook",
+                    Some(serde_json::json!({"artifact": "late"})),
+                    None,
+                )
+                .await
+                .is_none()
+        );
+
+        let task = store.get("cancelled").await.unwrap();
+        assert_eq!(task.status, TaskStatus::Cancelled);
+        assert!(store.is_terminal("cancelled").await);
+        assert_eq!(
+            store.payload_state("cancelled").await,
+            TaskPayloadState::Cancelled
+        );
     }
 }
