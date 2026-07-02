@@ -28,8 +28,9 @@ use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayInternalTokenIssuer, GatewayJwtRevocation,
-    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwtId, McpMethodName, PolicyDecision,
-    PolicyEffect, PolicyTarget, PublicDeployment, TokenIssuer, TraceId,
+    GatewayProfile, GatewayProfileId, IdentityProviderJwks, InternalTokenSecret, JwtId,
+    McpMethodName, PolicyDecision, PolicyEffect, PolicyTarget, PublicDeployment, TokenIssuer,
+    TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
@@ -502,10 +503,10 @@ async fn authenticate_mcp(
         }
     };
 
-    let jwks = match fetch_jwks(&state.http, identity_provider.jwks_uri.as_str()).await {
+    let jwks = match load_jwks(&state.http, &identity_provider.jwks).await {
         Ok(jwks) => jwks,
         Err(err) => {
-            tracing::warn!("failed to fetch identity provider JWKS: {err}");
+            tracing::warn!("failed to load identity provider JWKS: {err}");
             if let Err(err) = record_auth_audit(
                 &state,
                 profile,
@@ -606,6 +607,16 @@ async fn authenticate_mcp(
         .extensions_mut()
         .insert::<AuthenticatedSubject>(subject);
     next.run(request).await
+}
+
+async fn load_jwks(http: &reqwest::Client, jwks: &IdentityProviderJwks) -> anyhow::Result<JwkSet> {
+    match jwks {
+        IdentityProviderJwks::Remote { jwks_uri } => fetch_jwks(http, jwks_uri.as_str()).await,
+        IdentityProviderJwks::File { path } => {
+            let bytes = std::fs::read(path.as_str())?;
+            Ok(serde_json::from_slice::<JwkSet>(&bytes)?)
+        }
+    }
 }
 
 async fn fetch_jwks(http: &reqwest::Client, url: &str) -> anyhow::Result<JwkSet> {

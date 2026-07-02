@@ -1090,7 +1090,7 @@ fn require_identity_provider_endpoint(
 pub struct IdentityProvider {
     pub id: IdentityProviderId,
     pub issuer: TokenIssuer,
-    pub jwks_uri: HttpsUrl,
+    pub jwks: IdentityProviderJwks,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authorization_endpoint: Option<HttpsUrl>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1101,6 +1101,13 @@ pub struct IdentityProvider {
     pub client_credentials_endpoint: Option<HttpsUrl>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "source")]
+pub enum IdentityProviderJwks {
+    Remote { jwks_uri: HttpsUrl },
+    File { path: JwksFilePath },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -1683,6 +1690,56 @@ impl From<HttpsUrl> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+pub struct JwksFilePath(String);
+
+impl JwksFilePath {
+    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        validate_local_file_path(&value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for JwksFilePath {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for JwksFilePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for JwksFilePath {
+    type Error = IdentifierError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl FromStr for JwksFilePath {
+    type Err = IdentifierError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::new(value.to_string())
+    }
+}
+
+impl From<JwksFilePath> for String {
+    fn from(value: JwksFilePath) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
 pub struct ResourceUri(String);
 
 impl ResourceUri {
@@ -2000,6 +2057,26 @@ fn validate_https_url(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+fn validate_local_file_path(value: &str) -> Result<(), IdentifierError> {
+    if value.is_empty() {
+        return Err(IdentifierError::new(value, "must not be empty"));
+    }
+    if value.starts_with("http://") || value.starts_with("https://") || value.starts_with("file://")
+    {
+        return Err(IdentifierError::new(
+            value,
+            "must be a local filesystem path, not a URL",
+        ));
+    }
+    if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain whitespace or control characters",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_resource_uri(value: &str) -> Result<(), IdentifierError> {
     let Some((scheme, rest)) = value.split_once("://") else {
         return Err(IdentifierError::new(
@@ -2036,7 +2113,9 @@ mod tests {
         IdentityProvider {
             id: IdentityProviderId::new("enterprise").unwrap(),
             issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
+            jwks: IdentityProviderJwks::Remote {
+                jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
+            },
             authorization_endpoint: Some(
                 HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
             ),

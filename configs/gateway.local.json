@@ -3,7 +3,10 @@
     {
       "id": "enterprise",
       "issuer": "https://idp.example.com",
-      "jwks_uri": "https://idp.example.com/.well-known/jwks.json",
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://idp.example.com/.well-known/jwks.json"
+      },
       "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
       "token_endpoint": "https://idp.example.com/oauth2/token",
       "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",

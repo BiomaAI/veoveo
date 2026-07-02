@@ -794,7 +794,7 @@ mod tests {
     use serde_json::Value;
     use veoveo_mcp_contract::{
         AuthMode, CompletionExposure, DataLabelId, Exposure, GatewayControlPlaneError,
-        GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId,
+        GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId, IdentityProviderJwks,
         MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
         MountPath, OwnedRoute, OwnedRoutePurpose, PrincipalId, PrincipalKind,
         ProfileServerExposure, ProtectedResourceId, ResourceSelector, ScopeName, SecretLocator,
@@ -808,7 +808,9 @@ mod tests {
         IdentityProvider {
             id: IdentityProviderId::new("enterprise").unwrap(),
             issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
+            jwks: IdentityProviderJwks::Remote {
+                jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
+            },
             authorization_endpoint: Some(
                 HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
             ),
