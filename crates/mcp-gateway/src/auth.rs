@@ -29,6 +29,13 @@ impl JwtAuthConfig {
         if algorithms.is_empty() {
             return Err(AuthError::MissingAllowedAlgorithms);
         }
+        if let Some(algorithm) = algorithms
+            .iter()
+            .copied()
+            .find(|algorithm| is_symmetric_algorithm(*algorithm))
+        {
+            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
+        }
         Ok(Self {
             issuer,
             audience,
@@ -243,6 +250,7 @@ pub enum AuthError {
     InvalidAuthorizationHeader,
     InvalidAuthorizationScheme,
     InvalidBearerToken,
+    SymmetricAlgorithmNotAllowed(Algorithm),
     MissingKeyId,
     UnknownKeyId(String),
     DisallowedAlgorithm(Algorithm),
@@ -260,6 +268,9 @@ impl fmt::Display for AuthError {
             Self::InvalidAuthorizationHeader => write!(f, "invalid Authorization header"),
             Self::InvalidAuthorizationScheme => write!(f, "Authorization scheme must be Bearer"),
             Self::InvalidBearerToken => write!(f, "invalid bearer token"),
+            Self::SymmetricAlgorithmNotAllowed(algorithm) => {
+                write!(f, "symmetric JWT algorithm `{algorithm:?}` is not allowed")
+            }
             Self::MissingKeyId => write!(f, "JWT header is missing kid"),
             Self::UnknownKeyId(key_id) => write!(f, "JWT key id `{key_id}` is not trusted"),
             Self::DisallowedAlgorithm(algorithm) => {
@@ -280,6 +291,13 @@ impl fmt::Display for AuthError {
 }
 
 impl std::error::Error for AuthError {}
+
+fn is_symmetric_algorithm(algorithm: Algorithm) -> bool {
+    matches!(
+        algorithm,
+        Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512
+    )
+}
 
 fn validate_jwk_algorithm(
     jwk_algorithm: Option<KeyAlgorithm>,
@@ -435,6 +453,22 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         assert!(BearerToken::from_authorization_header("Basic abc").is_err());
         assert!(BearerToken::from_authorization_header("Bearer").is_err());
         assert!(BearerToken::from_authorization_header("Bearer abc def").is_err());
+    }
+
+    #[test]
+    fn rejects_symmetric_gateway_jwt_algorithms() {
+        let err = JwtAuthConfig::new(
+            TokenIssuer::new(ISSUER).unwrap(),
+            ProtectedResourceId::new(AUDIENCE).unwrap(),
+            Default::default(),
+            vec![Algorithm::HS256],
+        )
+        .expect_err("symmetric algorithms must be rejected");
+
+        assert!(matches!(
+            err,
+            AuthError::SymmetricAlgorithmNotAllowed(Algorithm::HS256)
+        ));
     }
 
     #[test]
