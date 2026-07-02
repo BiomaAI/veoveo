@@ -1,15 +1,16 @@
 //! Generic Veoveo MCP conformance CLI.
 //!
-//! Exercises every surface the server exposes: resources (+templates),
+//! Exercises every surface the server exposes: authorization discovery, resources (+templates),
 //! completions, SEP-1319 tasks, subscriptions, and notifications
 //! (progress, tasks/status, resources/updated, resources/list_changed).
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::{Parser, Subcommand};
+use reqwest::header::WWW_AUTHENTICATE;
 use rmcp::{
     ClientHandler, ServiceExt,
     model::{
@@ -25,6 +26,7 @@ use rmcp::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
+use serde::Deserialize;
 use serde_json::Value;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
@@ -64,6 +66,18 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Cmd {
+    /// Verify protected-resource metadata and unauthenticated Bearer challenge.
+    AuthDiscovery {
+        /// Protected-resource metadata URL. If omitted, inferred from /mcp/{profile}.
+        #[arg(long)]
+        metadata_url: Option<String>,
+        /// Scope that must appear in metadata and the Bearer challenge.
+        #[arg(long = "required-scope")]
+        required_scopes: Vec<String>,
+        /// MCP extension id that must appear in protected-resource metadata.
+        #[arg(long = "required-extension")]
+        required_extensions: Vec<String>,
+    },
     /// Show server info, capabilities, instructions, and the tool list.
     Info,
     /// Read the model catalog resource, optionally filtering locally.
@@ -110,6 +124,16 @@ enum Cmd {
         #[arg(long)]
         cancel: bool,
     },
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthDiscoveryMetadata {
+    resource: String,
+    authorization_servers: Vec<String>,
+    scopes_supported: Vec<String>,
+    bearer_methods_supported: Vec<String>,
+    #[serde(default)]
+    extensions: BTreeMap<String, Value>,
 }
 
 /// Client handler that surfaces every server-initiated notification.
@@ -176,6 +200,112 @@ async fn connect(args: &Args) -> Result<Client> {
     }
     let transport = StreamableHttpClientTransport::from_config(config);
     Ok(CliHandler.serve(transport).await?)
+}
+
+async fn cmd_auth_discovery(
+    endpoint_url: &str,
+    metadata_url: Option<&str>,
+    required_scopes: &[String],
+    required_extensions: &[String],
+) -> Result<()> {
+    let metadata_url = match metadata_url {
+        Some(value) => value.to_string(),
+        None => infer_protected_resource_metadata_url(endpoint_url)?,
+    };
+    let http = reqwest::Client::new();
+    let metadata = http
+        .get(&metadata_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<AuthDiscoveryMetadata>()
+        .await?;
+    if metadata.resource.is_empty() {
+        return Err(anyhow!("protected-resource metadata has empty resource"));
+    }
+    if metadata.authorization_servers.is_empty() {
+        return Err(anyhow!(
+            "protected-resource metadata has no authorization servers"
+        ));
+    }
+    if !metadata
+        .bearer_methods_supported
+        .iter()
+        .any(|method| method == "header")
+    {
+        return Err(anyhow!(
+            "protected-resource metadata does not support header bearer tokens"
+        ));
+    }
+    for scope in required_scopes {
+        if !metadata
+            .scopes_supported
+            .iter()
+            .any(|candidate| candidate == scope)
+        {
+            return Err(anyhow!(
+                "protected-resource metadata is missing required scope `{scope}`"
+            ));
+        }
+    }
+    for extension in required_extensions {
+        if !metadata.extensions.contains_key(extension) {
+            return Err(anyhow!(
+                "protected-resource metadata is missing required extension `{extension}`"
+            ));
+        }
+    }
+
+    let response = http.get(endpoint_url).send().await?;
+    if response.status() != reqwest::StatusCode::UNAUTHORIZED {
+        return Err(anyhow!(
+            "unauthenticated MCP endpoint returned {}, expected 401",
+            response.status()
+        ));
+    }
+    let challenge = response
+        .headers()
+        .get(WWW_AUTHENTICATE)
+        .ok_or_else(|| anyhow!("401 response is missing WWW-Authenticate"))?
+        .to_str()?;
+    if !challenge.starts_with("Bearer ") {
+        return Err(anyhow!("WWW-Authenticate is not a Bearer challenge"));
+    }
+    if !challenge.contains("resource_metadata=") {
+        return Err(anyhow!(
+            "Bearer challenge is missing protected-resource metadata"
+        ));
+    }
+    for scope in required_scopes {
+        if !challenge.contains(scope) {
+            return Err(anyhow!(
+                "Bearer challenge is missing required scope `{scope}`"
+            ));
+        }
+    }
+
+    println!(
+        "auth discovery ok: resource={}, authorization_servers={}, scopes={}, extensions={}",
+        metadata.resource,
+        metadata.authorization_servers.len(),
+        metadata.scopes_supported.len(),
+        metadata.extensions.len()
+    );
+    Ok(())
+}
+
+fn infer_protected_resource_metadata_url(endpoint_url: &str) -> Result<String> {
+    let mut url = reqwest::Url::parse(endpoint_url)?;
+    let path = url.path().trim_end_matches('/');
+    if !path.starts_with("/mcp/") {
+        return Err(anyhow!(
+            "cannot infer protected-resource metadata URL for non-gateway MCP path `{path}`"
+        ));
+    }
+    url.set_path(&format!("/.well-known/oauth-protected-resource{path}"));
+    url.set_query(None);
+    url.set_fragment(None);
+    Ok(url.to_string())
 }
 
 fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String> {
@@ -600,10 +730,26 @@ async fn main() -> Result<()> {
         )
         .init();
     let args = Args::parse();
+    if let Cmd::AuthDiscovery {
+        metadata_url,
+        required_scopes,
+        required_extensions,
+    } = &args.cmd
+    {
+        return cmd_auth_discovery(
+            &args.url,
+            metadata_url.as_deref(),
+            required_scopes,
+            required_extensions,
+        )
+        .await;
+    }
+
     let client = connect(&args).await?;
     let uris = ProviderUris::new(args.scheme);
 
     let result = match args.cmd {
+        Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),
         Cmd::Info => cmd_info(&client).await,
         Cmd::Models { query, r#type } => {
             let catalog = read_resource_json(&client, &uris.models_uri()).await?;

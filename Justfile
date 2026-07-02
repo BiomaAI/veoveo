@@ -44,8 +44,6 @@ smoke-gateway-http:
     base="http://127.0.0.1:${port}"
     tmpdir="$(mktemp -d)"
     log="${tmpdir}/gateway.log"
-    headers="${tmpdir}/headers"
-    body="${tmpdir}/body"
     state_db="${tmpdir}/state.duckdb"
     internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
     pid=""
@@ -66,13 +64,11 @@ smoke-gateway-http:
         sleep 0.2
     done
     curl -fsS "${base}/readyz" | grep -F '"profiles":1'
-    curl -fsS "${base}/.well-known/oauth-protected-resource/mcp/default" >"${body}"
-    grep -F '"resource":"https://veoveo.bioma.ai/mcp/default"' "${body}" >/dev/null
-    grep -F '"io.modelcontextprotocol/enterprise-managed-authorization":{}' "${body}" >/dev/null
-    grep -F '"io.modelcontextprotocol/oauth-client-credentials":{}' "${body}" >/dev/null
-    status="$(curl -sS -D "${headers}" -o "${body}" -w "%{http_code}" "${base}/mcp/default")"
-    test "${status}" = "401"
-    grep -Fi 'www-authenticate: Bearer resource_metadata="https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default", scope="media:use"' "${headers}"
+    {{conformance}} --url "${base}/mcp/default" auth-discovery \
+        --metadata-url "${base}/.well-known/oauth-protected-resource/mcp/default" \
+        --required-scope media:use \
+        --required-extension io.modelcontextprotocol/enterprise-managed-authorization \
+        --required-extension io.modelcontextprotocol/oauth-client-credentials
     kill "${pid}"
     wait "${pid}" 2>/dev/null || true
     pid=""
