@@ -9,7 +9,11 @@ use std::{
 
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
-use reqwest::StatusCode;
+use reqwest::{
+    StatusCode,
+    header::{CONTENT_TYPE, LOCATION},
+    redirect::Policy,
+};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -105,6 +109,18 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/server")]
         media_bin: PathBuf,
     },
+    /// Smoke-test the gateway HTTP boundary, auth discovery, and browser OAuth flow.
+    GatewayHttp {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Base gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+    },
     /// Run one gateway profile against two hosted MCP upstreams.
     GatewayTwoServers {
         /// Built conformance binary path.
@@ -192,6 +208,11 @@ async fn main() -> Result<()> {
             conformance_bin,
             media_bin,
         } => media_task_run(&conformance_bin, &media_bin).await,
+        Cmd::GatewayHttp {
+            conformance_bin,
+            gateway_bin,
+            control_plane,
+        } => gateway_http(&conformance_bin, &gateway_bin, &control_plane).await,
         Cmd::GatewayTwoServers {
             conformance_bin,
             gateway_bin,
@@ -408,6 +429,301 @@ async fn otel(conformance: &Path, gateway: &Path, control_plane: &Path) -> Resul
     otlp.stop();
     cleanup.remove_on_drop();
     println!("otel smoke ok");
+    Ok(())
+}
+
+async fn gateway_http(conformance: &Path, gateway: &Path, base_control_plane: &Path) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(gateway)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let port = 18799u16;
+    let idp_port = 18803u16;
+    let base = format!("http://127.0.0.1:{port}");
+    let idp_base = format!("https://127.0.0.1:{idp_port}");
+    let gateway_log = tmpdir.join("gateway.log");
+    let idp_log = tmpdir.join("idp.log");
+    let state_db = tmpdir.join("state.duckdb");
+    let control_plane = tmpdir.join("gateway.smoke.json");
+    let idp_cert = tmpdir.join("idp-cert.pem");
+    let idp_key = tmpdir.join("idp-key.pem");
+    let idp_ready = tmpdir.join("idp.ready");
+    let oidc_secret = "local-smoke-oidc-client-secret";
+
+    let mut idp = ChildGuard::spawn(
+        conformance,
+        [
+            "gateway-fake-oidc-idp".into(),
+            "--port".into(),
+            idp_port.to_string().into(),
+            "--cert-pem".into(),
+            idp_cert.as_os_str().to_os_string(),
+            "--key-pem".into(),
+            idp_key.as_os_str().to_os_string(),
+            "--ready-file".into(),
+            idp_ready.as_os_str().to_os_string(),
+        ],
+        [("VEOVEO_IDP_OIDC_CLIENT_SECRET", oidc_secret.into())],
+        &idp_log,
+    )?;
+    wait_for_file(&idp_ready).await?;
+    let idp_client = https_client_with_ca(&idp_cert)?;
+    wait_for_http_client(
+        &idp_client,
+        &format!("{idp_base}/.well-known/jwks.json"),
+        StatusCode::OK,
+    )
+    .await?;
+    let idp_jwks: Value = idp_client
+        .get(format!("{idp_base}/.well-known/jwks.json"))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    if !idp_jwks
+        .get("keys")
+        .and_then(Value::as_array)
+        .is_some_and(|keys| {
+            keys.iter()
+                .any(|key| key.get("kid").and_then(Value::as_str) == Some("test-key"))
+        })
+    {
+        bail!("fake IdP JWKS did not expose test-key: {idp_jwks}");
+    }
+
+    run_checked(
+        conformance,
+        [
+            "gateway-smoke-control-plane".into(),
+            "--base".into(),
+            base_control_plane.as_os_str().to_os_string(),
+            "--output".into(),
+            control_plane.as_os_str().to_os_string(),
+            "--idp-base-url".into(),
+            idp_base.clone().into(),
+            "--trusted-ca-path".into(),
+            idp_cert.as_os_str().to_os_string(),
+        ],
+        [],
+    )?;
+
+    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(port, &control_plane, &state_db),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            ("VEOVEO_IDP_OIDC_CLIENT_SECRET", oidc_secret.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.trim().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{base}/healthz")).await?;
+    assert_ready_profiles(&base, 1).await?;
+    assert_json_log(
+        &gateway_log,
+        &[("message", "listening"), ("service", "veoveo-mcp-gateway")],
+    )?;
+    assert_json_log(
+        &gateway_log,
+        &[("message", "gateway retention gc completed")],
+    )?;
+
+    run_checked(
+        conformance,
+        [
+            "--url".into(),
+            format!("{base}/mcp/default").into(),
+            "auth-discovery".into(),
+            "--metadata-url".into(),
+            format!("{base}/.well-known/oauth-protected-resource/mcp/default").into(),
+            "--authorization-server-metadata-url".into(),
+            format!("{base}/.well-known/oauth-authorization-server/oauth/default").into(),
+            "--authorization-server-jwks-url".into(),
+            format!("{base}/oauth/default/jwks.json").into(),
+            "--required-scope".into(),
+            "media:use".into(),
+            "--required-extension".into(),
+            "io.modelcontextprotocol/enterprise-managed-authorization".into(),
+            "--required-extension".into(),
+            "io.modelcontextprotocol/oauth-client-credentials".into(),
+            "--required-jwks-key-id".into(),
+            "test-key".into(),
+            "--required-grant-type".into(),
+            "authorization_code".into(),
+            "--required-grant-type".into(),
+            "client_credentials".into(),
+            "--required-grant-type".into(),
+            "urn:ietf:params:oauth:grant-type:jwt-bearer".into(),
+            "--required-grant-profile".into(),
+            "urn:ietf:params:oauth:grant-profile:id-jag".into(),
+            "--required-token-auth-method".into(),
+            "none".into(),
+            "--required-token-auth-method".into(),
+            "private_key_jwt".into(),
+        ],
+        [],
+    )?;
+
+    let http = reqwest::Client::builder()
+        .redirect(Policy::none())
+        .build()?;
+    let code_verifier = "smoke-browser-pkce-verifier-0123456789abcdef0123456789abcdef";
+    let code_challenge = "X9AgXux1PHu8RKlqHF9FuDYoLL6yjPFGS5je8BbaBF8";
+    let authorize = http
+        .get(format!(
+            "{base}/oauth/default/authorize?response_type=code&client_id=veoveo-browser&redirect_uri=https%3A%2F%2Fveoveo.bioma.ai%2Foauth%2Fcallback&scope=media%3Ause&code_challenge={code_challenge}&code_challenge_method=S256&state=smoke-state"
+        ))
+        .send()
+        .await?;
+    let authorize_location = redirect_location(authorize, StatusCode::FOUND)?;
+    if !authorize_location.starts_with(&format!("{idp_base}/oauth2/authorize")) {
+        bail!("unexpected authorize redirect: {authorize_location}");
+    }
+
+    let idp_authorize = idp_client.get(&authorize_location).send().await?;
+    let idp_callback = redirect_location(idp_authorize, StatusCode::FOUND)?;
+    if !idp_callback.starts_with("https://veoveo.bioma.ai/oauth/default/callback") {
+        bail!("unexpected IdP callback redirect: {idp_callback}");
+    }
+    let callback_query = idp_callback
+        .split_once('?')
+        .map(|(_, query)| query)
+        .ok_or_else(|| anyhow!("IdP callback had no query string: {idp_callback}"))?;
+    let gateway_callback = http
+        .get(format!("{base}/oauth/default/callback?{callback_query}"))
+        .send()
+        .await?;
+    let client_redirect = redirect_location(gateway_callback, StatusCode::FOUND)?;
+    if !client_redirect.starts_with("https://veoveo.bioma.ai/oauth/callback") {
+        bail!("unexpected browser client redirect: {client_redirect}");
+    }
+    let gateway_code = url_query_value(&client_redirect, "code")?;
+
+    let token_response: Value = http
+        .post(format!("{base}/oauth/default/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", "veoveo-browser"),
+            ("code", gateway_code.as_str()),
+            ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
+            ("code_verifier", code_verifier),
+        ]))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    if token_response.get("token_type").and_then(Value::as_str) != Some("Bearer") {
+        bail!("authorization-code token response was not bearer: {token_response}");
+    }
+    let replay_status = http
+        .post(format!("{base}/oauth/default/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", "veoveo-browser"),
+            ("code", gateway_code.as_str()),
+            ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
+            ("code_verifier", code_verifier),
+        ]))
+        .send()
+        .await?
+        .status();
+    if replay_status != StatusCode::BAD_REQUEST {
+        bail!("authorization-code replay status was {replay_status}, expected 400");
+    }
+    assert_http_status(
+        &format!("{base}/oauth/default/callback?{callback_query}"),
+        StatusCode::BAD_REQUEST,
+    )
+    .await?;
+    assert_http_post_status(
+        &format!("{base}/admin/default/reload-control-plane"),
+        None,
+        StatusCode::UNAUTHORIZED,
+    )
+    .await?;
+
+    let admin_token = gateway_token(
+        conformance,
+        &base,
+        &["--scope", "media:use", "--scope", "gateway:admin"],
+    )?;
+    let revocation = post_json(
+        &http,
+        &format!("{base}/admin/default/jwt-revocations"),
+        Some(admin_token.trim()),
+        serde_json::json!({
+            "issuer": "https://veoveo.bioma.ai/oauth/default",
+            "jwt_id": "smoke-jwt",
+            "expires_at": "2999-01-01T00:00:00Z",
+            "reason": "smoke"
+        }),
+    )
+    .await?;
+    if revocation.get("status").and_then(Value::as_str) != Some("revoked")
+        || revocation
+            .get("revocation")
+            .and_then(|revocation| revocation.get("jwt_id"))
+            .and_then(Value::as_str)
+            != Some("smoke-jwt")
+    {
+        bail!("unexpected revocation result: {revocation}");
+    }
+    let prune = post_json(
+        &http,
+        &format!("{base}/admin/default/jwt-revocations/prune"),
+        Some(admin_token.trim()),
+        Value::Null,
+    )
+    .await?;
+    if prune.get("status").and_then(Value::as_str) != Some("pruned")
+        || prune.get("deleted").and_then(Value::as_u64) != Some(0)
+    {
+        bail!("unexpected prune result: {prune}");
+    }
+    let expired_status = http
+        .post(format!("{base}/admin/default/jwt-revocations"))
+        .bearer_auth(admin_token.trim())
+        .json(&serde_json::json!({
+            "issuer": "https://veoveo.bioma.ai/oauth/default",
+            "jwt_id": "expired-smoke-jwt",
+            "expires_at": "2000-01-01T00:00:00Z",
+            "reason": "smoke-expired"
+        }))
+        .send()
+        .await?
+        .status();
+    if expired_status != StatusCode::BAD_REQUEST {
+        bail!("expired JWT revocation status was {expired_status}, expected 400");
+    }
+
+    gateway_child.stop();
+    let audit_counts = run_gateway_json(gateway, "audit-counts", &state_db)?;
+    assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
+    assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &state_db)?;
+    assert_audit_method(&audit_summary, "admin/jwt-revocations", 2, 0)?;
+    assert_audit_method(&audit_summary, "admin/jwt-revocations/prune", 1, 0)?;
+    assert_audit_method(&audit_summary, "admin/jwt-revocations/result", 2, 0)?;
+    assert_audit_method(&audit_summary, "admin/jwt-revocations/prune/result", 1, 0)?;
+    let audit_status_summary =
+        run_gateway_metadata_summary(gateway, &state_db, "operation_status")?;
+    assert_metadata_summary_at_least(&audit_status_summary, "succeeded", 2)?;
+    assert_metadata_summary_at_least(&audit_status_summary, "rejected", 1)?;
+
+    idp.stop();
+    cleanup.remove_on_drop();
+    println!("gateway HTTP smoke ok");
     Ok(())
 }
 
@@ -1216,6 +1532,22 @@ async fn wait_for_http(url: &str) -> Result<()> {
     bail!("timed out waiting for {url}");
 }
 
+async fn wait_for_http_client(
+    client: &reqwest::Client,
+    url: &str,
+    expected: StatusCode,
+) -> Result<()> {
+    for _ in 0..150 {
+        if let Ok(response) = client.get(url).send().await
+            && response.status() == expected
+        {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    bail!("timed out waiting for {url} to return {expected}");
+}
+
 async fn http_ok(url: &str) -> Result<bool> {
     let response = reqwest::get(url).await;
     Ok(matches!(response, Ok(response) if response.status() == StatusCode::OK))
@@ -1227,6 +1559,24 @@ async fn assert_http_status(url: &str, expected: StatusCode) -> Result<()> {
         Ok(())
     } else {
         bail!("expected {expected} from {url}, got {status}");
+    }
+}
+
+async fn assert_http_post_status(
+    url: &str,
+    bearer_token: Option<&str>,
+    expected: StatusCode,
+) -> Result<()> {
+    let client = reqwest::Client::new();
+    let mut request = client.post(url);
+    if let Some(token) = bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let status = request.send().await?.status();
+    if status == expected {
+        Ok(())
+    } else {
+        bail!("expected POST {url} to return {expected}, got {status}");
     }
 }
 
@@ -1262,6 +1612,48 @@ fn gateway_id_jag_token(conformance: &Path, gateway_base: &str, args: &[&str]) -
     ];
     all_args.extend(args.iter().map(|arg| OsString::from(*arg)));
     run_checked(conformance, all_args, [])
+}
+
+fn gateway_token(conformance: &Path, gateway_base: &str, args: &[&str]) -> Result<String> {
+    let mut all_args = vec![
+        "gateway-token-exchange".into(),
+        "--token-url".into(),
+        format!("{gateway_base}/oauth/default/token").into(),
+    ];
+    all_args.extend(args.iter().map(|arg| OsString::from(*arg)));
+    run_checked(conformance, all_args, [])
+}
+
+fn run_gateway_json(gateway: &Path, command: &str, state_db: &Path) -> Result<Value> {
+    let output = run_checked(
+        gateway,
+        [
+            command.into(),
+            "--state-db".into(),
+            state_db.as_os_str().to_os_string(),
+        ],
+        [],
+    )?;
+    Ok(serde_json::from_str(&output)?)
+}
+
+fn run_gateway_metadata_summary(
+    gateway: &Path,
+    state_db: &Path,
+    metadata_key: &str,
+) -> Result<Value> {
+    let output = run_checked(
+        gateway,
+        [
+            "audit-metadata-summary".into(),
+            "--state-db".into(),
+            state_db.as_os_str().to_os_string(),
+            "--metadata-key".into(),
+            metadata_key.into(),
+        ],
+        [],
+    )?;
+    Ok(serde_json::from_str(&output)?)
 }
 
 fn run_direct_mcp(
@@ -1337,6 +1729,57 @@ fn contains(haystack: &str, needle: &str) -> Result<()> {
     } else {
         bail!("expected output to contain `{needle}`\noutput:\n{haystack}");
     }
+}
+
+fn https_client_with_ca(cert_path: &Path) -> Result<reqwest::Client> {
+    let cert = reqwest::Certificate::from_pem(&fs::read(cert_path)?)?;
+    Ok(reqwest::Client::builder()
+        .add_root_certificate(cert)
+        .redirect(Policy::none())
+        .build()?)
+}
+
+fn redirect_location(response: reqwest::Response, expected: StatusCode) -> Result<String> {
+    let status = response.status();
+    if status != expected {
+        bail!("expected redirect status {expected}, got {status}");
+    }
+    let location = response
+        .headers()
+        .get(LOCATION)
+        .ok_or_else(|| anyhow!("redirect response had no Location header"))?
+        .to_str()?
+        .to_string();
+    Ok(location)
+}
+
+fn url_query_value(url: &str, key: &str) -> Result<String> {
+    let url = reqwest::Url::parse(url)?;
+    url.query_pairs()
+        .find_map(|(query_key, value)| (query_key == key).then(|| value.into_owned()))
+        .ok_or_else(|| anyhow!("URL had no `{key}` query value: {url}"))
+}
+
+fn form_urlencoded(fields: &[(&str, &str)]) -> String {
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer.extend_pairs(fields.iter().copied());
+    serializer.finish()
+}
+
+async fn post_json(
+    client: &reqwest::Client,
+    url: &str,
+    bearer_token: Option<&str>,
+    body: Value,
+) -> Result<Value> {
+    let mut request = client.post(url);
+    if let Some(token) = bearer_token {
+        request = request.bearer_auth(token);
+    }
+    if !body.is_null() {
+        request = request.json(&body);
+    }
+    Ok(request.send().await?.error_for_status()?.json().await?)
 }
 
 fn assert_schema_title(path: &Path, expected_title: &str) -> Result<Value> {
@@ -1541,6 +1984,37 @@ fn assert_audit_method(summary: &Value, method: &str, min_allow: u64, min_deny: 
     } else {
         bail!(
             "audit summary for `{method}` had allow={allow}, deny={deny}; expected allow>={min_allow}, deny>={min_deny}"
+        );
+    }
+}
+
+fn assert_json_u64_at_least(value: &Value, key: &str, minimum: u64) -> Result<()> {
+    let actual = value.get(key).and_then(Value::as_u64).unwrap_or_default();
+    if actual >= minimum {
+        Ok(())
+    } else {
+        bail!("JSON field `{key}` was {actual}, expected at least {minimum}: {value}");
+    }
+}
+
+fn assert_metadata_summary_at_least(
+    summary: &Value,
+    metadata_value: &str,
+    minimum: u64,
+) -> Result<()> {
+    let rows = summary
+        .as_array()
+        .ok_or_else(|| anyhow!("metadata summary is not an array"))?;
+    let events = rows
+        .iter()
+        .find(|row| row.get("metadata_value").and_then(Value::as_str) == Some(metadata_value))
+        .and_then(|row| row.get("events").and_then(Value::as_u64))
+        .unwrap_or_default();
+    if events >= minimum {
+        Ok(())
+    } else {
+        bail!(
+            "metadata summary `{metadata_value}` had {events} event(s), expected at least {minimum}: {summary}"
         );
     }
 }
