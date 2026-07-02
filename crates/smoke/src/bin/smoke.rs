@@ -764,35 +764,15 @@ async fn gateway_http(conformance: &Path, gateway: &Path, base_control_plane: &P
         .build()?;
     let code_verifier = "smoke-browser-pkce-verifier-0123456789abcdef0123456789abcdef";
     let code_challenge = "X9AgXux1PHu8RKlqHF9FuDYoLL6yjPFGS5je8BbaBF8";
-    let authorize = http
-        .get(format!(
-            "{base}/oauth/default/authorize?response_type=code&client_id=veoveo-browser&redirect_uri=https%3A%2F%2Fveoveo.bioma.ai%2Foauth%2Fcallback&scope=media%3Ause&code_challenge={code_challenge}&code_challenge_method=S256&state=smoke-state"
-        ))
-        .send()
-        .await?;
-    let authorize_location = redirect_location(authorize, StatusCode::FOUND)?;
-    if !authorize_location.starts_with(&format!("{idp_base}/oauth2/authorize")) {
-        bail!("unexpected authorize redirect: {authorize_location}");
-    }
-
-    let idp_authorize = idp_client.get(&authorize_location).send().await?;
-    let idp_callback = redirect_location(idp_authorize, StatusCode::FOUND)?;
-    if !idp_callback.starts_with("https://veoveo.bioma.ai/oauth/default/callback") {
-        bail!("unexpected IdP callback redirect: {idp_callback}");
-    }
-    let callback_query = idp_callback
-        .split_once('?')
-        .map(|(_, query)| query)
-        .ok_or_else(|| anyhow!("IdP callback had no query string: {idp_callback}"))?;
-    let gateway_callback = http
-        .get(format!("{base}/oauth/default/callback?{callback_query}"))
-        .send()
-        .await?;
-    let client_redirect = redirect_location(gateway_callback, StatusCode::FOUND)?;
-    if !client_redirect.starts_with("https://veoveo.bioma.ai/oauth/callback") {
-        bail!("unexpected browser client redirect: {client_redirect}");
-    }
-    let gateway_code = url_query_value(&client_redirect, "code")?;
+    let (gateway_code, callback_query) = gateway_browser_authorization_code(
+        &http,
+        &idp_client,
+        &base,
+        &idp_base,
+        code_challenge,
+        "smoke-state",
+    )
+    .await?;
 
     let token_response: Value = http
         .post(format!("{base}/oauth/default/token"))
@@ -827,6 +807,50 @@ async fn gateway_http(conformance: &Path, gateway: &Path, base_control_plane: &P
         .status();
     if replay_status != StatusCode::BAD_REQUEST {
         bail!("authorization-code replay status was {replay_status}, expected 400");
+    }
+    let wrong_code_verifier = "smoke-browser-wrong-verifier-0123456789abcdef0123456789abcdef";
+    let (wrong_pkce_code, _) = gateway_browser_authorization_code(
+        &http,
+        &idp_client,
+        &base,
+        &idp_base,
+        code_challenge,
+        "smoke-wrong-pkce",
+    )
+    .await?;
+    let wrong_pkce_status = http
+        .post(format!("{base}/oauth/default/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", "veoveo-browser"),
+            ("code", wrong_pkce_code.as_str()),
+            ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
+            ("code_verifier", wrong_code_verifier),
+        ]))
+        .send()
+        .await?
+        .status();
+    if wrong_pkce_status != StatusCode::BAD_REQUEST {
+        bail!("wrong PKCE verifier status was {wrong_pkce_status}, expected 400");
+    }
+    let wrong_pkce_redeem_status = http
+        .post(format!("{base}/oauth/default/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", "veoveo-browser"),
+            ("code", wrong_pkce_code.as_str()),
+            ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
+            ("code_verifier", code_verifier),
+        ]))
+        .send()
+        .await?
+        .status();
+    if wrong_pkce_redeem_status != StatusCode::BAD_REQUEST {
+        bail!(
+            "wrong-PKCE authorization code remained redeemable with the right verifier: {wrong_pkce_redeem_status}"
+        );
     }
     assert_http_status(
         &format!("{base}/oauth/default/callback?{callback_query}"),
@@ -2468,6 +2492,57 @@ fn redirect_location(response: reqwest::Response, expected: StatusCode) -> Resul
         .to_str()?
         .to_string();
     Ok(location)
+}
+
+async fn gateway_browser_authorization_code(
+    http: &reqwest::Client,
+    idp_client: &reqwest::Client,
+    gateway_base: &str,
+    idp_base: &str,
+    code_challenge: &str,
+    client_state: &str,
+) -> Result<(String, String)> {
+    let authorize_query = form_urlencoded(&[
+        ("response_type", "code"),
+        ("client_id", "veoveo-browser"),
+        ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
+        ("scope", "media:use"),
+        ("code_challenge", code_challenge),
+        ("code_challenge_method", "S256"),
+        ("state", client_state),
+    ]);
+    let authorize = http
+        .get(format!(
+            "{gateway_base}/oauth/default/authorize?{authorize_query}"
+        ))
+        .send()
+        .await?;
+    let authorize_location = redirect_location(authorize, StatusCode::FOUND)?;
+    if !authorize_location.starts_with(&format!("{idp_base}/oauth2/authorize")) {
+        bail!("unexpected authorize redirect: {authorize_location}");
+    }
+
+    let idp_authorize = idp_client.get(&authorize_location).send().await?;
+    let idp_callback = redirect_location(idp_authorize, StatusCode::FOUND)?;
+    if !idp_callback.starts_with("https://veoveo.bioma.ai/oauth/default/callback") {
+        bail!("unexpected IdP callback redirect: {idp_callback}");
+    }
+    let callback_query = idp_callback
+        .split_once('?')
+        .map(|(_, query)| query.to_string())
+        .ok_or_else(|| anyhow!("IdP callback had no query string: {idp_callback}"))?;
+    let gateway_callback = http
+        .get(format!(
+            "{gateway_base}/oauth/default/callback?{callback_query}"
+        ))
+        .send()
+        .await?;
+    let client_redirect = redirect_location(gateway_callback, StatusCode::FOUND)?;
+    if !client_redirect.starts_with("https://veoveo.bioma.ai/oauth/callback") {
+        bail!("unexpected browser client redirect: {client_redirect}");
+    }
+    let gateway_code = url_query_value(&client_redirect, "code")?;
+    Ok((gateway_code, callback_query))
 }
 
 fn url_query_value(url: &str, key: &str) -> Result<String> {
