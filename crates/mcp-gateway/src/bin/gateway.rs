@@ -16,6 +16,7 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
+use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
 use jsonwebtoken::{Algorithm, jwk::JwkSet};
 use rmcp::transport::streamable_http_server::{
@@ -25,8 +26,8 @@ use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GATEWAY_INTERNAL_TOKEN_ISSUER,
-    GatewayInternalTokenIssuer, GatewayProfile, GatewayProfileId, InternalTokenSecret,
-    PublicDeployment, TokenIssuer, TraceId,
+    GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayProfile, GatewayProfileId,
+    InternalTokenSecret, JwtId, PublicDeployment, TokenIssuer, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
@@ -52,6 +53,33 @@ enum Command {
     },
     /// Print aggregate gateway audit counts as JSON.
     AuditCounts {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+    },
+    /// Add a gateway JWT id to the durable revocation set.
+    RevokeJwt {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+        /// Gateway profile whose protected resource accepted the JWT.
+        #[arg(long)]
+        profile: GatewayProfileId,
+        /// Token issuer claim.
+        #[arg(long)]
+        issuer: TokenIssuer,
+        /// JWT id claim.
+        #[arg(long)]
+        jwt_id: JwtId,
+        /// Expiration timestamp for this revocation entry, normally the JWT exp claim.
+        #[arg(long)]
+        expires_at: DateTime<Utc>,
+        /// Operator-readable revocation reason stored as evidence.
+        #[arg(long)]
+        reason: Option<String>,
+    },
+    /// Remove expired gateway JWT revocation entries.
+    PruneRevokedJwts {
         /// DuckDB file for gateway runtime state and audit evidence.
         #[arg(long)]
         state_db: PathBuf,
@@ -121,6 +149,31 @@ async fn main() -> anyhow::Result<()> {
         Command::AuditCounts { state_db } => {
             let state = GatewayState::open(&state_db)?;
             println!("{}", serde_json::to_string(&state.audit_counts()?)?);
+            Ok(())
+        }
+        Command::RevokeJwt {
+            state_db,
+            profile,
+            issuer,
+            jwt_id,
+            expires_at,
+            reason,
+        } => {
+            let state = GatewayState::open(&state_db)?;
+            state.record_jwt_revocation(&GatewayJwtRevocation {
+                profile,
+                issuer,
+                jwt_id,
+                revoked_at: Utc::now(),
+                expires_at,
+                reason,
+            })?;
+            println!("ok");
+            Ok(())
+        }
+        Command::PruneRevokedJwts { state_db } => {
+            let state = GatewayState::open(&state_db)?;
+            println!("{}", state.prune_expired_jwt_revocations(Utc::now())?);
             Ok(())
         }
         Command::Serve {
@@ -373,6 +426,39 @@ async fn authenticate_mcp(
             return unauthorized(&state, "invalid bearer token");
         }
     };
+    if let Some(jwt_id) = &subject.access_token.jwt_id {
+        match state.gateway_state.jwt_revocation(
+            &profile.id,
+            &subject.access_token.issuer,
+            jwt_id,
+            Utc::now(),
+        ) {
+            Ok(Some(_revocation)) => {
+                tracing::warn!(
+                    profile = %profile.id,
+                    issuer = %subject.access_token.issuer,
+                    jwt_id = %jwt_id,
+                    "rejected revoked gateway token"
+                );
+                if let Err(err) = record_auth_audit(
+                    &state,
+                    profile,
+                    AuthOutcome::Deny,
+                    AuthReasonCode::TokenRevoked,
+                    Some(&subject),
+                    started_at,
+                ) {
+                    return auth_audit_error_response(err);
+                }
+                return unauthorized(&state, "token revoked");
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::error!("failed to check gateway token revocation state: {err}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    }
     if let Err(err) = record_auth_audit(
         &state,
         profile,

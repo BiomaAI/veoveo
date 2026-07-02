@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
+    str::FromStr,
 };
 
 use chrono::{DateTime, Utc};
@@ -51,6 +52,14 @@ macro_rules! typed_id {
 
             fn try_from(value: String) -> Result<Self, Self::Error> {
                 Self::new(value)
+            }
+        }
+
+        impl FromStr for $name {
+            type Err = IdentifierError;
+
+            fn from_str(value: &str) -> Result<Self, Self::Err> {
+                Self::new(value.to_string())
             }
         }
 
@@ -1493,6 +1502,7 @@ pub enum AuthReasonCode {
     IdentityProviderUnavailable,
     InvalidAuthConfig,
     InvalidBearerToken,
+    TokenRevoked,
 }
 
 impl AuthReasonCode {
@@ -1505,8 +1515,20 @@ impl AuthReasonCode {
             Self::IdentityProviderUnavailable => "identity_provider_unavailable",
             Self::InvalidAuthConfig => "invalid_auth_config",
             Self::InvalidBearerToken => "invalid_bearer_token",
+            Self::TokenRevoked => "token_revoked",
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayJwtRevocation {
+    pub profile: GatewayProfileId,
+    pub issuer: TokenIssuer,
+    pub jwt_id: JwtId,
+    pub revoked_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

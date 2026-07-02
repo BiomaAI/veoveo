@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use duckdb::{OptionalExt, params};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
-    GatewayTaskMapping, PrincipalId, ResourceUri, ServerSlug, SharedDuckDbConnection,
-    UpstreamTaskId, open_duckdb,
+    AuditEvent, AuthAuditEvent, GatewayJwtRevocation, GatewayProfileId,
+    GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, JwtId, PrincipalId,
+    ResourceUri, ServerSlug, SharedDuckDbConnection, TokenIssuer, UpstreamTaskId, open_duckdb,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -78,6 +79,19 @@ impl GatewayState {
             CREATE INDEX IF NOT EXISTS idx_gateway_resource_subscriptions_owner
             ON gateway_resource_subscriptions(profile, owner, upstream_server);
 
+            CREATE TABLE IF NOT EXISTS gateway_revoked_jwt_ids (
+                profile TEXT NOT NULL,
+                issuer TEXT NOT NULL,
+                jwt_id TEXT NOT NULL,
+                revoked_at TIMESTAMP NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                revocation_json TEXT NOT NULL,
+                PRIMARY KEY(profile, issuer, jwt_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_revoked_jwt_ids_expires
+            ON gateway_revoked_jwt_ids(expires_at);
+
             CREATE TABLE IF NOT EXISTS gateway_audit_events (
                 event_id TEXT PRIMARY KEY,
                 trace_id TEXT NOT NULL,
@@ -133,6 +147,57 @@ impl GatewayState {
             auth_events: self.count_rows(GatewayAuditTable::Auth)?,
             policy_events: self.count_rows(GatewayAuditTable::Policy)?,
         })
+    }
+
+    pub fn record_jwt_revocation(&self, revocation: &GatewayJwtRevocation) -> Result<()> {
+        let revocation_json = serde_json::to_string(revocation)?;
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO gateway_revoked_jwt_ids (
+                profile, issuer, jwt_id, revoked_at, expires_at, revocation_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT(profile, issuer, jwt_id) DO UPDATE SET
+                revoked_at = excluded.revoked_at,
+                expires_at = excluded.expires_at,
+                revocation_json = excluded.revocation_json
+            "#,
+            params![
+                revocation.profile.as_str(),
+                revocation.issuer.as_str(),
+                revocation.jwt_id.as_str(),
+                revocation.revoked_at,
+                revocation.expires_at,
+                revocation_json,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn jwt_revocation(
+        &self,
+        profile: &GatewayProfileId,
+        issuer: &TokenIssuer,
+        jwt_id: &JwtId,
+        now: DateTime<Utc>,
+    ) -> Result<Option<GatewayJwtRevocation>> {
+        self.query_revocation(
+            r#"
+            SELECT revocation_json
+            FROM gateway_revoked_jwt_ids
+            WHERE profile = ?1 AND issuer = ?2 AND jwt_id = ?3 AND expires_at > ?4
+            "#,
+            params![profile.as_str(), issuer.as_str(), jwt_id.as_str(), now],
+        )
+    }
+
+    pub fn prune_expired_jwt_revocations(&self, now: DateTime<Utc>) -> Result<u64> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let deleted = conn.execute(
+            "DELETE FROM gateway_revoked_jwt_ids WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        Ok(u64::try_from(deleted)?)
     }
 
     pub fn record_task_mapping(&self, mapping: &GatewayTaskMapping) -> Result<()> {
@@ -423,13 +488,26 @@ impl GatewayState {
             .map(|json| serde_json::from_str(&json))
             .transpose()?)
     }
+
+    fn query_revocation<P>(&self, sql: &str, params: P) -> Result<Option<GatewayJwtRevocation>>
+    where
+        P: duckdb::Params,
+    {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let revocation_json = conn
+            .query_row(sql, params, |row| row.get::<_, String>(0))
+            .optional()?;
+        Ok(revocation_json
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use chrono::Utc;
+    use chrono::{TimeDelta, Utc};
     use std::collections::BTreeMap;
 
     use veoveo_mcp_contract::{
@@ -528,6 +606,53 @@ mod tests {
                     &subscription.upstream_server,
                     &subscription.resource_uri,
                 )
+                .unwrap(),
+            None
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn jwt_revocation_round_trips_and_prunes_expired_entries() {
+        let path = temp_path("revoked-jwts");
+        let state = GatewayState::open(&path).unwrap();
+        let now = Utc::now();
+        let profile = GatewayProfileId::new("default").unwrap();
+        let issuer = TokenIssuer::new("https://idp.example.com").unwrap();
+        let jwt_id = JwtId::new("jwt-1").unwrap();
+        let revocation = GatewayJwtRevocation {
+            profile: profile.clone(),
+            issuer: issuer.clone(),
+            jwt_id: jwt_id.clone(),
+            revoked_at: now,
+            expires_at: now + TimeDelta::hours(1),
+            reason: Some("operator_request".to_string()),
+        };
+
+        state.record_jwt_revocation(&revocation).unwrap();
+
+        assert_eq!(
+            state
+                .jwt_revocation(&profile, &issuer, &jwt_id, now)
+                .unwrap(),
+            Some(revocation)
+        );
+        assert_eq!(
+            state
+                .jwt_revocation(&profile, &issuer, &JwtId::new("jwt-2").unwrap(), now)
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            state
+                .prune_expired_jwt_revocations(now + TimeDelta::hours(2))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            state
+                .jwt_revocation(&profile, &issuer, &jwt_id, now)
                 .unwrap(),
             None
         );

@@ -29,6 +29,16 @@ check:
 gateway-validate:
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-control-plane}}
 
+# Revoke one gateway JWT id until its original token expiration.
+gateway-revoke-jwt jwt_id expires_at issuer='https://idp.example.com' profile='default' reason='operator_request':
+    mkdir -p data/gateway
+    cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db data/gateway/state.duckdb --profile '{{profile}}' --issuer '{{issuer}}' --jwt-id '{{jwt_id}}' --expires-at '{{expires_at}}' --reason '{{reason}}'
+
+# Remove expired gateway JWT revocation entries.
+gateway-prune-revoked-jwts:
+    mkdir -p data/gateway
+    cargo run -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db data/gateway/state.duckdb
+
 # Smoke-test gateway contract/control-plane behavior without external services.
 smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
@@ -73,6 +83,8 @@ smoke-gateway-http:
     wait "${pid}" 2>/dev/null || true
     pid=""
     cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":1'
+    cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db "${state_db}" --profile default --issuer https://idp.example.com --jwt-id smoke-jwt --expires-at 2999-01-01T00:00:00Z --reason smoke >/dev/null
+    test "$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db "${state_db}")" = "0"
 
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:
