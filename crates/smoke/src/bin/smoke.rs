@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow, bail};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use clap::{Parser, Subcommand};
 use reqwest::{
     StatusCode,
@@ -121,6 +122,21 @@ enum Cmd {
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
     },
+    /// Smoke-test authenticated gateway-to-media forwarding and policy/admin flows.
+    GatewayAuthenticated {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built media MCP server binary path.
+        #[arg(long, default_value = "target/debug/server")]
+        media_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+    },
     /// Run one gateway profile against two hosted MCP upstreams.
     GatewayTwoServers {
         /// Built conformance binary path.
@@ -189,6 +205,27 @@ impl Drop for ChildGuard {
     }
 }
 
+#[derive(Debug)]
+struct ContainerGuard {
+    name: String,
+}
+
+impl ContainerGuard {
+    fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+}
+
+impl Drop for ContainerGuard {
+    fn drop(&mut self) {
+        let _ = Command::new("docker")
+            .args(["rm", "-f", self.name.as_str()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -213,6 +250,14 @@ async fn main() -> Result<()> {
             gateway_bin,
             control_plane,
         } => gateway_http(&conformance_bin, &gateway_bin, &control_plane).await,
+        Cmd::GatewayAuthenticated {
+            conformance_bin,
+            media_bin,
+            gateway_bin,
+            control_plane,
+        } => {
+            gateway_authenticated(&conformance_bin, &media_bin, &gateway_bin, &control_plane).await
+        }
         Cmd::GatewayTwoServers {
             conformance_bin,
             gateway_bin,
@@ -724,6 +769,374 @@ async fn gateway_http(conformance: &Path, gateway: &Path, base_control_plane: &P
     idp.stop();
     cleanup.remove_on_drop();
     println!("gateway HTTP smoke ok");
+    Ok(())
+}
+
+async fn gateway_authenticated(
+    conformance: &Path,
+    media: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+    assert_executable(gateway)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let media_port = 18801u16;
+    let gateway_port = 18802u16;
+    let edge_port = 18809u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let edge_base = format!("http://127.0.0.1:{edge_port}");
+    let media_log = tmpdir.join("media.log");
+    let gateway_log = tmpdir.join("gateway.log");
+    let edge_log = tmpdir.join("edge.log");
+    let edge_caddyfile = tmpdir.join("Caddyfile");
+    let media_state_db = tmpdir.join("media-state.duckdb");
+    let gateway_state_db = tmpdir.join("gateway-state.duckdb");
+
+    let mut media_child = spawn_media_s3_smoke(
+        media,
+        media_port,
+        PUBLIC_BASE_URL,
+        &media_state_db,
+        &media_log,
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let health = reqwest::get(format!("{media_base}/media/healthz"))
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    contains(&health, "ok")?;
+    assert_json_log(
+        &media_log,
+        &[
+            ("message", "listening"),
+            ("service", "veoveo-media-mcp"),
+            ("mcp_path", "/media/mcp"),
+        ],
+    )?;
+    assert_json_log(&media_log, &[("message", "media retention gc completed")])?;
+
+    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.trim().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, 1).await?;
+    assert_json_log(
+        &gateway_log,
+        &[("message", "listening"), ("service", "veoveo-mcp-gateway")],
+    )?;
+    assert_json_log(
+        &gateway_log,
+        &[("message", "gateway retention gc completed")],
+    )?;
+
+    write_edge_caddyfile(&edge_caddyfile, gateway_port, media_port)?;
+    let edge_name = format!("veoveo-edge-smoke-{edge_port}-{}", uuid::Uuid::new_v4());
+    let _edge_container = ContainerGuard::new(edge_name.clone());
+    let mut edge = ChildGuard::spawn(
+        Path::new("docker"),
+        [
+            "run".into(),
+            "--rm".into(),
+            "--name".into(),
+            edge_name.into(),
+            "--add-host=host.docker.internal:host-gateway".into(),
+            "-p".into(),
+            format!("127.0.0.1:{edge_port}:8080").into(),
+            "-v".into(),
+            format!("{}:/etc/caddy/Caddyfile:ro", edge_caddyfile.display()).into(),
+            "caddy:2.11.2".into(),
+            "caddy".into(),
+            "run".into(),
+            "--config".into(),
+            "/etc/caddy/Caddyfile".into(),
+            "--adapter".into(),
+            "caddyfile".into(),
+        ],
+        [],
+        &edge_log,
+    )?;
+    wait_for_http(&format!("{edge_base}/healthz")).await?;
+    contains(
+        &reqwest::get(format!("{edge_base}/healthz"))
+            .await?
+            .error_for_status()?
+            .text()
+            .await?,
+        "ok",
+    )?;
+    contains(
+        &reqwest::get(format!("{edge_base}/media/healthz"))
+            .await?
+            .error_for_status()?
+            .text()
+            .await?,
+        "ok",
+    )?;
+    assert_http_status(&format!("{edge_base}/media/mcp"), StatusCode::NOT_FOUND).await?;
+    let edge_token = gateway_token(conformance, &edge_base, &["--scope", "media:use"])?;
+    run_direct_mcp(
+        conformance,
+        &format!("{edge_base}/mcp/default"),
+        ["info".into()],
+        [("MCP_BEARER_TOKEN", edge_token.trim().into())],
+    )?;
+
+    let admin_token = gateway_token(
+        conformance,
+        &gateway_base,
+        &["--scope", "media:use", "--scope", "gateway:admin"],
+    )?;
+    let http = reqwest::Client::new();
+    let reload = post_json(
+        &http,
+        &format!("{gateway_base}/admin/default/reload-control-plane"),
+        Some(admin_token.trim()),
+        Value::Null,
+    )
+    .await?;
+    let reload_revision_id = assert_control_plane_admin_result(&reload, "reloaded")?;
+    if !reload_revision_id.starts_with("gcp-")
+        || reload.get("sha256").and_then(Value::as_str).map(str::len) != Some(64)
+    {
+        bail!("unexpected reload result: {reload}");
+    }
+    let control_status = get_json(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+    )
+    .await?;
+    assert_control_plane_status(&control_status, &reload_revision_id)?;
+
+    let applied = put_json_file(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+        control_plane,
+    )
+    .await?;
+    let revision_id = assert_control_plane_admin_result(&applied, "applied")?;
+    let control_status = get_json(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+    )
+    .await?;
+    assert_control_plane_status(&control_status, &revision_id)?;
+
+    gateway_child.stop();
+    gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.trim().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, 1).await?;
+    let control_status = get_json(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+    )
+    .await?;
+    assert_control_plane_status(&control_status, &revision_id)?;
+
+    let token = gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    let token = token.trim();
+    let gateway_mcp_url = format!("{gateway_base}/mcp/default");
+    for args in [
+        vec!["info".into()],
+        vec!["resource".into(), "media://usage".into()],
+        vec!["prompts".into()],
+        vec![
+            "prompt".into(),
+            "media-model-select".into(),
+            "--arguments".into(),
+            r#"{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}"#.into(),
+        ],
+        vec!["tasks".into()],
+    ] {
+        run_direct_mcp(
+            conformance,
+            &gateway_mcp_url,
+            args,
+            [("MCP_BEARER_TOKEN", token.into())],
+        )?;
+    }
+
+    let revoked_token = gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    let revoked_jti = jwt_id(revoked_token.trim())?;
+    let revocation = post_json(
+        &http,
+        &format!("{gateway_base}/admin/default/jwt-revocations"),
+        Some(admin_token.trim()),
+        serde_json::json!({
+            "issuer": "https://veoveo.bioma.ai/oauth/default",
+            "jwt_id": revoked_jti,
+            "expires_at": "2999-01-01T00:00:00Z",
+            "reason": "smoke"
+        }),
+    )
+    .await?;
+    if revocation.get("status").and_then(Value::as_str) != Some("revoked")
+        || revocation
+            .get("revocation")
+            .and_then(|revocation| revocation.get("jwt_id"))
+            .and_then(Value::as_str)
+            != Some(revoked_jti.as_str())
+    {
+        bail!("unexpected JWT revocation result: {revocation}");
+    }
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        revoked_token.trim(),
+        ["info".into()],
+    )?;
+
+    let ema_token = gateway_id_jag_token(
+        conformance,
+        &gateway_base,
+        &[
+            "--id-jag-scope",
+            "media:use",
+            "--group",
+            "engineering",
+            "--role",
+            "operator",
+            "--data-label",
+            "cui",
+        ],
+    )?;
+    let ema_token = ema_token.trim();
+    run_direct_mcp(
+        conformance,
+        &gateway_mcp_url,
+        ["info".into()],
+        [("MCP_BEARER_TOKEN", ema_token.into())],
+    )?;
+
+    let cui_control_plane = tmpdir.join("gateway.cui.json");
+    write_cui_control_plane(control_plane, &cui_control_plane)?;
+    let cui_apply = put_json_file(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+        &cui_control_plane,
+    )
+    .await?;
+    assert_control_plane_admin_result(&cui_apply, "applied")?;
+
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        token,
+        ["resource".into(), "media://usage".into()],
+    )?;
+    let missing_group_token = gateway_id_jag_token(
+        conformance,
+        &gateway_base,
+        &[
+            "--id-jag-scope",
+            "media:use",
+            "--role",
+            "operator",
+            "--data-label",
+            "cui",
+        ],
+    )?;
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        missing_group_token.trim(),
+        ["resource".into(), "media://usage".into()],
+    )?;
+    let missing_role_token = gateway_id_jag_token(
+        conformance,
+        &gateway_base,
+        &[
+            "--id-jag-scope",
+            "media:use",
+            "--group",
+            "engineering",
+            "--data-label",
+            "cui",
+        ],
+    )?;
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        missing_role_token.trim(),
+        ["resource".into(), "media://usage".into()],
+    )?;
+    run_direct_mcp(
+        conformance,
+        &gateway_mcp_url,
+        ["resource".into(), "media://usage".into()],
+        [("MCP_BEARER_TOKEN", ema_token.into())],
+    )?;
+
+    let replay_jti = "smoke-id-jag-replay";
+    gateway_id_jag_token(
+        conformance,
+        &gateway_base,
+        &["--id-jag-scope", "media:use", "--jwt-id", replay_jti],
+    )?;
+    if gateway_id_jag_token(
+        conformance,
+        &gateway_base,
+        &["--id-jag-scope", "media:use", "--jwt-id", replay_jti],
+    )
+    .is_ok()
+    {
+        bail!("replayed ID-JAG was unexpectedly accepted");
+    }
+
+    let denied_token = gateway_token(conformance, &gateway_base, &["--scope", "gateway:admin"])?;
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        denied_token.trim(),
+        ["info".into()],
+    )?;
+
+    edge.stop();
+    gateway_child.stop();
+    let audit_counts = run_gateway_json(gateway, "audit-counts", &gateway_state_db)?;
+    assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
+    assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
+    let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &gateway_state_db)?;
+    assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
+    assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;
+    assert_reason_summary_at_least(&audit_reasons, "missing_role", 1)?;
+
+    media_child.stop();
+    cleanup.remove_on_drop();
+    println!("gateway authenticated smoke ok");
     Ok(())
 }
 
@@ -1460,6 +1873,53 @@ fn spawn_media_memory_smoke(
     )
 }
 
+fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u16) -> Result<()> {
+    let caddyfile = format!(
+        r#"{{
+    admin off
+    auto_https off
+}}
+
+:8080 {{
+    handle /mcp* {{
+        reverse_proxy host.docker.internal:{gateway_port}
+    }}
+    handle /oauth* {{
+        reverse_proxy host.docker.internal:{gateway_port}
+    }}
+    handle /.well-known/oauth-* {{
+        reverse_proxy host.docker.internal:{gateway_port}
+    }}
+    handle /admin* {{
+        reverse_proxy host.docker.internal:{gateway_port}
+    }}
+    handle /healthz {{
+        reverse_proxy host.docker.internal:{gateway_port}
+    }}
+    handle /readyz {{
+        reverse_proxy host.docker.internal:{gateway_port}
+    }}
+    handle /media/webhooks* {{
+        reverse_proxy host.docker.internal:{media_port}
+    }}
+    handle /media/files* {{
+        reverse_proxy host.docker.internal:{media_port}
+    }}
+    handle /media/artifacts* {{
+        reverse_proxy host.docker.internal:{media_port}
+    }}
+    handle /media/healthz {{
+        reverse_proxy host.docker.internal:{media_port}
+    }}
+    respond /media/mcp* 404
+    respond 404
+}}
+"#
+    );
+    fs::write(path, caddyfile)?;
+    Ok(())
+}
+
 fn gateway_serve_args(port: u16, control_plane: &Path, state_db: &Path) -> Vec<OsString> {
     vec![
         "serve".into(),
@@ -1782,6 +2242,117 @@ async fn post_json(
     Ok(request.send().await?.error_for_status()?.json().await?)
 }
 
+async fn get_json(
+    client: &reqwest::Client,
+    url: &str,
+    bearer_token: Option<&str>,
+) -> Result<Value> {
+    let mut request = client.get(url);
+    if let Some(token) = bearer_token {
+        request = request.bearer_auth(token);
+    }
+    Ok(request.send().await?.error_for_status()?.json().await?)
+}
+
+async fn put_json_file(
+    client: &reqwest::Client,
+    url: &str,
+    bearer_token: Option<&str>,
+    path: &Path,
+) -> Result<Value> {
+    let mut request = client
+        .put(url)
+        .header(CONTENT_TYPE, "application/json")
+        .body(fs::read(path)?);
+    if let Some(token) = bearer_token {
+        request = request.bearer_auth(token);
+    }
+    Ok(request.send().await?.error_for_status()?.json().await?)
+}
+
+fn assert_control_plane_admin_result(value: &Value, expected_status: &str) -> Result<String> {
+    if value.get("status").and_then(Value::as_str) != Some(expected_status)
+        || value.get("servers").and_then(Value::as_u64) != Some(1)
+        || value.get("profiles").and_then(Value::as_u64) != Some(1)
+    {
+        bail!("unexpected control-plane admin result: {value}");
+    }
+    let revision_id = value
+        .get("revision_id")
+        .and_then(Value::as_str)
+        .filter(|revision_id| !revision_id.is_empty() && *revision_id != "null")
+        .ok_or_else(|| anyhow!("control-plane admin result had no revision id: {value}"))?;
+    Ok(revision_id.to_string())
+}
+
+fn assert_control_plane_status(value: &Value, expected_revision_id: &str) -> Result<()> {
+    if value.get("status").and_then(Value::as_str) != Some("ok")
+        || value.get("servers").and_then(Value::as_u64) != Some(1)
+        || value.get("profiles").and_then(Value::as_u64) != Some(1)
+        || value.get("revision_id").and_then(Value::as_str) != Some(expected_revision_id)
+    {
+        bail!("unexpected control-plane status: {value}");
+    }
+    Ok(())
+}
+
+fn jwt_id(token: &str) -> Result<String> {
+    let payload = token
+        .split('.')
+        .nth(1)
+        .ok_or_else(|| anyhow!("JWT had no payload segment"))?;
+    let payload: Value = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(payload)?)?;
+    payload
+        .get("jti")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| anyhow!("JWT payload had no jti: {payload}"))
+}
+
+fn assert_mcp_denied(
+    conformance: &Path,
+    mcp_url: &str,
+    token: &str,
+    args: impl IntoIterator<Item = OsString>,
+) -> Result<()> {
+    let mut all_args = vec!["--url".into(), mcp_url.into()];
+    all_args.extend(args);
+    let output = run_raw(conformance, all_args, [("MCP_BEARER_TOKEN", token.into())])?;
+    if output.status.success() {
+        bail!(
+            "MCP command was unexpectedly authorized\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(())
+}
+
+fn write_cui_control_plane(input: &Path, output: &Path) -> Result<()> {
+    let mut control_plane: Value = serde_json::from_str(&fs::read_to_string(input)?)?;
+    let policies = control_plane
+        .get_mut("policies")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no policies array"))?;
+    let policy = policies
+        .iter_mut()
+        .find(|policy| policy.get("version").and_then(Value::as_str) == Some("2026-07-02"))
+        .ok_or_else(|| anyhow!("control plane has no 2026-07-02 policy"))?;
+    let rules = policy
+        .get_mut("rules")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("policy has no rules array"))?;
+    let rule = rules
+        .iter_mut()
+        .find(|rule| rule.get("id").and_then(Value::as_str) == Some("allow_media_profile_use"))
+        .ok_or_else(|| anyhow!("policy has no allow_media_profile_use rule"))?;
+    rule["required_data_labels"] = serde_json::json!(["cui"]);
+    rule["groups"] = serde_json::json!(["engineering"]);
+    rule["roles"] = serde_json::json!(["operator"]);
+    fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
 fn assert_schema_title(path: &Path, expected_title: &str) -> Result<Value> {
     let value: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
     if value.get("$schema").is_none() {
@@ -2015,6 +2586,24 @@ fn assert_metadata_summary_at_least(
     } else {
         bail!(
             "metadata summary `{metadata_value}` had {events} event(s), expected at least {minimum}: {summary}"
+        );
+    }
+}
+
+fn assert_reason_summary_at_least(summary: &Value, reason: &str, minimum: u64) -> Result<()> {
+    let rows = summary
+        .as_array()
+        .ok_or_else(|| anyhow!("reason summary is not an array"))?;
+    let events = rows
+        .iter()
+        .find(|row| row.get("reason").and_then(Value::as_str) == Some(reason))
+        .and_then(|row| row.get("events").and_then(Value::as_u64))
+        .unwrap_or_default();
+    if events >= minimum {
+        Ok(())
+    } else {
+        bail!(
+            "reason summary `{reason}` had {events} event(s), expected at least {minimum}: {summary}"
         );
     }
 }

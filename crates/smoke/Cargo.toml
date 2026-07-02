@@ -9,6 +9,7 @@ path = "src/bin/smoke.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
 clap.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls"] }
 serde.workspace = true
