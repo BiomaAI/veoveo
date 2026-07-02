@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -7,7 +8,7 @@ use serde_json::Value;
 /// These fields are metadata for policy enforcement and audit routing. They are
 /// intentionally optional because local/dev servers may not have tenant or data
 /// classification context yet.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ComplianceMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub classification: Option<String>,
@@ -24,7 +25,7 @@ pub struct ComplianceMetadata {
 /// `artifact_uri` is the protocol identity (`{scheme}://artifact/{sha256}`).
 /// `download_url` is optional bulk-transfer plumbing for large artifacts and
 /// must not become a discovery API.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ArtifactMetadata {
     pub sha256: String,
     pub byte_len: u64,

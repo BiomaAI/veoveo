@@ -19,6 +19,7 @@ clap.workspace = true
 duckdb.workspace = true
 reqwest = { workspace = true, features = ["rustls-tls"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "reqwest"] }
+schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }

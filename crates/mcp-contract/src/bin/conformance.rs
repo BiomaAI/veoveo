@@ -13,11 +13,11 @@ use rmcp::{
     ClientHandler, ServiceExt,
     model::{
         ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams, ClientCapabilities,
-        ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock, GetTaskParams,
-        GetTaskPayloadParams, Implementation, NumberOrString, ProgressNotificationParam,
-        ProgressToken, ReadResourceRequestParams, Reference, Request, RequestParamsMeta,
-        ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams, TaskMetadata,
-        TaskStatus, TaskStatusNotificationParam,
+        ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock, GetPromptRequestParams,
+        GetTaskParams, GetTaskPayloadParams, Implementation, NumberOrString,
+        ProgressNotificationParam, ProgressToken, ReadResourceRequestParams, Reference, Request,
+        RequestParamsMeta, ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams,
+        TaskMetadata, TaskStatus, TaskStatusNotificationParam,
     },
     service::NotificationContext,
     transport::StreamableHttpClientTransport,
@@ -51,6 +51,15 @@ enum Cmd {
     },
     /// Autocomplete model ids via completion/complete on the model template.
     Complete { prefix: String },
+    /// List prompt templates.
+    Prompts,
+    /// Render one prompt template.
+    Prompt {
+        name: String,
+        /// Prompt arguments as a JSON object.
+        #[arg(long)]
+        arguments: Option<String>,
+    },
     /// Read the full schema resource for one model.
     Schema { model_id: String },
     /// Read the live state of a prediction resource.
@@ -199,6 +208,17 @@ async fn cmd_info(client: &Client) -> Result<()> {
             "  input schema: {}",
             serde_json::to_string(&tool.input_schema)?
         );
+        if let Some(schema) = &tool.output_schema {
+            println!("  output schema: {}", serde_json::to_string(schema)?);
+        }
+    }
+    let prompts = client.list_prompts(Default::default()).await?;
+    for prompt in prompts.prompts {
+        println!(
+            "prompt `{}` — {}",
+            prompt.name,
+            prompt.description.unwrap_or_default()
+        );
     }
     let templates = client.list_resource_templates(Default::default()).await?;
     for t in templates.resource_templates {
@@ -263,6 +283,61 @@ async fn cmd_complete(client: &Client, uris: &ProviderUris, prefix: String) -> R
         result.completion.total,
         result.completion.has_more
     );
+    Ok(())
+}
+
+async fn cmd_prompts(client: &Client) -> Result<()> {
+    let prompts = client.list_prompts(Default::default()).await?;
+    for prompt in prompts.prompts {
+        println!(
+            "{} — {}",
+            prompt.name,
+            prompt.description.unwrap_or_default()
+        );
+        for argument in prompt.arguments.unwrap_or_default() {
+            println!(
+                "    {}{} — {}",
+                argument.name,
+                if argument.required == Some(true) {
+                    " *"
+                } else {
+                    ""
+                },
+                argument.description.unwrap_or_default()
+            );
+        }
+    }
+    if let Some(cursor) = prompts.next_cursor {
+        println!("\nnext cursor: {cursor}");
+    }
+    Ok(())
+}
+
+async fn cmd_prompt(client: &Client, name: String, arguments: Option<String>) -> Result<()> {
+    let arguments = arguments
+        .map(|raw| serde_json::from_str::<Value>(&raw))
+        .transpose()?
+        .map(|value| {
+            value
+                .as_object()
+                .cloned()
+                .ok_or_else(|| anyhow!("prompt arguments must be a JSON object"))
+        })
+        .transpose()?;
+    let mut params = GetPromptRequestParams::new(name);
+    if let Some(arguments) = arguments {
+        params = params.with_arguments(arguments);
+    }
+    let result = client.get_prompt(params).await?;
+    if let Some(description) = result.description {
+        println!("{description}");
+    }
+    for message in result.messages {
+        match message.content {
+            ContentBlock::Text(text) => println!("\n{:?}:\n{}", message.role, text.text),
+            other => println!("\n{:?}:\n{other:?}", message.role),
+        }
+    }
     Ok(())
 }
 
@@ -477,6 +552,8 @@ async fn main() -> Result<()> {
             cmd_models_from_catalog(catalog, query, r#type)
         }
         Cmd::Complete { prefix } => cmd_complete(&client, &uris, prefix).await,
+        Cmd::Prompts => cmd_prompts(&client).await,
+        Cmd::Prompt { name, arguments } => cmd_prompt(&client, name, arguments).await,
         Cmd::Schema { model_id } => {
             let value = read_resource_json(&client, &uris.model_uri(&model_id)).await?;
             println!("{}", serde_json::to_string_pretty(&value)?);

@@ -7,6 +7,8 @@
 
 pub mod analytics;
 pub mod deployment;
+pub mod generation;
+pub mod pagination;
 pub mod provider;
 pub mod storage;
 pub mod subscriptions;
@@ -17,6 +19,8 @@ pub mod waiters;
 
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use deployment::{PublicDeployment, ServerPublicEndpoint};
+pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
+pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
 pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};
 pub use subscriptions::SubscriptionHub;

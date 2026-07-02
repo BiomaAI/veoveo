@@ -28,7 +28,8 @@ One tool, everything else is protocol:
 
 | Surface | What |
 |---|---|
-| tool `run(model, input)` | task-**required** (SEP-1319); input validated against the model's JSON Schema before submit |
+| tool `run(model, input)` | task-**required** (SEP-1319); input validated against the model's JSON Schema before submit; advertises a typed structured output schema |
+| prompts | `media-model-select`, `media-image-edit`, `media-video-generate`, `media-task-review` |
 | resource `media://models` | compact catalog of all models (id, type, description, price) |
 | template `media://model/{model_id}` | full input JSON Schema + pricing for one model |
 | template `media://prediction/{id}` | live prediction state; **subscribable** — webhook arrival fires `notifications/resources/updated` |
@@ -42,6 +43,9 @@ Task lifecycle: `tools/call` (+`task` metadata) → `CreateTaskResult` → poll 
 (statusMessage carries the prediction id) → `tasks/result` returns `media://artifact/{sha256}`
 resource links + structured content. `tasks/cancel` aborts. Provider webhook delivery is
 the only server-side completion path.
+
+List surfaces owned by Veoveo servers (`tools/list`, `prompts/list`, `resources/list`,
+`resources/templates/list`, and `tasks/list`) honor MCP pagination cursors.
 
 ## Public Routing
 
@@ -132,6 +136,9 @@ cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
 
 # 3. conformance CLI
 cargo run -p veoveo-mcp-contract --bin conformance -- info
+cargo run -p veoveo-mcp-contract --bin conformance -- prompts
+cargo run -p veoveo-mcp-contract --bin conformance -- prompt media-image-edit \
+    --arguments '{"image_url":"https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg","edit_goal":"add a red wizard hat"}'
 cargo run -p veoveo-mcp-contract --bin conformance -- models kling --type image-to-video
 cargo run -p veoveo-mcp-contract --bin conformance -- complete gpt-image
 cargo run -p veoveo-mcp-contract --bin conformance -- schema openai/gpt-image-2/edit

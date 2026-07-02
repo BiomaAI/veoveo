@@ -120,12 +120,19 @@ impl TaskStore {
     }
 
     pub async fn list(&self) -> Vec<Task> {
-        self.tasks
+        let mut tasks: Vec<Task> = self
+            .tasks
             .read()
             .await
             .values()
             .map(|entry| entry.task.clone())
-            .collect()
+            .collect();
+        tasks.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then_with(|| a.task_id.cmp(&b.task_id))
+        });
+        tasks
     }
 
     pub async fn payload_state(&self, task_id: &str) -> TaskPayloadState {

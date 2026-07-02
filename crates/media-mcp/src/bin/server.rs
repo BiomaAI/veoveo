@@ -41,11 +41,13 @@ use rmcp::{
     model::{
         CallToolRequestParams, CallToolResult, CancelTaskParams, CancelTaskResult,
         CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock, CreateTaskResult,
-        GetTaskParams, GetTaskPayloadParams, GetTaskPayloadResult, GetTaskResult, JsonObject,
-        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, PaginatedRequestParams,
-        ProgressToken, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
-        Task, TaskStatus, TasksCapability, UnsubscribeRequestParams,
+        GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
+        GetTaskPayloadResult, GetTaskResult, JsonObject, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, ListToolsResult,
+        PaginatedRequestParams, ProgressToken, Prompt, PromptArgument, PromptMessage,
+        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
+        ResourceTemplate, Role, ServerCapabilities, ServerInfo, SubscribeRequestParams, Task,
+        TaskStatus, TasksCapability, UnsubscribeRequestParams,
     },
     schemars,
     service::{Peer, RequestContext},
@@ -57,9 +59,10 @@ use rmcp::{
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ProviderUris, PublicDeployment, ServerPublicEndpoint,
-    SubscriptionHub, TaskPayloadState, TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256,
-    notify_progress, notify_task_status, now_iso, now_utc,
+    ArtifactMetadata, ArtifactPut, GenerationPredictionSummary, GenerationRunOutput, Page,
+    ProviderUris, PublicDeployment, ServerPublicEndpoint, SubscriptionHub, TaskPayloadState,
+    TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status,
+    now_iso, now_utc, paginate,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -74,6 +77,7 @@ const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 const SERVER_SLUG: &str = "media";
+const LIST_PAGE_SIZE: usize = 100;
 
 #[derive(Parser, Debug)]
 #[command(name = "server", about = "Media MCP server (streamable HTTP)")]
@@ -301,6 +305,7 @@ impl MediaMcp {
     /// router publishes the tool with its schema.
     #[tool(
         description = "Run any media model asynchronously. Must be invoked as an MCP task; read tasks/get and fetch media://artifact/{sha256} outputs via tasks/result. Discover models via media://models, input schemas via media://model/{model_id}, and usage via media://usage/task/{task_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
         execution(task_support = "required")
     )]
     async fn run(
@@ -595,34 +600,15 @@ fn filename_from_url(url: &str, index: usize) -> String {
         .unwrap_or_else(|| format!("output-{index}.bin"))
 }
 
-#[derive(serde::Serialize)]
-struct PublicPrediction<'a> {
-    id: &'a str,
-    model_id: &'a str,
-    status: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    created_at: Option<DateTime<Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    execution_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    timings: Option<&'a Value>,
-    output_count: usize,
-}
-
-fn public_prediction(prediction: &Prediction) -> PublicPrediction<'_> {
-    PublicPrediction {
-        id: prediction.id.as_str(),
-        model_id: prediction.model.as_str(),
-        status: prediction.status.as_str(),
+fn public_prediction(prediction: &Prediction) -> GenerationPredictionSummary {
+    GenerationPredictionSummary {
+        id: prediction.id.clone(),
+        model_id: prediction.model.clone(),
+        status: prediction.status.clone(),
         created_at: prediction.created_at,
-        error: prediction
-            .error
-            .as_deref()
-            .filter(|error| !error.is_empty()),
+        error: prediction.error.clone().filter(|error| !error.is_empty()),
         execution_ms: prediction.execution_time,
-        timings: prediction.timings.as_ref(),
+        timings: prediction.timings.clone(),
         output_count: prediction.outputs.len(),
     }
 }
@@ -689,10 +675,10 @@ async fn prediction_result(
         blocks.push(ContentBlock::ResourceLink(link));
     }
     let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(json!({
-        "prediction": public_prediction(prediction),
-        "artifacts": artifacts,
-    }));
+    result.structured_content = Some(serde_json::to_value(GenerationRunOutput {
+        prediction: public_prediction(prediction),
+        artifacts,
+    })?);
     Ok(result)
 }
 
@@ -879,11 +865,239 @@ impl MediaMcp {
     }
 }
 
+fn mcp_page<T>(
+    items: Vec<T>,
+    request: Option<&PaginatedRequestParams>,
+) -> Result<Page<T>, McpError> {
+    paginate(items, request, LIST_PAGE_SIZE)
+        .map_err(|e| McpError::invalid_params(e.to_string(), None))
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct ModelSelectPromptArgs {
+    goal: String,
+    media_type: Option<String>,
+    budget: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct ImageEditPromptArgs {
+    image_url: String,
+    edit_goal: String,
+    constraints: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct VideoPromptArgs {
+    brief: String,
+    reference_url: Option<String>,
+    duration: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct TaskReviewPromptArgs {
+    task_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MediaPrompt {
+    ModelSelect,
+    ImageEdit,
+    VideoGenerate,
+    TaskReview,
+}
+
+impl MediaPrompt {
+    const ALL: [Self; 4] = [
+        Self::ModelSelect,
+        Self::ImageEdit,
+        Self::VideoGenerate,
+        Self::TaskReview,
+    ];
+
+    fn by_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|prompt| prompt.name() == name)
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::ModelSelect => "media-model-select",
+            Self::ImageEdit => "media-image-edit",
+            Self::VideoGenerate => "media-video-generate",
+            Self::TaskReview => "media-task-review",
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::ModelSelect => "Media model selection",
+            Self::ImageEdit => "Image edit request",
+            Self::VideoGenerate => "Video generation request",
+            Self::TaskReview => "Media task review",
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            Self::ModelSelect => "Select media models and draft valid run arguments for a goal.",
+            Self::ImageEdit => "Draft an image edit request using a source image URL.",
+            Self::VideoGenerate => "Draft a video generation request from a creative brief.",
+            Self::TaskReview => "Review task outputs, artifacts, and usage for a completed run.",
+        }
+    }
+
+    fn arguments(self) -> Vec<PromptArgument> {
+        match self {
+            Self::ModelSelect => vec![
+                required_arg("goal", "User goal for the media generation task."),
+                optional_arg(
+                    "media_type",
+                    "Desired output type, such as image, video, audio, or 3D.",
+                ),
+                optional_arg("budget", "Budget or cost guidance for model selection."),
+            ],
+            Self::ImageEdit => vec![
+                required_arg("image_url", "Public URL of the source image."),
+                required_arg("edit_goal", "Specific visual change requested by the user."),
+                optional_arg(
+                    "constraints",
+                    "Style, brand, safety, or composition constraints.",
+                ),
+            ],
+            Self::VideoGenerate => vec![
+                required_arg("brief", "Creative brief for the video."),
+                optional_arg(
+                    "reference_url",
+                    "Optional public image or video reference URL.",
+                ),
+                optional_arg("duration", "Desired duration guidance."),
+            ],
+            Self::TaskReview => vec![required_arg(
+                "task_id",
+                "MCP task id returned by the run tool.",
+            )],
+        }
+    }
+
+    fn prompt(self) -> Prompt {
+        Prompt::new(
+            self.name(),
+            Some(self.description()),
+            Some(self.arguments()),
+        )
+        .with_title(self.title())
+    }
+
+    fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
+        match self {
+            Self::ModelSelect => {
+                let args: ModelSelectPromptArgs = parse_prompt_args(self.name(), arguments)?;
+                Ok(prompt_text(
+                    self.description(),
+                    format!(
+                        "Prepare a media model selection for this goal:\n\n\
+                         Goal: {}\n\
+                         Media type: {}\n\
+                         Budget guidance: {}\n\n\
+                         Read media://models, choose the best candidate model ids, then read \
+                         media://model/{{model_id}} for each candidate before drafting run \
+                         arguments. Return the selected model id and a JSON input object that \
+                         conforms exactly to the selected model schema.",
+                        args.goal,
+                        args.media_type.as_deref().unwrap_or("not specified"),
+                        args.budget.as_deref().unwrap_or("not specified"),
+                    ),
+                ))
+            }
+            Self::ImageEdit => {
+                let args: ImageEditPromptArgs = parse_prompt_args(self.name(), arguments)?;
+                Ok(prompt_text(
+                    self.description(),
+                    format!(
+                        "Draft an image edit run request.\n\n\
+                         Source image URL: {}\n\
+                         Edit goal: {}\n\
+                         Constraints: {}\n\n\
+                         Read media://models and prefer an image edit or image-to-image model. \
+                         Then read media://model/{{model_id}} and produce only the model id plus \
+                         an input JSON object that validates against that model schema.",
+                        args.image_url,
+                        args.edit_goal,
+                        args.constraints.as_deref().unwrap_or("not specified"),
+                    ),
+                ))
+            }
+            Self::VideoGenerate => {
+                let args: VideoPromptArgs = parse_prompt_args(self.name(), arguments)?;
+                Ok(prompt_text(
+                    self.description(),
+                    format!(
+                        "Draft a video generation run request.\n\n\
+                         Brief: {}\n\
+                         Reference URL: {}\n\
+                         Duration guidance: {}\n\n\
+                         Read media://models and choose a video-capable model. Then read \
+                         media://model/{{model_id}} and produce only the model id plus an input \
+                         JSON object that validates against that model schema.",
+                        args.brief,
+                        args.reference_url.as_deref().unwrap_or("not specified"),
+                        args.duration.as_deref().unwrap_or("not specified"),
+                    ),
+                ))
+            }
+            Self::TaskReview => {
+                let args: TaskReviewPromptArgs = parse_prompt_args(self.name(), arguments)?;
+                Ok(prompt_text(
+                    self.description(),
+                    format!(
+                        "Review media task {}.\n\n\
+                         Read tasks/get for current status. If completed, read tasks/result, \
+                         inspect any media://artifact/{{sha256}} links, and read \
+                         media://usage/task/{} for estimate and actual billing records. Summarize \
+                         artifact count, output types, final cost, and any missing actual usage.",
+                        args.task_id, args.task_id,
+                    ),
+                ))
+            }
+        }
+    }
+}
+
+fn required_arg(name: &str, description: &str) -> PromptArgument {
+    PromptArgument::new(name)
+        .with_description(description)
+        .with_required(true)
+}
+
+fn optional_arg(name: &str, description: &str) -> PromptArgument {
+    PromptArgument::new(name)
+        .with_description(description)
+        .with_required(false)
+}
+
+fn parse_prompt_args<T: serde::de::DeserializeOwned>(
+    prompt_name: &str,
+    arguments: Option<JsonObject>,
+) -> Result<T, McpError> {
+    serde_json::from_value(Value::Object(arguments.unwrap_or_default())).map_err(|e| {
+        McpError::invalid_params(
+            format!("invalid arguments for prompt {prompt_name}: {e}"),
+            None,
+        )
+    })
+}
+
+fn prompt_text(description: &str, text: String) -> GetPromptResult {
+    GetPromptResult::new(vec![PromptMessage::new_text(Role::User, text)])
+        .with_description(description)
+}
+
 #[tool_handler]
 impl ServerHandler for MediaMcp {
     fn get_info(&self) -> ServerInfo {
         let caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
+            .enable_prompts()
             .enable_resources()
             .enable_resources_subscribe()
             .enable_resources_list_changed()
@@ -896,14 +1110,61 @@ impl ServerHandler for MediaMcp {
         info.instructions = Some(
             "Async gateway to media generation models. Workflow: \
              (1) read media://models (or use completion/complete on media://model/{model_id}) to pick a model; \
-             (2) read media://model/{model_id} for its exact input JSON Schema; \
-             (3) call the `run` tool as a task (SEP-1319) with {model, input}; \
-             (4) the task statusMessage carries the prediction id — subscribe to media://prediction/{id} for push updates; \
-             (5) read tasks/get until completed, then tasks/result returns media://artifact/{sha256} links; \
-             (6) read media://usage/task/{task_id} for usage estimates/actuals."
+             (2) optionally use prompts/list and prompts/get to draft model selection or media-specific briefs; \
+             (3) read media://model/{model_id} for its exact input JSON Schema; \
+             (4) call the `run` tool as a task (SEP-1319) with {model, input}; \
+             (5) the task statusMessage carries the prediction id — subscribe to media://prediction/{id} for push updates; \
+             (6) read tasks/get until completed, then tasks/result returns media://artifact/{sha256} links; \
+             (7) read media://usage/task/{task_id} for usage estimates/actuals."
                 .into(),
         );
         info
+    }
+
+    async fn list_tools(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, McpError> {
+        let mut tools = self.tool_router.list_all();
+        tools.sort_by(|a, b| a.name.cmp(&b.name));
+        let page = mcp_page(tools, request.as_ref())?;
+        Ok(ListToolsResult {
+            tools: page.items,
+            next_cursor: page.next_cursor,
+            meta: None,
+        })
+    }
+
+    async fn list_prompts(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        let prompts: Vec<Prompt> = MediaPrompt::ALL
+            .into_iter()
+            .map(MediaPrompt::prompt)
+            .collect();
+        let page = mcp_page(prompts, request.as_ref())?;
+        Ok(ListPromptsResult {
+            prompts: page.items,
+            next_cursor: page.next_cursor,
+            meta: None,
+        })
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, McpError> {
+        let prompt = MediaPrompt::by_name(&request.name).ok_or_else(|| {
+            McpError::invalid_params(
+                format!("unknown prompt '{}'; read prompts/list", request.name),
+                None,
+            )
+        })?;
+        prompt.render(request.arguments)
     }
 
     async fn enqueue_task(
@@ -948,10 +1209,13 @@ impl ServerHandler for MediaMcp {
 
     async fn list_tasks(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListTasksResult, McpError> {
-        Ok(ListTasksResult::new(self.state.tasks.list().await))
+        let page = mcp_page(self.state.tasks.list().await, request.as_ref())?;
+        let mut result = ListTasksResult::new(page.items);
+        result.next_cursor = page.next_cursor;
+        Ok(result)
     }
 
     async fn get_task_info(
@@ -1013,7 +1277,7 @@ impl ServerHandler for MediaMcp {
 
     async fn list_resources(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let mut resources = vec![
@@ -1064,47 +1328,47 @@ impl ServerHandler for MediaMcp {
                 .with_mime_type("application/json"),
             );
         }
+        resources.sort_by(|a, b| a.uri.cmp(&b.uri));
+        let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
-            resources,
-            next_cursor: None,
+            resources: page.items,
+            next_cursor: page.next_cursor,
             meta: None,
         })
     }
 
     async fn list_resource_templates(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        Ok(ListResourceTemplatesResult {
-            resource_templates: vec![
-                ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
-                    .with_title("Media model schema")
-                    .with_description(
-                        "Full definition of one model: input JSON Schema, pricing, description. \
+        let templates = vec![
+            ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
+                .with_title("Media model schema")
+                .with_description(
+                    "Full definition of one model: input JSON Schema, pricing, description. \
                          model_id supports completion/complete.",
-                    )
-                    .with_mime_type("application/json"),
-                ResourceTemplate::new(uris::PREDICTION_TEMPLATE, "prediction")
-                    .with_title("Media prediction state")
-                    .with_description(
-                        "Live state of a prediction. Subscribable: resources/updated fires when \
+                )
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::PREDICTION_TEMPLATE, "prediction")
+                .with_title("Media prediction state")
+                .with_description(
+                    "Live state of a prediction. Subscribable: resources/updated fires when \
                          the provider reports a terminal state.",
-                    )
-                    .with_mime_type("application/json"),
-                ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-                    .with_title("Media artifact")
-                    .with_description(
-                        "Server-owned immutable output artifact, addressed by sha256.",
-                    ),
-                ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
-                    .with_title("Media task usage")
-                    .with_description(
-                        "Usage estimates and actuals for one task, addressed by task id.",
-                    )
-                    .with_mime_type("application/json"),
-            ],
-            next_cursor: None,
+                )
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
+                .with_title("Media artifact")
+                .with_description("Server-owned immutable output artifact, addressed by sha256."),
+            ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+                .with_title("Media task usage")
+                .with_description("Usage estimates and actuals for one task, addressed by task id.")
+                .with_mime_type("application/json"),
+        ];
+        let page = mcp_page(templates, request.as_ref())?;
+        Ok(ListResourceTemplatesResult {
+            resource_templates: page.items,
+            next_cursor: page.next_cursor,
             meta: None,
         })
     }

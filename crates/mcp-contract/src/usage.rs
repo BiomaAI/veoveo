@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Whether a usage row is a pre-run estimate or a provider-confirmed actual.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UsageKind {
     Estimate,
@@ -11,7 +12,7 @@ pub enum UsageKind {
 }
 
 /// One normalized usage event for a provider-backed task.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UsageRecord {
     pub task_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,7 +35,7 @@ pub struct UsageRecord {
 }
 
 /// Resource body for `{scheme}://usage/task/{task_id}`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UsageReport {
     pub task_id: String,
     pub usage_uri: String,
