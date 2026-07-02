@@ -22,10 +22,7 @@ use anyhow::{Context, anyhow};
 use axum::{
     Form, Json, Router,
     extract::{Path as AxumPath, Query, Request, State},
-    http::{
-        HeaderMap, HeaderValue, StatusCode,
-        header::{CACHE_CONTROL, CONTENT_TYPE},
-    },
+    http::StatusCode,
     middleware,
     response::IntoResponse,
     routing::{any, get, post},
@@ -69,7 +66,10 @@ use audit::{
     AuthAuditRecord, auth_audit_error_response, internal_error_response, record_id_jag_auth_audit,
     record_oidc_auth_audit, record_token_auth_audit,
 };
-use auth::authenticate_mcp;
+use auth::{
+    authenticate_mcp, authorization_server_jwks, authorization_server_metadata,
+    protected_resource_metadata,
+};
 use http_util::{
     OidcTokenExchangeRequest, TokenResponse, allowed_gateway_jwt_algorithms,
     exchange_oidc_authorization_code, load_jwks, oauth_error_response, pkce_s256_challenge,
@@ -486,79 +486,6 @@ async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
         servers: catalog.server_count(),
         profiles: catalog.profile_count(),
     })
-}
-
-async fn protected_resource_metadata(
-    State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
-) -> impl IntoResponse {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let catalog = current_catalog(&state.catalog);
-    match catalog.protected_resource_metadata(&profile_id) {
-        Ok(metadata) => {
-            let mut headers = HeaderMap::new();
-            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-            (StatusCode::OK, headers, Json(metadata)).into_response()
-        }
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
-    }
-}
-
-async fn authorization_server_metadata(
-    State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
-) -> impl IntoResponse {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let catalog = current_catalog(&state.catalog);
-    match catalog.authorization_server_metadata(&profile_id) {
-        Ok(mut metadata) => {
-            metadata.jwks_uri = Some(format!(
-                "{}/oauth/{}/jwks.json",
-                state.public_base_url.trim_end_matches('/'),
-                profile_id
-            ));
-            let mut headers = HeaderMap::new();
-            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-            (StatusCode::OK, headers, Json(metadata)).into_response()
-        }
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
-    }
-}
-
-async fn authorization_server_jwks(
-    State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
-) -> axum::response::Response {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&profile_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
-    else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let jwks =
-        match authorization_server_jwks_from_signing_key(&catalog, authorization_server).await {
-            Ok(jwks) => jwks,
-            Err(err) => {
-                tracing::error!("failed to build authorization server JWKS: {err}");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-        };
-    let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(
-        CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=300, must-revalidate"),
-    );
-    (StatusCode::OK, headers, Json(jwks)).into_response()
 }
 
 async fn authorize_endpoint(
