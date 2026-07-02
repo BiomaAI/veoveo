@@ -375,6 +375,8 @@ enum Cmd {
     },
     /// Autocomplete model ids via completion/complete on the model template.
     Complete { prefix: String },
+    /// List MCP resources visible to the authenticated principal.
+    Resources,
     /// List prompt templates.
     Prompts,
     /// Read one JSON resource by URI.
@@ -2358,6 +2360,21 @@ async fn cmd_prompts(client: &Client) -> Result<()> {
     Ok(())
 }
 
+async fn cmd_resources(client: &Client) -> Result<()> {
+    let resources = client.list_resources(Default::default()).await?;
+    for resource in resources.resources {
+        println!(
+            "{} — {}",
+            resource.uri,
+            resource.description.unwrap_or_default()
+        );
+    }
+    if let Some(cursor) = resources.next_cursor {
+        println!("\nnext cursor: {cursor}");
+    }
+    Ok(())
+}
+
 async fn cmd_resource(client: &Client, uri: String) -> Result<()> {
     let value = read_resource_json(client, &uri).await?;
     println!("{}", serde_json::to_string_pretty(&value)?);
@@ -2960,6 +2977,7 @@ async fn main() -> Result<()> {
             cmd_models_from_catalog(catalog, query, r#type)
         }
         Cmd::Complete { prefix } => cmd_complete(&client, &uris, prefix).await,
+        Cmd::Resources => cmd_resources(&client).await,
         Cmd::Prompts => cmd_prompts(&client).await,
         Cmd::Resource { uri } => cmd_resource(&client, uri).await,
         Cmd::Prompt { name, arguments } => cmd_prompt(&client, name, arguments).await,

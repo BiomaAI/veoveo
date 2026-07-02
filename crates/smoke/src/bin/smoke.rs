@@ -1234,6 +1234,7 @@ async fn gateway_authenticated(
     let gateway_mcp_url = format!("{gateway_base}/mcp/default");
     for args in [
         vec!["info".into()],
+        vec!["resources".into()],
         vec!["resource".into(), "media://usage".into()],
         vec!["prompts".into()],
         vec![
@@ -1397,6 +1398,14 @@ async fn gateway_authenticated(
     let audit_counts = run_gateway_json(gateway, "audit-counts", &gateway_state_db)?;
     assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
     assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &gateway_state_db)?;
+    assert_audit_method(&audit_summary, "tools/list", 1, 0)?;
+    assert_audit_method(&audit_summary, "resources/list", 1, 0)?;
+    assert_audit_method(&audit_summary, "resources/templates/list", 1, 0)?;
+    assert_audit_method(&audit_summary, "resources/read", 3, 3)?;
+    assert_audit_method(&audit_summary, "prompts/list", 2, 0)?;
+    assert_audit_method(&audit_summary, "prompts/get", 1, 0)?;
+    assert_audit_method(&audit_summary, "tasks/list", 1, 0)?;
     let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &gateway_state_db)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;
