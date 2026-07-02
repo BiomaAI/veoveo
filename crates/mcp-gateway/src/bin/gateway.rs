@@ -17,7 +17,7 @@ use axum::{
     },
     middleware::{self, Next},
     response::IntoResponse,
-    routing::{get, post},
+    routing::{any, get, post},
 };
 use base64::{
     Engine as _,
@@ -75,6 +75,8 @@ const ADMIN_JWT_REVOCATIONS_RESULT_METHOD: &str = "admin/jwt-revocations/result"
 const ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD: &str = "admin/jwt-revocations/prune/result";
 type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
 type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
+type ProfileMcpService = StreamableHttpService<GatewayMcp, LocalSessionManager>;
+type SharedProfileMcpServices = Arc<RwLock<BTreeMap<GatewayProfileId, ProfileMcpService>>>;
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -158,7 +160,6 @@ struct AppState {
 struct ProfileAuthState {
     catalog: SharedCatalog,
     gateway_state: GatewayState,
-    profile_id: GatewayProfileId,
     public_base_url: String,
     http: SharedHttpClient,
 }
@@ -167,10 +168,18 @@ struct ProfileAuthState {
 struct AdminState {
     catalog: SharedCatalog,
     http: SharedHttpClient,
-    mounted_profiles: Arc<BTreeSet<GatewayProfileId>>,
     control_plane: PathBuf,
     gateway_state: GatewayState,
-    profile_id: GatewayProfileId,
+}
+
+#[derive(Clone)]
+struct DynamicMcpState {
+    catalog: SharedCatalog,
+    gateway_state: GatewayState,
+    internal_token_issuer: GatewayInternalTokenIssuer,
+    allowed_hosts: Arc<Vec<String>>,
+    cancellation_token: CancellationToken,
+    services: SharedProfileMcpServices,
 }
 
 #[derive(Debug, Serialize)]
@@ -390,19 +399,10 @@ async fn serve(
     run_gateway_retention_gc(&gateway_state, retention)?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
     let file_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
-    let mounted_profile_ids = profile_ids(&file_catalog);
     let latest_revision = gateway_state.latest_control_plane_revision()?;
     let initial_catalog = if let Some(revision) = latest_revision {
-        let persisted_catalog = Arc::new(GatewayCatalog::from_control_plane(
-            revision.control_plane.clone(),
-        )?);
-        let persisted_profile_ids = profile_ids(&persisted_catalog);
-        if persisted_profile_ids != mounted_profile_ids {
-            anyhow::bail!(
-                "persisted gateway control-plane revision `{}` changes mounted profile routes",
-                revision.revision_id
-            );
-        }
+        let persisted_catalog =
+            Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
         tracing::info!(
             revision_id = %revision.revision_id,
             sha256 = %revision.sha256,
@@ -412,7 +412,6 @@ async fn serve(
     } else {
         file_catalog
     };
-    let mounted_profiles = Arc::new(mounted_profile_ids);
     let catalog = Arc::new(RwLock::new(initial_catalog.clone()));
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
@@ -426,6 +425,7 @@ async fn serve(
         "::1".to_string(),
         deployment.host_authority().to_string(),
     ];
+    let allowed_hosts = Arc::new(allowed_hosts);
     let http = Arc::new(RwLock::new(build_http_client(&initial_catalog)?));
     let state = AppState {
         catalog: catalog.clone(),
@@ -451,70 +451,53 @@ async fn serve(
         .route("/oauth/{profile}/jwks.json", get(authorization_server_jwks))
         .with_state(state);
 
-    for profile in initial_catalog.profiles() {
-        let profile_id = profile.id.clone();
-        let profile_internal_token_issuer = internal_token_issuer.clone();
-        let mcp_service = StreamableHttpService::new(
-            {
-                let catalog = catalog.clone();
-                let gateway_state = gateway_state.clone();
-                let profile_id = profile_id.clone();
-                move || {
-                    let catalog = current_catalog(&catalog);
-                    Ok(GatewayMcp::new(
-                        catalog,
-                        profile_id.clone(),
-                        gateway_state.clone(),
-                        profile_internal_token_issuer.clone(),
-                    ))
-                }
-            },
-            LocalSessionManager::default().into(),
-            StreamableHttpServerConfig::default()
-                .with_allowed_hosts(allowed_hosts.clone())
-                .with_cancellation_token(ct.child_token()),
-        );
-        let auth_state = ProfileAuthState {
-            catalog: catalog.clone(),
-            gateway_state: gateway_state.clone(),
-            profile_id: profile_id.clone(),
-            public_base_url: deployment.base_url().to_string(),
-            http: http.clone(),
-        };
-        let mcp_root_service = mcp_service.clone();
-        let profile_router = Router::new()
-            .route_service("/", mcp_root_service)
-            .route_service("/{*path}", mcp_service)
-            .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
-        router = router.nest(&format!("/mcp/{profile_id}"), profile_router);
+    let auth_state = ProfileAuthState {
+        catalog: catalog.clone(),
+        gateway_state: gateway_state.clone(),
+        public_base_url: deployment.base_url().to_string(),
+        http: http.clone(),
+    };
+    let mcp_state = DynamicMcpState {
+        catalog: catalog.clone(),
+        gateway_state: gateway_state.clone(),
+        internal_token_issuer: internal_token_issuer.clone(),
+        allowed_hosts: allowed_hosts.clone(),
+        cancellation_token: ct.child_token(),
+        services: Arc::new(RwLock::new(BTreeMap::new())),
+    };
+    let mcp_router = Router::new()
+        .route("/mcp/{profile}", any(dynamic_mcp_profile))
+        .route("/mcp/{profile}/{*path}", any(dynamic_mcp_profile))
+        .with_state(mcp_state)
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_mcp,
+        ));
+    router = router.merge(mcp_router);
 
-        let admin_state = AdminState {
-            catalog: catalog.clone(),
-            http: http.clone(),
-            mounted_profiles: mounted_profiles.clone(),
-            control_plane: control_plane.clone(),
-            gateway_state: gateway_state.clone(),
-            profile_id: profile_id.clone(),
-        };
-        let auth_state = ProfileAuthState {
-            catalog: catalog.clone(),
-            gateway_state: gateway_state.clone(),
-            profile_id: profile_id.clone(),
-            public_base_url: deployment.base_url().to_string(),
-            http: http.clone(),
-        };
-        let admin_router = Router::new()
-            .route(
-                "/control-plane",
-                get(read_control_plane).put(update_control_plane),
-            )
-            .route("/reload-control-plane", post(reload_control_plane))
-            .route("/jwt-revocations", post(revoke_jwt))
-            .route("/jwt-revocations/prune", post(prune_jwt_revocations))
-            .with_state(admin_state)
-            .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
-        router = router.nest(&format!("/admin/{profile_id}"), admin_router);
-    }
+    let admin_state = AdminState {
+        catalog: catalog.clone(),
+        http: http.clone(),
+        control_plane: control_plane.clone(),
+        gateway_state: gateway_state.clone(),
+    };
+    let admin_router = Router::new()
+        .route(
+            "/admin/{profile}/control-plane",
+            get(read_control_plane).put(update_control_plane),
+        )
+        .route(
+            "/admin/{profile}/reload-control-plane",
+            post(reload_control_plane),
+        )
+        .route("/admin/{profile}/jwt-revocations", post(revoke_jwt))
+        .route(
+            "/admin/{profile}/jwt-revocations/prune",
+            post(prune_jwt_revocations),
+        )
+        .with_state(admin_state)
+        .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
+    router = router.merge(admin_router);
     let router = router.layer(
         TraceLayer::new_for_http()
             .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
@@ -536,6 +519,73 @@ async fn serve(
         })
         .await?;
     Ok(())
+}
+
+async fn dynamic_mcp_profile(
+    State(state): State<DynamicMcpState>,
+    request: Request,
+) -> axum::response::Response {
+    let Some(profile_id) = profile_id_from_gateway_path(request.uri().path()) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    if catalog.profile(&profile_id).is_none() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    drop(catalog);
+
+    let service = {
+        let mut services = state.services.write();
+        services
+            .entry(profile_id.clone())
+            .or_insert_with(|| build_profile_mcp_service(&state, profile_id))
+            .clone()
+    };
+    service.handle(request).await.into_response()
+}
+
+fn build_profile_mcp_service(
+    state: &DynamicMcpState,
+    profile_id: GatewayProfileId,
+) -> ProfileMcpService {
+    let internal_token_issuer = state.internal_token_issuer.clone();
+    StreamableHttpService::new(
+        {
+            let catalog = state.catalog.clone();
+            let gateway_state = state.gateway_state.clone();
+            let profile_id = profile_id.clone();
+            move || {
+                let catalog = current_catalog(&catalog);
+                Ok(GatewayMcp::new(
+                    catalog,
+                    profile_id.clone(),
+                    gateway_state.clone(),
+                    internal_token_issuer.clone(),
+                ))
+            }
+        },
+        LocalSessionManager::default().into(),
+        StreamableHttpServerConfig::default()
+            .with_allowed_hosts(state.allowed_hosts.iter().cloned())
+            .with_cancellation_token(state.cancellation_token.child_token()),
+    )
+}
+
+fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileId> {
+    let mut segments = path.trim_start_matches('/').split('/');
+    match segments.next()? {
+        "mcp" | "admin" => {}
+        _ => return None,
+    }
+    let profile = segments.next()?;
+    if profile.is_empty() {
+        return None;
+    }
+    GatewayProfileId::new(profile).ok()
+}
+
+fn admin_profile_id(profile: String) -> Option<GatewayProfileId> {
+    GatewayProfileId::new(profile).ok()
 }
 
 async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
@@ -2511,11 +2561,16 @@ async fn token_endpoint_id_jag(
 
 async fn reload_control_plane(
     State(state): State<AdminState>,
+    AxumPath(profile): AxumPath<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
+    let Some(profile_id) = admin_profile_id(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
+        &profile_id,
         subject,
         GatewayAction::AdminWrite,
         "admin/reload-control-plane",
@@ -2552,34 +2607,6 @@ async fn reload_control_plane(
                 .into_response();
         }
     };
-    let new_profile_ids = profile_ids(&new_catalog);
-    if new_profile_ids != *state.mounted_profiles {
-        tracing::error!(
-            mounted = ?state.mounted_profiles,
-            reloaded = ?new_profile_ids,
-            "gateway control-plane reload changed mounted profile routes"
-        );
-        if let Err(err) = record_admin_operation_audit(
-            &state,
-            &profile,
-            &subject,
-            AdminOperationAuditRecord {
-                action: GatewayAction::AdminWrite,
-                method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
-                started_at,
-                status: AdminOperationStatus::Rejected,
-                failure: Some(AdminOperationFailure::ProfileRouteChange),
-                metadata: BTreeMap::new(),
-            },
-        ) {
-            return internal_error_response(err);
-        }
-        return (
-            StatusCode::CONFLICT,
-            "control-plane reload cannot change mounted profile routes",
-        )
-            .into_response();
-    }
     let new_http = match build_http_client(&new_catalog) {
         Ok(client) => client,
         Err(err) => {
@@ -2707,7 +2734,7 @@ async fn reload_control_plane(
     replace_http_client(&state.http, new_http);
     replace_catalog(&state.catalog, new_catalog);
     tracing::info!(
-        profile = %state.profile_id,
+        profile = %profile.id,
         principal = %subject.principal.id,
         revision_id = %revision_id,
         sha256 = %sha256,
@@ -2727,11 +2754,16 @@ async fn reload_control_plane(
 
 async fn read_control_plane(
     State(state): State<AdminState>,
+    AxumPath(profile): AxumPath<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
+    let Some(profile_id) = admin_profile_id(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let (catalog, profile, subject) = match authorize_admin_request(
         &state,
+        &profile_id,
         subject,
         GatewayAction::AdminRead,
         "admin/control-plane",
@@ -2822,12 +2854,17 @@ async fn read_control_plane(
 
 async fn update_control_plane(
     State(state): State<AdminState>,
+    AxumPath(profile): AxumPath<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
     Json(control_plane): Json<GatewayControlPlane>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
+    let Some(profile_id) = admin_profile_id(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
+        &profile_id,
         subject,
         GatewayAction::AdminWrite,
         "admin/control-plane",
@@ -2860,34 +2897,6 @@ async fn update_control_plane(
             return (StatusCode::BAD_REQUEST, "invalid gateway control plane").into_response();
         }
     };
-    let new_profile_ids = profile_ids(&new_catalog);
-    if new_profile_ids != *state.mounted_profiles {
-        tracing::error!(
-            mounted = ?state.mounted_profiles,
-            requested = ?new_profile_ids,
-            "gateway control-plane update changed mounted profile routes"
-        );
-        if let Err(err) = record_admin_operation_audit(
-            &state,
-            &profile,
-            &subject,
-            AdminOperationAuditRecord {
-                action: GatewayAction::AdminWrite,
-                method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
-                started_at,
-                status: AdminOperationStatus::Rejected,
-                failure: Some(AdminOperationFailure::ProfileRouteChange),
-                metadata: BTreeMap::new(),
-            },
-        ) {
-            return internal_error_response(err);
-        }
-        return (
-            StatusCode::CONFLICT,
-            "control-plane update cannot change mounted profile routes",
-        )
-            .into_response();
-    }
     let new_http = match build_http_client(&new_catalog) {
         Ok(client) => client,
         Err(err) => {
@@ -3014,7 +3023,7 @@ async fn update_control_plane(
     replace_http_client(&state.http, new_http);
     replace_catalog(&state.catalog, new_catalog);
     tracing::info!(
-        profile = %state.profile_id,
+        profile = %profile.id,
         principal = %subject.principal.id,
         revision_id = %revision_id,
         sha256 = %sha256,
@@ -3034,13 +3043,18 @@ async fn update_control_plane(
 
 async fn revoke_jwt(
     State(state): State<AdminState>,
+    AxumPath(profile): AxumPath<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
     Json(request): Json<GatewayJwtRevocationRequest>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
+    let Some(profile_id) = admin_profile_id(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let metadata = admin_revocation_metadata(&request);
     let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
+        &profile_id,
         subject,
         GatewayAction::AdminWrite,
         "admin/jwt-revocations",
@@ -3117,7 +3131,7 @@ async fn revoke_jwt(
         return internal_error_response(err);
     }
     tracing::info!(
-        profile = %state.profile_id,
+        profile = %profile.id,
         principal = %subject.principal.id,
         issuer = %revocation.issuer,
         jwt_id = %revocation.jwt_id,
@@ -3132,12 +3146,17 @@ async fn revoke_jwt(
 
 async fn prune_jwt_revocations(
     State(state): State<AdminState>,
+    AxumPath(profile): AxumPath<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
+    let Some(profile_id) = admin_profile_id(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let metadata = BTreeMap::from([("operation".to_string(), "prune_jwt_revocations".to_string())]);
     let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
+        &profile_id,
         subject,
         GatewayAction::AdminWrite,
         "admin/jwt-revocations/prune",
@@ -3192,7 +3211,7 @@ async fn prune_jwt_revocations(
         return internal_error_response(err);
     }
     tracing::info!(
-        profile = %state.profile_id,
+        profile = %profile.id,
         principal = %subject.principal.id,
         deleted,
         "expired gateway JWT revocations pruned"
@@ -3210,8 +3229,11 @@ async fn authenticate_mcp(
     next: Next,
 ) -> axum::response::Response {
     let started_at = Instant::now();
+    let Some(profile_id) = profile_id_from_gateway_path(request.uri().path()) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&state.profile_id) else {
+    let Some(profile) = catalog.profile(&profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
@@ -3226,7 +3248,7 @@ async fn authenticate_mcp(
         ) {
             return auth_audit_error_response(err);
         }
-        return unauthorized(&state, "unknown authorization server");
+        return unauthorized(&state, profile, "unknown authorization server");
     };
 
     let Some(header) = request
@@ -3244,7 +3266,7 @@ async fn authenticate_mcp(
         ) {
             return auth_audit_error_response(err);
         }
-        return unauthorized(&state, "missing authorization header");
+        return unauthorized(&state, profile, "missing authorization header");
     };
     let token = match BearerToken::from_authorization_header(header) {
         Ok(token) => token,
@@ -3260,7 +3282,7 @@ async fn authenticate_mcp(
             ) {
                 return auth_audit_error_response(err);
             }
-            return unauthorized(&state, "invalid authorization header");
+            return unauthorized(&state, profile, "invalid authorization header");
         }
     };
 
@@ -3279,7 +3301,7 @@ async fn authenticate_mcp(
             ) {
                 return auth_audit_error_response(err);
             }
-            return unauthorized(&state, "authorization server unavailable");
+            return unauthorized(&state, profile, "authorization server unavailable");
         }
     };
     let auth_config = match JwtAuthConfig::new(
@@ -3318,7 +3340,7 @@ async fn authenticate_mcp(
             ) {
                 return auth_audit_error_response(err);
             }
-            return unauthorized(&state, "invalid bearer token");
+            return unauthorized(&state, profile, "invalid bearer token");
         }
     };
     if let Some(jwt_id) = &subject.access_token.jwt_id {
@@ -3345,7 +3367,7 @@ async fn authenticate_mcp(
                 ) {
                     return auth_audit_error_response(err);
                 }
-                return unauthorized(&state, "token revoked");
+                return unauthorized(&state, profile, "token revoked");
             }
             Ok(None) => {}
             Err(err) => {
@@ -3836,15 +3858,9 @@ fn build_http_client(catalog: &GatewayCatalog) -> anyhow::Result<reqwest::Client
         .context("failed to build gateway HTTP client")
 }
 
-fn profile_ids(catalog: &GatewayCatalog) -> BTreeSet<GatewayProfileId> {
-    catalog
-        .profiles()
-        .map(|profile| profile.id.clone())
-        .collect()
-}
-
 fn authorize_admin_request(
     state: &AdminState,
+    profile_id: &GatewayProfileId,
     subject: AuthenticatedSubject,
     action: GatewayAction,
     audit_method: &str,
@@ -3855,7 +3871,7 @@ fn authorize_admin_request(
     Box<axum::response::Response>,
 > {
     let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&state.profile_id).cloned() else {
+    let Some(profile) = catalog.profile(profile_id).cloned() else {
         return Err(Box::new(StatusCode::NOT_FOUND.into_response()));
     };
     let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
@@ -3865,7 +3881,7 @@ fn authorize_admin_request(
     let target = PolicyTarget::Gateway;
     let decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
-        profile: &state.profile_id,
+        profile: profile_id,
         action,
         target: &target,
         trace_id: &trace_id,
@@ -3887,7 +3903,7 @@ fn authorize_admin_request(
     }
     if decision.effect != PolicyEffect::Allow {
         tracing::warn!(
-            profile = %state.profile_id,
+            profile = %profile_id,
             principal = %subject.principal.id,
             action = ?action,
             reason = ?decision.reason,
@@ -3944,7 +3960,6 @@ enum AdminOperationFailure {
     LoadControlPlane,
     PersistControlPlaneRevision,
     PersistJwtRevocation,
-    ProfileRouteChange,
     PruneJwtRevocations,
     RevisionId,
 }
@@ -3960,7 +3975,6 @@ impl AdminOperationFailure {
             Self::LoadControlPlane => "load_control_plane",
             Self::PersistControlPlaneRevision => "persist_control_plane_revision",
             Self::PersistJwtRevocation => "persist_jwt_revocation",
-            Self::ProfileRouteChange => "profile_route_change",
             Self::PruneJwtRevocations => "prune_jwt_revocations",
             Self::RevisionId => "revision_id",
         }
@@ -4256,11 +4270,11 @@ fn internal_error_response(err: impl std::fmt::Display) -> axum::response::Respo
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
-fn unauthorized(state: &ProfileAuthState, reason: &'static str) -> axum::response::Response {
-    let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&state.profile_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
+fn unauthorized(
+    state: &ProfileAuthState,
+    profile: &GatewayProfile,
+    reason: &'static str,
+) -> axum::response::Response {
     let metadata_url = format!(
         "{}/.well-known/oauth-protected-resource/mcp/{}",
         state.public_base_url, profile.id
@@ -4272,7 +4286,7 @@ fn unauthorized(state: &ProfileAuthState, reason: &'static str) -> axum::respons
 
     let mut headers = HeaderMap::new();
     headers.insert(WWW_AUTHENTICATE, challenge);
-    tracing::debug!(profile = %state.profile_id, reason, "gateway authorization challenge");
+    tracing::debug!(profile = %profile.id, reason, "gateway authorization challenge");
     (
         StatusCode::UNAUTHORIZED,
         headers,

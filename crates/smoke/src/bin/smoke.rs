@@ -1060,6 +1060,78 @@ async fn gateway_authenticated(
     .await?;
     assert_control_plane_status(&control_status, &revision_id)?;
 
+    let ops_control_plane = tmpdir.join("gateway.ops.json");
+    write_ops_profile_control_plane(control_plane, &ops_control_plane)?;
+    let ops_applied = put_json_file(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+        &ops_control_plane,
+    )
+    .await?;
+    let ops_revision_id =
+        assert_control_plane_admin_result_with_profiles(&ops_applied, "applied", 2)?;
+    assert_ready_profiles(&gateway_base, 2).await?;
+    let ops_admin_token = gateway_id_jag_token_for_profile(
+        conformance,
+        &gateway_base,
+        "ops",
+        &[
+            "--id-jag-scope",
+            "media:use",
+            "--id-jag-scope",
+            "gateway:admin",
+            "--scope",
+            "media:use",
+            "--scope",
+            "gateway:admin",
+        ],
+    )?;
+    let ops_status = get_json(
+        &http,
+        &format!("{gateway_base}/admin/ops/control-plane"),
+        Some(ops_admin_token.trim()),
+    )
+    .await?;
+    assert_control_plane_status_with_profiles(&ops_status, &ops_revision_id, 2)?;
+    let ops_token = gateway_id_jag_token_for_profile(
+        conformance,
+        &gateway_base,
+        "ops",
+        &[
+            "--id-jag-scope",
+            "media:use",
+            "--group",
+            "engineering",
+            "--role",
+            "operator",
+            "--data-label",
+            "cui",
+        ],
+    )?;
+    run_direct_mcp(
+        conformance,
+        &format!("{gateway_base}/mcp/ops"),
+        ["info".into()],
+        [("MCP_BEARER_TOKEN", ops_token.trim().into())],
+    )?;
+
+    let reverted = put_json_file(
+        &http,
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(admin_token.trim()),
+        control_plane,
+    )
+    .await?;
+    let reverted_revision_id = assert_control_plane_admin_result(&reverted, "applied")?;
+    assert_ready_profiles(&gateway_base, 1).await?;
+    assert_mcp_denied(
+        conformance,
+        &format!("{gateway_base}/mcp/ops"),
+        ops_token.trim(),
+        ["info".into()],
+    )?;
+
     gateway_child.stop();
     gateway_child = ChildGuard::spawn(
         gateway,
@@ -1081,7 +1153,7 @@ async fn gateway_authenticated(
         Some(admin_token.trim()),
     )
     .await?;
-    assert_control_plane_status(&control_status, &revision_id)?;
+    assert_control_plane_status(&control_status, &reverted_revision_id)?;
 
     let token = gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
     let token = token.trim();
@@ -2183,10 +2255,21 @@ fn run_mcp(
 }
 
 fn gateway_id_jag_token(conformance: &Path, gateway_base: &str, args: &[&str]) -> Result<String> {
+    gateway_id_jag_token_for_profile(conformance, gateway_base, "default", args)
+}
+
+fn gateway_id_jag_token_for_profile(
+    conformance: &Path,
+    gateway_base: &str,
+    profile: &str,
+    args: &[&str],
+) -> Result<String> {
     let mut all_args = vec![
         "gateway-id-jag-token-exchange".into(),
         "--token-url".into(),
-        format!("{gateway_base}/oauth/default/token").into(),
+        format!("{gateway_base}/oauth/{profile}/token").into(),
+        "--resource".into(),
+        format!("{PUBLIC_BASE_URL}/mcp/{profile}").into(),
     ];
     all_args.extend(args.iter().map(|arg| OsString::from(*arg)));
     run_checked(conformance, all_args, [])
@@ -2389,9 +2472,17 @@ async fn put_json_file(
 }
 
 fn assert_control_plane_admin_result(value: &Value, expected_status: &str) -> Result<String> {
+    assert_control_plane_admin_result_with_profiles(value, expected_status, 1)
+}
+
+fn assert_control_plane_admin_result_with_profiles(
+    value: &Value,
+    expected_status: &str,
+    expected_profiles: u64,
+) -> Result<String> {
     if value.get("status").and_then(Value::as_str) != Some(expected_status)
         || value.get("servers").and_then(Value::as_u64) != Some(1)
-        || value.get("profiles").and_then(Value::as_u64) != Some(1)
+        || value.get("profiles").and_then(Value::as_u64) != Some(expected_profiles)
     {
         bail!("unexpected control-plane admin result: {value}");
     }
@@ -2404,9 +2495,17 @@ fn assert_control_plane_admin_result(value: &Value, expected_status: &str) -> Re
 }
 
 fn assert_control_plane_status(value: &Value, expected_revision_id: &str) -> Result<()> {
+    assert_control_plane_status_with_profiles(value, expected_revision_id, 1)
+}
+
+fn assert_control_plane_status_with_profiles(
+    value: &Value,
+    expected_revision_id: &str,
+    expected_profiles: u64,
+) -> Result<()> {
     if value.get("status").and_then(Value::as_str) != Some("ok")
         || value.get("servers").and_then(Value::as_u64) != Some(1)
-        || value.get("profiles").and_then(Value::as_u64) != Some(1)
+        || value.get("profiles").and_then(Value::as_u64) != Some(expected_profiles)
         || value.get("revision_id").and_then(Value::as_str) != Some(expected_revision_id)
     {
         bail!("unexpected control-plane status: {value}");
@@ -2468,6 +2567,58 @@ fn write_cui_control_plane(input: &Path, output: &Path) -> Result<()> {
     rule["groups"] = serde_json::json!(["engineering"]);
     rule["roles"] = serde_json::json!(["operator"]);
     fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
+fn write_ops_profile_control_plane(input: &Path, output: &Path) -> Result<()> {
+    let mut control_plane: Value = serde_json::from_str(&fs::read_to_string(input)?)?;
+
+    let profiles = control_plane
+        .get_mut("profiles")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no profiles array"))?;
+    let default_profile = profiles
+        .iter()
+        .find(|profile| profile.get("id").and_then(Value::as_str) == Some("default"))
+        .cloned()
+        .ok_or_else(|| anyhow!("control plane has no default profile"))?;
+    let mut ops_profile = default_profile;
+    ops_profile["id"] = Value::String("ops".to_string());
+    ops_profile["protected_resource"] = Value::String(format!("{PUBLIC_BASE_URL}/mcp/ops"));
+    profiles.push(ops_profile);
+
+    let policies = control_plane
+        .get_mut("policies")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no policies array"))?;
+    for rule in policies
+        .iter_mut()
+        .flat_map(|policy| policy.get_mut("rules").and_then(Value::as_array_mut))
+        .flatten()
+    {
+        append_unique_string(rule, "profiles", "ops")?;
+    }
+
+    let oauth_clients = control_plane
+        .get_mut("oauth_clients")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no oauth_clients array"))?;
+    for client in oauth_clients {
+        append_unique_string(client, "allowed_profiles", "ops")?;
+    }
+
+    fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
+fn append_unique_string(value: &mut Value, key: &str, item: &str) -> Result<()> {
+    let values = value
+        .get_mut(key)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("JSON object has no `{key}` array"))?;
+    if !values.iter().any(|value| value.as_str() == Some(item)) {
+        values.push(Value::String(item.to_string()));
+    }
     Ok(())
 }
 
