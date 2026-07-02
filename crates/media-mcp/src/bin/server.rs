@@ -56,7 +56,8 @@ use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactPut, ArtifactStore, ProviderUris, SubscriptionHub, TaskPayloadState,
-    TaskStore, is_sha256, notify_progress, notify_task_status, now_iso,
+    TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status,
+    now_iso,
 };
 use veoveo_media_mcp::{
     artifacts::{S3ArtifactConfig, S3ArtifactStore},
@@ -338,6 +339,42 @@ async fn update_task(
     }
 }
 
+fn usage_estimate(task_id: &str, provider_job_id: &str, entry: &ModelEntry) -> UsageRecord {
+    UsageRecord {
+        task_id: task_id.to_string(),
+        provider_job_id: Some(provider_job_id.to_string()),
+        model_id: entry.model_id.clone(),
+        kind: UsageKind::Estimate,
+        quantity: Some(1.0),
+        unit: Some("run".to_string()),
+        amount: entry.base_price,
+        currency: entry.base_price.map(|_| "USD".to_string()),
+        recorded_at: now_iso(),
+        metadata: json!({
+            "source": "model_registry",
+            "model_type": entry.model_type.as_str(),
+            "formula": entry.formula.as_deref(),
+            "actual_usage_available": false,
+        }),
+    }
+}
+
+fn record_usage_estimate(
+    state: &AppState,
+    task_id: &str,
+    provider_job_id: &str,
+    entry: &ModelEntry,
+) {
+    let record = usage_estimate(task_id, provider_job_id, entry);
+    if let Err(e) = state.durable.record_usage(&record) {
+        tracing::warn!(
+            task_id,
+            provider_job_id,
+            "failed to persist usage estimate: {e}"
+        );
+    }
+}
+
 fn guess_mime(url: &str) -> Option<&'static str> {
     let path = url.split('?').next()?;
     let ext = path.rsplit('.').next()?.to_ascii_lowercase();
@@ -509,6 +546,7 @@ async fn run_task(
             "failed to persist provider job id: {e}"
         );
     }
+    record_usage_estimate(&state, &task_id, &prediction_id, &entry);
     // A new prediction resource now exists.
     let _ = peer.notify_resource_list_changed().await;
     update_task(
@@ -750,6 +788,10 @@ impl ServerHandler for MediaMcp {
                     "Compact index of every media model: model_id, type, description, base price.",
                 )
                 .with_mime_type("application/json"),
+            Resource::new(uris::USAGE_ROOT_URI, "usage")
+                .with_title("Media usage ledger")
+                .with_description("Index of task usage resources.")
+                .with_mime_type("application/json"),
         ];
         for (id, p) in self.state.predictions.read().await.iter() {
             resources.push(
@@ -771,6 +813,21 @@ impl ServerHandler for MediaMcp {
                 resource = resource.with_mime_type(mime);
             }
             resources.push(resource);
+        }
+        let usage_task_ids = self
+            .state
+            .durable
+            .usage_task_ids()
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        for task_id in usage_task_ids {
+            resources.push(
+                Resource::new(
+                    uris::usage_task_uri(&task_id),
+                    format!("usage for task {task_id}"),
+                )
+                .with_description("Usage estimates and actuals for one task.")
+                .with_mime_type("application/json"),
+            );
         }
         Ok(ListResourcesResult {
             resources,
@@ -805,6 +862,12 @@ impl ServerHandler for MediaMcp {
                     .with_description(
                         "Server-owned immutable output artifact, addressed by sha256.",
                     ),
+                ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+                    .with_title("Media task usage")
+                    .with_description(
+                        "Usage estimates and actuals for one task, addressed by task id.",
+                    )
+                    .with_mime_type("application/json"),
             ],
             next_cursor: None,
             meta: None,
@@ -824,6 +887,23 @@ impl ServerHandler for MediaMcp {
                 .await
                 .map_err(|e| McpError::internal_error(e, None))?;
             Self::models_index_json(&models).to_string()
+        } else if uri == uris::USAGE_ROOT_URI {
+            let task_ids = self
+                .state
+                .durable
+                .usage_task_ids()
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            let entries: Vec<Value> = task_ids
+                .into_iter()
+                .map(|task_id| {
+                    json!({
+                        "task_id": task_id,
+                        "usage_uri": uris::usage_task_uri(&task_id),
+                    })
+                })
+                .collect();
+            serde_json::to_string(&entries)
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(model_id) = uris::parse_model_uri(uri) {
             let entry = self
                 .state
@@ -850,6 +930,21 @@ impl ServerHandler for MediaMcp {
                     McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
                 })?;
             serde_json::to_string(&prediction)
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?
+        } else if let Some(task_id) = uris::parse_usage_task_uri(uri) {
+            let records = self
+                .state
+                .durable
+                .usage_records(task_id)
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+            if records.is_empty() {
+                return Err(McpError::resource_not_found(
+                    format!("unknown usage task '{task_id}'"),
+                    None,
+                ));
+            }
+            let report = UsageReport::new(task_id, uri).with_records(records);
+            serde_json::to_string(&report)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(sha256) = uris::parse_artifact_uri(uri) {
             let artifact = self

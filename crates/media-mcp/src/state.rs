@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use rmcp::model::Task;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::Value;
-use veoveo_mcp_contract::ArtifactMetadata;
+use veoveo_mcp_contract::{ArtifactMetadata, UsageKind, UsageRecord};
 
 use crate::provider::Prediction;
 
@@ -62,6 +62,19 @@ impl SqliteState {
                 metadata_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS usage_records (
+                usage_id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL,
+                provider_job_id TEXT,
+                model_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                record_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_usage_records_task_id
+            ON usage_records(task_id);
             "#,
         )?;
         Ok(Self {
@@ -243,4 +256,74 @@ impl SqliteState {
         }
         Ok(artifacts)
     }
+
+    pub fn record_usage(&self, record: &UsageRecord) -> Result<()> {
+        let record_json = serde_json::to_string(record)?;
+        let kind = usage_kind_name(record.kind);
+        let usage_id = usage_record_id(record);
+        let conn = self.conn.lock().expect("sqlite state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO usage_records (
+                usage_id, task_id, provider_job_id, model_id, kind, record_json, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ON CONFLICT(usage_id) DO UPDATE SET
+                provider_job_id = excluded.provider_job_id,
+                record_json = excluded.record_json,
+                updated_at = excluded.updated_at
+            "#,
+            params![
+                usage_id,
+                record.task_id.as_str(),
+                record.provider_job_id.as_deref(),
+                record.model_id.as_str(),
+                kind,
+                record_json,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn usage_records(&self, task_id: &str) -> Result<Vec<UsageRecord>> {
+        let conn = self.conn.lock().expect("sqlite state mutex poisoned");
+        let mut stmt = conn.prepare(
+            "SELECT record_json FROM usage_records WHERE task_id = ?1 ORDER BY updated_at",
+        )?;
+        let rows = stmt.query_map(params![task_id], |row| row.get::<_, String>(0))?;
+        let mut records = Vec::new();
+        for row in rows {
+            records.push(serde_json::from_str(&row?)?);
+        }
+        Ok(records)
+    }
+
+    pub fn usage_task_ids(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock().expect("sqlite state mutex poisoned");
+        let mut stmt =
+            conn.prepare("SELECT DISTINCT task_id FROM usage_records ORDER BY task_id")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut task_ids = Vec::new();
+        for row in rows {
+            task_ids.push(row?);
+        }
+        Ok(task_ids)
+    }
+}
+
+fn usage_kind_name(kind: UsageKind) -> &'static str {
+    match kind {
+        UsageKind::Estimate => "estimate",
+        UsageKind::Actual => "actual",
+    }
+}
+
+fn usage_record_id(record: &UsageRecord) -> String {
+    format!(
+        "{}:{}:{}:{}",
+        record.task_id,
+        usage_kind_name(record.kind),
+        record.model_id,
+        record.provider_job_id.as_deref().unwrap_or_default()
+    )
 }
