@@ -141,6 +141,90 @@ enum Cmd {
         #[arg(long, default_value_t = 5)]
         ttl_minutes: i64,
     },
+    /// Print an Enterprise-Managed Authorization ID-JAG signed by the conformance private key.
+    GatewayIdJag {
+        /// Enterprise IdP issuer claim.
+        #[arg(long, default_value = "https://idp.example.com")]
+        issuer: String,
+        /// Resource Authorization Server issuer audience claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default")]
+        audience: String,
+        /// MCP protected resource claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]
+        resource: String,
+        /// Registered MCP client id.
+        #[arg(long, default_value = "veoveo-browser")]
+        client_id: String,
+        /// Enterprise user subject claim.
+        #[arg(long, default_value = "00u-smoke")]
+        subject: String,
+        /// ID-JAG scope. Repeat for multiple scopes.
+        #[arg(long = "scope")]
+        scopes: Vec<String>,
+        /// Tenant claim.
+        #[arg(long, default_value = "tenant-a")]
+        tenant: String,
+        /// Group claim. Repeat for multiple groups.
+        #[arg(long = "group")]
+        groups: Vec<String>,
+        /// Role claim. Repeat for multiple roles.
+        #[arg(long = "role")]
+        roles: Vec<String>,
+        /// Data-label claim. Repeat for multiple labels.
+        #[arg(long = "data-label")]
+        data_labels: Vec<String>,
+        /// JWT id claim.
+        #[arg(long)]
+        jwt_id: Option<String>,
+        /// ID-JAG lifetime in minutes.
+        #[arg(long, default_value_t = 5)]
+        ttl_minutes: i64,
+    },
+    /// Exchange an Enterprise-Managed Authorization ID-JAG for a gateway access token.
+    GatewayIdJagTokenExchange {
+        /// Gateway token endpoint URL.
+        #[arg(long)]
+        token_url: String,
+        /// Enterprise IdP issuer claim.
+        #[arg(long, default_value = "https://idp.example.com")]
+        issuer: String,
+        /// Resource Authorization Server issuer audience claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default")]
+        audience: String,
+        /// MCP protected resource claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]
+        resource: String,
+        /// Registered MCP client id.
+        #[arg(long, default_value = "veoveo-browser")]
+        client_id: String,
+        /// Enterprise user subject claim.
+        #[arg(long, default_value = "00u-smoke")]
+        subject: String,
+        /// Scope embedded in the ID-JAG. Repeat for multiple scopes.
+        #[arg(long = "id-jag-scope")]
+        id_jag_scopes: Vec<String>,
+        /// Optional requested access-token scope. Repeat for multiple scopes.
+        #[arg(long = "scope")]
+        scopes: Vec<String>,
+        /// Tenant claim.
+        #[arg(long, default_value = "tenant-a")]
+        tenant: String,
+        /// Group claim. Repeat for multiple groups.
+        #[arg(long = "group")]
+        groups: Vec<String>,
+        /// Role claim. Repeat for multiple roles.
+        #[arg(long = "role")]
+        roles: Vec<String>,
+        /// Data-label claim. Repeat for multiple labels.
+        #[arg(long = "data-label")]
+        data_labels: Vec<String>,
+        /// ID-JAG JWT id claim.
+        #[arg(long)]
+        jwt_id: Option<String>,
+        /// ID-JAG lifetime in minutes.
+        #[arg(long, default_value_t = 5)]
+        ttl_minutes: i64,
+    },
     /// Show server info, capabilities, instructions, and the tool list.
     Info,
     /// Read the model catalog resource, optionally filtering locally.
@@ -254,6 +338,24 @@ struct ClientAssertionClaims {
     nbf: u64,
     iat: u64,
     jti: String,
+}
+
+#[derive(Debug, Serialize)]
+struct IdJagClaims {
+    iss: String,
+    sub: String,
+    aud: String,
+    resource: String,
+    client_id: String,
+    exp: u64,
+    nbf: u64,
+    iat: u64,
+    jti: String,
+    scope: String,
+    groups: Vec<String>,
+    roles: Vec<String>,
+    tenant: String,
+    data_labels: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -531,6 +633,27 @@ struct TokenExchangeInput {
     scopes: Vec<String>,
 }
 
+struct IdJagInput {
+    issuer: String,
+    audience: String,
+    resource: String,
+    client_id: String,
+    subject: String,
+    scopes: Vec<String>,
+    tenant: String,
+    groups: Vec<String>,
+    roles: Vec<String>,
+    data_labels: Vec<String>,
+    jwt_id: Option<String>,
+    ttl_minutes: i64,
+}
+
+struct IdJagTokenExchangeInput {
+    token_url: String,
+    id_jag: IdJagInput,
+    requested_scopes: Vec<String>,
+}
+
 fn build_client_assertion(input: &ClientAssertionInput) -> Result<String> {
     if input.ttl_minutes <= 0 {
         return Err(anyhow!("ttl_minutes must be greater than zero"));
@@ -583,6 +706,91 @@ async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Result<()> {
             "application/x-www-form-urlencoded",
         )
         .body(form_body)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
+        return Err(anyhow!("token endpoint returned {status}: {body}"));
+    }
+    let token_response: TokenEndpointResponse = serde_json::from_str(&body)?;
+    if token_response.token_type != "Bearer" {
+        return Err(anyhow!(
+            "token endpoint returned token_type `{}`",
+            token_response.token_type
+        ));
+    }
+    if token_response.access_token.is_empty() {
+        return Err(anyhow!("token endpoint returned an empty access_token"));
+    }
+    if token_response.expires_in == 0 {
+        return Err(anyhow!("token endpoint returned expires_in=0"));
+    }
+    if token_response.scope.is_empty() {
+        return Err(anyhow!("token endpoint returned an empty scope"));
+    }
+    println!("{}", token_response.access_token);
+    Ok(())
+}
+
+fn build_id_jag(input: &IdJagInput) -> Result<String> {
+    if input.ttl_minutes <= 0 {
+        return Err(anyhow!("ttl_minutes must be greater than zero"));
+    }
+    if input.scopes.is_empty() {
+        return Err(anyhow!("at least one ID-JAG scope is required"));
+    }
+    let now = Utc::now();
+    let expires_at = now
+        .checked_add_signed(TimeDelta::minutes(input.ttl_minutes))
+        .ok_or_else(|| anyhow!("ttl_minutes produces an invalid expiration timestamp"))?;
+    let jwt_id = input
+        .jwt_id
+        .clone()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let claims = IdJagClaims {
+        iss: input.issuer.clone(),
+        sub: input.subject.clone(),
+        aud: input.audience.clone(),
+        resource: input.resource.clone(),
+        client_id: input.client_id.clone(),
+        exp: unix_seconds(expires_at.timestamp())?,
+        nbf: unix_seconds(now.timestamp())?,
+        iat: unix_seconds(now.timestamp())?,
+        jti: jwt_id,
+        scope: input.scopes.join(" "),
+        groups: input.groups.clone(),
+        roles: input.roles.clone(),
+        tenant: input.tenant.clone(),
+        data_labels: input.data_labels.clone(),
+    };
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some(CONFORMANCE_KEY_ID.to_string());
+    Ok(encode(&header, &claims, &conformance_encoding_key()?)?)
+}
+
+fn cmd_gateway_id_jag(input: IdJagInput) -> Result<()> {
+    println!("{}", build_id_jag(&input)?);
+    Ok(())
+}
+
+async fn cmd_gateway_id_jag_token_exchange(input: IdJagTokenExchangeInput) -> Result<()> {
+    let assertion = build_id_jag(&input.id_jag)?;
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer
+        .append_pair("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+        .append_pair("client_id", &input.id_jag.client_id)
+        .append_pair("assertion", &assertion);
+    if !input.requested_scopes.is_empty() {
+        serializer.append_pair("scope", &input.requested_scopes.join(" "));
+    }
+    let response = reqwest::Client::new()
+        .post(&input.token_url)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body(serializer.finish())
         .send()
         .await?;
     let status = response.status();
@@ -1156,6 +1364,71 @@ async fn main() -> Result<()> {
             })
             .await;
         }
+        Cmd::GatewayIdJag {
+            issuer,
+            audience,
+            resource,
+            client_id,
+            subject,
+            scopes,
+            tenant,
+            groups,
+            roles,
+            data_labels,
+            jwt_id,
+            ttl_minutes,
+        } => {
+            return cmd_gateway_id_jag(IdJagInput {
+                issuer: issuer.clone(),
+                audience: audience.clone(),
+                resource: resource.clone(),
+                client_id: client_id.clone(),
+                subject: subject.clone(),
+                scopes: scopes.clone(),
+                tenant: tenant.clone(),
+                groups: groups.clone(),
+                roles: roles.clone(),
+                data_labels: data_labels.clone(),
+                jwt_id: jwt_id.clone(),
+                ttl_minutes: *ttl_minutes,
+            });
+        }
+        Cmd::GatewayIdJagTokenExchange {
+            token_url,
+            issuer,
+            audience,
+            resource,
+            client_id,
+            subject,
+            id_jag_scopes,
+            scopes,
+            tenant,
+            groups,
+            roles,
+            data_labels,
+            jwt_id,
+            ttl_minutes,
+        } => {
+            return cmd_gateway_id_jag_token_exchange(IdJagTokenExchangeInput {
+                token_url: token_url.clone(),
+                id_jag: IdJagInput {
+                    issuer: issuer.clone(),
+                    audience: audience.clone(),
+                    resource: resource.clone(),
+                    client_id: client_id.clone(),
+                    subject: subject.clone(),
+                    scopes: id_jag_scopes.clone(),
+                    tenant: tenant.clone(),
+                    groups: groups.clone(),
+                    roles: roles.clone(),
+                    data_labels: data_labels.clone(),
+                    jwt_id: jwt_id.clone(),
+                    ttl_minutes: *ttl_minutes,
+                },
+                requested_scopes: scopes.clone(),
+            })
+            .await;
+        }
         _ => {}
     }
 
@@ -1168,6 +1441,8 @@ async fn main() -> Result<()> {
         Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayTokenExchange { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayIdJag { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayIdJagTokenExchange { .. } => unreachable!("handled before MCP connection"),
         Cmd::Info => cmd_info(&client).await,
         Cmd::Models { query, r#type } => {
             let catalog = read_resource_json(&client, &uris.models_uri()).await?;

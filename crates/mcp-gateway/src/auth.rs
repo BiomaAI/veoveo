@@ -602,7 +602,10 @@ impl fmt::Display for AuthError {
                 write!(f, "identity assertion is missing resource")
             }
             Self::InvalidIdentityAssertionResource => {
-                write!(f, "identity assertion resource does not match gateway profile")
+                write!(
+                    f,
+                    "identity assertion resource does not match gateway profile"
+                )
             }
             Self::MissingIdentityAssertionScope => {
                 write!(f, "identity assertion is missing scope")

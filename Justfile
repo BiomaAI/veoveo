@@ -189,6 +189,14 @@ smoke-gateway-authenticated:
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompts >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" tasks >/dev/null
+    ema_token="$({{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --group engineering --role operator --data-label cui)"
+    env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${ema_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
+    replay_jti="smoke-id-jag-replay"
+    {{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --jwt-id "${replay_jti}" >/dev/null
+    if {{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --jwt-id "${replay_jti}" >/dev/null 2>&1; then
+        echo "replayed ID-JAG was unexpectedly accepted" >&2
+        exit 1
+    fi
     denied_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope gateway:admin)"
     if env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${denied_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null 2>&1; then
         echo "missing-scope gateway token was unexpectedly authorized" >&2
