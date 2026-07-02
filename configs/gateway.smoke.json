@@ -1,0 +1,187 @@
+{
+  "identity_providers": [
+    {
+      "id": "enterprise",
+      "issuer": "https://idp.example.com",
+      "jwks": {
+        "source": "file",
+        "path": "configs/jwks.smoke.json"
+      },
+      "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
+      "token_endpoint": "https://idp.example.com/oauth2/token",
+      "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
+      "client_credentials_endpoint": "https://idp.example.com/oauth2/token",
+      "metadata": {}
+    }
+  ],
+  "servers": [
+    {
+      "slug": "media",
+      "uri_scheme": "media",
+      "mount_path": "/media",
+      "mcp_path": "/media/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://127.0.0.1:18801/media/mcp"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": ["run"],
+      "prompts": [
+        "media-model-select",
+        "media-image-edit",
+        "media-video-generate",
+        "media-task-review"
+      ],
+      "required_scopes": ["media:use"],
+      "owned_routes": [
+        {
+          "path": "/media/webhooks",
+          "purpose": "webhook"
+        },
+        {
+          "path": "/media/files",
+          "purpose": "provider_fetchable_files"
+        },
+        {
+          "path": "/media/artifacts",
+          "purpose": "artifact_bytes"
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "profiles": [
+    {
+      "id": "default",
+      "identity_provider": "enterprise",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/default",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "enterprise_managed_authorization",
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": ["media:use"],
+      "servers": [
+        {
+          "server": "media",
+          "tools": {
+            "mode": "listed",
+            "items": ["run"]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "media"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "policies": [
+    {
+      "version": "2026-07-02",
+      "rules": [
+        {
+          "id": "allow_media_profile_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": ["default"],
+          "servers": ["media"],
+          "tools": ["run"],
+          "resource_schemes": ["media"],
+          "prompts": [
+            "media-model-select",
+            "media-image-edit",
+            "media-video-generate",
+            "media-task-review"
+          ],
+          "required_scopes": ["media:use"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_gateway_admin_write",
+          "effect": "allow",
+          "actions": ["admin_write"],
+          "profiles": ["default"],
+          "required_scopes": ["gateway:admin"],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "secrets": [
+    {
+      "id": "gateway_internal_token_secret",
+      "source": "env",
+      "purpose": "gateway_signing_key",
+      "locator": "VEOVEO_INTERNAL_TOKEN_SECRET",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "media_provider_api_key",
+      "source": "env",
+      "purpose": "provider_api_key",
+      "locator": "MEDIA_PROVIDER_API_KEY",
+      "owner": {
+        "kind": "server",
+        "server": "media"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "media_provider_webhook_secret",
+      "source": "env",
+      "purpose": "webhook_secret",
+      "locator": "MEDIA_PROVIDER_WEBHOOK_SECRET",
+      "owner": {
+        "kind": "server",
+        "server": "media"
+      },
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "environment": "smoke"
+  }
+}

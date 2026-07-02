@@ -91,8 +91,9 @@ impl JwtVerifier {
         validate_jwk_algorithm(jwk.common.key_algorithm, header.alg)?;
         let key = DecodingKey::from_jwk(jwk).map_err(AuthError::Jwt)?;
 
-        let mut validation = Validation::new(self.config.algorithms[0]);
-        validation.algorithms = self.config.algorithms.clone();
+        let algorithms = self.allowed_algorithms_for_header(header.alg)?;
+        let mut validation = Validation::new(header.alg);
+        validation.algorithms = algorithms;
         validation.validate_nbf = true;
         validation.set_issuer(&[self.config.issuer.as_str()]);
         validation.set_audience(&[self.config.audience.as_str()]);
@@ -167,6 +168,24 @@ impl JwtVerifier {
             access_token: token_subject,
             principal,
         })
+    }
+
+    fn allowed_algorithms_for_header(
+        &self,
+        algorithm: Algorithm,
+    ) -> Result<Vec<Algorithm>, AuthError> {
+        let algorithms = self
+            .config
+            .algorithms
+            .iter()
+            .copied()
+            .filter(|candidate| candidate.family() == algorithm.family())
+            .collect::<Vec<_>>();
+        if algorithms.is_empty() {
+            Err(AuthError::DisallowedAlgorithm(algorithm))
+        } else {
+            Ok(algorithms)
+        }
     }
 }
 
@@ -394,6 +413,13 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     }
 
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
+        verifier_with_algorithms(required_scopes, vec![Algorithm::RS256])
+    }
+
+    fn verifier_with_algorithms(
+        required_scopes: &[&str],
+        algorithms: Vec<Algorithm>,
+    ) -> JwtVerifier {
         let encoding_key = rsa_encoding_key();
         let mut jwk =
             Jwk::from_encoding_key(&encoding_key, Algorithm::RS256).expect("jwk from RSA key");
@@ -406,7 +432,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                     .iter()
                     .map(|scope| ScopeName::new(*scope).unwrap())
                     .collect(),
-                vec![Algorithm::RS256],
+                algorithms,
             )
             .unwrap(),
             JwkSet { keys: vec![jwk] },
@@ -496,6 +522,28 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .data_labels
                 .contains(&DataLabelId::new("cui").unwrap())
         );
+    }
+
+    #[test]
+    fn verifies_signed_jwt_with_mixed_public_algorithm_policy() {
+        let subject = verifier_with_algorithms(
+            &["media:use"],
+            vec![
+                Algorithm::RS256,
+                Algorithm::RS384,
+                Algorithm::RS512,
+                Algorithm::PS256,
+                Algorithm::PS384,
+                Algorithm::PS512,
+                Algorithm::ES256,
+                Algorithm::ES384,
+                Algorithm::EdDSA,
+            ],
+        )
+        .verify(&token("media:use"))
+        .expect("valid token");
+
+        assert_eq!(subject.access_token.subject.as_str(), "00u123");
     }
 
     #[test]

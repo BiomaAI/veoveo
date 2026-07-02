@@ -4,6 +4,7 @@ set dotenv-load := true
 compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
 mcp-url := "http://localhost:8787/media/mcp"
 gateway-control-plane := "configs/gateway.local.json"
+gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-contract --bin conformance --"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
@@ -43,8 +44,10 @@ gateway-prune-revoked-jwts:
 smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
     just gateway-validate
+    cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-smoke-control-plane}}
     just smoke-gateway-http
     just smoke-media-mcp-auth
+    just smoke-gateway-authenticated
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
@@ -118,6 +121,61 @@ smoke-media-mcp-auth:
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
     test "${status}" = "401"
     {{conformance}} --url "${base}/media/mcp" --internal-token-secret "${internal_secret}" info >/dev/null
+
+# Smoke-test authenticated gateway-to-media MCP forwarding.
+smoke-gateway-authenticated:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    media_port=18801
+    gateway_port=18802
+    media_base="http://127.0.0.1:${media_port}"
+    gateway_base="http://127.0.0.1:${gateway_port}"
+    tmpdir="$(mktemp -d)"
+    media_log="${tmpdir}/media.log"
+    gateway_log="${tmpdir}/gateway.log"
+    media_state_db="${tmpdir}/media-state.duckdb"
+    gateway_state_db="${tmpdir}/gateway-state.duckdb"
+    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    media_pid=""
+    gateway_pid=""
+    cleanup() {
+        if [ -n "${gateway_pid}" ]; then
+            kill "${gateway_pid}" 2>/dev/null || true
+            wait "${gateway_pid}" 2>/dev/null || true
+        fi
+        if [ -n "${media_pid}" ]; then
+            kill "${media_pid}" 2>/dev/null || true
+            wait "${media_pid}" 2>/dev/null || true
+        fi
+        rm -rf "${tmpdir}"
+    }
+    trap cleanup EXIT
+    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke cargo run -p veoveo-media-mcp --bin server -- --port "${media_port}" --public-base-url https://veoveo.bioma.ai --state-db "${media_state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 --internal-token-secret "${internal_secret}" >"${media_log}" 2>&1 &
+    media_pid=$!
+    for _ in {1..50}; do
+        if curl -fsS "${media_base}/media/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
+    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" --internal-token-secret "${internal_secret}" >"${gateway_log}" 2>&1 &
+    gateway_pid=$!
+    for _ in {1..50}; do
+        if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
+    token="$({{conformance}} gateway-token --scope media:use --jwt-id smoke-gateway-authenticated)"
+    {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" info >/dev/null
+    kill "${gateway_pid}"
+    wait "${gateway_pid}" 2>/dev/null || true
+    gateway_pid=""
+    audit_counts="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${gateway_state_db}")"
+    echo "${audit_counts}" | grep -E '"auth_events":[1-9][0-9]*'
+    echo "${audit_counts}" | grep -E '"policy_events":[1-9][0-9]*'
 
 # Build MCP images.
 compose-build:
