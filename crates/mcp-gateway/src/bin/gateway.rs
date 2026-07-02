@@ -18,7 +18,10 @@ use rmcp::transport::streamable_http_server::{
 };
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{GatewayProfileId, PublicDeployment};
+use veoveo_mcp_contract::{
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
+    InternalTokenSecret, PublicDeployment, TokenIssuer,
+};
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, JwtAuthConfig, JwtVerifier,
     www_authenticate_challenge,
@@ -53,6 +56,9 @@ enum Command {
         /// DuckDB file for gateway runtime state and audit evidence.
         #[arg(long)]
         state_db: PathBuf,
+        /// Secret used to sign gateway-to-server internal identity assertions.
+        #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
+        internal_token_secret: String,
     },
 }
 
@@ -102,7 +108,17 @@ async fn main() -> anyhow::Result<()> {
             public_base_url,
             control_plane,
             state_db,
-        } => serve(port, public_base_url, control_plane, state_db).await,
+            internal_token_secret,
+        } => {
+            serve(
+                port,
+                public_base_url,
+                control_plane,
+                state_db,
+                internal_token_secret,
+            )
+            .await
+        }
     }
 }
 
@@ -111,9 +127,14 @@ async fn serve(
     public_base_url: String,
     control_plane: PathBuf,
     state_db: PathBuf,
+    internal_token_secret: String,
 ) -> anyhow::Result<()> {
     let catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
     let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
+    let internal_token_issuer = GatewayInternalTokenIssuer::new(
+        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        InternalTokenSecret::new(internal_token_secret)?,
+    );
     let deployment = PublicDeployment::new(public_base_url)?;
     let ct = CancellationToken::new();
     let allowed_hosts = vec![
@@ -138,6 +159,7 @@ async fn serve(
 
     for profile in catalog.profiles() {
         let profile_id = profile.id.clone();
+        let profile_internal_token_issuer = internal_token_issuer.clone();
         let mcp_service = StreamableHttpService::new(
             {
                 let catalog = catalog.clone();
@@ -148,6 +170,7 @@ async fn serve(
                         catalog.clone(),
                         profile_id.clone(),
                         gateway_state.clone(),
+                        profile_internal_token_issuer.clone(),
                     ))
                 }
             },

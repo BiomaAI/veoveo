@@ -1,5 +1,6 @@
 use std::{borrow::Cow, collections::BTreeMap, fmt, sync::Arc};
 
+use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
     ClientHandler, ServiceExt,
     handler::server::ServerHandler,
@@ -23,22 +24,25 @@ use rmcp::{
 };
 use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
-    AuditEvent, CompletionExposure, GatewayAction, GatewayProfileId, GatewayTaskId,
-    GatewayTaskMapping, GatewayToolName, LocalToolName, McpMethodName, PolicyDecision,
-    PolicyEffect, PolicyTarget, PromptName, ResourceUri, ServerSlug,
+    AuditEvent, CompletionExposure, GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId,
+    GatewayTaskId, GatewayTaskMapping, GatewayToolName, LocalToolName, McpMethodName,
+    PolicyDecision, PolicyEffect, PolicyTarget, PrincipalId, PromptName, ResourceUri, ServerSlug,
     TaskExposure as ContractTaskExposure, TraceId, UpstreamTaskId, UpstreamTransport, paginate,
 };
 
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
 
 const GATEWAY_PAGE_SIZE: usize = 100;
+const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
+const INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS: i64 = 30;
 
 #[derive(Debug)]
 pub struct GatewayMcp {
     catalog: Arc<GatewayCatalog>,
     state: GatewayState,
     profile_id: GatewayProfileId,
-    upstreams: RwLock<BTreeMap<ServerSlug, RunningService<RoleClient, GatewayUpstreamHandler>>>,
+    internal_token_issuer: GatewayInternalTokenIssuer,
+    upstreams: RwLock<BTreeMap<UpstreamCacheKey, UpstreamConnection>>,
 }
 
 impl GatewayMcp {
@@ -46,11 +50,13 @@ impl GatewayMcp {
         catalog: Arc<GatewayCatalog>,
         profile_id: GatewayProfileId,
         state: GatewayState,
+        internal_token_issuer: GatewayInternalTokenIssuer,
     ) -> Self {
         Self {
             catalog,
             state,
             profile_id,
+            internal_token_issuer,
             upstreams: RwLock::new(BTreeMap::new()),
         }
     }
@@ -78,13 +84,20 @@ impl GatewayMcp {
         &self,
         server_slug: &ServerSlug,
         downstream: Peer<RoleServer>,
+        subject: &AuthenticatedSubject,
     ) -> Result<Peer<RoleClient>, McpError> {
+        let key = UpstreamCacheKey {
+            server: server_slug.clone(),
+            principal: subject.principal.id.clone(),
+        };
+        let refresh_after = Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS);
         {
             let upstreams = self.upstreams.read().await;
-            if let Some(running) = upstreams.get(server_slug)
-                && !running.is_closed()
+            if let Some(connection) = upstreams.get(&key)
+                && !connection.running.is_closed()
+                && connection.expires_at > refresh_after
             {
-                return Ok(running.peer().clone());
+                return Ok(connection.running.peer().clone());
             }
         }
 
@@ -100,14 +113,28 @@ impl GatewayMcp {
         }
 
         let mut upstreams = self.upstreams.write().await;
-        if let Some(running) = upstreams.get(server_slug)
-            && !running.is_closed()
+        if let Some(connection) = upstreams.get(&key)
+            && !connection.running.is_closed()
+            && connection.expires_at > refresh_after
         {
-            return Ok(running.peer().clone());
+            return Ok(connection.running.peer().clone());
         }
+        upstreams.remove(&key);
+
+        let token_expires_at = internal_token_expires_at(subject)?;
+        let internal_token = self
+            .internal_token_issuer
+            .issue(
+                self.profile_id.clone(),
+                server_slug.clone(),
+                subject.principal.clone(),
+                token_expires_at,
+            )
+            .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
 
         let transport = StreamableHttpClientTransport::from_config(
             StreamableHttpClientTransportConfig::with_uri(server.upstream.url.clone())
+                .auth_header(internal_token.bearer_token)
                 .reinit_on_expired_session(false),
         );
         let handler = GatewayUpstreamHandler {
@@ -120,7 +147,13 @@ impl GatewayMcp {
             .await
             .map_err(|err| mcp_internal(format!("failed to initialize upstream MCP: {err}")))?;
         let peer = running.peer().clone();
-        upstreams.insert(server_slug.clone(), running);
+        upstreams.insert(
+            key,
+            UpstreamConnection {
+                running,
+                expires_at: internal_token.identity.expires_at,
+            },
+        );
         Ok(peer)
     }
 
@@ -335,6 +368,30 @@ impl GatewayMcp {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct UpstreamCacheKey {
+    server: ServerSlug,
+    principal: PrincipalId,
+}
+
+#[derive(Debug)]
+struct UpstreamConnection {
+    running: RunningService<RoleClient, GatewayUpstreamHandler>,
+    expires_at: DateTime<Utc>,
+}
+
+fn internal_token_expires_at(subject: &AuthenticatedSubject) -> Result<DateTime<Utc>, McpError> {
+    let now = Utc::now();
+    let max_expires_at = now + TimeDelta::seconds(INTERNAL_TOKEN_TTL_SECONDS);
+    let expires_at = std::cmp::min(subject.access_token.expires_at, max_expires_at);
+    if expires_at <= now {
+        return Err(mcp_invalid_request(
+            "authenticated access token is already expired",
+        ));
+    }
+    Ok(expires_at)
+}
+
 fn resource_policy_target(server: ServerSlug, uri: &str) -> Result<PolicyTarget, McpError> {
     let uri = ResourceUri::new(uri.to_string())
         .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
@@ -418,9 +475,12 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
+        let subject = self.authenticated(&context)?;
         let mut tools = Vec::new();
         for server_slug in self.profile_servers() {
-            let upstream = self.upstream(&server_slug, context.peer.clone()).await?;
+            let upstream = self
+                .upstream(&server_slug, context.peer.clone(), &subject)
+                .await?;
             for mut tool in upstream.list_all_tools().await.map_err(upstream_error)? {
                 let local_tool =
                     LocalToolName::new(tool.name.as_ref().to_string()).map_err(|err| {
@@ -458,7 +518,7 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let projection = parse_gateway_tool(&self.catalog, &request.name)?;
-        self.authorize_tool(
+        let subject = self.authorize_tool(
             &context,
             GatewayAction::ToolsCall,
             projection.server.clone(),
@@ -466,7 +526,7 @@ impl ServerHandler for GatewayMcp {
         )?;
         request.name = Cow::Owned(projection.tool.to_string());
         let upstream = self
-            .upstream(&projection.server, context.peer.clone())
+            .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
         upstream.call_tool(request).await.map_err(upstream_error)
     }
@@ -485,7 +545,7 @@ impl ServerHandler for GatewayMcp {
         )?;
         request.name = Cow::Owned(projection.tool.to_string());
         let upstream = self
-            .upstream(&projection.server, context.peer.clone())
+            .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
         let result = upstream
             .send_request(ClientRequest::CallToolRequest(CallToolRequest::new(
@@ -529,9 +589,12 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        let subject = self.authenticated(&context)?;
         let mut resources = Vec::new();
         for server_slug in self.profile_servers() {
-            let upstream = self.upstream(&server_slug, context.peer.clone()).await?;
+            let upstream = self
+                .upstream(&server_slug, context.peer.clone(), &subject)
+                .await?;
             for resource in upstream
                 .list_all_resources()
                 .await
@@ -563,9 +626,12 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
+        let subject = self.authenticated(&context)?;
         let mut templates = Vec::new();
         for server_slug in self.profile_servers() {
-            let upstream = self.upstream(&server_slug, context.peer.clone()).await?;
+            let upstream = self
+                .upstream(&server_slug, context.peer.clone(), &subject)
+                .await?;
             for template in upstream
                 .list_all_resource_templates()
                 .await
@@ -598,13 +664,15 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let server = self.server_for_resource(&request.uri)?;
-        self.authorize_resource(
+        let subject = self.authorize_resource(
             &context,
             resource_read_action(&request.uri),
             server.clone(),
             &request.uri,
         )?;
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         upstream
             .read_resource(request)
             .await
@@ -617,13 +685,15 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let server = self.server_for_resource(&request.uri)?;
-        self.authorize_resource(
+        let subject = self.authorize_resource(
             &context,
             GatewayAction::ResourcesSubscribe,
             server.clone(),
             &request.uri,
         )?;
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         upstream.subscribe(request).await.map_err(upstream_error)
     }
 
@@ -633,13 +703,15 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let server = self.server_for_resource(&request.uri)?;
-        self.authorize_resource(
+        let subject = self.authorize_resource(
             &context,
             GatewayAction::ResourcesSubscribe,
             server.clone(),
             &request.uri,
         )?;
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         upstream.unsubscribe(request).await.map_err(upstream_error)
     }
 
@@ -648,9 +720,12 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, McpError> {
+        let subject = self.authenticated(&context)?;
         let mut prompts = Vec::new();
         for server_slug in self.profile_servers() {
-            let upstream = self.upstream(&server_slug, context.peer.clone()).await?;
+            let upstream = self
+                .upstream(&server_slug, context.peer.clone(), &subject)
+                .await?;
             for prompt in upstream.list_all_prompts().await.map_err(upstream_error)? {
                 let prompt_name = PromptName::new(prompt.name.clone()).map_err(|err| {
                     mcp_internal(format!("upstream exposed invalid prompt name: {err}"))
@@ -685,8 +760,11 @@ impl ServerHandler for GatewayMcp {
         let server = self.server_for_prompt(&request.name)?;
         let prompt = PromptName::new(request.name.clone())
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;
-        self.authorize_prompt(&context, GatewayAction::PromptsGet, server.clone(), prompt)?;
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let subject =
+            self.authorize_prompt(&context, GatewayAction::PromptsGet, server.clone(), prompt)?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         upstream.get_prompt(request).await.map_err(upstream_error)
     }
 
@@ -728,8 +806,10 @@ impl ServerHandler for GatewayMcp {
             }
             _ => return Err(mcp_invalid_params("unsupported completion reference kind")),
         };
-        self.authorize(&context, GatewayAction::CompletionComplete, target)?;
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let subject = self.authorize(&context, GatewayAction::CompletionComplete, target)?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         upstream.complete(request).await.map_err(upstream_error)
     }
 
@@ -741,7 +821,9 @@ impl ServerHandler for GatewayMcp {
         let server = self.single_task_server()?;
         let subject =
             self.authorize_task(&context, GatewayAction::TasksList, server.clone(), "list")?;
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         let result = upstream
             .send_request(ClientRequest::ListTasksRequest(match request {
                 Some(params) => ListTasksRequest::with_param(params),
@@ -785,14 +867,16 @@ impl ServerHandler for GatewayMcp {
     ) -> Result<GetTaskResult, McpError> {
         let mapping = self.task_mapping(&request.task_id)?;
         let server = mapping.upstream_server.clone();
-        self.authorize_task(
+        let subject = self.authorize_task(
             &context,
             GatewayAction::TasksGet,
             server.clone(),
             request.task_id.clone(),
         )?;
         request.task_id = mapping.upstream_task_id.to_string();
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         let result = upstream
             .send_request(ClientRequest::GetTaskRequest(GetTaskRequest::new(request)))
             .await
@@ -813,14 +897,16 @@ impl ServerHandler for GatewayMcp {
     ) -> Result<GetTaskPayloadResult, McpError> {
         let mapping = self.task_mapping(&request.task_id)?;
         let server = mapping.upstream_server.clone();
-        self.authorize_task(
+        let subject = self.authorize_task(
             &context,
             GatewayAction::TasksResult,
             server.clone(),
             request.task_id.clone(),
         )?;
         request.task_id = mapping.upstream_task_id.to_string();
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         let result = upstream
             .send_request(ClientRequest::GetTaskPayloadRequest(
                 GetTaskPayloadRequest::new(request),
@@ -841,14 +927,16 @@ impl ServerHandler for GatewayMcp {
     ) -> Result<CancelTaskResult, McpError> {
         let mapping = self.task_mapping(&request.task_id)?;
         let server = mapping.upstream_server.clone();
-        self.authorize_task(
+        let subject = self.authorize_task(
             &context,
             GatewayAction::TasksCancel,
             server.clone(),
             request.task_id.clone(),
         )?;
         request.task_id = mapping.upstream_task_id.to_string();
-        let upstream = self.upstream(&server, context.peer.clone()).await?;
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
         let result = upstream
             .send_request(ClientRequest::CancelTaskRequest(CancelTaskRequest::new(
                 request,

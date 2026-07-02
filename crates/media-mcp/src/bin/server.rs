@@ -24,11 +24,12 @@ use std::{
 
 use axum::{
     Router,
-    extract::{Path as AxumPath, State},
+    extract::{Path as AxumPath, Request, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
+        header::{AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE},
     },
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
 };
@@ -59,10 +60,11 @@ use rmcp::{
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, GenerationPredictionSummary, GenerationRunOutput, Page,
-    ProviderUris, PublicDeployment, ServerPublicEndpoint, SubscriptionHub, TaskPayloadState,
-    TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status,
-    now_iso, now_utc, paginate,
+    ArtifactMetadata, ArtifactPut, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity,
+    GatewayInternalTokenVerifier, GenerationPredictionSummary, GenerationRunOutput,
+    InternalTokenSecret, Page, ProviderUris, PublicDeployment, ServerPublicEndpoint, ServerSlug,
+    SubscriptionHub, TaskPayloadState, TaskStore, TokenIssuer, UsageKind, UsageRecord, UsageReport,
+    is_sha256, notify_progress, notify_task_status, now_iso, now_utc, paginate,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -111,6 +113,9 @@ struct Args {
     api_key: Option<String>,
     #[arg(long, env = "MEDIA_PROVIDER_WEBHOOK_SECRET", hide_env_values = true)]
     webhook_secret: Option<String>,
+    /// Secret used to verify gateway-to-server internal identity assertions.
+    #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
+    internal_token_secret: String,
 }
 
 impl Args {
@@ -148,6 +153,11 @@ struct AppState {
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
     subscribers: SubscriptionHub,
+}
+
+#[derive(Clone)]
+struct InternalMcpAuthState {
+    verifier: GatewayInternalTokenVerifier,
 }
 
 impl AppState {
@@ -1539,6 +1549,52 @@ impl ServerHandler for MediaMcp {
 // Webhook + HTTP plumbing
 // ---------------------------------------------------------------------------
 
+async fn authenticate_internal_mcp(
+    State(state): State<InternalMcpAuthState>,
+    mut request: Request,
+    next: Next,
+) -> axum::response::Response {
+    let Some(header) = request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        tracing::warn!("rejected media MCP request without internal authorization");
+        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
+    };
+    let token = match internal_bearer_token(header) {
+        Ok(token) => token,
+        Err(message) => {
+            tracing::warn!("rejected media MCP request: {message}");
+            return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
+        }
+    };
+    let identity = match state.verifier.verify(token) {
+        Ok(identity) => identity,
+        Err(err) => {
+            tracing::warn!("rejected media MCP internal token: {err}");
+            return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
+        }
+    };
+    request
+        .extensions_mut()
+        .insert::<GatewayInternalIdentity>(identity);
+    next.run(request).await
+}
+
+fn internal_bearer_token(header: &str) -> Result<&str, &'static str> {
+    let Some((scheme, token)) = header.split_once(' ') else {
+        return Err("missing bearer token");
+    };
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return Err("authorization scheme must be Bearer");
+    }
+    if token.is_empty() || token.chars().any(char::is_whitespace) {
+        return Err("bearer token contains invalid whitespace");
+    }
+    Ok(token)
+}
+
 async fn media_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1687,6 +1743,13 @@ async fn main() -> anyhow::Result<()> {
         "::1".to_string(),
         public_deployment.host_authority().to_string(),
     ];
+    let internal_auth_state = InternalMcpAuthState {
+        verifier: GatewayInternalTokenVerifier::new(
+            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+            ServerSlug::new(SERVER_SLUG)?,
+            InternalTokenSecret::new(args.internal_token_secret)?,
+        ),
+    };
     let mcp_service = StreamableHttpService::new(
         {
             let state = state.clone();
@@ -1697,13 +1760,20 @@ async fn main() -> anyhow::Result<()> {
             .with_allowed_hosts(allowed_hosts)
             .with_cancellation_token(ct.child_token()),
     );
+    let mcp_router = Router::new()
+        .route_service("/", mcp_service.clone())
+        .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn_with_state(
+            internal_auth_state,
+            authenticate_internal_mcp,
+        ));
 
     let mut server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/webhooks", post(media_webhook))
         .route("/artifacts/{sha256}", get(artifact_download))
         .with_state(state.clone())
-        .nest_service("/mcp", mcp_service);
+        .nest("/mcp", mcp_router);
     if let Some(dir) = &args.static_dir {
         tracing::info!(
             "serving static files from {} at {}/files",
@@ -1729,4 +1799,20 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::internal_bearer_token;
+
+    #[test]
+    fn internal_bearer_parser_is_strict() {
+        assert_eq!(
+            internal_bearer_token("Bearer abc.def.ghi"),
+            Ok("abc.def.ghi")
+        );
+        assert!(internal_bearer_token("Basic abc.def.ghi").is_err());
+        assert!(internal_bearer_token("Bearer").is_err());
+        assert!(internal_bearer_token("Bearer abc def").is_err());
+    }
 }

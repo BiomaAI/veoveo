@@ -33,6 +33,7 @@ smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
     just gateway-validate
     just smoke-gateway-http
+    just smoke-media-mcp-auth
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
@@ -45,12 +46,13 @@ smoke-gateway-http:
     headers="${tmpdir}/headers"
     body="${tmpdir}/body"
     state_db="${tmpdir}/state.duckdb"
+    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
     cleanup() {
         kill "${pid}" 2>/dev/null || true
         wait "${pid}" 2>/dev/null || true
         rm -rf "${tmpdir}"
     }
-    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" >"${log}" 2>&1 &
+    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" --internal-token-secret "${internal_secret}" >"${log}" 2>&1 &
     pid=$!
     trap cleanup EXIT
     for _ in {1..50}; do
@@ -64,6 +66,34 @@ smoke-gateway-http:
     status="$(curl -sS -D "${headers}" -o "${body}" -w "%{http_code}" "${base}/mcp/default")"
     test "${status}" = "401"
     grep -Fi 'www-authenticate: Bearer resource_metadata="https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default", scope="media:use"' "${headers}"
+
+# Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
+smoke-media-mcp-auth:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=18800
+    base="http://127.0.0.1:${port}"
+    tmpdir="$(mktemp -d)"
+    log="${tmpdir}/media.log"
+    state_db="${tmpdir}/state.duckdb"
+    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    cleanup() {
+        kill "${pid}" 2>/dev/null || true
+        wait "${pid}" 2>/dev/null || true
+        rm -rf "${tmpdir}"
+    }
+    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke cargo run -p veoveo-media-mcp --bin server -- --port "${port}" --public-base-url https://veoveo.bioma.ai --state-db "${state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 --internal-token-secret "${internal_secret}" >"${log}" 2>&1 &
+    pid=$!
+    trap cleanup EXIT
+    for _ in {1..50}; do
+        if curl -fsS "${base}/media/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${base}/media/healthz" | grep -F 'ok'
+    status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/mcp")"
+    test "${status}" = "401"
 
 # Build MCP images.
 compose-build:

@@ -38,9 +38,9 @@ pub use gateway::{
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use internal_auth::{
-    GatewayInternalIdentity, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
-    InternalTokenError, InternalTokenSecret, IssuedGatewayInternalToken,
-    MIN_INTERNAL_TOKEN_SECRET_BYTES,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenIssuer,
+    GatewayInternalTokenVerifier, InternalTokenError, InternalTokenSecret,
+    IssuedGatewayInternalToken, MIN_INTERNAL_TOKEN_SECRET_BYTES,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;

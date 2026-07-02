@@ -71,6 +71,7 @@ services:
     environment:
       MEDIA_PROVIDER_API_KEY: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
       MEDIA_PROVIDER_WEBHOOK_SECRET: "${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"
+      VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
       AWS_ACCESS_KEY_ID: rustfsadmin
       AWS_SECRET_ACCESS_KEY: rustfsadmin
       AWS_DEFAULT_REGION: us-east-1
@@ -101,6 +102,8 @@ services:
     volumes:
       - ./configs/gateway.local.json:/etc/veoveo/gateway.json:ro
       - gateway_state:/var/lib/veoveo/gateway
+    environment:
+      VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
     ports:
       - "8788:8788"
     profiles:

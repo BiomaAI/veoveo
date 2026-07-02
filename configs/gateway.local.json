@@ -137,6 +137,16 @@
   ],
   "secrets": [
     {
+      "id": "gateway_internal_token_secret",
+      "source": "env",
+      "purpose": "gateway_signing_key",
+      "locator": "VEOVEO_INTERNAL_TOKEN_SECRET",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
       "id": "media_provider_api_key",
       "source": "env",
       "purpose": "provider_api_key",

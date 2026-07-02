@@ -12,6 +12,7 @@ use crate::{
     GatewayProfileId, IdentifierError, JwtId, Principal, PrincipalId, ServerSlug, TokenIssuer,
 };
 
+pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-gateway";
 pub const MIN_INTERNAL_TOKEN_SECRET_BYTES: usize = 32;
 
 #[derive(Clone, PartialEq, Eq)]
