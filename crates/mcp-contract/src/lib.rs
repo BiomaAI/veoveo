@@ -36,7 +36,7 @@ pub use gateway::{
     McpMethodName, McpSurfaceCapabilities, McpSurfaceCapability, MountPath, OAuthAuthorizationCode,
     OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
     OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcClientId,
-    OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PkceCodeChallenge,
+    OidcClientRegistrationId, OidcNonce, OwnedRoute, OwnedRoutePurpose, PkceCodeChallenge,
     PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode,
     PolicyRule, PolicyRuleId, PolicySet, PolicyTarget, PolicyVersion, Principal, PrincipalId,
     PrincipalKind, ProfileServerExposure, PromptName, ProtectedResourceId,

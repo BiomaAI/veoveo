@@ -201,6 +201,11 @@ typed_id!(
     "OIDC client id assigned to the gateway by an enterprise identity provider."
 );
 typed_id!(
+    OidcNonce,
+    validate_oauth_state_value,
+    "OIDC nonce bound to an enterprise identity-provider authorization request."
+);
+typed_id!(
     TokenIssuer,
     validate_claim_text,
     "Expected token issuer identifier."
@@ -2353,6 +2358,10 @@ pub struct GatewayAuthorizationRequest {
     pub requested_scopes: BTreeSet<ScopeName>,
     pub code_challenge: PkceCodeChallenge,
     pub code_challenge_method: PkceCodeChallengeMethod,
+    pub idp_code_verifier: PkceCodeVerifier,
+    pub idp_code_challenge: PkceCodeChallenge,
+    pub idp_code_challenge_method: PkceCodeChallengeMethod,
+    pub nonce: OidcNonce,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
 }
@@ -3316,6 +3325,7 @@ mod tests {
         assert!(OAuthRedirectUri::new("http://127.0.0.1:0/oauth/callback").is_err());
         assert!(OAuthStateValue::new("oauth-state-1").is_ok());
         assert!(OAuthStateValue::new("oauth state").is_err());
+        assert!(OidcNonce::new("nonce-1").is_ok());
         assert!(OAuthAuthorizationCode::new("a".repeat(43)).is_ok());
         assert!(OAuthAuthorizationCode::new("short").is_err());
         assert!(PkceCodeChallenge::new("A".repeat(43)).is_ok());

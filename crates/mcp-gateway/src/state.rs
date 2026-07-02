@@ -814,9 +814,10 @@ mod tests {
 
     use veoveo_mcp_contract::{
         AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, McpMethodName, OAuthRedirectUri,
-        OidcClientRegistrationId, PkceCodeChallenge, PkceCodeChallengeMethod, PolicyDecision,
-        PolicyEffect, PolicyReasonCode, PolicyTarget, Principal, PrincipalKind,
-        ProtectedResourceId, ScopeName, ServerSlug, TokenSubject, TraceId, UpstreamTaskId,
+        OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
+        PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
+        PrincipalKind, ProtectedResourceId, ScopeName, ServerSlug, TokenSubject, TraceId,
+        UpstreamTaskId,
     };
 
     use super::*;
@@ -1065,6 +1066,10 @@ mod tests {
             requested_scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
             code_challenge: PkceCodeChallenge::new("A".repeat(43)).unwrap(),
             code_challenge_method: PkceCodeChallengeMethod::S256,
+            idp_code_verifier: PkceCodeVerifier::new("B".repeat(43)).unwrap(),
+            idp_code_challenge: PkceCodeChallenge::new("C".repeat(43)).unwrap(),
+            idp_code_challenge_method: PkceCodeChallengeMethod::S256,
+            nonce: OidcNonce::new("nonce-1").unwrap(),
             created_at: now,
             expires_at: now + TimeDelta::minutes(5),
         };
