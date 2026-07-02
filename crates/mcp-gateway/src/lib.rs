@@ -132,6 +132,7 @@ impl GatewayCatalog {
                 .map(ToString::to_string)
                 .collect(),
             bearer_methods_supported: vec!["header".to_string()],
+            extensions: authorization_extensions(profile),
         })
     }
 
@@ -426,6 +427,27 @@ pub struct ProtectedResourceMetadata {
     pub authorization_servers: Vec<String>,
     pub scopes_supported: Vec<String>,
     pub bearer_methods_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extensions: BTreeMap<String, AuthorizationExtensionMetadata>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AuthorizationExtensionMetadata {}
+
+fn authorization_extensions(
+    profile: &GatewayProfile,
+) -> BTreeMap<String, AuthorizationExtensionMetadata> {
+    profile
+        .auth_modes
+        .iter()
+        .filter_map(|mode| mode.mcp_extension_id())
+        .map(|extension| {
+            (
+                extension.to_string(),
+                AuthorizationExtensionMetadata::default(),
+            )
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -714,11 +736,12 @@ mod tests {
     use serde_json::Value;
     use veoveo_mcp_contract::{
         AuthMode, CompletionExposure, DataLabelId, Exposure, GatewayControlPlaneError,
-        GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId, MountPath, OwnedRoute,
-        OwnedRoutePurpose, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
-        ResourceSelector, ScopeName, SecretLocator, SecretOwner, SecretPurpose, SecretReference,
-        SecretReferenceId, SecretSource, TaskExposure, TenantId, TokenIssuer, TokenSubject,
-        UpstreamEndpoint, UpstreamTransport,
+        GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId,
+        MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
+        MountPath, OwnedRoute, OwnedRoutePurpose, PrincipalId, PrincipalKind,
+        ProfileServerExposure, ProtectedResourceId, ResourceSelector, ScopeName, SecretLocator,
+        SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
+        TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
     };
 
     use super::*;
@@ -965,6 +988,16 @@ mod tests {
         assert_eq!(
             metadata.bearer_methods_supported,
             vec!["header".to_string()]
+        );
+        assert!(
+            metadata
+                .extensions
+                .contains_key(MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION)
+        );
+        assert!(
+            metadata
+                .extensions
+                .contains_key(MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION)
         );
     }
 

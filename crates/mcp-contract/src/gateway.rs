@@ -8,6 +8,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
+    "io.modelcontextprotocol/enterprise-managed-authorization";
+pub const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION: &str =
+    "io.modelcontextprotocol/oauth-client-credentials";
+
 macro_rules! typed_id {
     ($name:ident, $validator:ident, $doc:literal) => {
         #[doc = $doc]
@@ -1088,6 +1093,18 @@ pub enum AuthMode {
     OAuthClientCredentials,
 }
 
+impl AuthMode {
+    pub fn mcp_extension_id(self) -> Option<&'static str> {
+        match self {
+            Self::OidcAuthorizationCodePkce => None,
+            Self::EnterpriseManagedAuthorization => {
+                Some(MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION)
+            }
+            Self::OAuthClientCredentials => Some(MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION),
+        }
+    }
+}
+
 fn validate_path_id(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(
@@ -1360,6 +1377,19 @@ mod tests {
         assert!(MountPath::new("media").is_err());
         assert!(ResourceUri::new("media://artifact/abc").is_ok());
         assert!(ResourceUriTemplate::new("media://model").is_err());
+    }
+
+    #[test]
+    fn auth_modes_expose_mcp_extension_ids() {
+        assert_eq!(
+            AuthMode::EnterpriseManagedAuthorization.mcp_extension_id(),
+            Some(MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION)
+        );
+        assert_eq!(
+            AuthMode::OAuthClientCredentials.mcp_extension_id(),
+            Some(MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION)
+        );
+        assert_eq!(AuthMode::OidcAuthorizationCodePkce.mcp_extension_id(), None);
     }
 
     #[test]

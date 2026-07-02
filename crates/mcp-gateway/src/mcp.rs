@@ -7,9 +7,9 @@ use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParams, CallToolResult, CancelTaskParams,
         CancelTaskRequest, CancelTaskResult, ClientInfo, ClientRequest, CompleteRequestParams,
-        CompleteResult, CreateTaskResult, ErrorData as McpError, GetPromptRequestParams,
-        GetPromptResult, GetTaskParams, GetTaskPayloadParams, GetTaskPayloadRequest,
-        GetTaskPayloadResult, GetTaskRequest, GetTaskResult, Implementation,
+        CompleteResult, CreateTaskResult, ErrorData as McpError, ExtensionCapabilities,
+        GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
+        GetTaskPayloadRequest, GetTaskPayloadResult, GetTaskRequest, GetTaskResult, Implementation,
         InitializeRequestParams, InitializeResult, JsonObject, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListTasksRequest, ListTasksResult,
         ListToolsResult, Notification, PaginatedRequestParams, ReadResourceRequestParams,
@@ -78,6 +78,21 @@ impl GatewayMcp {
             })
             .map(|(_, server)| server.slug.clone())
             .collect()
+    }
+
+    fn auth_extension_capabilities(&self) -> Option<ExtensionCapabilities> {
+        let profile = self.catalog.profile(&self.profile_id)?;
+        let extensions: ExtensionCapabilities = profile
+            .auth_modes
+            .iter()
+            .filter_map(|mode| mode.mcp_extension_id())
+            .map(|extension| (extension.to_string(), JsonObject::new()))
+            .collect();
+        if extensions.is_empty() {
+            None
+        } else {
+            Some(extensions)
+        }
     }
 
     async fn upstream(
@@ -449,6 +464,7 @@ impl ServerHandler for GatewayMcp {
                     .get_or_insert_with(TasksCapability::server_default);
             }
         }
+        capabilities.extensions = self.auth_extension_capabilities();
 
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
