@@ -216,6 +216,26 @@ typed_id!(
     "JWT id used for replay protection or revocation tracking."
 );
 typed_id!(
+    OAuthStateValue,
+    validate_oauth_state_value,
+    "Opaque OAuth state value stored for browser authorization continuity."
+);
+typed_id!(
+    OAuthAuthorizationCode,
+    validate_oauth_authorization_code,
+    "Gateway-issued OAuth authorization code exchanged once for a profile access token."
+);
+typed_id!(
+    PkceCodeChallenge,
+    validate_pkce_code_token,
+    "PKCE code challenge bound to a gateway-issued authorization code."
+);
+typed_id!(
+    PkceCodeVerifier,
+    validate_pkce_code_token,
+    "PKCE code verifier presented to the gateway token endpoint."
+);
+typed_id!(
     TraceId,
     validate_token_text,
     "Request trace/correlation id used in audit and runtime state."
@@ -2321,6 +2341,49 @@ pub struct GatewayJwtRevocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayAuthorizationRequest {
+    pub idp_state: OAuthStateValue,
+    pub profile: GatewayProfileId,
+    pub oauth_client_id: OAuthClientId,
+    pub oidc_client: OidcClientRegistrationId,
+    pub redirect_uri: OAuthRedirectUri,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_state: Option<OAuthStateValue>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub requested_scopes: BTreeSet<ScopeName>,
+    pub code_challenge: PkceCodeChallenge,
+    pub code_challenge_method: PkceCodeChallengeMethod,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayAuthorizationCodeRecord {
+    pub code: OAuthAuthorizationCode,
+    pub profile: GatewayProfileId,
+    pub oauth_client_id: OAuthClientId,
+    pub oidc_client: OidcClientRegistrationId,
+    pub redirect_uri: OAuthRedirectUri,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_state: Option<OAuthStateValue>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub scopes: BTreeSet<ScopeName>,
+    pub code_challenge: PkceCodeChallenge,
+    pub code_challenge_method: PkceCodeChallengeMethod,
+    pub principal: Principal,
+    pub issued_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consumed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum PkceCodeChallengeMethod {
+    #[serde(rename = "S256")]
+    S256,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayTaskMapping {
     pub gateway_task_id: GatewayTaskId,
     pub upstream_server: ServerSlug,
@@ -2839,6 +2902,34 @@ fn validate_token_text(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+fn validate_oauth_state_value(value: &str) -> Result<(), IdentifierError> {
+    validate_token_text(value)?;
+    if value.len() > 512 {
+        return Err(IdentifierError::new(value, "must be at most 512 bytes"));
+    }
+    Ok(())
+}
+
+fn validate_oauth_authorization_code(value: &str) -> Result<(), IdentifierError> {
+    validate_pkce_code_token(value)
+}
+
+fn validate_pkce_code_token(value: &str) -> Result<(), IdentifierError> {
+    if !(43..=128).contains(&value.len()) {
+        return Err(IdentifierError::new(value, "must be 43 to 128 bytes"));
+    }
+    if !value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~'))
+    {
+        return Err(IdentifierError::new(
+            value,
+            "must contain only ASCII letters, digits, hyphen, period, underscore, or tilde",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_claim_text(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(value, "must not be empty"));
@@ -3223,6 +3314,12 @@ mod tests {
         assert!(OAuthRedirectUri::new("http://example.com/oauth/callback").is_err());
         assert!(OAuthRedirectUri::new("http://127.0.0.1/oauth/callback").is_err());
         assert!(OAuthRedirectUri::new("http://127.0.0.1:0/oauth/callback").is_err());
+        assert!(OAuthStateValue::new("oauth-state-1").is_ok());
+        assert!(OAuthStateValue::new("oauth state").is_err());
+        assert!(OAuthAuthorizationCode::new("a".repeat(43)).is_ok());
+        assert!(OAuthAuthorizationCode::new("short").is_err());
+        assert!(PkceCodeChallenge::new("A".repeat(43)).is_ok());
+        assert!(PkceCodeVerifier::new("a".repeat(129)).is_err());
         assert!(ResourceUri::new("media://artifact/abc").is_ok());
         assert!(ResourceUriTemplate::new("media://model").is_err());
     }

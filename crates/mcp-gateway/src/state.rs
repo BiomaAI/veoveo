@@ -5,10 +5,11 @@ use chrono::{DateTime, Utc};
 use duckdb::{OptionalExt, params};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, AuthorizationServerId, GatewayJwtRevocation, GatewayProfileId,
-    GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, JwtId, OAuthClientId,
-    PrincipalId, ResourceUri, ServerSlug, SharedDuckDbConnection, TokenIssuer, UpstreamTaskId,
-    open_duckdb,
+    AuditEvent, AuthAuditEvent, AuthorizationServerId, GatewayAuthorizationCodeRecord,
+    GatewayAuthorizationRequest, GatewayJwtRevocation, GatewayProfileId,
+    GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, JwtId, OAuthAuthorizationCode,
+    OAuthClientId, OAuthStateValue, PrincipalId, ResourceUri, ServerSlug, SharedDuckDbConnection,
+    TokenIssuer, UpstreamTaskId, open_duckdb,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -116,6 +117,42 @@ impl GatewayState {
 
             CREATE INDEX IF NOT EXISTS idx_gateway_id_jag_jtis_expires
             ON gateway_id_jag_jtis(expires_at);
+
+            CREATE TABLE IF NOT EXISTS gateway_authorization_requests (
+                idp_state TEXT PRIMARY KEY,
+                profile TEXT NOT NULL,
+                oauth_client_id TEXT NOT NULL,
+                oidc_client TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                request_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_authorization_requests_expires
+            ON gateway_authorization_requests(expires_at);
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_authorization_requests_client
+            ON gateway_authorization_requests(profile, oauth_client_id);
+
+            CREATE TABLE IF NOT EXISTS gateway_authorization_codes (
+                code TEXT PRIMARY KEY,
+                profile TEXT NOT NULL,
+                oauth_client_id TEXT NOT NULL,
+                oidc_client TEXT NOT NULL,
+                principal TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                issued_at TIMESTAMP NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                consumed_at TIMESTAMP,
+                code_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_authorization_codes_expires
+            ON gateway_authorization_codes(expires_at);
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_authorization_codes_client
+            ON gateway_authorization_codes(profile, oauth_client_id, principal);
 
             CREATE TABLE IF NOT EXISTS gateway_audit_events (
                 event_id TEXT PRIMARY KEY,
@@ -325,6 +362,144 @@ impl GatewayState {
             ],
         )?;
         Ok(true)
+    }
+
+    pub fn record_authorization_request(
+        &self,
+        request: &GatewayAuthorizationRequest,
+    ) -> Result<()> {
+        let request_json = serde_json::to_string(request)?;
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO gateway_authorization_requests (
+                idp_state, profile, oauth_client_id, oidc_client, redirect_uri,
+                created_at, expires_at, request_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "#,
+            params![
+                request.idp_state.as_str(),
+                request.profile.as_str(),
+                request.oauth_client_id.as_str(),
+                request.oidc_client.as_str(),
+                request.redirect_uri.as_str(),
+                request.created_at,
+                request.expires_at,
+                request_json,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn consume_authorization_request(
+        &self,
+        idp_state: &OAuthStateValue,
+        now: DateTime<Utc>,
+    ) -> Result<Option<GatewayAuthorizationRequest>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            "DELETE FROM gateway_authorization_requests WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        let request_json = conn
+            .query_row(
+                r#"
+                SELECT request_json
+                FROM gateway_authorization_requests
+                WHERE idp_state = ?1 AND expires_at > ?2
+                "#,
+                params![idp_state.as_str(), now],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let Some(request_json) = request_json else {
+            return Ok(None);
+        };
+        conn.execute(
+            "DELETE FROM gateway_authorization_requests WHERE idp_state = ?1",
+            params![idp_state.as_str()],
+        )?;
+        Ok(Some(serde_json::from_str(&request_json)?))
+    }
+
+    pub fn record_authorization_code(&self, code: &GatewayAuthorizationCodeRecord) -> Result<()> {
+        let code_json = serde_json::to_string(code)?;
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO gateway_authorization_codes (
+                code, profile, oauth_client_id, oidc_client, principal, redirect_uri,
+                issued_at, expires_at, consumed_at, code_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+            params![
+                code.code.as_str(),
+                code.profile.as_str(),
+                code.oauth_client_id.as_str(),
+                code.oidc_client.as_str(),
+                code.principal.id.as_str(),
+                code.redirect_uri.as_str(),
+                code.issued_at,
+                code.expires_at,
+                code.consumed_at,
+                code_json,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn consume_authorization_code(
+        &self,
+        code: &OAuthAuthorizationCode,
+        now: DateTime<Utc>,
+    ) -> Result<Option<GatewayAuthorizationCodeRecord>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            "DELETE FROM gateway_authorization_codes WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        let code_json = conn
+            .query_row(
+                r#"
+                SELECT code_json
+                FROM gateway_authorization_codes
+                WHERE code = ?1 AND expires_at > ?2 AND consumed_at IS NULL
+                "#,
+                params![code.as_str(), now],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let Some(code_json) = code_json else {
+            return Ok(None);
+        };
+        let mut record: GatewayAuthorizationCodeRecord = serde_json::from_str(&code_json)?;
+        record.consumed_at = Some(now);
+        let updated_json = serde_json::to_string(&record)?;
+        let updated = conn.execute(
+            r#"
+            UPDATE gateway_authorization_codes
+            SET consumed_at = ?2, code_json = ?3
+            WHERE code = ?1 AND expires_at > ?2 AND consumed_at IS NULL
+            "#,
+            params![code.as_str(), now, updated_json],
+        )?;
+        if updated == 0 {
+            return Ok(None);
+        }
+        Ok(Some(record))
+    }
+
+    pub fn prune_expired_authorization_records(&self, now: DateTime<Utc>) -> Result<u64> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let requests = conn.execute(
+            "DELETE FROM gateway_authorization_requests WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        let codes = conn.execute(
+            "DELETE FROM gateway_authorization_codes WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        Ok(u64::try_from(requests + codes)?)
     }
 
     pub fn record_task_mapping(&self, mapping: &GatewayTaskMapping) -> Result<()> {
@@ -635,12 +810,13 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use chrono::{TimeDelta, Utc};
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use veoveo_mcp_contract::{
-        AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, McpMethodName, PolicyDecision,
-        PolicyEffect, PolicyReasonCode, PolicyTarget, ProtectedResourceId, ServerSlug, TraceId,
-        UpstreamTaskId,
+        AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, McpMethodName, OAuthRedirectUri,
+        OidcClientRegistrationId, PkceCodeChallenge, PkceCodeChallengeMethod, PolicyDecision,
+        PolicyEffect, PolicyReasonCode, PolicyTarget, Principal, PrincipalKind,
+        ProtectedResourceId, ScopeName, ServerSlug, TokenSubject, TraceId, UpstreamTaskId,
     };
 
     use super::*;
@@ -870,6 +1046,127 @@ mod tests {
                     expires_at + TimeDelta::seconds(1),
                 )
                 .unwrap()
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn authorization_request_consumes_once_across_restart() {
+        let path = temp_path("authorization-request");
+        let now = Utc::now();
+        let request = GatewayAuthorizationRequest {
+            idp_state: OAuthStateValue::new("state-1").unwrap(),
+            profile: GatewayProfileId::new("default").unwrap(),
+            oauth_client_id: OAuthClientId::new("veoveo-browser").unwrap(),
+            oidc_client: OidcClientRegistrationId::new("enterprise").unwrap(),
+            redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+            client_state: Some(OAuthStateValue::new("client-state-1").unwrap()),
+            requested_scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            code_challenge: PkceCodeChallenge::new("A".repeat(43)).unwrap(),
+            code_challenge_method: PkceCodeChallengeMethod::S256,
+            created_at: now,
+            expires_at: now + TimeDelta::minutes(5),
+        };
+
+        let state = GatewayState::open(&path).unwrap();
+        state.record_authorization_request(&request).unwrap();
+        assert!(state.record_authorization_request(&request).is_err());
+        let state = GatewayState::open(&path).unwrap();
+
+        assert_eq!(
+            state
+                .consume_authorization_request(&request.idp_state, now + TimeDelta::seconds(1))
+                .unwrap(),
+            Some(request.clone())
+        );
+        assert_eq!(
+            state
+                .consume_authorization_request(&request.idp_state, now + TimeDelta::seconds(2))
+                .unwrap(),
+            None
+        );
+
+        let expired = GatewayAuthorizationRequest {
+            idp_state: OAuthStateValue::new("state-expired").unwrap(),
+            created_at: now - TimeDelta::minutes(10),
+            expires_at: now - TimeDelta::minutes(5),
+            ..request
+        };
+        state.record_authorization_request(&expired).unwrap();
+        assert_eq!(
+            state
+                .consume_authorization_request(&expired.idp_state, now)
+                .unwrap(),
+            None
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn authorization_code_consumes_once_across_restart() {
+        let path = temp_path("authorization-code");
+        let now = Utc::now();
+        let principal = Principal {
+            id: PrincipalId::new("https://idp.example.com#00u123").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
+            subject: TokenSubject::new("00u123").unwrap(),
+            tenant: None,
+            groups: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            data_labels: BTreeSet::new(),
+            authenticated_at: Some(now),
+        };
+        let code = GatewayAuthorizationCodeRecord {
+            code: OAuthAuthorizationCode::new("B".repeat(43)).unwrap(),
+            profile: GatewayProfileId::new("default").unwrap(),
+            oauth_client_id: OAuthClientId::new("veoveo-browser").unwrap(),
+            oidc_client: OidcClientRegistrationId::new("enterprise").unwrap(),
+            redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+            client_state: Some(OAuthStateValue::new("client-state-1").unwrap()),
+            scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            code_challenge: PkceCodeChallenge::new("C".repeat(43)).unwrap(),
+            code_challenge_method: PkceCodeChallengeMethod::S256,
+            principal,
+            issued_at: now,
+            expires_at: now + TimeDelta::minutes(5),
+            consumed_at: None,
+        };
+
+        let state = GatewayState::open(&path).unwrap();
+        state.record_authorization_code(&code).unwrap();
+        assert!(state.record_authorization_code(&code).is_err());
+        let state = GatewayState::open(&path).unwrap();
+
+        let consumed = state
+            .consume_authorization_code(&code.code, now + TimeDelta::seconds(1))
+            .unwrap()
+            .expect("authorization code should consume once");
+        assert_eq!(consumed.code, code.code);
+        assert_eq!(consumed.consumed_at, Some(now + TimeDelta::seconds(1)));
+        assert_eq!(
+            state
+                .consume_authorization_code(&code.code, now + TimeDelta::seconds(2))
+                .unwrap(),
+            None
+        );
+
+        let expired = GatewayAuthorizationCodeRecord {
+            code: OAuthAuthorizationCode::new("D".repeat(43)).unwrap(),
+            issued_at: now - TimeDelta::minutes(10),
+            expires_at: now - TimeDelta::minutes(5),
+            consumed_at: None,
+            ..code
+        };
+        state.record_authorization_code(&expired).unwrap();
+        assert_eq!(
+            state
+                .consume_authorization_code(&expired.code, now)
+                .unwrap(),
+            None
         );
 
         let _ = std::fs::remove_file(path);
