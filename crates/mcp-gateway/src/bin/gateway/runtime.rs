@@ -75,6 +75,19 @@ pub(super) fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
     http.read().clone()
 }
 
+pub(super) fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileId> {
+    let mut segments = path.trim_start_matches('/').split('/');
+    match segments.next()? {
+        "mcp" | "admin" => {}
+        _ => return None,
+    }
+    let profile = segments.next()?;
+    if profile.is_empty() {
+        return None;
+    }
+    GatewayProfileId::new(profile).ok()
+}
+
 pub(super) fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
     catalog.replace(new_catalog);
 }
