@@ -168,6 +168,9 @@ smoke-gateway-authenticated:
         sleep 0.2
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
+    admin_token="$({{conformance}} gateway-token --scope media:use --scope gateway:admin --jwt-id smoke-gateway-admin)"
+    status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"
+    test "${status}" = "200"
     token="$({{conformance}} gateway-token --scope media:use --jwt-id smoke-gateway-authenticated)"
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" resource media://usage >/dev/null
