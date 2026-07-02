@@ -35,19 +35,20 @@ use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayInternalTokenIssuer, GatewayJwtRevocation,
     GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
     OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType, PolicyDecision,
-    PolicyEffect, PolicyTarget, PrincipalId, PrincipalKind, PublicDeployment,
+    PolicyEffect, PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
     ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, SecretSource,
     TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
-    GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig, JwtVerifier, PolicyRequest,
-    www_authenticate_challenge,
+    GatewayCatalog, GatewayMcp, GatewayState, IdJagConfig, IdJagVerifier, JwtAuthConfig,
+    JwtVerifier, PolicyRequest, www_authenticate_challenge,
 };
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
 
@@ -169,6 +170,8 @@ struct TokenRequest {
     client_assertion_type: Option<String>,
     #[serde(default)]
     client_assertion: Option<String>,
+    #[serde(default)]
+    assertion: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -197,6 +200,14 @@ struct AccessTokenClaims {
     principal_kind: PrincipalKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     scope: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    groups: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    roles: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tenant: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    data_labels: Vec<String>,
 }
 
 #[tokio::main]
@@ -506,6 +517,18 @@ async fn token_endpoint(
             "authorization server is unavailable",
         );
     };
+
+    if request.grant_type == JWT_BEARER_GRANT_TYPE {
+        return token_endpoint_id_jag(
+            &state,
+            &catalog,
+            profile,
+            authorization_server,
+            request,
+            started_at,
+        )
+        .await;
+    }
 
     if request.grant_type != "client_credentials"
         || !profile
@@ -849,6 +872,399 @@ async fn token_endpoint(
     })
 }
 
+async fn token_endpoint_id_jag(
+    state: &AppState,
+    catalog: &GatewayCatalog,
+    profile: &GatewayProfile,
+    authorization_server: &ResourceAuthorizationServer,
+    request: TokenRequest,
+    started_at: Instant,
+) -> axum::response::Response {
+    if !profile
+        .auth_modes
+        .contains(&AuthMode::EnterpriseManagedAuthorization)
+    {
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            None,
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::UnsupportedGrantType,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_grant_type",
+            "grant type is not supported for this gateway profile",
+        );
+    }
+
+    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+        Ok(client_id) => client_id,
+        Err(_) => {
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                None,
+                None,
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidClient,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client authentication failed",
+            );
+        }
+    };
+    let Some(client) = catalog.oauth_client(&client_id) else {
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidClient,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    };
+    if client.authorization_server != profile.authorization_server
+        || !client.allowed_profiles.contains(&profile.id)
+        || !client
+            .grant_types
+            .contains(&OAuthGrantType::EnterpriseManagedAuthorization)
+        || !client.auth_methods.contains(&OAuthClientAuthMethod::None)
+    {
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidClient,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    }
+
+    let Some(assertion) = request.assertion.as_deref() else {
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidIdentityAssertion,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "identity assertion is required",
+        );
+    };
+    let Some(identity_provider_id) = authorization_server.identity_provider.as_ref() else {
+        tracing::error!("enterprise-managed authorization requires an identity provider");
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidAuthConfig,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "identity provider is not configured",
+        );
+    };
+    let Some(identity_provider) = catalog.identity_provider(identity_provider_id) else {
+        tracing::error!(identity_provider = %identity_provider_id, "unknown identity provider");
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::UnknownIdentityProvider,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "identity provider is unavailable",
+        );
+    };
+    let idp_jwks = match load_jwks(&state.http, &identity_provider.jwks).await {
+        Ok(jwks) => jwks,
+        Err(err) => {
+            tracing::warn!("failed to load identity provider JWKS for ID-JAG: {err}");
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                None,
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::IdentityProviderUnavailable,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_grant",
+                "identity assertion could not be validated",
+            );
+        }
+    };
+    let id_jag_config = match IdJagConfig::new(
+        identity_provider.issuer.clone(),
+        authorization_server.issuer.clone(),
+        profile.protected_resource.clone(),
+        allowed_gateway_jwt_algorithms(),
+    ) {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::error!("invalid ID-JAG verifier config: {err}");
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                None,
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidAuthConfig,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "identity assertion validation is not configured",
+            );
+        }
+    };
+    let verified_id_jag = match IdJagVerifier::new(id_jag_config, idp_jwks).verify(assertion) {
+        Ok(verified) => verified,
+        Err(err) => {
+            tracing::warn!(client = %client_id, "rejected ID-JAG: {err}");
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                None,
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidIdentityAssertion,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_grant",
+                "identity assertion could not be validated",
+            );
+        }
+    };
+    if verified_id_jag.client_id != client_id {
+        tracing::warn!(
+            request_client = %client_id,
+            assertion_client = %verified_id_jag.client_id,
+            "rejected ID-JAG with mismatched client_id"
+        );
+        if let Err(err) = record_id_jag_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            Some(&verified_id_jag.principal),
+            Some(&verified_id_jag.jwt_id),
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidIdentityAssertion,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_grant",
+            "identity assertion could not be validated",
+        );
+    }
+    match state.gateway_state.record_id_jag_jti(
+        &authorization_server.id,
+        &client_id,
+        &verified_id_jag.jwt_id,
+        verified_id_jag.expires_at,
+        Utc::now(),
+    ) {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(
+                client = %client_id,
+                jwt_id = %verified_id_jag.jwt_id,
+                "rejected replayed ID-JAG"
+            );
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                Some(&verified_id_jag.principal),
+                Some(&verified_id_jag.jwt_id),
+                AuthOutcome::Deny,
+                AuthReasonCode::IdentityAssertionReplay,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_grant",
+                "identity assertion has already been used",
+            );
+        }
+        Err(err) => {
+            tracing::error!("failed to record ID-JAG replay state: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
+
+    let scopes = match id_jag_token_scopes(
+        catalog,
+        profile,
+        client,
+        request.scope.as_deref(),
+        &verified_id_jag.scopes,
+    ) {
+        Ok(scopes) => scopes,
+        Err(err) => {
+            tracing::warn!(client = %client_id, "rejected ID-JAG scope request: {err}");
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                Some(&verified_id_jag.principal),
+                Some(&verified_id_jag.jwt_id),
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidScope,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_scope",
+                "requested scope is not allowed",
+            );
+        }
+    };
+    let token = match issue_access_token(
+        catalog,
+        authorization_server,
+        profile,
+        &verified_id_jag.principal.subject,
+        PrincipalKind::User,
+        Some(&verified_id_jag.principal),
+        &scopes,
+    ) {
+        Ok(token) => token,
+        Err(err) => {
+            tracing::error!("failed to issue ID-JAG access token: {err}");
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                Some(&verified_id_jag.principal),
+                Some(&verified_id_jag.jwt_id),
+                AuthOutcome::Deny,
+                AuthReasonCode::TokenSigningKeyUnavailable,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "token signing key is unavailable",
+            );
+        }
+    };
+    if let Err(err) = record_id_jag_auth_audit(
+        &state.gateway_state,
+        profile,
+        Some(authorization_server),
+        Some(&client_id),
+        Some(&verified_id_jag.principal),
+        Some(&token.jwt_id),
+        AuthOutcome::Allow,
+        AuthReasonCode::AuthAllow,
+        started_at,
+    ) {
+        return auth_audit_error_response(err);
+    }
+
+    token_response(TokenResponse {
+        access_token: token.access_token,
+        token_type: "Bearer",
+        expires_in: ACCESS_TOKEN_TTL_SECONDS as u64,
+        scope: scopes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" "),
+    })
+}
+
 async fn reload_control_plane(
     State(state): State<AdminState>,
     request: Request,
@@ -1135,11 +1551,70 @@ fn requested_token_scopes(
     Ok(scopes)
 }
 
+fn id_jag_token_scopes(
+    catalog: &GatewayCatalog,
+    profile: &GatewayProfile,
+    client: &OAuthClientRegistration,
+    raw_scope: Option<&str>,
+    id_jag_scopes: &BTreeSet<ScopeName>,
+) -> anyhow::Result<BTreeSet<ScopeName>> {
+    if id_jag_scopes.is_empty() {
+        return Err(anyhow!("ID-JAG scope is required"));
+    }
+    let scopes = match raw_scope {
+        Some(raw_scope) => {
+            let scopes = raw_scope
+                .split_whitespace()
+                .map(ScopeName::new)
+                .collect::<Result<BTreeSet<_>, _>>()?;
+            if scopes.is_empty() {
+                return Err(anyhow!("scope is required"));
+            }
+            if !scopes.is_subset(id_jag_scopes) {
+                return Err(anyhow!("requested scope exceeds ID-JAG scope"));
+            }
+            scopes
+        }
+        None => id_jag_scopes.clone(),
+    };
+    let profile_supported_scopes = catalog.profile_supported_scopes(profile);
+    if !scopes.is_subset(&client.allowed_scopes) {
+        return Err(anyhow!("requested scope is not allowed for OAuth client"));
+    }
+    if !scopes.is_subset(&profile_supported_scopes) {
+        return Err(anyhow!(
+            "requested scope is not supported by gateway profile"
+        ));
+    }
+    Ok(scopes)
+}
+
 fn issue_client_credentials_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
     profile: &GatewayProfile,
     client_id: &OAuthClientId,
+    scopes: &BTreeSet<ScopeName>,
+) -> anyhow::Result<IssuedAccessToken> {
+    let subject = TokenSubject::new(client_id.as_str())?;
+    issue_access_token(
+        catalog,
+        authorization_server,
+        profile,
+        &subject,
+        PrincipalKind::Service,
+        None,
+        scopes,
+    )
+}
+
+fn issue_access_token(
+    catalog: &GatewayCatalog,
+    authorization_server: &ResourceAuthorizationServer,
+    profile: &GatewayProfile,
+    subject: &TokenSubject,
+    principal_kind: PrincipalKind,
+    principal: Option<&Principal>,
     scopes: &BTreeSet<ScopeName>,
 ) -> anyhow::Result<IssuedAccessToken> {
     let signing_key = access_token_signing_key(
@@ -1161,14 +1636,44 @@ fn issue_client_credentials_access_token(
     });
     let claims = AccessTokenClaims {
         iss: authorization_server.issuer.to_string(),
-        sub: client_id.to_string(),
+        sub: subject.to_string(),
         aud: profile.protected_resource.to_string(),
         exp: unix_seconds(expires_at.timestamp())?,
         nbf: unix_seconds(now.timestamp())?,
         iat: unix_seconds(now.timestamp())?,
         jti: jwt_id.to_string(),
-        principal_kind: PrincipalKind::Service,
+        principal_kind,
         scope,
+        groups: principal
+            .map(|principal| {
+                principal
+                    .groups
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        roles: principal
+            .map(|principal| {
+                principal
+                    .roles
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        tenant: principal
+            .and_then(|principal| principal.tenant.as_ref())
+            .map(ToString::to_string),
+        data_labels: principal
+            .map(|principal| {
+                principal
+                    .data_labels
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
     };
     let mut header = Header::new(Algorithm::RS256);
     header.kid = Some(authorization_server.access_token_key_id.to_string());
@@ -1388,6 +1893,54 @@ fn record_token_auth_audit(
         method: AuthMethod::ClientCredentialsPrivateKeyJwt,
         principal,
         tenant: None,
+        token_issuer,
+        token_subject,
+        jwt_id: jwt_id.cloned(),
+        latency_ms: Some(latency_ms),
+        metadata: Default::default(),
+    })
+}
+
+fn record_id_jag_auth_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    authorization_server: Option<&ResourceAuthorizationServer>,
+    client_id: Option<&OAuthClientId>,
+    principal: Option<&Principal>,
+    jwt_id: Option<&JwtId>,
+    outcome: AuthOutcome,
+    reason: AuthReasonCode,
+    started_at: Instant,
+) -> anyhow::Result<()> {
+    let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let token_issuer = authorization_server.map(|value| value.issuer.clone());
+    let token_subject = match (principal, client_id) {
+        (Some(principal), _) => Some(principal.subject.clone()),
+        (None, Some(client_id)) => Some(TokenSubject::new(client_id.as_str())?),
+        (None, None) => None,
+    };
+    let principal_id = match (principal, authorization_server, client_id) {
+        (Some(principal), _, _) => Some(principal.id.clone()),
+        (None, Some(authorization_server), Some(client_id)) => Some(PrincipalId::new(format!(
+            "{}#{}",
+            authorization_server.issuer, client_id
+        ))?),
+        _ => None,
+    };
+    let tenant = principal.and_then(|value| value.tenant.clone());
+    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    gateway_state.record_auth_audit_event(&AuthAuditEvent {
+        event_id,
+        timestamp: chrono::Utc::now(),
+        trace_id,
+        profile: profile.id.clone(),
+        protected_resource: profile.protected_resource.clone(),
+        outcome,
+        reason,
+        method: AuthMethod::EnterpriseManagedIdJag,
+        principal: principal_id,
+        tenant,
         token_issuer,
         token_subject,
         jwt_id: jwt_id.cloned(),
