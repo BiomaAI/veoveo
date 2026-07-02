@@ -1,10 +1,8 @@
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{path::Path, sync::Arc};
 
 use anyhow::{Context, Result};
 use duckdb::{Connection, params};
+use parking_lot::Mutex;
 
 use crate::{UsageKind, UsageRecord};
 
@@ -36,7 +34,7 @@ impl DuckDbAnalytics {
     }
 
     fn initialize(&self) -> Result<()> {
-        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS usage_records (
@@ -69,7 +67,7 @@ impl DuckDbAnalytics {
         let record_json = serde_json::to_string(record)?;
         let kind = usage_kind_name(record.kind);
         let usage_id = usage_record_id(record);
-        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO usage_records (
@@ -107,7 +105,7 @@ impl DuckDbAnalytics {
     }
 
     pub fn usage_records(&self, task_id: &str) -> Result<Vec<UsageRecord>> {
-        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT record_json FROM usage_records WHERE task_id = ?1 ORDER BY updated_at",
         )?;
@@ -120,7 +118,7 @@ impl DuckDbAnalytics {
     }
 
     pub fn usage_task_ids(&self) -> Result<Vec<String>> {
-        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt =
             conn.prepare("SELECT DISTINCT task_id FROM usage_records ORDER BY task_id")?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
@@ -132,7 +130,7 @@ impl DuckDbAnalytics {
     }
 
     pub fn has_actual_usage(&self, task_id: &str, provider_job_id: &str) -> Result<bool> {
-        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let conn = self.conn.lock();
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM usage_records WHERE task_id = ?1 AND provider_job_id = ?2 AND kind = 'actual'",
             params![task_id, provider_job_id],
@@ -145,7 +143,7 @@ impl DuckDbAnalytics {
         &self,
         cutoff: chrono::DateTime<chrono::Utc>,
     ) -> Result<u64> {
-        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let conn = self.conn.lock();
         let deleted = conn.execute(
             "DELETE FROM usage_records WHERE recorded_at < ?1",
             params![cutoff],

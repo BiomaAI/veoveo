@@ -75,7 +75,7 @@ impl GatewayState {
     }
 
     fn initialize(&self) -> Result<()> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS gateway_task_mappings (
@@ -256,7 +256,7 @@ impl GatewayState {
     }
 
     pub fn policy_audit_method_summary(&self) -> Result<Vec<GatewayPolicyAuditMethodSummary>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             r#"
             SELECT method, decision_json
@@ -291,7 +291,7 @@ impl GatewayState {
     }
 
     pub fn policy_audit_reason_summary(&self) -> Result<Vec<GatewayPolicyAuditReasonSummary>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             r#"
             SELECT decision_json
@@ -320,7 +320,7 @@ impl GatewayState {
         &self,
         metadata_key: &str,
     ) -> Result<Vec<GatewayPolicyAuditMetadataSummary>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             r#"
             SELECT event_json
@@ -352,7 +352,7 @@ impl GatewayState {
         &self,
         cutoff: DateTime<Utc>,
     ) -> Result<GatewayAuditRetentionSummary> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let policy_events_deleted = conn.execute(
             "DELETE FROM gateway_audit_events WHERE timestamp < ?1",
             params![cutoff],
@@ -376,7 +376,7 @@ impl GatewayState {
             GatewayControlPlaneRevisionSource::AdminApi => "admin_api",
             GatewayControlPlaneRevisionSource::MountedFileReload => "mounted_file_reload",
         };
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_control_plane_revisions (
@@ -397,7 +397,7 @@ impl GatewayState {
     }
 
     pub fn latest_control_plane_revision(&self) -> Result<Option<GatewayControlPlaneRevision>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let revision_json: Option<String> = conn
             .query_row(
                 r#"
@@ -416,7 +416,7 @@ impl GatewayState {
     }
 
     pub fn control_plane_revision_count(&self) -> Result<u64> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM gateway_control_plane_revisions",
             [],
@@ -427,7 +427,7 @@ impl GatewayState {
 
     pub fn record_jwt_revocation(&self, revocation: &GatewayJwtRevocation) -> Result<()> {
         let revocation_json = serde_json::to_string(revocation)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_revoked_jwt_ids (
@@ -468,7 +468,7 @@ impl GatewayState {
     }
 
     pub fn prune_expired_jwt_revocations(&self, now: DateTime<Utc>) -> Result<u64> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let deleted = conn.execute(
             "DELETE FROM gateway_revoked_jwt_ids WHERE expires_at <= ?1",
             params![now],
@@ -484,7 +484,7 @@ impl GatewayState {
         expires_at: DateTime<Utc>,
         now: DateTime<Utc>,
     ) -> Result<bool> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             "DELETE FROM gateway_client_assertion_jtis WHERE expires_at <= ?1",
             params![now],
@@ -535,7 +535,7 @@ impl GatewayState {
         expires_at: DateTime<Utc>,
         now: DateTime<Utc>,
     ) -> Result<bool> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             "DELETE FROM gateway_id_jag_jtis WHERE expires_at <= ?1",
             params![now],
@@ -583,7 +583,7 @@ impl GatewayState {
         request: &GatewayAuthorizationRequest,
     ) -> Result<()> {
         let request_json = serde_json::to_string(request)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_authorization_requests (
@@ -610,7 +610,7 @@ impl GatewayState {
         idp_state: &OAuthStateValue,
         now: DateTime<Utc>,
     ) -> Result<Option<GatewayAuthorizationRequest>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             "DELETE FROM gateway_authorization_requests WHERE expires_at <= ?1",
             params![now],
@@ -638,7 +638,7 @@ impl GatewayState {
 
     pub fn record_authorization_code(&self, code: &GatewayAuthorizationCodeRecord) -> Result<()> {
         let code_json = serde_json::to_string(code)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_authorization_codes (
@@ -667,7 +667,7 @@ impl GatewayState {
         code: &OAuthAuthorizationCode,
         now: DateTime<Utc>,
     ) -> Result<Option<GatewayAuthorizationCodeRecord>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             "DELETE FROM gateway_authorization_codes WHERE expires_at <= ?1",
             params![now],
@@ -704,7 +704,7 @@ impl GatewayState {
     }
 
     pub fn prune_expired_authorization_records(&self, now: DateTime<Utc>) -> Result<u64> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let requests = conn.execute(
             "DELETE FROM gateway_authorization_requests WHERE expires_at <= ?1",
             params![now],
@@ -718,7 +718,7 @@ impl GatewayState {
 
     pub fn record_task_mapping(&self, mapping: &GatewayTaskMapping) -> Result<()> {
         let mapping_json = serde_json::to_string(mapping)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_task_mappings (
@@ -774,7 +774,7 @@ impl GatewayState {
         owner: &PrincipalId,
         upstream_server: &veoveo_mcp_contract::ServerSlug,
     ) -> Result<Vec<GatewayTaskMapping>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             r#"
             SELECT mapping_json
@@ -799,7 +799,7 @@ impl GatewayState {
         profile: &GatewayProfileId,
         owner: &PrincipalId,
     ) -> Result<Vec<GatewayTaskMapping>> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             r#"
             SELECT mapping_json
@@ -823,7 +823,7 @@ impl GatewayState {
         subscription: &GatewayResourceSubscription,
     ) -> Result<()> {
         let subscription_json = serde_json::to_string(subscription)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_resource_subscriptions (
@@ -876,7 +876,7 @@ impl GatewayState {
         upstream_server: &ServerSlug,
         resource_uri: &ResourceUri,
     ) -> Result<()> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             DELETE FROM gateway_resource_subscriptions
@@ -896,7 +896,7 @@ impl GatewayState {
         let target_json = serde_json::to_string(&event.target)?;
         let decision_json = serde_json::to_string(&event.decision)?;
         let event_json = serde_json::to_string(event)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_audit_events (
@@ -938,7 +938,7 @@ impl GatewayState {
 
     pub fn record_auth_audit_event(&self, event: &AuthAuditEvent) -> Result<()> {
         let event_json = serde_json::to_string(event)?;
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO gateway_auth_audit_events (
@@ -994,7 +994,7 @@ impl GatewayState {
     }
 
     fn count_rows(&self, table: GatewayAuditTable) -> Result<u64> {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let count: i64 = conn.query_row(table.count_sql(), [], |row| row.get(0))?;
         Ok(u64::try_from(count)?)
     }
@@ -1003,7 +1003,7 @@ impl GatewayState {
     where
         P: duckdb::Params,
     {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let mapping_json = conn
             .query_row(sql, params, |row| row.get::<_, String>(0))
             .optional()?;
@@ -1020,7 +1020,7 @@ impl GatewayState {
     where
         P: duckdb::Params,
     {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let subscription_json = conn
             .query_row(sql, params, |row| row.get::<_, String>(0))
             .optional()?;
@@ -1033,7 +1033,7 @@ impl GatewayState {
     where
         P: duckdb::Params,
     {
-        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let conn = self.conn.lock();
         let revocation_json = conn
             .query_row(sql, params, |row| row.get::<_, String>(0))
             .optional()?;

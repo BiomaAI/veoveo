@@ -63,7 +63,7 @@ impl DuckdbState {
         let conn = open_duckdb(path)?;
         let analytics = DuckDbAnalytics::from_connection(conn.clone())?;
         {
-            let conn = conn.lock().expect("duckdb state mutex poisoned");
+            let conn = conn.lock();
             conn.execute_batch(
                 r#"
             CREATE TABLE IF NOT EXISTS tasks (
@@ -126,7 +126,7 @@ impl DuckdbState {
         let task_json = serde_json::to_string(task)?;
         let payload_json = payload.map(serde_json::to_string).transpose()?;
         let updated_at = parse_rfc3339_utc(&task.last_updated_at)?;
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO tasks (
@@ -152,7 +152,7 @@ impl DuckdbState {
     }
 
     pub fn set_provider_job_id(&self, task_id: &str, provider_job_id: &str) -> Result<()> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             "UPDATE tasks SET provider_job_id = ?2, updated_at = ?3 WHERE task_id = ?1",
             params![task_id, provider_job_id, chrono::Utc::now()],
@@ -161,7 +161,7 @@ impl DuckdbState {
     }
 
     pub fn task_id_for_provider_job_id(&self, provider_job_id: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.query_row(
             "SELECT task_id FROM tasks WHERE provider_job_id = ?1",
             params![provider_job_id],
@@ -173,7 +173,7 @@ impl DuckdbState {
 
     pub fn record_prediction(&self, prediction: &Prediction) -> Result<()> {
         let prediction_json = serde_json::to_string(prediction)?;
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO predictions (
@@ -197,7 +197,7 @@ impl DuckdbState {
     }
 
     pub fn load_tasks(&self) -> Result<Vec<PersistedTask>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT task_json, provider_job_id, payload_json, error FROM tasks ORDER BY updated_at",
         )?;
@@ -254,7 +254,7 @@ impl DuckdbState {
         task_id: &str,
         provider_job_id: Option<&str>,
     ) -> Result<MediaStateGcSummary> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let task_owners_deleted = conn.execute(
             "DELETE FROM task_owners WHERE task_id = ?1",
             params![task_id],
@@ -277,7 +277,7 @@ impl DuckdbState {
 
     pub fn record_task_owner(&self, owner: &TaskOwner) -> Result<()> {
         let data_labels_json = data_labels_to_json(&owner.data_labels)?;
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO task_owners (
@@ -303,7 +303,7 @@ impl DuckdbState {
     }
 
     pub fn load_task_owners(&self) -> Result<Vec<TaskOwner>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT task_id, principal_id, profile, tenant, data_labels_json FROM task_owners",
         )?;
@@ -330,7 +330,7 @@ impl DuckdbState {
     }
 
     pub fn task_owner(&self, task_id: &str) -> Result<Option<TaskOwner>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let row = conn
             .query_row(
                 "SELECT principal_id, profile, tenant, data_labels_json FROM task_owners WHERE task_id = ?1",
@@ -357,7 +357,7 @@ impl DuckdbState {
     }
 
     pub fn load_predictions(&self) -> Result<Vec<Prediction>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt =
             conn.prepare("SELECT prediction_json FROM predictions ORDER BY updated_at")?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
@@ -369,7 +369,7 @@ impl DuckdbState {
     }
 
     pub fn prediction(&self, id: &str) -> Result<Option<Prediction>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let json = conn
             .query_row(
                 "SELECT prediction_json FROM predictions WHERE prediction_id = ?1",
@@ -382,7 +382,7 @@ impl DuckdbState {
 
     pub fn record_artifact(&self, metadata: &ArtifactMetadata) -> Result<()> {
         let metadata_json = serde_json::to_string(metadata)?;
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO artifacts (sha256, metadata_json, updated_at)
@@ -397,7 +397,7 @@ impl DuckdbState {
     }
 
     pub fn artifact(&self, sha256: &str) -> Result<Option<ArtifactMetadata>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let json = conn
             .query_row(
                 "SELECT metadata_json FROM artifacts WHERE sha256 = ?1",
@@ -409,7 +409,7 @@ impl DuckdbState {
     }
 
     pub fn list_artifacts(&self) -> Result<Vec<ArtifactMetadata>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare("SELECT metadata_json FROM artifacts ORDER BY updated_at")?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
         let mut artifacts = Vec::new();
@@ -420,7 +420,7 @@ impl DuckdbState {
     }
 
     pub fn delete_artifact_metadata(&self, sha256: &str) -> Result<u64> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             "DELETE FROM artifact_owners WHERE sha256 = ?1",
             params![sha256],
@@ -431,7 +431,7 @@ impl DuckdbState {
 
     pub fn record_artifact_owner(&self, owner: &ArtifactOwner) -> Result<()> {
         let data_labels_json = data_labels_to_json(&owner.data_labels)?;
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         conn.execute(
             r#"
             INSERT INTO artifact_owners (
@@ -457,7 +457,7 @@ impl DuckdbState {
     }
 
     pub fn artifact_owners(&self, sha256: &str) -> Result<Vec<ArtifactOwner>> {
-        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT task_id, principal_id, profile, tenant, data_labels_json FROM artifact_owners WHERE sha256 = ?1",
         )?;

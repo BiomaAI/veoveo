@@ -4377,6 +4377,7 @@ dependencies = [
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "parking_lot",
  "rcgen",
  "reqwest 0.13.4",
  "rmcp",
