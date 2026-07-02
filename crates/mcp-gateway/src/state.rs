@@ -8,14 +8,23 @@ use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthorizationServerId, GatewayAuthorizationCodeRecord,
     GatewayAuthorizationRequest, GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource,
     GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
-    GatewayTaskMapping, JwtId, OAuthAuthorizationCode, OAuthClientId, OAuthStateValue, PrincipalId,
-    ResourceUri, ServerSlug, SharedDuckDbConnection, TokenIssuer, UpstreamTaskId, open_duckdb,
+    GatewayTaskMapping, JwtId, McpMethodName, OAuthAuthorizationCode, OAuthClientId,
+    OAuthStateValue, PolicyDecision, PolicyEffect, PrincipalId, ResourceUri, ServerSlug,
+    SharedDuckDbConnection, TokenIssuer, UpstreamTaskId, open_duckdb,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct GatewayAuditCounts {
     pub auth_events: u64,
     pub policy_events: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayPolicyAuditMethodSummary {
+    pub method: McpMethodName,
+    pub allow_events: u64,
+    pub deny_events: u64,
+    pub total_events: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -231,6 +240,41 @@ impl GatewayState {
             auth_events: self.count_rows(GatewayAuditTable::Auth)?,
             policy_events: self.count_rows(GatewayAuditTable::Policy)?,
         })
+    }
+
+    pub fn policy_audit_method_summary(&self) -> Result<Vec<GatewayPolicyAuditMethodSummary>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT method, decision_json
+            FROM gateway_audit_events
+            ORDER BY method, timestamp, event_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut summaries =
+            std::collections::BTreeMap::<McpMethodName, GatewayPolicyAuditMethodSummary>::new();
+        for row in rows {
+            let (method, decision_json) = row?;
+            let method = McpMethodName::new(method)?;
+            let decision: PolicyDecision = serde_json::from_str(&decision_json)?;
+            let entry = summaries.entry(method.clone()).or_insert_with(|| {
+                GatewayPolicyAuditMethodSummary {
+                    method,
+                    allow_events: 0,
+                    deny_events: 0,
+                    total_events: 0,
+                }
+            });
+            match decision.effect {
+                PolicyEffect::Allow => entry.allow_events += 1,
+                PolicyEffect::Deny => entry.deny_events += 1,
+            }
+            entry.total_events += 1;
+        }
+        Ok(summaries.into_values().collect())
     }
 
     pub fn delete_audit_events_before(
@@ -930,6 +974,55 @@ mod tests {
         std::env::temp_dir().join(format!("veoveo-gateway-{name}-{unique}.duckdb"))
     }
 
+    fn record_policy_audit(
+        state: &GatewayState,
+        event_id: &str,
+        method: &str,
+        action: GatewayAction,
+        effect: PolicyEffect,
+    ) {
+        let profile = GatewayProfileId::new("default").unwrap();
+        let target = PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: veoveo_mcp_contract::LocalToolName::new("run").unwrap(),
+        };
+        let trace_id = TraceId::new(format!("trace-{event_id}")).unwrap();
+        let principal = PrincipalId::new("issuer#subject").unwrap();
+        let decision = PolicyDecision {
+            effect,
+            reason: match effect {
+                PolicyEffect::Allow => PolicyReasonCode::PolicyAllow,
+                PolicyEffect::Deny => PolicyReasonCode::PolicyDeny,
+            },
+            evaluated_at: Utc::now(),
+            profile: profile.clone(),
+            action,
+            target: target.clone(),
+            principal: Some(principal.clone()),
+            tenant: None,
+            policy_version: None,
+            rule_id: None,
+            trace_id: trace_id.clone(),
+        };
+        state
+            .record_audit_event(&AuditEvent {
+                event_id: TraceId::new(event_id).unwrap(),
+                timestamp: Utc::now(),
+                trace_id,
+                profile,
+                method: McpMethodName::new(method).unwrap(),
+                action,
+                target,
+                decision,
+                principal: Some(principal),
+                tenant: None,
+                token_issuer: None,
+                latency_ms: Some(12),
+                metadata: BTreeMap::new(),
+            })
+            .unwrap();
+    }
+
     fn empty_control_plane() -> GatewayControlPlane {
         GatewayControlPlane {
             identity_providers: Vec::new(),
@@ -1362,6 +1455,56 @@ mod tests {
             .unwrap();
 
         assert_eq!(state.audit_event_count().unwrap(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn policy_audit_method_summary_counts_allow_and_deny_events() {
+        let path = temp_path("audit-method-summary");
+        let state = GatewayState::open(&path).unwrap();
+
+        record_policy_audit(
+            &state,
+            "event-tools-allow",
+            "tools/list",
+            GatewayAction::ToolsList,
+            PolicyEffect::Allow,
+        );
+        record_policy_audit(
+            &state,
+            "event-tools-deny",
+            "tools/list",
+            GatewayAction::ToolsList,
+            PolicyEffect::Deny,
+        );
+        record_policy_audit(
+            &state,
+            "event-resource-allow",
+            "resources/read",
+            GatewayAction::ResourcesRead,
+            PolicyEffect::Allow,
+        );
+
+        let summary = state.policy_audit_method_summary().unwrap();
+        let summary_by_method: BTreeMap<String, (u64, u64, u64)> = summary
+            .into_iter()
+            .map(|entry| {
+                (
+                    entry.method.as_str().to_string(),
+                    (entry.allow_events, entry.deny_events, entry.total_events),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            summary_by_method.get("tools/list"),
+            Some(&(1_u64, 1_u64, 2_u64))
+        );
+        assert_eq!(
+            summary_by_method.get("resources/read"),
+            Some(&(1_u64, 0_u64, 1_u64))
+        );
 
         let _ = std::fs::remove_file(path);
     }

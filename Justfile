@@ -534,6 +534,22 @@ smoke-gateway-task-run:
     printf '%s\n' "${usage_json}" | jq -e --arg task_id "${task_id}" '.task_id == $task_id and .usage_uri == ("media://usage/task/" + $task_id) and all(.records[]; .task_id == $task_id)' >/dev/null
     printf '%s\n' "${usage_json}" | jq -e '.records[] | select(.kind == "estimate" and .amount == 0.01 and .currency == "USD")' >/dev/null
     printf '%s\n' "${usage_json}" | jq -e '.records[] | select(.kind == "actual" and .amount == 0.01 and .currency == "USD")' >/dev/null
+    kill "${gateway_pid}"
+    wait "${gateway_pid}" 2>/dev/null || true
+    gateway_pid=""
+    audit_summary="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-method-summary --state-db "${gateway_state_db}")"
+    echo "${audit_summary}" | jq -e 'all(.[]; .deny_events == 0)' >/dev/null
+    echo "${audit_summary}" | jq -e '
+        map({key: .method, value: .allow_events}) | from_entries as $methods |
+        (($methods["completion/complete"] // 0) >= 1) and
+        (($methods["tools/call"] // 0) >= 2) and
+        (($methods["tasks/cancel"] // 0) >= 1) and
+        (($methods["tasks/get"] // 0) >= 2) and
+        (($methods["tasks/result"] // 0) >= 2) and
+        (($methods["resources/subscribe"] // 0) >= 1) and
+        (($methods["resources/unsubscribe"] // 0) >= 1) and
+        (($methods["resources/read"] // 0) >= 2)
+    ' >/dev/null
 
 # Build MCP images.
 compose-build:
