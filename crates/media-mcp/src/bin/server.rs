@@ -922,6 +922,7 @@ fn task_owner_from_identity(task_id: &str, identity: &GatewayInternalIdentity) -
         principal_id: identity.principal.id.clone(),
         profile: identity.profile.clone(),
         tenant: identity.principal.tenant.clone(),
+        data_labels: identity.principal.data_labels.clone(),
     }
 }
 
@@ -997,6 +998,7 @@ fn artifact_owner_from_task(sha256: &str, owner: &TaskOwner) -> ArtifactOwner {
         principal_id: owner.principal_id.clone(),
         profile: owner.profile.clone(),
         tenant: owner.tenant.clone(),
+        data_labels: owner.data_labels.clone(),
     }
 }
 
@@ -1033,6 +1035,7 @@ fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> b
     owner.principal_id == identity.principal.id
         && owner.profile == identity.profile
         && owner.tenant == identity.principal.tenant
+        && owner.data_labels.is_subset(&identity.principal.data_labels)
 }
 
 fn artifact_owner_allows_identity(
@@ -1042,6 +1045,7 @@ fn artifact_owner_allows_identity(
     owner.principal_id == identity.principal.id
         && owner.profile == identity.profile
         && owner.tenant == identity.principal.tenant
+        && owner.data_labels.is_subset(&identity.principal.data_labels)
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -2108,12 +2112,13 @@ mod tests {
 
     #[test]
     fn task_owner_requires_principal_profile_and_tenant() {
-        let identity = internal_identity_for("default", Some("tenant-a"));
+        let identity = internal_identity_for("default", Some("tenant-a"), &["cui", "pii"]);
         let owner = TaskOwner {
             task_id: "task-1".to_string(),
             principal_id: identity.principal.id.clone(),
             profile: identity.profile.clone(),
             tenant: identity.principal.tenant.clone(),
+            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
         };
 
         assert!(task_owner_allows(&owner, &identity));
@@ -2127,6 +2132,13 @@ mod tests {
         assert!(!task_owner_allows(
             &TaskOwner {
                 tenant: Some(TenantId::new("tenant-b").unwrap()),
+                ..owner.clone()
+            },
+            &identity
+        ));
+        assert!(!task_owner_allows(
+            &TaskOwner {
+                data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
                 ..owner
             },
             &identity
@@ -2135,13 +2147,14 @@ mod tests {
 
     #[test]
     fn artifact_owner_requires_principal_profile_and_tenant() {
-        let identity = internal_identity_for("default", None);
+        let identity = internal_identity_for("default", None, &["itar"]);
         let owner = ArtifactOwner {
             sha256: "a".repeat(64),
             task_id: "task-1".to_string(),
             principal_id: identity.principal.id.clone(),
             profile: identity.profile.clone(),
             tenant: identity.principal.tenant.clone(),
+            data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
         };
 
         assert!(artifact_owner_allows_identity(&owner, &identity));
@@ -2155,13 +2168,24 @@ mod tests {
         assert!(!artifact_owner_allows_identity(
             &ArtifactOwner {
                 tenant: Some(TenantId::new("tenant-a").unwrap()),
+                ..owner.clone()
+            },
+            &identity
+        ));
+        assert!(!artifact_owner_allows_identity(
+            &ArtifactOwner {
+                data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
                 ..owner
             },
             &identity
         ));
     }
 
-    fn internal_identity_for(profile: &str, tenant: Option<&str>) -> GatewayInternalIdentity {
+    fn internal_identity_for(
+        profile: &str,
+        tenant: Option<&str>,
+        data_labels: &[&str],
+    ) -> GatewayInternalIdentity {
         let issuer = TokenIssuer::new("https://idp.example.com").unwrap();
         let subject = TokenSubject::new("user-1").unwrap();
         let principal = Principal {
@@ -2173,7 +2197,10 @@ mod tests {
             groups: BTreeSet::<GroupId>::new(),
             roles: BTreeSet::<RoleId>::new(),
             scopes: BTreeSet::<ScopeName>::new(),
-            data_labels: BTreeSet::<DataLabelId>::new(),
+            data_labels: data_labels
+                .iter()
+                .map(|label| DataLabelId::new(*label).unwrap())
+                .collect(),
             authenticated_at: Some(Utc::now()),
         };
         let now = Utc::now();

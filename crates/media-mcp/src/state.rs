@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::BTreeSet, path::Path};
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -6,8 +6,8 @@ use duckdb::{OptionalExt, params};
 use rmcp::model::Task;
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, DuckDbAnalytics, GatewayProfileId, PrincipalId, SharedDuckDbConnection,
-    TenantId, UsageRecord, open_duckdb,
+    ArtifactMetadata, DataLabelId, DuckDbAnalytics, GatewayProfileId, PrincipalId,
+    SharedDuckDbConnection, TenantId, UsageRecord, open_duckdb,
 };
 
 use crate::provider::Prediction;
@@ -32,6 +32,7 @@ pub struct TaskOwner {
     pub principal_id: PrincipalId,
     pub profile: GatewayProfileId,
     pub tenant: Option<TenantId>,
+    pub data_labels: BTreeSet<DataLabelId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +42,7 @@ pub struct ArtifactOwner {
     pub principal_id: PrincipalId,
     pub profile: GatewayProfileId,
     pub tenant: Option<TenantId>,
+    pub data_labels: BTreeSet<DataLabelId>,
 }
 
 #[derive(Clone)]
@@ -85,6 +87,7 @@ impl DuckdbState {
                 principal_id TEXT NOT NULL,
                 profile TEXT NOT NULL,
                 tenant TEXT,
+                data_labels_json TEXT NOT NULL,
                 created_at TIMESTAMP NOT NULL,
                 updated_at TIMESTAMP NOT NULL
             );
@@ -95,6 +98,7 @@ impl DuckdbState {
                 principal_id TEXT NOT NULL,
                 profile TEXT NOT NULL,
                 tenant TEXT,
+                data_labels_json TEXT NOT NULL,
                 created_at TIMESTAMP NOT NULL,
                 updated_at TIMESTAMP NOT NULL,
                 PRIMARY KEY (sha256, task_id, principal_id)
@@ -214,16 +218,18 @@ impl DuckdbState {
     }
 
     pub fn record_task_owner(&self, owner: &TaskOwner) -> Result<()> {
+        let data_labels_json = data_labels_to_json(&owner.data_labels)?;
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
         conn.execute(
             r#"
             INSERT INTO task_owners (
-                task_id, principal_id, profile, tenant, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+                task_id, principal_id, profile, tenant, data_labels_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
             ON CONFLICT(task_id) DO UPDATE SET
                 principal_id = excluded.principal_id,
                 profile = excluded.profile,
                 tenant = excluded.tenant,
+                data_labels_json = excluded.data_labels_json,
                 updated_at = excluded.updated_at
             "#,
             params![
@@ -231,6 +237,7 @@ impl DuckdbState {
                 owner.principal_id.as_str(),
                 owner.profile.as_str(),
                 owner.tenant.as_ref().map(TenantId::as_str),
+                data_labels_json,
                 chrono::Utc::now()
             ],
         )?;
@@ -239,23 +246,26 @@ impl DuckdbState {
 
     pub fn load_task_owners(&self) -> Result<Vec<TaskOwner>> {
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
-        let mut stmt =
-            conn.prepare("SELECT task_id, principal_id, profile, tenant FROM task_owners")?;
+        let mut stmt = conn.prepare(
+            "SELECT task_id, principal_id, profile, tenant, data_labels_json FROM task_owners",
+        )?;
         let rows = stmt.query_map([], |row| {
             let task_id: String = row.get(0)?;
             let principal_id: String = row.get(1)?;
             let profile: String = row.get(2)?;
             let tenant: Option<String> = row.get(3)?;
-            Ok((task_id, principal_id, profile, tenant))
+            let data_labels_json: String = row.get(4)?;
+            Ok((task_id, principal_id, profile, tenant, data_labels_json))
         })?;
         let mut owners = Vec::new();
         for row in rows {
-            let (task_id, principal_id, profile, tenant) = row?;
+            let (task_id, principal_id, profile, tenant, data_labels_json) = row?;
             owners.push(TaskOwner {
                 task_id,
                 principal_id: PrincipalId::new(principal_id)?,
                 profile: GatewayProfileId::new(profile)?,
                 tenant: tenant.map(TenantId::new).transpose()?,
+                data_labels: data_labels_from_json(&data_labels_json)?,
             });
         }
         Ok(owners)
@@ -265,22 +275,24 @@ impl DuckdbState {
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
         let row = conn
             .query_row(
-                "SELECT principal_id, profile, tenant FROM task_owners WHERE task_id = ?1",
+                "SELECT principal_id, profile, tenant, data_labels_json FROM task_owners WHERE task_id = ?1",
                 params![task_id],
                 |row| {
                     let principal_id: String = row.get(0)?;
                     let profile: String = row.get(1)?;
                     let tenant: Option<String> = row.get(2)?;
-                    Ok((principal_id, profile, tenant))
+                    let data_labels_json: String = row.get(3)?;
+                    Ok((principal_id, profile, tenant, data_labels_json))
                 },
             )
             .optional()?;
-        row.map(|(principal_id, profile, tenant)| {
+        row.map(|(principal_id, profile, tenant, data_labels_json)| {
             Ok(TaskOwner {
                 task_id: task_id.to_string(),
                 principal_id: PrincipalId::new(principal_id)?,
                 profile: GatewayProfileId::new(profile)?,
                 tenant: tenant.map(TenantId::new).transpose()?,
+                data_labels: data_labels_from_json(&data_labels_json)?,
             })
         })
         .transpose()
@@ -350,15 +362,17 @@ impl DuckdbState {
     }
 
     pub fn record_artifact_owner(&self, owner: &ArtifactOwner) -> Result<()> {
+        let data_labels_json = data_labels_to_json(&owner.data_labels)?;
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
         conn.execute(
             r#"
             INSERT INTO artifact_owners (
-                sha256, task_id, principal_id, profile, tenant, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+                sha256, task_id, principal_id, profile, tenant, data_labels_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
             ON CONFLICT(sha256, task_id, principal_id) DO UPDATE SET
                 profile = excluded.profile,
                 tenant = excluded.tenant,
+                data_labels_json = excluded.data_labels_json,
                 updated_at = excluded.updated_at
             "#,
             params![
@@ -367,6 +381,7 @@ impl DuckdbState {
                 owner.principal_id.as_str(),
                 owner.profile.as_str(),
                 owner.tenant.as_ref().map(TenantId::as_str),
+                data_labels_json,
                 chrono::Utc::now()
             ],
         )?;
@@ -376,24 +391,26 @@ impl DuckdbState {
     pub fn artifact_owners(&self, sha256: &str) -> Result<Vec<ArtifactOwner>> {
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
         let mut stmt = conn.prepare(
-            "SELECT task_id, principal_id, profile, tenant FROM artifact_owners WHERE sha256 = ?1",
+            "SELECT task_id, principal_id, profile, tenant, data_labels_json FROM artifact_owners WHERE sha256 = ?1",
         )?;
         let rows = stmt.query_map(params![sha256], |row| {
             let task_id: String = row.get(0)?;
             let principal_id: String = row.get(1)?;
             let profile: String = row.get(2)?;
             let tenant: Option<String> = row.get(3)?;
-            Ok((task_id, principal_id, profile, tenant))
+            let data_labels_json: String = row.get(4)?;
+            Ok((task_id, principal_id, profile, tenant, data_labels_json))
         })?;
         let mut owners = Vec::new();
         for row in rows {
-            let (task_id, principal_id, profile, tenant) = row?;
+            let (task_id, principal_id, profile, tenant, data_labels_json) = row?;
             owners.push(ArtifactOwner {
                 sha256: sha256.to_string(),
                 task_id,
                 principal_id: PrincipalId::new(principal_id)?,
                 profile: GatewayProfileId::new(profile)?,
                 tenant: tenant.map(TenantId::new).transpose()?,
+                data_labels: data_labels_from_json(&data_labels_json)?,
             });
         }
         Ok(owners)
@@ -416,6 +433,20 @@ impl DuckdbState {
     }
 }
 
+fn data_labels_to_json(labels: &BTreeSet<DataLabelId>) -> Result<String> {
+    let labels = labels.iter().map(DataLabelId::as_str).collect::<Vec<_>>();
+    Ok(serde_json::to_string(&labels)?)
+}
+
+fn data_labels_from_json(value: &str) -> Result<BTreeSet<DataLabelId>> {
+    let labels = serde_json::from_str::<Vec<String>>(value)?;
+    labels
+        .into_iter()
+        .map(DataLabelId::new)
+        .collect::<Result<_, _>>()
+        .map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,6 +467,10 @@ mod tests {
             principal_id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
             tenant: Some(TenantId::new("tenant-a").unwrap()),
+            data_labels: BTreeSet::from([
+                DataLabelId::new("cui").unwrap(),
+                DataLabelId::new("pii").unwrap(),
+            ]),
         };
 
         state.record_task_owner(&owner).unwrap();
@@ -456,6 +491,7 @@ mod tests {
             principal_id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
             tenant: Some(TenantId::new("tenant-a").unwrap()),
+            data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
         };
 
         state.record_artifact_owner(&owner).unwrap();
