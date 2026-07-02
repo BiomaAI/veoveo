@@ -18,6 +18,7 @@ chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 jsonwebtoken.workspace = true
+reqwest = { workspace = true, features = ["json", "rustls"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest"] }
 serde.workspace = true
 serde_json.workspace = true
@@ -25,4 +26,5 @@ tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+uuid.workspace = true
 veoveo-mcp-contract = { workspace = true, default-features = false }

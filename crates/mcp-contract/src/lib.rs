@@ -29,11 +29,11 @@ pub use gateway::{
     IdentityProviderId, JwtId, LocalToolName, McpMethodName, McpSurfaceCapabilities, MountPath,
     OwnedRoute, OwnedRoutePurpose, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule,
     PolicyRuleId, PolicySet, PolicyTarget, PolicyVersion, Principal, PrincipalId, PrincipalKind,
-    ProfileServerExposure, ProtectedResourceId, ResourceScheme, ResourceSelector, ResourceUri,
-    ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner,
-    SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug,
-    TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTaskId,
-    UpstreamTransport,
+    ProfileServerExposure, PromptName, ProtectedResourceId, ResourceScheme, ResourceSelector,
+    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
+    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
+    ServerSlug, TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    UpstreamTaskId, UpstreamTransport,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use pagination::{Page, PaginationError, paginate};

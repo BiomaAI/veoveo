@@ -2,19 +2,27 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::{
     Json, Router,
-    extract::{Path as AxumPath, State},
+    extract::{Path as AxumPath, Request, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_TYPE, WWW_AUTHENTICATE},
+        header::{AUTHORIZATION, CONTENT_TYPE, WWW_AUTHENTICATE},
     },
+    middleware::{self, Next},
     response::IntoResponse,
-    routing::{any, get},
+    routing::get,
 };
 use clap::{Parser, Subcommand};
+use jsonwebtoken::{Algorithm, jwk::JwkSet};
+use rmcp::transport::streamable_http_server::{
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayProfileId, PublicDeployment};
-use veoveo_mcp_gateway::{GatewayCatalog, www_authenticate_challenge};
+use veoveo_mcp_gateway::{
+    AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, JwtAuthConfig, JwtVerifier,
+    www_authenticate_challenge,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -48,7 +56,14 @@ enum Command {
 #[derive(Clone)]
 struct AppState {
     catalog: Arc<GatewayCatalog>,
+}
+
+#[derive(Clone)]
+struct ProfileAuthState {
+    catalog: Arc<GatewayCatalog>,
+    profile_id: GatewayProfileId,
     public_base_url: String,
+    http: reqwest::Client,
 }
 
 #[derive(Debug, Serialize)]
@@ -91,19 +106,52 @@ async fn serve(port: u16, public_base_url: String, control_plane: PathBuf) -> an
     let catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
     let deployment = PublicDeployment::new(public_base_url)?;
     let ct = CancellationToken::new();
+    let allowed_hosts = vec![
+        "localhost".to_string(),
+        "127.0.0.1".to_string(),
+        "::1".to_string(),
+        deployment.host_authority().to_string(),
+    ];
+    let http = reqwest::Client::new();
     let state = AppState {
         catalog: catalog.clone(),
-        public_base_url: deployment.base_url().to_string(),
     };
-    let router = Router::new()
+
+    let mut router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(readyz))
         .route(
             "/.well-known/oauth-protected-resource/mcp/{profile}",
             get(protected_resource_metadata),
         )
-        .route("/mcp/{profile}", any(mcp_requires_authorization))
         .with_state(state);
+
+    for profile in catalog.profiles() {
+        let profile_id = profile.id.clone();
+        let mcp_service = StreamableHttpService::new(
+            {
+                let catalog = catalog.clone();
+                let profile_id = profile_id.clone();
+                move || Ok(GatewayMcp::new(catalog.clone(), profile_id.clone()))
+            },
+            LocalSessionManager::default().into(),
+            StreamableHttpServerConfig::default()
+                .with_allowed_hosts(allowed_hosts.clone())
+                .with_cancellation_token(ct.child_token()),
+        );
+        let auth_state = ProfileAuthState {
+            catalog: catalog.clone(),
+            profile_id: profile_id.clone(),
+            public_base_url: deployment.base_url().to_string(),
+            http: http.clone(),
+        };
+        let mcp_root_service = mcp_service.clone();
+        let profile_router = Router::new()
+            .route_service("/", mcp_root_service)
+            .route_service("/{*path}", mcp_service)
+            .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
+        router = router.nest(&format!("/mcp/{profile_id}"), profile_router);
+    }
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(
@@ -146,14 +194,74 @@ async fn protected_resource_metadata(
     }
 }
 
-async fn mcp_requires_authorization(
-    State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
-) -> impl IntoResponse {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+async fn authenticate_mcp(
+    State(state): State<ProfileAuthState>,
+    mut request: Request,
+    next: Next,
+) -> axum::response::Response {
+    let Some(profile) = state.catalog.profile(&state.profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(profile) = state.catalog.profile(&profile_id) else {
+    let Some(identity_provider) = state.catalog.identity_provider(&profile.identity_provider)
+    else {
+        return unauthorized(&state, "unknown identity provider");
+    };
+
+    let Some(header) = request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return unauthorized(&state, "missing authorization header");
+    };
+    let token = match BearerToken::from_authorization_header(header) {
+        Ok(token) => token,
+        Err(err) => {
+            tracing::warn!("rejected gateway request: {err}");
+            return unauthorized(&state, "invalid authorization header");
+        }
+    };
+
+    let jwks = match fetch_jwks(&state.http, identity_provider.jwks_uri.as_str()).await {
+        Ok(jwks) => jwks,
+        Err(err) => {
+            tracing::warn!("failed to fetch identity provider JWKS: {err}");
+            return unauthorized(&state, "identity provider unavailable");
+        }
+    };
+    let auth_config = match JwtAuthConfig::new(
+        identity_provider.issuer.clone(),
+        profile.protected_resource.clone(),
+        profile.required_scopes.iter().cloned().collect(),
+        allowed_gateway_jwt_algorithms(),
+    ) {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::error!("invalid gateway auth config: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let subject = match JwtVerifier::new(auth_config, jwks).verify(&token) {
+        Ok(subject) => subject,
+        Err(err) => {
+            tracing::warn!("rejected gateway token: {err}");
+            return unauthorized(&state, "invalid bearer token");
+        }
+    };
+
+    request
+        .extensions_mut()
+        .insert::<AuthenticatedSubject>(subject);
+    next.run(request).await
+}
+
+async fn fetch_jwks(http: &reqwest::Client, url: &str) -> anyhow::Result<JwkSet> {
+    let response = http.get(url).send().await?.error_for_status()?;
+    Ok(response.json::<JwkSet>().await?)
+}
+
+fn unauthorized(state: &ProfileAuthState, reason: &'static str) -> axum::response::Response {
+    let Some(profile) = state.catalog.profile(&state.profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let metadata_url = format!(
@@ -167,10 +275,25 @@ async fn mcp_requires_authorization(
 
     let mut headers = HeaderMap::new();
     headers.insert(WWW_AUTHENTICATE, challenge);
+    tracing::debug!(profile = %state.profile_id, reason, "gateway authorization challenge");
     (
         StatusCode::UNAUTHORIZED,
         headers,
         "authorization required for gateway profile",
     )
         .into_response()
+}
+
+fn allowed_gateway_jwt_algorithms() -> Vec<Algorithm> {
+    vec![
+        Algorithm::RS256,
+        Algorithm::RS384,
+        Algorithm::RS512,
+        Algorithm::PS256,
+        Algorithm::PS384,
+        Algorithm::PS512,
+        Algorithm::ES256,
+        Algorithm::ES384,
+        Algorithm::EdDSA,
+    ]
 }

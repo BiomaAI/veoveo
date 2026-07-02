@@ -235,7 +235,7 @@ forward or aggregate the protocol surfaces our servers rely on:
   `resources/subscribe`,
 - `prompts/list` and `prompts/get`,
 - `completion/complete`,
-- `tasks/get`, `tasks/result`, and `tasks/cancel`,
+- `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel`,
 - server notifications such as `tasks/status`, `progress`, `resources/updated`,
   and list-changed notifications.
 

@@ -3837,7 +3837,7 @@ dependencies = [
  "chrono",
  "clap",
  "duckdb",
- "reqwest 0.12.28",
+ "reqwest 0.13.4",
  "rmcp",
  "schemars",
  "serde",
@@ -3856,6 +3856,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "jsonwebtoken",
+ "reqwest 0.13.4",
  "rmcp",
  "serde",
  "serde_json",
@@ -3863,6 +3864,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "uuid",
  "veoveo-mcp-contract",
 ]
 
@@ -3882,7 +3884,7 @@ dependencies = [
  "hmac 0.13.0",
  "jsonschema",
  "object_store",
- "reqwest 0.12.28",
+ "reqwest 0.13.4",
  "rmcp",
  "serde",
  "serde_json",

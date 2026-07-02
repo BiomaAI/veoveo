@@ -32,6 +32,36 @@ gateway-validate:
 smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
     just gateway-validate
+    just smoke-gateway-http
+
+# Smoke-test the gateway HTTP boundary and auth challenge.
+smoke-gateway-http:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=18799
+    base="http://127.0.0.1:${port}"
+    log="$(mktemp)"
+    headers="$(mktemp)"
+    body="$(mktemp)"
+    cleanup() {
+        kill "${pid}" 2>/dev/null || true
+        wait "${pid}" 2>/dev/null || true
+        rm -f "${log}" "${headers}" "${body}"
+    }
+    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} >"${log}" 2>&1 &
+    pid=$!
+    trap cleanup EXIT
+    for _ in {1..50}; do
+        if curl -fsS "${base}/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${base}/readyz" | grep -F '"profiles":1'
+    curl -fsS "${base}/.well-known/oauth-protected-resource/mcp/default" | grep -F '"resource":"https://veoveo.bioma.ai/mcp/default"'
+    status="$(curl -sS -D "${headers}" -o "${body}" -w "%{http_code}" "${base}/mcp/default")"
+    test "${status}" = "401"
+    grep -Fi 'www-authenticate: Bearer resource_metadata="https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default", scope="media:use"' "${headers}"
 
 # Build MCP images.
 compose-build:

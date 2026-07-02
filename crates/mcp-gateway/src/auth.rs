@@ -189,9 +189,9 @@ struct JwtClaims {
     groups: Option<StringListClaim>,
     #[serde(default)]
     roles: Option<StringListClaim>,
-    #[serde(default, alias = "tenant_id", alias = "tid", alias = "org_id")]
+    #[serde(default)]
     tenant: Option<String>,
-    #[serde(default, alias = "clearances")]
+    #[serde(default)]
     data_labels: Option<StringListClaim>,
     #[serde(default)]
     principal_kind: Option<PrincipalKind>,
@@ -348,7 +348,7 @@ mod tests {
         scope: &'a str,
         groups: Vec<&'a str>,
         roles: Vec<&'a str>,
-        tenant_id: &'a str,
+        tenant: &'a str,
         data_labels: Vec<&'a str>,
     }
 
@@ -387,7 +387,7 @@ mod tests {
                 scope,
                 groups: vec!["engineering"],
                 roles: vec!["operator"],
-                tenant_id: "tenant-a",
+                tenant: "tenant-a",
                 data_labels: vec!["pii", "cui"],
             },
             &EncodingKey::from_secret(SECRET),

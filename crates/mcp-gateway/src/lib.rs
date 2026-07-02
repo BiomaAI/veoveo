@@ -6,9 +6,11 @@ use std::{
 };
 
 pub mod auth;
+pub mod mcp;
 
 use anyhow::{Context, Result};
 pub use auth::{AuthError, AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
+pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId, GatewayToolName,
@@ -78,6 +80,10 @@ impl GatewayCatalog {
         &self.control_plane
     }
 
+    pub fn profiles(&self) -> impl Iterator<Item = &GatewayProfile> {
+        self.control_plane.profiles.iter()
+    }
+
     pub fn server_count(&self) -> usize {
         self.control_plane.servers.len()
     }
@@ -131,6 +137,66 @@ impl GatewayCatalog {
         self.servers
             .get(server_slug)
             .map(|index| &self.control_plane.servers[*index])
+    }
+
+    pub fn profile_server(
+        &self,
+        profile_id: &GatewayProfileId,
+        server_slug: &ServerSlug,
+    ) -> Option<(
+        &GatewayProfile,
+        &veoveo_mcp_contract::ProfileServerExposure,
+        &ServerManifest,
+    )> {
+        let profile = self.profile(profile_id)?;
+        let exposure = profile
+            .servers
+            .iter()
+            .find(|exposure| &exposure.server == server_slug)?;
+        let server = self.server(server_slug)?;
+        Some((profile, exposure, server))
+    }
+
+    pub fn profile_servers(
+        &self,
+        profile_id: &GatewayProfileId,
+    ) -> Vec<(&veoveo_mcp_contract::ProfileServerExposure, &ServerManifest)> {
+        let Some(profile) = self.profile(profile_id) else {
+            return Vec::new();
+        };
+        profile
+            .servers
+            .iter()
+            .filter_map(|exposure| {
+                self.server(&exposure.server)
+                    .map(|server| (exposure, server))
+            })
+            .collect()
+    }
+
+    pub fn server_for_resource_uri(
+        &self,
+        profile_id: &GatewayProfileId,
+        uri: &str,
+    ) -> Option<(&veoveo_mcp_contract::ProfileServerExposure, &ServerManifest)> {
+        let scheme = resource_scheme(uri)?;
+        self.profile_servers(profile_id)
+            .into_iter()
+            .find(|(_, server)| server.uri_scheme == scheme)
+    }
+
+    pub fn prompt_servers(
+        &self,
+        profile_id: &GatewayProfileId,
+        prompt: &veoveo_mcp_contract::PromptName,
+    ) -> Vec<(&veoveo_mcp_contract::ProfileServerExposure, &ServerManifest)> {
+        self.profile_servers(profile_id)
+            .into_iter()
+            .filter(|(exposure, server)| {
+                (server.prompts.is_empty() || server.prompts.iter().any(|known| known == prompt))
+                    && exposure_contains(&exposure.prompts, prompt)
+            })
+            .collect()
     }
 
     pub fn policy(&self, version: &PolicyVersion) -> Option<&PolicySet> {
@@ -594,6 +660,10 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
 fn resource_scheme(uri: &str) -> Option<ResourceScheme> {
     let (scheme, _) = uri.split_once("://")?;
     ResourceScheme::new(scheme).ok()
+}
+
+pub fn resource_scheme_from_uri(uri: &str) -> Option<ResourceScheme> {
+    resource_scheme(uri)
 }
 
 fn has_required_scopes(

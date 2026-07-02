@@ -111,6 +111,7 @@
             "prompts_list",
             "prompts_get",
             "completion_complete",
+            "tasks_list",
             "tasks_get",
             "tasks_result",
             "tasks_cancel",
