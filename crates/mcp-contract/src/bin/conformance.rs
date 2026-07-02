@@ -8,6 +8,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use rmcp::{
     ClientHandler, ServiceExt,
@@ -20,10 +21,16 @@ use rmcp::{
         TaskMetadata, TaskStatus, TaskStatusNotificationParam,
     },
     service::NotificationContext,
-    transport::StreamableHttpClientTransport,
+    transport::{
+        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
+    },
 };
 use serde_json::Value;
-use veoveo_mcp_contract::ProviderUris;
+use veoveo_mcp_contract::{
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
+    InternalTokenSecret, Principal, PrincipalId, PrincipalKind, ProviderUris, ScopeName,
+    ServerSlug, TenantId, TokenIssuer, TokenSubject,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "conformance", about = "Veoveo MCP conformance client")]
@@ -34,6 +41,23 @@ struct Args {
     /// URI scheme used by the server's Veoveo resources.
     #[arg(long, default_value = "media", global = true)]
     scheme: String,
+    /// Bearer token sent to the MCP endpoint under test.
+    #[arg(long, env = "MCP_BEARER_TOKEN", global = true, hide_env_values = true)]
+    bearer_token: Option<String>,
+    /// Internal gateway signing secret for direct hosted-server conformance.
+    #[arg(
+        long,
+        global = true,
+        hide_env_values = true,
+        conflicts_with = "bearer_token"
+    )]
+    internal_token_secret: Option<String>,
+    /// Server slug for direct hosted-server conformance.
+    #[arg(long, default_value = "media", global = true)]
+    internal_server: String,
+    /// Gateway profile id embedded in direct hosted-server conformance assertions.
+    #[arg(long, default_value = "default", global = true)]
+    internal_profile: String,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -143,9 +167,43 @@ impl ClientHandler for CliHandler {
 
 type Client = rmcp::service::RunningService<rmcp::RoleClient, CliHandler>;
 
-async fn connect(url: &str) -> Result<Client> {
-    let transport = StreamableHttpClientTransport::from_uri(url);
+async fn connect(args: &Args) -> Result<Client> {
+    let mut config = StreamableHttpClientTransportConfig::with_uri(args.url.clone());
+    if let Some(token) = &args.bearer_token {
+        config = config.auth_header(token.clone());
+    } else if let Some(secret) = &args.internal_token_secret {
+        config = config.auth_header(issue_internal_conformance_token(args, secret)?);
+    }
+    let transport = StreamableHttpClientTransport::from_config(config);
     Ok(CliHandler.serve(transport).await?)
+}
+
+fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String> {
+    let issuer = GatewayInternalTokenIssuer::new(
+        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        InternalTokenSecret::new(secret.to_string())?,
+    );
+    let principal_issuer = TokenIssuer::new("https://conformance.veoveo.local")?;
+    let principal_subject = TokenSubject::new("conformance")?;
+    let principal = Principal {
+        id: PrincipalId::new(format!("{principal_issuer}#{principal_subject}"))?,
+        kind: PrincipalKind::Service,
+        issuer: principal_issuer,
+        subject: principal_subject,
+        tenant: Some(TenantId::new("local")?),
+        groups: Default::default(),
+        roles: Default::default(),
+        scopes: [ScopeName::new("media:use")?].into_iter().collect(),
+        data_labels: Default::default(),
+        authenticated_at: Some(Utc::now()),
+    };
+    let token = issuer.issue(
+        GatewayProfileId::new(args.internal_profile.clone())?,
+        ServerSlug::new(args.internal_server.clone())?,
+        principal,
+        Utc::now() + TimeDelta::minutes(30),
+    )?;
+    Ok(token.bearer_token)
 }
 
 async fn read_resource_json(client: &Client, uri: &str) -> Result<Value> {
@@ -542,7 +600,7 @@ async fn main() -> Result<()> {
         )
         .init();
     let args = Args::parse();
-    let client = connect(&args.url).await?;
+    let client = connect(&args).await?;
     let uris = ProviderUris::new(args.scheme);
 
     let result = match args.cmd {

@@ -4,6 +4,7 @@ set dotenv-load := true
 compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
 mcp-url := "http://localhost:8787/media/mcp"
 gateway-control-plane := "configs/gateway.local.json"
+conformance := "cargo run -p veoveo-mcp-contract --bin conformance --"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 
@@ -96,6 +97,7 @@ smoke-media-mcp-auth:
     test "${status}" = "401"
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
     test "${status}" = "401"
+    {{conformance}} --url "${base}/media/mcp" --internal-token-secret "${internal_secret}" info >/dev/null
 
 # Build MCP images.
 compose-build:
@@ -129,35 +131,35 @@ health public_base_url='':
 
 # Show MCP server info and resource templates.
 info:
-    cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} info
+    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" info
 
 # List models, optionally with a local query string.
 models query='':
-    if [ -n '{{query}}' ]; then cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} models '{{query}}'; else cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} models; fi
+    if [ -n '{{query}}' ]; then {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" models '{{query}}'; else {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" models; fi
 
 # Complete model ids by prefix.
 complete prefix:
-    cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} complete '{{prefix}}'
+    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" complete '{{prefix}}'
 
 # Read one model schema.
 schema model:
-    cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} schema '{{model}}'
+    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" schema '{{model}}'
 
 # Run an arbitrary model with a raw JSON input object.
 run model input output_dir='output':
-    cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} run '{{model}}' --input '{{input}}' --output-dir '{{output_dir}}'
+    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" run '{{model}}' --input '{{input}}' --output-dir '{{output_dir}}'
 
 # Run the default image edit e2e against the public base URL and save returned artifacts.
 run-edit public_base_url output_dir='output/e2e':
-    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
+    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
 
 # Read one task usage report.
 usage task_id:
-    cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} usage '{{task_id}}'
+    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" usage '{{task_id}}'
 
 # Read and save one artifact by sha256.
 artifact sha256 output_dir='output':
-    cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} artifact '{{sha256}}' --output-dir '{{output_dir}}'
+    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" artifact '{{sha256}}' --output-dir '{{output_dir}}'
 
 # Start the stack, check health, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':
