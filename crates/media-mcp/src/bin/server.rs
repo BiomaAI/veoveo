@@ -102,29 +102,17 @@ struct Args {
     api_key: Option<String>,
     #[arg(long, env = "MEDIA_PROVIDER_WEBHOOK_SECRET", hide_env_values = true)]
     webhook_secret: Option<String>,
-    #[arg(long, env = "WAVESPEED_API_KEY", hide = true, hide_env_values = true)]
-    wavespeed_api_key: Option<String>,
-    #[arg(
-        long,
-        env = "WAVESPEED_WEBHOOK_SECRET",
-        hide = true,
-        hide_env_values = true
-    )]
-    wavespeed_webhook_secret: Option<String>,
 }
 
 impl Args {
     fn provider_api_key(&self) -> anyhow::Result<&str> {
         self.api_key
             .as_deref()
-            .or(self.wavespeed_api_key.as_deref())
             .ok_or_else(|| anyhow::anyhow!("missing MEDIA_PROVIDER_API_KEY"))
     }
 
     fn provider_webhook_secret(&self) -> Option<String> {
-        self.webhook_secret
-            .clone()
-            .or_else(|| self.wavespeed_webhook_secret.clone())
+        self.webhook_secret.clone()
     }
 }
 

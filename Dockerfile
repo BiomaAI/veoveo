@@ -1,11 +1,11 @@
-FROM rust:1.88-slim AS builder
+FROM rust:1.96-slim AS builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 RUN cargo build --release -p veoveo-media-mcp --bin server
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \

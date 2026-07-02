@@ -64,7 +64,7 @@ cp .env.example .env
 # fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_URL, and
 # CLOUDFLARED_TUNNEL_TOKEN for the named tunnel.
 
-docker compose --profile dev up --build
+just compose-up
 
 # include the tunnel service when the named tunnel token is configured
 docker compose --profile dev --profile tunnel up --build
@@ -128,3 +128,12 @@ crates/media-mcp/src/bin/server.rs             MCP server
 
 `cargo test --workspace` covers signature verification, URI parsing, schema extraction,
 and the shared contract crate.
+
+## Command Recipes
+
+Use `just --list` for the maintained command recipes. The common path is:
+
+```sh
+just tunnel
+just e2e https://your-public-tunnel.example.com
+```

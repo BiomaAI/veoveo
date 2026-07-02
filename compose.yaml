@@ -27,7 +27,7 @@ services:
       - dev
 
   rustfs-init:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:latest
     depends_on:
       rustfs:
         condition: service_started
