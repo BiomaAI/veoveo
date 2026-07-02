@@ -4,11 +4,13 @@ use std::{
     num::NonZeroU32,
     path::PathBuf,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 #[path = "gateway/http_util.rs"]
 mod http_util;
+#[path = "gateway/runtime.rs"]
+mod runtime;
 
 use anyhow::{Context, anyhow};
 use axum::{
@@ -23,7 +25,7 @@ use axum::{
     routing::{any, get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use jsonwebtoken::{
     Algorithm, EncodingKey, Header, encode,
@@ -40,18 +42,17 @@ use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use url::Url;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
-    CertificateAuthoritySource, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction,
-    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
-    GatewayControlPlaneRevision, GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource,
-    GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayJwtRevocationAdminStatus,
-    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
-    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwtId, McpMethodName,
-    OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthGrantType, OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod,
-    PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-    PrincipalId, PrincipalKind, PublicDeployment, ResourceAuthorizationServer, ScopeName,
-    SecretPurpose, SecretReferenceId, TelemetryGuard, TokenIssuer, TokenSubject, TraceId,
-    init_server_telemetry,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayAuthorizationCodeRecord,
+    GatewayAuthorizationRequest, GatewayControlPlane, GatewayControlPlaneRevision,
+    GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource, GatewayInternalTokenIssuer,
+    GatewayJwtRevocation, GatewayJwtRevocationAdminStatus, GatewayJwtRevocationApplyResult,
+    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
+    InternalTokenSecret, JwtId, McpMethodName, OAuthAuthorizationCode, OAuthClientAuthMethod,
+    OAuthClientId, OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OAuthStateValue,
+    PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect,
+    PolicyReasonCode, PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
+    ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, TelemetryGuard,
+    TokenIssuer, TokenSubject, TraceId, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
@@ -67,8 +68,13 @@ use http_util::{
     redirect_response, redirect_with_authorization_code, redirect_with_oauth_error, scope_string,
     token_response,
 };
+use runtime::{
+    AdminState, AppState, DynamicMcpState, GatewayRetentionPolicy, ProfileAuthState,
+    ProfileMcpService, Readiness, build_http_client, current_catalog, current_http_client,
+    replace_catalog, replace_http_client, run_gateway_retention_gc,
+    spawn_gateway_retention_gc_loop,
+};
 
-const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
@@ -79,10 +85,6 @@ const ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD: &str = "admin/reload-control-pla
 const ADMIN_CONTROL_PLANE_RESULT_METHOD: &str = "admin/control-plane/result";
 const ADMIN_JWT_REVOCATIONS_RESULT_METHOD: &str = "admin/jwt-revocations/result";
 const ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD: &str = "admin/jwt-revocations/prune/result";
-type SharedCatalog = GatewayCatalogHandle;
-type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
-type ProfileMcpService = StreamableHttpService<GatewayMcp, LocalSessionManager>;
-type SharedProfileMcpServices = Arc<RwLock<BTreeMap<GatewayProfileId, ProfileMcpService>>>;
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -147,52 +149,6 @@ enum Command {
         #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
         audit_event_retention_days: NonZeroU32,
     },
-}
-
-#[derive(Debug, Clone, Copy)]
-struct GatewayRetentionPolicy {
-    audit_event_days: NonZeroU32,
-}
-
-#[derive(Clone)]
-struct AppState {
-    catalog: SharedCatalog,
-    gateway_state: GatewayState,
-    http: SharedHttpClient,
-    public_base_url: String,
-}
-
-#[derive(Clone)]
-struct ProfileAuthState {
-    catalog: SharedCatalog,
-    gateway_state: GatewayState,
-    public_base_url: String,
-    http: SharedHttpClient,
-}
-
-#[derive(Clone)]
-struct AdminState {
-    catalog: SharedCatalog,
-    http: SharedHttpClient,
-    control_plane: PathBuf,
-    gateway_state: GatewayState,
-}
-
-#[derive(Clone)]
-struct DynamicMcpState {
-    catalog: SharedCatalog,
-    gateway_state: GatewayState,
-    internal_token_issuer: GatewayInternalTokenIssuer,
-    allowed_hosts: Arc<Vec<String>>,
-    cancellation_token: CancellationToken,
-    services: SharedProfileMcpServices,
-}
-
-#[derive(Debug, Serialize)]
-struct Readiness {
-    status: &'static str,
-    servers: usize,
-    profiles: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -3579,89 +3535,6 @@ async fn access_token_signing_key(
 
 fn unix_seconds(value: i64) -> anyhow::Result<u64> {
     u64::try_from(value).map_err(|_| anyhow!("timestamp before Unix epoch"))
-}
-
-fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
-    catalog.current()
-}
-
-fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
-    http.read().clone()
-}
-
-fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
-    catalog.replace(new_catalog);
-}
-
-fn replace_http_client(http: &SharedHttpClient, new_client: reqwest::Client) {
-    *http.write() = new_client;
-}
-
-fn gateway_retention_cutoff(now: DateTime<Utc>, days: NonZeroU32) -> anyhow::Result<DateTime<Utc>> {
-    now.checked_sub_signed(TimeDelta::days(i64::from(days.get())))
-        .ok_or_else(|| anyhow!("gateway retention cutoff overflow for {days} day window"))
-}
-
-fn run_gateway_retention_gc(
-    gateway_state: &GatewayState,
-    retention: GatewayRetentionPolicy,
-) -> anyhow::Result<()> {
-    let now = Utc::now();
-    let audit_cutoff = gateway_retention_cutoff(now, retention.audit_event_days)?;
-    let audit_summary = gateway_state.delete_audit_events_before(audit_cutoff)?;
-    let authorization_records_deleted = gateway_state.prune_expired_authorization_records(now)?;
-    let jwt_revocations_deleted = gateway_state.prune_expired_jwt_revocations(now)?;
-    tracing::info!(
-        deleted_auth_audit_events = audit_summary.auth_events_deleted,
-        deleted_policy_audit_events = audit_summary.policy_events_deleted,
-        deleted_authorization_records = authorization_records_deleted,
-        deleted_jwt_revocations = jwt_revocations_deleted,
-        "gateway retention gc completed"
-    );
-    Ok(())
-}
-
-fn spawn_gateway_retention_gc_loop(gateway_state: GatewayState, retention: GatewayRetentionPolicy) {
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(Duration::from_secs(60 * 60)).await;
-            if let Err(err) = run_gateway_retention_gc(&gateway_state, retention) {
-                tracing::error!("gateway retention gc failed: {err}");
-            }
-        }
-    });
-}
-
-fn build_http_client(catalog: &GatewayCatalog) -> anyhow::Result<reqwest::Client> {
-    let mut builder = reqwest::Client::builder()
-        .timeout(GATEWAY_AUTH_HTTP_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::none());
-
-    for identity_provider in catalog.identity_providers() {
-        for trust_anchor in &identity_provider.trusted_certificate_authorities {
-            match trust_anchor {
-                CertificateAuthoritySource::File { path } => {
-                    let bytes = std::fs::read(path.as_str()).with_context(|| {
-                        format!(
-                            "failed to read trusted CA certificate `{path}` for identity provider `{}`",
-                            identity_provider.id
-                        )
-                    })?;
-                    let certificate = reqwest::Certificate::from_pem(&bytes).with_context(|| {
-                        format!(
-                            "failed to parse trusted CA certificate `{path}` for identity provider `{}`",
-                            identity_provider.id
-                        )
-                    })?;
-                    builder = builder.add_root_certificate(certificate);
-                }
-            }
-        }
-    }
-
-    builder
-        .build()
-        .context("failed to build gateway HTTP client")
 }
 
 fn authorize_admin_request(
