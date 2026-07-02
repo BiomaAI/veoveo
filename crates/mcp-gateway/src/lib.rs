@@ -9,11 +9,12 @@ pub mod auth;
 
 use anyhow::{Context, Result};
 pub use auth::{AuthError, AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
+use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId, GatewayToolName,
     IdentityProvider, IdentityProviderId, LocalToolName, McpMethodName, PolicyDecision,
     PolicyEffect, PolicyReasonCode, PolicyRule, PolicySet, PolicyTarget, PolicyVersion, Principal,
-    ResourceScheme, ServerManifest, ServerSlug, TraceId,
+    ResourceScheme, ScopeName, ServerManifest, ServerSlug, TraceId,
 };
 
 #[derive(Debug, Clone)]
@@ -98,6 +99,32 @@ impl GatewayCatalog {
         self.identity_providers
             .get(identity_provider_id)
             .map(|index| &self.control_plane.identity_providers[*index])
+    }
+
+    pub fn protected_resource_metadata(
+        &self,
+        profile_id: &GatewayProfileId,
+    ) -> Result<ProtectedResourceMetadata, GatewayMetadataError> {
+        let profile = self
+            .profile(profile_id)
+            .ok_or_else(|| GatewayMetadataError::UnknownProfile(profile_id.clone()))?;
+        let identity_provider = self
+            .identity_provider(&profile.identity_provider)
+            .ok_or_else(|| GatewayMetadataError::UnknownIdentityProvider {
+                profile: profile.id.clone(),
+                identity_provider: profile.identity_provider.clone(),
+            })?;
+
+        Ok(ProtectedResourceMetadata {
+            resource: profile.protected_resource.to_string(),
+            authorization_servers: vec![identity_provider.issuer.to_string()],
+            scopes_supported: profile
+                .required_scopes
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            bearer_methods_supported: vec!["header".to_string()],
+        })
     }
 
     pub fn server(&self, server_slug: &ServerSlug) -> Option<&ServerManifest> {
@@ -322,6 +349,53 @@ impl GatewayCatalog {
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProtectedResourceMetadata {
+    pub resource: String,
+    pub authorization_servers: Vec<String>,
+    pub scopes_supported: Vec<String>,
+    pub bearer_methods_supported: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GatewayMetadataError {
+    UnknownProfile(GatewayProfileId),
+    UnknownIdentityProvider {
+        profile: GatewayProfileId,
+        identity_provider: IdentityProviderId,
+    },
+}
+
+impl fmt::Display for GatewayMetadataError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownProfile(profile) => write!(f, "unknown gateway profile `{profile}`"),
+            Self::UnknownIdentityProvider {
+                profile,
+                identity_provider,
+            } => write!(
+                f,
+                "gateway profile `{profile}` references unknown identity provider `{identity_provider}`"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GatewayMetadataError {}
+
+pub fn www_authenticate_challenge(metadata_url: &str, scopes: &[ScopeName]) -> String {
+    let scope = scopes
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" ");
+    if scope.is_empty() {
+        format!(r#"Bearer resource_metadata="{metadata_url}""#)
+    } else {
+        format!(r#"Bearer resource_metadata="{metadata_url}", scope="{scope}""#)
     }
 }
 
@@ -801,6 +875,38 @@ mod tests {
 
         assert_eq!(catalog.server_count(), 1);
         assert_eq!(catalog.profile_count(), 1);
+    }
+
+    #[test]
+    fn builds_protected_resource_metadata_for_profile() {
+        let catalog = catalog();
+        let metadata = catalog
+            .protected_resource_metadata(&GatewayProfileId::new("default").unwrap())
+            .unwrap();
+
+        assert_eq!(metadata.resource, "https://veoveo.bioma.ai/mcp/default");
+        assert_eq!(
+            metadata.authorization_servers,
+            vec!["https://idp.example.com".to_string()]
+        );
+        assert_eq!(metadata.scopes_supported, vec!["media:use".to_string()]);
+        assert_eq!(
+            metadata.bearer_methods_supported,
+            vec!["header".to_string()]
+        );
+    }
+
+    #[test]
+    fn builds_www_authenticate_challenge_with_scope() {
+        let challenge = www_authenticate_challenge(
+            "https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default",
+            &[ScopeName::new("media:use").unwrap()],
+        );
+
+        assert_eq!(
+            challenge,
+            "Bearer resource_metadata=\"https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default\", scope=\"media:use\""
+        );
     }
 
     #[test]
