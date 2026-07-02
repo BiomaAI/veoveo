@@ -357,6 +357,7 @@ impl GatewayControlPlane {
                     server.uri_scheme.clone(),
                 ));
             }
+            validate_server_upstream(server)?;
         }
 
         let mut policies = BTreeSet::new();
@@ -591,6 +592,11 @@ pub enum GatewayControlPlaneError {
         policy: PolicyVersion,
         rule: PolicyRuleId,
         action: GatewayAction,
+    },
+    ServerUpstreamSecurityMismatch {
+        server: ServerSlug,
+        security: UpstreamTransportSecurity,
+        url: UpstreamUrl,
     },
     UnknownServer {
         profile: GatewayProfileId,
@@ -878,6 +884,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "policy `{policy}` rule `{rule}` allows action `{action:?}` outside its server capability scope"
+            ),
+            Self::ServerUpstreamSecurityMismatch {
+                server,
+                security,
+                url,
+            } => write!(
+                f,
+                "server `{server}` upstream URL `{url}` does not satisfy declared transport security `{security:?}`"
             ),
             Self::UnknownServer { profile, server } => write!(
                 f,
@@ -1343,6 +1357,78 @@ fn require_any_server_capability(
                 .map(|(capability, _)| *capability)
                 .unwrap_or(McpSurfaceCapability::Resources),
         })
+    }
+}
+
+fn validate_server_upstream(server: &ServerManifest) -> Result<(), GatewayControlPlaneError> {
+    if upstream_security_allows_url(server.upstream.security, &server.upstream.url) {
+        Ok(())
+    } else {
+        Err(GatewayControlPlaneError::ServerUpstreamSecurityMismatch {
+            server: server.slug.clone(),
+            security: server.upstream.security,
+            url: server.upstream.url.clone(),
+        })
+    }
+}
+
+fn upstream_security_allows_url(security: UpstreamTransportSecurity, url: &UpstreamUrl) -> bool {
+    let Ok(parsed) = url.parsed() else {
+        return false;
+    };
+    match security {
+        UpstreamTransportSecurity::LoopbackHttp => {
+            parsed.scheme() == "http" && url_host_is_loopback(&parsed)
+        }
+        UpstreamTransportSecurity::ComposeInternalHttp => {
+            parsed.scheme() == "http" && url_host_is_single_label_service_name(&parsed)
+        }
+        UpstreamTransportSecurity::Tls | UpstreamTransportSecurity::MutualTls => {
+            parsed.scheme() == "https"
+        }
+        UpstreamTransportSecurity::ServiceMeshMtls => match parsed.scheme() {
+            "https" => true,
+            "http" => url_host_is_mesh_internal_name(&parsed),
+            _ => false,
+        },
+    }
+}
+
+fn url_host_is_loopback(url: &Url) -> bool {
+    match url.host() {
+        Some(Host::Domain(host)) => host == "localhost",
+        Some(Host::Ipv4(addr)) => addr.is_loopback(),
+        Some(Host::Ipv6(addr)) => addr.is_loopback(),
+        None => false,
+    }
+}
+
+fn url_host_is_single_label_service_name(url: &Url) -> bool {
+    match url.host() {
+        Some(Host::Domain(host)) => {
+            host != "localhost"
+                && !host.contains('.')
+                && host.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'-' | b'_')
+                })
+        }
+        Some(Host::Ipv4(_)) | Some(Host::Ipv6(_)) | None => false,
+    }
+}
+
+fn url_host_is_mesh_internal_name(url: &Url) -> bool {
+    if url_host_is_single_label_service_name(url) {
+        return true;
+    }
+    match url.host() {
+        Some(Host::Domain(host)) => {
+            host.ends_with(".svc")
+                || host.ends_with(".svc.cluster.local")
+                || host.ends_with(".internal")
+        }
+        Some(Host::Ipv4(_)) | Some(Host::Ipv6(_)) | None => false,
     }
 }
 
@@ -2650,6 +2736,52 @@ impl From<HttpsUrl> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+pub struct UpstreamUrl(String);
+
+impl UpstreamUrl {
+    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        validate_upstream_url(&value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    fn parsed(&self) -> Result<Url, IdentifierError> {
+        Url::parse(&self.0).map_err(|_| IdentifierError::new(&self.0, "must be a valid URL"))
+    }
+}
+
+impl AsRef<str> for UpstreamUrl {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for UpstreamUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for UpstreamUrl {
+    type Error = IdentifierError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<UpstreamUrl> for String {
+    fn from(value: UpstreamUrl) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
 pub struct OAuthRedirectUri(String);
 
 impl OAuthRedirectUri {
@@ -2927,13 +3059,26 @@ impl From<ResourceUriTemplate> for String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct UpstreamEndpoint {
     pub transport: UpstreamTransport,
-    pub url: String,
+    pub url: UpstreamUrl,
+    pub security: UpstreamTransportSecurity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpstreamTransport {
     StreamableHttp,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum UpstreamTransportSecurity {
+    LoopbackHttp,
+    ComposeInternalHttp,
+    Tls,
+    MutualTls,
+    ServiceMeshMtls,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -3155,6 +3300,35 @@ fn validate_https_url(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+fn validate_upstream_url(value: &str) -> Result<(), IdentifierError> {
+    if value.is_empty() {
+        return Err(IdentifierError::new(value, "must not be empty"));
+    }
+    if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain whitespace or control characters",
+        ));
+    }
+    let url = Url::parse(value).map_err(|_| IdentifierError::new(value, "must be a valid URL"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(IdentifierError::new(value, "must use http:// or https://"));
+    }
+    if url.host().is_none() {
+        return Err(IdentifierError::new(value, "must include a host"));
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(IdentifierError::new(value, "must not contain userinfo"));
+    }
+    if url.query().is_some() || url.fragment().is_some() {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain a query or fragment",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_oauth_redirect_uri(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(value, "must not be empty"));
@@ -3327,7 +3501,8 @@ mod tests {
             mcp_path: MountPath::new("/media/mcp").unwrap(),
             upstream: UpstreamEndpoint {
                 transport: UpstreamTransport::StreamableHttp,
-                url: "http://media-mcp:8787/media/mcp".to_string(),
+                url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
+                security: UpstreamTransportSecurity::ComposeInternalHttp,
             },
             capabilities: McpSurfaceCapabilities {
                 tools: true,
@@ -3486,8 +3661,79 @@ mod tests {
         assert!(OAuthAuthorizationCode::new("short").is_err());
         assert!(PkceCodeChallenge::new("A".repeat(43)).is_ok());
         assert!(PkceCodeVerifier::new("a".repeat(129)).is_err());
+        assert!(UpstreamUrl::new("http://media-mcp:8787/media/mcp").is_ok());
+        assert!(UpstreamUrl::new("https://media.example.com/mcp").is_ok());
+        assert!(UpstreamUrl::new("ftp://media-mcp/media/mcp").is_err());
+        assert!(UpstreamUrl::new("http://user:pass@media-mcp/media/mcp").is_err());
+        assert!(UpstreamUrl::new("http://media-mcp/media/mcp?debug=true").is_err());
         assert!(ResourceUri::new("media://artifact/abc").is_ok());
         assert!(ResourceUriTemplate::new("media://model").is_err());
+    }
+
+    #[test]
+    fn control_plane_validates_upstream_transport_security() {
+        let mut loopback_manifest = media_manifest();
+        loopback_manifest.upstream.url =
+            UpstreamUrl::new("http://127.0.0.1:18801/media/mcp").unwrap();
+        loopback_manifest.upstream.security = UpstreamTransportSecurity::LoopbackHttp;
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![loopback_manifest],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        config.validate().expect("loopback HTTP upstream is valid");
+
+        let mut mesh_manifest = media_manifest();
+        mesh_manifest.upstream.url =
+            UpstreamUrl::new("http://media-mcp.default.svc.cluster.local/media/mcp").unwrap();
+        mesh_manifest.upstream.security = UpstreamTransportSecurity::ServiceMeshMtls;
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![mesh_manifest],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        config
+            .validate()
+            .expect("service-mesh internal HTTP upstream is valid");
+
+        let mut public_plaintext_manifest = media_manifest();
+        public_plaintext_manifest.upstream.url =
+            UpstreamUrl::new("http://media.example.com/media/mcp").unwrap();
+        public_plaintext_manifest.upstream.security = UpstreamTransportSecurity::ServiceMeshMtls;
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![public_plaintext_manifest],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("public plaintext upstream must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ServerUpstreamSecurityMismatch { .. }
+        ));
     }
 
     #[test]

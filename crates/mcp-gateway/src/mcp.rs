@@ -155,7 +155,7 @@ impl GatewayMcp {
             .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
 
         let transport = StreamableHttpClientTransport::from_config(
-            StreamableHttpClientTransportConfig::with_uri(server.upstream.url.clone())
+            StreamableHttpClientTransportConfig::with_uri(server.upstream.url.as_str().to_string())
                 .auth_header(internal_token.bearer_token)
                 .reinit_on_expired_session(false),
         );

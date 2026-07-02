@@ -288,6 +288,10 @@ Gateway data must be split by sensitivity and lifecycle:
   The file-backed gateway exposes an authenticated admin reload path for mounted profiles;
   the set of mounted profile route ids is immutable during reload and changing it is a
   deploy operation.
+  Server manifests declare typed upstream transport security next to each upstream URL:
+  `loopback_http` for local tests, `compose_internal_http` for Docker Compose service-name
+  routes, and `tls`, `mutual_tls`, or `service_mesh_mtls` for production deployments.
+  Public plaintext HTTP upstreams are rejected by contract validation.
   OAuth client registrations are typed control data: each advertised profile auth mode must
   have a matching registered client grant, and each client must explicitly allow the scopes
   required by the profile and its policy rules.

@@ -1154,6 +1154,7 @@ mod tests {
         ResourceAuthorizationServer, ResourceSelector, RoleId, ScopeName, SecretLocator,
         SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
         TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
+        UpstreamTransportSecurity, UpstreamUrl,
     };
 
     use super::*;
@@ -1228,7 +1229,8 @@ mod tests {
             mcp_path: MountPath::new("/media/mcp").unwrap(),
             upstream: UpstreamEndpoint {
                 transport: UpstreamTransport::StreamableHttp,
-                url: "http://media-mcp:8787/media/mcp".to_string(),
+                url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
+                security: UpstreamTransportSecurity::ComposeInternalHttp,
             },
             capabilities: veoveo_mcp_contract::McpSurfaceCapabilities {
                 tools: true,

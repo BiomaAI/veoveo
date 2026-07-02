@@ -37,7 +37,8 @@
       "mcp_path": "/media/mcp",
       "upstream": {
         "transport": "streamable_http",
-        "url": "http://media-mcp:8787/media/mcp"
+        "url": "http://media-mcp:8787/media/mcp",
+        "security": "compose_internal_http"
       },
       "capabilities": {
         "tools": true,

@@ -55,7 +55,7 @@ pub use gateway::{
     ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
     SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
     ServerSlug, TaskExposure, TaskIdProjection, TenantId, TokenIssuer, TokenSubject, TraceId,
-    UpstreamEndpoint, UpstreamTaskId, UpstreamTransport,
+    UpstreamEndpoint, UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use internal_auth::{

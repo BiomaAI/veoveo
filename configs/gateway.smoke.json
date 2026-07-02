@@ -37,7 +37,8 @@
       "mcp_path": "/media/mcp",
       "upstream": {
         "transport": "streamable_http",
-        "url": "http://127.0.0.1:18801/media/mcp"
+        "url": "http://127.0.0.1:18801/media/mcp",
+        "security": "loopback_http"
       },
       "capabilities": {
         "tools": true,
