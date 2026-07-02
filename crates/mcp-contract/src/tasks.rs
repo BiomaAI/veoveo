@@ -42,13 +42,24 @@ impl TaskStore {
     }
 
     pub async fn insert(&self, task: Task, join: Option<JoinHandle<()>>) {
+        self.insert_record(task, None, None, None, join).await;
+    }
+
+    pub async fn insert_record(
+        &self,
+        task: Task,
+        payload: Option<Value>,
+        error: Option<String>,
+        provider_job_id: Option<String>,
+        join: Option<JoinHandle<()>>,
+    ) {
         self.tasks.write().await.insert(
             task.task_id.clone(),
             TaskEntry {
                 task,
-                payload: None,
-                error: None,
-                provider_job_id: None,
+                payload,
+                error,
+                provider_job_id,
                 join,
             },
         );
@@ -57,6 +68,12 @@ impl TaskStore {
     pub async fn set_provider_job_id(&self, task_id: &str, provider_job_id: impl Into<String>) {
         if let Some(entry) = self.tasks.write().await.get_mut(task_id) {
             entry.provider_job_id = Some(provider_job_id.into());
+        }
+    }
+
+    pub async fn set_join(&self, task_id: &str, join: JoinHandle<()>) {
+        if let Some(entry) = self.tasks.write().await.get_mut(task_id) {
+            entry.join = Some(join);
         }
     }
 

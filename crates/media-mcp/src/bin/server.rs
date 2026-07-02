@@ -55,6 +55,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_media_mcp::{
     provider::{ModelEntry, Prediction, ProviderClient},
+    state::SqliteState,
     uris, webhook,
 };
 
@@ -75,6 +76,9 @@ struct Args {
     /// Directory served at /files/* so the media provider can fetch input media by URL.
     #[arg(long)]
     static_dir: Option<PathBuf>,
+    /// SQLite state database path for task and prediction metadata.
+    #[arg(long, default_value = "state.sqlite")]
+    state_db: PathBuf,
     #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
     api_key: Option<String>,
     #[arg(long, env = "MEDIA_PROVIDER_WEBHOOK_SECRET", hide_env_values = true)]
@@ -117,6 +121,7 @@ struct AppState {
     webhook_secret: Option<String>,
     registry: RwLock<Option<RegistryCache>>,
     tasks: TaskStore,
+    durable: SqliteState,
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
@@ -165,18 +170,72 @@ impl AppState {
     async fn ingest_prediction(&self, prediction: Prediction) {
         let id = prediction.id.clone();
         let terminal = prediction.is_terminal();
+        if let Err(e) = self.durable.record_prediction(&prediction) {
+            tracing::warn!(prediction_id = id, "failed to persist prediction: {e}");
+        }
         self.predictions
             .write()
             .await
             .insert(id.clone(), prediction.clone());
 
-        if terminal && let Some(tx) = self.pending.lock().await.remove(&id) {
-            let _ = tx.send(prediction);
+        if terminal {
+            if let Some(tx) = self.pending.lock().await.remove(&id) {
+                let _ = tx.send(prediction.clone());
+            } else if let Err(e) = self.complete_task_without_peer(&prediction).await {
+                tracing::warn!(
+                    prediction_id = id,
+                    "failed to persist webhook task completion: {e}"
+                );
+            }
         }
 
         self.subscribers
             .notify_resource_updated(uris::prediction_uri(&id))
             .await;
+    }
+
+    async fn complete_task_without_peer(&self, prediction: &Prediction) -> anyhow::Result<()> {
+        let Some(task_id) = self.durable.task_id_for_provider_job_id(&prediction.id)? else {
+            return Ok(());
+        };
+        let (status, message, payload, error) = if prediction.status == "failed" {
+            let message = prediction
+                .error
+                .clone()
+                .filter(|e| !e.is_empty())
+                .unwrap_or_else(|| "prediction failed".to_string());
+            (
+                TaskStatus::Failed,
+                format!("prediction {} failed: {message}", prediction.id),
+                None,
+                Some(message),
+            )
+        } else {
+            let prediction_uri = uris::prediction_uri(&prediction.id);
+            let result = prediction_result(prediction);
+            (
+                TaskStatus::Completed,
+                format!(
+                    "completed; {} output(s); resource {prediction_uri}",
+                    prediction.outputs.len()
+                ),
+                serde_json::to_value(&result).ok(),
+                None,
+            )
+        };
+        if let Some(snapshot) = self
+            .tasks
+            .update(&task_id, status, message, payload.clone(), error.clone())
+            .await
+        {
+            self.durable.record_task(
+                &snapshot,
+                payload.as_ref(),
+                error.as_deref(),
+                Some(&prediction.id),
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -235,11 +294,21 @@ async fn update_task(
     payload: Option<Value>,
     error: Option<String>,
 ) {
+    let payload_for_store = payload.clone();
+    let error_for_store = error.clone();
     if let Some(snapshot) = state
         .tasks
         .update(task_id, status, message, payload, error)
         .await
     {
+        if let Err(e) = state.durable.record_task(
+            &snapshot,
+            payload_for_store.as_ref(),
+            error_for_store.as_deref(),
+            None,
+        ) {
+            tracing::warn!(task_id, "failed to persist task update: {e}");
+        }
         notify_task_status(peer, snapshot).await;
     }
 }
@@ -357,6 +426,13 @@ async fn run_task(
         .tasks
         .set_provider_job_id(&task_id, prediction_id.clone())
         .await;
+    if let Err(e) = state.durable.set_provider_job_id(&task_id, &prediction_id) {
+        tracing::warn!(
+            task_id,
+            prediction_id,
+            "failed to persist provider job id: {e}"
+        );
+    }
     // A new prediction resource now exists.
     let _ = peer.notify_resource_list_changed().await;
     update_task(
@@ -501,6 +577,10 @@ impl ServerHandler for MediaMcp {
             .with_poll_interval(TASK_POLL_INTERVAL_MS);
         task.ttl = ttl;
 
+        self.state.tasks.insert(task.clone(), None).await;
+        if let Err(e) = self.state.durable.record_task(&task, None, None, None) {
+            tracing::warn!(task_id, "failed to persist task creation: {e}");
+        }
         let join = tokio::spawn(run_task(
             self.state.clone(),
             context.peer.clone(),
@@ -508,7 +588,7 @@ impl ServerHandler for MediaMcp {
             args,
             progress_token,
         ));
-        self.state.tasks.insert(task.clone(), Some(join)).await;
+        self.state.tasks.set_join(&task_id, join).await;
         Ok(CreateTaskResult::new(task))
     }
 
@@ -567,6 +647,12 @@ impl ServerHandler for MediaMcp {
             .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
         if let Some(pid) = provider_job_id {
             self.state.pending.lock().await.remove(&pid);
+        }
+        if let Err(e) = self.state.durable.record_task(&task, None, None, None) {
+            tracing::warn!(
+                task_id = request.task_id,
+                "failed to persist task cancellation: {e}"
+            );
         }
         Ok(CancelTaskResult::new(task))
     }
@@ -793,15 +879,34 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let args = Args::parse();
+    let durable = SqliteState::open(&args.state_db)?;
+    let tasks = TaskStore::new();
+    for persisted in durable.load_tasks()? {
+        tasks
+            .insert_record(
+                persisted.task,
+                persisted.payload,
+                persisted.error,
+                persisted.provider_job_id,
+                None,
+            )
+            .await;
+    }
+    let predictions = durable
+        .load_predictions()?
+        .into_iter()
+        .map(|p| (p.id.clone(), p))
+        .collect();
 
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?),
         public_url: args.public_url.clone(),
         webhook_secret: args.provider_webhook_secret(),
         registry: RwLock::new(None),
-        tasks: TaskStore::new(),
+        tasks,
+        durable,
         pending: Mutex::new(HashMap::new()),
-        predictions: RwLock::new(HashMap::new()),
+        predictions: RwLock::new(predictions),
         subscribers: SubscriptionHub::new(),
     });
 

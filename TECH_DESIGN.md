@@ -208,7 +208,7 @@ MCP server container
   |-- veoveo-mcp-contract policy: tasks, artifacts, usage, recovery
   |-- provider adapter: current media provider, Replicate, OpenAI media, ...
   |
-  |-- SQL durable state
+  |-- per-server SQL durable state
   |-- S3-compatible artifact store
   |-- structured logs / OpenTelemetry sink
 ```
@@ -235,19 +235,9 @@ trait EventSink {
 }
 ```
 
-The artifact store contract should target S3-compatible APIs so enterprises can use AWS
-S3, MinIO, Ceph/RGW, Cloudflare R2, or another compatible service. Configuration should be
-environment-driven:
-
-```
-ARTIFACT_STORE=s3
-S3_ENDPOINT=...
-S3_BUCKET=...
-S3_REGION=...
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-S3_FORCE_PATH_STYLE=true|false
-```
+The artifact store contract should target S3-compatible APIs so deployments can use
+RustFS locally, AWS S3, Cloudflare R2, Ceph/RGW, MinIO, or another compatible service
+without changing MCP behavior.
 
 For logging and observability, MCP servers should emit structured JSON logs to stdout and
 OpenTelemetry traces/metrics/logs where configured. Events must carry stable correlation
@@ -261,12 +251,12 @@ compiled into those servers, not deployed as a runtime service. The default Comp
 should include batteries-included infrastructure:
 
 - one container per MCP server (`veoveo-media-mcp`, future provider servers),
-- a SQL state store, or a mounted SQLite volume for simple deployments,
-- MinIO as the default S3-compatible artifact store,
+- a mounted SQLite volume per server for durable task/prediction metadata,
+- RustFS as the default S3-compatible artifact store,
 - an OpenTelemetry collector,
 - optional Loki/Grafana or equivalent local log UI.
 
-Enterprise deployments replace defaults by configuration: omit MinIO and point S3
+Enterprise deployments replace defaults by configuration: omit RustFS and point S3
 settings at the enterprise object store; omit local logging UI and point OTEL export at
 the enterprise collector; provide secrets through their secret manager instead of `.env`.
 Compose profiles should make that explicit:
@@ -275,9 +265,9 @@ Compose profiles should make that explicit:
 - `enterprise`: MCP servers only, expecting external state/object/observability endpoints,
 - `dev`: local helpers such as static input files, tunnels, and test fixtures.
 
-The design rule is simple: MCP servers may depend on SQL durability, S3-compatible artifact
-storage, and standard telemetry. They must not depend specifically on MinIO, Loki, or any
-other default Compose service.
+The design rule is simple: MCP servers may depend on per-server SQL durability,
+S3-compatible artifact storage, and standard telemetry. They must not depend specifically
+on RustFS, Loki, or any other default Compose service.
 
 ## Verified behavior
 
@@ -294,12 +284,13 @@ in-flight work, and completions rank prefix matches across the full 988-model re
 
 ## Known gaps
 
-- **State is in-memory.** Tasks, predictions, and subscriptions die with the process.
-  Task ids are durable *within* a server lifetime only. Next step: sled/SQLite store.
+- **Artifact bytes are not yet ingested.** Task and prediction metadata are durable in
+  per-server SQLite, but provider output URLs are still returned directly instead of
+  copied into the server-owned S3-compatible artifact store.
 - **Subscription identity is coarse.** Unsubscribe clears all peers for a URI — fine for
   owned single-client deployments, wrong for multi-tenant.
-- **No task GC.** Completed task entries accumulate until restart (TTL is accepted from
-  clients but not yet enforced).
+- **No task/artifact GC.** Completed task entries and future artifacts need explicit
+  retention policy enforcement.
 - **Tasks are an evolving extension.** SEP-1319 (2025-11-25) is what rmcp 2.0 ships; the
   2026-07-28 spec moves tasks to an extension with `tasks/update` for mid-flight input.
   Owning both ends means we migrate both sides in one commit when rmcp does.

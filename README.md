@@ -69,6 +69,11 @@ docker compose --profile dev --profile tunnel up --build
 RustFS is available locally at `http://localhost:9000` with the development credentials
 defined in Compose. Those credentials are for the local stack only.
 
+Task and prediction metadata are persisted in SQLite. Local runs default to
+`state.sqlite`; Compose stores the media server's state at
+`/var/lib/veoveo/media/state.sqlite` on the `media_state` volume. RustFS is for artifact
+bytes, not task durability.
+
 ### Local Process
 
 ```sh
@@ -101,6 +106,7 @@ crates/mcp-contract/                           reusable Veoveo MCP contract crat
 crates/mcp-contract/src/bin/conformance.rs     generic Veoveo MCP conformance CLI
 crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
 crates/media-mcp/src/provider.rs               internal provider API client + types
+crates/media-mcp/src/state.rs                  per-server SQLite task/prediction state
 crates/media-mcp/src/webhook.rs                internal webhook signature verification
 crates/media-mcp/src/uris.rs                   media:// URI scheme
 crates/media-mcp/src/bin/server.rs             MCP server

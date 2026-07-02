@@ -24,7 +24,6 @@ pub trait Provider: Clone + Send + Sync + 'static {
         input: &Value,
         webhook_url: Option<&str>,
     ) -> Result<Self::Prediction>;
-    async fn get_prediction(&self, id: &str) -> Result<Self::Prediction>;
 
     fn model_id<'a>(&self, model: &'a Self::Model) -> &'a str;
     fn model_type<'a>(&self, model: &'a Self::Model) -> &'a str;

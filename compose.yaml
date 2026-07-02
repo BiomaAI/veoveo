@@ -39,6 +39,8 @@ services:
       - "${PUBLIC_URL:?set PUBLIC_URL to your named tunnel URL}"
       - "--static-dir"
       - "/app/assets"
+      - "--state-db"
+      - "/var/lib/veoveo/media/state.sqlite"
     environment:
       MEDIA_PROVIDER_API_KEY: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
       MEDIA_PROVIDER_WEBHOOK_SECRET: "${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"

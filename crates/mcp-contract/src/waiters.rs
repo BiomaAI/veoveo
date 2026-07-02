@@ -4,8 +4,7 @@ use tokio::sync::{Mutex, oneshot};
 
 /// Waiters keyed by provider prediction/job id.
 ///
-/// The webhook handler resolves a waiter when a provider callback arrives; the
-/// task runner can fall back to provider polling if this receiver never fires.
+/// The webhook handler resolves a waiter when a provider callback arrives.
 #[derive(Default)]
 pub struct WebhookWaiters<T> {
     pending: Mutex<HashMap<String, oneshot::Sender<T>>>,

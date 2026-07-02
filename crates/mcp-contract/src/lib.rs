@@ -1,7 +1,7 @@
 //! Shared MCP server mechanics for provider-backed generation servers.
 //!
 //! The crate keeps provider-neutral concerns out of individual adapters:
-//! task records, webhook/poll waiters, resource subscriptions, URI conventions,
+//! task records, webhook waiters, resource subscriptions, URI conventions,
 //! external artifact/object storage ports, and the small provider trait that
 //! normalizes catalog and prediction behavior.
 

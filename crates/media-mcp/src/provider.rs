@@ -157,7 +157,7 @@ impl ProviderClient {
 
     /// Submit a run for `model_id`. `webhook_url` is registered via the
     /// `?webhook=` query parameter; the provider POSTs the terminal prediction
-    /// state there instead of requiring polling.
+    /// state through that callback.
     pub async fn submit(
         &self,
         model_id: &str,
