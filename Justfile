@@ -143,6 +143,7 @@ smoke-gateway-authenticated:
     media_state_db="${tmpdir}/media-state.duckdb"
     gateway_state_db="${tmpdir}/gateway-state.duckdb"
     internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
     media_pid=""
     gateway_pid=""
     cleanup() {
@@ -166,7 +167,7 @@ smoke-gateway-authenticated:
         sleep 0.2
     done
     curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
-    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
     gateway_pid=$!
     for _ in {1..50}; do
         if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
@@ -175,16 +176,17 @@ smoke-gateway-authenticated:
         sleep 0.2
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
-    admin_token="$({{conformance}} gateway-token --scope media:use --scope gateway:admin --jwt-id smoke-gateway-admin)"
+    token_endpoint="${gateway_base}/oauth/default/token"
+    admin_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use --scope gateway:admin)"
     status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"
     test "${status}" = "200"
-    token="$({{conformance}} gateway-token --scope media:use --jwt-id smoke-gateway-authenticated)"
+    token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use)"
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" resource media://usage >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompts >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" tasks >/dev/null
-    denied_token="$({{conformance}} gateway-token --scope gateway:admin --jwt-id smoke-gateway-denied)"
+    denied_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope gateway:admin)"
     if env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${denied_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null 2>&1; then
         echo "missing-scope gateway token was unexpectedly authorized" >&2
         exit 1

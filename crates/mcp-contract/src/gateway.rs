@@ -393,10 +393,12 @@ impl GatewayControlPlane {
         for authorization_server in &self.authorization_servers {
             let Some(secret) = secret_refs.get(&authorization_server.access_token_signing_key)
             else {
-                return Err(GatewayControlPlaneError::UnknownAuthorizationServerSigningKey {
-                    authorization_server: authorization_server.id.clone(),
-                    secret: authorization_server.access_token_signing_key.clone(),
-                });
+                return Err(
+                    GatewayControlPlaneError::UnknownAuthorizationServerSigningKey {
+                        authorization_server: authorization_server.id.clone(),
+                        secret: authorization_server.access_token_signing_key.clone(),
+                    },
+                );
             };
             if secret.purpose != SecretPurpose::JwksPrivateKey {
                 return Err(
@@ -2826,8 +2828,7 @@ mod tests {
             id: SecretReferenceId::new("veoveo_access_token_private_key").unwrap(),
             source: SecretSource::Env,
             purpose: SecretPurpose::JwksPrivateKey,
-            locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64")
-                .unwrap(),
+            locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64").unwrap(),
             owner: SecretOwner::Gateway,
             rotation_hint: None,
             metadata: Value::Null,

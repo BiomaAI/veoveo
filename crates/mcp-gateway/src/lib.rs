@@ -21,10 +21,9 @@ use veoveo_mcp_contract::{
     AuthMode, AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, GatewayToolName, IdentityProvider, IdentityProviderId, JwksSource,
     LocalToolName, McpMethodName, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthGrantType,
-    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
-    PolicyTarget, PolicyVersion, Principal, ResourceAuthorizationServer, ResourceScheme, ScopeName,
-    SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TraceId,
+    OAuthGrantType, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId,
+    PolicySet, PolicyTarget, PolicyVersion, Principal, ResourceAuthorizationServer, ResourceScheme,
+    ScopeName, SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TraceId,
 };
 
 const ID_JAG_GRANT_PROFILE: &str = "urn:ietf:params:oauth:grant-profile:id-jag";
@@ -1048,8 +1047,7 @@ mod tests {
             id: SecretReferenceId::new("veoveo_access_token_private_key").unwrap(),
             source: SecretSource::Env,
             purpose: SecretPurpose::JwksPrivateKey,
-            locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64")
-                .unwrap(),
+            locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64").unwrap(),
             owner: SecretOwner::Gateway,
             rotation_hint: None,
             metadata: Value::Null,

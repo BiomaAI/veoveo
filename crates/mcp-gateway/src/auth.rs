@@ -7,8 +7,8 @@ use jsonwebtoken::{
 };
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, GroupId, JwtId, Principal, PrincipalId, PrincipalKind,
-    OAuthClientId, ProtectedResourceId, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
+    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalId,
+    PrincipalKind, ProtectedResourceId, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
 };
 
 #[derive(Debug, Clone)]
@@ -248,8 +248,8 @@ impl ClientAssertionVerifier {
         validation.set_audience(&[self.config.audience.as_str()]);
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "jti"]);
 
-        let data =
-            decode::<ClientAssertionClaims>(assertion, &key, &validation).map_err(AuthError::Jwt)?;
+        let data = decode::<ClientAssertionClaims>(assertion, &key, &validation)
+            .map_err(AuthError::Jwt)?;
         let claims = data.claims;
         if claims.sub != self.config.client_id.as_str() {
             return Err(AuthError::ClientAssertionSubjectMismatch);

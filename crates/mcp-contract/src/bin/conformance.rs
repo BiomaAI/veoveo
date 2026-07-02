@@ -97,37 +97,42 @@ enum Cmd {
     },
     /// Print the deterministic conformance JWKS as JSON.
     GatewayJwks,
-    /// Print a deterministic conformance JWT signed by the conformance private key.
-    GatewayToken {
-        /// Token issuer claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default")]
-        issuer: String,
-        /// Token audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]
+    /// Print the deterministic conformance private key as compact base64 DER.
+    GatewayPrivateKeyDerB64,
+    /// Print a private-key JWT client assertion signed by the conformance private key.
+    GatewayClientAssertion {
+        /// OAuth client id used as issuer and subject.
+        #[arg(long, default_value = "veoveo-headless")]
+        client_id: String,
+        /// Token endpoint audience claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default/token")]
         audience: String,
-        /// Token subject claim.
-        #[arg(long, default_value = "00u-smoke")]
-        subject: String,
-        /// OAuth scope claim. Repeat for multiple scopes.
+        /// JWT id claim.
+        #[arg(long)]
+        jwt_id: Option<String>,
+        /// Token lifetime in minutes.
+        #[arg(long, default_value_t = 5)]
+        ttl_minutes: i64,
+    },
+    /// Exchange a private-key JWT client assertion for a gateway access token.
+    GatewayTokenExchange {
+        /// Gateway token endpoint URL.
+        #[arg(long)]
+        token_url: String,
+        /// OAuth client id used as issuer and subject.
+        #[arg(long, default_value = "veoveo-headless")]
+        client_id: String,
+        /// Client assertion audience claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default/token")]
+        audience: String,
+        /// OAuth scope. Repeat for multiple scopes.
         #[arg(long = "scope")]
         scopes: Vec<String>,
-        /// Tenant claim.
-        #[arg(long, default_value = "tenant-a")]
-        tenant: String,
-        /// Group claim. Repeat for multiple groups.
-        #[arg(long = "group")]
-        groups: Vec<String>,
-        /// Role claim. Repeat for multiple roles.
-        #[arg(long = "role")]
-        roles: Vec<String>,
-        /// Data-label claim. Repeat for multiple labels.
-        #[arg(long = "data-label")]
-        data_labels: Vec<String>,
-        /// JWT id claim.
-        #[arg(long, default_value = "jwt-smoke")]
-        jwt_id: String,
-        /// Token lifetime in minutes.
-        #[arg(long, default_value_t = 30)]
+        /// Client assertion JWT id claim.
+        #[arg(long)]
+        jwt_id: Option<String>,
+        /// Client assertion lifetime in minutes.
+        #[arg(long, default_value_t = 5)]
         ttl_minutes: i64,
     },
     /// Show server info, capabilities, instructions, and the tool list.
@@ -205,6 +210,8 @@ struct AuthorizationServerDiscoveryMetadata {
 }
 
 const CONFORMANCE_KEY_ID: &str = "test-key";
+const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
+    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 // Public conformance keypair for deterministic local smoke tokens; never deployment material.
 const CONFORMANCE_RSA_PRIVATE_KEY_DER_B64: &str = r#"
 MIIEpAIBAAKCAQEAvCUS6tGS9/VE3pGzncb1rDsZt/V/LkPHl2QO9jDlaO/jAEdfPOtCSsSyv7dY
@@ -231,7 +238,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 "#;
 
 #[derive(Debug, Serialize)]
-struct GatewayTokenClaims {
+struct ClientAssertionClaims {
     iss: String,
     sub: String,
     aud: String,
@@ -239,12 +246,14 @@ struct GatewayTokenClaims {
     nbf: u64,
     iat: u64,
     jti: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    scope: Option<String>,
-    groups: Vec<String>,
-    roles: Vec<String>,
-    tenant: String,
-    data_labels: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenEndpointResponse {
+    access_token: String,
+    token_type: String,
+    expires_in: u64,
+    scope: String,
 }
 
 /// Client handler that surfaces every server-initiated notification.
@@ -464,49 +473,104 @@ fn cmd_gateway_jwks() -> Result<()> {
     Ok(())
 }
 
-struct GatewayTokenInput {
-    issuer: String,
+fn cmd_gateway_private_key_der_b64() {
+    println!(
+        "{}",
+        CONFORMANCE_RSA_PRIVATE_KEY_DER_B64
+            .lines()
+            .collect::<String>()
+    );
+}
+
+struct ClientAssertionInput {
+    client_id: String,
     audience: String,
-    subject: String,
-    scopes: Vec<String>,
-    tenant: String,
-    groups: Vec<String>,
-    roles: Vec<String>,
-    data_labels: Vec<String>,
-    jwt_id: String,
+    jwt_id: Option<String>,
     ttl_minutes: i64,
 }
 
-fn cmd_gateway_token(input: GatewayTokenInput) -> Result<()> {
+struct TokenExchangeInput {
+    token_url: String,
+    client_assertion: ClientAssertionInput,
+    scopes: Vec<String>,
+}
+
+fn build_client_assertion(input: &ClientAssertionInput) -> Result<String> {
     if input.ttl_minutes <= 0 {
         return Err(anyhow!("ttl_minutes must be greater than zero"));
     }
-
     let now = Utc::now();
     let expires_at = now
         .checked_add_signed(TimeDelta::minutes(input.ttl_minutes))
         .ok_or_else(|| anyhow!("ttl_minutes produces an invalid expiration timestamp"))?;
-    let scope = (!input.scopes.is_empty()).then(|| input.scopes.join(" "));
-    let claims = GatewayTokenClaims {
-        iss: input.issuer,
-        sub: input.subject,
-        aud: input.audience,
+    let jwt_id = input
+        .jwt_id
+        .clone()
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let claims = ClientAssertionClaims {
+        iss: input.client_id.clone(),
+        sub: input.client_id.clone(),
+        aud: input.audience.clone(),
         exp: unix_seconds(expires_at.timestamp())?,
         nbf: unix_seconds(now.timestamp())?,
         iat: unix_seconds(now.timestamp())?,
-        jti: input.jwt_id,
-        scope,
-        groups: input.groups,
-        roles: input.roles,
-        tenant: input.tenant,
-        data_labels: input.data_labels,
+        jti: jwt_id,
     };
     let mut header = Header::new(Algorithm::RS256);
     header.kid = Some(CONFORMANCE_KEY_ID.to_string());
-    println!(
-        "{}",
-        encode(&header, &claims, &conformance_encoding_key()?)?
-    );
+    Ok(encode(&header, &claims, &conformance_encoding_key()?)?)
+}
+
+fn cmd_gateway_client_assertion(input: ClientAssertionInput) -> Result<()> {
+    println!("{}", build_client_assertion(&input)?);
+    Ok(())
+}
+
+async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Result<()> {
+    if input.scopes.is_empty() {
+        return Err(anyhow!("at least one --scope is required"));
+    }
+    let assertion = build_client_assertion(&input.client_assertion)?;
+    let scope = input.scopes.join(" ");
+    let client_id = input.client_assertion.client_id.clone();
+    let form_body = url::form_urlencoded::Serializer::new(String::new())
+        .append_pair("grant_type", "client_credentials")
+        .append_pair("client_id", &client_id)
+        .append_pair("scope", &scope)
+        .append_pair("client_assertion_type", CLIENT_ASSERTION_TYPE_JWT_BEARER)
+        .append_pair("client_assertion", &assertion)
+        .finish();
+    let response = reqwest::Client::new()
+        .post(&input.token_url)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body(form_body)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
+        return Err(anyhow!("token endpoint returned {status}: {body}"));
+    }
+    let token_response: TokenEndpointResponse = serde_json::from_str(&body)?;
+    if token_response.token_type != "Bearer" {
+        return Err(anyhow!(
+            "token endpoint returned token_type `{}`",
+            token_response.token_type
+        ));
+    }
+    if token_response.access_token.is_empty() {
+        return Err(anyhow!("token endpoint returned an empty access_token"));
+    }
+    if token_response.expires_in == 0 {
+        return Err(anyhow!("token endpoint returned expires_in=0"));
+    }
+    if token_response.scope.is_empty() {
+        return Err(anyhow!("token endpoint returned an empty scope"));
+    }
+    println!("{}", token_response.access_token);
     Ok(())
 }
 
@@ -1015,30 +1079,42 @@ async fn main() -> Result<()> {
             .await;
         }
         Cmd::GatewayJwks => return cmd_gateway_jwks(),
-        Cmd::GatewayToken {
-            issuer,
+        Cmd::GatewayPrivateKeyDerB64 => {
+            cmd_gateway_private_key_der_b64();
+            return Ok(());
+        }
+        Cmd::GatewayClientAssertion {
+            client_id,
             audience,
-            subject,
-            scopes,
-            tenant,
-            groups,
-            roles,
-            data_labels,
             jwt_id,
             ttl_minutes,
         } => {
-            return cmd_gateway_token(GatewayTokenInput {
-                issuer: issuer.clone(),
+            return cmd_gateway_client_assertion(ClientAssertionInput {
+                client_id: client_id.clone(),
                 audience: audience.clone(),
-                subject: subject.clone(),
-                scopes: scopes.clone(),
-                tenant: tenant.clone(),
-                groups: groups.clone(),
-                roles: roles.clone(),
-                data_labels: data_labels.clone(),
                 jwt_id: jwt_id.clone(),
                 ttl_minutes: *ttl_minutes,
             });
+        }
+        Cmd::GatewayTokenExchange {
+            token_url,
+            client_id,
+            audience,
+            scopes,
+            jwt_id,
+            ttl_minutes,
+        } => {
+            return cmd_gateway_token_exchange(TokenExchangeInput {
+                token_url: token_url.clone(),
+                client_assertion: ClientAssertionInput {
+                    client_id: client_id.clone(),
+                    audience: audience.clone(),
+                    jwt_id: jwt_id.clone(),
+                    ttl_minutes: *ttl_minutes,
+                },
+                scopes: scopes.clone(),
+            })
+            .await;
         }
         _ => {}
     }
@@ -1049,7 +1125,9 @@ async fn main() -> Result<()> {
     let result = match args.cmd {
         Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayJwks => unreachable!("handled before MCP connection"),
-        Cmd::GatewayToken { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),
+        Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayTokenExchange { .. } => unreachable!("handled before MCP connection"),
         Cmd::Info => cmd_info(&client).await,
         Cmd::Models { query, r#type } => {
             let catalog = read_resource_json(&client, &uris.models_uri()).await?;

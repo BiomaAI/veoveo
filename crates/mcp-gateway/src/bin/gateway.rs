@@ -532,7 +532,9 @@ async fn token_endpoint(
     };
     if client.authorization_server != profile.authorization_server
         || !client.allowed_profiles.contains(&profile.id)
-        || !client.grant_types.contains(&OAuthGrantType::ClientCredentials)
+        || !client
+            .grant_types
+            .contains(&OAuthGrantType::ClientCredentials)
         || !client
             .auth_methods
             .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
