@@ -8,7 +8,7 @@ use jsonwebtoken::{
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     AccessTokenSubject, DataLabelId, GroupId, JwtId, Principal, PrincipalId, PrincipalKind,
-    ProtectedResourceId, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
+    OAuthClientId, ProtectedResourceId, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
 };
 
 #[derive(Debug, Clone)]
@@ -17,6 +17,41 @@ pub struct JwtAuthConfig {
     pub audience: ProtectedResourceId,
     pub required_scopes: BTreeSet<ScopeName>,
     pub algorithms: Vec<Algorithm>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ClientAssertionConfig {
+    pub client_id: OAuthClientId,
+    pub audience: String,
+    pub algorithms: Vec<Algorithm>,
+}
+
+impl ClientAssertionConfig {
+    pub fn new(
+        client_id: OAuthClientId,
+        audience: impl Into<String>,
+        algorithms: Vec<Algorithm>,
+    ) -> Result<Self, AuthError> {
+        if algorithms.is_empty() {
+            return Err(AuthError::MissingAllowedAlgorithms);
+        }
+        if let Some(algorithm) = algorithms
+            .iter()
+            .copied()
+            .find(|algorithm| is_symmetric_algorithm(*algorithm))
+        {
+            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
+        }
+        let audience = audience.into();
+        if audience.is_empty() {
+            return Err(AuthError::InvalidClientAssertionAudience);
+        }
+        Ok(Self {
+            client_id,
+            audience,
+            algorithms,
+        })
+    }
 }
 
 impl JwtAuthConfig {
@@ -174,18 +209,56 @@ impl JwtVerifier {
         &self,
         algorithm: Algorithm,
     ) -> Result<Vec<Algorithm>, AuthError> {
-        let algorithms = self
-            .config
-            .algorithms
-            .iter()
-            .copied()
-            .filter(|candidate| candidate.family() == algorithm.family())
-            .collect::<Vec<_>>();
-        if algorithms.is_empty() {
-            Err(AuthError::DisallowedAlgorithm(algorithm))
-        } else {
-            Ok(algorithms)
+        allowed_algorithms_for_header(&self.config.algorithms, algorithm)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ClientAssertionVerifier {
+    config: ClientAssertionConfig,
+    jwks: JwkSet,
+}
+
+impl ClientAssertionVerifier {
+    pub fn new(config: ClientAssertionConfig, jwks: JwkSet) -> Self {
+        Self { config, jwks }
+    }
+
+    pub fn verify(&self, assertion: &str) -> Result<VerifiedClientAssertion, AuthError> {
+        if assertion.is_empty() || assertion.chars().any(char::is_whitespace) {
+            return Err(AuthError::InvalidClientAssertion);
         }
+        let header = decode_header(assertion).map_err(AuthError::Jwt)?;
+        if !self.config.algorithms.contains(&header.alg) {
+            return Err(AuthError::DisallowedAlgorithm(header.alg));
+        }
+        let key_id = header.kid.ok_or(AuthError::MissingKeyId)?;
+        let jwk = self
+            .jwks
+            .find(&key_id)
+            .ok_or_else(|| AuthError::UnknownKeyId(key_id.clone()))?;
+        validate_jwk_algorithm(jwk.common.key_algorithm, header.alg)?;
+        let key = DecodingKey::from_jwk(jwk).map_err(AuthError::Jwt)?;
+
+        let algorithms = allowed_algorithms_for_header(&self.config.algorithms, header.alg)?;
+        let mut validation = Validation::new(header.alg);
+        validation.algorithms = algorithms;
+        validation.validate_nbf = true;
+        validation.set_issuer(&[self.config.client_id.as_str()]);
+        validation.set_audience(&[self.config.audience.as_str()]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "jti"]);
+
+        let data =
+            decode::<ClientAssertionClaims>(assertion, &key, &validation).map_err(AuthError::Jwt)?;
+        let claims = data.claims;
+        if claims.sub != self.config.client_id.as_str() {
+            return Err(AuthError::ClientAssertionSubjectMismatch);
+        }
+        Ok(VerifiedClientAssertion {
+            client_id: self.config.client_id.clone(),
+            jwt_id: JwtId::new(claims.jti).map_err(AuthError::Claim)?,
+            expires_at: unix_timestamp(claims.exp, "exp")?,
+        })
     }
 }
 
@@ -193,6 +266,13 @@ impl JwtVerifier {
 pub struct AuthenticatedSubject {
     pub access_token: AccessTokenSubject,
     pub principal: Principal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedClientAssertion {
+    pub client_id: OAuthClientId,
+    pub jwt_id: JwtId,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,6 +301,19 @@ struct JwtClaims {
     data_labels: Option<StringListClaim>,
     #[serde(default)]
     principal_kind: Option<PrincipalKind>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ClientAssertionClaims {
+    iss: String,
+    sub: String,
+    aud: StringListClaim,
+    exp: u64,
+    jti: String,
+    #[serde(default)]
+    nbf: Option<u64>,
+    #[serde(default)]
+    iat: Option<u64>,
 }
 
 impl JwtClaims {
@@ -275,6 +368,9 @@ pub enum AuthError {
     DisallowedAlgorithm(Algorithm),
     JwkAlgorithmMismatch { token: Algorithm, jwk: KeyAlgorithm },
     MissingRequiredScope,
+    InvalidClientAssertion,
+    InvalidClientAssertionAudience,
+    ClientAssertionSubjectMismatch,
     InvalidTimestamp { claim: &'static str, value: u64 },
     Claim(veoveo_mcp_contract::IdentifierError),
     Jwt(jsonwebtoken::errors::Error),
@@ -300,6 +396,13 @@ impl fmt::Display for AuthError {
                 "JWT algorithm `{token:?}` does not match trusted JWK algorithm `{jwk:?}`"
             ),
             Self::MissingRequiredScope => write!(f, "JWT is missing required gateway scope"),
+            Self::InvalidClientAssertion => write!(f, "invalid client assertion"),
+            Self::InvalidClientAssertionAudience => {
+                write!(f, "invalid client assertion audience")
+            }
+            Self::ClientAssertionSubjectMismatch => {
+                write!(f, "client assertion subject must match client id")
+            }
             Self::InvalidTimestamp { claim, value } => {
                 write!(f, "JWT claim `{claim}` has invalid timestamp `{value}`")
             }
@@ -316,6 +419,22 @@ fn is_symmetric_algorithm(algorithm: Algorithm) -> bool {
         algorithm,
         Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512
     )
+}
+
+fn allowed_algorithms_for_header(
+    configured_algorithms: &[Algorithm],
+    algorithm: Algorithm,
+) -> Result<Vec<Algorithm>, AuthError> {
+    let algorithms = configured_algorithms
+        .iter()
+        .copied()
+        .filter(|candidate| candidate.family() == algorithm.family())
+        .collect::<Vec<_>>();
+    if algorithms.is_empty() {
+        Err(AuthError::DisallowedAlgorithm(algorithm))
+    } else {
+        Ok(algorithms)
+    }
 }
 
 fn validate_jwk_algorithm(
@@ -412,6 +531,17 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         data_labels: Vec<&'a str>,
     }
 
+    #[derive(Debug, Serialize)]
+    struct TestClientAssertionClaims<'a> {
+        iss: &'a str,
+        sub: &'a str,
+        aud: &'a str,
+        exp: u64,
+        nbf: u64,
+        iat: u64,
+        jti: &'a str,
+    }
+
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
         verifier_with_algorithms(required_scopes, vec![Algorithm::RS256])
     }
@@ -465,12 +595,40 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         BearerToken(token)
     }
 
+    fn client_assertion(subject: &str, audience: &str, jwt_id: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("test-key".to_string());
+        let encoding_key = rsa_encoding_key();
+        encode(
+            &header,
+            &TestClientAssertionClaims {
+                iss: "veoveo-headless",
+                sub: subject,
+                aud: audience,
+                exp: 4_102_444_800,
+                nbf: 1_700_000_000,
+                iat: 1_700_000_000,
+                jti: jwt_id,
+            },
+            &encoding_key,
+        )
+        .expect("client assertion encodes")
+    }
+
     fn rsa_encoding_key() -> EncodingKey {
         let der_text = RSA_PRIVATE_KEY_DER_B64.lines().collect::<String>();
         let der = BASE64_STANDARD
             .decode(der_text)
             .expect("base64 RSA test key");
         EncodingKey::from_rsa_der(&der)
+    }
+
+    fn jwks() -> JwkSet {
+        let encoding_key = rsa_encoding_key();
+        let mut jwk =
+            Jwk::from_encoding_key(&encoding_key, Algorithm::RS256).expect("jwk from RSA key");
+        jwk.common.key_id = Some("test-key".to_string());
+        JwkSet { keys: vec![jwk] }
     }
 
     #[test]
@@ -553,5 +711,52 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect_err("scope should be required");
 
         assert!(matches!(err, AuthError::MissingRequiredScope));
+    }
+
+    #[test]
+    fn verifies_private_key_jwt_client_assertion() {
+        let verifier = ClientAssertionVerifier::new(
+            ClientAssertionConfig::new(
+                OAuthClientId::new("veoveo-headless").unwrap(),
+                "https://veoveo.bioma.ai/oauth/default/token",
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let assertion = client_assertion(
+            "veoveo-headless",
+            "https://veoveo.bioma.ai/oauth/default/token",
+            "client-jti-1",
+        );
+        let verified = verifier.verify(&assertion).expect("valid assertion");
+
+        assert_eq!(verified.client_id.as_str(), "veoveo-headless");
+        assert_eq!(verified.jwt_id.as_str(), "client-jti-1");
+    }
+
+    #[test]
+    fn rejects_private_key_jwt_subject_mismatch() {
+        let verifier = ClientAssertionVerifier::new(
+            ClientAssertionConfig::new(
+                OAuthClientId::new("veoveo-headless").unwrap(),
+                "https://veoveo.bioma.ai/oauth/default/token",
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let assertion = client_assertion(
+            "other-client",
+            "https://veoveo.bioma.ai/oauth/default/token",
+            "client-jti-2",
+        );
+        let err = verifier
+            .verify(&assertion)
+            .expect_err("subject mismatch should fail");
+
+        assert!(matches!(err, AuthError::ClientAssertionSubjectMismatch));
     }
 }

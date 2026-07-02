@@ -2040,12 +2040,14 @@ impl AuthOutcome {
 #[serde(rename_all = "snake_case")]
 pub enum AuthMethod {
     BearerJwt,
+    ClientCredentialsPrivateKeyJwt,
 }
 
 impl AuthMethod {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::BearerJwt => "bearer_jwt",
+            Self::ClientCredentialsPrivateKeyJwt => "client_credentials_private_key_jwt",
         }
     }
 }
@@ -2062,6 +2064,12 @@ pub enum AuthReasonCode {
     AuthorizationServerUnavailable,
     InvalidAuthConfig,
     InvalidBearerToken,
+    InvalidClient,
+    UnsupportedGrantType,
+    InvalidClientAssertion,
+    ClientAssertionReplay,
+    InvalidScope,
+    TokenSigningKeyUnavailable,
     TokenRevoked,
 }
 
@@ -2077,6 +2085,12 @@ impl AuthReasonCode {
             Self::AuthorizationServerUnavailable => "authorization_server_unavailable",
             Self::InvalidAuthConfig => "invalid_auth_config",
             Self::InvalidBearerToken => "invalid_bearer_token",
+            Self::InvalidClient => "invalid_client",
+            Self::UnsupportedGrantType => "unsupported_grant_type",
+            Self::InvalidClientAssertion => "invalid_client_assertion",
+            Self::ClientAssertionReplay => "client_assertion_replay",
+            Self::InvalidScope => "invalid_scope",
+            Self::TokenSigningKeyUnavailable => "token_signing_key_unavailable",
             Self::TokenRevoked => "token_revoked",
         }
     }

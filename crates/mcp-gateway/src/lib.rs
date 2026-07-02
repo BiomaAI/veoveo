@@ -10,17 +10,21 @@ pub mod mcp;
 pub mod state;
 
 use anyhow::{Context, Result};
-pub use auth::{AuthError, AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
+pub use auth::{
+    AuthError, AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
+    JwtAuthConfig, JwtVerifier, VerifiedClientAssertion,
+};
 pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
 pub use state::{GatewayAuditCounts, GatewayState};
 use veoveo_mcp_contract::{
     AuthMode, AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, GatewayToolName, IdentityProvider, IdentityProviderId, JwksSource,
-    LocalToolName, McpMethodName, OAuthClientAuthMethod, OAuthClientRegistration, OAuthGrantType,
+    LocalToolName, McpMethodName, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
+    OAuthGrantType,
     PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
     PolicyTarget, PolicyVersion, Principal, ResourceAuthorizationServer, ResourceScheme, ScopeName,
-    ServerManifest, ServerSlug, TraceId,
+    SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TraceId,
 };
 
 const ID_JAG_GRANT_PROFILE: &str = "urn:ietf:params:oauth:grant-profile:id-jag";
@@ -33,6 +37,8 @@ pub struct GatewayCatalog {
     servers: BTreeMap<ServerSlug, usize>,
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
+    oauth_clients: BTreeMap<OAuthClientId, usize>,
+    secrets: BTreeMap<SecretReferenceId, usize>,
 }
 
 impl GatewayCatalog {
@@ -69,6 +75,18 @@ impl GatewayCatalog {
             .enumerate()
             .map(|(index, policy)| (policy.version.clone(), index))
             .collect();
+        let oauth_clients = control_plane
+            .oauth_clients
+            .iter()
+            .enumerate()
+            .map(|(index, client)| (client.id.clone(), index))
+            .collect();
+        let secrets = control_plane
+            .secrets
+            .iter()
+            .enumerate()
+            .map(|(index, secret)| (secret.id.clone(), index))
+            .collect();
 
         Ok(Self {
             control_plane: Arc::new(control_plane),
@@ -77,6 +95,8 @@ impl GatewayCatalog {
             servers,
             profiles,
             policies,
+            oauth_clients,
+            secrets,
         })
     }
 
@@ -249,7 +269,7 @@ impl GatewayCatalog {
         })
     }
 
-    fn profile_supported_scopes(&self, profile: &GatewayProfile) -> BTreeSet<ScopeName> {
+    pub fn profile_supported_scopes(&self, profile: &GatewayProfile) -> BTreeSet<ScopeName> {
         let mut scopes = profile
             .required_scopes
             .iter()
@@ -265,7 +285,13 @@ impl GatewayCatalog {
         scopes
     }
 
-    fn profile_oauth_clients(&self, profile: &GatewayProfile) -> Vec<&OAuthClientRegistration> {
+    pub fn oauth_client(&self, client_id: &OAuthClientId) -> Option<&OAuthClientRegistration> {
+        self.oauth_clients
+            .get(client_id)
+            .map(|index| &self.control_plane.oauth_clients[*index])
+    }
+
+    pub fn profile_oauth_clients(&self, profile: &GatewayProfile) -> Vec<&OAuthClientRegistration> {
         self.control_plane
             .oauth_clients
             .iter()
@@ -274,6 +300,12 @@ impl GatewayCatalog {
                     && client.allowed_profiles.contains(&profile.id)
             })
             .collect()
+    }
+
+    pub fn secret_reference(&self, secret_id: &SecretReferenceId) -> Option<&SecretReference> {
+        self.secrets
+            .get(secret_id)
+            .map(|index| &self.control_plane.secrets[*index])
     }
 
     pub fn server(&self, server_slug: &ServerSlug) -> Option<&ServerManifest> {
