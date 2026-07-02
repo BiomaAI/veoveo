@@ -6,7 +6,7 @@ services:
       - --no-autoupdate
       - run
       - --token
-      - "${CLOUDFLARED_TUNNEL_TOKEN}"
+      - "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
     depends_on:
       - media-mcp
     profiles:

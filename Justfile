@@ -23,33 +23,28 @@ check:
     cargo fmt --all --check
     cargo test --workspace
 
-_compose-env:
-    @: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
-    @: "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
-    @: "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
-
 # Build the media MCP image.
-compose-build: _compose-env
+compose-build:
     {{compose}} build media-mcp
 
 # Build and start RustFS, media-mcp, and the managed Cloudflare tunnel.
-compose-up: _compose-env
+compose-up:
     {{compose}} up --build -d
 
 # Stop the Compose stack.
-compose-down: _compose-env
+compose-down:
     {{compose}} down --remove-orphans
 
 # Stop the Compose stack and remove its volumes.
-compose-down-volumes: _compose-env
+compose-down-volumes:
     {{compose}} down --remove-orphans --volumes
 
 # Show Compose service status.
-compose-ps: _compose-env
+compose-ps:
     {{compose}} ps
 
 # Follow logs for one service.
-logs service='media-mcp': _compose-env
+logs service='media-mcp':
     {{compose}} logs -f --tail=200 {{service}}
 
 # Check local health and, optionally, public tunnel health.
