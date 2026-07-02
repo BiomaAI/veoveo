@@ -4448,6 +4448,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-smoke"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "reqwest 0.13.4",
+ "serde_json",
+ "tokio",
+ "uuid",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

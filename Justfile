@@ -614,7 +614,7 @@ smoke-gateway-authenticated:
 
 # Smoke-test one gateway profile routing to two hosted MCP servers.
 smoke-gateway-two-servers:
-    cargo build -p veoveo-mcp-contract --bin conformance --bin smoke -p veoveo-mcp-gateway --bin gateway
+    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke gateway-two-servers --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.

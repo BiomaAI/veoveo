@@ -11,10 +11,6 @@ path = "src/lib.rs"
 name = "conformance"
 path = "src/bin/conformance.rs"
 
-[[bin]]
-name = "smoke"
-path = "src/bin/smoke.rs"
-
 [features]
 default = ["analytics"]
 analytics = ["dep:duckdb"]

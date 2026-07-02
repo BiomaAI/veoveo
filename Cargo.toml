@@ -3,6 +3,7 @@ members = [
     "crates/mcp-gateway",
     "crates/mcp-contract",
     "crates/media-mcp",
+    "crates/smoke",
 ]
 resolver = "3"
 
