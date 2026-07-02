@@ -38,7 +38,7 @@ use rmcp::{
         GetTaskParams, GetTaskPayloadParams, Implementation, ListTasksRequest, NumberOrString,
         ProgressNotificationParam, ProgressToken, ReadResourceRequestParams, Reference, Request,
         RequestParamsMeta, ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams,
-        TaskMetadata, TaskStatus, TaskStatusNotificationParam,
+        TaskMetadata, TaskStatus, TaskStatusNotificationParam, UnsubscribeRequestParams,
     },
     service::NotificationContext,
     transport::{
@@ -1768,7 +1768,7 @@ async fn cmd_run(
     // Poll tasks/get, honoring the server's suggested interval. Subscribe to
     // the prediction resource as soon as the statusMessage names it.
     let poll_ms = created.task.poll_interval.unwrap_or(3000);
-    let mut subscribed = false;
+    let mut subscribed_uri = None::<String>;
     let final_task = loop {
         tokio::time::sleep(Duration::from_millis(poll_ms)).await;
         let info = client
@@ -1783,7 +1783,9 @@ async fn cmd_run(
         println!("poll: {:?} — {message}", info.task.status);
 
         let prediction_prefix = format!("{}://prediction/", uris.scheme());
-        if !subscribed && let Some(idx) = message.find(&prediction_prefix) {
+        if subscribed_uri.is_none()
+            && let Some(idx) = message.find(&prediction_prefix)
+        {
             let uri: String = message[idx..]
                 .split_whitespace()
                 .next()
@@ -1794,7 +1796,7 @@ async fn cmd_run(
                 .subscribe(SubscribeRequestParams::new(uri.clone()))
                 .await?;
             println!("subscribed to {uri}");
-            subscribed = true;
+            subscribed_uri = Some(uri);
         }
 
         match info.task.status {
@@ -1815,6 +1817,12 @@ async fn cmd_run(
             .err()
             .map(|e| e.to_string())
             .unwrap_or_else(|| "unknown error".into());
+        if let Some(uri) = subscribed_uri {
+            client
+                .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+                .await?;
+            println!("unsubscribed from {uri}");
+        }
         return Err(anyhow!("task ended {:?}: {err}", final_task.status));
     }
 
@@ -1836,6 +1844,12 @@ async fn cmd_run(
         for uri in outputs {
             save_output_uri(client, uris, &http, &output_dir, &uri).await?;
         }
+    }
+    if let Some(uri) = subscribed_uri {
+        client
+            .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+            .await?;
+        println!("unsubscribed from {uri}");
     }
     Ok(())
 }
