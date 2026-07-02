@@ -360,6 +360,7 @@ impl SelfHostedDeploymentProfile {
         require_nonempty(!self.ingress.is_empty(), &self.id, "ingress")?;
         require_nonempty(!self.egress.is_empty(), &self.id, "egress")?;
         self.retention.validate(&self.id)?;
+        self.validate_required_services()?;
 
         for object_store in &self.object_stores {
             object_store.validate(&self.id)?;
@@ -375,6 +376,7 @@ impl SelfHostedDeploymentProfile {
         match self.kind {
             DeploymentProfileKind::Local => {}
             DeploymentProfileKind::Enterprise | DeploymentProfileKind::Regulated => {
+                self.validate_enterprise_boundary()?;
                 if self.secret_sources.contains(&SecretSource::Env) {
                     bail!(
                         "deployment profile `{}` cannot use env secrets for {:?}",
@@ -402,6 +404,87 @@ impl SelfHostedDeploymentProfile {
         }
 
         Ok(())
+    }
+
+    fn validate_required_services(&self) -> Result<()> {
+        for service in [
+            DeploymentServiceKind::Gateway,
+            DeploymentServiceKind::HostedMcpServer,
+            DeploymentServiceKind::ObjectStore,
+            DeploymentServiceKind::StateStore,
+            DeploymentServiceKind::TelemetryCollector,
+            DeploymentServiceKind::TunnelOrIngress,
+        ] {
+            self.require_service(service)?;
+        }
+
+        if matches!(
+            self.kind,
+            DeploymentProfileKind::Enterprise | DeploymentProfileKind::Regulated
+        ) {
+            for service in [
+                DeploymentServiceKind::SecretManager,
+                DeploymentServiceKind::IdentityProvider,
+                DeploymentServiceKind::AuthorizationServer,
+            ] {
+                self.require_service(service)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_enterprise_boundary(&self) -> Result<()> {
+        for rule in self.ingress.iter().chain(&self.egress) {
+            if !rule.tls_required {
+                bail!(
+                    "deployment profile `{}` network rule `{}` must require TLS",
+                    self.id,
+                    rule.id
+                );
+            }
+        }
+
+        for object_store in &self.object_stores {
+            if !object_store.server_side_encryption_required {
+                bail!(
+                    "deployment profile `{}` object store `{}` must require server-side encryption",
+                    self.id,
+                    object_store.id
+                );
+            }
+            if !object_store.customer_managed_keys_required {
+                bail!(
+                    "deployment profile `{}` object store `{}` must require customer-managed keys",
+                    self.id,
+                    object_store.id
+                );
+            }
+        }
+
+        if !self
+            .telemetry_sinks
+            .iter()
+            .any(|sink| sink.signals.contains(&TelemetrySignal::AuditEvents))
+        {
+            bail!(
+                "deployment profile `{}` must export audit events to a telemetry sink",
+                self.id
+            );
+        }
+
+        Ok(())
+    }
+
+    fn require_service(&self, service: DeploymentServiceKind) -> Result<()> {
+        if self.required_services.contains(&service) {
+            Ok(())
+        } else {
+            bail!(
+                "deployment profile `{}` must declare required service `{service:?}`",
+                self.id
+            )
+        }
     }
 }
 
@@ -486,6 +569,9 @@ impl RegulatedDataControls {
             profile,
             "regulated.allowed_labels",
         )?;
+        if !self.require_us_person {
+            bail!("deployment profile `{profile}` regulated controls require US-person gating");
+        }
         if !self.require_private_network {
             bail!("deployment profile `{profile}` regulated controls require private networking");
         }
@@ -691,8 +777,8 @@ mod tests {
     fn enterprise_deployment_rejects_env_secret_source() {
         let mut plan: SelfHostedDeploymentPlan =
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
         plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
-        plan.profiles[0].service_to_service.transport = ServiceToServiceTransport::MutualTls;
         plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::Env]);
 
         let err = plan.validate().expect_err("env secret source must fail");
@@ -704,9 +790,8 @@ mod tests {
     fn regulated_deployment_requires_controls() {
         let mut plan: SelfHostedDeploymentPlan =
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
         plan.profiles[0].kind = DeploymentProfileKind::Regulated;
-        plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::Vault]);
-        plan.profiles[0].service_to_service.transport = ServiceToServiceTransport::MutualTls;
         plan.profiles[0].regulated_controls = None;
 
         let err = plan.validate().expect_err("regulated controls must fail");
@@ -718,8 +803,8 @@ mod tests {
     fn enterprise_deployment_rejects_plaintext_service_transport() {
         let mut plan: SelfHostedDeploymentPlan =
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
         plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
-        plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::Vault]);
         plan.profiles[0].service_to_service.transport =
             ServiceToServiceTransport::PrivateNetworkPlaintext;
 
@@ -730,13 +815,81 @@ mod tests {
         assert!(err.to_string().contains("requires mTLS"));
     }
 
+    #[test]
+    fn enterprise_deployment_requires_identity_and_authorization_services() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
+        plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
+        plan.profiles[0]
+            .required_services
+            .remove(&DeploymentServiceKind::AuthorizationServer);
+
+        let err = plan
+            .validate()
+            .expect_err("enterprise auth service boundary must fail");
+
+        assert!(
+            err.to_string()
+                .contains("must declare required service `AuthorizationServer`")
+        );
+    }
+
+    #[test]
+    fn regulated_deployment_requires_us_person_gating() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
+        plan.profiles[0].kind = DeploymentProfileKind::Regulated;
+        plan.profiles[0].regulated_controls = Some(RegulatedDataControls {
+            allowed_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            require_us_person: false,
+            require_private_network: true,
+            require_customer_managed_keys: true,
+            require_audit_export: true,
+        });
+
+        let err = plan
+            .validate()
+            .expect_err("regulated US-person gating must fail");
+
+        assert!(err.to_string().contains("require US-person gating"));
+    }
+
+    fn harden_profile_for_enterprise(profile: &mut SelfHostedDeploymentProfile) {
+        profile.required_services.extend([
+            DeploymentServiceKind::SecretManager,
+            DeploymentServiceKind::IdentityProvider,
+            DeploymentServiceKind::AuthorizationServer,
+        ]);
+        profile.secret_sources = BTreeSet::from([SecretSource::Vault]);
+        profile.service_to_service.transport = ServiceToServiceTransport::MutualTls;
+        for object_store in &mut profile.object_stores {
+            object_store.server_side_encryption_required = true;
+            object_store.customer_managed_keys_required = true;
+        }
+        for sink in &mut profile.telemetry_sinks {
+            sink.signals.insert(TelemetrySignal::AuditEvents);
+        }
+        for rule in profile.ingress.iter_mut().chain(&mut profile.egress) {
+            rule.tls_required = true;
+        }
+    }
+
     fn valid_deployment_plan_json() -> &'static str {
         r#"{
           "profiles": [
             {
               "id": "local",
               "kind": "local",
-              "required_services": ["gateway", "hosted_mcp_server", "object_store"],
+              "required_services": [
+                "gateway",
+                "hosted_mcp_server",
+                "object_store",
+                "state_store",
+                "telemetry_collector",
+                "tunnel_or_ingress"
+              ],
               "service_to_service": {
                 "gateway_identity": "gateway_signed_jwt",
                 "transport": "private_network_plaintext"
@@ -757,7 +910,7 @@ mod tests {
                   "id": "otel",
                   "kind": "open_telemetry_collector",
                   "endpoint": "http://otel-collector:4318",
-                  "signals": ["logs", "traces"]
+                  "signals": ["logs", "traces", "audit_events"]
                 }
               ],
               "ingress": [
