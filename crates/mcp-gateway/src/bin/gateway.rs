@@ -9,7 +9,7 @@ use std::{
 use anyhow::{Context, anyhow};
 use axum::{
     Form, Json, Router,
-    extract::{Path as AxumPath, Query, Request, State},
+    extract::{Extension, Path as AxumPath, Query, Request, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
         header::{AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE, LOCATION, PRAGMA, WWW_AUTHENTICATE},
@@ -41,14 +41,16 @@ use url::Url;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
     CertificateAuthoritySource, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction,
-    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayInternalTokenIssuer,
-    GatewayJwtRevocation, GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId,
-    McpMethodName, OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId,
-    OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OAuthStateValue,
-    OidcClientAuthMethod, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier,
-    PolicyDecision, PolicyEffect, PolicyTarget, Principal, PrincipalId, PrincipalKind,
-    PublicDeployment, ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId,
-    SecretSource, TelemetryGuard, TokenIssuer, TokenSubject, TraceId, init_server_telemetry,
+    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
+    GatewayControlPlaneRevision, GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource,
+    GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayProfile, GatewayProfileId,
+    InternalTokenSecret, JwksSource, JwtId, McpMethodName, OAuthAuthorizationCode,
+    OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
+    OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce, PkceCodeChallenge,
+    PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyTarget,
+    Principal, PrincipalId, PrincipalKind, PublicDeployment, ResourceAuthorizationServer,
+    ScopeName, SecretPurpose, SecretReferenceId, SecretSource, TelemetryGuard, TokenIssuer,
+    TokenSubject, TraceId, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
@@ -171,6 +173,24 @@ struct Readiness {
 #[derive(Debug, Serialize)]
 struct ReloadResult {
     status: &'static str,
+    servers: usize,
+    profiles: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlPlaneStatus {
+    status: &'static str,
+    revision_id: Option<GatewayControlPlaneRevisionId>,
+    sha256: String,
+    servers: usize,
+    profiles: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlPlaneApplyResult {
+    status: &'static str,
+    revision_id: GatewayControlPlaneRevisionId,
+    sha256: String,
     servers: usize,
     profiles: usize,
 }
@@ -345,10 +365,32 @@ async fn serve(
     state_db: PathBuf,
     internal_token_secret: String,
 ) -> anyhow::Result<()> {
-    let initial_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
-    let mounted_profiles = Arc::new(profile_ids(&initial_catalog));
-    let catalog = Arc::new(RwLock::new(initial_catalog.clone()));
     let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
+    let file_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
+    let mounted_profile_ids = profile_ids(&file_catalog);
+    let latest_revision = gateway_state.latest_control_plane_revision()?;
+    let initial_catalog = if let Some(revision) = latest_revision {
+        let persisted_catalog = Arc::new(GatewayCatalog::from_control_plane(
+            revision.control_plane.clone(),
+        )?);
+        let persisted_profile_ids = profile_ids(&persisted_catalog);
+        if persisted_profile_ids != mounted_profile_ids {
+            anyhow::bail!(
+                "persisted gateway control-plane revision `{}` changes mounted profile routes",
+                revision.revision_id
+            );
+        }
+        tracing::info!(
+            revision_id = %revision.revision_id,
+            sha256 = %revision.sha256,
+            "loaded persisted gateway control-plane revision"
+        );
+        persisted_catalog
+    } else {
+        file_catalog
+    };
+    let mounted_profiles = Arc::new(mounted_profile_ids);
+    let catalog = Arc::new(RwLock::new(initial_catalog.clone()));
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         InternalTokenSecret::new(internal_token_secret)?,
@@ -439,6 +481,10 @@ async fn serve(
             http: http.clone(),
         };
         let admin_router = Router::new()
+            .route(
+                "/control-plane",
+                get(read_control_plane).put(update_control_plane),
+            )
             .route("/reload-control-plane", post(reload_control_plane))
             .with_state(admin_state)
             .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
@@ -2430,48 +2476,19 @@ async fn token_endpoint_id_jag(
 
 async fn reload_control_plane(
     State(state): State<AdminState>,
-    request: Request,
+    Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let Some(subject) = request.extensions().get::<AuthenticatedSubject>().cloned() else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&state.profile_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
-        Ok(trace_id) => trace_id,
-        Err(err) => return internal_error_response(err),
-    };
-    let target = PolicyTarget::Gateway;
-    let decision = catalog.decide(PolicyRequest {
-        principal: &subject.principal,
-        profile: &state.profile_id,
-        action: GatewayAction::AdminWrite,
-        target: &target,
-        trace_id: &trace_id,
-    });
-    if let Err(err) = record_admin_audit(
-        &state.gateway_state,
-        profile,
-        &subject,
+    let (_catalog, _profile, subject) = match authorize_admin_request(
+        &state,
+        subject,
         GatewayAction::AdminWrite,
-        target,
-        decision.clone(),
+        "admin/reload-control-plane",
         started_at,
     ) {
-        return internal_error_response(err);
-    }
-    if decision.effect != PolicyEffect::Allow {
-        tracing::warn!(
-            profile = %state.profile_id,
-            principal = %subject.principal.id,
-            reason = ?decision.reason,
-            "gateway admin reload denied"
-        );
-        return StatusCode::FORBIDDEN.into_response();
-    }
+        Ok(authorized) => authorized,
+        Err(response) => return *response,
+    };
 
     let new_catalog = match GatewayCatalog::load_json(&state.control_plane) {
         Ok(catalog) => Arc::new(catalog),
@@ -2522,6 +2539,136 @@ async fn reload_control_plane(
     );
     Json(ReloadResult {
         status: "reloaded",
+        servers,
+        profiles,
+    })
+    .into_response()
+}
+
+async fn read_control_plane(
+    State(state): State<AdminState>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let (catalog, _profile, _subject) = match authorize_admin_request(
+        &state,
+        subject,
+        GatewayAction::AdminRead,
+        "admin/control-plane",
+        started_at,
+    ) {
+        Ok(authorized) => authorized,
+        Err(response) => return *response,
+    };
+
+    let sha256 = match control_plane_sha256(catalog.control_plane()) {
+        Ok(sha256) => sha256,
+        Err(err) => return internal_error_response(err),
+    };
+    let revision_id = match state.gateway_state.latest_control_plane_revision() {
+        Ok(Some(revision)) if revision.sha256 == sha256 => Some(revision.revision_id),
+        Ok(_) => None,
+        Err(err) => return internal_error_response(err),
+    };
+
+    Json(ControlPlaneStatus {
+        status: "ok",
+        revision_id,
+        sha256,
+        servers: catalog.server_count(),
+        profiles: catalog.profile_count(),
+    })
+    .into_response()
+}
+
+async fn update_control_plane(
+    State(state): State<AdminState>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+    Json(control_plane): Json<GatewayControlPlane>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let (_catalog, _profile, subject) = match authorize_admin_request(
+        &state,
+        subject,
+        GatewayAction::AdminWrite,
+        "admin/control-plane",
+        started_at,
+    ) {
+        Ok(authorized) => authorized,
+        Err(response) => return *response,
+    };
+
+    let new_catalog = match GatewayCatalog::from_control_plane(control_plane.clone()) {
+        Ok(catalog) => Arc::new(catalog),
+        Err(err) => {
+            tracing::warn!("rejected invalid gateway control plane update: {err}");
+            return (StatusCode::BAD_REQUEST, "invalid gateway control plane").into_response();
+        }
+    };
+    let new_profile_ids = profile_ids(&new_catalog);
+    if new_profile_ids != *state.mounted_profiles {
+        tracing::error!(
+            mounted = ?state.mounted_profiles,
+            requested = ?new_profile_ids,
+            "gateway control-plane update changed mounted profile routes"
+        );
+        return (
+            StatusCode::CONFLICT,
+            "control-plane update cannot change mounted profile routes",
+        )
+            .into_response();
+    }
+    let new_http = match build_http_client(&new_catalog) {
+        Ok(client) => client,
+        Err(err) => {
+            tracing::error!("failed to rebuild gateway HTTP client: {err}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to rebuild gateway HTTP client",
+            )
+                .into_response();
+        }
+    };
+    let sha256 = match control_plane_sha256(&control_plane) {
+        Ok(sha256) => sha256,
+        Err(err) => return internal_error_response(err),
+    };
+    let revision_id =
+        match GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::new_v4())) {
+            Ok(revision_id) => revision_id,
+            Err(err) => return internal_error_response(err),
+        };
+    let revision = GatewayControlPlaneRevision {
+        revision_id: revision_id.clone(),
+        sha256: sha256.clone(),
+        source: GatewayControlPlaneRevisionSource::AdminApi,
+        applied_at: Utc::now(),
+        applied_by: subject.principal.id.clone(),
+        tenant: subject.principal.tenant.clone(),
+        control_plane,
+    };
+    if let Err(err) = state.gateway_state.record_control_plane_revision(&revision) {
+        tracing::error!("failed to persist gateway control-plane revision: {err}");
+        return internal_error_response(err);
+    }
+
+    let servers = new_catalog.server_count();
+    let profiles = new_catalog.profile_count();
+    replace_http_client(&state.http, new_http);
+    replace_catalog(&state.catalog, new_catalog);
+    tracing::info!(
+        profile = %state.profile_id,
+        principal = %subject.principal.id,
+        revision_id = %revision_id,
+        sha256 = %sha256,
+        servers,
+        profiles,
+        "gateway control plane updated"
+    );
+    Json(ControlPlaneApplyResult {
+        status: "applied",
+        revision_id,
+        sha256,
         servers,
         profiles,
     })
@@ -3171,26 +3318,94 @@ fn profile_ids(catalog: &GatewayCatalog) -> BTreeSet<GatewayProfileId> {
         .collect()
 }
 
+fn authorize_admin_request(
+    state: &AdminState,
+    subject: AuthenticatedSubject,
+    action: GatewayAction,
+    audit_method: &str,
+    started_at: Instant,
+) -> std::result::Result<
+    (Arc<GatewayCatalog>, GatewayProfile, AuthenticatedSubject),
+    Box<axum::response::Response>,
+> {
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&state.profile_id).cloned() else {
+        return Err(Box::new(StatusCode::NOT_FOUND.into_response()));
+    };
+    let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
+        Ok(trace_id) => trace_id,
+        Err(err) => return Err(Box::new(internal_error_response(err))),
+    };
+    let target = PolicyTarget::Gateway;
+    let decision = catalog.decide(PolicyRequest {
+        principal: &subject.principal,
+        profile: &state.profile_id,
+        action,
+        target: &target,
+        trace_id: &trace_id,
+    });
+    if let Err(err) = record_admin_audit(
+        &state.gateway_state,
+        &profile,
+        &subject,
+        AdminAuditRecord {
+            action,
+            target,
+            decision: decision.clone(),
+            method: audit_method,
+            started_at,
+        },
+    ) {
+        return Err(Box::new(internal_error_response(err)));
+    }
+    if decision.effect != PolicyEffect::Allow {
+        tracing::warn!(
+            profile = %state.profile_id,
+            principal = %subject.principal.id,
+            action = ?action,
+            reason = ?decision.reason,
+            "gateway admin request denied"
+        );
+        return Err(Box::new(StatusCode::FORBIDDEN.into_response()));
+    }
+
+    Ok((catalog, profile, subject))
+}
+
+fn control_plane_sha256(control_plane: &GatewayControlPlane) -> anyhow::Result<String> {
+    let bytes = serde_json::to_vec(control_plane)?;
+    let digest = Sha256::digest(bytes);
+    Ok(digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>())
+}
+
+struct AdminAuditRecord<'a> {
+    action: GatewayAction,
+    target: PolicyTarget,
+    decision: PolicyDecision,
+    method: &'a str,
+    started_at: Instant,
+}
+
 fn record_admin_audit(
     gateway_state: &GatewayState,
     profile: &GatewayProfile,
     subject: &AuthenticatedSubject,
-    action: GatewayAction,
-    target: PolicyTarget,
-    decision: PolicyDecision,
-    started_at: Instant,
+    record: AdminAuditRecord<'_>,
 ) -> anyhow::Result<()> {
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
-    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
     gateway_state.record_audit_event(&AuditEvent {
         event_id,
-        timestamp: decision.evaluated_at,
-        trace_id: decision.trace_id.clone(),
+        timestamp: record.decision.evaluated_at,
+        trace_id: record.decision.trace_id.clone(),
         profile: profile.id.clone(),
-        method: McpMethodName::new("admin/reload-control-plane")?,
-        action,
-        target,
-        decision,
+        method: McpMethodName::new(record.method)?,
+        action: record.action,
+        target: record.target,
+        decision: record.decision,
         principal: Some(subject.principal.id.clone()),
         tenant: subject.principal.tenant.clone(),
         token_issuer: Some(subject.access_token.issuer.clone()),

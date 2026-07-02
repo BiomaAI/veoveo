@@ -154,7 +154,7 @@
         {
           "id": "allow_gateway_admin_write",
           "effect": "allow",
-          "actions": ["admin_write"],
+          "actions": ["admin_read", "admin_write"],
           "profiles": ["default"],
           "required_scopes": ["gateway:admin"],
           "metadata": {}

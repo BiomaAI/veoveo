@@ -6,10 +6,10 @@ use duckdb::{OptionalExt, params};
 use serde::Serialize;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthorizationServerId, GatewayAuthorizationCodeRecord,
-    GatewayAuthorizationRequest, GatewayJwtRevocation, GatewayProfileId,
-    GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, JwtId, OAuthAuthorizationCode,
-    OAuthClientId, OAuthStateValue, PrincipalId, ResourceUri, ServerSlug, SharedDuckDbConnection,
-    TokenIssuer, UpstreamTaskId, open_duckdb,
+    GatewayAuthorizationRequest, GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource,
+    GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
+    GatewayTaskMapping, JwtId, OAuthAuthorizationCode, OAuthClientId, OAuthStateValue, PrincipalId,
+    ResourceUri, ServerSlug, SharedDuckDbConnection, TokenIssuer, UpstreamTaskId, open_duckdb,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -154,6 +154,22 @@ impl GatewayState {
             CREATE INDEX IF NOT EXISTS idx_gateway_authorization_codes_client
             ON gateway_authorization_codes(profile, oauth_client_id, principal);
 
+            CREATE TABLE IF NOT EXISTS gateway_control_plane_revisions (
+                revision_id TEXT PRIMARY KEY,
+                sha256 TEXT NOT NULL,
+                source TEXT NOT NULL,
+                applied_at TIMESTAMP NOT NULL,
+                applied_by TEXT NOT NULL,
+                tenant TEXT,
+                revision_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_control_plane_revisions_applied
+            ON gateway_control_plane_revisions(applied_at);
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_control_plane_revisions_sha256
+            ON gateway_control_plane_revisions(sha256);
+
             CREATE TABLE IF NOT EXISTS gateway_audit_events (
                 event_id TEXT PRIMARY KEY,
                 trace_id TEXT NOT NULL,
@@ -209,6 +225,63 @@ impl GatewayState {
             auth_events: self.count_rows(GatewayAuditTable::Auth)?,
             policy_events: self.count_rows(GatewayAuditTable::Policy)?,
         })
+    }
+
+    pub fn record_control_plane_revision(
+        &self,
+        revision: &GatewayControlPlaneRevision,
+    ) -> Result<()> {
+        let revision_json = serde_json::to_string(revision)?;
+        let source = match revision.source {
+            GatewayControlPlaneRevisionSource::AdminApi => "admin_api",
+        };
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO gateway_control_plane_revisions (
+                revision_id, sha256, source, applied_at, applied_by, tenant, revision_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "#,
+            params![
+                revision.revision_id.as_str(),
+                revision.sha256.as_str(),
+                source,
+                revision.applied_at,
+                revision.applied_by.as_str(),
+                revision.tenant.as_ref().map(|value| value.as_str()),
+                revision_json,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn latest_control_plane_revision(&self) -> Result<Option<GatewayControlPlaneRevision>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let revision_json: Option<String> = conn
+            .query_row(
+                r#"
+                SELECT revision_json
+                FROM gateway_control_plane_revisions
+                ORDER BY applied_at DESC, revision_id DESC
+                LIMIT 1
+                "#,
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(revision_json
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?)
+    }
+
+    pub fn control_plane_revision_count(&self) -> Result<u64> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM gateway_control_plane_revisions",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(u64::try_from(count)?)
     }
 
     pub fn record_jwt_revocation(&self, revocation: &GatewayJwtRevocation) -> Result<()> {
@@ -813,7 +886,9 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use veoveo_mcp_contract::{
-        AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, McpMethodName, OAuthRedirectUri,
+        AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction, GatewayControlPlane,
+        GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+        GatewayControlPlaneRevisionSource, McpMethodName, OAuthRedirectUri,
         OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
         PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
         PrincipalKind, ProtectedResourceId, ScopeName, ServerSlug, TokenSubject, TraceId,
@@ -828,6 +903,47 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("veoveo-gateway-{name}-{unique}.duckdb"))
+    }
+
+    fn empty_control_plane() -> GatewayControlPlane {
+        GatewayControlPlane {
+            identity_providers: Vec::new(),
+            authorization_servers: Vec::new(),
+            servers: Vec::new(),
+            profiles: Vec::new(),
+            policies: Vec::new(),
+            oauth_clients: Vec::new(),
+            oidc_clients: Vec::new(),
+            secrets: Vec::new(),
+            metadata: serde_json::json!({}),
+        }
+    }
+
+    #[test]
+    fn control_plane_revision_round_trips_latest_across_restart() {
+        let path = temp_path("control-plane-revision");
+        let revision = GatewayControlPlaneRevision {
+            revision_id: GatewayControlPlaneRevisionId::new("revision-1").unwrap(),
+            sha256: "abc123".to_string(),
+            source: GatewayControlPlaneRevisionSource::AdminApi,
+            applied_at: Utc::now(),
+            applied_by: PrincipalId::new("issuer#admin").unwrap(),
+            tenant: None,
+            control_plane: empty_control_plane(),
+        };
+
+        let state = GatewayState::open(&path).unwrap();
+        state.record_control_plane_revision(&revision).unwrap();
+        assert_eq!(state.control_plane_revision_count().unwrap(), 1);
+        let state = GatewayState::open(&path).unwrap();
+
+        assert_eq!(
+            state.latest_control_plane_revision().unwrap(),
+            Some(revision)
+        );
+        assert_eq!(state.control_plane_revision_count().unwrap(), 1);
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

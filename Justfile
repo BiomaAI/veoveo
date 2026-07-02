@@ -316,6 +316,29 @@ smoke-gateway-authenticated:
     admin_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use --scope gateway:admin)"
     status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"
     test "${status}" = "200"
+    control_status="$(curl -fsS -H "Authorization: Bearer ${admin_token}" "${gateway_base}/admin/default/control-plane")"
+    echo "${control_status}" | jq -e '.status == "ok" and .servers == 1 and .profiles == 1' >/dev/null
+    control_apply="$(curl -fsS -X PUT -H "Authorization: Bearer ${admin_token}" -H "Content-Type: application/json" --data-binary @{{gateway-smoke-control-plane}} "${gateway_base}/admin/default/control-plane")"
+    echo "${control_apply}" | jq -e '.status == "applied" and .servers == 1 and .profiles == 1' >/dev/null
+    revision_id="$(echo "${control_apply}" | jq -r '.revision_id')"
+    test -n "${revision_id}"
+    test "${revision_id}" != "null"
+    control_status="$(curl -fsS -H "Authorization: Bearer ${admin_token}" "${gateway_base}/admin/default/control-plane")"
+    test "$(echo "${control_status}" | jq -r '.revision_id')" = "${revision_id}"
+    kill "${gateway_pid}"
+    wait "${gateway_pid}" 2>/dev/null || true
+    gateway_pid=""
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >>"${gateway_log}" 2>&1 &
+    gateway_pid=$!
+    for _ in {1..150}; do
+        if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
+    control_status="$(curl -fsS -H "Authorization: Bearer ${admin_token}" "${gateway_base}/admin/default/control-plane")"
+    test "$(echo "${control_status}" | jq -r '.revision_id')" = "${revision_id}"
     token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use)"
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" resource media://usage >/dev/null

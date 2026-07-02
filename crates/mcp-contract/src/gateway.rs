@@ -251,6 +251,11 @@ typed_id!(
     "Gateway task id visible to MCP clients."
 );
 typed_id!(
+    GatewayControlPlaneRevisionId,
+    validate_token_text,
+    "Durable gateway control-plane revision id."
+);
+typed_id!(
     UpstreamTaskId,
     validate_token_text,
     "Task id owned by one hosted upstream MCP server."
@@ -280,6 +285,24 @@ pub struct GatewayControlPlane {
     pub secrets: Vec<SecretReference>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayControlPlaneRevision {
+    pub revision_id: GatewayControlPlaneRevisionId,
+    pub sha256: String,
+    pub source: GatewayControlPlaneRevisionSource,
+    pub applied_at: DateTime<Utc>,
+    pub applied_by: PrincipalId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<TenantId>,
+    pub control_plane: GatewayControlPlane,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayControlPlaneRevisionSource {
+    AdminApi,
 }
 
 impl GatewayControlPlane {
