@@ -36,6 +36,31 @@ gateway-validate:
 deployments-validate:
     {{conformance}} deployment-validate --file configs/deployments.json
 
+# Smoke-test Compose edge routing and published-port shape.
+smoke-compose-config:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmpdir="$(mktemp -d)"
+    cleanup() {
+        rm -rf "${tmpdir}"
+    }
+    trap cleanup EXIT
+    compose_config="${tmpdir}/compose.rendered.yaml"
+    MEDIA_PROVIDER_API_KEY=dummy \
+    MEDIA_PROVIDER_WEBHOOK_SECRET=whsec_0Wn4SW+lD1zrRtFhb1r4fGHt6XZLSkX5y2EK+lSbA+E= \
+    VEOVEO_INTERNAL_TOKEN_SECRET=local-development-secret-at-least-32-bytes \
+    VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64=dummy \
+    PUBLIC_BASE_URL=https://veoveo.bioma.ai \
+    CLOUDFLARED_TUNNEL_TOKEN=dummy \
+    {{compose}} config >"${compose_config}"
+    test "$(grep -c 'host_ip: 127.0.0.1' "${compose_config}")" -ge 7
+    grep -F 'image: caddy:2.11.2' "${compose_config}" >/dev/null
+    grep -F 'target: /etc/caddy/Caddyfile' "${compose_config}" >/dev/null
+    grep -F 'target: 8080' "${compose_config}" >/dev/null
+    grep -F 'published: "8780"' "${compose_config}" >/dev/null
+    grep -F 'edge:' "${compose_config}" >/dev/null
+    docker run --rm -v "$PWD/configs/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
 # Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
 contract-schemas output_dir='schemas':
     {{conformance}} contract-schemas --output-dir '{{output_dir}}'
@@ -72,6 +97,7 @@ smoke-gateway:
     just gateway-validate
     just deployments-validate
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-smoke-control-plane}}
+    just smoke-compose-config
     just smoke-gateway-http
     just smoke-otel
     just smoke-media-mcp-auth
