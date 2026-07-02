@@ -55,23 +55,46 @@ smoke-gateway-http:
     set -euo pipefail
     port=18799
     base="http://127.0.0.1:${port}"
+    idp_port=18803
+    idp_base="https://127.0.0.1:${idp_port}"
     tmpdir="$(mktemp -d)"
     log="${tmpdir}/gateway.log"
+    idp_log="${tmpdir}/idp.log"
     state_db="${tmpdir}/state.duckdb"
+    control_plane="${tmpdir}/gateway.smoke.json"
+    idp_cert="${tmpdir}/idp-cert.pem"
+    idp_key="${tmpdir}/idp-key.pem"
+    idp_ready="${tmpdir}/idp.ready"
     internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    oidc_secret="local-smoke-oidc-client-secret"
     auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
     pid=""
+    idp_pid=""
     cleanup() {
         if [ -n "${pid}" ]; then
             kill "${pid}" 2>/dev/null || true
             wait "${pid}" 2>/dev/null || true
         fi
+        if [ -n "${idp_pid}" ]; then
+            kill "${idp_pid}" 2>/dev/null || true
+            wait "${idp_pid}" 2>/dev/null || true
+        fi
         rm -rf "${tmpdir}"
     }
-    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" >"${log}" 2>&1 &
-    pid=$!
+    VEOVEO_IDP_OIDC_CLIENT_SECRET="${oidc_secret}" {{conformance}} gateway-fake-oidc-idp --port "${idp_port}" --cert-pem "${idp_cert}" --key-pem "${idp_key}" --ready-file "${idp_ready}" >"${idp_log}" 2>&1 &
+    idp_pid=$!
     trap cleanup EXIT
-    for _ in {1..50}; do
+    for _ in {1..150}; do
+        if [ -f "${idp_ready}" ] && curl --cacert "${idp_cert}" -fsS "${idp_base}/.well-known/jwks.json" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl --cacert "${idp_cert}" -fsS "${idp_base}/.well-known/jwks.json" | grep -q -F '"kid":"test-key"'
+    {{conformance}} gateway-smoke-control-plane --base {{gateway-smoke-control-plane}} --output "${control_plane}" --idp-base-url "${idp_base}" --trusted-ca-path "${idp_cert}"
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_IDP_OIDC_CLIENT_SECRET="${oidc_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane "${control_plane}" --state-db "${state_db}" >"${log}" 2>&1 &
+    pid=$!
+    for _ in {1..150}; do
         if curl -fsS "${base}/healthz" >/dev/null 2>&1; then
             break
         fi
@@ -92,19 +115,45 @@ smoke-gateway-http:
         --required-grant-profile urn:ietf:params:oauth:grant-profile:id-jag \
         --required-token-auth-method none \
         --required-token-auth-method private_key_jwt
-    authorize_result="$(curl -sS -o /dev/null -w "%{http_code} %{redirect_url}" "${base}/oauth/default/authorize?response_type=code&client_id=veoveo-browser&redirect_uri=https%3A%2F%2Fveoveo.bioma.ai%2Foauth%2Fcallback&scope=media%3Ause&code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&code_challenge_method=S256&state=smoke-state")"
+    code_verifier="smoke-browser-pkce-verifier-0123456789abcdef0123456789abcdef"
+    code_challenge="X9AgXux1PHu8RKlqHF9FuDYoLL6yjPFGS5je8BbaBF8"
+    authorize_result="$(curl -sS -o /dev/null -w "%{http_code} %{redirect_url}" "${base}/oauth/default/authorize?response_type=code&client_id=veoveo-browser&redirect_uri=https%3A%2F%2Fveoveo.bioma.ai%2Foauth%2Fcallback&scope=media%3Ause&code_challenge=${code_challenge}&code_challenge_method=S256&state=smoke-state")"
     test "${authorize_result%% *}" = "302"
     authorize_location="${authorize_result#* }"
     case "${authorize_location}" in
-        https://idp.example.com/oauth2/authorize*) ;;
+        "${idp_base}"/oauth2/authorize*) ;;
         *) echo "unexpected authorize redirect: ${authorize_location}" >&2; exit 1 ;;
     esac
+    idp_result="$(curl --cacert "${idp_cert}" -sS -o /dev/null -w "%{http_code} %{redirect_url}" "${authorize_location}")"
+    test "${idp_result%% *}" = "302"
+    idp_callback="${idp_result#* }"
+    case "${idp_callback}" in
+        https://veoveo.bioma.ai/oauth/default/callback*) ;;
+        *) echo "unexpected IdP callback redirect: ${idp_callback}" >&2; exit 1 ;;
+    esac
+    callback_query="${idp_callback#*\?}"
+    callback_result="$(curl -sS -o /dev/null -w "%{http_code} %{redirect_url}" "${base}/oauth/default/callback?${callback_query}")"
+    test "${callback_result%% *}" = "302"
+    client_redirect="${callback_result#* }"
+    case "${client_redirect}" in
+        https://veoveo.bioma.ai/oauth/callback*) ;;
+        *) echo "unexpected browser client redirect: ${client_redirect}" >&2; exit 1 ;;
+    esac
+    gateway_code="$(printf '%s\n' "${client_redirect}" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')"
+    test -n "${gateway_code}"
+    token_response="$(curl -fsS -X POST "${base}/oauth/default/token" \
+        --data-urlencode grant_type=authorization_code \
+        --data-urlencode client_id=veoveo-browser \
+        --data-urlencode code="${gateway_code}" \
+        --data-urlencode redirect_uri=https://veoveo.bioma.ai/oauth/callback \
+        --data-urlencode code_verifier="${code_verifier}")"
+    printf '%s' "${token_response}" | grep -q -F '"token_type":"Bearer"'
     status="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${base}/admin/default/reload-control-plane")"
     test "${status}" = "401"
     kill "${pid}"
     wait "${pid}" 2>/dev/null || true
     pid=""
-    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":3'
+    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":5'
     cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db "${state_db}" --profile default --issuer https://veoveo.bioma.ai/oauth/default --jwt-id smoke-jwt --expires-at 2999-01-01T00:00:00Z --reason smoke >/dev/null
     test "$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db "${state_db}")" = "0"
 
@@ -126,7 +175,7 @@ smoke-media-mcp-auth:
     MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${port}" --public-base-url https://veoveo.bioma.ai --state-db "${state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 >"${log}" 2>&1 &
     pid=$!
     trap cleanup EXIT
-    for _ in {1..50}; do
+    for _ in {1..150}; do
         if curl -fsS "${base}/media/healthz" >/dev/null 2>&1; then
             break
         fi
@@ -170,7 +219,7 @@ smoke-gateway-authenticated:
     trap cleanup EXIT
     MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${media_port}" --public-base-url https://veoveo.bioma.ai --state-db "${media_state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 >"${media_log}" 2>&1 &
     media_pid=$!
-    for _ in {1..50}; do
+    for _ in {1..150}; do
         if curl -fsS "${media_base}/media/healthz" >/dev/null 2>&1; then
             break
         fi
@@ -179,7 +228,7 @@ smoke-gateway-authenticated:
     curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
     VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
     gateway_pid=$!
-    for _ in {1..50}; do
+    for _ in {1..150}; do
         if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
             break
         fi

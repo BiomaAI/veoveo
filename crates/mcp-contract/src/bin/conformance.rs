@@ -4,9 +4,22 @@
 //! completions, SEP-1319 tasks, subscriptions, and notifications
 //! (progress, tasks/status, resources/updated, resources/list_changed).
 
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use anyhow::{Result, anyhow};
+use axum::{
+    Form as AxumForm, Json as AxumJson, Router as AxumRouter,
+    extract::{Query as AxumQuery, State as AxumState},
+    http::StatusCode as AxumStatusCode,
+    response::IntoResponse as AxumIntoResponse,
+    routing::{get as axum_get, post as axum_post},
+};
+use axum_server::tls_rustls::RustlsConfig;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::{Parser, Subcommand};
@@ -14,6 +27,7 @@ use jsonwebtoken::{
     Algorithm, EncodingKey, Header, encode,
     jwk::{Jwk, JwkSet},
 };
+use rcgen::generate_simple_self_signed;
 use reqwest::header::WWW_AUTHENTICATE;
 use rmcp::{
     ClientHandler, ServiceExt,
@@ -31,7 +45,8 @@ use rmcp::{
     },
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
+use url::Url;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
     InternalTokenSecret, Principal, PrincipalId, PrincipalKind, ProviderUris, ScopeName,
@@ -105,6 +120,45 @@ enum Cmd {
     GatewayJwks,
     /// Print the deterministic conformance private key as compact base64 DER.
     GatewayPrivateKeyDerB64,
+    /// Write a gateway smoke control plane with a local HTTPS fake OIDC IdP.
+    GatewaySmokeControlPlane {
+        /// Base gateway control plane JSON.
+        #[arg(long)]
+        base: PathBuf,
+        /// Output gateway control plane JSON.
+        #[arg(long)]
+        output: PathBuf,
+        /// Fake IdP base URL, e.g. https://127.0.0.1:18803.
+        #[arg(long)]
+        idp_base_url: String,
+        /// PEM CA certificate path trusted by the gateway for this fake IdP.
+        #[arg(long)]
+        trusted_ca_path: PathBuf,
+    },
+    /// Serve a local HTTPS fake OIDC IdP for browser authorization-code smoke tests.
+    GatewayFakeOidcIdp {
+        /// HTTPS listen port.
+        #[arg(long)]
+        port: u16,
+        /// PEM certificate output path. The same file is the gateway trust anchor.
+        #[arg(long)]
+        cert_pem: PathBuf,
+        /// PEM private key output path.
+        #[arg(long)]
+        key_pem: PathBuf,
+        /// File touched after certificate generation and before serving.
+        #[arg(long)]
+        ready_file: Option<PathBuf>,
+        /// OIDC issuer claim.
+        #[arg(long, default_value = "https://idp.example.com")]
+        issuer: String,
+        /// Gateway OIDC client id registered at the IdP.
+        #[arg(long, default_value = "veoveo-gateway")]
+        client_id: String,
+        /// Gateway OIDC client secret expected at the token endpoint.
+        #[arg(long, env = "VEOVEO_IDP_OIDC_CLIENT_SECRET", hide_env_values = true)]
+        client_secret: String,
+    },
     /// Print a private-key JWT client assertion signed by the conformance private key.
     GatewayClientAssertion {
         /// OAuth client id used as issuer and subject.
@@ -356,6 +410,64 @@ struct IdJagClaims {
     roles: Vec<String>,
     tenant: String,
     data_labels: Vec<String>,
+}
+
+#[derive(Clone)]
+struct FakeOidcState {
+    issuer: String,
+    client_id: String,
+    client_secret: String,
+    codes: Arc<Mutex<BTreeMap<String, FakeOidcCode>>>,
+}
+
+#[derive(Debug, Clone)]
+struct FakeOidcCode {
+    nonce: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct FakeOidcAuthorizeRequest {
+    response_type: String,
+    client_id: String,
+    redirect_uri: String,
+    scope: String,
+    state: String,
+    code_challenge: String,
+    code_challenge_method: String,
+    nonce: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct FakeOidcTokenRequest {
+    grant_type: String,
+    code: String,
+    redirect_uri: String,
+    client_id: String,
+    client_secret: Option<String>,
+    code_verifier: String,
+}
+
+#[derive(Debug, Serialize)]
+struct FakeOidcTokenResponse {
+    id_token: String,
+    token_type: &'static str,
+    expires_in: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct FakeOidcIdTokenClaims {
+    iss: String,
+    sub: String,
+    aud: String,
+    exp: u64,
+    nbf: u64,
+    iat: u64,
+    nonce: String,
+    groups: Vec<String>,
+    roles: Vec<String>,
+    tenant: String,
+    data_labels: Vec<String>,
+    email: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -621,6 +733,215 @@ fn cmd_gateway_private_key_der_b64() {
             .lines()
             .collect::<String>()
     );
+}
+
+fn cmd_gateway_smoke_control_plane(
+    base: PathBuf,
+    output: PathBuf,
+    idp_base_url: String,
+    trusted_ca_path: PathBuf,
+) -> Result<()> {
+    let idp_base = Url::parse(&idp_base_url)?;
+    if idp_base.scheme() != "https" || idp_base.host().is_none() {
+        return Err(anyhow!("--idp-base-url must be an https URL with a host"));
+    }
+    let idp_base = idp_base_url.trim_end_matches('/');
+    let mut control_plane: Value = serde_json::from_str(&std::fs::read_to_string(&base)?)?;
+    let identity_providers = control_plane
+        .get_mut("identity_providers")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no identity_providers array"))?;
+    let identity_provider = identity_providers
+        .iter_mut()
+        .find(|provider| provider.get("id").and_then(Value::as_str) == Some("enterprise"))
+        .ok_or_else(|| anyhow!("control plane has no `enterprise` identity provider"))?;
+    identity_provider["authorization_endpoint"] = json!(format!("{idp_base}/oauth2/authorize"));
+    identity_provider["token_endpoint"] = json!(format!("{idp_base}/oauth2/token"));
+    identity_provider["enterprise_managed_authorization_endpoint"] =
+        json!(format!("{idp_base}/oauth2/id-jag"));
+    identity_provider["trusted_certificate_authorities"] = json!([
+        {
+            "source": "file",
+            "path": trusted_ca_path.to_string_lossy()
+        }
+    ]);
+
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
+async fn cmd_gateway_fake_oidc_idp(
+    port: u16,
+    cert_pem: PathBuf,
+    key_pem: PathBuf,
+    ready_file: Option<PathBuf>,
+    issuer: String,
+    client_id: String,
+    client_secret: String,
+) -> Result<()> {
+    let certified_key =
+        generate_simple_self_signed(vec!["127.0.0.1".to_string(), "localhost".to_string()])?;
+    if let Some(parent) = cert_pem.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    if let Some(parent) = key_pem.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&cert_pem, certified_key.cert.pem())?;
+    std::fs::write(&key_pem, certified_key.signing_key.serialize_pem())?;
+
+    let state = FakeOidcState {
+        issuer,
+        client_id,
+        client_secret,
+        codes: Arc::new(Mutex::new(BTreeMap::new())),
+    };
+    let router = AxumRouter::new()
+        .route("/.well-known/jwks.json", axum_get(fake_oidc_jwks))
+        .route("/oauth2/authorize", axum_get(fake_oidc_authorize))
+        .route("/oauth2/token", axum_post(fake_oidc_token))
+        .with_state(state);
+    let config = RustlsConfig::from_pem_file(&cert_pem, &key_pem).await?;
+    if let Some(path) = ready_file {
+        std::fs::write(path, b"ready\n")?;
+    }
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    axum_server::bind_rustls(addr, config)
+        .serve(router.into_make_service())
+        .await?;
+    Ok(())
+}
+
+async fn fake_oidc_jwks() -> impl AxumIntoResponse {
+    match conformance_jwks() {
+        Ok(jwks) => AxumJson(jwks).into_response(),
+        Err(err) => (
+            AxumStatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to build JWKS: {err}"),
+        )
+            .into_response(),
+    }
+}
+
+async fn fake_oidc_authorize(
+    AxumState(state): AxumState<FakeOidcState>,
+    AxumQuery(request): AxumQuery<FakeOidcAuthorizeRequest>,
+) -> impl AxumIntoResponse {
+    if request.response_type != "code"
+        || request.client_id != state.client_id
+        || request.code_challenge_method != "S256"
+        || request.code_challenge.is_empty()
+        || !request
+            .scope
+            .split_whitespace()
+            .any(|scope| scope == "openid")
+    {
+        return (AxumStatusCode::BAD_REQUEST, "invalid authorization request").into_response();
+    }
+    let code = format!("idp-code-{}", uuid::Uuid::new_v4().simple());
+    match state.codes.lock() {
+        Ok(mut codes) => {
+            codes.insert(
+                code.clone(),
+                FakeOidcCode {
+                    nonce: request.nonce,
+                },
+            );
+        }
+        Err(_) => {
+            return (
+                AxumStatusCode::INTERNAL_SERVER_ERROR,
+                "code store unavailable",
+            )
+                .into_response();
+        }
+    }
+    let mut redirect = match Url::parse(&request.redirect_uri) {
+        Ok(url) => url,
+        Err(_) => return (AxumStatusCode::BAD_REQUEST, "invalid redirect_uri").into_response(),
+    };
+    redirect
+        .query_pairs_mut()
+        .append_pair("code", &code)
+        .append_pair("state", &request.state);
+    (
+        AxumStatusCode::FOUND,
+        [(axum::http::header::LOCATION, redirect.to_string())],
+    )
+        .into_response()
+}
+
+async fn fake_oidc_token(
+    AxumState(state): AxumState<FakeOidcState>,
+    AxumForm(request): AxumForm<FakeOidcTokenRequest>,
+) -> impl AxumIntoResponse {
+    if request.grant_type != "authorization_code"
+        || request.client_id != state.client_id
+        || request.client_secret.as_deref() != Some(state.client_secret.as_str())
+        || request.redirect_uri.is_empty()
+        || request.code_verifier.is_empty()
+    {
+        return (AxumStatusCode::UNAUTHORIZED, "invalid token request").into_response();
+    }
+    let code = match state.codes.lock() {
+        Ok(mut codes) => codes.remove(&request.code),
+        Err(_) => {
+            return (
+                AxumStatusCode::INTERNAL_SERVER_ERROR,
+                "code store unavailable",
+            )
+                .into_response();
+        }
+    };
+    let Some(code) = code else {
+        return (AxumStatusCode::BAD_REQUEST, "invalid authorization code").into_response();
+    };
+    match fake_oidc_id_token(&state, &code) {
+        Ok(id_token) => AxumJson(FakeOidcTokenResponse {
+            id_token,
+            token_type: "Bearer",
+            expires_in: 300,
+        })
+        .into_response(),
+        Err(err) => (
+            AxumStatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to sign ID token: {err}"),
+        )
+            .into_response(),
+    }
+}
+
+fn fake_oidc_id_token(state: &FakeOidcState, code: &FakeOidcCode) -> Result<String> {
+    let now = Utc::now();
+    let expires_at = now
+        .checked_add_signed(TimeDelta::minutes(5))
+        .ok_or_else(|| anyhow!("ID token expiration overflow"))?;
+    let claims = FakeOidcIdTokenClaims {
+        iss: state.issuer.clone(),
+        sub: "00u-browser-smoke".to_string(),
+        aud: state.client_id.clone(),
+        exp: unix_seconds(expires_at.timestamp())?,
+        nbf: unix_seconds(now.timestamp())?,
+        iat: unix_seconds(now.timestamp())?,
+        nonce: code.nonce.clone(),
+        groups: vec!["engineering".to_string()],
+        roles: vec!["operator".to_string()],
+        tenant: "tenant-a".to_string(),
+        data_labels: vec!["cui".to_string()],
+        email: "browser-smoke@example.com".to_string(),
+    };
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some(CONFORMANCE_KEY_ID.to_string());
+    Ok(encode(&header, &claims, &conformance_encoding_key()?)?)
 }
 
 struct ClientAssertionInput {
@@ -1334,6 +1655,39 @@ async fn main() -> Result<()> {
             cmd_gateway_private_key_der_b64();
             return Ok(());
         }
+        Cmd::GatewaySmokeControlPlane {
+            base,
+            output,
+            idp_base_url,
+            trusted_ca_path,
+        } => {
+            return cmd_gateway_smoke_control_plane(
+                base.clone(),
+                output.clone(),
+                idp_base_url.clone(),
+                trusted_ca_path.clone(),
+            );
+        }
+        Cmd::GatewayFakeOidcIdp {
+            port,
+            cert_pem,
+            key_pem,
+            ready_file,
+            issuer,
+            client_id,
+            client_secret,
+        } => {
+            return cmd_gateway_fake_oidc_idp(
+                *port,
+                cert_pem.clone(),
+                key_pem.clone(),
+                ready_file.clone(),
+                issuer.clone(),
+                client_id.clone(),
+                client_secret.clone(),
+            )
+            .await;
+        }
         Cmd::GatewayClientAssertion {
             client_id,
             audience,
@@ -1442,6 +1796,8 @@ async fn main() -> Result<()> {
         Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayJwks => unreachable!("handled before MCP connection"),
         Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),
+        Cmd::GatewaySmokeControlPlane { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayFakeOidcIdp { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayTokenExchange { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayIdJag { .. } => unreachable!("handled before MCP connection"),
