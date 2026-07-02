@@ -25,10 +25,11 @@ pub mod waiters;
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use deployment::{
     DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,
-    DeploymentRequirementId, DeploymentServiceKind, NetworkBoundaryRule, NetworkTarget,
-    ObjectStoreDeployment, ObjectStoreKind, PublicDeployment, RegulatedDataControls,
-    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerPublicEndpoint, TelemetrySignal,
-    TelemetrySinkDeployment, TelemetrySinkKind,
+    DeploymentRequirementId, DeploymentServiceKind, GatewayToServerIdentity, NetworkBoundaryRule,
+    NetworkTarget, ObjectStoreDeployment, ObjectStoreKind, PublicDeployment, RegulatedDataControls,
+    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerPublicEndpoint,
+    ServiceToServiceSecurity, ServiceToServiceTransport, TelemetrySignal, TelemetrySinkDeployment,
+    TelemetrySinkKind,
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,

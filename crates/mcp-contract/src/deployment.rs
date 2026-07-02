@@ -81,6 +81,7 @@ pub struct SelfHostedDeploymentProfile {
     pub kind: DeploymentProfileKind,
     #[serde(default)]
     pub required_services: BTreeSet<DeploymentServiceKind>,
+    pub service_to_service: ServiceToServiceSecurity,
     #[serde(default)]
     pub secret_sources: BTreeSet<SecretSource>,
     #[serde(default)]
@@ -120,6 +121,31 @@ pub enum DeploymentServiceKind {
     AuthorizationServer,
     TelemetryCollector,
     TunnelOrIngress,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ServiceToServiceSecurity {
+    pub gateway_identity: GatewayToServerIdentity,
+    pub transport: ServiceToServiceTransport,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayToServerIdentity {
+    GatewaySignedJwt,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceToServiceTransport {
+    PrivateNetworkPlaintext,
+    Tls,
+    MutualTls,
+    ServiceMeshMtls,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -344,6 +370,7 @@ impl SelfHostedDeploymentProfile {
         for rule in self.ingress.iter().chain(&self.egress) {
             rule.validate(&self.id)?;
         }
+        self.service_to_service.validate(&self.id, self.kind)?;
 
         match self.kind {
             DeploymentProfileKind::Local => {}
@@ -407,6 +434,31 @@ impl NetworkBoundaryRule {
             );
         }
         Ok(())
+    }
+}
+
+impl ServiceToServiceSecurity {
+    fn validate(&self, profile: &DeploymentProfileId, kind: DeploymentProfileKind) -> Result<()> {
+        match self.gateway_identity {
+            GatewayToServerIdentity::GatewaySignedJwt => {}
+        }
+
+        if matches!(
+            kind,
+            DeploymentProfileKind::Enterprise | DeploymentProfileKind::Regulated
+        ) && !self.transport.is_authenticated_transport()
+        {
+            bail!(
+                "deployment profile `{profile}` requires mTLS or service-mesh mTLS for gateway-to-server transport"
+            );
+        }
+        Ok(())
+    }
+}
+
+impl ServiceToServiceTransport {
+    fn is_authenticated_transport(self) -> bool {
+        matches!(self, Self::MutualTls | Self::ServiceMeshMtls)
     }
 }
 
@@ -640,6 +692,7 @@ mod tests {
         let mut plan: SelfHostedDeploymentPlan =
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
         plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
+        plan.profiles[0].service_to_service.transport = ServiceToServiceTransport::MutualTls;
         plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::Env]);
 
         let err = plan.validate().expect_err("env secret source must fail");
@@ -653,11 +706,28 @@ mod tests {
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
         plan.profiles[0].kind = DeploymentProfileKind::Regulated;
         plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::Vault]);
+        plan.profiles[0].service_to_service.transport = ServiceToServiceTransport::MutualTls;
         plan.profiles[0].regulated_controls = None;
 
         let err = plan.validate().expect_err("regulated controls must fail");
 
         assert!(err.to_string().contains("must declare regulated controls"));
+    }
+
+    #[test]
+    fn enterprise_deployment_rejects_plaintext_service_transport() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
+        plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::Vault]);
+        plan.profiles[0].service_to_service.transport =
+            ServiceToServiceTransport::PrivateNetworkPlaintext;
+
+        let err = plan
+            .validate()
+            .expect_err("enterprise service transport must fail");
+
+        assert!(err.to_string().contains("requires mTLS"));
     }
 
     fn valid_deployment_plan_json() -> &'static str {
@@ -667,6 +737,10 @@ mod tests {
               "id": "local",
               "kind": "local",
               "required_services": ["gateway", "hosted_mcp_server", "object_store"],
+              "service_to_service": {
+                "gateway_identity": "gateway_signed_jwt",
+                "transport": "private_network_plaintext"
+              },
               "secret_sources": ["env"],
               "object_stores": [
                 {

@@ -449,6 +449,10 @@ should include batteries-included infrastructure:
 Enterprise deployments replace defaults by configuration: omit RustFS and point S3
 settings at the enterprise object store; omit local logging UI and point OTEL export at
 the enterprise collector; provide secrets through their secret manager instead of `.env`.
+Each deployment profile must also declare gateway-to-server service-to-service security.
+Local Compose may use private-network plaintext transport because every hosted server still
+requires a short-lived gateway-signed JWT. Enterprise and regulated profiles must declare
+`mutual_tls` or `service_mesh_mtls` transport in addition to gateway-signed assertions.
 Compose profiles should make that explicit:
 
 - `default`: MCP servers plus bundled RustFS, state store, OTEL collector, and local logs UI,

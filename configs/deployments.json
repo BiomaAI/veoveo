@@ -11,6 +11,10 @@
         "telemetry_collector",
         "tunnel_or_ingress"
       ],
+      "service_to_service": {
+        "gateway_identity": "gateway_signed_jwt",
+        "transport": "private_network_plaintext"
+      },
       "secret_sources": ["env"],
       "object_stores": [
         {
@@ -80,6 +84,10 @@
         "telemetry_collector",
         "tunnel_or_ingress"
       ],
+      "service_to_service": {
+        "gateway_identity": "gateway_signed_jwt",
+        "transport": "service_mesh_mtls"
+      },
       "secret_sources": ["vault", "cloud_secret_manager", "enterprise_managed"],
       "object_stores": [
         {
@@ -153,6 +161,10 @@
         "telemetry_collector",
         "tunnel_or_ingress"
       ],
+      "service_to_service": {
+        "gateway_identity": "gateway_signed_jwt",
+        "transport": "mutual_tls"
+      },
       "secret_sources": ["vault", "kms_backed_store", "enterprise_managed"],
       "object_stores": [
         {

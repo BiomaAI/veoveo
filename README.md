@@ -123,6 +123,11 @@ such as `kv2://secret/veoveo/gateway#client_secret` or
 `kv2://secret/veoveo/gateway?version=3#client_secret`, and require explicit `VAULT_ADDR`
 and `VAULT_TOKEN`.
 
+Deployment profiles declare gateway-to-server service-to-service security explicitly.
+Local Compose uses gateway-signed internal JWTs over the private Docker network. Enterprise
+and regulated profiles must use mTLS or service-mesh mTLS transport plus gateway-signed
+assertions.
+
 ### Local Process
 
 ```sh
