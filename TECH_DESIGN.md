@@ -364,7 +364,9 @@ The implementation plan is production-gateway-first:
    routes `/mcp/{profile}`, `/oauth/*`, `.well-known` auth metadata, and `/admin/*` to the
    gateway, while routing provider plumbing such as `/media/webhooks`, `/media/files`, and
    `/media/artifacts` to the owning media server. Direct hosted-server MCP routes such as
-   `/media/mcp` remain internal/testing targets and are not public client routes.
+   `/media/mcp` remain internal/testing targets and are not public client routes. Published
+   local development ports bind to loopback only; public ingress goes through the tunnel or
+   enterprise edge.
 5. Implement protected-resource metadata, `WWW-Authenticate` challenges, JWT/JWKS
    validation, audience/resource binding, profile-scoped policy, and structured audit
    events before exposing the gateway as the default client entrypoint.

@@ -104,6 +104,9 @@ OpenTelemetry collector, and the managed Cloudflare tunnel. RustFS image/version
 routing, and local S3-compatible wiring are defined in `compose.yaml`.
 The Cloudflare named tunnel should route the public hostname to `http://edge:8080`;
 individual MCP server containers are not public tunnel targets.
+Published development ports bind to `127.0.0.1` only. The local edge is available at
+`http://localhost:8780`; direct gateway, media, RustFS, and OTEL ports are local debugging
+surfaces, not public ingress.
 
 ```sh
 cp .env.example .env

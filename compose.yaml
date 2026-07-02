@@ -21,8 +21,8 @@ services:
     volumes:
       - rustfs_data:/data
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     profiles:
       - dev
 
@@ -53,8 +53,8 @@ services:
     volumes:
       - ./configs/otel-collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
     profiles:
       - dev
 
@@ -104,7 +104,7 @@ services:
       - ./assets:/app/assets:ro
       - media_state:/var/lib/veoveo/media
     ports:
-      - "8787:8787"
+      - "127.0.0.1:8787:8787"
     profiles:
       - dev
 
@@ -136,7 +136,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
       RUST_LOG: "info,veoveo_mcp_gateway=debug"
     ports:
-      - "8788:8788"
+      - "127.0.0.1:8788:8788"
     profiles:
       - dev
 
@@ -148,7 +148,7 @@ services:
     volumes:
       - ./configs/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
-      - "8780:8080"
+      - "127.0.0.1:8780:8080"
     profiles:
       - dev
 
