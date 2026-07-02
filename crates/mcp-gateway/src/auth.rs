@@ -7,8 +7,9 @@ use jsonwebtoken::{
 };
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalId,
-    PrincipalKind, ProtectedResourceId, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
+    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, OidcClientId, OidcNonce,
+    Principal, PrincipalId, PrincipalKind, ProtectedResourceId, RoleId, ScopeName, TenantId,
+    TokenIssuer, TokenSubject,
 };
 
 #[derive(Debug, Clone)]
@@ -31,6 +32,14 @@ pub struct IdJagConfig {
     pub issuer: TokenIssuer,
     pub audience: TokenIssuer,
     pub resource: ProtectedResourceId,
+    pub algorithms: Vec<Algorithm>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OidcIdTokenConfig {
+    pub issuer: TokenIssuer,
+    pub client_id: OidcClientId,
+    pub nonce: OidcNonce,
     pub algorithms: Vec<Algorithm>,
 }
 
@@ -109,6 +118,32 @@ impl IdJagConfig {
             issuer,
             audience,
             resource,
+            algorithms,
+        })
+    }
+}
+
+impl OidcIdTokenConfig {
+    pub fn new(
+        issuer: TokenIssuer,
+        client_id: OidcClientId,
+        nonce: OidcNonce,
+        algorithms: Vec<Algorithm>,
+    ) -> Result<Self, AuthError> {
+        if algorithms.is_empty() {
+            return Err(AuthError::MissingAllowedAlgorithms);
+        }
+        if let Some(algorithm) = algorithms
+            .iter()
+            .copied()
+            .find(|algorithm| is_symmetric_algorithm(*algorithm))
+        {
+            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
+        }
+        Ok(Self {
+            issuer,
+            client_id,
+            nonce,
             algorithms,
         })
     }
@@ -396,6 +431,95 @@ impl IdJagVerifier {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct OidcIdTokenVerifier {
+    config: OidcIdTokenConfig,
+    jwks: JwkSet,
+}
+
+impl OidcIdTokenVerifier {
+    pub fn new(config: OidcIdTokenConfig, jwks: JwkSet) -> Self {
+        Self { config, jwks }
+    }
+
+    pub fn verify(&self, id_token: &str) -> Result<VerifiedOidcIdentity, AuthError> {
+        if id_token.is_empty() || id_token.chars().any(char::is_whitespace) {
+            return Err(AuthError::InvalidOidcIdToken);
+        }
+        let header = decode_header(id_token).map_err(AuthError::Jwt)?;
+        if !self.config.algorithms.contains(&header.alg) {
+            return Err(AuthError::DisallowedAlgorithm(header.alg));
+        }
+        let key_id = header.kid.ok_or(AuthError::MissingKeyId)?;
+        let jwk = self
+            .jwks
+            .find(&key_id)
+            .ok_or_else(|| AuthError::UnknownKeyId(key_id.clone()))?;
+        validate_jwk_algorithm(jwk.common.key_algorithm, header.alg)?;
+        let key = DecodingKey::from_jwk(jwk).map_err(AuthError::Jwt)?;
+
+        let algorithms = allowed_algorithms_for_header(&self.config.algorithms, header.alg)?;
+        let mut validation = Validation::new(header.alg);
+        validation.algorithms = algorithms;
+        validation.validate_nbf = true;
+        validation.set_issuer(&[self.config.issuer.as_str()]);
+        validation.set_audience(&[self.config.client_id.as_str()]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "iat", "nonce"]);
+
+        let data =
+            decode::<OidcIdTokenClaims>(id_token, &key, &validation).map_err(AuthError::Jwt)?;
+        let claims = data.claims;
+        if claims.nonce.as_deref() != Some(self.config.nonce.as_str()) {
+            return Err(AuthError::InvalidOidcNonce);
+        }
+
+        let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
+        let subject = TokenSubject::new(claims.sub.clone()).map_err(AuthError::Claim)?;
+        let principal = Principal {
+            id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
+            kind: PrincipalKind::User,
+            issuer,
+            subject,
+            tenant: claims
+                .tenant
+                .map(TenantId::new)
+                .transpose()
+                .map_err(AuthError::Claim)?,
+            groups: claims
+                .groups
+                .map(StringListClaim::into_values)
+                .unwrap_or_default()
+                .into_iter()
+                .map(GroupId::new)
+                .collect::<Result<_, _>>()
+                .map_err(AuthError::Claim)?,
+            roles: claims
+                .roles
+                .map(StringListClaim::into_values)
+                .unwrap_or_default()
+                .into_iter()
+                .map(RoleId::new)
+                .collect::<Result<_, _>>()
+                .map_err(AuthError::Claim)?,
+            scopes: BTreeSet::new(),
+            data_labels: claims
+                .data_labels
+                .map(StringListClaim::into_values)
+                .unwrap_or_default()
+                .into_iter()
+                .map(DataLabelId::new)
+                .collect::<Result<_, _>>()
+                .map_err(AuthError::Claim)?,
+            authenticated_at: Some(Utc::now()),
+        };
+
+        Ok(VerifiedOidcIdentity {
+            principal,
+            expires_at: unix_timestamp(claims.exp, "exp")?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedSubject {
     pub access_token: AccessTokenSubject,
@@ -415,6 +539,12 @@ pub struct VerifiedIdJag {
     pub principal: Principal,
     pub scopes: BTreeSet<ScopeName>,
     pub jwt_id: JwtId,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedOidcIdentity {
+    pub principal: Principal,
     pub expires_at: DateTime<Utc>,
 }
 
@@ -477,6 +607,29 @@ struct IdJagClaims {
     scope: Option<String>,
     #[serde(default)]
     scp: Option<StringListClaim>,
+    #[serde(default)]
+    groups: Option<StringListClaim>,
+    #[serde(default)]
+    roles: Option<StringListClaim>,
+    #[serde(default)]
+    tenant: Option<String>,
+    #[serde(default)]
+    data_labels: Option<StringListClaim>,
+    #[serde(default)]
+    email: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct OidcIdTokenClaims {
+    iss: String,
+    sub: String,
+    aud: StringListClaim,
+    exp: u64,
+    iat: u64,
+    #[serde(default)]
+    nbf: Option<u64>,
+    #[serde(default)]
+    nonce: Option<String>,
     #[serde(default)]
     groups: Option<StringListClaim>,
     #[serde(default)]
@@ -562,6 +715,8 @@ pub enum AuthError {
     InvalidClientAssertionAudience,
     ClientAssertionSubjectMismatch,
     InvalidIdentityAssertion,
+    InvalidOidcIdToken,
+    InvalidOidcNonce,
     MissingIdentityAssertionResource,
     InvalidIdentityAssertionResource,
     MissingIdentityAssertionScope,
@@ -598,6 +753,8 @@ impl fmt::Display for AuthError {
                 write!(f, "client assertion subject must match client id")
             }
             Self::InvalidIdentityAssertion => write!(f, "invalid identity assertion"),
+            Self::InvalidOidcIdToken => write!(f, "invalid OIDC ID token"),
+            Self::InvalidOidcNonce => write!(f, "OIDC ID token nonce does not match request"),
             Self::MissingIdentityAssertionResource => {
                 write!(f, "identity assertion is missing resource")
             }
@@ -767,6 +924,21 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         data_labels: Vec<&'a str>,
     }
 
+    #[derive(Debug, Serialize)]
+    struct TestOidcIdTokenClaims<'a> {
+        iss: &'a str,
+        sub: &'a str,
+        aud: &'a str,
+        exp: u64,
+        nbf: u64,
+        iat: u64,
+        nonce: &'a str,
+        groups: Vec<&'a str>,
+        roles: Vec<&'a str>,
+        tenant: &'a str,
+        data_labels: Vec<&'a str>,
+    }
+
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
         verifier_with_algorithms(required_scopes, vec![Algorithm::RS256])
     }
@@ -865,6 +1037,30 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &encoding_key,
         )
         .expect("ID-JAG encodes")
+    }
+
+    fn oidc_id_token(nonce: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("test-key".to_string());
+        let encoding_key = rsa_encoding_key();
+        encode(
+            &header,
+            &TestOidcIdTokenClaims {
+                iss: ISSUER,
+                sub: "00u123",
+                aud: "veoveo-gateway",
+                exp: 4_102_444_800,
+                nbf: 1_700_000_000,
+                iat: 1_700_000_000,
+                nonce,
+                groups: vec!["engineering"],
+                roles: vec!["operator"],
+                tenant: "tenant-a",
+                data_labels: vec!["cui"],
+            },
+            &encoding_key,
+        )
+        .expect("OIDC ID token encodes")
     }
 
     fn rsa_encoding_key() -> EncodingKey {
@@ -1062,5 +1258,55 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect_err("wrong resource should fail");
 
         assert!(matches!(err, AuthError::InvalidIdentityAssertionResource));
+    }
+
+    #[test]
+    fn verifies_oidc_id_token_and_maps_principal() {
+        let verifier = OidcIdTokenVerifier::new(
+            OidcIdTokenConfig::new(
+                TokenIssuer::new(ISSUER).unwrap(),
+                OidcClientId::new("veoveo-gateway").unwrap(),
+                OidcNonce::new("nonce-1").unwrap(),
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let verified = verifier
+            .verify(&oidc_id_token("nonce-1"))
+            .expect("valid OIDC ID token");
+
+        assert_eq!(verified.principal.subject.as_str(), "00u123");
+        assert_eq!(
+            verified.principal.id.as_str(),
+            "https://idp.example.com#00u123"
+        );
+        assert!(
+            verified
+                .principal
+                .data_labels
+                .contains(&DataLabelId::new("cui").unwrap())
+        );
+    }
+
+    #[test]
+    fn rejects_oidc_id_token_nonce_mismatch() {
+        let verifier = OidcIdTokenVerifier::new(
+            OidcIdTokenConfig::new(
+                TokenIssuer::new(ISSUER).unwrap(),
+                OidcClientId::new("veoveo-gateway").unwrap(),
+                OidcNonce::new("nonce-1").unwrap(),
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let err = verifier
+            .verify(&oidc_id_token("nonce-2"))
+            .expect_err("nonce mismatch should fail");
+
+        assert!(matches!(err, AuthError::InvalidOidcNonce));
     }
 }

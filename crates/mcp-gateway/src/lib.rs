@@ -12,7 +12,8 @@ pub mod state;
 use anyhow::{Context, Result};
 pub use auth::{
     AuthError, AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
-    IdJagConfig, IdJagVerifier, JwtAuthConfig, JwtVerifier, VerifiedClientAssertion, VerifiedIdJag,
+    IdJagConfig, IdJagVerifier, JwtAuthConfig, JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier,
+    VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
 pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
