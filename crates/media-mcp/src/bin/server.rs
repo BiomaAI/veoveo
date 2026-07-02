@@ -149,6 +149,7 @@ struct AppState {
     tasks: TaskStore,
     durable: DuckdbState,
     artifacts: ArtifactRepository,
+    internal_token_verifier: GatewayInternalTokenVerifier,
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
@@ -1793,25 +1794,10 @@ async fn authenticate_internal_mcp(
     mut request: Request,
     next: Next,
 ) -> axum::response::Response {
-    let Some(header) = request
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-    else {
-        tracing::warn!("rejected media MCP request without internal authorization");
-        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-    };
-    let token = match internal_bearer_token(header) {
-        Ok(token) => token,
+    let identity = match verify_internal_authorization(&state.verifier, request.headers()) {
+        Ok(identity) => identity,
         Err(message) => {
             tracing::warn!("rejected media MCP request: {message}");
-            return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
-        }
-    };
-    let identity = match state.verifier.verify(token) {
-        Ok(identity) => identity,
-        Err(err) => {
-            tracing::warn!("rejected media MCP internal token: {err}");
             return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
         }
     };
@@ -1819,6 +1805,18 @@ async fn authenticate_internal_mcp(
         .extensions_mut()
         .insert::<GatewayInternalIdentity>(identity);
     next.run(request).await
+}
+
+fn verify_internal_authorization(
+    verifier: &GatewayInternalTokenVerifier,
+    headers: &HeaderMap,
+) -> Result<GatewayInternalIdentity, String> {
+    let header = headers
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| "missing internal authorization".to_string())?;
+    let token = internal_bearer_token(header).map_err(str::to_string)?;
+    verifier.verify(token).map_err(|err| err.to_string())
 }
 
 fn internal_bearer_token(header: &str) -> Result<&str, &'static str> {
@@ -1876,9 +1874,27 @@ async fn media_webhook(
 
 async fn artifact_download(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     AxumPath(sha256): AxumPath<String>,
 ) -> impl IntoResponse {
     if !is_sha256(&sha256) {
+        return (StatusCode::NOT_FOUND, "not found").into_response();
+    }
+    let identity = match verify_internal_authorization(&state.internal_token_verifier, &headers) {
+        Ok(identity) => identity,
+        Err(message) => {
+            tracing::warn!(
+                artifact_sha256 = sha256,
+                "rejected artifact download: {message}"
+            );
+            return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
+        }
+    };
+    if let Err(err) = artifact_owned_by(&state, &sha256, &identity) {
+        tracing::warn!(
+            artifact_sha256 = sha256,
+            "rejected artifact download: {err}"
+        );
         return (StatusCode::NOT_FOUND, "not found").into_response();
     }
     let artifact = match state.artifacts.get(&sha256).await {
@@ -1919,6 +1935,11 @@ async fn main() -> anyhow::Result<()> {
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let durable = DuckdbState::open(&args.state_db)?;
+    let internal_token_verifier = GatewayInternalTokenVerifier::new(
+        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        ServerSlug::new(SERVER_SLUG)?,
+        InternalTokenSecret::new(args.internal_token_secret.clone())?,
+    );
     let artifacts = ArtifactRepository::new_s3_compatible(
         S3ArtifactConfig {
             endpoint: args.artifact_endpoint.clone(),
@@ -1962,6 +1983,7 @@ async fn main() -> anyhow::Result<()> {
         tasks,
         durable,
         artifacts,
+        internal_token_verifier: internal_token_verifier.clone(),
         pending: Mutex::new(HashMap::new()),
         predictions: RwLock::new(predictions),
         task_owners: RwLock::new(task_owners),
@@ -1989,11 +2011,7 @@ async fn main() -> anyhow::Result<()> {
         public_deployment.host_authority().to_string(),
     ];
     let internal_auth_state = InternalMcpAuthState {
-        verifier: GatewayInternalTokenVerifier::new(
-            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-            ServerSlug::new(SERVER_SLUG)?,
-            InternalTokenSecret::new(args.internal_token_secret)?,
-        ),
+        verifier: internal_token_verifier,
     };
     let mcp_service = StreamableHttpService::new(
         {

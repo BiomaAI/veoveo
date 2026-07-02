@@ -94,6 +94,8 @@ smoke-media-mcp-auth:
     curl -fsS "${base}/media/healthz" | grep -F 'ok'
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/mcp")"
     test "${status}" = "401"
+    status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
+    test "${status}" = "401"
 
 # Build MCP images.
 compose-build:
