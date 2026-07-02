@@ -152,12 +152,16 @@ assertions.
 
 Gateway admin operations are authenticated and policy-gated through `/admin/{profile}`.
 Control-plane reload/apply, JWT revocation, and revocation pruning emit structured audit
-events in the gateway DuckDB state. The maintained local recipes call the admin API; they
-do not mutate the gateway state database directly:
+events in the gateway DuckDB state. Each operation records the policy decision and a
+separate `*/result` event with `operation_status` evidence such as `succeeded`,
+`rejected`, or `failed`. The maintained local recipes call the admin API; they do not
+mutate the gateway state database directly:
 
 ```sh
 just gateway-revoke-jwt <jwt-id> 2026-07-02T20:00:00Z
 just gateway-prune-revoked-jwts
+cargo run -p veoveo-mcp-gateway --bin gateway -- audit-metadata-summary \
+  --state-db data/gateway/state.duckdb --metadata-key operation_status
 ```
 
 Artifact metadata carries typed compliance fields from the gateway principal, including

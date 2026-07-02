@@ -50,7 +50,7 @@ use veoveo_mcp_contract::{
     OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
     OAuthGrantType, OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce,
     PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect,
-    PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
+    PolicyReasonCode, PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
     ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, TelemetryGuard,
     TokenIssuer, TokenSubject, TraceId, init_server_telemetry,
 };
@@ -68,6 +68,10 @@ const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer
 const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 const AUTHORIZATION_REQUEST_TTL_SECONDS: i64 = 10 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS: i64 = 5 * 60;
+const ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD: &str = "admin/reload-control-plane/result";
+const ADMIN_CONTROL_PLANE_RESULT_METHOD: &str = "admin/control-plane/result";
+const ADMIN_JWT_REVOCATIONS_RESULT_METHOD: &str = "admin/jwt-revocations/result";
+const ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD: &str = "admin/jwt-revocations/prune/result";
 type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
 type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
 
@@ -103,6 +107,15 @@ enum Command {
         /// DuckDB file for gateway runtime state and audit evidence.
         #[arg(long)]
         state_db: PathBuf,
+    },
+    /// Print gateway policy audit counts grouped by one metadata value as JSON.
+    AuditMetadataSummary {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+        /// Metadata key to group by.
+        #[arg(long)]
+        metadata_key: String,
     },
     /// Start the gateway process.
     Serve {
@@ -324,6 +337,17 @@ async fn main() -> anyhow::Result<()> {
             println!(
                 "{}",
                 serde_json::to_string(&state.policy_audit_reason_summary()?)?
+            );
+            Ok(())
+        }
+        Command::AuditMetadataSummary {
+            state_db,
+            metadata_key,
+        } => {
+            let state = GatewayState::open(&state_db)?;
+            println!(
+                "{}",
+                serde_json::to_string(&state.policy_audit_metadata_summary(&metadata_key)?)?
             );
             Ok(())
         }
@@ -2487,7 +2511,7 @@ async fn reload_control_plane(
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let (_catalog, _profile, subject) = match authorize_admin_request(
+    let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
         subject,
         GatewayAction::AdminWrite,
@@ -2503,6 +2527,21 @@ async fn reload_control_plane(
         Ok(catalog) => Arc::new(catalog),
         Err(err) => {
             tracing::error!("failed to reload gateway control plane: {err}");
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::LoadControlPlane),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "failed to reload gateway control plane",
@@ -2517,6 +2556,21 @@ async fn reload_control_plane(
             reloaded = ?new_profile_ids,
             "gateway control-plane reload changed mounted profile routes"
         );
+        if let Err(err) = record_admin_operation_audit(
+            &state,
+            &profile,
+            &subject,
+            AdminOperationAuditRecord {
+                action: GatewayAction::AdminWrite,
+                method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                started_at,
+                status: AdminOperationStatus::Rejected,
+                failure: Some(AdminOperationFailure::ProfileRouteChange),
+                metadata: BTreeMap::new(),
+            },
+        ) {
+            return internal_error_response(err);
+        }
         return (
             StatusCode::CONFLICT,
             "control-plane reload cannot change mounted profile routes",
@@ -2527,6 +2581,21 @@ async fn reload_control_plane(
         Ok(client) => client,
         Err(err) => {
             tracing::error!("failed to rebuild gateway HTTP client: {err}");
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::BuildHttpClient),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "failed to rebuild gateway HTTP client",
@@ -2537,6 +2606,24 @@ async fn reload_control_plane(
 
     let servers = new_catalog.server_count();
     let profiles = new_catalog.profile_count();
+    if let Err(err) = record_admin_operation_audit(
+        &state,
+        &profile,
+        &subject,
+        AdminOperationAuditRecord {
+            action: GatewayAction::AdminWrite,
+            method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+            started_at,
+            status: AdminOperationStatus::Succeeded,
+            failure: None,
+            metadata: BTreeMap::from([
+                ("servers".to_string(), servers.to_string()),
+                ("profiles".to_string(), profiles.to_string()),
+            ]),
+        },
+    ) {
+        return internal_error_response(err);
+    }
     replace_http_client(&state.http, new_http);
     replace_catalog(&state.catalog, new_catalog);
     tracing::info!(
@@ -2559,7 +2646,7 @@ async fn read_control_plane(
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let (catalog, _profile, _subject) = match authorize_admin_request(
+    let (catalog, profile, subject) = match authorize_admin_request(
         &state,
         subject,
         GatewayAction::AdminRead,
@@ -2573,13 +2660,70 @@ async fn read_control_plane(
 
     let sha256 = match control_plane_sha256(catalog.control_plane()) {
         Ok(sha256) => sha256,
-        Err(err) => return internal_error_response(err),
+        Err(err) => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminRead,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::ControlPlaneSha),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
+            return internal_error_response(err);
+        }
     };
     let revision_id = match state.gateway_state.latest_control_plane_revision() {
         Ok(Some(revision)) if revision.sha256 == sha256 => Some(revision.revision_id),
         Ok(_) => None,
-        Err(err) => return internal_error_response(err),
+        Err(err) => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminRead,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::LatestRevisionRead),
+                    metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
+            return internal_error_response(err);
+        }
     };
+    let mut metadata = BTreeMap::from([
+        ("sha256".to_string(), sha256.clone()),
+        ("servers".to_string(), catalog.server_count().to_string()),
+        ("profiles".to_string(), catalog.profile_count().to_string()),
+    ]);
+    if let Some(revision_id) = &revision_id {
+        metadata.insert("revision_id".to_string(), revision_id.to_string());
+    }
+    if let Err(err) = record_admin_operation_audit(
+        &state,
+        &profile,
+        &subject,
+        AdminOperationAuditRecord {
+            action: GatewayAction::AdminRead,
+            method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+            started_at,
+            status: AdminOperationStatus::Succeeded,
+            failure: None,
+            metadata,
+        },
+    ) {
+        return internal_error_response(err);
+    }
 
     Json(ControlPlaneReadResult {
         status: "ok",
@@ -2598,7 +2742,7 @@ async fn update_control_plane(
     Json(control_plane): Json<GatewayControlPlane>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let (_catalog, _profile, subject) = match authorize_admin_request(
+    let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
         subject,
         GatewayAction::AdminWrite,
@@ -2614,6 +2758,21 @@ async fn update_control_plane(
         Ok(catalog) => Arc::new(catalog),
         Err(err) => {
             tracing::warn!("rejected invalid gateway control plane update: {err}");
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Rejected,
+                    failure: Some(AdminOperationFailure::InvalidControlPlane),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
             return (StatusCode::BAD_REQUEST, "invalid gateway control plane").into_response();
         }
     };
@@ -2624,6 +2783,21 @@ async fn update_control_plane(
             requested = ?new_profile_ids,
             "gateway control-plane update changed mounted profile routes"
         );
+        if let Err(err) = record_admin_operation_audit(
+            &state,
+            &profile,
+            &subject,
+            AdminOperationAuditRecord {
+                action: GatewayAction::AdminWrite,
+                method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                started_at,
+                status: AdminOperationStatus::Rejected,
+                failure: Some(AdminOperationFailure::ProfileRouteChange),
+                metadata: BTreeMap::new(),
+            },
+        ) {
+            return internal_error_response(err);
+        }
         return (
             StatusCode::CONFLICT,
             "control-plane update cannot change mounted profile routes",
@@ -2634,6 +2808,21 @@ async fn update_control_plane(
         Ok(client) => client,
         Err(err) => {
             tracing::error!("failed to rebuild gateway HTTP client: {err}");
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::BuildHttpClient),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "failed to rebuild gateway HTTP client",
@@ -2643,12 +2832,46 @@ async fn update_control_plane(
     };
     let sha256 = match control_plane_sha256(&control_plane) {
         Ok(sha256) => sha256,
-        Err(err) => return internal_error_response(err),
+        Err(err) => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::ControlPlaneSha),
+                    metadata: BTreeMap::new(),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
+            return internal_error_response(err);
+        }
     };
     let revision_id =
         match GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::new_v4())) {
             Ok(revision_id) => revision_id,
-            Err(err) => return internal_error_response(err),
+            Err(err) => {
+                if let Err(audit_err) = record_admin_operation_audit(
+                    &state,
+                    &profile,
+                    &subject,
+                    AdminOperationAuditRecord {
+                        action: GatewayAction::AdminWrite,
+                        method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                        started_at,
+                        status: AdminOperationStatus::Failed,
+                        failure: Some(AdminOperationFailure::RevisionId),
+                        metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
+                    },
+                ) {
+                    return internal_error_response(audit_err);
+                }
+                return internal_error_response(err);
+            }
         };
     let revision = GatewayControlPlaneRevision {
         revision_id: revision_id.clone(),
@@ -2661,11 +2884,49 @@ async fn update_control_plane(
     };
     if let Err(err) = state.gateway_state.record_control_plane_revision(&revision) {
         tracing::error!("failed to persist gateway control-plane revision: {err}");
+        if let Err(audit_err) = record_admin_operation_audit(
+            &state,
+            &profile,
+            &subject,
+            AdminOperationAuditRecord {
+                action: GatewayAction::AdminWrite,
+                method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                started_at,
+                status: AdminOperationStatus::Failed,
+                failure: Some(AdminOperationFailure::PersistControlPlaneRevision),
+                metadata: BTreeMap::from([
+                    ("revision_id".to_string(), revision_id.to_string()),
+                    ("sha256".to_string(), sha256.clone()),
+                ]),
+            },
+        ) {
+            return internal_error_response(audit_err);
+        }
         return internal_error_response(err);
     }
 
     let servers = new_catalog.server_count();
     let profiles = new_catalog.profile_count();
+    if let Err(err) = record_admin_operation_audit(
+        &state,
+        &profile,
+        &subject,
+        AdminOperationAuditRecord {
+            action: GatewayAction::AdminWrite,
+            method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+            started_at,
+            status: AdminOperationStatus::Succeeded,
+            failure: None,
+            metadata: BTreeMap::from([
+                ("revision_id".to_string(), revision_id.to_string()),
+                ("sha256".to_string(), sha256.clone()),
+                ("servers".to_string(), servers.to_string()),
+                ("profiles".to_string(), profiles.to_string()),
+            ]),
+        },
+    ) {
+        return internal_error_response(err);
+    }
     replace_http_client(&state.http, new_http);
     replace_catalog(&state.catalog, new_catalog);
     tracing::info!(
@@ -2699,7 +2960,7 @@ async fn revoke_jwt(
         subject,
         GatewayAction::AdminWrite,
         "admin/jwt-revocations",
-        metadata,
+        metadata.clone(),
         started_at,
     ) {
         Ok(authorized) => authorized,
@@ -2708,6 +2969,21 @@ async fn revoke_jwt(
 
     let revoked_at = Utc::now();
     if request.expires_at <= revoked_at {
+        if let Err(err) = record_admin_operation_audit(
+            &state,
+            &profile,
+            &subject,
+            AdminOperationAuditRecord {
+                action: GatewayAction::AdminWrite,
+                method: ADMIN_JWT_REVOCATIONS_RESULT_METHOD,
+                started_at,
+                status: AdminOperationStatus::Rejected,
+                failure: Some(AdminOperationFailure::ExpiredRevocation),
+                metadata,
+            },
+        ) {
+            return internal_error_response(err);
+        }
         return (
             StatusCode::BAD_REQUEST,
             "revocation expiration must be in the future",
@@ -2715,7 +2991,7 @@ async fn revoke_jwt(
             .into_response();
     }
     let revocation = GatewayJwtRevocation {
-        profile: profile.id,
+        profile: profile.id.clone(),
         issuer: request.issuer,
         jwt_id: request.jwt_id,
         revoked_at,
@@ -2724,6 +3000,36 @@ async fn revoke_jwt(
     };
     if let Err(err) = state.gateway_state.record_jwt_revocation(&revocation) {
         tracing::error!("failed to persist gateway JWT revocation: {err}");
+        if let Err(audit_err) = record_admin_operation_audit(
+            &state,
+            &profile,
+            &subject,
+            AdminOperationAuditRecord {
+                action: GatewayAction::AdminWrite,
+                method: ADMIN_JWT_REVOCATIONS_RESULT_METHOD,
+                started_at,
+                status: AdminOperationStatus::Failed,
+                failure: Some(AdminOperationFailure::PersistJwtRevocation),
+                metadata: metadata.clone(),
+            },
+        ) {
+            return internal_error_response(audit_err);
+        }
+        return internal_error_response(err);
+    }
+    if let Err(err) = record_admin_operation_audit(
+        &state,
+        &profile,
+        &subject,
+        AdminOperationAuditRecord {
+            action: GatewayAction::AdminWrite,
+            method: ADMIN_JWT_REVOCATIONS_RESULT_METHOD,
+            started_at,
+            status: AdminOperationStatus::Succeeded,
+            failure: None,
+            metadata,
+        },
+    ) {
         return internal_error_response(err);
     }
     tracing::info!(
@@ -2745,12 +3051,13 @@ async fn prune_jwt_revocations(
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let (_catalog, _profile, subject) = match authorize_admin_request(
+    let metadata = BTreeMap::from([("operation".to_string(), "prune_jwt_revocations".to_string())]);
+    let (_catalog, profile, subject) = match authorize_admin_request(
         &state,
         subject,
         GatewayAction::AdminWrite,
         "admin/jwt-revocations/prune",
-        BTreeMap::from([("operation".to_string(), "prune_jwt_revocations".to_string())]),
+        metadata.clone(),
         started_at,
     ) {
         Ok(authorized) => authorized,
@@ -2763,9 +3070,43 @@ async fn prune_jwt_revocations(
         Ok(deleted) => deleted,
         Err(err) => {
             tracing::error!("failed to prune expired gateway JWT revocations: {err}");
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::PruneJwtRevocations),
+                    metadata,
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
             return internal_error_response(err);
         }
     };
+    if let Err(err) = record_admin_operation_audit(
+        &state,
+        &profile,
+        &subject,
+        AdminOperationAuditRecord {
+            action: GatewayAction::AdminWrite,
+            method: ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD,
+            started_at,
+            status: AdminOperationStatus::Succeeded,
+            failure: None,
+            metadata: {
+                let mut metadata = metadata;
+                metadata.insert("deleted".to_string(), deleted.to_string());
+                metadata
+            },
+        },
+    ) {
+        return internal_error_response(err);
+    }
     tracing::info!(
         profile = %state.profile_id,
         principal = %subject.principal.id,
@@ -3497,6 +3838,65 @@ struct AdminAuditRecord<'a> {
     started_at: Instant,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum AdminOperationStatus {
+    Succeeded,
+    Rejected,
+    Failed,
+}
+
+impl AdminOperationStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Succeeded => "succeeded",
+            Self::Rejected => "rejected",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum AdminOperationFailure {
+    BuildHttpClient,
+    ControlPlaneSha,
+    ExpiredRevocation,
+    InvalidControlPlane,
+    LatestRevisionRead,
+    LoadControlPlane,
+    PersistControlPlaneRevision,
+    PersistJwtRevocation,
+    ProfileRouteChange,
+    PruneJwtRevocations,
+    RevisionId,
+}
+
+impl AdminOperationFailure {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::BuildHttpClient => "build_http_client",
+            Self::ControlPlaneSha => "control_plane_sha",
+            Self::ExpiredRevocation => "expired_revocation",
+            Self::InvalidControlPlane => "invalid_control_plane",
+            Self::LatestRevisionRead => "latest_revision_read",
+            Self::LoadControlPlane => "load_control_plane",
+            Self::PersistControlPlaneRevision => "persist_control_plane_revision",
+            Self::PersistJwtRevocation => "persist_jwt_revocation",
+            Self::ProfileRouteChange => "profile_route_change",
+            Self::PruneJwtRevocations => "prune_jwt_revocations",
+            Self::RevisionId => "revision_id",
+        }
+    }
+}
+
+struct AdminOperationAuditRecord<'a> {
+    action: GatewayAction,
+    method: &'a str,
+    started_at: Instant,
+    status: AdminOperationStatus,
+    failure: Option<AdminOperationFailure>,
+    metadata: BTreeMap<String, String>,
+}
+
 fn admin_revocation_metadata(request: &GatewayJwtRevocationRequest) -> BTreeMap<String, String> {
     let mut metadata = BTreeMap::new();
     metadata.insert("operation".to_string(), "revoke_jwt".to_string());
@@ -3507,6 +3907,54 @@ fn admin_revocation_metadata(request: &GatewayJwtRevocationRequest) -> BTreeMap<
         metadata.insert("reason".to_string(), reason.clone());
     }
     metadata
+}
+
+fn record_admin_operation_audit(
+    state: &AdminState,
+    profile: &GatewayProfile,
+    subject: &AuthenticatedSubject,
+    record: AdminOperationAuditRecord<'_>,
+) -> anyhow::Result<()> {
+    let mut metadata = record.metadata;
+    metadata.insert(
+        "operation_status".to_string(),
+        record.status.as_str().to_string(),
+    );
+    if let Some(failure) = record.failure {
+        metadata.insert(
+            "operation_failure".to_string(),
+            failure.as_str().to_string(),
+        );
+    }
+
+    let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let target = PolicyTarget::Gateway;
+    let decision = PolicyDecision {
+        effect: PolicyEffect::Allow,
+        reason: PolicyReasonCode::PolicyAllow,
+        evaluated_at: Utc::now(),
+        profile: profile.id.clone(),
+        action: record.action,
+        target: target.clone(),
+        principal: Some(subject.principal.id.clone()),
+        tenant: subject.principal.tenant.clone(),
+        policy_version: None,
+        rule_id: None,
+        trace_id,
+    };
+    record_admin_audit(
+        &state.gateway_state,
+        profile,
+        subject,
+        AdminAuditRecord {
+            action: record.action,
+            target,
+            decision,
+            method: record.method,
+            metadata,
+            started_at: record.started_at,
+        },
+    )
 }
 
 fn record_admin_audit(

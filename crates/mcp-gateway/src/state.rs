@@ -33,6 +33,13 @@ pub struct GatewayPolicyAuditReasonSummary {
     pub events: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayPolicyAuditMetadataSummary {
+    pub metadata_key: String,
+    pub metadata_value: String,
+    pub events: u64,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct GatewayAuditRetentionSummary {
     pub auth_events_deleted: u64,
@@ -307,6 +314,38 @@ impl GatewayState {
             entry.events += 1;
         }
         Ok(summaries.into_values().collect())
+    }
+
+    pub fn policy_audit_metadata_summary(
+        &self,
+        metadata_key: &str,
+    ) -> Result<Vec<GatewayPolicyAuditMetadataSummary>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT event_json
+            FROM gateway_audit_events
+            ORDER BY timestamp, event_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut summaries = std::collections::BTreeMap::<String, u64>::new();
+        for row in rows {
+            let event: AuditEvent = serde_json::from_str(&row?)?;
+            if let Some(metadata_value) = event.metadata.get(metadata_key) {
+                *summaries.entry(metadata_value.clone()).or_default() += 1;
+            }
+        }
+        Ok(summaries
+            .into_iter()
+            .map(
+                |(metadata_value, events)| GatewayPolicyAuditMetadataSummary {
+                    metadata_key: metadata_key.to_string(),
+                    metadata_value,
+                    events,
+                },
+            )
+            .collect())
     }
 
     pub fn delete_audit_events_before(
@@ -1014,6 +1053,26 @@ mod tests {
         effect: PolicyEffect,
         reason: PolicyReasonCode,
     ) {
+        record_policy_audit_with_metadata(
+            state,
+            event_id,
+            method,
+            action,
+            effect,
+            reason,
+            BTreeMap::new(),
+        );
+    }
+
+    fn record_policy_audit_with_metadata(
+        state: &GatewayState,
+        event_id: &str,
+        method: &str,
+        action: GatewayAction,
+        effect: PolicyEffect,
+        reason: PolicyReasonCode,
+        metadata: BTreeMap<String, String>,
+    ) {
         let profile = GatewayProfileId::new("default").unwrap();
         let target = PolicyTarget::Tool {
             server: ServerSlug::new("media").unwrap(),
@@ -1048,7 +1107,7 @@ mod tests {
                 tenant: None,
                 token_issuer: None,
                 latency_ms: Some(12),
-                metadata: BTreeMap::new(),
+                metadata,
             })
             .unwrap();
     }
@@ -1556,6 +1615,52 @@ mod tests {
             summary_by_reason.get(&PolicyReasonCode::MissingDataLabel),
             Some(&1_u64)
         );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn policy_audit_metadata_summary_counts_selected_metadata_values() {
+        let path = temp_path("audit-metadata-summary");
+        let state = GatewayState::open(&path).unwrap();
+
+        record_policy_audit_with_metadata(
+            &state,
+            "event-admin-succeeded-1",
+            "admin/control-plane/result",
+            GatewayAction::AdminWrite,
+            PolicyEffect::Allow,
+            PolicyReasonCode::PolicyAllow,
+            BTreeMap::from([("operation_status".to_string(), "succeeded".to_string())]),
+        );
+        record_policy_audit_with_metadata(
+            &state,
+            "event-admin-succeeded-2",
+            "admin/jwt-revocations/result",
+            GatewayAction::AdminWrite,
+            PolicyEffect::Allow,
+            PolicyReasonCode::PolicyAllow,
+            BTreeMap::from([("operation_status".to_string(), "succeeded".to_string())]),
+        );
+        record_policy_audit_with_metadata(
+            &state,
+            "event-admin-rejected",
+            "admin/jwt-revocations/result",
+            GatewayAction::AdminWrite,
+            PolicyEffect::Allow,
+            PolicyReasonCode::PolicyAllow,
+            BTreeMap::from([("operation_status".to_string(), "rejected".to_string())]),
+        );
+
+        let summary = state
+            .policy_audit_metadata_summary("operation_status")
+            .unwrap();
+        let summary_by_value: BTreeMap<String, u64> = summary
+            .into_iter()
+            .map(|entry| (entry.metadata_value, entry.events))
+            .collect();
+        assert_eq!(summary_by_value.get("succeeded"), Some(&2_u64));
+        assert_eq!(summary_by_value.get("rejected"), Some(&1_u64));
 
         let _ = std::fs::remove_file(path);
     }

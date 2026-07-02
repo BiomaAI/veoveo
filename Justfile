@@ -197,6 +197,9 @@ smoke-gateway-http:
     echo "${revocation_result}" | jq -e '.status == "revoked" and .revocation.jwt_id == "smoke-jwt"' >/dev/null
     prune_result="$(curl -fsS -X POST -H "Authorization: Bearer ${admin_token}" "${base}/admin/default/jwt-revocations/prune")"
     echo "${prune_result}" | jq -e '.status == "pruned" and .deleted == 0' >/dev/null
+    expired_payload="$(jq -n --arg issuer 'https://veoveo.bioma.ai/oauth/default' --arg jwt_id 'expired-smoke-jwt' --arg expires_at '2000-01-01T00:00:00Z' --arg reason 'smoke-expired' '{issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"
+    expired_status="$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${admin_token}" -H "Content-Type: application/json" --data "${expired_payload}" "${base}/admin/default/jwt-revocations")"
+    test "${expired_status}" = "400"
     kill "${pid}"
     wait "${pid}" 2>/dev/null || true
     pid=""
@@ -204,8 +207,13 @@ smoke-gateway-http:
     echo "${audit_counts}" | grep -E '"auth_events":[1-9][0-9]*'
     echo "${audit_counts}" | grep -E '"policy_events":[1-9][0-9]*'
     audit_summary="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-method-summary --state-db "${state_db}")"
-    echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations" and .allow_events == 1)' >/dev/null
+    echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations" and .allow_events == 2)' >/dev/null
     echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations/prune" and .allow_events == 1)' >/dev/null
+    echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations/result" and .allow_events == 2)' >/dev/null
+    echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations/prune/result" and .allow_events == 1)' >/dev/null
+    audit_status_summary="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-metadata-summary --state-db "${state_db}" --metadata-key operation_status)"
+    echo "${audit_status_summary}" | jq -e '.[] | select(.metadata_value == "succeeded" and .events >= 2)' >/dev/null
+    echo "${audit_status_summary}" | jq -e '.[] | select(.metadata_value == "rejected" and .events >= 1)' >/dev/null
 
 # Smoke-test OTLP HTTP log and trace export from the gateway.
 smoke-otel:
