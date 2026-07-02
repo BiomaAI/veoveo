@@ -197,13 +197,17 @@ server creating durable artifacts or billable usage must use the standard artifa
 usage surfaces. Fast metadata, search, config, or read-only resource servers can remain
 plain `rmcp` tools/resources.
 
-## Veoveo gateway MVP
+## Veoveo production gateway
 
 The Veoveo platform should provide a first-class MCP gateway inspired by the way larger
 MCP platforms assemble registry, auth, policy, hosted runtimes, and observability around
 individual servers. The gateway is our product boundary, not a dependency on an external
-orchestrator. It speaks MCP outward and MCP inward: external MCP clients connect to one
-gateway profile, while the gateway connects only to hosted Veoveo MCP servers in the MVP.
+orchestrator. The first shipped gateway must be dynamic, self-hosted, and secure by
+default; "first slice" does not mean anonymous, static, tool-only, or local-dev-only.
+
+The gateway speaks MCP outward and MCP inward: external MCP clients connect to one gateway
+profile, while the gateway connects only to hosted Veoveo MCP servers in the first shipped
+version.
 
 ```
 MCP client
@@ -217,11 +221,11 @@ Veoveo gateway profile (/mcp/{profile})
   |-- optimization-mcp
 ```
 
-The MVP explicitly excludes third-party or remote MCP servers. Every upstream server is a
-Veoveo-hosted server with a typed server manifest, a known URI scheme, a known mount path,
-and conformance coverage from `veoveo-mcp-contract`. Direct server endpoints such as
-`/media/mcp` remain valid contract targets for internal testing and service composition,
-but external clients should normally use the gateway profile endpoint.
+The first shipped version explicitly excludes third-party or remote MCP servers. Every
+upstream server is a Veoveo-hosted server with a typed server manifest, a known URI scheme,
+a known mount path, and conformance coverage from `veoveo-mcp-contract`. Direct server
+endpoints such as `/media/mcp` remain valid contract targets for internal testing and
+service composition, but external clients should normally use the gateway profile endpoint.
 
 The gateway must preserve the full MCP contract. It is not a tool-only aggregator. It must
 forward or aggregate the protocol surfaces our servers rely on:
@@ -248,8 +252,8 @@ local names such as `run`; the gateway can expose canonical names such as `media
 Resource URIs stay server-owned (`media://artifact/{sha256}`, `media://usage/task/{task_id}`)
 because URI schemes are already the resource namespace.
 
-Authentication and authorization are part of the MVP, not a later add-on. The gateway must
-implement MCP-compatible HTTP authorization:
+Authentication and authorization are part of the first shipped gateway, not a later add-on.
+The gateway must implement MCP-compatible HTTP authorization:
 
 - OAuth 2.0 Protected Resource Metadata for each gateway profile.
 - `WWW-Authenticate` challenges that point clients at the profile's protected-resource
@@ -268,21 +272,89 @@ default. Servers remain responsible for enforcing the Veoveo contract on task ow
 artifact reads, usage reads, and regulated-data labels; gateway policy reduces exposure but
 does not replace server-side checks.
 
-The first implementation slice should stay small and prove the contract end to end:
+Gateway data must be split by sensitivity and lifecycle:
 
-1. Add typed server manifest, gateway profile, principal, scope, and policy decision
+- **Control data**: hosted server manifests, gateway profiles, profile assignments,
+  policy sets, environment definitions, tenant records, identity-provider metadata,
+  OAuth client registrations, data-label definitions, and secret references. This data is
+  dynamic and durable. It should start as typed files plus hot reload or an explicit admin
+  API, then move to a control-plane store without changing the MCP contract.
+- **Secret data**: provider API keys, webhook secrets, OAuth client secrets, gateway
+  signing keys, JWKS private keys, and token-exchange credentials. Store secret references
+  in control data, never secret values. Local development may use `.env`; enterprise
+  deployments should use Vault, HCP Vault, cloud secret managers, KMS-backed stores, or
+  their approved secret infrastructure.
+- **Runtime state**: gateway task id to upstream task id mapping, subscription ownership,
+  request correlation ids, token revocation entries, replay-protection ids, OAuth state,
+  ID-JAG exchange state, and short-lived session metadata. This state is operationally
+  durable and must survive process restarts.
+- **Audit and evidence**: authentication outcomes, policy decisions, tool calls,
+  resource reads, task reads/results/cancels, artifact reads, usage reads, admin changes,
+  credential resolution outcomes, and security-relevant failures. Audit records must carry
+  principal, tenant, profile, method, target server, action, decision, reason code, policy
+  version, trace id, and timestamp. They must not contain raw prompts, provider payloads,
+  bearer tokens, secrets, signed URLs, artifact bytes, or webhook bodies.
+- **Analytics**: usage, cost, latency, error rates, policy-denial rates, and access
+  patterns. DuckDB is appropriate for local/server analytics and exportable reporting; it
+  is not the secret store.
+
+Regulated-data support is a design requirement. Policy must be able to express and enforce
+access for CUI, ITAR, PII, customer-confidential data, export-control labels, tenant
+boundaries, project boundaries, user/service principals, group membership, citizenship or
+US-person requirements when provided by the IdP, environment, model/provider allowlists,
+artifact ownership, usage visibility, and retention state. Classified deployments require
+an accredited deployment environment, approved identity provider, approved cryptography,
+approved storage, approved network boundary, and approved operations process; the Veoveo
+software must provide the hooks and enforcement model, while the deployment proves the
+classification boundary.
+
+The shipped gateway must enforce these hard requirements:
+
+- fail closed for unknown profiles, servers, tools, resources, prompts, tasks, artifacts,
+  principals, scopes, policy versions, labels, and token issuers,
+- authenticate every gateway request except explicitly documented health/readiness probes,
+- validate JWT signature, issuer, audience/resource, expiration, not-before, scopes, and
+  replay identifiers where applicable,
+- bind access tokens to exactly one gateway profile resource,
+- use per-method policy checks for `tools/*`, `resources/*`, `prompts/*`, `completion/*`,
+  `tasks/*`, artifact reads, usage reads, and admin operations,
+- require server-side policy checks inside hosted MCP servers for task ownership, artifact
+  access, usage access, and regulated labels,
+- issue short-lived internal gateway-to-server tokens or signed assertions; do not pass raw
+  external IdP tokens to hosted servers by default,
+- support internal mTLS or equivalent authenticated service-to-service transport in
+  enterprise deployments,
+- export audit and telemetry to platform logs/OpenTelemetry/SIEM without leaking protected
+  content,
+- support secret rotation by reference, not by redeploying code,
+- keep provider completion webhook-only for long-running provider jobs.
+
+The implementation plan is production-gateway-first:
+
+1. Add typed server manifest, gateway profile, principal, tenant, scope, data-label,
+   secret-reference, policy, policy-decision, audit-event, token-subject, and runtime-state
    models to `veoveo-mcp-contract`.
-2. Create a `mcp-gateway` crate that reads a static typed config and connects to one
-   hosted upstream: `media-mcp`.
-3. Route `/mcp/default` to the gateway in Compose while keeping `/media/webhooks`,
-   `/media/files`, and `/media/artifacts` owned by the media server.
-4. Implement protected-resource metadata, JWT/JWKS validation, profile-scoped policy, and
-   structured audit events.
-5. Add OAuth/OIDC browser flow, then Enterprise-Managed Authorization / ID-JAG, then
-   client credentials.
-6. Extend the conformance CLI with direct-server and gateway-profile modes; both paths must
-   exercise tools, resources, prompts, completions, tasks, usage, artifacts, and
-   notifications.
+2. Create a `mcp-gateway` crate that loads dynamic typed control data and connects to the
+   hosted upstreams enabled for a profile, starting with `media-mcp` but not hard-coding
+   media into the architecture.
+3. Add gateway durability for runtime state and audit/analytics. Use DuckDB where it fits
+   analytics and local durability, but keep secret values in `.env` for local development
+   and secret-manager references for enterprise deployments.
+4. Route `/mcp/{profile}` to the gateway in Compose while keeping provider plumbing such as
+   `/media/webhooks`, `/media/files`, and `/media/artifacts` owned by the media server.
+5. Implement protected-resource metadata, `WWW-Authenticate` challenges, JWT/JWKS
+   validation, audience/resource binding, profile-scoped policy, and structured audit
+   events before exposing the gateway as the default client entrypoint.
+6. Add OAuth/OIDC authorization-code + PKCE, MCP Enterprise-Managed Authorization / ID-JAG,
+   and MCP OAuth Client Credentials. These are required auth modes, not optional demos.
+7. Add gateway-to-server internal tokens or signed assertions, server-side verification,
+   and policy enforcement inside `media-mcp`.
+8. Add conformance modes for direct servers and gateway profiles. Both paths must exercise
+   tools, resources, prompts, completions, tasks, usage, artifacts, notifications, auth
+   failures, policy denials, and audit emission.
+9. Add self-hosted deployment profiles for local, enterprise, and regulated environments.
+   Each profile must declare required external services, secret sources, object stores,
+   telemetry sinks, allowed ingress, allowed egress, and data-retention behavior.
 
 ## Enterprise deployment and pluggable infrastructure
 
