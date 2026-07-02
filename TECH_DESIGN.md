@@ -130,15 +130,25 @@ only one of them is a contract:
   routes are plumbing, undocumented for clients, and never carry anything client-facing.
 - `/healthz` — ops.
 
-There is deliberately **no client-facing REST API** — no artifact download routes, no
-usage endpoints, no side doors. Anything a client needs is reachable through the
-protocol: artifacts via `resources/read`, usage via resources, chaining by passing
-resource URIs in tool input (the server rewrites them to provider-fetchable URLs
-internally). Two ways to reach the same data means two contracts to version, secure, and
-keep consistent — and the HTTP one always wins by convenience until the protocol surface
-rots. It's the tool-flattening failure mode wearing a different hat. If a real limit
-appears (e.g. very large media over base64 blob reads), we solve it inside the protocol,
-not beside it.
+There is deliberately **no client-facing REST API** — no endpoints that list, query, or
+mutate anything. Anything a client needs to *know* is reachable through the protocol:
+artifacts via `resources/read`, usage via resources, chaining by passing resource URIs in
+tool input (the server rewrites them to provider-fetchable URLs internally). Two ways to
+learn the same facts means two contracts to version, secure, and keep consistent — and
+the HTTP one always wins by convenience until the protocol surface rots. It's the
+tool-flattening failure mode wearing a different hat.
+
+**A content host is not a REST API.** MCP is not built for large binaries: SDK transports
+cap messages around 4MB, embedded/blob resources are guided to ~1MB, base64 adds 33%, and
+the core protocol has no ranged reads, chunking, or resume (SEP-1597/1708/2356 are open
+precisely because of this). The spec's own idiom for large content is link-not-blob:
+`ResourceLink` blocks may carry any URI, including plain `https://`. So artifact results
+carry both identities: `artifact://{sha256}` as the canonical, protocol-readable one
+(blob via `resources/read` for small/medium content), and a `https://…/artifacts/{sha256}`
+content URL for bulk retrieval. That route is GET-only, immutable, content-addressed —
+functionally a private CDN. Clients never discover anything there; every URL they touch
+was handed to them by the protocol. The moment it grows a second verb, a listing, or any
+fact not already in the protocol, it has become an API and broken the rule.
 
 ## What "all in" costs, and why it's worth it
 
