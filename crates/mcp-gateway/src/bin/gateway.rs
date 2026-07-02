@@ -10,6 +10,8 @@ mod auth;
 mod http_util;
 #[path = "gateway/oauth.rs"]
 mod oauth;
+#[path = "gateway/oauth_client_credentials.rs"]
+mod oauth_client_credentials;
 #[path = "gateway/oauth_grants.rs"]
 mod oauth_grants;
 #[path = "gateway/runtime.rs"]
