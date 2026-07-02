@@ -55,7 +55,7 @@ Our answer is a single task-required tool whose *discovery story lives in the pr
 New provider model? Zero code changes anywhere. The registry is cached (1h TTL) and the
 same cache backs the catalog resource, the per-model resources, and completions.
 
-## Long-running work: tasks + webhooks, fused
+## Long-running work: tasks + webhooks
 
 Generation takes seconds to minutes (gpt-image-2 edits run ~2 minutes). Blocking a
 `tools/call` for that long fights every transport timeout in the chain. Two async systems
@@ -82,10 +82,8 @@ Provider ──POST /webhooks (signed)──▶ ingest_prediction()
                                           └─ notifications/resources/updated ─▶ subscribers
 ```
 
-A slow poll of the provider API (30s) backstops lost callbacks — or runs standalone when
-no public URL is configured. This isn't hypothetical: during E2E, a stale webhook secret
-caused every signature check to fail, and the run still completed via fallback. Push is
-the fast path; poll is the guarantee.
+There is no provider polling path. Missing webhook delivery is an operational failure:
+the task eventually fails rather than silently switching to a second provider-status path.
 
 We implement the `tasks/*` handlers manually against our own task store rather than using
 rmcp's stock `OperationProcessor`, because we key tasks to provider prediction ids and
@@ -178,7 +176,7 @@ The reusable `veoveo-mcp-contract` crate has a narrower job: encode Veoveo's pol
 resilient provider-backed generation servers. That layer should standardize the parts
 `rmcp` deliberately does not own:
 
-- provider webhook + poll fallback fusion,
+- provider webhook completion,
 - durable task recovery across restarts,
 - consistent task lifecycle for long-running provider jobs,
 - artifact ingestion into a server-owned store,
@@ -286,9 +284,8 @@ other default Compose service.
 Both paths were proven against a production media provider, through a real cloudflared tunnel:
 
 1. `openai/gpt-image-2/edit` — input image served via `/files`, 122.9s inference,
-   completed via **poll fallback** (webhook signature was failing on a stale secret —
-   exactly the failure the fallback exists for).
-2. a text-to-image model — corrected secret, webhook **verified and pushed**,
+   completed by provider webhook.
+2. a text-to-image model — webhook **verified and pushed**,
    task completed in ~2s; client received `resources/updated` and `tasks/status`
    notifications live, then downloaded outputs from the resource links.
 

@@ -1,4 +1,4 @@
-//! Minimal provider API client: model registry, prediction submit, result fetch.
+//! Minimal provider API client: model registry and prediction submit.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -173,17 +173,6 @@ impl ProviderClient {
             .post(url)
             .bearer_auth(&self.api_key)
             .json(input)
-            .send()
-            .await?;
-        Self::unwrap_envelope(resp).await
-    }
-
-    /// Fetch the current state of a prediction.
-    pub async fn get_prediction(&self, id: &str) -> Result<Prediction, ProviderError> {
-        let resp = self
-            .http
-            .get(format!("{}/api/v3/predictions/{}/result", self.base, id))
-            .bearer_auth(&self.api_key)
             .send()
             .await?;
         Self::unwrap_envelope(resp).await

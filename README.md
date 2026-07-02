@@ -36,8 +36,8 @@ One tool, everything else is protocol:
 
 Task lifecycle: `tools/call` (+`task` metadata) → `CreateTaskResult` → poll `tasks/get`
 (statusMessage carries the prediction id) → `tasks/result` returns output URLs as resource
-links + structured content. `tasks/cancel` aborts. Webhook push resolves the task; a slow
-poll of the provider API is the fallback when no public URL is configured.
+links + structured content. `tasks/cancel` aborts. Provider webhook delivery is the only
+server-side completion path.
 
 ## Setup
 
@@ -68,8 +68,9 @@ cargo run -p veoveo-mcp-contract --bin conformance -- run openai/gpt-image-2/edi
     --input '{"prompt":"add a red wizard hat","images":["https://….trycloudflare.com/files/gol-real-roblox.jpeg"]}'
 ```
 
-Without `--public-url` the server still works — it just polls the provider instead of
-receiving webhooks, and `/files` URLs won't be reachable by the provider.
+`--public-url` is required for generation because providers must be able to deliver
+webhook callbacks. `/files` URLs also need that public base URL to be reachable by the
+provider.
 
 ## Layout
 

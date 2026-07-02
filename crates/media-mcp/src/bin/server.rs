@@ -60,7 +60,6 @@ use veoveo_media_mcp::{
 
 const REGISTRY_TTL: Duration = Duration::from_secs(3600);
 const TASK_POLL_INTERVAL_MS: u64 = 3000;
-const FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(30);
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Parser, Debug)]
@@ -70,10 +69,9 @@ struct Args {
     #[arg(long, default_value_t = 8787)]
     port: u16,
     /// Public base URL reachable by the media provider (e.g. the cloudflared tunnel URL).
-    /// Used to build webhook callback URLs and /files URLs. Without it the
-    /// server falls back to polling instead of webhooks.
+    /// Required because media task completion is webhook-only.
     #[arg(long, env = "PUBLIC_URL")]
-    public_url: Option<String>,
+    public_url: String,
     /// Directory served at /files/* so the media provider can fetch input media by URL.
     #[arg(long)]
     static_dir: Option<PathBuf>,
@@ -115,7 +113,7 @@ struct RegistryCache {
 
 struct AppState {
     provider: ProviderClient,
-    public_url: Option<String>,
+    public_url: String,
     webhook_secret: Option<String>,
     registry: RwLock<Option<RegistryCache>>,
     tasks: TaskStore,
@@ -213,7 +211,7 @@ impl MediaMcp {
     /// invocations through `enqueue_task`. This body only exists so the
     /// router publishes the tool with its schema.
     #[tool(
-        description = "Run any media model asynchronously. Must be invoked as an MCP task; poll tasks/get and fetch outputs via tasks/result. Discover models via the media://models resource, and each model's input schema via media://model/{model_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
+        description = "Run any media model asynchronously. Must be invoked as an MCP task; read tasks/get and fetch outputs via tasks/result. Discover models via the media://models resource, and each model's input schema via media://model/{model_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
         execution(task_support = "required")
     )]
     async fn run(
@@ -284,7 +282,7 @@ fn prediction_result(prediction: &Prediction) -> CallToolResult {
 }
 
 /// The long-running body of a `run` task: validate → submit → await webhook
-/// (with poll fallback) → finalize.
+/// → finalize.
 async fn run_task(
     state: Arc<AppState>,
     peer: Peer<RoleServer>,
@@ -338,14 +336,11 @@ async fn run_task(
     }
     notify_progress(&peer, &progress_token, 0.1, "input validated").await;
 
-    // 2. Submit with webhook callback when we have a public URL.
-    let webhook_url = state
-        .public_url
-        .as_ref()
-        .map(|u| format!("{}/webhooks/media", u.trim_end_matches('/')));
+    // 2. Submit with the callback URL. Completion is webhook-only.
+    let webhook_url = format!("{}/webhooks/media", state.public_url.trim_end_matches('/'));
     let prediction = match state
         .provider
-        .submit(&args.model, &input, webhook_url.as_deref())
+        .submit(&args.model, &input, Some(&webhook_url))
         .await
     {
         Ok(p) => p,
@@ -382,17 +377,12 @@ async fn run_task(
     )
     .await;
 
-    // 3. Register the webhook waiter, then wait: webhook push wins, slow poll
-    //    is the safety net for lost callbacks (or no public URL at all).
+    // 3. Wait for the provider webhook. No provider polling is allowed in this
+    // server: a missing webhook is an operational failure.
     let (tx, mut rx) = oneshot::channel::<Prediction>();
     state.pending.lock().await.insert(prediction_id.clone(), tx);
 
-    let deadline = Instant::now() + RUN_TIMEOUT;
-    let mut poll = tokio::time::interval(FALLBACK_POLL_INTERVAL);
-    poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    poll.tick().await; // consume the immediate first tick
-
-    // The webhook may have landed between submit and waiter registration.
+    // A webhook may have landed between submit and waiter registration.
     let mut terminal: Option<Prediction> = state
         .predictions
         .read()
@@ -400,41 +390,19 @@ async fn run_task(
         .get(&prediction_id)
         .filter(|p| p.is_terminal())
         .cloned();
-    while terminal.is_none() {
-        if Instant::now() > deadline {
-            break;
-        }
-        tokio::select! {
-            got = &mut rx => {
-                match got {
-                    Ok(p) => terminal = Some(p),
-                    Err(_) => break, // sender dropped (cancel path)
-                }
-            }
-            _ = poll.tick() => {
-                match state.provider.get_prediction(&prediction_id).await {
-                    Ok(p) if p.is_terminal() => {
-                        state.pending.lock().await.remove(&prediction_id);
-                        state.ingest_prediction(p.clone()).await;
-                        terminal = Some(p);
-                    }
-                    Ok(p) => {
-                        state.predictions.write().await.insert(prediction_id.clone(), p.clone());
-                        notify_progress(&peer, &progress_token, 0.5, &format!("provider status: {}", p.status)).await;
-                    }
-                    Err(e) => {
-                        tracing::warn!("poll fallback failed for {prediction_id}: {e}");
-                    }
-                }
-            }
-        }
+    if terminal.is_none() {
+        terminal = match tokio::time::timeout(RUN_TIMEOUT, &mut rx).await {
+            Ok(Ok(p)) => Some(p),
+            Ok(Err(_)) => None,
+            Err(_) => None,
+        };
     }
     state.pending.lock().await.remove(&prediction_id);
 
     // 4. Finalize.
     let Some(prediction) = terminal else {
         fail!(format!(
-            "timed out after {}s waiting for prediction {prediction_id}",
+            "timed out after {}s waiting for webhook for prediction {prediction_id}",
             RUN_TIMEOUT.as_secs()
         ));
     };
@@ -502,7 +470,7 @@ impl ServerHandler for MediaMcp {
              (2) read media://model/{model_id} for its exact input JSON Schema; \
              (3) call the `run` tool as a task (SEP-1319) with {model, input}; \
              (4) the task statusMessage carries the prediction id — subscribe to media://prediction/{id} for push updates; \
-             (5) poll tasks/get until completed, then tasks/result returns output URLs as resource links."
+             (5) read tasks/get until completed, then tasks/result returns output URLs as resource links."
                 .into(),
         );
         info
@@ -578,7 +546,7 @@ impl ServerHandler for MediaMcp {
                 Err(McpError::invalid_request("task was cancelled", None))
             }
             TaskPayloadState::Running => Err(McpError::invalid_request(
-                "task is still running; poll tasks/get until completed",
+                "task is still running; read tasks/get until completed",
                 None,
             )),
             TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
@@ -685,23 +653,16 @@ impl ServerHandler for MediaMcp {
             serde_json::to_string(&entry)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(id) = uris::parse_prediction_uri(uri) {
-            // Serve the cache when terminal; otherwise fetch fresh state.
-            let cached = self.state.predictions.read().await.get(id).cloned();
-            let prediction = match cached {
-                Some(p) if p.is_terminal() => p,
-                cached => match self.state.provider.get_prediction(id).await {
-                    Ok(p) => {
-                        self.state.ingest_prediction(p.clone()).await;
-                        p
-                    }
-                    Err(e) => cached.ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown prediction '{id}': {e}"),
-                            None,
-                        )
-                    })?,
-                },
-            };
+            let prediction = self
+                .state
+                .predictions
+                .read()
+                .await
+                .get(id)
+                .cloned()
+                .ok_or_else(|| {
+                    McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
+                })?;
             serde_json::to_string(&prediction)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else {
@@ -877,7 +838,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(
-        "veoveo-media-mcp listening on http://{addr} (mcp at /mcp, public_url={:?})",
+        "veoveo-media-mcp listening on http://{addr} (mcp at /mcp, public_url={})",
         args.public_url
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
