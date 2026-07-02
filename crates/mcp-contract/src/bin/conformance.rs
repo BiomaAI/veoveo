@@ -20,7 +20,7 @@ use rmcp::{
     model::{
         ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams, ClientCapabilities,
         ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock, GetPromptRequestParams,
-        GetTaskParams, GetTaskPayloadParams, Implementation, NumberOrString,
+        GetTaskParams, GetTaskPayloadParams, Implementation, ListTasksRequest, NumberOrString,
         ProgressNotificationParam, ProgressToken, ReadResourceRequestParams, Reference, Request,
         RequestParamsMeta, ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams,
         TaskMetadata, TaskStatus, TaskStatusNotificationParam,
@@ -140,6 +140,8 @@ enum Cmd {
         #[arg(long)]
         arguments: Option<String>,
     },
+    /// List MCP tasks visible to the authenticated principal.
+    Tasks,
     /// Read the full schema resource for one model.
     Schema { model_id: String },
     /// Read the live state of a prediction resource.
@@ -689,6 +691,28 @@ async fn cmd_prompt(client: &Client, name: String, arguments: Option<String>) ->
     Ok(())
 }
 
+async fn cmd_tasks(client: &Client) -> Result<()> {
+    let result = client
+        .send_request(ClientRequest::ListTasksRequest(ListTasksRequest::default()))
+        .await?;
+    let ServerResult::ListTasksResult(result) = result else {
+        return Err(anyhow!("expected ListTasksResult, got {result:?}"));
+    };
+    for task in &result.tasks {
+        println!(
+            "{} {:?} {}",
+            task.task_id,
+            task.status,
+            task.status_message.as_deref().unwrap_or_default()
+        );
+    }
+    println!("{} task(s)", result.tasks.len());
+    if let Some(cursor) = result.next_cursor {
+        println!("next cursor: {cursor}");
+    }
+    Ok(())
+}
+
 fn print_call_tool_result(result: &CallToolResult) -> Vec<String> {
     let mut outputs = Vec::new();
     for block in result.content.iter() {
@@ -949,6 +973,7 @@ async fn main() -> Result<()> {
         Cmd::Prompts => cmd_prompts(&client).await,
         Cmd::Resource { uri } => cmd_resource(&client, uri).await,
         Cmd::Prompt { name, arguments } => cmd_prompt(&client, name, arguments).await,
+        Cmd::Tasks => cmd_tasks(&client).await,
         Cmd::Schema { model_id } => {
             let value = read_resource_json(&client, &uris.model_uri(&model_id)).await?;
             println!("{}", serde_json::to_string_pretty(&value)?);
