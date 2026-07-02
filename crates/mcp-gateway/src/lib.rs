@@ -7,11 +7,13 @@ use std::{
 
 pub mod auth;
 pub mod mcp;
+pub mod state;
 
 use anyhow::{Context, Result};
 pub use auth::{AuthError, AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
 pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
+pub use state::GatewayState;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId, GatewayToolName,
     IdentityProvider, IdentityProviderId, LocalToolName, McpMethodName, PolicyDecision,

@@ -3855,6 +3855,7 @@ dependencies = [
  "chrono",
  "clap",
  "dotenvy",
+ "duckdb",
  "jsonwebtoken",
  "reqwest 0.13.4",
  "rmcp",

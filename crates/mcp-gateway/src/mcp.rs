@@ -23,26 +23,32 @@ use rmcp::{
 };
 use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
-    CompletionExposure, GatewayAction, GatewayProfileId, GatewayTaskId, GatewayToolName,
-    LocalToolName, PolicyEffect, PolicyTarget, PromptName, ResourceUri, ServerSlug,
-    TaskExposure as ContractTaskExposure, UpstreamTransport, paginate,
+    CompletionExposure, GatewayAction, GatewayProfileId, GatewayTaskId, GatewayTaskMapping,
+    GatewayToolName, LocalToolName, PolicyEffect, PolicyTarget, PromptName, ResourceUri,
+    ServerSlug, TaskExposure as ContractTaskExposure, UpstreamTaskId, UpstreamTransport, paginate,
 };
 
-use crate::{AuthenticatedSubject, GatewayCatalog, PolicyRequest};
+use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
 
 const GATEWAY_PAGE_SIZE: usize = 100;
 
 #[derive(Debug)]
 pub struct GatewayMcp {
     catalog: Arc<GatewayCatalog>,
+    state: GatewayState,
     profile_id: GatewayProfileId,
     upstreams: RwLock<BTreeMap<ServerSlug, RunningService<RoleClient, GatewayUpstreamHandler>>>,
 }
 
 impl GatewayMcp {
-    pub fn new(catalog: Arc<GatewayCatalog>, profile_id: GatewayProfileId) -> Self {
+    pub fn new(
+        catalog: Arc<GatewayCatalog>,
+        profile_id: GatewayProfileId,
+        state: GatewayState,
+    ) -> Self {
         Self {
             catalog,
+            state,
             profile_id,
             upstreams: RwLock::new(BTreeMap::new()),
         }
@@ -105,6 +111,7 @@ impl GatewayMcp {
         );
         let handler = GatewayUpstreamHandler {
             upstream_server: server_slug.clone(),
+            state: self.state.clone(),
             downstream,
         };
         let running = handler
@@ -226,6 +233,15 @@ impl GatewayMcp {
         )
     }
 
+    fn task_mapping(&self, task_id: &str) -> Result<GatewayTaskMapping, McpError> {
+        let gateway_task_id = GatewayTaskId::new(task_id.to_string())
+            .map_err(|err| mcp_invalid_params(format!("invalid gateway task id: {err}")))?;
+        self.state
+            .task_mapping(&gateway_task_id)
+            .map_err(|err| mcp_internal(format!("failed to read gateway task mapping: {err}")))?
+            .ok_or_else(|| mcp_invalid_params("unknown gateway task id"))
+    }
+
     fn server_for_resource(&self, uri: &str) -> Result<ServerSlug, McpError> {
         self.catalog
             .server_for_resource_uri(&self.profile_id, uri)
@@ -254,7 +270,7 @@ impl GatewayMcp {
             [server] => Ok(server.clone()),
             [] => Err(mcp_invalid_request("profile does not expose MCP tasks")),
             _ => Err(mcp_invalid_request(
-                "task routing requires durable gateway task mappings for multi-server profiles",
+                "tasks/list requires one task-enabled server in the current profile",
             )),
         }
     }
@@ -376,7 +392,7 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CreateTaskResult, McpError> {
         let projection = parse_gateway_tool(&self.catalog, &request.name)?;
-        self.authorize_tool(
+        let subject = self.authorize_tool(
             &context,
             GatewayAction::ToolsCall,
             projection.server.clone(),
@@ -393,7 +409,32 @@ impl ServerHandler for GatewayMcp {
             .await
             .map_err(upstream_error)?;
         match result {
-            ServerResult::CreateTaskResult(result) => Ok(result),
+            ServerResult::CreateTaskResult(mut result) => {
+                let upstream_task_id =
+                    UpstreamTaskId::new(result.task.task_id.clone()).map_err(|err| {
+                        mcp_internal(format!("upstream returned invalid task id: {err}"))
+                    })?;
+                let gateway_task_id = GatewayTaskId::new(uuid::Uuid::new_v4().to_string())
+                    .map_err(|err| {
+                        mcp_internal(format!("failed to create gateway task id: {err}"))
+                    })?;
+                let now = chrono::Utc::now();
+                self.state
+                    .record_task_mapping(&GatewayTaskMapping {
+                        gateway_task_id: gateway_task_id.clone(),
+                        upstream_server: projection.server.clone(),
+                        upstream_task_id,
+                        profile: self.profile_id.clone(),
+                        owner: subject.principal.id.clone(),
+                        created_at: now,
+                        updated_at: now,
+                    })
+                    .map_err(|err| {
+                        mcp_internal(format!("failed to persist gateway task mapping: {err}"))
+                    })?;
+                result.task.task_id = gateway_task_id.to_string();
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tools/call task", other)),
         }
     }
@@ -622,7 +663,8 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListTasksResult, McpError> {
         let server = self.single_task_server()?;
-        self.authorize_task(&context, GatewayAction::TasksList, server.clone(), "list")?;
+        let subject =
+            self.authorize_task(&context, GatewayAction::TasksList, server.clone(), "list")?;
         let upstream = self.upstream(&server, context.peer.clone()).await?;
         let result = upstream
             .send_request(ClientRequest::ListTasksRequest(match request {
@@ -632,46 +674,76 @@ impl ServerHandler for GatewayMcp {
             .await
             .map_err(upstream_error)?;
         match result {
-            ServerResult::ListTasksResult(result) => Ok(result),
+            ServerResult::ListTasksResult(mut result) => {
+                let mappings = self
+                    .state
+                    .task_mappings_for_owner(&self.profile_id, &subject.principal.id, &server)
+                    .map_err(|err| {
+                        mcp_internal(format!("failed to read gateway task mappings: {err}"))
+                    })?;
+                let mut by_upstream = BTreeMap::new();
+                for mapping in mappings {
+                    by_upstream.insert(
+                        mapping.upstream_task_id.to_string(),
+                        mapping.gateway_task_id.to_string(),
+                    );
+                }
+                result.tasks.retain_mut(|task| {
+                    if let Some(gateway_task_id) = by_upstream.get(&task.task_id) {
+                        task.task_id = gateway_task_id.clone();
+                        true
+                    } else {
+                        false
+                    }
+                });
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tasks/list", other)),
         }
     }
 
     async fn get_task_info(
         &self,
-        request: GetTaskParams,
+        mut request: GetTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
-        let server = self.single_task_server()?;
+        let mapping = self.task_mapping(&request.task_id)?;
+        let server = mapping.upstream_server.clone();
         self.authorize_task(
             &context,
             GatewayAction::TasksGet,
             server.clone(),
             request.task_id.clone(),
         )?;
+        request.task_id = mapping.upstream_task_id.to_string();
         let upstream = self.upstream(&server, context.peer.clone()).await?;
         let result = upstream
             .send_request(ClientRequest::GetTaskRequest(GetTaskRequest::new(request)))
             .await
             .map_err(upstream_error)?;
         match result {
-            ServerResult::GetTaskResult(result) => Ok(result),
+            ServerResult::GetTaskResult(mut result) => {
+                result.task.task_id = mapping.gateway_task_id.to_string();
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tasks/get", other)),
         }
     }
 
     async fn get_task_result(
         &self,
-        request: GetTaskPayloadParams,
+        mut request: GetTaskPayloadParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskPayloadResult, McpError> {
-        let server = self.single_task_server()?;
+        let mapping = self.task_mapping(&request.task_id)?;
+        let server = mapping.upstream_server.clone();
         self.authorize_task(
             &context,
             GatewayAction::TasksResult,
             server.clone(),
             request.task_id.clone(),
         )?;
+        request.task_id = mapping.upstream_task_id.to_string();
         let upstream = self.upstream(&server, context.peer.clone()).await?;
         let result = upstream
             .send_request(ClientRequest::GetTaskPayloadRequest(
@@ -688,16 +760,18 @@ impl ServerHandler for GatewayMcp {
 
     async fn cancel_task(
         &self,
-        request: CancelTaskParams,
+        mut request: CancelTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CancelTaskResult, McpError> {
-        let server = self.single_task_server()?;
+        let mapping = self.task_mapping(&request.task_id)?;
+        let server = mapping.upstream_server.clone();
         self.authorize_task(
             &context,
             GatewayAction::TasksCancel,
             server.clone(),
             request.task_id.clone(),
         )?;
+        request.task_id = mapping.upstream_task_id.to_string();
         let upstream = self.upstream(&server, context.peer.clone()).await?;
         let result = upstream
             .send_request(ClientRequest::CancelTaskRequest(CancelTaskRequest::new(
@@ -706,7 +780,10 @@ impl ServerHandler for GatewayMcp {
             .await
             .map_err(upstream_error)?;
         match result {
-            ServerResult::CancelTaskResult(result) => Ok(result),
+            ServerResult::CancelTaskResult(mut result) => {
+                result.task.task_id = mapping.gateway_task_id.to_string();
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tasks/cancel", other)),
         }
     }
@@ -715,6 +792,7 @@ impl ServerHandler for GatewayMcp {
 #[derive(Debug, Clone)]
 pub struct GatewayUpstreamHandler {
     upstream_server: ServerSlug,
+    state: GatewayState,
     downstream: Peer<RoleServer>,
 }
 
@@ -781,9 +859,38 @@ impl ClientHandler for GatewayUpstreamHandler {
 
     async fn on_task_status(
         &self,
-        params: TaskStatusNotificationParam,
+        mut params: TaskStatusNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) {
+        let Ok(upstream_task_id) = UpstreamTaskId::new(params.task.task_id.clone()) else {
+            tracing::warn!(
+                upstream_server = %self.upstream_server,
+                "dropped task status notification with invalid upstream task id"
+            );
+            return;
+        };
+        let mapping = match self
+            .state
+            .task_mapping_by_upstream(&self.upstream_server, &upstream_task_id)
+        {
+            Ok(Some(mapping)) => mapping,
+            Ok(None) => {
+                tracing::warn!(
+                    upstream_server = %self.upstream_server,
+                    upstream_task_id = %upstream_task_id,
+                    "dropped task status notification for unknown gateway task mapping"
+                );
+                return;
+            }
+            Err(err) => {
+                tracing::warn!(
+                    upstream_server = %self.upstream_server,
+                    "failed to read gateway task mapping for notification: {err}"
+                );
+                return;
+            }
+        };
+        params.task.task_id = mapping.gateway_task_id.to_string();
         let notification = ServerNotification::TaskStatusNotification(Notification::new(params));
         if let Err(err) = self.downstream.send_notification(notification).await {
             tracing::warn!(

@@ -50,6 +50,9 @@ enum Command {
         /// JSON control plane file.
         #[arg(long)]
         control_plane: PathBuf,
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
     },
 }
 
@@ -98,12 +101,19 @@ async fn main() -> anyhow::Result<()> {
             port,
             public_base_url,
             control_plane,
-        } => serve(port, public_base_url, control_plane).await,
+            state_db,
+        } => serve(port, public_base_url, control_plane, state_db).await,
     }
 }
 
-async fn serve(port: u16, public_base_url: String, control_plane: PathBuf) -> anyhow::Result<()> {
+async fn serve(
+    port: u16,
+    public_base_url: String,
+    control_plane: PathBuf,
+    state_db: PathBuf,
+) -> anyhow::Result<()> {
     let catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
+    let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
     let deployment = PublicDeployment::new(public_base_url)?;
     let ct = CancellationToken::new();
     let allowed_hosts = vec![
@@ -131,8 +141,15 @@ async fn serve(port: u16, public_base_url: String, control_plane: PathBuf) -> an
         let mcp_service = StreamableHttpService::new(
             {
                 let catalog = catalog.clone();
+                let gateway_state = gateway_state.clone();
                 let profile_id = profile_id.clone();
-                move || Ok(GatewayMcp::new(catalog.clone(), profile_id.clone()))
+                move || {
+                    Ok(GatewayMcp::new(
+                        catalog.clone(),
+                        profile_id.clone(),
+                        gateway_state.clone(),
+                    ))
+                }
             },
             LocalSessionManager::default().into(),
             StreamableHttpServerConfig::default()

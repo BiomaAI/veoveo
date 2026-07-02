@@ -40,15 +40,17 @@ smoke-gateway-http:
     set -euo pipefail
     port=18799
     base="http://127.0.0.1:${port}"
-    log="$(mktemp)"
-    headers="$(mktemp)"
-    body="$(mktemp)"
+    tmpdir="$(mktemp -d)"
+    log="${tmpdir}/gateway.log"
+    headers="${tmpdir}/headers"
+    body="${tmpdir}/body"
+    state_db="${tmpdir}/state.duckdb"
     cleanup() {
         kill "${pid}" 2>/dev/null || true
         wait "${pid}" 2>/dev/null || true
-        rm -f "${log}" "${headers}" "${body}"
+        rm -rf "${tmpdir}"
     }
-    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} >"${log}" 2>&1 &
+    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" >"${log}" 2>&1 &
     pid=$!
     trap cleanup EXIT
     for _ in {1..50}; do
