@@ -11,12 +11,16 @@ path = "src/lib.rs"
 name = "conformance"
 path = "src/bin/conformance.rs"
 
+[features]
+default = ["analytics"]
+analytics = ["dep:duckdb"]
+
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
-duckdb.workspace = true
+duckdb = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["rustls-tls"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "reqwest"] }
 schemars.workspace = true

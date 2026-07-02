@@ -5,6 +5,7 @@
 //! shared artifact and usage contract types, and the small provider trait that
 //! normalizes catalog and prediction behavior.
 
+#[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod deployment;
 pub mod gateway;
@@ -18,6 +19,7 @@ pub mod uri;
 pub mod usage;
 pub mod waiters;
 
+#[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use deployment::{PublicDeployment, ServerPublicEndpoint};
 pub use gateway::{
