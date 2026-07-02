@@ -50,6 +50,27 @@ MEDIA_PROVIDER_WEBHOOK_SECRET=whsec_...   # optional; enables webhook signature 
 
 ## Run
 
+### Docker Compose
+
+The default development stack runs `media-mcp`, RustFS, and an optional named Cloudflare
+tunnel. RustFS image/version and local S3-compatible wiring are defined in `compose.yaml`.
+
+```sh
+cp .env.example .env
+# fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_URL, and
+# CLOUDFLARED_TUNNEL_TOKEN for the named tunnel.
+
+docker compose --profile dev up --build
+
+# include the tunnel service when the named tunnel token is configured
+docker compose --profile dev --profile tunnel up --build
+```
+
+RustFS is available locally at `http://localhost:9000` with the development credentials
+defined in Compose. Those credentials are for the local stack only.
+
+### Local Process
+
 ```sh
 # 1. public endpoint so the provider can reach the webhook + input files
 cloudflared tunnel --url http://localhost:8787

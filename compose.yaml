@@ -1,0 +1,68 @@
+services:
+  rustfs-perms:
+    image: alpine:3.20
+    user: root
+    volumes:
+      - rustfs_data:/data
+    command: chown -R 10001:10001 /data
+    profiles:
+      - dev
+
+  rustfs:
+    image: rustfs/rustfs:1.0.0-beta.8
+    depends_on:
+      rustfs-perms:
+        condition: service_completed_successfully
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - rustfs_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    profiles:
+      - dev
+
+  media-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - rustfs
+    command:
+      - "--port"
+      - "8787"
+      - "--public-url"
+      - "${PUBLIC_URL:?set PUBLIC_URL to your named tunnel URL}"
+      - "--static-dir"
+      - "/app/assets"
+    environment:
+      MEDIA_PROVIDER_API_KEY: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
+      MEDIA_PROVIDER_WEBHOOK_SECRET: "${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"
+    volumes:
+      - ./assets:/app/assets:ro
+      - media_state:/var/lib/veoveo/media
+    ports:
+      - "8787:8787"
+    profiles:
+      - dev
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.2.0
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
+    depends_on:
+      - media-mcp
+    profiles:
+      - tunnel
+
+volumes:
+  rustfs_data:
+  media_state:
