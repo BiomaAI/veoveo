@@ -290,6 +290,25 @@ impl GatewayControlPlane {
             if !secrets.insert(secret.id.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateSecret(secret.id.clone()));
             }
+            match &secret.owner {
+                SecretOwner::Gateway | SecretOwner::Tenant { .. } => {}
+                SecretOwner::Profile { profile } => {
+                    if !profiles.contains(profile) {
+                        return Err(GatewayControlPlaneError::UnknownSecretOwnerProfile {
+                            secret: secret.id.clone(),
+                            profile: profile.clone(),
+                        });
+                    }
+                }
+                SecretOwner::Server { server } => {
+                    if !servers.contains(server) {
+                        return Err(GatewayControlPlaneError::UnknownSecretOwnerServer {
+                            secret: secret.id.clone(),
+                            server: server.clone(),
+                        });
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -322,6 +341,14 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         identity_provider: IdentityProviderId,
         endpoint: IdentityProviderEndpoint,
+    },
+    UnknownSecretOwnerProfile {
+        secret: SecretReferenceId,
+        profile: GatewayProfileId,
+    },
+    UnknownSecretOwnerServer {
+        secret: SecretReferenceId,
+        server: ServerSlug,
     },
 }
 
@@ -383,6 +410,14 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "gateway profile `{profile}` requires {} on identity provider `{identity_provider}`",
                 endpoint.description()
+            ),
+            Self::UnknownSecretOwnerProfile { secret, profile } => write!(
+                f,
+                "secret reference `{secret}` is owned by unknown gateway profile `{profile}`"
+            ),
+            Self::UnknownSecretOwnerServer { secret, server } => write!(
+                f,
+                "secret reference `{secret}` is owned by unknown server `{server}`"
             ),
         }
     }
@@ -1692,6 +1727,65 @@ mod tests {
                 endpoint: IdentityProviderEndpoint::ClientCredentials,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_unknown_secret_owner_references() {
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            secrets: vec![SecretReference {
+                id: SecretReferenceId::new("profile_secret").unwrap(),
+                source: SecretSource::Env,
+                purpose: SecretPurpose::OAuthClientSecret,
+                locator: SecretLocator::new("PROFILE_SECRET").unwrap(),
+                owner: SecretOwner::Profile {
+                    profile: GatewayProfileId::new("missing").unwrap(),
+                },
+                rotation_hint: None,
+                metadata: Value::Null,
+            }],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown profile secret owner must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownSecretOwnerProfile { .. }
+        ));
+
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            secrets: vec![SecretReference {
+                id: SecretReferenceId::new("server_secret").unwrap(),
+                source: SecretSource::Env,
+                purpose: SecretPurpose::ProviderApiKey,
+                locator: SecretLocator::new("SERVER_SECRET").unwrap(),
+                owner: SecretOwner::Server {
+                    server: ServerSlug::new("missing").unwrap(),
+                },
+                rotation_hint: None,
+                metadata: Value::Null,
+            }],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown server secret owner must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownSecretOwnerServer { .. }
         ));
     }
 
