@@ -119,6 +119,27 @@ media moves by URL in both directions. Inputs the provider must fetch are served
 server's own `/files/*` static route through the public tunnel URL — the same single
 process handles MCP, webhooks, and media.
 
+## The client surface is MCP, only MCP
+
+The server binds one HTTP listener, but its routes serve three different parties — and
+only one of them is a contract:
+
+- `/mcp` — the protocol's transport. This is the *entire* client surface.
+- `/webhooks/{provider}`, `/files/*` — internal necessities for parties that cannot speak
+  MCP: providers must POST callbacks somewhere and GET input media from somewhere. These
+  routes are plumbing, undocumented for clients, and never carry anything client-facing.
+- `/healthz` — ops.
+
+There is deliberately **no client-facing REST API** — no artifact download routes, no
+usage endpoints, no side doors. Anything a client needs is reachable through the
+protocol: artifacts via `resources/read`, usage via resources, chaining by passing
+resource URIs in tool input (the server rewrites them to provider-fetchable URLs
+internally). Two ways to reach the same data means two contracts to version, secure, and
+keep consistent — and the HTTP one always wins by convenience until the protocol surface
+rots. It's the tool-flattening failure mode wearing a different hat. If a real limit
+appears (e.g. very large media over base64 blob reads), we solve it inside the protocol,
+not beside it.
+
 ## What "all in" costs, and why it's worth it
 
 The honest trade-off: this server is a poor citizen in a lowest-common-denominator host.
