@@ -1,6 +1,3 @@
-use std::future::Future;
-
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -72,15 +69,4 @@ impl ArtifactPut {
 pub struct ArtifactObject {
     pub metadata: ArtifactMetadata,
     pub bytes: Vec<u8>,
-}
-
-/// External artifact storage port.
-///
-/// Implementations can target local disk, S3-compatible stores, or any other
-/// content-addressed object store. MCP servers depend on this port, not on a
-/// concrete storage service.
-pub trait ArtifactStore: Clone + Send + Sync + 'static {
-    fn put(&self, artifact: ArtifactPut) -> impl Future<Output = Result<ArtifactMetadata>> + Send;
-    fn get(&self, sha256: &str) -> impl Future<Output = Result<Option<ArtifactObject>>> + Send;
-    fn head(&self, sha256: &str) -> impl Future<Output = Result<Option<ArtifactMetadata>>> + Send;
 }

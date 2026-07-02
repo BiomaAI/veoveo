@@ -8,8 +8,7 @@ use object_store::{
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactStore as ArtifactStoreContract,
-    ProviderUris, artifact_object_key, now_utc,
+    ArtifactMetadata, ArtifactObject, ArtifactPut, ProviderUris, artifact_object_key, now_utc,
 };
 
 use crate::state::DuckdbState;
@@ -23,15 +22,29 @@ pub struct S3ArtifactConfig {
 }
 
 #[derive(Clone)]
-pub struct S3ArtifactStore {
+pub struct ArtifactRepository {
     inner: Arc<dyn ObjectStore>,
     state: DuckdbState,
     uris: ProviderUris,
     download_base_url: String,
 }
 
-impl S3ArtifactStore {
+impl ArtifactRepository {
     pub fn new(
+        inner: Arc<dyn ObjectStore>,
+        state: DuckdbState,
+        uris: ProviderUris,
+        download_base_url: impl Into<String>,
+    ) -> Self {
+        Self {
+            inner,
+            state,
+            uris,
+            download_base_url: download_base_url.into(),
+        }
+    }
+
+    pub fn new_s3_compatible(
         config: S3ArtifactConfig,
         state: DuckdbState,
         uris: ProviderUris,
@@ -46,12 +59,7 @@ impl S3ArtifactStore {
             .build()
             .context("building S3-compatible artifact store")?;
 
-        Ok(Self {
-            inner: Arc::new(inner),
-            state,
-            uris,
-            download_base_url: download_base_url.into(),
-        })
+        Ok(Self::new(Arc::new(inner), state, uris, download_base_url))
     }
 
     fn object_path(sha256: &str) -> Result<Path> {
@@ -64,10 +72,7 @@ impl S3ArtifactStore {
             self.download_base_url.trim_end_matches('/')
         )
     }
-}
-
-impl ArtifactStoreContract for S3ArtifactStore {
-    async fn put(&self, artifact: ArtifactPut) -> Result<ArtifactMetadata> {
+    pub async fn put(&self, artifact: ArtifactPut) -> Result<ArtifactMetadata> {
         let sha256 = hex::encode(Sha256::digest(&artifact.bytes));
         let path = Self::object_path(&sha256)?;
 
@@ -105,7 +110,7 @@ impl ArtifactStoreContract for S3ArtifactStore {
         Ok(metadata)
     }
 
-    async fn get(&self, sha256: &str) -> Result<Option<ArtifactObject>> {
+    pub async fn get(&self, sha256: &str) -> Result<Option<ArtifactObject>> {
         let Some(metadata) = self.state.artifact(sha256)? else {
             return Ok(None);
         };
@@ -123,7 +128,7 @@ impl ArtifactStoreContract for S3ArtifactStore {
         Ok(Some(ArtifactObject { metadata, bytes }))
     }
 
-    async fn head(&self, sha256: &str) -> Result<Option<ArtifactMetadata>> {
+    pub async fn head(&self, sha256: &str) -> Result<Option<ArtifactMetadata>> {
         let Some(metadata) = self.state.artifact(sha256)? else {
             return Ok(None);
         };

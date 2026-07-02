@@ -56,12 +56,12 @@ use rmcp::{
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ArtifactStore, ProviderUris, SubscriptionHub, TaskPayloadState,
-    TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status,
-    now_iso, now_utc,
+    ArtifactMetadata, ArtifactPut, ProviderUris, SubscriptionHub, TaskPayloadState, TaskStore,
+    UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status, now_iso,
+    now_utc,
 };
 use veoveo_media_mcp::{
-    artifacts::{S3ArtifactConfig, S3ArtifactStore},
+    artifacts::{ArtifactRepository, S3ArtifactConfig},
     provider::{BillingRecord, ModelEntry, Prediction, ProviderClient},
     state::DuckdbState,
     uris, webhook,
@@ -143,7 +143,7 @@ struct AppState {
     registry: RwLock<Option<RegistryCache>>,
     tasks: TaskStore,
     durable: DuckdbState,
-    artifacts: S3ArtifactStore,
+    artifacts: ArtifactRepository,
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
@@ -1361,7 +1361,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let public_url = args.public_url()?;
     let durable = DuckdbState::open(&args.state_db)?;
-    let artifacts = S3ArtifactStore::new(
+    let artifacts = ArtifactRepository::new_s3_compatible(
         S3ArtifactConfig {
             endpoint: args.artifact_endpoint.clone(),
             bucket: args.artifact_bucket.clone(),

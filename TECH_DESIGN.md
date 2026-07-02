@@ -218,15 +218,14 @@ MCP server container
   |-- structured logs / OpenTelemetry sink
 ```
 
-The contract layer should define ports such as:
+The contract layer should define shared data models and protocol semantics, not duplicate
+backend traits already owned by focused crates. Artifact bytes use
+`object_store::ObjectStore`; the media server layers Veoveo content addressing, artifact
+URIs, DuckDB metadata, and compliance labels over `Arc<dyn ObjectStore>`.
+
+The contract layer should define shared types/services such as:
 
 ```rust
-trait ArtifactStore {
-    async fn put(...);
-    async fn get(...);
-    async fn head(...);
-}
-
 trait UsageLedger {
     async fn record_estimate(...);
     async fn record_actual(...);
