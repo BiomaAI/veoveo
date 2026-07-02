@@ -17,6 +17,7 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
+    num::NonZeroU32,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -34,7 +35,7 @@ use axum::{
     routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -118,6 +119,50 @@ struct Args {
     /// Secret used to verify gateway-to-server internal identity assertions.
     #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
     internal_token_secret: String,
+    /// Retention window for completed task metadata.
+    #[arg(long, default_value = "30", value_parser = clap::value_parser!(NonZeroU32))]
+    task_metadata_retention_days: NonZeroU32,
+    /// Retention window for artifact metadata.
+    #[arg(long, default_value = "30", value_parser = clap::value_parser!(NonZeroU32))]
+    artifact_metadata_retention_days: NonZeroU32,
+    /// Retention window for artifact bytes.
+    #[arg(long, default_value = "30", value_parser = clap::value_parser!(NonZeroU32))]
+    artifact_bytes_retention_days: NonZeroU32,
+    /// Retention window for usage analytics.
+    #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
+    usage_analytics_retention_days: NonZeroU32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MediaRetentionPolicy {
+    task_metadata_days: NonZeroU32,
+    artifact_metadata_days: NonZeroU32,
+    artifact_bytes_days: NonZeroU32,
+    usage_analytics_days: NonZeroU32,
+}
+
+impl MediaRetentionPolicy {
+    fn task_cutoff(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {
+        retention_cutoff(now, self.task_metadata_days)
+    }
+
+    fn artifact_cutoff(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {
+        retention_cutoff(
+            now,
+            std::cmp::min(self.artifact_metadata_days, self.artifact_bytes_days),
+        )
+    }
+
+    fn artifact_expires_at(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {
+        retention_expires_at(
+            now,
+            std::cmp::min(self.artifact_metadata_days, self.artifact_bytes_days),
+        )
+    }
+
+    fn usage_cutoff(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {
+        retention_cutoff(now, self.usage_analytics_days)
+    }
 }
 
 impl Args {
@@ -133,6 +178,15 @@ impl Args {
 
     fn provider_webhook_secret(&self) -> Option<String> {
         self.webhook_secret.clone()
+    }
+
+    fn retention_policy(&self) -> MediaRetentionPolicy {
+        MediaRetentionPolicy {
+            task_metadata_days: self.task_metadata_retention_days,
+            artifact_metadata_days: self.artifact_metadata_retention_days,
+            artifact_bytes_days: self.artifact_bytes_retention_days,
+            usage_analytics_days: self.usage_analytics_retention_days,
+        }
     }
 }
 
@@ -156,6 +210,7 @@ struct AppState {
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
     task_owners: RwLock<HashMap<String, TaskOwner>>,
+    retention: MediaRetentionPolicy,
     subscribers: SubscriptionHub,
 }
 
@@ -664,6 +719,8 @@ async fn ingest_output_artifact(
     artifact.filename = Some(filename_from_url(url, index));
     artifact.compliance.owner_id = Some(owner.principal_id.to_string());
     artifact.compliance.tenant_id = owner.tenant.as_ref().map(ToString::to_string);
+    artifact.compliance.retention_expires_at =
+        Some(state.retention.artifact_expires_at(now_utc())?);
     artifact.metadata = serde_json::to_value(OutputArtifactMetadata {
         task_id,
         job_id: prediction.id.as_str(),
@@ -710,6 +767,50 @@ async fn prediction_result(
         artifacts,
     })?);
     Ok(result)
+}
+
+async fn run_retention_gc(state: &AppState) -> anyhow::Result<()> {
+    let now = Utc::now();
+    let task_cutoff = state.retention.task_cutoff(now)?;
+    let artifact_cutoff = state.retention.artifact_cutoff(now)?;
+    let usage_cutoff = state.retention.usage_cutoff(now)?;
+
+    let pruned_tasks = state.tasks.prune_terminal_before(task_cutoff).await?;
+    if !pruned_tasks.is_empty() {
+        let mut owners = state.task_owners.write().await;
+        let mut predictions = state.predictions.write().await;
+        for task in &pruned_tasks {
+            owners.remove(&task.task_id);
+            if let Some(provider_job_id) = &task.provider_job_id {
+                predictions.remove(provider_job_id);
+            }
+        }
+    }
+    let task_summary = state.durable.delete_terminal_tasks_before(task_cutoff)?;
+    let usage_deleted = state.durable.delete_usage_records_before(usage_cutoff)?;
+    let artifacts_deleted = state.artifacts.delete_expired(artifact_cutoff, now).await?;
+
+    tracing::info!(
+        pruned_memory_tasks = pruned_tasks.len(),
+        deleted_task_rows = task_summary.tasks_deleted,
+        deleted_task_owner_rows = task_summary.task_owners_deleted,
+        deleted_prediction_rows = task_summary.predictions_deleted,
+        deleted_usage_rows = usage_deleted,
+        deleted_artifacts = artifacts_deleted,
+        "media retention gc completed"
+    );
+    Ok(())
+}
+
+fn spawn_retention_gc_loop(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60 * 60)).await;
+            if let Err(err) = run_retention_gc(&state).await {
+                tracing::error!("media retention gc failed: {err}");
+            }
+        }
+    });
 }
 
 /// The long-running body of a `run` task: validate → submit → await webhook
@@ -902,6 +1003,16 @@ fn mcp_page<T>(
 ) -> Result<Page<T>, McpError> {
     paginate(items, request, LIST_PAGE_SIZE)
         .map_err(|e| McpError::invalid_params(e.to_string(), None))
+}
+
+fn retention_cutoff(now: DateTime<Utc>, days: NonZeroU32) -> anyhow::Result<DateTime<Utc>> {
+    now.checked_sub_signed(TimeDelta::days(i64::from(days.get())))
+        .ok_or_else(|| anyhow::anyhow!("retention cutoff overflow for {days} day window"))
+}
+
+fn retention_expires_at(now: DateTime<Utc>, days: NonZeroU32) -> anyhow::Result<DateTime<Utc>> {
+    now.checked_add_signed(TimeDelta::days(i64::from(days.get())))
+        .ok_or_else(|| anyhow::anyhow!("retention expiration overflow for {days} day window"))
 }
 
 fn internal_identity(
@@ -1955,6 +2066,7 @@ async fn main() -> anyhow::Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-media-mcp", "info,veoveo_media_mcp=debug")?;
     let args = Args::parse();
+    let retention = args.retention_policy();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let durable = DuckdbState::open(&args.state_db)?;
@@ -2010,9 +2122,12 @@ async fn main() -> anyhow::Result<()> {
         pending: Mutex::new(HashMap::new()),
         predictions: RwLock::new(predictions),
         task_owners: RwLock::new(task_owners),
+        retention,
         subscribers: SubscriptionHub::new(),
     });
 
+    run_retention_gc(&state).await?;
+    spawn_retention_gc_loop(state.clone());
     spawn_missing_actual_usage_reconciliations(state.clone()).await;
 
     // Warm the registry so first completions/reads are instant.

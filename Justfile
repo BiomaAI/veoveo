@@ -257,6 +257,7 @@ smoke-media-mcp-auth:
     done
     curl -fsS "${base}/media/healthz" | grep -F 'ok'
     grep -E '^\{' "${log}" | jq -e 'select(.message == "listening" and .service == "veoveo-media-mcp" and .mcp_path == "/media/mcp")' >/dev/null
+    grep -E '^\{' "${log}" | jq -e 'select(.message == "media retention gc completed")' >/dev/null
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/mcp")"
     test "${status}" = "401"
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
@@ -302,6 +303,7 @@ smoke-gateway-authenticated:
     done
     curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
     grep -E '^\{' "${media_log}" | jq -e 'select(.message == "listening" and .service == "veoveo-media-mcp" and .mcp_path == "/media/mcp")' >/dev/null
+    grep -E '^\{' "${media_log}" | jq -e 'select(.message == "media retention gc completed")' >/dev/null
     VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
     gateway_pid=$!
     for _ in {1..150}; do

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use object_store::{
     Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, aws::AmazonS3Builder,
     path::Path,
@@ -138,5 +139,32 @@ impl ArtifactRepository {
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(e) => Err(e).with_context(|| format!("reading artifact metadata {sha256}")),
         }
+    }
+
+    pub async fn delete(&self, sha256: &str) -> Result<bool> {
+        let path = Self::object_path(sha256)?;
+        match self.inner.delete(&path).await {
+            Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+            Err(err) => {
+                return Err(err).with_context(|| format!("deleting artifact object {sha256}"));
+            }
+        }
+        Ok(self.state.delete_artifact_metadata(sha256)? > 0)
+    }
+
+    pub async fn delete_expired(&self, cutoff: DateTime<Utc>, now: DateTime<Utc>) -> Result<u64> {
+        let mut deleted = 0;
+        for artifact in self.state.list_artifacts()? {
+            let retention_expired = artifact
+                .compliance
+                .retention_expires_at
+                .is_some_and(|expires_at| expires_at <= now);
+            if (artifact.created_at < cutoff || retention_expired)
+                && self.delete(&artifact.sha256).await?
+            {
+                deleted += 1;
+            }
+        }
+        Ok(deleted)
     }
 }

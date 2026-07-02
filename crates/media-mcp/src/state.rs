@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, path::Path};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use duckdb::{OptionalExt, params};
-use rmcp::model::Task;
+use rmcp::model::{Task, TaskStatus};
 use serde_json::Value;
 use veoveo_mcp_contract::{
     ArtifactMetadata, DataLabelId, DuckDbAnalytics, GatewayProfileId, PrincipalId,
@@ -24,6 +24,13 @@ pub struct PersistedTask {
     pub payload: Option<Value>,
     pub error: Option<String>,
     pub provider_job_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MediaStateGcSummary {
+    pub tasks_deleted: u64,
+    pub task_owners_deleted: u64,
+    pub predictions_deleted: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,6 +224,57 @@ impl DuckdbState {
         Ok(tasks)
     }
 
+    pub fn delete_terminal_tasks_before(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<MediaStateGcSummary> {
+        let mut summary = MediaStateGcSummary::default();
+        for task in self.load_tasks()? {
+            if !matches!(
+                task.task.status,
+                TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
+            ) {
+                continue;
+            }
+            let updated_at = parse_rfc3339_utc(&task.task.last_updated_at)?;
+            if updated_at >= cutoff {
+                continue;
+            }
+            let deleted =
+                self.delete_task_state(&task.task.task_id, task.provider_job_id.as_deref())?;
+            summary.tasks_deleted += deleted.tasks_deleted;
+            summary.task_owners_deleted += deleted.task_owners_deleted;
+            summary.predictions_deleted += deleted.predictions_deleted;
+        }
+        Ok(summary)
+    }
+
+    pub fn delete_task_state(
+        &self,
+        task_id: &str,
+        provider_job_id: Option<&str>,
+    ) -> Result<MediaStateGcSummary> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let task_owners_deleted = conn.execute(
+            "DELETE FROM task_owners WHERE task_id = ?1",
+            params![task_id],
+        )?;
+        let tasks_deleted =
+            conn.execute("DELETE FROM tasks WHERE task_id = ?1", params![task_id])?;
+        let predictions_deleted = match provider_job_id {
+            Some(provider_job_id) => conn.execute(
+                "DELETE FROM predictions WHERE prediction_id = ?1",
+                params![provider_job_id],
+            )?,
+            None => 0,
+        };
+        Ok(MediaStateGcSummary {
+            tasks_deleted: u64::try_from(tasks_deleted)?,
+            task_owners_deleted: u64::try_from(task_owners_deleted)?,
+            predictions_deleted: u64::try_from(predictions_deleted)?,
+        })
+    }
+
     pub fn record_task_owner(&self, owner: &TaskOwner) -> Result<()> {
         let data_labels_json = data_labels_to_json(&owner.data_labels)?;
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
@@ -361,6 +419,16 @@ impl DuckdbState {
         Ok(artifacts)
     }
 
+    pub fn delete_artifact_metadata(&self, sha256: &str) -> Result<u64> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        conn.execute(
+            "DELETE FROM artifact_owners WHERE sha256 = ?1",
+            params![sha256],
+        )?;
+        let deleted = conn.execute("DELETE FROM artifacts WHERE sha256 = ?1", params![sha256])?;
+        Ok(u64::try_from(deleted)?)
+    }
+
     pub fn record_artifact_owner(&self, owner: &ArtifactOwner) -> Result<()> {
         let data_labels_json = data_labels_to_json(&owner.data_labels)?;
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
@@ -431,6 +499,10 @@ impl DuckdbState {
     pub fn usage_task_ids(&self) -> Result<Vec<String>> {
         self.analytics.usage_task_ids()
     }
+
+    pub fn delete_usage_records_before(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+        self.analytics.delete_usage_records_before(cutoff)
+    }
 }
 
 fn data_labels_to_json(labels: &BTreeSet<DataLabelId>) -> Result<String> {
@@ -458,12 +530,9 @@ mod tests {
         ))
     }
 
-    #[test]
-    fn task_owner_round_trips() {
-        let path = temp_path("task-owner");
-        let state = DuckdbState::open(&path).unwrap();
-        let owner = TaskOwner {
-            task_id: "task-1".to_string(),
+    fn owner(task_id: &str) -> TaskOwner {
+        TaskOwner {
+            task_id: task_id.to_string(),
             principal_id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
             tenant: Some(TenantId::new("tenant-a").unwrap()),
@@ -471,12 +540,94 @@ mod tests {
                 DataLabelId::new("cui").unwrap(),
                 DataLabelId::new("pii").unwrap(),
             ]),
-        };
+        }
+    }
+
+    fn task(task_id: &str, status: TaskStatus, timestamp: DateTime<Utc>) -> Task {
+        Task::new(
+            task_id.to_string(),
+            status,
+            timestamp.to_rfc3339(),
+            timestamp.to_rfc3339(),
+        )
+    }
+
+    fn prediction(prediction_id: &str) -> Prediction {
+        Prediction {
+            id: prediction_id.to_string(),
+            model: "model-1".to_string(),
+            outputs: Vec::new(),
+            urls: None,
+            status: "completed".to_string(),
+            created_at: None,
+            error: None,
+            execution_time: None,
+            timings: None,
+            input: None,
+        }
+    }
+
+    #[test]
+    fn task_owner_round_trips() {
+        let path = temp_path("task-owner");
+        let state = DuckdbState::open(&path).unwrap();
+        let owner = owner("task-1");
 
         state.record_task_owner(&owner).unwrap();
 
         assert_eq!(state.task_owner("task-1").unwrap(), Some(owner.clone()));
         assert_eq!(state.load_task_owners().unwrap(), vec![owner]);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn delete_terminal_tasks_before_prunes_terminal_state_only() {
+        let path = temp_path("task-gc");
+        let state = DuckdbState::open(&path).unwrap();
+        let cutoff = Utc::now();
+        let old = cutoff - chrono::TimeDelta::days(2);
+        let fresh = cutoff + chrono::TimeDelta::days(2);
+        let old_task = task("old-task", TaskStatus::Completed, old);
+        let working_task = task("working-task", TaskStatus::Working, old);
+        let fresh_task = task("fresh-task", TaskStatus::Completed, fresh);
+
+        state
+            .record_task(&old_task, None, None, Some("prediction-old"))
+            .unwrap();
+        state.record_task_owner(&owner("old-task")).unwrap();
+        state
+            .record_prediction(&prediction("prediction-old"))
+            .unwrap();
+        state
+            .record_task(&working_task, None, None, Some("prediction-working"))
+            .unwrap();
+        state.record_task_owner(&owner("working-task")).unwrap();
+        state
+            .record_prediction(&prediction("prediction-working"))
+            .unwrap();
+        state
+            .record_task(&fresh_task, None, None, Some("prediction-fresh"))
+            .unwrap();
+        state.record_task_owner(&owner("fresh-task")).unwrap();
+        state
+            .record_prediction(&prediction("prediction-fresh"))
+            .unwrap();
+
+        assert_eq!(
+            state.delete_terminal_tasks_before(cutoff).unwrap(),
+            MediaStateGcSummary {
+                tasks_deleted: 1,
+                task_owners_deleted: 1,
+                predictions_deleted: 1,
+            }
+        );
+        assert!(state.task_owner("old-task").unwrap().is_none());
+        assert!(state.prediction("prediction-old").unwrap().is_none());
+        assert!(state.task_owner("working-task").unwrap().is_some());
+        assert!(state.prediction("prediction-working").unwrap().is_some());
+        assert!(state.task_owner("fresh-task").unwrap().is_some());
+        assert!(state.prediction("prediction-fresh").unwrap().is_some());
 
         let _ = std::fs::remove_file(path);
     }

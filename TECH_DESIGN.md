@@ -470,13 +470,17 @@ The local workspace tests cover the current artifact/usage URI contract, DuckDB-
 state and analytics helpers, webhook signature verification, schema extraction, and conformance CLI
 build.
 
+Media server retention is enforced locally: terminal task metadata, provider prediction
+rows, usage analytics rows, artifact metadata, artifact owners, and artifact bytes are
+pruned by configured non-zero retention windows on startup and hourly thereafter. Artifact
+metadata records carry `retention_expires_at` evidence, and object bytes are deleted
+through the configured `object_store` backend.
+
 ## Known gaps
 
 - **Provider billing timing is asynchronous.** The usage ledger records estimates at submit
   time and provider-confirmed actual billing rows after completion through billing
   reconciliation keyed by the completed prediction id.
-- **No task/artifact GC.** Completed task entries and artifacts need explicit retention
-  policy enforcement.
 - **Tasks are an evolving extension.** SEP-1319 (2025-11-25) is what rmcp 2.0 ships; the
   2026-07-28 spec moves tasks to an extension with `tasks/update` for mid-flight input.
   Owning both ends means we migrate both sides in one commit when rmcp does.

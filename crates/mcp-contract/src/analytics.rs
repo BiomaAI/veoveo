@@ -140,6 +140,18 @@ impl DuckDbAnalytics {
         )?;
         Ok(count > 0)
     }
+
+    pub fn delete_usage_records_before(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+    ) -> Result<u64> {
+        let conn = self.conn.lock().expect("duckdb analytics mutex poisoned");
+        let deleted = conn.execute(
+            "DELETE FROM usage_records WHERE recorded_at < ?1",
+            params![cutoff],
+        )?;
+        Ok(u64::try_from(deleted)?)
+    }
 }
 
 fn usage_kind_name(kind: UsageKind) -> &'static str {
@@ -202,6 +214,68 @@ mod tests {
         assert!(analytics.has_actual_usage("task-1", "job-1").unwrap());
         assert_eq!(analytics.usage_task_ids().unwrap(), vec!["task-1"]);
         assert_eq!(analytics.usage_records("task-1").unwrap(), vec![record]);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn duckdb_usage_records_delete_before_cutoff() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("veoveo-usage-gc-{unique}.duckdb"));
+        let conn = open_duckdb(&path).unwrap();
+        let analytics = DuckDbAnalytics::from_connection(conn).unwrap();
+        let old = chrono::DateTime::parse_from_rfc3339("2026-07-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let fresh = chrono::DateTime::parse_from_rfc3339("2026-07-03T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        analytics
+            .record_usage(&UsageRecord {
+                task_id: "old-task".into(),
+                source_id: Some("billing-old".into()),
+                provider_job_id: Some("job-old".into()),
+                model_id: "model-1".into(),
+                kind: UsageKind::Actual,
+                quantity: Some(1.0),
+                unit: Some("billing_record".into()),
+                amount: Some(0.06),
+                currency: Some("USD".into()),
+                recorded_at: old,
+                metadata: Value::Null,
+            })
+            .unwrap();
+        analytics
+            .record_usage(&UsageRecord {
+                task_id: "fresh-task".into(),
+                source_id: Some("billing-fresh".into()),
+                provider_job_id: Some("job-fresh".into()),
+                model_id: "model-1".into(),
+                kind: UsageKind::Actual,
+                quantity: Some(1.0),
+                unit: Some("billing_record".into()),
+                amount: Some(0.06),
+                currency: Some("USD".into()),
+                recorded_at: fresh,
+                metadata: Value::Null,
+            })
+            .unwrap();
+
+        assert_eq!(
+            analytics
+                .delete_usage_records_before(
+                    chrono::DateTime::parse_from_rfc3339("2026-07-02T00:00:00Z")
+                        .unwrap()
+                        .with_timezone(&chrono::Utc),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(analytics.usage_task_ids().unwrap(), vec!["fresh-task"]);
 
         let _ = std::fs::remove_file(path);
     }

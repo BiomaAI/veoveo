@@ -65,7 +65,7 @@ pub use provider::Provider;
 pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};
 pub use subscriptions::SubscriptionHub;
 pub use tasks::{
-    TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso, now_utc,
+    PrunedTask, TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso, now_utc,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use uri::{ProviderUris, artifact_object_key, is_sha256};

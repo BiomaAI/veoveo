@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use rmcp::{
     RoleServer,
     model::{
@@ -33,6 +34,12 @@ pub enum TaskPayloadState {
     Cancelled,
     Running,
     Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrunedTask {
+    pub task_id: String,
+    pub provider_job_id: Option<String>,
 }
 
 #[derive(Default)]
@@ -175,6 +182,34 @@ impl TaskStore {
         }
         Some(entry.task.clone())
     }
+
+    pub async fn prune_terminal_before(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<Vec<PrunedTask>, chrono::ParseError> {
+        let mut tasks = self.tasks.write().await;
+        let mut expired = Vec::new();
+        for (task_id, entry) in tasks.iter() {
+            if !matches!(
+                entry.task.status,
+                TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
+            ) {
+                continue;
+            }
+            let updated_at =
+                DateTime::parse_from_rfc3339(&entry.task.last_updated_at)?.with_timezone(&Utc);
+            if updated_at < cutoff {
+                expired.push(PrunedTask {
+                    task_id: task_id.clone(),
+                    provider_job_id: entry.provider_job_id.clone(),
+                });
+            }
+        }
+        for task in &expired {
+            tasks.remove(&task.task_id);
+        }
+        Ok(expired)
+    }
 }
 
 pub async fn notify_task_status(peer: &Peer<RoleServer>, task: Task) {
@@ -199,5 +234,57 @@ pub async fn notify_progress(
                     .with_message(message),
             )
             .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn task(task_id: &str, status: TaskStatus, last_updated_at: DateTime<Utc>) -> Task {
+        Task::new(
+            task_id.to_string(),
+            status,
+            last_updated_at.to_rfc3339(),
+            last_updated_at.to_rfc3339(),
+        )
+    }
+
+    #[tokio::test]
+    async fn prune_terminal_before_removes_only_expired_terminal_tasks() {
+        let store = TaskStore::new();
+        let now = Utc::now();
+        store
+            .insert(task("old-completed", TaskStatus::Completed, now), None)
+            .await;
+        store
+            .insert(task("old-working", TaskStatus::Working, now), None)
+            .await;
+        store
+            .insert(
+                task(
+                    "fresh-completed",
+                    TaskStatus::Completed,
+                    now + chrono::TimeDelta::days(2),
+                ),
+                None,
+            )
+            .await;
+
+        let pruned = store
+            .prune_terminal_before(now + chrono::TimeDelta::days(1))
+            .await
+            .unwrap();
+        assert_eq!(
+            pruned,
+            vec![PrunedTask {
+                task_id: "old-completed".to_string(),
+                provider_job_id: None,
+            }]
+        );
+
+        assert!(store.get("old-completed").await.is_none());
+        assert!(store.get("old-working").await.is_some());
+        assert!(store.get("fresh-completed").await.is_some());
     }
 }
