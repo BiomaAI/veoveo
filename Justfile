@@ -33,9 +33,9 @@ smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
     just gateway-validate
 
-# Build the media MCP image.
+# Build MCP images.
 compose-build:
-    {{compose}} build media-mcp
+    {{compose}} build media-mcp mcp-gateway
 
 # Build and start RustFS, media-mcp, and the managed Cloudflare tunnel.
 compose-up:

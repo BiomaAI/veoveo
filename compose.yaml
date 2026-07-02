@@ -82,6 +82,27 @@ services:
     profiles:
       - dev
 
+  mcp-gateway:
+    build:
+      context: .
+      dockerfile: crates/mcp-gateway/Dockerfile
+    depends_on:
+      - media-mcp
+    command:
+      - "serve"
+      - "--port"
+      - "8788"
+      - "--public-base-url"
+      - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+      - "--control-plane"
+      - "/etc/veoveo/gateway.json"
+    volumes:
+      - ./configs/gateway.local.json:/etc/veoveo/gateway.json:ro
+    ports:
+      - "8788:8788"
+    profiles:
+      - dev
+
 volumes:
   rustfs_data:
   media_state:

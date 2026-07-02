@@ -8,6 +8,7 @@ services:
       - --token
       - "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
     depends_on:
+      - mcp-gateway
       - media-mcp
     profiles:
       - tunnel
