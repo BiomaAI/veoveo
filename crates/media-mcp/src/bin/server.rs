@@ -1740,7 +1740,11 @@ impl ServerHandler for MediaMcp {
         }
         self.state
             .subscribers
-            .subscribe(request.uri.clone(), context.peer.clone())
+            .subscribe(
+                request.uri.clone(),
+                identity.principal.id.clone(),
+                context.peer.clone(),
+            )
             .await;
         Ok(())
     }
@@ -1760,7 +1764,10 @@ impl ServerHandler for MediaMcp {
                 None,
             ));
         }
-        self.state.subscribers.unsubscribe(&request.uri).await;
+        self.state
+            .subscribers
+            .unsubscribe(&request.uri, &identity.principal.id)
+            .await;
         Ok(())
     }
 

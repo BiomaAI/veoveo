@@ -475,8 +475,6 @@ build.
 - **Provider billing timing is asynchronous.** The usage ledger records estimates at submit
   time and provider-confirmed actual billing rows after completion through billing
   reconciliation keyed by the completed prediction id.
-- **Subscription identity is coarse.** Unsubscribe clears all peers for a URI — fine for
-  owned single-client deployments, wrong for multi-tenant.
 - **No task/artifact GC.** Completed task entries and artifacts need explicit retention
   policy enforcement.
 - **Tasks are an evolving extension.** SEP-1319 (2025-11-25) is what rmcp 2.0 ships; the
