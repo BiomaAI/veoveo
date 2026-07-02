@@ -9,7 +9,7 @@ use object_store::{
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactObject, ArtifactPut, ProviderUris, artifact_object_key, now_utc,
+    ArtifactMetadata, ArtifactObject, ArtifactPut, ServerResourceUris, artifact_object_key, now_utc,
 };
 
 use crate::state::DuckdbState;
@@ -26,7 +26,7 @@ pub struct S3ArtifactConfig {
 pub struct ArtifactRepository {
     inner: Arc<dyn ObjectStore>,
     state: DuckdbState,
-    uris: ProviderUris,
+    uris: ServerResourceUris,
     download_base_url: String,
 }
 
@@ -34,7 +34,7 @@ impl ArtifactRepository {
     pub fn new(
         inner: Arc<dyn ObjectStore>,
         state: DuckdbState,
-        uris: ProviderUris,
+        uris: ServerResourceUris,
         download_base_url: impl Into<String>,
     ) -> Self {
         Self {
@@ -48,7 +48,7 @@ impl ArtifactRepository {
     pub fn new_s3_compatible(
         config: S3ArtifactConfig,
         state: DuckdbState,
-        uris: ProviderUris,
+        uris: ServerResourceUris,
         download_base_url: impl Into<String>,
     ) -> Result<Self> {
         let inner = AmazonS3Builder::from_env()
@@ -65,7 +65,7 @@ impl ArtifactRepository {
 
     pub fn new_in_memory(
         state: DuckdbState,
-        uris: ProviderUris,
+        uris: ServerResourceUris,
         download_base_url: impl Into<String>,
     ) -> Self {
         Self::new(Arc::new(InMemory::new()), state, uris, download_base_url)

@@ -64,9 +64,9 @@ use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactPut, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity,
     GatewayInternalTokenVerifier, GenerationPredictionSummary, GenerationRunOutput,
-    InternalTokenSecret, Page, ProviderUris, PublicDeployment, ServerPublicEndpoint, ServerSlug,
-    SubscriptionHub, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageKind,
-    UsageRecord, UsageReport, init_server_telemetry, is_sha256, notify_progress,
+    InternalTokenSecret, Page, PublicDeployment, ServerPublicEndpoint, ServerResourceUris,
+    ServerSlug, SubscriptionHub, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer,
+    UsageKind, UsageRecord, UsageReport, init_server_telemetry, is_sha256, notify_progress,
     notify_task_status, now_iso, now_utc, paginate,
 };
 use veoveo_media_mcp::{
@@ -2108,12 +2108,12 @@ async fn main() -> anyhow::Result<()> {
                 allow_http: args.artifact_allow_http,
             },
             durable.clone(),
-            ProviderUris::new(SERVER_SLUG),
+            ServerResourceUris::new(SERVER_SLUG),
             public_endpoint.public_url().to_string(),
         )?,
         ArtifactStoreBackend::Memory => ArtifactRepository::new_in_memory(
             durable.clone(),
-            ProviderUris::new(SERVER_SLUG),
+            ServerResourceUris::new(SERVER_SLUG),
             public_endpoint.public_url().to_string(),
         ),
     };

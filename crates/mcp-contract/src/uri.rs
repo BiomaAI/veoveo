@@ -3,16 +3,16 @@ use std::{error::Error, fmt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Provider URI conventions for MCP resources.
+/// Server URI conventions for MCP resources.
 ///
-/// A provider owns a URI scheme, then exposes a stable catalog resource,
-/// per-model resources, per-prediction resources, artifacts, and usage records.
+/// A Veoveo MCP server owns a URI scheme, then exposes stable catalog resources,
+/// domain resources, artifacts, and usage records under that scheme.
 #[derive(Debug, Clone)]
-pub struct ProviderUris {
+pub struct ServerResourceUris {
     scheme: String,
 }
 
-impl ProviderUris {
+impl ServerResourceUris {
     pub fn new(scheme: impl Into<String>) -> Self {
         Self {
             scheme: scheme.into(),
@@ -92,13 +92,13 @@ pub fn is_sha256(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// Strongly typed resource shapes shared by Veoveo provider-style MCP servers.
+/// Strongly typed resource shapes shared by Veoveo MCP servers.
 ///
 /// The scheme remains server-owned. The gateway uses this type to project
 /// task-addressed resources without parsing resource strings ad hoc.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "kind")]
-pub enum ProviderResourceUri {
+pub enum ServerResourceUri {
     Models { scheme: String },
     Model { scheme: String, model_id: String },
     Prediction { scheme: String, id: String },
@@ -108,11 +108,11 @@ pub enum ProviderResourceUri {
     Other { scheme: String, path: String },
 }
 
-impl ProviderResourceUri {
-    pub fn parse(uri: &str) -> Result<Self, ProviderResourceUriError> {
+impl ServerResourceUri {
+    pub fn parse(uri: &str) -> Result<Self, ServerResourceUriError> {
         let (scheme, path) = uri
             .split_once("://")
-            .ok_or_else(|| ProviderResourceUriError::new(uri, "must include a URI scheme"))?;
+            .ok_or_else(|| ServerResourceUriError::new(uri, "must include a URI scheme"))?;
         validate_scheme(scheme)?;
         validate_path(uri, path)?;
         Ok(match path {
@@ -125,7 +125,7 @@ impl ProviderResourceUri {
             path if path.starts_with("model/") => {
                 let model_id = path.trim_start_matches("model/");
                 if model_id.is_empty() {
-                    return Err(ProviderResourceUriError::new(
+                    return Err(ServerResourceUriError::new(
                         uri,
                         "model id must not be empty",
                     ));
@@ -138,7 +138,7 @@ impl ProviderResourceUri {
             path if path.starts_with("prediction/") => {
                 let id = path.trim_start_matches("prediction/");
                 if id.is_empty() || id.contains('/') {
-                    return Err(ProviderResourceUriError::new(
+                    return Err(ServerResourceUriError::new(
                         uri,
                         "prediction id must be one path segment",
                     ));
@@ -151,7 +151,7 @@ impl ProviderResourceUri {
             path if path.starts_with("artifact/") => {
                 let sha256 = path.trim_start_matches("artifact/");
                 if !is_sha256(sha256) {
-                    return Err(ProviderResourceUriError::new(
+                    return Err(ServerResourceUriError::new(
                         uri,
                         "artifact id must be a sha256 hex digest",
                     ));
@@ -164,7 +164,7 @@ impl ProviderResourceUri {
             path if path.starts_with("usage/task/") => {
                 let task_id = path.trim_start_matches("usage/task/");
                 if task_id.is_empty() || task_id.contains('/') {
-                    return Err(ProviderResourceUriError::new(
+                    return Err(ServerResourceUriError::new(
                         uri,
                         "usage task id must be one path segment",
                     ));
@@ -203,7 +203,7 @@ impl ProviderResourceUri {
     pub fn with_usage_task_id(
         &self,
         task_id: impl Into<String>,
-    ) -> Result<Self, ProviderResourceUriError> {
+    ) -> Result<Self, ServerResourceUriError> {
         let task_id = task_id.into();
         validate_one_segment(&task_id, "usage task id")?;
         match self {
@@ -211,7 +211,7 @@ impl ProviderResourceUri {
                 scheme: scheme.clone(),
                 task_id,
             }),
-            _ => Err(ProviderResourceUriError::new(
+            _ => Err(ServerResourceUriError::new(
                 self.to_string(),
                 "resource is not task-addressed usage",
             )),
@@ -219,7 +219,7 @@ impl ProviderResourceUri {
     }
 }
 
-impl fmt::Display for ProviderResourceUri {
+impl fmt::Display for ServerResourceUri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Models { scheme } => write!(f, "{scheme}://models"),
@@ -234,12 +234,12 @@ impl fmt::Display for ProviderResourceUri {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderResourceUriError {
+pub struct ServerResourceUriError {
     value: String,
     message: &'static str,
 }
 
-impl ProviderResourceUriError {
+impl ServerResourceUriError {
     fn new(value: impl Into<String>, message: &'static str) -> Self {
         Self {
             value: value.into(),
@@ -248,18 +248,18 @@ impl ProviderResourceUriError {
     }
 }
 
-impl fmt::Display for ProviderResourceUriError {
+impl fmt::Display for ServerResourceUriError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "`{}` {}", self.value, self.message)
     }
 }
 
-impl Error for ProviderResourceUriError {}
+impl Error for ServerResourceUriError {}
 
-fn validate_scheme(scheme: &str) -> Result<(), ProviderResourceUriError> {
+fn validate_scheme(scheme: &str) -> Result<(), ServerResourceUriError> {
     let mut bytes = scheme.bytes();
     let Some(first) = bytes.next() else {
-        return Err(ProviderResourceUriError::new(
+        return Err(ServerResourceUriError::new(
             scheme,
             "scheme must not be empty",
         ));
@@ -269,7 +269,7 @@ fn validate_scheme(scheme: &str) -> Result<(), ProviderResourceUriError> {
             b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'+' || b == b'-' || b == b'.'
         })
     {
-        return Err(ProviderResourceUriError::new(
+        return Err(ServerResourceUriError::new(
             scheme,
             "scheme must follow lowercase URI scheme syntax",
         ));
@@ -277,9 +277,9 @@ fn validate_scheme(scheme: &str) -> Result<(), ProviderResourceUriError> {
     Ok(())
 }
 
-fn validate_path(uri: &str, path: &str) -> Result<(), ProviderResourceUriError> {
+fn validate_path(uri: &str, path: &str) -> Result<(), ServerResourceUriError> {
     if path.is_empty() || path.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err(ProviderResourceUriError::new(
+        return Err(ServerResourceUriError::new(
             uri,
             "path must be non-empty and contain no whitespace or control characters",
         ));
@@ -287,12 +287,12 @@ fn validate_path(uri: &str, path: &str) -> Result<(), ProviderResourceUriError> 
     Ok(())
 }
 
-fn validate_one_segment(value: &str, label: &'static str) -> Result<(), ProviderResourceUriError> {
+fn validate_one_segment(value: &str, label: &'static str) -> Result<(), ServerResourceUriError> {
     if value.is_empty()
         || value.contains('/')
         || value.chars().any(|c| c.is_control() || c.is_whitespace())
     {
-        return Err(ProviderResourceUriError::new(
+        return Err(ServerResourceUriError::new(
             value,
             match label {
                 "usage task id" => "usage task id must be one non-empty path segment",
@@ -308,8 +308,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn provider_uri_conventions_round_trip() {
-        let uris = ProviderUris::new("example");
+    fn server_resource_uri_conventions_round_trip() {
+        let uris = ServerResourceUris::new("example");
         assert_eq!(uris.models_uri(), "example://models");
         assert_eq!(uris.model_template(), "example://model/{model_id}");
         assert_eq!(uris.prediction_template(), "example://prediction/{id}");
@@ -345,22 +345,22 @@ mod tests {
     }
 
     #[test]
-    fn provider_resource_uri_parses_standard_shapes() {
+    fn server_resource_uri_parses_standard_shapes() {
         assert_eq!(
-            ProviderResourceUri::parse("media://models").unwrap(),
-            ProviderResourceUri::Models {
+            ServerResourceUri::parse("media://models").unwrap(),
+            ServerResourceUri::Models {
                 scheme: "media".into()
             }
         );
         assert_eq!(
-            ProviderResourceUri::parse("media://model/provider/model").unwrap(),
-            ProviderResourceUri::Model {
+            ServerResourceUri::parse("media://model/provider/model").unwrap(),
+            ServerResourceUri::Model {
                 scheme: "media".into(),
                 model_id: "provider/model".into()
             }
         );
         assert_eq!(
-            ProviderResourceUri::parse(
+            ServerResourceUri::parse(
                 "media://artifact/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             )
             .unwrap()
@@ -368,14 +368,14 @@ mod tests {
             "media://artifact/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         );
         assert_eq!(
-            ProviderResourceUri::parse("media://usage/task/gateway-task-1")
+            ServerResourceUri::parse("media://usage/task/gateway-task-1")
                 .unwrap()
                 .usage_task_id(),
             Some("gateway-task-1")
         );
         assert_eq!(
-            ProviderResourceUri::parse("media://custom/path").unwrap(),
-            ProviderResourceUri::Other {
+            ServerResourceUri::parse("media://custom/path").unwrap(),
+            ServerResourceUri::Other {
                 scheme: "media".into(),
                 path: "custom/path".into()
             }
@@ -383,12 +383,12 @@ mod tests {
     }
 
     #[test]
-    fn provider_resource_uri_rewrites_usage_task_structurally() {
-        let uri = ProviderResourceUri::parse("media://usage/task/gateway-task-1").unwrap();
+    fn server_resource_uri_rewrites_usage_task_structurally() {
+        let uri = ServerResourceUri::parse("media://usage/task/gateway-task-1").unwrap();
         let rewritten = uri.with_usage_task_id("upstream-task-1").unwrap();
         assert_eq!(rewritten.to_string(), "media://usage/task/upstream-task-1");
         assert!(
-            ProviderResourceUri::parse("media://models")
+            ServerResourceUri::parse("media://models")
                 .unwrap()
                 .with_usage_task_id("task-1")
                 .is_err()

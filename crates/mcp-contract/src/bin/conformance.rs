@@ -55,8 +55,8 @@ use veoveo_mcp_contract::{
     GatewayJwtRevocationRequest, GatewayProfileId, GatewayResourceProjection,
     GatewayResourceSubscription, GatewayTaskMapping, GenerationPredictionSummary,
     GenerationRunOutput, InternalTokenSecret, PolicyDecision, Principal, PrincipalId,
-    PrincipalKind, ProviderUris, ScopeName, SelfHostedDeploymentPlan, ServerManifest, ServerSlug,
-    TenantId, TokenIssuer, TokenSubject, UsageRecord, UsageReport,
+    PrincipalKind, ScopeName, SelfHostedDeploymentPlan, ServerManifest, ServerResourceUris,
+    ServerSlug, TenantId, TokenIssuer, TokenSubject, UsageRecord, UsageReport,
 };
 
 #[derive(Parser, Debug)]
@@ -1673,7 +1673,7 @@ fn cmd_models_from_catalog(
     Ok(())
 }
 
-async fn cmd_complete(client: &Client, uris: &ProviderUris, prefix: String) -> Result<()> {
+async fn cmd_complete(client: &Client, uris: &ServerResourceUris, prefix: String) -> Result<()> {
     let result = client
         .complete(CompleteRequestParams::new(
             Reference::for_resource(uris.model_template()),
@@ -1813,7 +1813,7 @@ fn extension_for_mime(mime_type: Option<&str>) -> &'static str {
 
 async fn save_output_uri(
     client: &Client,
-    uris: &ProviderUris,
+    uris: &ServerResourceUris,
     http: &reqwest::Client,
     output_dir: &std::path::Path,
     uri: &str,
@@ -1859,7 +1859,7 @@ fn task_from_cancel_result(result: ServerResult) -> Result<rmcp::model::Task> {
 
 async fn cmd_run(
     client: &Client,
-    uris: &ProviderUris,
+    uris: &ServerResourceUris,
     tool_name: String,
     model_id: String,
     input: String,
@@ -2230,7 +2230,7 @@ async fn main() -> Result<()> {
     }
 
     let client = connect(&args).await?;
-    let uris = ProviderUris::new(args.scheme);
+    let uris = ServerResourceUris::new(args.scheme);
 
     let result = match args.cmd {
         Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),

@@ -72,7 +72,7 @@ pub use tasks::{
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use uri::{
-    ProviderResourceUri, ProviderResourceUriError, ProviderUris, artifact_object_key, is_sha256,
+    ServerResourceUri, ServerResourceUriError, ServerResourceUris, artifact_object_key, is_sha256,
 };
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;

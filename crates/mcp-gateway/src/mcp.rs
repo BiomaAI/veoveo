@@ -32,8 +32,8 @@ use veoveo_mcp_contract::{
     AuditEvent, CompletionExposure, GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId,
     GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping,
     GatewayToolName, GenerationRunOutput, LocalToolName, McpMethodName, PolicyDecision,
-    PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId, PromptName, ProviderResourceUri,
-    ResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TaskIdProjection, TraceId,
+    PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId, PromptName, ResourceUri,
+    ServerResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TaskIdProjection, TraceId,
     UpstreamTaskId, UpstreamTransport, UsageReport, paginate,
 };
 
@@ -448,7 +448,7 @@ impl GatewayMcp {
         uri: &str,
     ) -> Result<GatewayResourceProjection, McpError> {
         let server = self.server_for_resource(uri)?;
-        let parsed = ProviderResourceUri::parse(uri)
+        let parsed = ServerResourceUri::parse(uri)
             .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
         let Some(task_id) = parsed.usage_task_id() else {
             return Ok(GatewayResourceProjection {
@@ -558,7 +558,7 @@ fn project_upstream_resource_for_owner(
     server: &ServerSlug,
     uri: &str,
 ) -> Result<Option<GatewayResourceProjection>, McpError> {
-    let parsed = ProviderResourceUri::parse(uri)
+    let parsed = ServerResourceUri::parse(uri)
         .map_err(|err| mcp_internal(format!("upstream exposed invalid resource URI: {err}")))?;
     let Some(upstream_task_id) = parsed.usage_task_id() else {
         return Ok(Some(identity_resource_projection(server.clone(), uri)?));
@@ -1509,9 +1509,9 @@ enum ResourceReadKind {
 }
 
 fn resource_read_kind(uri: &str) -> ResourceReadKind {
-    match ProviderResourceUri::parse(uri) {
-        Ok(ProviderResourceUri::Artifact { .. }) => ResourceReadKind::Artifact,
-        Ok(ProviderResourceUri::UsageRoot { .. } | ProviderResourceUri::UsageTask { .. }) => {
+    match ServerResourceUri::parse(uri) {
+        Ok(ServerResourceUri::Artifact { .. }) => ResourceReadKind::Artifact,
+        Ok(ServerResourceUri::UsageRoot { .. } | ServerResourceUri::UsageTask { .. }) => {
             ResourceReadKind::Usage
         }
         Ok(_) | Err(_) => ResourceReadKind::General,

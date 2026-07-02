@@ -6,7 +6,7 @@
 //! - `media://artifact/{sha256}`       — server-owned artifact metadata/content
 //! - `media://usage/task/{task_id}`    — task usage estimates/actuals
 
-use veoveo_mcp_contract::ProviderUris;
+use veoveo_mcp_contract::ServerResourceUris;
 
 pub const MODELS_URI: &str = "media://models";
 pub const MODEL_TEMPLATE: &str = "media://model/{model_id}";
@@ -15,8 +15,8 @@ pub const ARTIFACT_TEMPLATE: &str = "media://artifact/{sha256}";
 pub const USAGE_ROOT_URI: &str = "media://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "media://usage/task/{task_id}";
 
-fn media_uris() -> ProviderUris {
-    ProviderUris::new("media")
+fn media_uris() -> ServerResourceUris {
+    ServerResourceUris::new("media")
 }
 
 pub fn model_uri(model_id: &str) -> String {
