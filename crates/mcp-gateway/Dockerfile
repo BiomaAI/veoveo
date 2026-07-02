@@ -12,14 +12,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
     cargo build --release --jobs 4 -p veoveo-mcp-gateway --bin gateway \
-    && mkdir -p /out \
-    && cp /app/target/release/gateway /out/gateway
+    && mkdir -p /out/lib \
+    && cp /app/target/release/gateway /out/gateway \
+    && find /app/target -name 'libduckdb.so' -type f -exec cp {} /out/lib/libduckdb.so \; -quit \
+    && test -f /out/lib/libduckdb.so
 
 FROM debian:trixie-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so
+RUN ldconfig
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /etc/veoveo /var/lib/veoveo/gateway \

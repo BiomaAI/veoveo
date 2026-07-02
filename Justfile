@@ -59,6 +59,8 @@ smoke-compose-config:
     grep -F 'target: 8080' "${compose_config}" >/dev/null
     grep -F 'published: "8780"' "${compose_config}" >/dev/null
     grep -F 'edge:' "${compose_config}" >/dev/null
+    grep -F "find /app/target -name 'libduckdb.so'" crates/mcp-gateway/Dockerfile >/dev/null
+    grep -F 'COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so' crates/mcp-gateway/Dockerfile >/dev/null
     docker run --rm -v "$PWD/configs/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
 # Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
