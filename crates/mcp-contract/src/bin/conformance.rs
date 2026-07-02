@@ -14,7 +14,8 @@ use std::{
 use anyhow::{Result, anyhow};
 use axum::{
     Form as AxumForm, Json as AxumJson, Router as AxumRouter,
-    extract::{Query as AxumQuery, State as AxumState},
+    body::Bytes as AxumBytes,
+    extract::{Path as AxumPath, Query as AxumQuery, State as AxumState},
     http::StatusCode as AxumStatusCode,
     response::IntoResponse as AxumIntoResponse,
     routing::{get as axum_get, post as axum_post},
@@ -158,6 +159,18 @@ enum Cmd {
         /// Gateway OIDC client secret expected at the token endpoint.
         #[arg(long, env = "VEOVEO_IDP_OIDC_CLIENT_SECRET", hide_env_values = true)]
         client_secret: String,
+    },
+    /// Serve a local OTLP HTTP sink for telemetry smoke tests.
+    OtlpHttpSink {
+        /// HTTP listen port.
+        #[arg(long)]
+        port: u16,
+        /// File touched after the listener is ready.
+        #[arg(long)]
+        ready_file: Option<PathBuf>,
+        /// File receiving one line per OTLP request.
+        #[arg(long)]
+        hits_file: PathBuf,
     },
     /// Print a private-key JWT client assertion signed by the conformance private key.
     GatewayClientAssertion {
@@ -819,6 +832,58 @@ async fn cmd_gateway_fake_oidc_idp(
         .serve(router.into_make_service())
         .await?;
     Ok(())
+}
+
+#[derive(Clone)]
+struct OtlpSinkState {
+    hits_file: PathBuf,
+}
+
+async fn cmd_otlp_http_sink(
+    port: u16,
+    ready_file: Option<PathBuf>,
+    hits_file: PathBuf,
+) -> Result<()> {
+    if let Some(parent) = hits_file.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&hits_file, b"")?;
+    let state = OtlpSinkState { hits_file };
+    let router = AxumRouter::new()
+        .route("/v1/{signal}", axum_post(otlp_sink_hit))
+        .with_state(state);
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+    if let Some(path) = ready_file {
+        std::fs::write(path, b"ready\n")?;
+    }
+    axum::serve(listener, router).await?;
+    Ok(())
+}
+
+async fn otlp_sink_hit(
+    AxumState(state): AxumState<OtlpSinkState>,
+    AxumPath(signal): AxumPath<String>,
+    body: AxumBytes,
+) -> impl AxumIntoResponse {
+    match signal.as_str() {
+        "logs" | "traces" | "metrics" => {
+            use std::io::Write as _;
+
+            let line = format!("{signal} {}\n", body.len());
+            let result = std::fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(&state.hits_file)
+                .and_then(|mut file| file.write_all(line.as_bytes()));
+            match result {
+                Ok(()) => AxumStatusCode::OK,
+                Err(_) => AxumStatusCode::INTERNAL_SERVER_ERROR,
+            }
+        }
+        _ => AxumStatusCode::NOT_FOUND,
+    }
 }
 
 async fn fake_oidc_jwks() -> impl AxumIntoResponse {
@@ -1688,6 +1753,13 @@ async fn main() -> Result<()> {
             )
             .await;
         }
+        Cmd::OtlpHttpSink {
+            port,
+            ready_file,
+            hits_file,
+        } => {
+            return cmd_otlp_http_sink(*port, ready_file.clone(), hits_file.clone()).await;
+        }
         Cmd::GatewayClientAssertion {
             client_id,
             audience,
@@ -1798,6 +1870,7 @@ async fn main() -> Result<()> {
         Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),
         Cmd::GatewaySmokeControlPlane { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayFakeOidcIdp { .. } => unreachable!("handled before MCP connection"),
+        Cmd::OtlpHttpSink { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayTokenExchange { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayIdJag { .. } => unreachable!("handled before MCP connection"),

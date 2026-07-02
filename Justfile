@@ -46,6 +46,7 @@ smoke-gateway:
     just gateway-validate
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-smoke-control-plane}}
     just smoke-gateway-http
+    just smoke-otel
     just smoke-media-mcp-auth
     just smoke-gateway-authenticated
 
@@ -166,6 +167,64 @@ smoke-gateway-http:
     cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":7'
     cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db "${state_db}" --profile default --issuer https://veoveo.bioma.ai/oauth/default --jwt-id smoke-jwt --expires-at 2999-01-01T00:00:00Z --reason smoke >/dev/null
     test "$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db "${state_db}")" = "0"
+
+# Smoke-test OTLP HTTP log and trace export from the gateway.
+smoke-otel:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    gateway_port=18804
+    otlp_port=18805
+    gateway_base="http://127.0.0.1:${gateway_port}"
+    otlp_base="http://127.0.0.1:${otlp_port}"
+    tmpdir="$(mktemp -d)"
+    gateway_log="${tmpdir}/gateway.log"
+    otlp_log="${tmpdir}/otlp.log"
+    otlp_ready="${tmpdir}/otlp.ready"
+    otlp_hits="${tmpdir}/otlp.hits"
+    state_db="${tmpdir}/gateway-state.duckdb"
+    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
+    gateway_pid=""
+    otlp_pid=""
+    cleanup() {
+        if [ -n "${gateway_pid}" ]; then
+            kill -INT "${gateway_pid}" 2>/dev/null || true
+            wait "${gateway_pid}" 2>/dev/null || true
+        fi
+        if [ -n "${otlp_pid}" ]; then
+            kill "${otlp_pid}" 2>/dev/null || true
+            wait "${otlp_pid}" 2>/dev/null || true
+        fi
+        rm -rf "${tmpdir}"
+    }
+    trap cleanup EXIT
+    {{conformance}} otlp-http-sink --port "${otlp_port}" --ready-file "${otlp_ready}" --hits-file "${otlp_hits}" >"${otlp_log}" 2>&1 &
+    otlp_pid=$!
+    for _ in {1..150}; do
+        if [ -f "${otlp_ready}" ]; then
+            break
+        fi
+        sleep 0.2
+    done
+    test -f "${otlp_ready}"
+    OTEL_EXPORTER_OTLP_ENDPOINT="${otlp_base}" VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${state_db}" >"${gateway_log}" 2>&1 &
+    gateway_pid=$!
+    for _ in {1..150}; do
+        if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
+    curl -fsS "${gateway_base}/healthz" >/dev/null
+    for _ in {1..80}; do
+        if grep -q '^logs ' "${otlp_hits}" && grep -q '^traces ' "${otlp_hits}"; then
+            break
+        fi
+        sleep 0.25
+    done
+    grep -q '^logs ' "${otlp_hits}"
+    grep -q '^traces ' "${otlp_hits}"
 
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:

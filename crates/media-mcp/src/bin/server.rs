@@ -59,12 +59,14 @@ use rmcp::{
 };
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
+use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactPut, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity,
     GatewayInternalTokenVerifier, GenerationPredictionSummary, GenerationRunOutput,
     InternalTokenSecret, Page, ProviderUris, PublicDeployment, ServerPublicEndpoint, ServerSlug,
-    SubscriptionHub, TaskPayloadState, TaskStore, TokenIssuer, UsageKind, UsageRecord, UsageReport,
-    is_sha256, notify_progress, notify_task_status, now_iso, now_utc, paginate,
+    SubscriptionHub, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageKind,
+    UsageRecord, UsageReport, init_server_telemetry, is_sha256, notify_progress,
+    notify_task_status, now_iso, now_utc, paginate,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -1943,15 +1945,8 @@ async fn artifact_download(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
-    tracing_subscriber::fmt()
-        .json()
-        .flatten_event(true)
-        .with_ansi(false)
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,veoveo_media_mcp=debug".into()),
-        )
-        .init();
+    let _telemetry: TelemetryGuard =
+        init_server_telemetry("veoveo-media-mcp", "info,veoveo_media_mcp=debug")?;
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
@@ -2067,7 +2062,12 @@ async fn main() -> anyhow::Result<()> {
         server_router =
             server_router.nest_service("/files", tower_http::services::ServeDir::new(dir));
     }
-    let router = Router::new().nest(public_endpoint.mount_path(), server_router);
+    let router = Router::new()
+        .nest(public_endpoint.mount_path(), server_router)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(

@@ -28,6 +28,10 @@ hmac = "0.13.0"
 jsonschema = "0.46.8"
 jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto"] }
 object_store = { version = "0.14.0", default-features = false, features = ["aws"] }
+opentelemetry = "0.32.0"
+opentelemetry-appender-tracing = "0.32.0"
+opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
+opentelemetry_sdk = "0.32.1"
 reqwest = { version = "0.13.4", default-features = false }
 rcgen = "0.14.8"
 rmcp = "2.0.0"
@@ -39,6 +43,7 @@ tokio = "1.52.3"
 tokio-util = "0.7.18"
 tower-http = { version = "0.7.0", features = ["fs", "trace", "cors"] }
 tracing = "0.1.44"
+tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 url = "2.5.8"
 uuid = { version = "1.23.4", features = ["v4"] }

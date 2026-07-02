@@ -36,6 +36,7 @@ use rmcp::transport::streamable_http_server::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
+use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use url::Url;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
@@ -47,7 +48,7 @@ use veoveo_mcp_contract::{
     OidcClientAuthMethod, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier,
     PolicyDecision, PolicyEffect, PolicyTarget, Principal, PrincipalId, PrincipalKind,
     PublicDeployment, ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId,
-    SecretSource, TokenIssuer, TokenSubject, TraceId,
+    SecretSource, TelemetryGuard, TokenIssuer, TokenSubject, TraceId, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
@@ -275,15 +276,8 @@ struct AccessTokenClaims {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
-    tracing_subscriber::fmt()
-        .json()
-        .flatten_event(true)
-        .with_ansi(false)
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,veoveo_mcp_gateway=debug".into()),
-        )
-        .init();
+    let _telemetry: TelemetryGuard =
+        init_server_telemetry("veoveo-mcp-gateway", "info,veoveo_mcp_gateway=debug")?;
 
     match Args::parse().command {
         Command::Validate { control_plane } => {
@@ -450,6 +444,10 @@ async fn serve(
             .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
         router = router.nest(&format!("/admin/{profile_id}"), admin_router);
     }
+    let router = router.layer(
+        TraceLayer::new_for_http()
+            .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
+    );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(
