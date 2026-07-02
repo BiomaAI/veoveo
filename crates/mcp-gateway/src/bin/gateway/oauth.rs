@@ -21,12 +21,10 @@ use veoveo_mcp_gateway::{
 };
 
 use crate::{
-    TokenRequest,
     audit::{
         AuthAuditRecord, auth_audit_error_response, internal_error_response,
         record_oidc_auth_audit, record_token_auth_audit,
     },
-    authorization_code_client_allowed,
     http_util::{
         OidcTokenExchangeRequest, TokenResponse, allowed_gateway_jwt_algorithms,
         exchange_oidc_authorization_code, load_jwks, oauth_error_response, pkce_s256_challenge,
@@ -34,9 +32,11 @@ use crate::{
         redirect_response, redirect_with_authorization_code, redirect_with_oauth_error,
         scope_string, token_response,
     },
-    requested_token_scopes,
+    oauth_grants::{
+        TokenRequest, authorization_code_client_allowed, requested_token_scopes,
+        token_endpoint_authorization_code, token_endpoint_id_jag,
+    },
     runtime::{AppState, current_catalog, current_http_client},
-    token_endpoint_authorization_code, token_endpoint_id_jag,
     tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_client_credentials_access_token},
 };
 
