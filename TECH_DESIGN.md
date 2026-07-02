@@ -197,6 +197,93 @@ server creating durable artifacts or billable usage must use the standard artifa
 usage surfaces. Fast metadata, search, config, or read-only resource servers can remain
 plain `rmcp` tools/resources.
 
+## Veoveo gateway MVP
+
+The Veoveo platform should provide a first-class MCP gateway inspired by the way larger
+MCP platforms assemble registry, auth, policy, hosted runtimes, and observability around
+individual servers. The gateway is our product boundary, not a dependency on an external
+orchestrator. It speaks MCP outward and MCP inward: external MCP clients connect to one
+gateway profile, while the gateway connects only to hosted Veoveo MCP servers in the MVP.
+
+```
+MCP client
+  |
+  |  MCP over streamable HTTP
+  v
+Veoveo gateway profile (/mcp/{profile})
+  |-- media-mcp
+  |-- simulation-mcp
+  |-- rl-mcp
+  |-- optimization-mcp
+```
+
+The MVP explicitly excludes third-party or remote MCP servers. Every upstream server is a
+Veoveo-hosted server with a typed server manifest, a known URI scheme, a known mount path,
+and conformance coverage from `veoveo-mcp-contract`. Direct server endpoints such as
+`/media/mcp` remain valid contract targets for internal testing and service composition,
+but external clients should normally use the gateway profile endpoint.
+
+The gateway must preserve the full MCP contract. It is not a tool-only aggregator. It must
+forward or aggregate the protocol surfaces our servers rely on:
+
+- `tools/list` and `tools/call`,
+- `resources/list`, `resources/templates/list`, `resources/read`, and
+  `resources/subscribe`,
+- `prompts/list` and `prompts/get`,
+- `completion/complete`,
+- `tasks/get`, `tasks/result`, and `tasks/cancel`,
+- server notifications such as `tasks/status`, `progress`, `resources/updated`,
+  and list-changed notifications.
+
+Profiles and policies serve different jobs. A gateway profile is a curated static MCP
+surface such as `default`, `media`, `research`, or `ops`; it decides which hosted servers,
+tools, resources, prompts, and schemes are even exposed. Policy is the runtime decision
+layer; it decides whether a specific principal may perform a specific action on a specific
+tool, task, resource, artifact, or data label at request time. Unknown servers, tools,
+resources, prompts, profiles, principals, or data labels are denied.
+
+Because the gateway collapses multiple MCP servers into one outward MCP server, gateway
+tool names must be namespaced at the gateway boundary. Direct servers should keep concise
+local names such as `run`; the gateway can expose canonical names such as `media__run`.
+Resource URIs stay server-owned (`media://artifact/{sha256}`, `media://usage/task/{task_id}`)
+because URI schemes are already the resource namespace.
+
+Authentication and authorization are part of the MVP, not a later add-on. The gateway must
+implement MCP-compatible HTTP authorization:
+
+- OAuth 2.0 Protected Resource Metadata for each gateway profile.
+- `WWW-Authenticate` challenges that point clients at the profile's protected-resource
+  metadata and requested scopes.
+- OAuth 2.1/OIDC authorization-code + PKCE for browser-based enterprise SSO.
+- MCP Enterprise-Managed Authorization using the
+  `io.modelcontextprotocol/enterprise-managed-authorization` extension and ID-JAG exchange.
+- MCP OAuth Client Credentials for headless/service principals, preferably with
+  private-key JWT client authentication.
+- Audience/resource-bound access tokens scoped to one gateway profile.
+
+The gateway maps authenticated claims to strongly typed Veoveo principals, tenants,
+groups, roles, scopes, and data labels. Hosted servers should receive a short-lived
+gateway-issued internal token or signed identity assertion, not raw external IdP tokens by
+default. Servers remain responsible for enforcing the Veoveo contract on task ownership,
+artifact reads, usage reads, and regulated-data labels; gateway policy reduces exposure but
+does not replace server-side checks.
+
+The first implementation slice should stay small and prove the contract end to end:
+
+1. Add typed server manifest, gateway profile, principal, scope, and policy decision
+   models to `veoveo-mcp-contract`.
+2. Create a `mcp-gateway` crate that reads a static typed config and connects to one
+   hosted upstream: `media-mcp`.
+3. Route `/mcp/default` to the gateway in Compose while keeping `/media/webhooks`,
+   `/media/files`, and `/media/artifacts` owned by the media server.
+4. Implement protected-resource metadata, JWT/JWKS validation, profile-scoped policy, and
+   structured audit events.
+5. Add OAuth/OIDC browser flow, then Enterprise-Managed Authorization / ID-JAG, then
+   client credentials.
+6. Extend the conformance CLI with direct-server and gateway-profile modes; both paths must
+   exercise tools, resources, prompts, completions, tasks, usage, artifacts, and
+   notifications.
+
 ## Enterprise deployment and pluggable infrastructure
 
 Enterprise deployments should be able to bring their own object store, state store, and
