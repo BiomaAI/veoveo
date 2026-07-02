@@ -187,12 +187,13 @@ struct ReloadResult {
 }
 
 #[derive(Debug, Serialize)]
-struct ControlPlaneStatus {
+struct ControlPlaneReadResult {
     status: &'static str,
     revision_id: Option<GatewayControlPlaneRevisionId>,
     sha256: String,
     servers: usize,
     profiles: usize,
+    control_plane: GatewayControlPlane,
 }
 
 #[derive(Debug, Serialize)]
@@ -2588,12 +2589,13 @@ async fn read_control_plane(
         Err(err) => return internal_error_response(err),
     };
 
-    Json(ControlPlaneStatus {
+    Json(ControlPlaneReadResult {
         status: "ok",
         revision_id,
         sha256,
         servers: catalog.server_count(),
         profiles: catalog.profile_count(),
+        control_plane: catalog.control_plane().clone(),
     })
     .into_response()
 }
