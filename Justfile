@@ -1,7 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load := true
 
-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; export MEDIA_PROVIDER_API_KEY; export PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
-tunnel-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"; : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"; export MEDIA_PROVIDER_API_KEY PUBLIC_BASE_URL CLOUDFLARED_TUNNEL_TOKEN; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
+compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
 mcp-url := "http://localhost:8787/media/mcp"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
@@ -23,41 +23,34 @@ check:
     cargo fmt --all --check
     cargo test --workspace
 
-# Render the dev Compose config with secrets redacted.
-compose-config public_base_url='':
-    {{compose-env}}; if [ -n '{{public_base_url}}' ]; then export PUBLIC_BASE_URL='{{public_base_url}}'; fi; : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"; docker compose --profile dev config | sed -E 's/(MEDIA_PROVIDER_API_KEY: ).*/\1[redacted]/; s/(MEDIA_PROVIDER_WEBHOOK_SECRET: ).*/\1[redacted]/; s/(AWS_SECRET_ACCESS_KEY: ).*/\1[redacted]/'
+_compose-env:
+    @: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
+    @: "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+    @: "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
 
 # Build the media MCP image.
-compose-build:
-    docker compose --profile dev build media-mcp
+compose-build: _compose-env
+    {{compose}} build media-mcp
 
-# Build and start RustFS plus media-mcp. Pass a public base URL for real provider webhooks.
-compose-up public_base_url='':
-    {{compose-env}}; if [ -n '{{public_base_url}}' ]; then export PUBLIC_BASE_URL='{{public_base_url}}'; fi; : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"; docker compose --profile dev up --build -d
+# Build and start RustFS, media-mcp, and the managed Cloudflare tunnel.
+compose-up: _compose-env
+    {{compose}} up --build -d
 
-# Build and start RustFS plus media-mcp plus a named Cloudflare tunnel.
-compose-up-named-tunnel:
-    {{tunnel-compose-env}}; docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel up --build -d
+# Stop the Compose stack.
+compose-down: _compose-env
+    {{compose}} down --remove-orphans
 
-# Stop the dev Compose stack.
-compose-down:
-    {{compose-env}}; docker compose --profile dev down --remove-orphans
-
-# Stop the dev stack plus named tunnel.
-compose-down-named-tunnel:
-    {{tunnel-compose-env}}; docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel down --remove-orphans
-
-# Stop the dev Compose stack and remove its volumes.
-compose-down-volumes:
-    {{compose-env}}; docker compose --profile dev down --remove-orphans --volumes
+# Stop the Compose stack and remove its volumes.
+compose-down-volumes: _compose-env
+    {{compose}} down --remove-orphans --volumes
 
 # Show Compose service status.
-compose-ps:
-    {{compose-env}}; docker compose --profile dev ps
+compose-ps: _compose-env
+    {{compose}} ps
 
 # Follow logs for one service.
-logs service='media-mcp':
-    {{compose-env}}; docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel logs -f --tail=200 {{service}}
+logs service='media-mcp': _compose-env
+    {{compose}} logs -f --tail=200 {{service}}
 
 # Check local health and, optionally, public tunnel health.
 health public_base_url='':
@@ -99,7 +92,7 @@ artifact sha256 output_dir='output':
 
 # Start the stack, check health, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':
-    just compose-up '{{public_base_url}}'
+    just compose-up
     just health '{{public_base_url}}'
     just info
     just run-edit '{{public_base_url}}' '{{output_dir}}'

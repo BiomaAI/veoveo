@@ -74,19 +74,15 @@ PUBLIC_BASE_URL=https://veoveo.bioma.ai
 
 ### Docker Compose
 
-The default development stack runs `media-mcp`, RustFS, and an optional named Cloudflare
+The default development stack runs `media-mcp`, RustFS, and the managed Cloudflare
 tunnel. RustFS image/version and local S3-compatible wiring are defined in `compose.yaml`.
 
 ```sh
 cp .env.example .env
 # fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_BASE_URL, and
-# CLOUDFLARED_TUNNEL_TOKEN for the named tunnel.
+# CLOUDFLARED_TUNNEL_TOKEN for the managed Cloudflare tunnel.
 
-just compose-build
 just compose-up
-
-# include the tunnel service when the named tunnel token is configured
-just compose-up-named-tunnel
 ```
 
 The media image uses BuildKit cache mounts for Cargo registry, git, and target output.
@@ -179,7 +175,7 @@ and the shared contract crate.
 Use `just --list` for the maintained command recipes. The common path is:
 
 ```sh
-just compose-up-named-tunnel
+just compose-up
 just health https://veoveo.bioma.ai
 just e2e https://veoveo.bioma.ai
 ```
