@@ -38,30 +38,8 @@ deployments-validate:
 
 # Smoke-test Compose edge routing and published-port shape.
 smoke-compose-config:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    tmpdir="$(mktemp -d)"
-    cleanup() {
-        rm -rf "${tmpdir}"
-    }
-    trap cleanup EXIT
-    compose_config="${tmpdir}/compose.rendered.yaml"
-    MEDIA_PROVIDER_API_KEY=dummy \
-    MEDIA_PROVIDER_WEBHOOK_SECRET=whsec_0Wn4SW+lD1zrRtFhb1r4fGHt6XZLSkX5y2EK+lSbA+E= \
-    VEOVEO_INTERNAL_TOKEN_SECRET=local-development-secret-at-least-32-bytes \
-    VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64=dummy \
-    PUBLIC_BASE_URL=https://veoveo.bioma.ai \
-    CLOUDFLARED_TUNNEL_TOKEN=dummy \
-    {{compose}} config >"${compose_config}"
-    test "$(grep -c 'host_ip: 127.0.0.1' "${compose_config}")" -ge 7
-    grep -F 'image: caddy:2.11.2' "${compose_config}" >/dev/null
-    grep -F 'target: /etc/caddy/Caddyfile' "${compose_config}" >/dev/null
-    grep -F 'target: 8080' "${compose_config}" >/dev/null
-    grep -F 'published: "8780"' "${compose_config}" >/dev/null
-    grep -F 'edge:' "${compose_config}" >/dev/null
-    grep -F "find /app/target -name 'libduckdb.so'" crates/mcp-gateway/Dockerfile >/dev/null
-    grep -F 'COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so' crates/mcp-gateway/Dockerfile >/dev/null
-    docker run --rm -v "$PWD/configs/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+    cargo build -p veoveo-smoke --bin smoke
+    target/debug/smoke compose-config
 
 # Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
 contract-schemas output_dir='schemas':
@@ -69,20 +47,8 @@ contract-schemas output_dir='schemas':
 
 # Smoke-test contract schema export for non-Rust implementations.
 smoke-contract-schemas:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    tmpdir="$(mktemp -d)"
-    cleanup() {
-        rm -rf "${tmpdir}"
-    }
-    trap cleanup EXIT
-    {{conformance}} contract-schemas --output-dir "${tmpdir}/schemas"
-    test -f "${tmpdir}/schemas/gateway-control-plane.schema.json"
-    test -f "${tmpdir}/schemas/artifact-metadata.schema.json"
-    test -f "${tmpdir}/schemas/usage-report.schema.json"
-    jq -e '."$schema" and .title == "GatewayControlPlane"' "${tmpdir}/schemas/gateway-control-plane.schema.json" >/dev/null
-    jq -e '.title == "ArtifactMetadata" and (.properties.compliance | type == "object")' "${tmpdir}/schemas/artifact-metadata.schema.json" >/dev/null
-    jq -e '.title == "UsageReport" and (.properties.records | type == "object")' "${tmpdir}/schemas/usage-report.schema.json" >/dev/null
+    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke
+    target/debug/smoke contract-schemas --conformance-bin target/debug/conformance
 
 # Revoke one gateway JWT id until its original token expiration.
 gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.bioma.ai/oauth/default' profile='default' reason='operator_request':
@@ -246,94 +212,13 @@ smoke-gateway-http:
 
 # Smoke-test OTLP HTTP log and trace export from the gateway.
 smoke-otel:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    gateway_port=18804
-    otlp_port=18805
-    gateway_base="http://127.0.0.1:${gateway_port}"
-    otlp_base="http://127.0.0.1:${otlp_port}"
-    tmpdir="$(mktemp -d)"
-    gateway_log="${tmpdir}/gateway.log"
-    otlp_log="${tmpdir}/otlp.log"
-    otlp_ready="${tmpdir}/otlp.ready"
-    otlp_hits="${tmpdir}/otlp.hits"
-    state_db="${tmpdir}/gateway-state.duckdb"
-    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
-    auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
-    gateway_pid=""
-    otlp_pid=""
-    cleanup() {
-        if [ -n "${gateway_pid}" ]; then
-            kill -INT "${gateway_pid}" 2>/dev/null || true
-            wait "${gateway_pid}" 2>/dev/null || true
-        fi
-        if [ -n "${otlp_pid}" ]; then
-            kill "${otlp_pid}" 2>/dev/null || true
-            wait "${otlp_pid}" 2>/dev/null || true
-        fi
-        rm -rf "${tmpdir}"
-    }
-    trap cleanup EXIT
-    {{conformance}} otlp-http-sink --port "${otlp_port}" --ready-file "${otlp_ready}" --hits-file "${otlp_hits}" >"${otlp_log}" 2>&1 &
-    otlp_pid=$!
-    for _ in {1..150}; do
-        if [ -f "${otlp_ready}" ]; then
-            break
-        fi
-        sleep 0.2
-    done
-    test -f "${otlp_ready}"
-    OTEL_EXPORTER_OTLP_ENDPOINT="${otlp_base}" VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${state_db}" >"${gateway_log}" 2>&1 &
-    gateway_pid=$!
-    for _ in {1..150}; do
-        if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
-            break
-        fi
-        sleep 0.2
-    done
-    curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
-    curl -fsS "${gateway_base}/healthz" >/dev/null
-    for _ in {1..80}; do
-        if grep -q '^logs ' "${otlp_hits}" && grep -q '^traces ' "${otlp_hits}"; then
-            break
-        fi
-        sleep 0.25
-    done
-    grep -q '^logs ' "${otlp_hits}"
-    grep -q '^traces ' "${otlp_hits}"
+    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    target/debug/smoke otel --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    port=18800
-    base="http://127.0.0.1:${port}"
-    tmpdir="$(mktemp -d)"
-    log="${tmpdir}/media.log"
-    state_db="${tmpdir}/state.duckdb"
-    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
-    cleanup() {
-        kill "${pid}" 2>/dev/null || true
-        wait "${pid}" 2>/dev/null || true
-        rm -rf "${tmpdir}"
-    }
-    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${port}" --public-base-url https://veoveo.bioma.ai --state-db "${state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 >"${log}" 2>&1 &
-    pid=$!
-    trap cleanup EXIT
-    for _ in {1..150}; do
-        if curl -fsS "${base}/media/healthz" >/dev/null 2>&1; then
-            break
-        fi
-        sleep 0.2
-    done
-    curl -fsS "${base}/media/healthz" | grep -F 'ok'
-    grep -E '^\{' "${log}" | jq -e 'select(.message == "listening" and .service == "veoveo-media-mcp" and .mcp_path == "/media/mcp")' >/dev/null
-    grep -E '^\{' "${log}" | jq -e 'select(.message == "media retention gc completed")' >/dev/null
-    status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/mcp")"
-    test "${status}" = "401"
-    status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
-    test "${status}" = "401"
-    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${base}/media/mcp" info >/dev/null
+    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
+    target/debug/smoke media-mcp-auth --conformance-bin target/debug/conformance --media-bin target/debug/server
 
 # Smoke-test direct hosted media task behavior without the gateway projection layer.
 smoke-media-task-run:
