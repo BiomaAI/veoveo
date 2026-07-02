@@ -53,6 +53,7 @@ smoke-gateway:
     just smoke-gateway-http
     just smoke-otel
     just smoke-media-mcp-auth
+    just smoke-media-task-run
     just smoke-gateway-authenticated
     just smoke-gateway-task-run
 
@@ -265,6 +266,73 @@ smoke-media-mcp-auth:
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
     test "${status}" = "401"
     env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${base}/media/mcp" info >/dev/null
+
+# Smoke-test direct hosted media task behavior without the gateway projection layer.
+smoke-media-task-run:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    media_port=18807
+    provider_port=18808
+    media_base="http://127.0.0.1:${media_port}"
+    provider_base="http://127.0.0.1:${provider_port}"
+    tmpdir="$(mktemp -d)"
+    provider_log="${tmpdir}/provider.log"
+    media_log="${tmpdir}/media.log"
+    provider_ready="${tmpdir}/provider.ready"
+    media_state_db="${tmpdir}/media-state.duckdb"
+    output_dir="${tmpdir}/outputs"
+    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    provider_pid=""
+    media_pid=""
+    cleanup() {
+        if [ -n "${media_pid}" ]; then
+            kill "${media_pid}" 2>/dev/null || true
+            wait "${media_pid}" 2>/dev/null || true
+        fi
+        if [ -n "${provider_pid}" ]; then
+            kill "${provider_pid}" 2>/dev/null || true
+            wait "${provider_pid}" 2>/dev/null || true
+        fi
+        rm -rf "${tmpdir}"
+    }
+    trap cleanup EXIT
+    {{conformance}} fake-media-provider --port "${provider_port}" --ready-file "${provider_ready}" >"${provider_log}" 2>&1 &
+    provider_pid=$!
+    for _ in {1..150}; do
+        if [ -f "${provider_ready}" ] && curl -fsS "${provider_base}/api/v3/models" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    test -f "${provider_ready}"
+    MEDIA_PROVIDER_WEBHOOK_SECRET= MEDIA_PROVIDER_API_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${media_port}" --public-base-url "${media_base}" --state-db "${media_state_db}" --artifact-store memory --provider-base-url "${provider_base}" >"${media_log}" 2>&1 &
+    media_pid=$!
+    for _ in {1..150}; do
+        if curl -fsS "${media_base}/media/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
+    run_output="$(env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${media_base}/media/mcp" run fake/image --input '{"prompt":"smoke"}' --output-dir "${output_dir}")"
+    printf '%s\n' "${run_output}"
+    task_id="$(printf '%s\n' "${run_output}" | sed -n 's/^task \([^ ]*\) created.*/\1/p')"
+    test -n "${task_id}"
+    structured_json="$(printf '%s\n' "${run_output}" | sed -n 's/^structured: //p')"
+    test -n "${structured_json}"
+    printf '%s\n' "${structured_json}" | jq -e --arg task_id "${task_id}" 'all(.artifacts[]; .metadata.task_id == $task_id)' >/dev/null
+    find "${output_dir}" -type f -name '*.png' -size +0c | grep -q .
+    usage_json=""
+    for _ in {1..90}; do
+        usage_json="$(env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${media_base}/media/mcp" usage "${task_id}" 2>/dev/null || true)"
+        if printf '%s\n' "${usage_json}" | jq -e '.records[]? | select(.kind == "actual" and .amount == 0.01 and .currency == "USD")' >/dev/null; then
+            break
+        fi
+        sleep 0.25
+    done
+    printf '%s\n' "${usage_json}" | jq -e --arg task_id "${task_id}" '.task_id == $task_id and .usage_uri == ("media://usage/task/" + $task_id) and all(.records[]; .task_id == $task_id)' >/dev/null
+    printf '%s\n' "${usage_json}" | jq -e '.records[] | select(.kind == "estimate" and .amount == 0.01 and .currency == "USD")' >/dev/null
+    printf '%s\n' "${usage_json}" | jq -e '.records[] | select(.kind == "actual" and .amount == 0.01 and .currency == "USD")' >/dev/null
 
 # Smoke-test authenticated gateway-to-media MCP forwarding.
 smoke-gateway-authenticated:
