@@ -4,16 +4,18 @@
 /// per-model resources, and per-prediction resources.
 #[derive(Debug, Clone)]
 pub struct ProviderUris {
-    scheme: &'static str,
+    scheme: String,
 }
 
 impl ProviderUris {
-    pub const fn new(scheme: &'static str) -> Self {
-        Self { scheme }
+    pub fn new(scheme: impl Into<String>) -> Self {
+        Self {
+            scheme: scheme.into(),
+        }
     }
 
-    pub fn scheme(&self) -> &'static str {
-        self.scheme
+    pub fn scheme(&self) -> &str {
+        &self.scheme
     }
 
     pub fn models_uri(&self) -> String {
@@ -51,26 +53,25 @@ impl ProviderUris {
 mod tests {
     use super::*;
 
-    const URIS: ProviderUris = ProviderUris::new("example");
-
     #[test]
     fn provider_uri_conventions_round_trip() {
-        assert_eq!(URIS.models_uri(), "example://models");
-        assert_eq!(URIS.model_template(), "example://model/{model_id}");
-        assert_eq!(URIS.prediction_template(), "example://prediction/{id}");
+        let uris = ProviderUris::new("example");
+        assert_eq!(uris.models_uri(), "example://models");
+        assert_eq!(uris.model_template(), "example://model/{model_id}");
+        assert_eq!(uris.prediction_template(), "example://prediction/{id}");
         assert_eq!(
-            URIS.model_uri("provider/model"),
+            uris.model_uri("provider/model"),
             "example://model/provider/model"
         );
         assert_eq!(
-            URIS.parse_model_uri("example://model/provider/model"),
+            uris.parse_model_uri("example://model/provider/model"),
             Some("provider/model")
         );
-        assert_eq!(URIS.prediction_uri("abc123"), "example://prediction/abc123");
+        assert_eq!(uris.prediction_uri("abc123"), "example://prediction/abc123");
         assert_eq!(
-            URIS.parse_prediction_uri("example://prediction/abc123"),
+            uris.parse_prediction_uri("example://prediction/abc123"),
             Some("abc123")
         );
-        assert_eq!(URIS.parse_prediction_uri("example://prediction/a/b"), None);
+        assert_eq!(uris.parse_prediction_uri("example://prediction/a/b"), None);
     }
 }

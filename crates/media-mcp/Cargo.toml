@@ -1,19 +1,15 @@
 [package]
-name = "wavespeed-mcp-server"
+name = "veoveo-media-mcp"
 version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "wavespeed_mcp"
+name = "veoveo_media_mcp"
 path = "src/lib.rs"
 
 [[bin]]
 name = "server"
 path = "src/bin/server.rs"
-
-[[bin]]
-name = "client"
-path = "src/bin/client.rs"
 
 [dependencies]
 anyhow.workspace = true
@@ -25,9 +21,8 @@ futures.workspace = true
 hex.workspace = true
 hmac.workspace = true
 jsonschema.workspace = true
-mcp-foundation.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
-rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server", "client", "transport-streamable-http-client-reqwest", "reqwest"] }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -37,3 +32,4 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+veoveo-mcp-contract.workspace = true

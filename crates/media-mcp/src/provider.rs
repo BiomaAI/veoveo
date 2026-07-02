@@ -1,4 +1,4 @@
-//! Minimal WaveSpeed v3 API client: model registry, prediction submit, result fetch.
+//! Minimal provider API client: model registry, prediction submit, result fetch.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -80,36 +80,36 @@ impl ModelEntry {
 }
 
 #[derive(Debug)]
-pub enum WsError {
+pub enum ProviderError {
     Http(reqwest::Error),
     Api { code: i64, message: String },
 }
 
-impl std::fmt::Display for WsError {
+impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WsError::Http(e) => write!(f, "http error: {e}"),
-            WsError::Api { code, message } => {
-                write!(f, "wavespeed api error (code {code}): {message}")
+            ProviderError::Http(e) => write!(f, "http error: {e}"),
+            ProviderError::Api { code, message } => {
+                write!(f, "provider api error (code {code}): {message}")
             }
         }
     }
 }
-impl std::error::Error for WsError {}
-impl From<reqwest::Error> for WsError {
+impl std::error::Error for ProviderError {}
+impl From<reqwest::Error> for ProviderError {
     fn from(e: reqwest::Error) -> Self {
-        WsError::Http(e)
+        ProviderError::Http(e)
     }
 }
 
 #[derive(Clone)]
-pub struct WsClient {
+pub struct ProviderClient {
     http: reqwest::Client,
     base: String,
     api_key: String,
 }
 
-impl WsClient {
+impl ProviderClient {
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             http: reqwest::Client::new(),
@@ -125,18 +125,18 @@ impl WsClient {
 
     async fn unwrap_envelope<T: serde::de::DeserializeOwned>(
         resp: reqwest::Response,
-    ) -> Result<T, WsError> {
+    ) -> Result<T, ProviderError> {
         let status = resp.status();
         if !status.is_success() {
             let message = resp.text().await.unwrap_or_default();
-            return Err(WsError::Api {
+            return Err(ProviderError::Api {
                 code: status.as_u16() as i64,
                 message,
             });
         }
         let env: Envelope<T> = resp.json().await?;
         if env.code != 200 {
-            return Err(WsError::Api {
+            return Err(ProviderError::Api {
                 code: env.code,
                 message: env.message,
             });
@@ -145,7 +145,7 @@ impl WsClient {
     }
 
     /// Fetch the full model registry (988+ models with JSON schemas).
-    pub async fn list_models(&self) -> Result<Vec<ModelEntry>, WsError> {
+    pub async fn list_models(&self) -> Result<Vec<ModelEntry>, ProviderError> {
         let resp = self
             .http
             .get(format!("{}/api/v3/models", self.base))
@@ -156,14 +156,14 @@ impl WsClient {
     }
 
     /// Submit a run for `model_id`. `webhook_url` is registered via the
-    /// `?webhook=` query parameter; WaveSpeed POSTs the terminal prediction
+    /// `?webhook=` query parameter; the provider POSTs the terminal prediction
     /// state there instead of requiring polling.
     pub async fn submit(
         &self,
         model_id: &str,
         input: &Value,
         webhook_url: Option<&str>,
-    ) -> Result<Prediction, WsError> {
+    ) -> Result<Prediction, ProviderError> {
         let mut url = format!("{}/api/v3/{}", self.base, model_id);
         if let Some(hook) = webhook_url {
             url = format!("{url}?webhook={}", urlencode(hook));
@@ -179,7 +179,7 @@ impl WsClient {
     }
 
     /// Fetch the current state of a prediction.
-    pub async fn get_prediction(&self, id: &str) -> Result<Prediction, WsError> {
+    pub async fn get_prediction(&self, id: &str) -> Result<Prediction, ProviderError> {
         let resp = self
             .http
             .get(format!("{}/api/v3/predictions/{}/result", self.base, id))

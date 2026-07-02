@@ -1,4 +1,4 @@
-//! Full-protocol MCP client CLI for the wavespeed server.
+//! Generic Veoveo MCP conformance CLI.
 //!
 //! Exercises every surface the server exposes: resources (+templates),
 //! completions, SEP-1319 tasks, subscriptions, and notifications
@@ -22,14 +22,17 @@ use rmcp::{
     transport::StreamableHttpClientTransport,
 };
 use serde_json::Value;
-use wavespeed_mcp::uris;
+use veoveo_mcp_contract::ProviderUris;
 
 #[derive(Parser, Debug)]
-#[command(name = "client", about = "WaveSpeed MCP client (streamable HTTP)")]
+#[command(name = "conformance", about = "Veoveo MCP conformance client")]
 struct Args {
-    /// MCP endpoint of the wavespeed server.
+    /// MCP endpoint of the server under test.
     #[arg(long, default_value = "http://localhost:8787/mcp", global = true)]
     url: String,
+    /// URI scheme used by the server's Veoveo resources.
+    #[arg(long, default_value = "media", global = true)]
+    scheme: String,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -74,7 +77,7 @@ impl ClientHandler for CliHandler {
     fn get_info(&self) -> ClientInfo {
         ClientInfo::new(
             ClientCapabilities::default(),
-            Implementation::new("wavespeed-client", env!("CARGO_PKG_VERSION")),
+            Implementation::new("veoveo-conformance", env!("CARGO_PKG_VERSION")),
         )
     }
 
@@ -189,8 +192,11 @@ async fn cmd_info(client: &Client) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_models(client: &Client, query: Option<String>, ty: Option<String>) -> Result<()> {
-    let catalog = read_resource_json(client, uris::MODELS_URI).await?;
+fn cmd_models_from_catalog(
+    catalog: Value,
+    query: Option<String>,
+    ty: Option<String>,
+) -> Result<()> {
     let models = catalog.as_array().ok_or_else(|| anyhow!("bad catalog"))?;
     let needle = query.map(|q| q.to_lowercase());
     let mut shown = 0usize;
@@ -222,10 +228,10 @@ async fn cmd_models(client: &Client, query: Option<String>, ty: Option<String>) 
     Ok(())
 }
 
-async fn cmd_complete(client: &Client, prefix: String) -> Result<()> {
+async fn cmd_complete(client: &Client, uris: &ProviderUris, prefix: String) -> Result<()> {
     let result = client
         .complete(CompleteRequestParams::new(
-            Reference::for_resource(uris::MODEL_TEMPLATE),
+            Reference::for_resource(uris.model_template()),
             ArgumentInfo::new("model_id", prefix),
         ))
         .await?;
@@ -265,6 +271,7 @@ fn print_call_tool_result(result: &CallToolResult) -> Vec<String> {
 
 async fn cmd_run(
     client: &Client,
+    uris: &ProviderUris,
     model_id: String,
     input: String,
     output_dir: PathBuf,
@@ -323,7 +330,8 @@ async fn cmd_run(
         let message = info.task.status_message.clone().unwrap_or_default();
         println!("poll: {:?} — {message}", info.task.status);
 
-        if !subscribed && let Some(idx) = message.find("wavespeed://prediction/") {
+        let prediction_prefix = format!("{}://prediction/", uris.scheme());
+        if !subscribed && let Some(idx) = message.find(&prediction_prefix) {
             let uri: String = message[idx..]
                 .split_whitespace()
                 .next()
@@ -404,18 +412,22 @@ async fn main() -> Result<()> {
         .init();
     let args = Args::parse();
     let client = connect(&args.url).await?;
+    let uris = ProviderUris::new(args.scheme);
 
     let result = match args.cmd {
         Cmd::Info => cmd_info(&client).await,
-        Cmd::Models { query, r#type } => cmd_models(&client, query, r#type).await,
-        Cmd::Complete { prefix } => cmd_complete(&client, prefix).await,
+        Cmd::Models { query, r#type } => {
+            let catalog = read_resource_json(&client, &uris.models_uri()).await?;
+            cmd_models_from_catalog(catalog, query, r#type)
+        }
+        Cmd::Complete { prefix } => cmd_complete(&client, &uris, prefix).await,
         Cmd::Schema { model_id } => {
-            let value = read_resource_json(&client, &uris::model_uri(&model_id)).await?;
+            let value = read_resource_json(&client, &uris.model_uri(&model_id)).await?;
             println!("{}", serde_json::to_string_pretty(&value)?);
             Ok(())
         }
         Cmd::Prediction { id } => {
-            let value = read_resource_json(&client, &uris::prediction_uri(&id)).await?;
+            let value = read_resource_json(&client, &uris.prediction_uri(&id)).await?;
             println!("{}", serde_json::to_string_pretty(&value)?);
             Ok(())
         }
@@ -424,7 +436,7 @@ async fn main() -> Result<()> {
             input,
             output_dir,
             cancel,
-        } => cmd_run(&client, model_id, input, output_dir, cancel).await,
+        } => cmd_run(&client, &uris, model_id, input, output_dir, cancel).await,
     };
 
     client.cancel().await?;

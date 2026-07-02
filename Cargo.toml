@@ -1,9 +1,12 @@
 [workspace]
 members = [
-    "crates/mcp-foundation",
-    "crates/wavespeed-mcp-server",
+    "crates/mcp-contract",
+    "crates/media-mcp",
 ]
 resolver = "3"
+
+[workspace.metadata]
+name = "veoveo"
 
 [workspace.package]
 version = "0.1.0"
@@ -20,7 +23,6 @@ futures = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"
 jsonschema = "0.46.8"
-mcp-foundation = { path = "crates/mcp-foundation" }
 reqwest = { version = "0.12", default-features = false }
 rmcp = "2.0.0"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -32,3 +34,4 @@ tower-http = { version = "0.7.0", features = ["fs", "trace", "cors"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.23.4", features = ["v4"] }
+veoveo-mcp-contract = { path = "crates/mcp-contract" }

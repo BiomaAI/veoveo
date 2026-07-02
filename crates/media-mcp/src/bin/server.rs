@@ -1,15 +1,15 @@
-//! WaveSpeed MCP server.
+//! Media MCP server.
 //!
 //! One axum process exposing:
 //!   /mcp                 — MCP over streamable HTTP (rmcp)
-//!   /webhooks/wavespeed  — WaveSpeed callback receiver (HMAC-verified)
-//!   /files/*             — optional static media dir so WaveSpeed can fetch inputs by URL
+//!   /webhooks/media      — internal provider callback receiver (HMAC-verified)
+//!   /files/*             — optional static media dir so providers can fetch inputs by URL
 //!
 //! MCP surface (protocol-maximal, single tool):
 //!   tool `run(model, input)`         — task-required (SEP-1319)
-//!   resource `wavespeed://models`    — compact catalog of all models
-//!   template `wavespeed://model/{model_id}`   — full input schema + pricing
-//!   template `wavespeed://prediction/{id}`    — live prediction state, subscribable
+//!   resource `media://models`        — compact catalog of all models
+//!   template `media://model/{model_id}`       — full input schema + pricing
+//!   template `media://prediction/{id}`        — live prediction state, subscribable
 //!   completion/complete over {model_id}
 //!   notifications: tasks/status, progress, resources/updated, resources/list_changed
 
@@ -36,12 +36,10 @@ use rmcp::{
         CallToolRequestParams, CallToolResult, CancelTaskParams, CancelTaskResult,
         CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock, CreateTaskResult,
         GetTaskParams, GetTaskPayloadParams, GetTaskPayloadResult, GetTaskResult, JsonObject,
-        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, Notification,
-        PaginatedRequestParams, ProgressNotificationParam, ProgressToken,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ResourceUpdatedNotificationParam, ServerCapabilities, ServerInfo,
-        ServerNotification, SubscribeRequestParams, Task, TaskStatus, TaskStatusNotificationParam,
-        TasksCapability, UnsubscribeRequestParams,
+        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, PaginatedRequestParams,
+        ProgressToken, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
+        Task, TaskStatus, TasksCapability, UnsubscribeRequestParams,
     },
     schemars,
     service::{Peer, RequestContext},
@@ -52,10 +50,12 @@ use rmcp::{
 };
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
-use wavespeed_mcp::{
-    uris,
-    wavespeed::{ModelEntry, Prediction, WsClient},
-    webhook,
+use veoveo_mcp_contract::{
+    SubscriptionHub, TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso,
+};
+use veoveo_media_mcp::{
+    provider::{ModelEntry, Prediction, ProviderClient},
+    uris, webhook,
 };
 
 const REGISTRY_TTL: Duration = Duration::from_secs(3600);
@@ -64,23 +64,47 @@ const FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(30);
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Parser, Debug)]
-#[command(name = "server", about = "WaveSpeed MCP server (streamable HTTP)")]
+#[command(name = "server", about = "Media MCP server (streamable HTTP)")]
 struct Args {
     /// Port to bind on 0.0.0.0.
     #[arg(long, default_value_t = 8787)]
     port: u16,
-    /// Public base URL reachable by WaveSpeed (e.g. the cloudflared tunnel URL).
+    /// Public base URL reachable by the media provider (e.g. the cloudflared tunnel URL).
     /// Used to build webhook callback URLs and /files URLs. Without it the
-    /// server falls back to polling WaveSpeed instead of webhooks.
+    /// server falls back to polling instead of webhooks.
     #[arg(long, env = "PUBLIC_URL")]
     public_url: Option<String>,
-    /// Directory served at /files/* so WaveSpeed can fetch input media by URL.
+    /// Directory served at /files/* so the media provider can fetch input media by URL.
     #[arg(long)]
     static_dir: Option<PathBuf>,
-    #[arg(long, env = "WAVESPEED_API_KEY", hide_env_values = true)]
-    api_key: String,
-    #[arg(long, env = "WAVESPEED_WEBHOOK_SECRET", hide_env_values = true)]
+    #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
+    api_key: Option<String>,
+    #[arg(long, env = "MEDIA_PROVIDER_WEBHOOK_SECRET", hide_env_values = true)]
     webhook_secret: Option<String>,
+    #[arg(long, env = "WAVESPEED_API_KEY", hide = true, hide_env_values = true)]
+    wavespeed_api_key: Option<String>,
+    #[arg(
+        long,
+        env = "WAVESPEED_WEBHOOK_SECRET",
+        hide = true,
+        hide_env_values = true
+    )]
+    wavespeed_webhook_secret: Option<String>,
+}
+
+impl Args {
+    fn provider_api_key(&self) -> anyhow::Result<&str> {
+        self.api_key
+            .as_deref()
+            .or(self.wavespeed_api_key.as_deref())
+            .ok_or_else(|| anyhow::anyhow!("missing MEDIA_PROVIDER_API_KEY"))
+    }
+
+    fn provider_webhook_secret(&self) -> Option<String> {
+        self.webhook_secret
+            .clone()
+            .or_else(|| self.wavespeed_webhook_secret.clone())
+    }
 }
 
 struct RegistryCache {
@@ -89,28 +113,16 @@ struct RegistryCache {
     by_id: HashMap<String, usize>,
 }
 
-struct TaskEntry {
-    task: Task,
-    /// Serialized `CallToolResult` once terminal-completed.
-    payload: Option<Value>,
-    /// Error message when status == Failed.
-    error: Option<String>,
-    prediction_id: Option<String>,
-    join: Option<tokio::task::JoinHandle<()>>,
-}
-
 struct AppState {
-    ws: WsClient,
+    provider: ProviderClient,
     public_url: Option<String>,
     webhook_secret: Option<String>,
     registry: RwLock<Option<RegistryCache>>,
-    tasks: RwLock<HashMap<String, TaskEntry>>,
+    tasks: TaskStore,
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
-    /// resource uri -> subscribed peers. We own the clients, so unsubscribe
-    /// simply clears all subscriptions for the uri.
-    subscribers: Mutex<HashMap<String, Vec<Peer<RoleServer>>>>,
+    subscribers: SubscriptionHub,
 }
 
 impl AppState {
@@ -124,10 +136,10 @@ impl AppState {
             }
         }
         let models = self
-            .ws
+            .provider
             .list_models()
             .await
-            .map_err(|e| format!("failed to fetch wavespeed model registry: {e}"))?;
+            .map_err(|e| format!("failed to fetch media model registry: {e}"))?;
         let models = Arc::new(models);
         let by_id = models
             .iter()
@@ -164,46 +176,32 @@ impl AppState {
             let _ = tx.send(prediction);
         }
 
-        let uri = uris::prediction_uri(&id);
-        let peers: Vec<Peer<RoleServer>> = self
-            .subscribers
-            .lock()
-            .await
-            .get(&uri)
-            .cloned()
-            .unwrap_or_default();
-        for peer in peers {
-            let _ = peer
-                .notify_resource_updated(ResourceUpdatedNotificationParam::new(uri.clone()))
-                .await;
-        }
+        self.subscribers
+            .notify_resource_updated(uris::prediction_uri(&id))
+            .await;
     }
-}
-
-fn now_iso() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct RunArgs {
-    /// WaveSpeed model id, e.g. "openai/gpt-image-2/edit". Browse the catalog
-    /// at resource wavespeed://models or autocomplete via completion/complete
-    /// on the wavespeed://model/{model_id} template.
+    /// Media model id, e.g. "openai/gpt-image-2/edit". Browse the catalog
+    /// at resource media://models or autocomplete via completion/complete
+    /// on the media://model/{model_id} template.
     model: String,
     /// Model-specific input object. The exact JSON Schema for this model is
-    /// published at resource wavespeed://model/{model_id}. Media inputs are
-    /// URLs that must be reachable by WaveSpeed.
+    /// published at resource media://model/{model_id}. Media inputs are
+    /// URLs that must be reachable by the provider.
     input: JsonObject,
 }
 
 #[derive(Clone)]
-struct WavespeedMcp {
+struct MediaMcp {
     state: Arc<AppState>,
-    tool_router: ToolRouter<WavespeedMcp>,
+    tool_router: ToolRouter<MediaMcp>,
 }
 
 #[tool_router]
-impl WavespeedMcp {
+impl MediaMcp {
     fn new(state: Arc<AppState>) -> Self {
         Self {
             state,
@@ -215,7 +213,7 @@ impl WavespeedMcp {
     /// invocations through `enqueue_task`. This body only exists so the
     /// router publishes the tool with its schema.
     #[tool(
-        description = "Run any WaveSpeed model asynchronously. Must be invoked as an MCP task; poll tasks/get and fetch outputs via tasks/result. Discover models via the wavespeed://models resource, and each model's input schema via wavespeed://model/{model_id}. While running, subscribe to wavespeed://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
+        description = "Run any media model asynchronously. Must be invoked as an MCP task; poll tasks/get and fetch outputs via tasks/result. Discover models via the media://models resource, and each model's input schema via media://model/{model_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
         execution(task_support = "required")
     )]
     async fn run(
@@ -239,43 +237,12 @@ async fn update_task(
     payload: Option<Value>,
     error: Option<String>,
 ) {
-    let snapshot = {
-        let mut tasks = state.tasks.write().await;
-        let Some(entry) = tasks.get_mut(task_id) else {
-            return;
-        };
-        entry.task.status = status;
-        entry.task.status_message = Some(message.into());
-        entry.task.last_updated_at = now_iso();
-        if payload.is_some() {
-            entry.payload = payload;
-        }
-        if error.is_some() {
-            entry.error = error;
-        }
-        entry.task.clone()
-    };
-    let _ = peer
-        .send_notification(ServerNotification::TaskStatusNotification(
-            Notification::new(TaskStatusNotificationParam::new(snapshot)),
-        ))
-        .await;
-}
-
-async fn notify_progress(
-    peer: &Peer<RoleServer>,
-    token: &Option<ProgressToken>,
-    progress: f64,
-    message: &str,
-) {
-    if let Some(token) = token {
-        let _ = peer
-            .notify_progress(
-                ProgressNotificationParam::new(token.clone(), progress)
-                    .with_total(1.0)
-                    .with_message(message),
-            )
-            .await;
+    if let Some(snapshot) = state
+        .tasks
+        .update(task_id, status, message, payload, error)
+        .await
+    {
+        notify_task_status(peer, snapshot).await;
     }
 }
 
@@ -347,7 +314,7 @@ async fn run_task(
     let entry = match state.find_model(&args.model).await {
         Ok(Some(entry)) => entry,
         Ok(None) => fail!(format!(
-            "unknown model '{}'; browse wavespeed://models",
+            "unknown model '{}'; browse media://models",
             args.model
         )),
         Err(e) => fail!(e),
@@ -362,7 +329,7 @@ async fn run_task(
             .collect();
         if !errors.is_empty() {
             fail!(format!(
-                "input failed schema validation for {} — {}; see wavespeed://model/{}",
+                "input failed schema validation for {} — {}; see media://model/{}",
                 args.model,
                 errors.join("; "),
                 args.model
@@ -375,14 +342,14 @@ async fn run_task(
     let webhook_url = state
         .public_url
         .as_ref()
-        .map(|u| format!("{}/webhooks/wavespeed", u.trim_end_matches('/')));
+        .map(|u| format!("{}/webhooks/media", u.trim_end_matches('/')));
     let prediction = match state
-        .ws
+        .provider
         .submit(&args.model, &input, webhook_url.as_deref())
         .await
     {
         Ok(p) => p,
-        Err(e) => fail!(format!("wavespeed submit failed: {e}")),
+        Err(e) => fail!(format!("media provider submit failed: {e}")),
     };
     let prediction_id = prediction.id.clone();
     let prediction_uri = uris::prediction_uri(&prediction_id);
@@ -391,12 +358,10 @@ async fn run_task(
         .write()
         .await
         .insert(prediction_id.clone(), prediction.clone());
-    {
-        let mut tasks = state.tasks.write().await;
-        if let Some(entry) = tasks.get_mut(&task_id) {
-            entry.prediction_id = Some(prediction_id.clone());
-        }
-    }
+    state
+        .tasks
+        .set_provider_job_id(&task_id, prediction_id.clone())
+        .await;
     // A new prediction resource now exists.
     let _ = peer.notify_resource_list_changed().await;
     update_task(
@@ -447,7 +412,7 @@ async fn run_task(
                 }
             }
             _ = poll.tick() => {
-                match state.ws.get_prediction(&prediction_id).await {
+                match state.provider.get_prediction(&prediction_id).await {
                     Ok(p) if p.is_terminal() => {
                         state.pending.lock().await.remove(&prediction_id);
                         state.ingest_prediction(p.clone()).await;
@@ -455,7 +420,7 @@ async fn run_task(
                     }
                     Ok(p) => {
                         state.predictions.write().await.insert(prediction_id.clone(), p.clone());
-                        notify_progress(&peer, &progress_token, 0.5, &format!("wavespeed status: {}", p.status)).await;
+                        notify_progress(&peer, &progress_token, 0.5, &format!("provider status: {}", p.status)).await;
                     }
                     Err(e) => {
                         tracing::warn!("poll fallback failed for {prediction_id}: {e}");
@@ -498,7 +463,7 @@ async fn run_task(
     .await;
 }
 
-impl WavespeedMcp {
+impl MediaMcp {
     fn models_index_json(models: &[ModelEntry]) -> Value {
         Value::Array(
             models
@@ -518,7 +483,7 @@ impl WavespeedMcp {
 }
 
 #[tool_handler]
-impl ServerHandler for WavespeedMcp {
+impl ServerHandler for MediaMcp {
     fn get_info(&self) -> ServerInfo {
         let caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -530,13 +495,13 @@ impl ServerHandler for WavespeedMcp {
             .build();
         let mut info = ServerInfo::default();
         info.capabilities = caps;
-        info.server_info = rmcp::model::Implementation::new("wavespeed", env!("CARGO_PKG_VERSION"));
+        info.server_info = rmcp::model::Implementation::new("media", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Async gateway to every WaveSpeed model. Workflow: \
-             (1) read wavespeed://models (or use completion/complete on wavespeed://model/{model_id}) to pick a model; \
-             (2) read wavespeed://model/{model_id} for its exact input JSON Schema; \
+            "Async gateway to media generation models. Workflow: \
+             (1) read media://models (or use completion/complete on media://model/{model_id}) to pick a model; \
+             (2) read media://model/{model_id} for its exact input JSON Schema; \
              (3) call the `run` tool as a task (SEP-1319) with {model, input}; \
-             (4) the task statusMessage carries the prediction id — subscribe to wavespeed://prediction/{id} for push updates; \
+             (4) the task statusMessage carries the prediction id — subscribe to media://prediction/{id} for push updates; \
              (5) poll tasks/get until completed, then tasks/result returns output URLs as resource links."
                 .into(),
         );
@@ -575,16 +540,7 @@ impl ServerHandler for WavespeedMcp {
             args,
             progress_token,
         ));
-        self.state.tasks.write().await.insert(
-            task_id.clone(),
-            TaskEntry {
-                task: task.clone(),
-                payload: None,
-                error: None,
-                prediction_id: None,
-                join: Some(join),
-            },
-        );
+        self.state.tasks.insert(task.clone(), Some(join)).await;
         Ok(CreateTaskResult::new(task))
     }
 
@@ -593,10 +549,7 @@ impl ServerHandler for WavespeedMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListTasksResult, McpError> {
-        let tasks = self.state.tasks.read().await;
-        Ok(ListTasksResult::new(
-            tasks.values().map(|e| e.task.clone()).collect(),
-        ))
+        Ok(ListTasksResult::new(self.state.tasks.list().await))
     }
 
     async fn get_task_info(
@@ -604,11 +557,13 @@ impl ServerHandler for WavespeedMcp {
         request: GetTaskParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
-        let tasks = self.state.tasks.read().await;
-        let entry = tasks
+        let task = self
+            .state
+            .tasks
             .get(&request.task_id)
+            .await
             .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        Ok(GetTaskResult::new(entry.task.clone()))
+        Ok(GetTaskResult::new(task))
     }
 
     async fn get_task_result(
@@ -616,28 +571,17 @@ impl ServerHandler for WavespeedMcp {
         request: GetTaskPayloadParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetTaskPayloadResult, McpError> {
-        let tasks = self.state.tasks.read().await;
-        let entry = tasks
-            .get(&request.task_id)
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        match entry.task.status {
-            TaskStatus::Completed => entry
-                .payload
-                .clone()
-                .map(GetTaskPayloadResult::new)
-                .ok_or_else(|| McpError::internal_error("completed task lost its payload", None)),
-            TaskStatus::Failed => Err(McpError::internal_error(
-                entry
-                    .error
-                    .clone()
-                    .unwrap_or_else(|| "task failed".to_string()),
-                None,
-            )),
-            TaskStatus::Cancelled => Err(McpError::invalid_request("task was cancelled", None)),
-            _ => Err(McpError::invalid_request(
+        match self.state.tasks.payload_state(&request.task_id).await {
+            TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
+            TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
+            TaskPayloadState::Cancelled => {
+                Err(McpError::invalid_request("task was cancelled", None))
+            }
+            TaskPayloadState::Running => Err(McpError::invalid_request(
                 "task is still running; poll tasks/get until completed",
                 None,
             )),
+            TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
         }
     }
 
@@ -646,25 +590,17 @@ impl ServerHandler for WavespeedMcp {
         request: CancelTaskParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CancelTaskResult, McpError> {
-        let mut tasks = self.state.tasks.write().await;
-        let entry = tasks
-            .get_mut(&request.task_id)
+        let provider_job_id = self.state.tasks.provider_job_id(&request.task_id).await;
+        let task = self
+            .state
+            .tasks
+            .cancel(&request.task_id)
+            .await
             .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        if !matches!(
-            entry.task.status,
-            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
-        ) {
-            if let Some(join) = entry.join.take() {
-                join.abort();
-            }
-            if let Some(pid) = &entry.prediction_id {
-                self.state.pending.lock().await.remove(pid);
-            }
-            entry.task.status = TaskStatus::Cancelled;
-            entry.task.status_message = Some("cancelled by client".into());
-            entry.task.last_updated_at = now_iso();
+        if let Some(pid) = provider_job_id {
+            self.state.pending.lock().await.remove(&pid);
         }
-        Ok(CancelTaskResult::new(entry.task.clone()))
+        Ok(CancelTaskResult::new(task))
     }
 
     async fn list_resources(
@@ -674,9 +610,9 @@ impl ServerHandler for WavespeedMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let mut resources = vec![
             Resource::new(uris::MODELS_URI, "models")
-                .with_title("WaveSpeed model catalog")
+                .with_title("Media model catalog")
                 .with_description(
-                    "Compact index of every WaveSpeed model: model_id, type, description, base price.",
+                    "Compact index of every media model: model_id, type, description, base price.",
                 )
                 .with_mime_type("application/json"),
         ];
@@ -702,17 +638,17 @@ impl ServerHandler for WavespeedMcp {
         Ok(ListResourceTemplatesResult {
             resource_templates: vec![
                 ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
-                    .with_title("WaveSpeed model schema")
+                    .with_title("Media model schema")
                     .with_description(
                         "Full definition of one model: input JSON Schema, pricing, description. \
                          model_id supports completion/complete.",
                     )
                     .with_mime_type("application/json"),
                 ResourceTemplate::new(uris::PREDICTION_TEMPLATE, "prediction")
-                    .with_title("WaveSpeed prediction state")
+                    .with_title("Media prediction state")
                     .with_description(
                         "Live state of a prediction. Subscribable: resources/updated fires when \
-                         the WaveSpeed webhook reports a terminal state.",
+                         the provider reports a terminal state.",
                     )
                     .with_mime_type("application/json"),
             ],
@@ -742,7 +678,7 @@ impl ServerHandler for WavespeedMcp {
                 .map_err(|e| McpError::internal_error(e, None))?
                 .ok_or_else(|| {
                     McpError::resource_not_found(
-                        format!("unknown model '{model_id}'; browse wavespeed://models"),
+                        format!("unknown model '{model_id}'; browse media://models"),
                         None,
                     )
                 })?;
@@ -753,7 +689,7 @@ impl ServerHandler for WavespeedMcp {
             let cached = self.state.predictions.read().await.get(id).cloned();
             let prediction = match cached {
                 Some(p) if p.is_terminal() => p,
-                cached => match self.state.ws.get_prediction(id).await {
+                cached => match self.state.provider.get_prediction(id).await {
                     Ok(p) => {
                         self.state.ingest_prediction(p.clone()).await;
                         p
@@ -786,11 +722,8 @@ impl ServerHandler for WavespeedMcp {
     ) -> Result<(), McpError> {
         self.state
             .subscribers
-            .lock()
-            .await
-            .entry(request.uri.clone())
-            .or_default()
-            .push(context.peer.clone());
+            .subscribe(request.uri.clone(), context.peer.clone())
+            .await;
         Ok(())
     }
 
@@ -799,7 +732,7 @@ impl ServerHandler for WavespeedMcp {
         request: UnsubscribeRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        self.state.subscribers.lock().await.remove(&request.uri);
+        self.state.subscribers.unsubscribe(&request.uri).await;
         Ok(())
     }
 
@@ -849,7 +782,7 @@ impl ServerHandler for WavespeedMcp {
 // Webhook + HTTP plumbing
 // ---------------------------------------------------------------------------
 
-async fn wavespeed_webhook(
+async fn media_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     body: axum::body::Bytes,
@@ -901,14 +834,14 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let state = Arc::new(AppState {
-        ws: WsClient::new(&args.api_key),
+        provider: ProviderClient::new(args.provider_api_key()?),
         public_url: args.public_url.clone(),
-        webhook_secret: args.webhook_secret.clone(),
+        webhook_secret: args.provider_webhook_secret(),
         registry: RwLock::new(None),
-        tasks: RwLock::new(HashMap::new()),
+        tasks: TaskStore::new(),
         pending: Mutex::new(HashMap::new()),
         predictions: RwLock::new(HashMap::new()),
-        subscribers: Mutex::new(HashMap::new()),
+        subscribers: SubscriptionHub::new(),
     });
 
     // Warm the registry so first completions/reads are instant.
@@ -926,7 +859,7 @@ async fn main() -> anyhow::Result<()> {
     let mcp_service = StreamableHttpService::new(
         {
             let state = state.clone();
-            move || Ok(WavespeedMcp::new(state.clone()))
+            move || Ok(MediaMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default().with_cancellation_token(ct.child_token()),
@@ -934,7 +867,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route("/webhooks/wavespeed", post(wavespeed_webhook))
+        .route("/webhooks/media", post(media_webhook))
         .with_state(state.clone())
         .nest_service("/mcp", mcp_service);
     if let Some(dir) = &args.static_dir {
@@ -944,7 +877,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(
-        "wavespeed-mcp listening on http://{addr} (mcp at /mcp, public_url={:?})",
+        "veoveo-media-mcp listening on http://{addr} (mcp at /mcp, public_url={:?})",
         args.public_url
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
