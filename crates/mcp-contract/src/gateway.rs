@@ -302,7 +302,7 @@ impl GatewayControlPlane {
         }
 
         for policy in &self.policies {
-            validate_policy_set(policy, &profiles, &server_ids, &resource_schemes)?;
+            validate_policy_set(policy, &profiles, &servers, &resource_schemes)?;
         }
 
         let mut secrets = BTreeSet::new();
@@ -365,6 +365,21 @@ pub enum GatewayControlPlaneError {
         policy: PolicyVersion,
         rule: PolicyRuleId,
         scheme: ResourceScheme,
+    },
+    PolicyRuleResourceSchemeOutsideServerScope {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        scheme: ResourceScheme,
+    },
+    UnknownPolicyRuleTool {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        tool: LocalToolName,
+    },
+    UnknownPolicyRulePrompt {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        prompt: PromptName,
     },
     UnknownServer {
         profile: GatewayProfileId,
@@ -502,6 +517,26 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "policy `{policy}` rule `{rule}` references unknown resource scheme `{scheme}`"
+            ),
+            Self::PolicyRuleResourceSchemeOutsideServerScope {
+                policy,
+                rule,
+                scheme,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references resource scheme `{scheme}` outside its server scope"
+            ),
+            Self::UnknownPolicyRuleTool { policy, rule, tool } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown tool `{tool}` in its server scope"
+            ),
+            Self::UnknownPolicyRulePrompt {
+                policy,
+                rule,
+                prompt,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown prompt `{prompt}` in its server scope"
             ),
             Self::UnknownServer { profile, server } => write!(
                 f,
@@ -822,7 +857,7 @@ fn resource_selector_description(selector: &ResourceSelector) -> String {
 fn validate_policy_set(
     policy: &PolicySet,
     profiles: &BTreeSet<GatewayProfileId>,
-    servers: &BTreeSet<ServerSlug>,
+    servers: &BTreeMap<ServerSlug, &ServerManifest>,
     resource_schemes: &BTreeSet<ResourceScheme>,
 ) -> Result<(), GatewayControlPlaneError> {
     let mut rules = BTreeSet::new();
@@ -843,7 +878,7 @@ fn validate_policy_set(
             }
         }
         for server in &rule.servers {
-            if !servers.contains(server) {
+            if !servers.contains_key(server) {
                 return Err(GatewayControlPlaneError::UnknownPolicyRuleServer {
                     policy: policy.version.clone(),
                     rule: rule.id.clone(),
@@ -851,6 +886,7 @@ fn validate_policy_set(
                 });
             }
         }
+        let server_scope = policy_rule_server_scope(rule, servers);
         for scheme in &rule.resource_schemes {
             if !resource_schemes.contains(scheme) {
                 return Err(GatewayControlPlaneError::UnknownPolicyRuleResourceScheme {
@@ -859,9 +895,58 @@ fn validate_policy_set(
                     scheme: scheme.clone(),
                 });
             }
+            if !rule.servers.is_empty()
+                && !server_scope
+                    .iter()
+                    .any(|server| &server.uri_scheme == scheme)
+            {
+                return Err(
+                    GatewayControlPlaneError::PolicyRuleResourceSchemeOutsideServerScope {
+                        policy: policy.version.clone(),
+                        rule: rule.id.clone(),
+                        scheme: scheme.clone(),
+                    },
+                );
+            }
+        }
+        for tool in &rule.tools {
+            if !server_scope.iter().any(|server| {
+                server.tools.is_empty() || server.tools.iter().any(|known| known == tool)
+            }) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRuleTool {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    tool: tool.clone(),
+                });
+            }
+        }
+        for prompt in &rule.prompts {
+            if !server_scope.iter().any(|server| {
+                server.prompts.is_empty() || server.prompts.iter().any(|known| known == prompt)
+            }) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRulePrompt {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    prompt: prompt.clone(),
+                });
+            }
         }
     }
     Ok(())
+}
+
+fn policy_rule_server_scope<'a>(
+    rule: &PolicyRule,
+    servers: &'a BTreeMap<ServerSlug, &ServerManifest>,
+) -> Vec<&'a ServerManifest> {
+    if rule.servers.is_empty() {
+        servers.values().copied().collect()
+    } else {
+        rule.servers
+            .iter()
+            .filter_map(|server| servers.get(server).copied())
+            .collect()
+    }
 }
 
 fn validate_profile_auth_modes(
@@ -2456,6 +2541,70 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::UnknownPolicyRuleResourceScheme { .. }
+        ));
+
+        let mut policy = default_policy();
+        policy.rules[0].tools = BTreeSet::from([LocalToolName::new("simulate").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown policy tool must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownPolicyRuleTool { .. }
+        ));
+
+        let mut policy = default_policy();
+        policy.rules[0].prompts = BTreeSet::from([PromptName::new("unknown-prompt").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown policy prompt must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownPolicyRulePrompt { .. }
+        ));
+
+        let mut simulation_server = media_manifest();
+        simulation_server.slug = ServerSlug::new("simulation").unwrap();
+        simulation_server.uri_scheme = ResourceScheme::new("simulation").unwrap();
+        let mut policy = default_policy();
+        policy.rules[0].resource_schemes =
+            BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest(), simulation_server],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("policy resource scheme outside server scope must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::PolicyRuleResourceSchemeOutsideServerScope { .. }
         ));
     }
 
