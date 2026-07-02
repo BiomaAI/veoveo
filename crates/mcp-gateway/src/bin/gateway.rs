@@ -17,8 +17,10 @@ mod auth;
 mod http_util;
 #[path = "gateway/runtime.rs"]
 mod runtime;
+#[path = "gateway/tokens.rs"]
+mod tokens;
 
-use anyhow::{Context, anyhow};
+use anyhow::anyhow;
 use axum::{
     Form, Json, Router,
     extract::{Path as AxumPath, Query, Request, State},
@@ -27,30 +29,24 @@ use axum::{
     response::IntoResponse,
     routing::{any, get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use jsonwebtoken::{
-    Algorithm, EncodingKey, Header, encode,
-    jwk::{Jwk, JwkSet},
-};
 use parking_lot::RwLock;
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use url::Url;
 use veoveo_mcp_contract::{
     AuthMode, AuthOutcome, AuthReasonCode, GATEWAY_INTERNAL_TOKEN_ISSUER,
     GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayInternalTokenIssuer,
-    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwtId, OAuthAuthorizationCode,
+    GatewayProfile, GatewayProfileId, InternalTokenSecret, OAuthAuthorizationCode,
     OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
     OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod,
-    PkceCodeVerifier, Principal, PrincipalKind, PublicDeployment, ResourceAuthorizationServer,
-    ScopeName, SecretPurpose, SecretReferenceId, TelemetryGuard, TokenIssuer, TokenSubject,
-    init_server_telemetry,
+    PkceCodeVerifier, PrincipalKind, PublicDeployment, ResourceAuthorizationServer, ScopeName,
+    SecretPurpose, TelemetryGuard, TokenIssuer, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     ClientAssertionConfig, ClientAssertionVerifier, GatewayCatalog, GatewayCatalogHandle,
@@ -82,11 +78,11 @@ use runtime::{
     ProfileMcpService, Readiness, build_http_client, current_catalog, current_http_client,
     profile_id_from_gateway_path, run_gateway_retention_gc, spawn_gateway_retention_gc_loop,
 };
+use tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_access_token, issue_client_credentials_access_token};
 
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
-const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 const AUTHORIZATION_REQUEST_TTL_SECONDS: i64 = 10 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS: i64 = 5 * 60;
 
@@ -200,28 +196,6 @@ struct AuthorizationCallback {
     error: Option<String>,
     #[serde(default)]
     error_description: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct AccessTokenClaims {
-    iss: String,
-    sub: String,
-    aud: String,
-    exp: u64,
-    nbf: u64,
-    iat: u64,
-    jti: String,
-    principal_kind: PrincipalKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    scope: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    groups: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    roles: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tenant: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    data_labels: Vec<String>,
 }
 
 #[tokio::main]
@@ -2377,12 +2351,6 @@ async fn token_endpoint_id_jag(
     })
 }
 
-#[derive(Debug)]
-struct IssuedAccessToken {
-    access_token: String,
-    jwt_id: JwtId,
-}
-
 fn requested_token_scopes(
     catalog: &GatewayCatalog,
     profile: &GatewayProfile,
@@ -2457,134 +2425,4 @@ fn authorization_code_client_allowed(
             .grant_types
             .contains(&OAuthGrantType::AuthorizationCodePkce)
         && client.auth_methods.contains(&OAuthClientAuthMethod::None)
-}
-
-async fn issue_client_credentials_access_token(
-    catalog: &GatewayCatalog,
-    authorization_server: &ResourceAuthorizationServer,
-    profile: &GatewayProfile,
-    client_id: &OAuthClientId,
-    scopes: &BTreeSet<ScopeName>,
-) -> anyhow::Result<IssuedAccessToken> {
-    let subject = TokenSubject::new(client_id.as_str())?;
-    issue_access_token(
-        catalog,
-        authorization_server,
-        profile,
-        &subject,
-        PrincipalKind::Service,
-        None,
-        scopes,
-    )
-    .await
-}
-
-async fn issue_access_token(
-    catalog: &GatewayCatalog,
-    authorization_server: &ResourceAuthorizationServer,
-    profile: &GatewayProfile,
-    subject: &TokenSubject,
-    principal_kind: PrincipalKind,
-    principal: Option<&Principal>,
-    scopes: &BTreeSet<ScopeName>,
-) -> anyhow::Result<IssuedAccessToken> {
-    let signing_key = access_token_signing_key(
-        catalog,
-        &authorization_server.access_token_signing_key,
-        SecretPurpose::JwksPrivateKey,
-    )
-    .await?;
-    let now = Utc::now();
-    let expires_at = now
-        .checked_add_signed(TimeDelta::seconds(ACCESS_TOKEN_TTL_SECONDS))
-        .ok_or_else(|| anyhow!("access token expiration overflow"))?;
-    let jwt_id = JwtId::new(uuid::Uuid::new_v4().to_string())?;
-    let scope = (!scopes.is_empty()).then(|| {
-        scopes
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(" ")
-    });
-    let claims = AccessTokenClaims {
-        iss: authorization_server.issuer.to_string(),
-        sub: subject.to_string(),
-        aud: profile.protected_resource.to_string(),
-        exp: unix_seconds(expires_at.timestamp())?,
-        nbf: unix_seconds(now.timestamp())?,
-        iat: unix_seconds(now.timestamp())?,
-        jti: jwt_id.to_string(),
-        principal_kind,
-        scope,
-        groups: principal
-            .map(|principal| {
-                principal
-                    .groups
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default(),
-        roles: principal
-            .map(|principal| {
-                principal
-                    .roles
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default(),
-        tenant: principal
-            .and_then(|principal| principal.tenant.as_ref())
-            .map(ToString::to_string),
-        data_labels: principal
-            .map(|principal| {
-                principal
-                    .data_labels
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default(),
-    };
-    let mut header = Header::new(Algorithm::RS256);
-    header.kid = Some(authorization_server.access_token_key_id.to_string());
-    let access_token = encode(&header, &claims, &signing_key)?;
-    Ok(IssuedAccessToken {
-        access_token,
-        jwt_id,
-    })
-}
-
-async fn authorization_server_jwks_from_signing_key(
-    catalog: &GatewayCatalog,
-    authorization_server: &ResourceAuthorizationServer,
-) -> anyhow::Result<JwkSet> {
-    let signing_key = access_token_signing_key(
-        catalog,
-        &authorization_server.access_token_signing_key,
-        SecretPurpose::JwksPrivateKey,
-    )
-    .await?;
-    let mut jwk = Jwk::from_encoding_key(&signing_key, Algorithm::RS256)?;
-    jwk.common.key_id = Some(authorization_server.access_token_key_id.to_string());
-    Ok(JwkSet { keys: vec![jwk] })
-}
-
-async fn access_token_signing_key(
-    catalog: &GatewayCatalog,
-    secret_id: &SecretReferenceId,
-    expected_purpose: SecretPurpose,
-) -> anyhow::Result<EncodingKey> {
-    let value = GatewaySecretResolver::new()
-        .resolve_string(catalog, secret_id, expected_purpose)
-        .await?;
-    let der = BASE64_STANDARD
-        .decode(value.expose_secret().trim())
-        .context("access-token signing key must be base64-encoded RSA DER")?;
-    Ok(EncodingKey::from_rsa_der(&der))
-}
-
-fn unix_seconds(value: i64) -> anyhow::Result<u64> {
-    u64::try_from(value).map_err(|_| anyhow!("timestamp before Unix epoch"))
 }

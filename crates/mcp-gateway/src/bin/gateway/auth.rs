@@ -22,6 +22,7 @@ use crate::{
         AppState, ProfileAuthState, current_catalog, current_http_client,
         profile_id_from_gateway_path,
     },
+    tokens::authorization_server_jwks_from_signing_key,
 };
 
 pub(super) async fn protected_resource_metadata(
@@ -81,9 +82,7 @@ pub(super) async fn authorization_server_jwks(
         return StatusCode::NOT_FOUND.into_response();
     };
     let jwks =
-        match crate::authorization_server_jwks_from_signing_key(&catalog, authorization_server)
-            .await
-        {
+        match authorization_server_jwks_from_signing_key(&catalog, authorization_server).await {
             Ok(jwks) => jwks,
             Err(err) => {
                 tracing::error!("failed to build authorization server JWKS: {err}");
