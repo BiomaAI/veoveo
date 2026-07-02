@@ -23,7 +23,7 @@ generic full-protocol conformance CLI lives in the contract crate.
 ```
 
 - `/mcp/default` — gateway MCP profile over streamable HTTP (rmcp 2.0)
-- `/media/mcp` — direct media MCP endpoint for internal conformance and service composition
+- `/media/mcp` — internal media MCP endpoint for conformance and service composition; requires a gateway-signed internal token
 - `/media/webhooks` — internal provider callback receiver
 - `/media/files/*` — optional static dir so the provider can fetch input media by URL
 - `/media/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
@@ -68,7 +68,7 @@ plumbing paths below the same origin:
 | Surface | Endpoint |
 |---|---|
 | gateway profile | `{PUBLIC_BASE_URL}/mcp/default` |
-| media direct MCP | `{PUBLIC_BASE_URL}/media/mcp` |
+| media internal MCP | `{PUBLIC_BASE_URL}/media/mcp` (gateway-signed internal token required) |
 | media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
