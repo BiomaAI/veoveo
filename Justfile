@@ -742,6 +742,89 @@ compose-ps:
 logs service='mcp-gateway':
     {{compose}} logs -f --tail=200 {{service}}
 
+# Print the hostname from PUBLIC_BASE_URL.
+public-host:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+    host="${PUBLIC_BASE_URL#https://}"
+    host="${host#http://}"
+    host="${host%%/*}"
+    printf '%s\n' "${host}"
+
+# Configure the managed Cloudflare tunnel to route the public host to Compose edge.
+tunnel-configure:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID}"
+    : "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}"
+    : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
+    : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+    host="${PUBLIC_BASE_URL#https://}"
+    host="${host#http://}"
+    host="${host%%/*}"
+    service="http://edge:8080"
+    decode_token() {
+        printf '%s' "${CLOUDFLARED_TUNNEL_TOKEN}" | base64 --decode 2>/dev/null \
+            || printf '%s' "${CLOUDFLARED_TUNNEL_TOKEN}" | base64 -D
+    }
+    tunnel_id="$(decode_token | jq -r '.t')"
+    config_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${tunnel_id}/configurations"
+    tmp_current="$(mktemp -t veoveo-cf-config-current.XXXXXX.json)"
+    tmp_payload="$(mktemp -t veoveo-cf-config-payload.XXXXXX.json)"
+    cleanup() {
+        rm -f "${tmp_current}" "${tmp_payload}"
+    }
+    trap cleanup EXIT
+    curl -fsS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${config_url}" >"${tmp_current}"
+    current_service="$(jq -r --arg host "${host}" '.result.config.ingress[]? | select(.hostname == $host) | .service' "${tmp_current}" | head -n 1)"
+    if [ "${current_service}" = "${service}" ]; then
+        jq '{success, errors, tunnel_id: .result.tunnel_id, source: .result.source, version: .result.version, ingress: (.result.config.ingress // [] | map({hostname, path, service}))}' "${tmp_current}"
+        exit 0
+    fi
+    jq --arg host "${host}" --arg service "${service}" '
+        {
+            config: (
+                .result.config
+                | .ingress = (
+                    (.ingress // [])
+                    | if any(.hostname == $host) then
+                        map(if .hostname == $host then .service = $service else . end)
+                    else
+                        [{hostname: $host, service: $service}] + .
+                    end
+                )
+            )
+        }
+    ' "${tmp_current}" >"${tmp_payload}"
+    curl -fsS -X PUT \
+        -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data @"${tmp_payload}" \
+        "${config_url}" \
+        | jq '{success, errors, tunnel_id: .result.tunnel_id, source: .result.source, version: .result.version, ingress: (.result.config.ingress // [] | map({hostname, path, service}))}'
+
+# Verify the public hostname reaches edge, not a direct MCP server.
+tunnel-verify:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+    check() {
+        path="$1"
+        expected="$2"
+        code="$(curl -sS -o /tmp/veoveo-tunnel-verify.out -w "%{http_code}" "${PUBLIC_BASE_URL}${path}")"
+        if [ "${code}" != "${expected}" ]; then
+            printf 'expected %s for %s, got %s\n' "${expected}" "${path}" "${code}" >&2
+            head -c 400 /tmp/veoveo-tunnel-verify.out >&2 || true
+            exit 1
+        fi
+        printf '%s %s\n' "${path}" "${code}"
+    }
+    check /healthz 200
+    check /readyz 200
+    check /media/healthz 200
+    check /media/mcp 404
+
 # Check local health and, optionally, public tunnel health.
 health public_base_url='':
     curl -fsS http://localhost:8780/healthz
