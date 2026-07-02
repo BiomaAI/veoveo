@@ -167,6 +167,119 @@ What we get in return:
 - **Symmetric conformance.** Client and server share one lib crate and one SDK (rmcp);
   every feature is tested by actually being used.
 
+## Standardization layer: rmcp below, Bioma policy above
+
+`rmcp` remains the MCP protocol SDK. It gives us protocol types, handler traits,
+transport implementation, routing, task request/response models, resources, templates,
+and notifications. We do not hide that behind a second generic MCP framework.
+
+The reusable `mcp-foundation` crate has a narrower job: encode Bioma's policy layer for
+resilient provider-backed generation servers. That layer should standardize the parts
+`rmcp` deliberately does not own:
+
+- provider webhook + poll fallback fusion,
+- durable task recovery across restarts,
+- consistent task lifecycle for long-running provider jobs,
+- artifact ingestion into a server-owned store,
+- `artifact://{sha256}` plus `/artifacts/{sha256}` download URLs,
+- usage estimates, actuals, and usage resources,
+- URI conventions across providers,
+- TTL/GC policy,
+- feature extension names such as `ai.bioma/artifacts` and `ai.bioma/usage`.
+
+This is not a rule that every MCP server must use tasks. It is a rule that any Bioma MCP
+server wrapping long-lived provider jobs must expose those jobs through MCP tasks, and any
+server creating durable artifacts or billable usage must use the standard artifact and
+usage surfaces. Fast metadata, search, config, or read-only resource servers can remain
+plain `rmcp` tools/resources.
+
+## Enterprise deployment and pluggable infrastructure
+
+Enterprise deployments should be able to bring their own object store, state store, and
+observability stack without changing MCP server code. The server depends on narrow
+infrastructure ports, not on a specific local service:
+
+```
+Client
+  |
+MCP over streamable HTTP
+  |
+MCP server container
+  |-- rmcp protocol handlers
+  |-- mcp-foundation policy: tasks, artifacts, usage, recovery
+  |-- provider adapter: WaveSpeed, Replicate, OpenAI media, ...
+  |
+  |-- SQL durable state
+  |-- S3-compatible artifact store
+  |-- structured logs / OpenTelemetry sink
+```
+
+The foundation layer should define ports such as:
+
+```rust
+trait ArtifactStore {
+    async fn put(...);
+    async fn get(...);
+    async fn head(...);
+}
+
+trait UsageLedger {
+    async fn record_estimate(...);
+    async fn record_actual(...);
+    async fn query(...);
+}
+
+trait EventSink {
+    fn emit_task_event(...);
+    fn emit_artifact_event(...);
+    fn emit_usage_event(...);
+}
+```
+
+The artifact store contract should target S3-compatible APIs so enterprises can use AWS
+S3, MinIO, Ceph/RGW, Cloudflare R2, or another compatible service. Configuration should be
+environment-driven:
+
+```
+ARTIFACT_STORE=s3
+S3_ENDPOINT=...
+S3_BUCKET=...
+S3_REGION=...
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+S3_FORCE_PATH_STYLE=true|false
+```
+
+For logging and observability, MCP servers should emit structured JSON logs to stdout and
+OpenTelemetry traces/metrics/logs where configured. Events must carry stable correlation
+fields: `task_id`, `prediction_id`, `artifact_sha256`, `provider`, `model_id`, and
+eventually `tenant_id`. Enterprise operators can route those signals into Datadog,
+Splunk, ELK, Loki, Honeycomb, CloudWatch, or another collector without server changes.
+
+Docker Compose is the local and self-hosted reference deployment, not a hard dependency.
+Each MCP server runs as its own container. Shared crates such as `mcp-foundation` are
+compiled into those servers, not deployed as a runtime service. The default Compose stack
+should include batteries-included infrastructure:
+
+- one container per MCP server (`wavespeed-mcp-server`, future provider servers),
+- a SQL state store, or a mounted SQLite volume for simple deployments,
+- MinIO as the default S3-compatible artifact store,
+- an OpenTelemetry collector,
+- optional Loki/Grafana or equivalent local log UI.
+
+Enterprise deployments replace defaults by configuration: omit MinIO and point S3
+settings at the enterprise object store; omit local logging UI and point OTEL export at
+the enterprise collector; provide secrets through their secret manager instead of `.env`.
+Compose profiles should make that explicit:
+
+- `default`: MCP servers plus bundled MinIO, state store, OTEL collector, and local logs UI,
+- `enterprise`: MCP servers only, expecting external state/object/observability endpoints,
+- `dev`: local helpers such as static input files, tunnels, and test fixtures.
+
+The design rule is simple: MCP servers may depend on SQL durability, S3-compatible artifact
+storage, and standard telemetry. They must not depend specifically on MinIO, Loki, or any
+other default Compose service.
+
 ## Verified behavior
 
 Both paths were proven against production WaveSpeed, through a real cloudflared tunnel:
