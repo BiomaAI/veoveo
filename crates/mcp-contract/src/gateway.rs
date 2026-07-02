@@ -390,6 +390,25 @@ impl GatewayControlPlane {
             }
         }
 
+        for authorization_server in &self.authorization_servers {
+            let Some(secret) = secret_refs.get(&authorization_server.access_token_signing_key)
+            else {
+                return Err(GatewayControlPlaneError::UnknownAuthorizationServerSigningKey {
+                    authorization_server: authorization_server.id.clone(),
+                    secret: authorization_server.access_token_signing_key.clone(),
+                });
+            };
+            if secret.purpose != SecretPurpose::JwksPrivateKey {
+                return Err(
+                    GatewayControlPlaneError::AuthorizationServerSigningKeyPurposeMismatch {
+                        authorization_server: authorization_server.id.clone(),
+                        secret: authorization_server.access_token_signing_key.clone(),
+                        purpose: secret.purpose,
+                    },
+                );
+            }
+        }
+
         let mut oauth_clients = BTreeSet::new();
         for client in &self.oauth_clients {
             if !oauth_clients.insert(client.id.clone()) {
@@ -519,6 +538,15 @@ pub enum GatewayControlPlaneError {
     UnknownAuthorizationServerIdentityProvider {
         authorization_server: AuthorizationServerId,
         identity_provider: IdentityProviderId,
+    },
+    UnknownAuthorizationServerSigningKey {
+        authorization_server: AuthorizationServerId,
+        secret: SecretReferenceId,
+    },
+    AuthorizationServerSigningKeyPurposeMismatch {
+        authorization_server: AuthorizationServerId,
+        secret: SecretReferenceId,
+        purpose: SecretPurpose,
     },
     MissingAuthModes {
         profile: GatewayProfileId,
@@ -791,6 +819,21 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "resource authorization server `{authorization_server}` references unknown identity provider `{identity_provider}`"
+            ),
+            Self::UnknownAuthorizationServerSigningKey {
+                authorization_server,
+                secret,
+            } => write!(
+                f,
+                "resource authorization server `{authorization_server}` references unknown signing key secret `{secret}`"
+            ),
+            Self::AuthorizationServerSigningKeyPurposeMismatch {
+                authorization_server,
+                secret,
+                purpose,
+            } => write!(
+                f,
+                "resource authorization server `{authorization_server}` references signing key secret `{secret}` with invalid purpose `{purpose:?}`"
             ),
             Self::MissingAuthModes { profile } => {
                 write!(f, "gateway profile `{profile}` declares no auth modes")
@@ -1546,6 +1589,8 @@ pub struct ResourceAuthorizationServer {
     pub id: AuthorizationServerId,
     pub issuer: TokenIssuer,
     pub jwks: JwksSource,
+    pub access_token_key_id: JwtId,
+    pub access_token_signing_key: SecretReferenceId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity_provider: Option<IdentityProviderId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2750,6 +2795,9 @@ mod tests {
             jwks: JwksSource::Remote {
                 jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/jwks.json").unwrap(),
             },
+            access_token_key_id: JwtId::new("test-key").unwrap(),
+            access_token_signing_key: SecretReferenceId::new("veoveo_access_token_private_key")
+                .unwrap(),
             identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
             authorization_endpoint: Some(
                 HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/authorize").unwrap(),
@@ -2757,6 +2805,23 @@ mod tests {
             token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/token").unwrap(),
             metadata: Value::Null,
         }
+    }
+
+    fn signing_secret() -> SecretReference {
+        SecretReference {
+            id: SecretReferenceId::new("veoveo_access_token_private_key").unwrap(),
+            source: SecretSource::Env,
+            purpose: SecretPurpose::JwksPrivateKey,
+            locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64")
+                .unwrap(),
+            owner: SecretOwner::Gateway,
+            rotation_hint: None,
+            metadata: Value::Null,
+        }
+    }
+
+    fn default_secrets() -> Vec<SecretReference> {
+        vec![signing_secret()]
     }
 
     fn media_manifest() -> ServerManifest {
@@ -2938,17 +3003,20 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![SecretReference {
-                id: SecretReferenceId::new("media_provider_key").unwrap(),
-                source: SecretSource::Env,
-                purpose: SecretPurpose::ProviderApiKey,
-                locator: SecretLocator::new("MEDIA_PROVIDER_API_KEY").unwrap(),
-                owner: SecretOwner::Server {
-                    server: ServerSlug::new("media").unwrap(),
+            secrets: vec![
+                signing_secret(),
+                SecretReference {
+                    id: SecretReferenceId::new("media_provider_key").unwrap(),
+                    source: SecretSource::Env,
+                    purpose: SecretPurpose::ProviderApiKey,
+                    locator: SecretLocator::new("MEDIA_PROVIDER_API_KEY").unwrap(),
+                    owner: SecretOwner::Server {
+                        server: ServerSlug::new("media").unwrap(),
+                    },
+                    rotation_hint: None,
+                    metadata: Value::Null,
                 },
-                rotation_hint: None,
-                metadata: Value::Null,
-            }],
+            ],
             metadata: Value::Null,
         };
 
@@ -2966,7 +3034,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -2989,7 +3057,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3014,7 +3082,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3040,7 +3108,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3067,7 +3135,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3092,7 +3160,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3120,7 +3188,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3145,7 +3213,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3170,7 +3238,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3195,7 +3263,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3220,7 +3288,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3247,7 +3315,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3277,7 +3345,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3303,17 +3371,20 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![SecretReference {
-                id: SecretReferenceId::new("profile_secret").unwrap(),
-                source: SecretSource::Env,
-                purpose: SecretPurpose::OAuthClientSecret,
-                locator: SecretLocator::new("PROFILE_SECRET").unwrap(),
-                owner: SecretOwner::Profile {
-                    profile: GatewayProfileId::new("missing").unwrap(),
+            secrets: vec![
+                signing_secret(),
+                SecretReference {
+                    id: SecretReferenceId::new("profile_secret").unwrap(),
+                    source: SecretSource::Env,
+                    purpose: SecretPurpose::OAuthClientSecret,
+                    locator: SecretLocator::new("PROFILE_SECRET").unwrap(),
+                    owner: SecretOwner::Profile {
+                        profile: GatewayProfileId::new("missing").unwrap(),
+                    },
+                    rotation_hint: None,
+                    metadata: Value::Null,
                 },
-                rotation_hint: None,
-                metadata: Value::Null,
-            }],
+            ],
             metadata: Value::Null,
         };
 
@@ -3333,17 +3404,20 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![SecretReference {
-                id: SecretReferenceId::new("server_secret").unwrap(),
-                source: SecretSource::Env,
-                purpose: SecretPurpose::ProviderApiKey,
-                locator: SecretLocator::new("SERVER_SECRET").unwrap(),
-                owner: SecretOwner::Server {
-                    server: ServerSlug::new("missing").unwrap(),
+            secrets: vec![
+                signing_secret(),
+                SecretReference {
+                    id: SecretReferenceId::new("server_secret").unwrap(),
+                    source: SecretSource::Env,
+                    purpose: SecretPurpose::ProviderApiKey,
+                    locator: SecretLocator::new("SERVER_SECRET").unwrap(),
+                    owner: SecretOwner::Server {
+                        server: ServerSlug::new("missing").unwrap(),
+                    },
+                    rotation_hint: None,
+                    metadata: Value::Null,
                 },
-                rotation_hint: None,
-                metadata: Value::Null,
-            }],
+            ],
             metadata: Value::Null,
         };
 
@@ -3366,7 +3440,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: vec![],
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3391,7 +3465,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: clients,
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3416,7 +3490,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: clients,
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3443,7 +3517,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: clients,
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3468,7 +3542,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3493,7 +3567,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3518,7 +3592,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3540,7 +3614,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3563,7 +3637,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3585,7 +3659,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3607,7 +3681,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3633,7 +3707,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 
@@ -3662,7 +3736,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
-            secrets: vec![],
+            secrets: default_secrets(),
             metadata: Value::Null,
         };
 

@@ -963,7 +963,7 @@ mod tests {
     use veoveo_mcp_contract::{
         AuthMode, AuthorizationServerId, CompletionExposure, DataLabelId, Exposure,
         GatewayControlPlaneError, GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId,
-        JwksSource, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
+        JwksSource, JwtId, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
         MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
         OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OwnedRoute, OwnedRoutePurpose,
         PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
@@ -999,11 +999,27 @@ mod tests {
             jwks: JwksSource::Remote {
                 jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/jwks.json").unwrap(),
             },
+            access_token_key_id: JwtId::new("test-key").unwrap(),
+            access_token_signing_key: SecretReferenceId::new("veoveo_access_token_private_key")
+                .unwrap(),
             identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
             authorization_endpoint: Some(
                 HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/authorize").unwrap(),
             ),
             token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/token").unwrap(),
+            metadata: Value::Null,
+        }
+    }
+
+    fn signing_secret() -> SecretReference {
+        SecretReference {
+            id: SecretReferenceId::new("veoveo_access_token_private_key").unwrap(),
+            source: SecretSource::Env,
+            purpose: SecretPurpose::JwksPrivateKey,
+            locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64")
+                .unwrap(),
+            owner: SecretOwner::Gateway,
+            rotation_hint: None,
             metadata: Value::Null,
         }
     }
@@ -1151,17 +1167,20 @@ mod tests {
             profiles: vec![profile()],
             policies: vec![policy],
             oauth_clients: oauth_clients(),
-            secrets: vec![SecretReference {
-                id: SecretReferenceId::new("media_provider_key").unwrap(),
-                source: SecretSource::Env,
-                purpose: SecretPurpose::ProviderApiKey,
-                locator: SecretLocator::new("MEDIA_PROVIDER_API_KEY").unwrap(),
-                owner: SecretOwner::Server {
-                    server: ServerSlug::new("media").unwrap(),
+            secrets: vec![
+                signing_secret(),
+                SecretReference {
+                    id: SecretReferenceId::new("media_provider_key").unwrap(),
+                    source: SecretSource::Env,
+                    purpose: SecretPurpose::ProviderApiKey,
+                    locator: SecretLocator::new("MEDIA_PROVIDER_API_KEY").unwrap(),
+                    owner: SecretOwner::Server {
+                        server: ServerSlug::new("media").unwrap(),
+                    },
+                    rotation_hint: None,
+                    metadata: Value::Null,
                 },
-                rotation_hint: None,
-                metadata: Value::Null,
-            }],
+            ],
             metadata: Value::Null,
         })
         .unwrap()
@@ -1507,7 +1526,7 @@ mod tests {
             }],
             policies: vec![policy()],
             oauth_clients: oauth_clients(),
-            secrets: vec![],
+            secrets: vec![signing_secret()],
             metadata: Value::Null,
         })
         .expect_err("unknown server should fail");

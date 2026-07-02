@@ -21,6 +21,8 @@
         "source": "file",
         "path": "configs/jwks.smoke.json"
       },
+      "access_token_key_id": "test-key",
+      "access_token_signing_key": "veoveo_access_token_private_key",
       "identity_provider": "enterprise",
       "authorization_endpoint": "https://veoveo.bioma.ai/oauth/default/authorize",
       "token_endpoint": "https://veoveo.bioma.ai/oauth/default/token",
@@ -195,6 +197,16 @@
     }
   ],
   "secrets": [
+    {
+      "id": "veoveo_access_token_private_key",
+      "source": "env",
+      "purpose": "jwks_private_key",
+      "locator": "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
     {
       "id": "gateway_internal_token_secret",
       "source": "env",
