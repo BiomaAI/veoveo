@@ -172,6 +172,11 @@ smoke-gateway-authenticated:
     {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" info >/dev/null
     {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" resource media://usage >/dev/null
     {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
+    denied_token="$({{conformance}} gateway-token --scope gateway:admin --jwt-id smoke-gateway-denied)"
+    if {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${denied_token}" info >/dev/null 2>&1; then
+        echo "missing-scope gateway token was unexpectedly authorized" >&2
+        exit 1
+    fi
     kill "${gateway_pid}"
     wait "${gateway_pid}" 2>/dev/null || true
     gateway_pid=""
