@@ -147,6 +147,39 @@
       "metadata": {}
     }
   ],
+  "oauth_clients": [
+    {
+      "id": "veoveo-browser",
+      "identity_provider": "enterprise",
+      "display_name": "Veoveo browser client",
+      "allowed_profiles": ["default"],
+      "grant_types": [
+        "authorization_code_pkce",
+        "enterprise_managed_authorization"
+      ],
+      "auth_methods": ["none"],
+      "redirect_uris": [
+        "https://veoveo.bioma.ai/oauth/callback",
+        "http://127.0.0.1:8789/oauth/callback"
+      ],
+      "allowed_scopes": ["media:use", "gateway:admin"],
+      "metadata": {}
+    },
+    {
+      "id": "veoveo-headless",
+      "identity_provider": "enterprise",
+      "display_name": "Veoveo headless client",
+      "allowed_profiles": ["default"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
+      "allowed_scopes": ["media:use", "gateway:admin"],
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://idp.example.com/oauth2/clients/veoveo-headless/jwks.json"
+      },
+      "metadata": {}
+    }
+  ],
   "secrets": [
     {
       "id": "gateway_internal_token_secret",

@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use url::{Host, Url};
 
 pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
     "io.modelcontextprotocol/enterprise-managed-authorization";
@@ -180,6 +181,11 @@ typed_id!(
     "OAuth protected-resource identifier, usually the gateway profile URL."
 );
 typed_id!(
+    OAuthClientId,
+    validate_claim_text,
+    "Registered OAuth client id allowed to request gateway-profile tokens."
+);
+typed_id!(
     TokenIssuer,
     validate_claim_text,
     "Expected token issuer identifier."
@@ -227,6 +233,8 @@ pub struct GatewayControlPlane {
     pub profiles: Vec<GatewayProfile>,
     pub policies: Vec<PolicySet>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub oauth_clients: Vec<OAuthClientRegistration>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secrets: Vec<SecretReference>,
     #[serde(default)]
     pub metadata: Value,
@@ -264,21 +272,25 @@ impl GatewayControlPlane {
         }
 
         let mut policies = BTreeSet::new();
+        let mut policy_by_id = BTreeMap::new();
         for policy in &self.policies {
             if !policies.insert(policy.version.clone()) {
                 return Err(GatewayControlPlaneError::DuplicatePolicy(
                     policy.version.clone(),
                 ));
             }
+            policy_by_id.insert(policy.version.clone(), policy);
         }
 
         let mut profiles = BTreeSet::new();
+        let mut profile_by_id = BTreeMap::new();
         for profile in &self.profiles {
             if !profiles.insert(profile.id.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateProfile(
                     profile.id.clone(),
                 ));
             }
+            profile_by_id.insert(profile.id.clone(), profile);
             let Some(identity_provider) = identity_providers.get(&profile.identity_provider) else {
                 return Err(GatewayControlPlaneError::UnknownIdentityProvider {
                     profile: profile.id.clone(),
@@ -315,10 +327,12 @@ impl GatewayControlPlane {
         }
 
         let mut secrets = BTreeSet::new();
+        let mut secret_refs = BTreeMap::new();
         for secret in &self.secrets {
             if !secrets.insert(secret.id.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateSecret(secret.id.clone()));
             }
+            secret_refs.insert(secret.id.clone(), secret);
             match &secret.owner {
                 SecretOwner::Gateway | SecretOwner::Tenant { .. } => {}
                 SecretOwner::Profile { profile } => {
@@ -340,6 +354,38 @@ impl GatewayControlPlane {
             }
         }
 
+        let mut oauth_clients = BTreeSet::new();
+        for client in &self.oauth_clients {
+            if !oauth_clients.insert(client.id.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateOAuthClient(
+                    client.id.clone(),
+                ));
+            }
+            validate_oauth_client_registration(
+                client,
+                &identity_providers,
+                &profile_by_id,
+                &policy_by_id,
+                &secret_refs,
+            )?;
+        }
+        for profile in &self.profiles {
+            for auth_mode in &profile.auth_modes {
+                let required_grant = OAuthGrantType::from(*auth_mode);
+                let has_client = self.oauth_clients.iter().any(|client| {
+                    client.identity_provider == profile.identity_provider
+                        && client.allowed_profiles.contains(&profile.id)
+                        && client.grant_types.contains(&required_grant)
+                });
+                if !has_client {
+                    return Err(GatewayControlPlaneError::MissingOAuthClientForAuthMode {
+                        profile: profile.id.clone(),
+                        auth_mode: *auth_mode,
+                    });
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -352,6 +398,7 @@ pub enum GatewayControlPlaneError {
     DuplicateProfile(GatewayProfileId),
     DuplicatePolicy(PolicyVersion),
     DuplicateSecret(SecretReferenceId),
+    DuplicateOAuthClient(OAuthClientId),
     DuplicateProfileServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -444,6 +491,54 @@ pub enum GatewayControlPlaneError {
         secret: SecretReferenceId,
         server: ServerSlug,
     },
+    UnknownOAuthClientIdentityProvider {
+        client: OAuthClientId,
+        identity_provider: IdentityProviderId,
+    },
+    UnknownOAuthClientProfile {
+        client: OAuthClientId,
+        profile: GatewayProfileId,
+    },
+    UnknownOAuthClientSecret {
+        client: OAuthClientId,
+        secret: SecretReferenceId,
+    },
+    OAuthClientSecretPurposeMismatch {
+        client: OAuthClientId,
+        secret: SecretReferenceId,
+        purpose: SecretPurpose,
+    },
+    OAuthClientProfileIdentityProviderMismatch {
+        client: OAuthClientId,
+        profile: GatewayProfileId,
+        client_identity_provider: IdentityProviderId,
+        profile_identity_provider: IdentityProviderId,
+    },
+    OAuthClientWithoutAllowedProfiles(OAuthClientId),
+    OAuthClientWithoutGrantTypes(OAuthClientId),
+    OAuthClientWithoutAuthMethods(OAuthClientId),
+    OAuthClientMissingRedirectUris {
+        client: OAuthClientId,
+        grant_type: OAuthGrantType,
+    },
+    OAuthClientPublicClientCredentials(OAuthClientId),
+    OAuthClientMissingCredentialSecret {
+        client: OAuthClientId,
+        auth_method: OAuthClientAuthMethod,
+    },
+    OAuthClientMissingJwks {
+        client: OAuthClientId,
+        auth_method: OAuthClientAuthMethod,
+    },
+    OAuthClientMissingAllowedScope {
+        client: OAuthClientId,
+        profile: GatewayProfileId,
+        scope: ScopeName,
+    },
+    MissingOAuthClientForAuthMode {
+        profile: GatewayProfileId,
+        auth_mode: AuthMode,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -501,6 +596,9 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
+            Self::DuplicateOAuthClient(client) => {
+                write!(f, "duplicate OAuth client registration `{client}`")
+            }
             Self::DuplicateProfileServer { profile, server } => write!(
                 f,
                 "gateway profile `{profile}` exposes server `{server}` more than once"
@@ -632,6 +730,87 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::UnknownSecretOwnerServer { secret, server } => write!(
                 f,
                 "secret reference `{secret}` is owned by unknown server `{server}`"
+            ),
+            Self::UnknownOAuthClientIdentityProvider {
+                client,
+                identity_provider,
+            } => write!(
+                f,
+                "OAuth client `{client}` references unknown identity provider `{identity_provider}`"
+            ),
+            Self::UnknownOAuthClientProfile { client, profile } => write!(
+                f,
+                "OAuth client `{client}` references unknown gateway profile `{profile}`"
+            ),
+            Self::UnknownOAuthClientSecret { client, secret } => write!(
+                f,
+                "OAuth client `{client}` references unknown secret `{secret}`"
+            ),
+            Self::OAuthClientSecretPurposeMismatch {
+                client,
+                secret,
+                purpose,
+            } => write!(
+                f,
+                "OAuth client `{client}` references secret `{secret}` with invalid purpose `{purpose:?}`"
+            ),
+            Self::OAuthClientProfileIdentityProviderMismatch {
+                client,
+                profile,
+                client_identity_provider,
+                profile_identity_provider,
+            } => write!(
+                f,
+                "OAuth client `{client}` uses identity provider `{client_identity_provider}` but profile `{profile}` uses `{profile_identity_provider}`"
+            ),
+            Self::OAuthClientWithoutAllowedProfiles(client) => {
+                write!(
+                    f,
+                    "OAuth client `{client}` does not allow any gateway profile"
+                )
+            }
+            Self::OAuthClientWithoutGrantTypes(client) => {
+                write!(f, "OAuth client `{client}` does not declare any grant type")
+            }
+            Self::OAuthClientWithoutAuthMethods(client) => {
+                write!(
+                    f,
+                    "OAuth client `{client}` does not declare any auth method"
+                )
+            }
+            Self::OAuthClientMissingRedirectUris { client, grant_type } => write!(
+                f,
+                "OAuth client `{client}` grant `{grant_type:?}` requires at least one redirect URI"
+            ),
+            Self::OAuthClientPublicClientCredentials(client) => write!(
+                f,
+                "OAuth client `{client}` cannot use unauthenticated public client credentials"
+            ),
+            Self::OAuthClientMissingCredentialSecret {
+                client,
+                auth_method,
+            } => write!(
+                f,
+                "OAuth client `{client}` auth method `{auth_method:?}` requires a credential secret reference"
+            ),
+            Self::OAuthClientMissingJwks {
+                client,
+                auth_method,
+            } => write!(
+                f,
+                "OAuth client `{client}` auth method `{auth_method:?}` requires a trusted JWKS source"
+            ),
+            Self::OAuthClientMissingAllowedScope {
+                client,
+                profile,
+                scope,
+            } => write!(
+                f,
+                "OAuth client `{client}` allows profile `{profile}` but does not allow required scope `{scope}`"
+            ),
+            Self::MissingOAuthClientForAuthMode { profile, auth_mode } => write!(
+                f,
+                "gateway profile `{profile}` advertises auth mode `{auth_mode:?}` without a matching OAuth client registration"
             ),
         }
     }
@@ -1086,6 +1265,164 @@ fn require_identity_provider_endpoint(
     }
 }
 
+fn validate_oauth_client_registration(
+    client: &OAuthClientRegistration,
+    identity_providers: &BTreeMap<IdentityProviderId, &IdentityProvider>,
+    profiles: &BTreeMap<GatewayProfileId, &GatewayProfile>,
+    policies: &BTreeMap<PolicyVersion, &PolicySet>,
+    secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
+) -> Result<(), GatewayControlPlaneError> {
+    if !identity_providers.contains_key(&client.identity_provider) {
+        return Err(
+            GatewayControlPlaneError::UnknownOAuthClientIdentityProvider {
+                client: client.id.clone(),
+                identity_provider: client.identity_provider.clone(),
+            },
+        );
+    }
+    if client.allowed_profiles.is_empty() {
+        return Err(GatewayControlPlaneError::OAuthClientWithoutAllowedProfiles(
+            client.id.clone(),
+        ));
+    }
+    if client.grant_types.is_empty() {
+        return Err(GatewayControlPlaneError::OAuthClientWithoutGrantTypes(
+            client.id.clone(),
+        ));
+    }
+    if client.auth_methods.is_empty() {
+        return Err(GatewayControlPlaneError::OAuthClientWithoutAuthMethods(
+            client.id.clone(),
+        ));
+    }
+
+    for profile_id in &client.allowed_profiles {
+        let Some(profile) = profiles.get(profile_id) else {
+            return Err(GatewayControlPlaneError::UnknownOAuthClientProfile {
+                client: client.id.clone(),
+                profile: profile_id.clone(),
+            });
+        };
+        if profile.identity_provider != client.identity_provider {
+            return Err(
+                GatewayControlPlaneError::OAuthClientProfileIdentityProviderMismatch {
+                    client: client.id.clone(),
+                    profile: profile_id.clone(),
+                    client_identity_provider: client.identity_provider.clone(),
+                    profile_identity_provider: profile.identity_provider.clone(),
+                },
+            );
+        }
+        let mut required_scopes = profile
+            .required_scopes
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if let Some(policy) = policies.get(&profile.policy_version) {
+            for rule in &policy.rules {
+                if rule.profiles.is_empty() || rule.profiles.contains(profile_id) {
+                    required_scopes.extend(rule.required_scopes.iter().cloned());
+                }
+            }
+        }
+        for scope in required_scopes {
+            if !client.allowed_scopes.contains(&scope) {
+                return Err(GatewayControlPlaneError::OAuthClientMissingAllowedScope {
+                    client: client.id.clone(),
+                    profile: profile_id.clone(),
+                    scope,
+                });
+            }
+        }
+    }
+
+    if client
+        .grant_types
+        .contains(&OAuthGrantType::AuthorizationCodePkce)
+        && client.redirect_uris.is_empty()
+    {
+        return Err(GatewayControlPlaneError::OAuthClientMissingRedirectUris {
+            client: client.id.clone(),
+            grant_type: OAuthGrantType::AuthorizationCodePkce,
+        });
+    }
+    if client
+        .grant_types
+        .contains(&OAuthGrantType::EnterpriseManagedAuthorization)
+        && client.redirect_uris.is_empty()
+    {
+        return Err(GatewayControlPlaneError::OAuthClientMissingRedirectUris {
+            client: client.id.clone(),
+            grant_type: OAuthGrantType::EnterpriseManagedAuthorization,
+        });
+    }
+    if client
+        .grant_types
+        .contains(&OAuthGrantType::ClientCredentials)
+        && client.auth_methods.contains(&OAuthClientAuthMethod::None)
+    {
+        return Err(
+            GatewayControlPlaneError::OAuthClientPublicClientCredentials(client.id.clone()),
+        );
+    }
+
+    if client
+        .auth_methods
+        .iter()
+        .any(OAuthClientAuthMethod::requires_secret)
+    {
+        let Some(secret_id) = &client.credential_secret else {
+            let auth_method = client
+                .auth_methods
+                .iter()
+                .copied()
+                .find(OAuthClientAuthMethod::requires_secret)
+                .expect("requires_secret matched");
+            return Err(
+                GatewayControlPlaneError::OAuthClientMissingCredentialSecret {
+                    client: client.id.clone(),
+                    auth_method,
+                },
+            );
+        };
+        let Some(secret) = secrets.get(secret_id) else {
+            return Err(GatewayControlPlaneError::UnknownOAuthClientSecret {
+                client: client.id.clone(),
+                secret: secret_id.clone(),
+            });
+        };
+        if secret.purpose != SecretPurpose::OAuthClientSecret
+            && secret.purpose != SecretPurpose::TokenExchangeCredential
+        {
+            return Err(GatewayControlPlaneError::OAuthClientSecretPurposeMismatch {
+                client: client.id.clone(),
+                secret: secret_id.clone(),
+                purpose: secret.purpose,
+            });
+        }
+    }
+
+    if client
+        .auth_methods
+        .iter()
+        .any(OAuthClientAuthMethod::requires_jwks)
+        && client.jwks.is_none()
+    {
+        let auth_method = client
+            .auth_methods
+            .iter()
+            .copied()
+            .find(OAuthClientAuthMethod::requires_jwks)
+            .expect("requires_jwks matched");
+        return Err(GatewayControlPlaneError::OAuthClientMissingJwks {
+            client: client.id.clone(),
+            auth_method,
+        });
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct IdentityProvider {
     pub id: IdentityProviderId,
@@ -1108,6 +1445,59 @@ pub struct IdentityProvider {
 pub enum IdentityProviderJwks {
     Remote { jwks_uri: HttpsUrl },
     File { path: JwksFilePath },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct OAuthClientRegistration {
+    pub id: OAuthClientId,
+    pub identity_provider: IdentityProviderId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    pub allowed_profiles: BTreeSet<GatewayProfileId>,
+    pub grant_types: BTreeSet<OAuthGrantType>,
+    pub auth_methods: BTreeSet<OAuthClientAuthMethod>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub redirect_uris: Vec<OAuthRedirectUri>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub allowed_scopes: BTreeSet<ScopeName>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_secret: Option<SecretReferenceId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jwks: Option<IdentityProviderJwks>,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthGrantType {
+    AuthorizationCodePkce,
+    ClientCredentials,
+    EnterpriseManagedAuthorization,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthClientAuthMethod {
+    None,
+    PrivateKeyJwt,
+    ClientSecretBasic,
+    ClientSecretPost,
+    TlsClientAuth,
+}
+
+impl OAuthClientAuthMethod {
+    fn requires_secret(&self) -> bool {
+        matches!(self, Self::ClientSecretBasic | Self::ClientSecretPost)
+    }
+
+    fn requires_jwks(&self) -> bool {
+        matches!(self, Self::PrivateKeyJwt)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -1690,6 +2080,56 @@ impl From<HttpsUrl> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+pub struct OAuthRedirectUri(String);
+
+impl OAuthRedirectUri {
+    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        validate_oauth_redirect_uri(&value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for OAuthRedirectUri {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for OAuthRedirectUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for OAuthRedirectUri {
+    type Error = IdentifierError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl FromStr for OAuthRedirectUri {
+    type Err = IdentifierError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::new(value.to_string())
+    }
+}
+
+impl From<OAuthRedirectUri> for String {
+    fn from(value: OAuthRedirectUri) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
 pub struct JwksFilePath(String);
 
 impl JwksFilePath {
@@ -1926,6 +2366,16 @@ impl AuthMode {
     }
 }
 
+impl From<AuthMode> for OAuthGrantType {
+    fn from(value: AuthMode) -> Self {
+        match value {
+            AuthMode::OidcAuthorizationCodePkce => Self::AuthorizationCodePkce,
+            AuthMode::EnterpriseManagedAuthorization => Self::EnterpriseManagedAuthorization,
+            AuthMode::OAuthClientCredentials => Self::ClientCredentials,
+        }
+    }
+}
+
 fn validate_path_id(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(
@@ -2035,12 +2485,31 @@ fn validate_mount_path(value: &str) -> Result<(), IdentifierError> {
 }
 
 fn validate_https_url(value: &str) -> Result<(), IdentifierError> {
-    if !value.starts_with("https://") {
-        return Err(IdentifierError::new(value, "must start with https://"));
+    if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain whitespace or control characters",
+        ));
     }
-    let rest = &value["https://".len()..];
-    if rest.is_empty() || rest.starts_with('/') {
+    let url = Url::parse(value).map_err(|_| IdentifierError::new(value, "must be a valid URL"))?;
+    if url.scheme() != "https" {
+        return Err(IdentifierError::new(value, "must use https://"));
+    }
+    if url.host().is_none() {
         return Err(IdentifierError::new(value, "must include a host"));
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(IdentifierError::new(value, "must not contain userinfo"));
+    }
+    if url.fragment().is_some() {
+        return Err(IdentifierError::new(value, "must not contain a fragment"));
+    }
+    Ok(())
+}
+
+fn validate_oauth_redirect_uri(value: &str) -> Result<(), IdentifierError> {
+    if value.is_empty() {
+        return Err(IdentifierError::new(value, "must not be empty"));
     }
     if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(IdentifierError::new(
@@ -2048,13 +2517,40 @@ fn validate_https_url(value: &str) -> Result<(), IdentifierError> {
             "must not contain whitespace or control characters",
         ));
     }
-    if value.contains('@') || value.contains('#') {
-        return Err(IdentifierError::new(
-            value,
-            "must not contain userinfo or fragment",
-        ));
+    let url = Url::parse(value).map_err(|_| IdentifierError::new(value, "must be a valid URL"))?;
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(IdentifierError::new(value, "must not contain userinfo"));
     }
-    Ok(())
+    if url.fragment().is_some() {
+        return Err(IdentifierError::new(value, "must not contain a fragment"));
+    }
+    match url.scheme() {
+        "https" => {
+            if url.host().is_none() {
+                return Err(IdentifierError::new(value, "must include a host"));
+            }
+            Ok(())
+        }
+        "http" => {
+            let is_loopback = match url.host() {
+                Some(Host::Domain(host)) => host == "localhost",
+                Some(Host::Ipv4(addr)) => addr.is_loopback(),
+                Some(Host::Ipv6(addr)) => addr.is_loopback(),
+                None => false,
+            };
+            if is_loopback && url.port().is_some_and(|port| port != 0) {
+                return Ok(());
+            }
+            Err(IdentifierError::new(
+                value,
+                "http:// redirect URIs must use loopback host and explicit non-zero port",
+            ))
+        }
+        _ => Err(IdentifierError::new(
+            value,
+            "must use https:// or local loopback http://",
+        )),
+    }
 }
 
 fn validate_local_file_path(value: &str) -> Result<(), IdentifierError> {
@@ -2212,12 +2708,64 @@ mod tests {
         }
     }
 
+    fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
+        vec![
+            OAuthClientRegistration {
+                id: OAuthClientId::new("veoveo-browser").unwrap(),
+                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                display_name: Some("Veoveo browser client".to_string()),
+                allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+                grant_types: BTreeSet::from([
+                    OAuthGrantType::AuthorizationCodePkce,
+                    OAuthGrantType::EnterpriseManagedAuthorization,
+                ]),
+                auth_methods: BTreeSet::from([OAuthClientAuthMethod::None]),
+                redirect_uris: vec![
+                    OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+                    OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").unwrap(),
+                ],
+                allowed_scopes: BTreeSet::from([
+                    ScopeName::new("media:use").unwrap(),
+                    ScopeName::new("gateway:admin").unwrap(),
+                ]),
+                credential_secret: None,
+                jwks: None,
+                metadata: Value::Null,
+            },
+            OAuthClientRegistration {
+                id: OAuthClientId::new("veoveo-headless").unwrap(),
+                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                display_name: Some("Veoveo headless client".to_string()),
+                allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+                grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
+                auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
+                redirect_uris: vec![],
+                allowed_scopes: BTreeSet::from([
+                    ScopeName::new("media:use").unwrap(),
+                    ScopeName::new("gateway:admin").unwrap(),
+                ]),
+                credential_secret: None,
+                jwks: Some(IdentityProviderJwks::Remote {
+                    jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/clients/jwks.json")
+                        .unwrap(),
+                }),
+                metadata: Value::Null,
+            },
+        ]
+    }
+
     #[test]
     fn identifiers_reject_invalid_wire_values() {
         assert!(ServerSlug::new("Media").is_err());
         assert!(GatewayProfileId::new("default/profile").is_err());
         assert!(ResourceScheme::new("1media").is_err());
         assert!(MountPath::new("media").is_err());
+        assert!(OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").is_ok());
+        assert!(OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").is_ok());
+        assert!(OAuthRedirectUri::new("http://[::1]:8789/oauth/callback").is_ok());
+        assert!(OAuthRedirectUri::new("http://example.com/oauth/callback").is_err());
+        assert!(OAuthRedirectUri::new("http://127.0.0.1/oauth/callback").is_err());
+        assert!(OAuthRedirectUri::new("http://127.0.0.1:0/oauth/callback").is_err());
         assert!(ResourceUri::new("media://artifact/abc").is_ok());
         assert!(ResourceUriTemplate::new("media://model").is_err());
     }
@@ -2254,6 +2802,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![SecretReference {
                 id: SecretReferenceId::new("media_provider_key").unwrap(),
                 source: SecretSource::Env,
@@ -2280,6 +2829,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2301,6 +2851,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2324,6 +2875,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2348,6 +2900,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2373,6 +2926,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2396,6 +2950,7 @@ mod tests {
             servers: vec![manifest],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2422,6 +2977,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2445,6 +3001,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2468,6 +3025,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2493,6 +3051,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2521,6 +3080,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2546,6 +3106,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2570,6 +3131,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![SecretReference {
                 id: SecretReferenceId::new("profile_secret").unwrap(),
                 source: SecretSource::Env,
@@ -2598,6 +3160,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![SecretReference {
                 id: SecretReferenceId::new("server_secret").unwrap(),
                 source: SecretSource::Env,
@@ -2623,6 +3186,102 @@ mod tests {
     }
 
     #[test]
+    fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: vec![],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("profile auth modes require OAuth clients");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingOAuthClientForAuthMode { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_public_client_credentials() {
+        let mut clients = default_oauth_clients();
+        clients[1].auth_methods = BTreeSet::from([OAuthClientAuthMethod::None]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: clients,
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("client credentials must not be public");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OAuthClientPublicClientCredentials(_)
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_private_key_jwt_without_jwks() {
+        let mut clients = default_oauth_clients();
+        clients[1].jwks = None;
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: clients,
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("private-key JWT clients require a JWKS source");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OAuthClientMissingJwks { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_oauth_client_missing_required_scope() {
+        let mut clients = default_oauth_clients();
+        clients[0]
+            .allowed_scopes
+            .remove(&ScopeName::new("media:use").unwrap());
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: clients,
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("client allowed scopes must cover profile and policy scopes");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OAuthClientMissingAllowedScope { .. }
+        ));
+    }
+
+    #[test]
     fn control_plane_rejects_duplicate_resource_schemes() {
         let mut second_server = media_manifest();
         second_server.slug = ServerSlug::new("simulation").unwrap();
@@ -2631,6 +3290,7 @@ mod tests {
             servers: vec![media_manifest(), second_server],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2654,6 +3314,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2677,6 +3338,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2697,6 +3359,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2718,6 +3381,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2738,6 +3402,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2758,6 +3423,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2782,6 +3448,7 @@ mod tests {
             servers: vec![media_manifest(), simulation_server],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };
@@ -2809,6 +3476,7 @@ mod tests {
             servers: vec![manifest],
             profiles: vec![default_profile()],
             policies: vec![policy],
+            oauth_clients: default_oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         };

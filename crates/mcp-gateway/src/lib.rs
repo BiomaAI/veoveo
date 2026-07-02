@@ -796,7 +796,8 @@ mod tests {
         AuthMode, CompletionExposure, DataLabelId, Exposure, GatewayControlPlaneError,
         GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId, IdentityProviderJwks,
         MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
-        MountPath, OwnedRoute, OwnedRoutePurpose, PrincipalId, PrincipalKind,
+        MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
+        OAuthRedirectUri, OwnedRoute, OwnedRoutePurpose, PrincipalId, PrincipalKind,
         ProfileServerExposure, ProtectedResourceId, ResourceSelector, ScopeName, SecretLocator,
         SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
         TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
@@ -907,6 +908,54 @@ mod tests {
         }
     }
 
+    fn oauth_clients() -> Vec<OAuthClientRegistration> {
+        vec![
+            OAuthClientRegistration {
+                id: OAuthClientId::new("veoveo-browser").unwrap(),
+                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                display_name: Some("Veoveo browser client".to_string()),
+                allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+                grant_types: BTreeSet::from([
+                    OAuthGrantType::AuthorizationCodePkce,
+                    OAuthGrantType::EnterpriseManagedAuthorization,
+                ]),
+                auth_methods: BTreeSet::from([OAuthClientAuthMethod::None]),
+                redirect_uris: vec![
+                    OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+                    OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").unwrap(),
+                ],
+                allowed_scopes: BTreeSet::from([
+                    ScopeName::new("media:use").unwrap(),
+                    ScopeName::new("media:admin").unwrap(),
+                    ScopeName::new("gateway:admin").unwrap(),
+                ]),
+                credential_secret: None,
+                jwks: None,
+                metadata: Value::Null,
+            },
+            OAuthClientRegistration {
+                id: OAuthClientId::new("veoveo-headless").unwrap(),
+                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                display_name: Some("Veoveo headless client".to_string()),
+                allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+                grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
+                auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
+                redirect_uris: vec![],
+                allowed_scopes: BTreeSet::from([
+                    ScopeName::new("media:use").unwrap(),
+                    ScopeName::new("media:admin").unwrap(),
+                    ScopeName::new("gateway:admin").unwrap(),
+                ]),
+                credential_secret: None,
+                jwks: Some(IdentityProviderJwks::Remote {
+                    jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/clients/jwks.json")
+                        .unwrap(),
+                }),
+                metadata: Value::Null,
+            },
+        ]
+    }
+
     fn catalog() -> GatewayCatalog {
         catalog_with_policy(policy())
     }
@@ -917,6 +966,7 @@ mod tests {
             servers: vec![media_manifest()],
             profiles: vec![profile()],
             policies: vec![policy],
+            oauth_clients: oauth_clients(),
             secrets: vec![SecretReference {
                 id: SecretReferenceId::new("media_provider_key").unwrap(),
                 source: SecretSource::Env,
@@ -1209,6 +1259,7 @@ mod tests {
                 profile
             }],
             policies: vec![policy()],
+            oauth_clients: oauth_clients(),
             secrets: vec![],
             metadata: Value::Null,
         })

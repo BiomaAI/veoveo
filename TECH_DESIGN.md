@@ -286,6 +286,9 @@ Gateway data must be split by sensitivity and lifecycle:
   The file-backed gateway exposes an authenticated admin reload path for mounted profiles;
   the set of mounted profile route ids is immutable during reload and changing it is a
   deploy operation.
+  OAuth client registrations are typed control data: each advertised profile auth mode must
+  have a matching registered client grant, and each client must explicitly allow the scopes
+  required by the profile and its policy rules.
 - **Secret data**: provider API keys, webhook secrets, OAuth client secrets, gateway
   signing keys, JWKS private keys, and token-exchange credentials. Store secret references
   in control data, never secret values. Local development may use `.env`; enterprise
