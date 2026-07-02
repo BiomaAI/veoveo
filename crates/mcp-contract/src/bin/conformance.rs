@@ -88,7 +88,7 @@ enum Cmd {
     /// Print a deterministic conformance JWT signed by the conformance private key.
     GatewayToken {
         /// Token issuer claim.
-        #[arg(long, default_value = "https://idp.example.com")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default")]
         issuer: String,
         /// Token audience claim.
         #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]

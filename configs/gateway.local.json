@@ -10,7 +10,20 @@
       "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
       "token_endpoint": "https://idp.example.com/oauth2/token",
       "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
-      "client_credentials_endpoint": "https://idp.example.com/oauth2/token",
+      "metadata": {}
+    }
+  ],
+  "authorization_servers": [
+    {
+      "id": "veoveo",
+      "issuer": "https://veoveo.bioma.ai/oauth/default",
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://veoveo.bioma.ai/oauth/default/jwks.json"
+      },
+      "identity_provider": "enterprise",
+      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/default/authorize",
+      "token_endpoint": "https://veoveo.bioma.ai/oauth/default/token",
       "metadata": {}
     }
   ],
@@ -63,6 +76,7 @@
     {
       "id": "default",
       "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
       "protected_resource": "https://veoveo.bioma.ai/mcp/default",
       "policy_version": "2026-07-02",
       "auth_modes": [
@@ -150,7 +164,7 @@
   "oauth_clients": [
     {
       "id": "veoveo-browser",
-      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
       "display_name": "Veoveo browser client",
       "allowed_profiles": ["default"],
       "grant_types": [
@@ -167,7 +181,7 @@
     },
     {
       "id": "veoveo-headless",
-      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
       "display_name": "Veoveo headless client",
       "allowed_profiles": ["default"],
       "grant_types": ["client_credentials"],

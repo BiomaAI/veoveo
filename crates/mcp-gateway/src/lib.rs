@@ -15,16 +15,18 @@ pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
 pub use state::{GatewayAuditCounts, GatewayState};
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId, GatewayToolName,
-    IdentityProvider, IdentityProviderId, LocalToolName, McpMethodName, PolicyDecision,
-    PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet, PolicyTarget,
-    PolicyVersion, Principal, ResourceScheme, ScopeName, ServerManifest, ServerSlug, TraceId,
+    AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId,
+    GatewayToolName, IdentityProvider, IdentityProviderId, LocalToolName, McpMethodName,
+    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
+    PolicyTarget, PolicyVersion, Principal, ResourceAuthorizationServer, ResourceScheme, ScopeName,
+    ServerManifest, ServerSlug, TraceId,
 };
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalog {
     control_plane: Arc<GatewayControlPlane>,
     identity_providers: BTreeMap<IdentityProviderId, usize>,
+    authorization_servers: BTreeMap<AuthorizationServerId, usize>,
     servers: BTreeMap<ServerSlug, usize>,
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
@@ -39,6 +41,12 @@ impl GatewayCatalog {
             .iter()
             .enumerate()
             .map(|(index, identity_provider)| (identity_provider.id.clone(), index))
+            .collect();
+        let authorization_servers = control_plane
+            .authorization_servers
+            .iter()
+            .enumerate()
+            .map(|(index, authorization_server)| (authorization_server.id.clone(), index))
             .collect();
         let servers = control_plane
             .servers
@@ -62,6 +70,7 @@ impl GatewayCatalog {
         Ok(Self {
             control_plane: Arc::new(control_plane),
             identity_providers,
+            authorization_servers,
             servers,
             profiles,
             policies,
@@ -109,6 +118,15 @@ impl GatewayCatalog {
             .map(|index| &self.control_plane.identity_providers[*index])
     }
 
+    pub fn authorization_server(
+        &self,
+        authorization_server_id: &AuthorizationServerId,
+    ) -> Option<&ResourceAuthorizationServer> {
+        self.authorization_servers
+            .get(authorization_server_id)
+            .map(|index| &self.control_plane.authorization_servers[*index])
+    }
+
     pub fn protected_resource_metadata(
         &self,
         profile_id: &GatewayProfileId,
@@ -116,16 +134,16 @@ impl GatewayCatalog {
         let profile = self
             .profile(profile_id)
             .ok_or_else(|| GatewayMetadataError::UnknownProfile(profile_id.clone()))?;
-        let identity_provider = self
-            .identity_provider(&profile.identity_provider)
-            .ok_or_else(|| GatewayMetadataError::UnknownIdentityProvider {
+        let authorization_server = self
+            .authorization_server(&profile.authorization_server)
+            .ok_or_else(|| GatewayMetadataError::UnknownAuthorizationServer {
                 profile: profile.id.clone(),
-                identity_provider: profile.identity_provider.clone(),
+                authorization_server: profile.authorization_server.clone(),
             })?;
 
         Ok(ProtectedResourceMetadata {
             resource: profile.protected_resource.to_string(),
-            authorization_servers: vec![identity_provider.issuer.to_string()],
+            authorization_servers: vec![authorization_server.issuer.to_string()],
             scopes_supported: self
                 .profile_supported_scopes(profile)
                 .into_iter()
@@ -502,9 +520,9 @@ fn authorization_extensions(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayMetadataError {
     UnknownProfile(GatewayProfileId),
-    UnknownIdentityProvider {
+    UnknownAuthorizationServer {
         profile: GatewayProfileId,
-        identity_provider: IdentityProviderId,
+        authorization_server: AuthorizationServerId,
     },
 }
 
@@ -512,12 +530,12 @@ impl fmt::Display for GatewayMetadataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnknownProfile(profile) => write!(f, "unknown gateway profile `{profile}`"),
-            Self::UnknownIdentityProvider {
+            Self::UnknownAuthorizationServer {
                 profile,
-                identity_provider,
+                authorization_server,
             } => write!(
                 f,
-                "gateway profile `{profile}` references unknown identity provider `{identity_provider}`"
+                "gateway profile `{profile}` references unknown resource authorization server `{authorization_server}`"
             ),
         }
     }
@@ -793,14 +811,15 @@ mod tests {
     use chrono::{DateTime, Utc};
     use serde_json::Value;
     use veoveo_mcp_contract::{
-        AuthMode, CompletionExposure, DataLabelId, Exposure, GatewayControlPlaneError,
-        GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId, IdentityProviderJwks,
-        MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
-        MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
-        OAuthRedirectUri, OwnedRoute, OwnedRoutePurpose, PrincipalId, PrincipalKind,
-        ProfileServerExposure, ProtectedResourceId, ResourceSelector, ScopeName, SecretLocator,
-        SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
-        TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
+        AuthMode, AuthorizationServerId, CompletionExposure, DataLabelId, Exposure,
+        GatewayControlPlaneError, GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId,
+        JwksSource, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
+        MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
+        OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OwnedRoute, OwnedRoutePurpose,
+        PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
+        ResourceAuthorizationServer, ResourceSelector, ScopeName, SecretLocator, SecretOwner,
+        SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure, TenantId,
+        TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
     };
 
     use super::*;
@@ -809,7 +828,7 @@ mod tests {
         IdentityProvider {
             id: IdentityProviderId::new("enterprise").unwrap(),
             issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            jwks: IdentityProviderJwks::Remote {
+            jwks: JwksSource::Remote {
                 jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
             },
             authorization_endpoint: Some(
@@ -819,9 +838,22 @@ mod tests {
             enterprise_managed_authorization_endpoint: Some(
                 HttpsUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
             ),
-            client_credentials_endpoint: Some(
-                HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap(),
+            metadata: Value::Null,
+        }
+    }
+
+    fn authorization_server() -> ResourceAuthorizationServer {
+        ResourceAuthorizationServer {
+            id: AuthorizationServerId::new("veoveo").unwrap(),
+            issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+            jwks: JwksSource::Remote {
+                jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/jwks.json").unwrap(),
+            },
+            identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
+            authorization_endpoint: Some(
+                HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/authorize").unwrap(),
             ),
+            token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/token").unwrap(),
             metadata: Value::Null,
         }
     }
@@ -885,6 +917,7 @@ mod tests {
         GatewayProfile {
             id: GatewayProfileId::new("default").unwrap(),
             identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+            authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
             protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
                 .unwrap(),
             policy_version: PolicyVersion::new("2026-07-02").unwrap(),
@@ -912,7 +945,7 @@ mod tests {
         vec![
             OAuthClientRegistration {
                 id: OAuthClientId::new("veoveo-browser").unwrap(),
-                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
                 display_name: Some("Veoveo browser client".to_string()),
                 allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
                 grant_types: BTreeSet::from([
@@ -935,7 +968,7 @@ mod tests {
             },
             OAuthClientRegistration {
                 id: OAuthClientId::new("veoveo-headless").unwrap(),
-                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
                 display_name: Some("Veoveo headless client".to_string()),
                 allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
                 grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
@@ -947,7 +980,7 @@ mod tests {
                     ScopeName::new("gateway:admin").unwrap(),
                 ]),
                 credential_secret: None,
-                jwks: Some(IdentityProviderJwks::Remote {
+                jwks: Some(JwksSource::Remote {
                     jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/clients/jwks.json")
                         .unwrap(),
                 }),
@@ -963,6 +996,7 @@ mod tests {
     fn catalog_with_policy(policy: PolicySet) -> GatewayCatalog {
         GatewayCatalog::from_control_plane(GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile()],
             policies: vec![policy],
@@ -1159,7 +1193,7 @@ mod tests {
         assert_eq!(metadata.resource, "https://veoveo.bioma.ai/mcp/default");
         assert_eq!(
             metadata.authorization_servers,
-            vec!["https://idp.example.com".to_string()]
+            vec!["https://veoveo.bioma.ai/oauth/default".to_string()]
         );
         assert_eq!(metadata.scopes_supported, vec!["media:use".to_string()]);
         assert_eq!(
@@ -1252,6 +1286,7 @@ mod tests {
     fn keeps_contract_validation_errors_visible() {
         let err = GatewayCatalog::from_control_plane(GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![{
                 let mut profile = profile();

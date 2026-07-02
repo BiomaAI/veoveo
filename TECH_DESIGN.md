@@ -280,15 +280,19 @@ Gateway data must be split by sensitivity and lifecycle:
 
 - **Control data**: hosted server manifests, gateway profiles, profile assignments,
   policy sets, environment definitions, tenant records, identity-provider metadata,
-  OAuth client registrations, data-label definitions, and secret references. This data is
-  dynamic and durable. It should start as typed files plus hot reload or an explicit admin
-  API, then move to a control-plane store without changing the MCP contract.
+  resource authorization server metadata, OAuth client registrations, data-label
+  definitions, and secret references. This data is dynamic and durable. It should start as
+  typed files plus hot reload or an explicit admin API, then move to a control-plane store
+  without changing the MCP contract.
   The file-backed gateway exposes an authenticated admin reload path for mounted profiles;
   the set of mounted profile route ids is immutable during reload and changing it is a
   deploy operation.
   OAuth client registrations are typed control data: each advertised profile auth mode must
   have a matching registered client grant, and each client must explicitly allow the scopes
   required by the profile and its policy rules.
+  The enterprise identity provider and the MCP resource authorization server are separate
+  control-plane objects: the IdP handles SSO and ID-JAG issuance, while the resource
+  authorization server is the issuer/JWKS authority for profile-scoped MCP access tokens.
 - **Secret data**: provider API keys, webhook secrets, OAuth client secrets, gateway
   signing keys, JWKS private keys, and token-exchange credentials. Store secret references
   in control data, never secret values. Local development may use `.env`; enterprise

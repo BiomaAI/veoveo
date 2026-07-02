@@ -111,6 +111,11 @@ typed_id!(
     "Configured identity provider id used by gateway profiles."
 );
 typed_id!(
+    AuthorizationServerId,
+    validate_path_id,
+    "Resource authorization server id that issues profile-scoped MCP access tokens."
+);
+typed_id!(
     GatewayToolName,
     validate_gateway_name,
     "Gateway-scoped tool name after server namespace projection."
@@ -229,6 +234,7 @@ typed_id!(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayControlPlane {
     pub identity_providers: Vec<IdentityProvider>,
+    pub authorization_servers: Vec<ResourceAuthorizationServer>,
     pub servers: Vec<ServerManifest>,
     pub profiles: Vec<GatewayProfile>,
     pub policies: Vec<PolicySet>,
@@ -251,6 +257,28 @@ impl GatewayControlPlane {
                 return Err(GatewayControlPlaneError::DuplicateIdentityProvider(
                     identity_provider.id.clone(),
                 ));
+            }
+        }
+
+        let mut authorization_servers = BTreeMap::new();
+        for authorization_server in &self.authorization_servers {
+            if authorization_servers
+                .insert(authorization_server.id.clone(), authorization_server)
+                .is_some()
+            {
+                return Err(GatewayControlPlaneError::DuplicateAuthorizationServer(
+                    authorization_server.id.clone(),
+                ));
+            }
+            if let Some(identity_provider) = &authorization_server.identity_provider
+                && !identity_providers.contains_key(identity_provider)
+            {
+                return Err(
+                    GatewayControlPlaneError::UnknownAuthorizationServerIdentityProvider {
+                        authorization_server: authorization_server.id.clone(),
+                        identity_provider: identity_provider.clone(),
+                    },
+                );
             }
         }
 
@@ -297,6 +325,14 @@ impl GatewayControlPlane {
                     identity_provider: profile.identity_provider.clone(),
                 });
             };
+            let Some(authorization_server) =
+                authorization_servers.get(&profile.authorization_server)
+            else {
+                return Err(GatewayControlPlaneError::UnknownAuthorizationServer {
+                    profile: profile.id.clone(),
+                    authorization_server: profile.authorization_server.clone(),
+                });
+            };
             if !policies.contains(&profile.policy_version) {
                 return Err(GatewayControlPlaneError::UnknownPolicy {
                     profile: profile.id.clone(),
@@ -319,7 +355,7 @@ impl GatewayControlPlane {
                 };
                 validate_profile_server_exposure(profile, exposure, server)?;
             }
-            validate_profile_auth_modes(profile, identity_provider)?;
+            validate_profile_auth_modes(profile, identity_provider, authorization_server)?;
         }
 
         for policy in &self.policies {
@@ -363,7 +399,7 @@ impl GatewayControlPlane {
             }
             validate_oauth_client_registration(
                 client,
-                &identity_providers,
+                &authorization_servers,
                 &profile_by_id,
                 &policy_by_id,
                 &secret_refs,
@@ -373,7 +409,7 @@ impl GatewayControlPlane {
             for auth_mode in &profile.auth_modes {
                 let required_grant = OAuthGrantType::from(*auth_mode);
                 let has_client = self.oauth_clients.iter().any(|client| {
-                    client.identity_provider == profile.identity_provider
+                    client.authorization_server == profile.authorization_server
                         && client.allowed_profiles.contains(&profile.id)
                         && client.grant_types.contains(&required_grant)
                 });
@@ -393,6 +429,7 @@ impl GatewayControlPlane {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayControlPlaneError {
     DuplicateIdentityProvider(IdentityProviderId),
+    DuplicateAuthorizationServer(AuthorizationServerId),
     DuplicateServer(ServerSlug),
     DuplicateResourceScheme(ResourceScheme),
     DuplicateProfile(GatewayProfileId),
@@ -475,6 +512,14 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         identity_provider: IdentityProviderId,
     },
+    UnknownAuthorizationServer {
+        profile: GatewayProfileId,
+        authorization_server: AuthorizationServerId,
+    },
+    UnknownAuthorizationServerIdentityProvider {
+        authorization_server: AuthorizationServerId,
+        identity_provider: IdentityProviderId,
+    },
     MissingAuthModes {
         profile: GatewayProfileId,
     },
@@ -482,6 +527,11 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         identity_provider: IdentityProviderId,
         endpoint: IdentityProviderEndpoint,
+    },
+    MissingAuthorizationServerEndpoint {
+        profile: GatewayProfileId,
+        authorization_server: AuthorizationServerId,
+        endpoint: AuthorizationServerEndpoint,
     },
     UnknownSecretOwnerProfile {
         secret: SecretReferenceId,
@@ -491,9 +541,9 @@ pub enum GatewayControlPlaneError {
         secret: SecretReferenceId,
         server: ServerSlug,
     },
-    UnknownOAuthClientIdentityProvider {
+    UnknownOAuthClientAuthorizationServer {
         client: OAuthClientId,
-        identity_provider: IdentityProviderId,
+        authorization_server: AuthorizationServerId,
     },
     UnknownOAuthClientProfile {
         client: OAuthClientId,
@@ -508,11 +558,11 @@ pub enum GatewayControlPlaneError {
         secret: SecretReferenceId,
         purpose: SecretPurpose,
     },
-    OAuthClientProfileIdentityProviderMismatch {
+    OAuthClientProfileAuthorizationServerMismatch {
         client: OAuthClientId,
         profile: GatewayProfileId,
-        client_identity_provider: IdentityProviderId,
-        profile_identity_provider: IdentityProviderId,
+        client_authorization_server: AuthorizationServerId,
+        profile_authorization_server: AuthorizationServerId,
     },
     OAuthClientWithoutAllowedProfiles(OAuthClientId),
     OAuthClientWithoutGrantTypes(OAuthClientId),
@@ -569,7 +619,6 @@ pub enum IdentityProviderEndpoint {
     Authorization,
     Token,
     EnterpriseManagedAuthorization,
-    ClientCredentials,
 }
 
 impl IdentityProviderEndpoint {
@@ -578,7 +627,19 @@ impl IdentityProviderEndpoint {
             Self::Authorization => "authorization endpoint",
             Self::Token => "token endpoint",
             Self::EnterpriseManagedAuthorization => "enterprise-managed authorization endpoint",
-            Self::ClientCredentials => "client-credentials endpoint",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthorizationServerEndpoint {
+    Authorization,
+}
+
+impl AuthorizationServerEndpoint {
+    fn description(self) -> &'static str {
+        match self {
+            Self::Authorization => "authorization endpoint",
         }
     }
 }
@@ -588,6 +649,12 @@ impl fmt::Display for GatewayControlPlaneError {
         match self {
             Self::DuplicateIdentityProvider(identity_provider) => {
                 write!(f, "duplicate identity provider `{identity_provider}`")
+            }
+            Self::DuplicateAuthorizationServer(authorization_server) => {
+                write!(
+                    f,
+                    "duplicate resource authorization server `{authorization_server}`"
+                )
             }
             Self::DuplicateServer(server) => write!(f, "duplicate server manifest `{server}`"),
             Self::DuplicateResourceScheme(scheme) => {
@@ -711,6 +778,20 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "gateway profile `{profile}` references unknown identity provider `{identity_provider}`"
             ),
+            Self::UnknownAuthorizationServer {
+                profile,
+                authorization_server,
+            } => write!(
+                f,
+                "gateway profile `{profile}` references unknown resource authorization server `{authorization_server}`"
+            ),
+            Self::UnknownAuthorizationServerIdentityProvider {
+                authorization_server,
+                identity_provider,
+            } => write!(
+                f,
+                "resource authorization server `{authorization_server}` references unknown identity provider `{identity_provider}`"
+            ),
             Self::MissingAuthModes { profile } => {
                 write!(f, "gateway profile `{profile}` declares no auth modes")
             }
@@ -723,6 +804,15 @@ impl fmt::Display for GatewayControlPlaneError {
                 "gateway profile `{profile}` requires {} on identity provider `{identity_provider}`",
                 endpoint.description()
             ),
+            Self::MissingAuthorizationServerEndpoint {
+                profile,
+                authorization_server,
+                endpoint,
+            } => write!(
+                f,
+                "gateway profile `{profile}` requires {} on resource authorization server `{authorization_server}`",
+                endpoint.description()
+            ),
             Self::UnknownSecretOwnerProfile { secret, profile } => write!(
                 f,
                 "secret reference `{secret}` is owned by unknown gateway profile `{profile}`"
@@ -731,12 +821,12 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "secret reference `{secret}` is owned by unknown server `{server}`"
             ),
-            Self::UnknownOAuthClientIdentityProvider {
+            Self::UnknownOAuthClientAuthorizationServer {
                 client,
-                identity_provider,
+                authorization_server,
             } => write!(
                 f,
-                "OAuth client `{client}` references unknown identity provider `{identity_provider}`"
+                "OAuth client `{client}` references unknown resource authorization server `{authorization_server}`"
             ),
             Self::UnknownOAuthClientProfile { client, profile } => write!(
                 f,
@@ -754,14 +844,14 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "OAuth client `{client}` references secret `{secret}` with invalid purpose `{purpose:?}`"
             ),
-            Self::OAuthClientProfileIdentityProviderMismatch {
+            Self::OAuthClientProfileAuthorizationServerMismatch {
                 client,
                 profile,
-                client_identity_provider,
-                profile_identity_provider,
+                client_authorization_server,
+                profile_authorization_server,
             } => write!(
                 f,
-                "OAuth client `{client}` uses identity provider `{client_identity_provider}` but profile `{profile}` uses `{profile_identity_provider}`"
+                "OAuth client `{client}` uses resource authorization server `{client_authorization_server}` but profile `{profile}` uses `{profile_authorization_server}`"
             ),
             Self::OAuthClientWithoutAllowedProfiles(client) => {
                 write!(
@@ -1203,6 +1293,7 @@ fn policy_rule_server_scope<'a>(
 fn validate_profile_auth_modes(
     profile: &GatewayProfile,
     identity_provider: &IdentityProvider,
+    authorization_server: &ResourceAuthorizationServer,
 ) -> Result<(), GatewayControlPlaneError> {
     if profile.auth_modes.is_empty() {
         return Err(GatewayControlPlaneError::MissingAuthModes {
@@ -1212,11 +1303,11 @@ fn validate_profile_auth_modes(
     for auth_mode in &profile.auth_modes {
         match auth_mode {
             AuthMode::OidcAuthorizationCodePkce => {
-                require_identity_provider_endpoint(
+                require_authorization_server_endpoint(
                     profile,
-                    identity_provider,
-                    IdentityProviderEndpoint::Authorization,
-                    identity_provider.authorization_endpoint.is_some(),
+                    authorization_server,
+                    AuthorizationServerEndpoint::Authorization,
+                    authorization_server.authorization_endpoint.is_some(),
                 )?;
                 require_identity_provider_endpoint(
                     profile,
@@ -1235,14 +1326,7 @@ fn validate_profile_auth_modes(
                         .is_some(),
                 )?;
             }
-            AuthMode::OAuthClientCredentials => {
-                require_identity_provider_endpoint(
-                    profile,
-                    identity_provider,
-                    IdentityProviderEndpoint::ClientCredentials,
-                    identity_provider.client_credentials_endpoint.is_some(),
-                )?;
-            }
+            AuthMode::OAuthClientCredentials => {}
         }
     }
     Ok(())
@@ -1265,18 +1349,37 @@ fn require_identity_provider_endpoint(
     }
 }
 
+fn require_authorization_server_endpoint(
+    profile: &GatewayProfile,
+    authorization_server: &ResourceAuthorizationServer,
+    endpoint: AuthorizationServerEndpoint,
+    present: bool,
+) -> Result<(), GatewayControlPlaneError> {
+    if present {
+        Ok(())
+    } else {
+        Err(
+            GatewayControlPlaneError::MissingAuthorizationServerEndpoint {
+                profile: profile.id.clone(),
+                authorization_server: authorization_server.id.clone(),
+                endpoint,
+            },
+        )
+    }
+}
+
 fn validate_oauth_client_registration(
     client: &OAuthClientRegistration,
-    identity_providers: &BTreeMap<IdentityProviderId, &IdentityProvider>,
+    authorization_servers: &BTreeMap<AuthorizationServerId, &ResourceAuthorizationServer>,
     profiles: &BTreeMap<GatewayProfileId, &GatewayProfile>,
     policies: &BTreeMap<PolicyVersion, &PolicySet>,
     secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
 ) -> Result<(), GatewayControlPlaneError> {
-    if !identity_providers.contains_key(&client.identity_provider) {
+    if !authorization_servers.contains_key(&client.authorization_server) {
         return Err(
-            GatewayControlPlaneError::UnknownOAuthClientIdentityProvider {
+            GatewayControlPlaneError::UnknownOAuthClientAuthorizationServer {
                 client: client.id.clone(),
-                identity_provider: client.identity_provider.clone(),
+                authorization_server: client.authorization_server.clone(),
             },
         );
     }
@@ -1303,13 +1406,13 @@ fn validate_oauth_client_registration(
                 profile: profile_id.clone(),
             });
         };
-        if profile.identity_provider != client.identity_provider {
+        if profile.authorization_server != client.authorization_server {
             return Err(
-                GatewayControlPlaneError::OAuthClientProfileIdentityProviderMismatch {
+                GatewayControlPlaneError::OAuthClientProfileAuthorizationServerMismatch {
                     client: client.id.clone(),
                     profile: profile_id.clone(),
-                    client_identity_provider: client.identity_provider.clone(),
-                    profile_identity_provider: profile.identity_provider.clone(),
+                    client_authorization_server: client.authorization_server.clone(),
+                    profile_authorization_server: profile.authorization_server.clone(),
                 },
             );
         }
@@ -1427,22 +1530,34 @@ fn validate_oauth_client_registration(
 pub struct IdentityProvider {
     pub id: IdentityProviderId,
     pub issuer: TokenIssuer,
-    pub jwks: IdentityProviderJwks,
+    pub jwks: JwksSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authorization_endpoint: Option<HttpsUrl>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_endpoint: Option<HttpsUrl>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enterprise_managed_authorization_endpoint: Option<HttpsUrl>,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ResourceAuthorizationServer {
+    pub id: AuthorizationServerId,
+    pub issuer: TokenIssuer,
+    pub jwks: JwksSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub client_credentials_endpoint: Option<HttpsUrl>,
+    pub identity_provider: Option<IdentityProviderId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_endpoint: Option<HttpsUrl>,
+    pub token_endpoint: HttpsUrl,
     #[serde(default)]
     pub metadata: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "source")]
-pub enum IdentityProviderJwks {
+pub enum JwksSource {
     Remote { jwks_uri: HttpsUrl },
     File { path: JwksFilePath },
 }
@@ -1450,7 +1565,7 @@ pub enum IdentityProviderJwks {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct OAuthClientRegistration {
     pub id: OAuthClientId,
-    pub identity_provider: IdentityProviderId,
+    pub authorization_server: AuthorizationServerId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     pub allowed_profiles: BTreeSet<GatewayProfileId>,
@@ -1463,7 +1578,7 @@ pub struct OAuthClientRegistration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_secret: Option<SecretReferenceId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub jwks: Option<IdentityProviderJwks>,
+    pub jwks: Option<JwksSource>,
     #[serde(default)]
     pub metadata: Value,
 }
@@ -1524,6 +1639,7 @@ pub struct ServerManifest {
 pub struct GatewayProfile {
     pub id: GatewayProfileId,
     pub identity_provider: IdentityProviderId,
+    pub authorization_server: AuthorizationServerId,
     pub protected_resource: ProtectedResourceId,
     pub policy_version: PolicyVersion,
     pub auth_modes: BTreeSet<AuthMode>,
@@ -1896,7 +2012,9 @@ pub enum AuthReasonCode {
     MissingAuthorizationHeader,
     InvalidAuthorizationHeader,
     UnknownIdentityProvider,
+    UnknownAuthorizationServer,
     IdentityProviderUnavailable,
+    AuthorizationServerUnavailable,
     InvalidAuthConfig,
     InvalidBearerToken,
     TokenRevoked,
@@ -1909,7 +2027,9 @@ impl AuthReasonCode {
             Self::MissingAuthorizationHeader => "missing_authorization_header",
             Self::InvalidAuthorizationHeader => "invalid_authorization_header",
             Self::UnknownIdentityProvider => "unknown_identity_provider",
+            Self::UnknownAuthorizationServer => "unknown_authorization_server",
             Self::IdentityProviderUnavailable => "identity_provider_unavailable",
+            Self::AuthorizationServerUnavailable => "authorization_server_unavailable",
             Self::InvalidAuthConfig => "invalid_auth_config",
             Self::InvalidBearerToken => "invalid_bearer_token",
             Self::TokenRevoked => "token_revoked",
@@ -2609,7 +2729,7 @@ mod tests {
         IdentityProvider {
             id: IdentityProviderId::new("enterprise").unwrap(),
             issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            jwks: IdentityProviderJwks::Remote {
+            jwks: JwksSource::Remote {
                 jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
             },
             authorization_endpoint: Some(
@@ -2619,9 +2739,22 @@ mod tests {
             enterprise_managed_authorization_endpoint: Some(
                 HttpsUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
             ),
-            client_credentials_endpoint: Some(
-                HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap(),
+            metadata: Value::Null,
+        }
+    }
+
+    fn authorization_server() -> ResourceAuthorizationServer {
+        ResourceAuthorizationServer {
+            id: AuthorizationServerId::new("veoveo").unwrap(),
+            issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+            jwks: JwksSource::Remote {
+                jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/jwks.json").unwrap(),
+            },
+            identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
+            authorization_endpoint: Some(
+                HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/authorize").unwrap(),
             ),
+            token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/token").unwrap(),
             metadata: Value::Null,
         }
     }
@@ -2685,6 +2818,7 @@ mod tests {
         GatewayProfile {
             id: GatewayProfileId::new("default").unwrap(),
             identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+            authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
             protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
                 .unwrap(),
             policy_version: PolicyVersion::new("2026-07-02").unwrap(),
@@ -2712,7 +2846,7 @@ mod tests {
         vec![
             OAuthClientRegistration {
                 id: OAuthClientId::new("veoveo-browser").unwrap(),
-                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
                 display_name: Some("Veoveo browser client".to_string()),
                 allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
                 grant_types: BTreeSet::from([
@@ -2734,7 +2868,7 @@ mod tests {
             },
             OAuthClientRegistration {
                 id: OAuthClientId::new("veoveo-headless").unwrap(),
-                identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+                authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
                 display_name: Some("Veoveo headless client".to_string()),
                 allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
                 grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
@@ -2745,7 +2879,7 @@ mod tests {
                     ScopeName::new("gateway:admin").unwrap(),
                 ]),
                 credential_secret: None,
-                jwks: Some(IdentityProviderJwks::Remote {
+                jwks: Some(JwksSource::Remote {
                     jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/clients/jwks.json")
                         .unwrap(),
                 }),
@@ -2799,6 +2933,7 @@ mod tests {
     fn control_plane_validates_cross_references() {
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -2826,6 +2961,7 @@ mod tests {
         profile.servers[0].server = ServerSlug::new("simulation").unwrap();
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -2848,6 +2984,7 @@ mod tests {
         profile.servers.push(profile.servers[0].clone());
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -2872,6 +3009,7 @@ mod tests {
         profile.servers[0].tools = Exposure::Listed(vec![LocalToolName::new("simulate").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -2897,6 +3035,7 @@ mod tests {
             Exposure::Listed(vec![PromptName::new("unknown-prompt").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -2923,6 +3062,7 @@ mod tests {
         }]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -2947,6 +3087,7 @@ mod tests {
         manifest.capabilities.tasks = false;
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![manifest],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -2974,6 +3115,7 @@ mod tests {
         profile.identity_provider = IdentityProviderId::new("missing").unwrap();
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -2993,11 +3135,62 @@ mod tests {
     }
 
     #[test]
+    fn control_plane_rejects_unknown_authorization_server_reference() {
+        let mut profile = default_profile();
+        profile.authorization_server = AuthorizationServerId::new("missing").unwrap();
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown authorization server must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownAuthorizationServer { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_authorization_server_unknown_identity_provider() {
+        let mut authorization_server = authorization_server();
+        authorization_server.identity_provider = Some(IdentityProviderId::new("missing").unwrap());
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("authorization server IdP reference must be known");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownAuthorizationServerIdentityProvider { .. }
+        ));
+    }
+
+    #[test]
     fn control_plane_rejects_profile_without_auth_modes() {
         let mut profile = default_profile();
         profile.auth_modes.clear();
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -3016,12 +3209,13 @@ mod tests {
 
     #[test]
     fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
-        let mut idp = identity_provider();
-        idp.authorization_endpoint = None;
+        let mut auth_server = authorization_server();
+        auth_server.authorization_endpoint = None;
         let mut profile = default_profile();
         profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
         let config = GatewayControlPlane {
-            identity_providers: vec![idp],
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![auth_server],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -3036,8 +3230,8 @@ mod tests {
 
         assert!(matches!(
             err,
-            GatewayControlPlaneError::MissingIdentityProviderEndpoint {
-                endpoint: IdentityProviderEndpoint::Authorization,
+            GatewayControlPlaneError::MissingAuthorizationServerEndpoint {
+                endpoint: AuthorizationServerEndpoint::Authorization,
                 ..
             }
         ));
@@ -3048,6 +3242,7 @@ mod tests {
         profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
         let config = GatewayControlPlane {
             identity_providers: vec![idp],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -3077,6 +3272,7 @@ mod tests {
         profile.auth_modes = BTreeSet::from([AuthMode::EnterpriseManagedAuthorization]);
         let config = GatewayControlPlane {
             identity_providers: vec![idp],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -3096,38 +3292,13 @@ mod tests {
                 ..
             }
         ));
-
-        let mut idp = identity_provider();
-        idp.client_credentials_endpoint = None;
-        let mut profile = default_profile();
-        profile.auth_modes = BTreeSet::from([AuthMode::OAuthClientCredentials]);
-        let config = GatewayControlPlane {
-            identity_providers: vec![idp],
-            servers: vec![media_manifest()],
-            profiles: vec![profile],
-            policies: vec![default_policy()],
-            oauth_clients: default_oauth_clients(),
-            secrets: vec![],
-            metadata: Value::Null,
-        };
-
-        let err = config
-            .validate()
-            .expect_err("client-credentials auth requires endpoint");
-
-        assert!(matches!(
-            err,
-            GatewayControlPlaneError::MissingIdentityProviderEndpoint {
-                endpoint: IdentityProviderEndpoint::ClientCredentials,
-                ..
-            }
-        ));
     }
 
     #[test]
     fn control_plane_rejects_unknown_secret_owner_references() {
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3157,6 +3328,7 @@ mod tests {
 
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3189,6 +3361,7 @@ mod tests {
     fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3213,6 +3386,7 @@ mod tests {
         clients[1].auth_methods = BTreeSet::from([OAuthClientAuthMethod::None]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3237,6 +3411,7 @@ mod tests {
         clients[1].jwks = None;
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3263,6 +3438,7 @@ mod tests {
             .remove(&ScopeName::new("media:use").unwrap());
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3287,6 +3463,7 @@ mod tests {
         second_server.slug = ServerSlug::new("simulation").unwrap();
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest(), second_server],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -3311,6 +3488,7 @@ mod tests {
         policy.rules.push(policy.rules[0].clone());
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3335,6 +3513,7 @@ mod tests {
         policy.rules[0].profiles = BTreeSet::from([GatewayProfileId::new("missing").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3356,6 +3535,7 @@ mod tests {
         policy.rules[0].servers = BTreeSet::from([ServerSlug::new("missing").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3378,6 +3558,7 @@ mod tests {
             BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3399,6 +3580,7 @@ mod tests {
         policy.rules[0].tools = BTreeSet::from([LocalToolName::new("simulate").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3420,6 +3602,7 @@ mod tests {
         policy.rules[0].prompts = BTreeSet::from([PromptName::new("unknown-prompt").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3445,6 +3628,7 @@ mod tests {
             BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest(), simulation_server],
             profiles: vec![default_profile()],
             policies: vec![policy],
@@ -3473,6 +3657,7 @@ mod tests {
         policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
         let config = GatewayControlPlane {
             identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
             servers: vec![manifest],
             profiles: vec![default_profile()],
             policies: vec![policy],

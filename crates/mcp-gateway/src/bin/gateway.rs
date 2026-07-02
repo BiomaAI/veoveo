@@ -28,9 +28,8 @@ use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayInternalTokenIssuer, GatewayJwtRevocation,
-    GatewayProfile, GatewayProfileId, IdentityProviderJwks, InternalTokenSecret, JwtId,
-    McpMethodName, PolicyDecision, PolicyEffect, PolicyTarget, PublicDeployment, TokenIssuer,
-    TraceId,
+    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
+    PolicyDecision, PolicyEffect, PolicyTarget, PublicDeployment, TokenIssuer, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
@@ -454,18 +453,19 @@ async fn authenticate_mcp(
     let Some(profile) = catalog.profile(&state.profile_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(identity_provider) = catalog.identity_provider(&profile.identity_provider) else {
+    let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
+    else {
         if let Err(err) = record_auth_audit(
             &state,
             profile,
             AuthOutcome::Deny,
-            AuthReasonCode::UnknownIdentityProvider,
+            AuthReasonCode::UnknownAuthorizationServer,
             None,
             started_at,
         ) {
             return auth_audit_error_response(err);
         }
-        return unauthorized(&state, "unknown identity provider");
+        return unauthorized(&state, "unknown authorization server");
     };
 
     let Some(header) = request
@@ -503,25 +503,25 @@ async fn authenticate_mcp(
         }
     };
 
-    let jwks = match load_jwks(&state.http, &identity_provider.jwks).await {
+    let jwks = match load_jwks(&state.http, &authorization_server.jwks).await {
         Ok(jwks) => jwks,
         Err(err) => {
-            tracing::warn!("failed to load identity provider JWKS: {err}");
+            tracing::warn!("failed to load resource authorization server JWKS: {err}");
             if let Err(err) = record_auth_audit(
                 &state,
                 profile,
                 AuthOutcome::Deny,
-                AuthReasonCode::IdentityProviderUnavailable,
+                AuthReasonCode::AuthorizationServerUnavailable,
                 None,
                 started_at,
             ) {
                 return auth_audit_error_response(err);
             }
-            return unauthorized(&state, "identity provider unavailable");
+            return unauthorized(&state, "authorization server unavailable");
         }
     };
     let auth_config = match JwtAuthConfig::new(
-        identity_provider.issuer.clone(),
+        authorization_server.issuer.clone(),
         profile.protected_resource.clone(),
         profile.required_scopes.iter().cloned().collect(),
         allowed_gateway_jwt_algorithms(),
@@ -609,10 +609,10 @@ async fn authenticate_mcp(
     next.run(request).await
 }
 
-async fn load_jwks(http: &reqwest::Client, jwks: &IdentityProviderJwks) -> anyhow::Result<JwkSet> {
+async fn load_jwks(http: &reqwest::Client, jwks: &JwksSource) -> anyhow::Result<JwkSet> {
     match jwks {
-        IdentityProviderJwks::Remote { jwks_uri } => fetch_jwks(http, jwks_uri.as_str()).await,
-        IdentityProviderJwks::File { path } => {
+        JwksSource::Remote { jwks_uri } => fetch_jwks(http, jwks_uri.as_str()).await,
+        JwksSource::File { path } => {
             let bytes = std::fs::read(path.as_str())?;
             Ok(serde_json::from_slice::<JwkSet>(&bytes)?)
         }
