@@ -11,14 +11,15 @@ use anyhow::{Context, Result};
 pub use auth::{AuthError, AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId, GatewayToolName,
-    LocalToolName, McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule,
-    PolicySet, PolicyTarget, PolicyVersion, Principal, ResourceScheme, ServerManifest, ServerSlug,
-    TraceId,
+    IdentityProvider, IdentityProviderId, LocalToolName, McpMethodName, PolicyDecision,
+    PolicyEffect, PolicyReasonCode, PolicyRule, PolicySet, PolicyTarget, PolicyVersion, Principal,
+    ResourceScheme, ServerManifest, ServerSlug, TraceId,
 };
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalog {
     control_plane: Arc<GatewayControlPlane>,
+    identity_providers: BTreeMap<IdentityProviderId, usize>,
     servers: BTreeMap<ServerSlug, usize>,
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
@@ -28,6 +29,12 @@ impl GatewayCatalog {
     pub fn from_control_plane(control_plane: GatewayControlPlane) -> Result<Self> {
         control_plane.validate()?;
 
+        let identity_providers = control_plane
+            .identity_providers
+            .iter()
+            .enumerate()
+            .map(|(index, identity_provider)| (identity_provider.id.clone(), index))
+            .collect();
         let servers = control_plane
             .servers
             .iter()
@@ -49,6 +56,7 @@ impl GatewayCatalog {
 
         Ok(Self {
             control_plane: Arc::new(control_plane),
+            identity_providers,
             servers,
             profiles,
             policies,
@@ -81,6 +89,15 @@ impl GatewayCatalog {
         self.profiles
             .get(profile_id)
             .map(|index| &self.control_plane.profiles[*index])
+    }
+
+    pub fn identity_provider(
+        &self,
+        identity_provider_id: &IdentityProviderId,
+    ) -> Option<&IdentityProvider> {
+        self.identity_providers
+            .get(identity_provider_id)
+            .map(|index| &self.control_plane.identity_providers[*index])
     }
 
     pub fn server(&self, server_slug: &ServerSlug) -> Option<&ServerManifest> {
@@ -551,13 +568,33 @@ mod tests {
     use serde_json::Value;
     use veoveo_mcp_contract::{
         AuthMode, CompletionExposure, DataLabelId, Exposure, GatewayControlPlaneError,
-        GatewayTaskId, MountPath, OwnedRoute, OwnedRoutePurpose, PrincipalId, PrincipalKind,
-        ProfileServerExposure, ProtectedResourceId, ResourceSelector, ScopeName, SecretLocator,
-        SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
-        TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
+        GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId, MountPath, OwnedRoute,
+        OwnedRoutePurpose, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
+        ResourceSelector, ScopeName, SecretLocator, SecretOwner, SecretPurpose, SecretReference,
+        SecretReferenceId, SecretSource, TaskExposure, TenantId, TokenIssuer, TokenSubject,
+        UpstreamEndpoint, UpstreamTransport,
     };
 
     use super::*;
+
+    fn identity_provider() -> IdentityProvider {
+        IdentityProvider {
+            id: IdentityProviderId::new("enterprise").unwrap(),
+            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
+            jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
+            authorization_endpoint: Some(
+                HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
+            ),
+            token_endpoint: Some(HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap()),
+            enterprise_managed_authorization_endpoint: Some(
+                HttpsUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
+            ),
+            client_credentials_endpoint: Some(
+                HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap(),
+            ),
+            metadata: Value::Null,
+        }
+    }
 
     fn media_manifest() -> ServerManifest {
         ServerManifest {
@@ -617,6 +654,7 @@ mod tests {
     fn profile() -> GatewayProfile {
         GatewayProfile {
             id: GatewayProfileId::new("default").unwrap(),
+            identity_provider: IdentityProviderId::new("enterprise").unwrap(),
             protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
                 .unwrap(),
             policy_version: PolicyVersion::new("2026-07-02").unwrap(),
@@ -642,6 +680,7 @@ mod tests {
 
     fn catalog() -> GatewayCatalog {
         GatewayCatalog::from_control_plane(GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
             servers: vec![media_manifest()],
             profiles: vec![profile()],
             policies: vec![policy()],
@@ -767,6 +806,7 @@ mod tests {
     #[test]
     fn keeps_contract_validation_errors_visible() {
         let err = GatewayCatalog::from_control_plane(GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
             servers: vec![media_manifest()],
             profiles: vec![{
                 let mut profile = profile();

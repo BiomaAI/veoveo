@@ -91,6 +91,11 @@ typed_id!(
     "Gateway profile id exposed under `/mcp/{profile}`."
 );
 typed_id!(
+    IdentityProviderId,
+    validate_path_id,
+    "Configured identity provider id used by gateway profiles."
+);
+typed_id!(
     GatewayToolName,
     validate_gateway_name,
     "Gateway-scoped tool name after server namespace projection."
@@ -203,6 +208,7 @@ typed_id!(
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayControlPlane {
+    pub identity_providers: Vec<IdentityProvider>,
     pub servers: Vec<ServerManifest>,
     pub profiles: Vec<GatewayProfile>,
     pub policies: Vec<PolicySet>,
@@ -214,6 +220,15 @@ pub struct GatewayControlPlane {
 
 impl GatewayControlPlane {
     pub fn validate(&self) -> Result<(), GatewayControlPlaneError> {
+        let mut identity_providers = BTreeSet::new();
+        for identity_provider in &self.identity_providers {
+            if !identity_providers.insert(identity_provider.id.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateIdentityProvider(
+                    identity_provider.id.clone(),
+                ));
+            }
+        }
+
         let mut servers = BTreeSet::new();
         for server in &self.servers {
             if !servers.insert(server.slug.clone()) {
@@ -238,6 +253,12 @@ impl GatewayControlPlane {
                 return Err(GatewayControlPlaneError::DuplicateProfile(
                     profile.id.clone(),
                 ));
+            }
+            if !identity_providers.contains(&profile.identity_provider) {
+                return Err(GatewayControlPlaneError::UnknownIdentityProvider {
+                    profile: profile.id.clone(),
+                    identity_provider: profile.identity_provider.clone(),
+                });
             }
             if !policies.contains(&profile.policy_version) {
                 return Err(GatewayControlPlaneError::UnknownPolicy {
@@ -268,6 +289,7 @@ impl GatewayControlPlane {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayControlPlaneError {
+    DuplicateIdentityProvider(IdentityProviderId),
     DuplicateServer(ServerSlug),
     DuplicateProfile(GatewayProfileId),
     DuplicatePolicy(PolicyVersion),
@@ -280,11 +302,18 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         policy_version: PolicyVersion,
     },
+    UnknownIdentityProvider {
+        profile: GatewayProfileId,
+        identity_provider: IdentityProviderId,
+    },
 }
 
 impl fmt::Display for GatewayControlPlaneError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DuplicateIdentityProvider(identity_provider) => {
+                write!(f, "duplicate identity provider `{identity_provider}`")
+            }
             Self::DuplicateServer(server) => write!(f, "duplicate server manifest `{server}`"),
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
@@ -300,11 +329,35 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "gateway profile `{profile}` references unknown policy `{policy_version}`"
             ),
+            Self::UnknownIdentityProvider {
+                profile,
+                identity_provider,
+            } => write!(
+                f,
+                "gateway profile `{profile}` references unknown identity provider `{identity_provider}`"
+            ),
         }
     }
 }
 
 impl std::error::Error for GatewayControlPlaneError {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct IdentityProvider {
+    pub id: IdentityProviderId,
+    pub issuer: TokenIssuer,
+    pub jwks_uri: HttpsUrl,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_endpoint: Option<HttpsUrl>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_endpoint: Option<HttpsUrl>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_managed_authorization_endpoint: Option<HttpsUrl>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_credentials_endpoint: Option<HttpsUrl>,
+    #[serde(default)]
+    pub metadata: Value,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ServerManifest {
@@ -329,6 +382,7 @@ pub struct ServerManifest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayProfile {
     pub id: GatewayProfileId,
+    pub identity_provider: IdentityProviderId,
     pub protected_resource: ProtectedResourceId,
     pub policy_version: PolicyVersion,
     pub auth_modes: BTreeSet<AuthMode>,
@@ -734,6 +788,48 @@ impl From<MountPath> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+pub struct HttpsUrl(String);
+
+impl HttpsUrl {
+    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        validate_https_url(&value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for HttpsUrl {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for HttpsUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for HttpsUrl {
+    type Error = IdentifierError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<HttpsUrl> for String {
+    fn from(value: HttpsUrl) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
 pub struct ResourceUri(String);
 
 impl ResourceUri {
@@ -1016,6 +1112,29 @@ fn validate_mount_path(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+fn validate_https_url(value: &str) -> Result<(), IdentifierError> {
+    if !value.starts_with("https://") {
+        return Err(IdentifierError::new(value, "must start with https://"));
+    }
+    let rest = &value["https://".len()..];
+    if rest.is_empty() || rest.starts_with('/') {
+        return Err(IdentifierError::new(value, "must include a host"));
+    }
+    if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain whitespace or control characters",
+        ));
+    }
+    if value.contains('@') || value.contains('#') {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain userinfo or fragment",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_resource_uri(value: &str) -> Result<(), IdentifierError> {
     let Some((scheme, rest)) = value.split_once("://") else {
         return Err(IdentifierError::new(
@@ -1047,6 +1166,25 @@ fn validate_uri_template(value: &str) -> Result<(), IdentifierError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn identity_provider() -> IdentityProvider {
+        IdentityProvider {
+            id: IdentityProviderId::new("enterprise").unwrap(),
+            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
+            jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
+            authorization_endpoint: Some(
+                HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
+            ),
+            token_endpoint: Some(HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap()),
+            enterprise_managed_authorization_endpoint: Some(
+                HttpsUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
+            ),
+            client_credentials_endpoint: Some(
+                HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap(),
+            ),
+            metadata: Value::Null,
+        }
+    }
 
     fn media_manifest() -> ServerManifest {
         ServerManifest {
@@ -1106,6 +1244,7 @@ mod tests {
     fn default_profile() -> GatewayProfile {
         GatewayProfile {
             id: GatewayProfileId::new("default").unwrap(),
+            identity_provider: IdentityProviderId::new("enterprise").unwrap(),
             protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
                 .unwrap(),
             policy_version: PolicyVersion::new("2026-07-02").unwrap(),
@@ -1142,6 +1281,7 @@ mod tests {
     #[test]
     fn control_plane_validates_cross_references() {
         let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
             servers: vec![media_manifest()],
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
@@ -1167,6 +1307,7 @@ mod tests {
         let mut profile = default_profile();
         profile.servers[0].server = ServerSlug::new("simulation").unwrap();
         let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
             servers: vec![media_manifest()],
             profiles: vec![profile],
             policies: vec![default_policy()],
@@ -1179,6 +1320,29 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::UnknownServer { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_unknown_identity_provider_reference() {
+        let mut profile = default_profile();
+        profile.identity_provider = IdentityProviderId::new("missing").unwrap();
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown identity provider must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownIdentityProvider { .. }
         ));
     }
 
