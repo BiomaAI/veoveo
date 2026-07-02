@@ -10,6 +10,10 @@ use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::{Parser, Subcommand};
+use jsonwebtoken::{
+    Algorithm, EncodingKey, Header, encode,
+    jwk::{Jwk, JwkSet},
+};
 use reqwest::header::WWW_AUTHENTICATE;
 use rmcp::{
     ClientHandler, ServiceExt,
@@ -26,7 +30,7 @@ use rmcp::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
@@ -77,6 +81,41 @@ enum Cmd {
         /// MCP extension id that must appear in protected-resource metadata.
         #[arg(long = "required-extension")]
         required_extensions: Vec<String>,
+    },
+    /// Print the deterministic conformance JWKS as JSON.
+    GatewayJwks,
+    /// Print a deterministic conformance JWT signed by the conformance private key.
+    GatewayToken {
+        /// Token issuer claim.
+        #[arg(long, default_value = "https://idp.example.com")]
+        issuer: String,
+        /// Token audience claim.
+        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]
+        audience: String,
+        /// Token subject claim.
+        #[arg(long, default_value = "00u-smoke")]
+        subject: String,
+        /// OAuth scope claim. Repeat for multiple scopes.
+        #[arg(long = "scope")]
+        scopes: Vec<String>,
+        /// Tenant claim.
+        #[arg(long, default_value = "tenant-a")]
+        tenant: String,
+        /// Group claim. Repeat for multiple groups.
+        #[arg(long = "group")]
+        groups: Vec<String>,
+        /// Role claim. Repeat for multiple roles.
+        #[arg(long = "role")]
+        roles: Vec<String>,
+        /// Data-label claim. Repeat for multiple labels.
+        #[arg(long = "data-label")]
+        data_labels: Vec<String>,
+        /// JWT id claim.
+        #[arg(long, default_value = "jwt-smoke")]
+        jwt_id: String,
+        /// Token lifetime in minutes.
+        #[arg(long, default_value_t = 30)]
+        ttl_minutes: i64,
     },
     /// Show server info, capabilities, instructions, and the tool list.
     Info,
@@ -134,6 +173,49 @@ struct AuthDiscoveryMetadata {
     bearer_methods_supported: Vec<String>,
     #[serde(default)]
     extensions: BTreeMap<String, Value>,
+}
+
+const CONFORMANCE_KEY_ID: &str = "test-key";
+// Public conformance keypair for deterministic local smoke tokens; never deployment material.
+const CONFORMANCE_RSA_PRIVATE_KEY_DER_B64: &str = r#"
+MIIEpAIBAAKCAQEAvCUS6tGS9/VE3pGzncb1rDsZt/V/LkPHl2QO9jDlaO/jAEdfPOtCSsSyv7dY
++nmY61GpXedIpqg6U7gcU/TcOVar0APPbKZ3OERrvrX9w5/oTJyqK42Lwybl9vmFApcRDIexmSQ8
+HBdc1tQPqdkSCHS2csfZVxAQ64PLh48017Q+w8L1UuXYOxD8QdpQx2R1TD3bOiSeaZRs2Utww6rb
+ex0/Gn6kkYJw3kr+rQgqmmmOoZuEi7p3qSg6KXvKf3hcfugKQlRIamdP8FOz/3sM2vf2jzUV9BUM
+xtOF/yj2GzLmUYHxPtn+K46QDTcGpFyYN6gAPaiGBKkxxZDIaHgosQIDAQABAoIBAAl/bB7tRTht
++ePr8ker2m1PPvc/xgOzgX0BnLU+JuiXGowiLjs8q5graZQeyPe9AXSYpt6CDVN3cNlW1RxCY0ck
+OlBqDtOu7BwLrS4/kO/KD9+lNXx1HOn1Odzvv/CPaHmL1JH057Fp1wKTyjYiaoQBg0/USaMY4SfI
+e5LsbmgYn71s03MXf9/TgKErBRXiIYPW9aKvpKlfCQ8pGV1/i/rTy+Sj87rk+8+fU+fPVyKUWsjA
+gNHm+FmhCPPPVm4qh6Vw/NmuOpfRf1mzfVi7rBq0t5ehHkmW3KVSWY9+v3EttoXjC9iXFIr1OXp5
+aoaZZIXpjw3vAlaKwXbuu7lUZhkCgYEA3PGDT2UgWCFjEJjpi2fQzCBfVQC3lgJ8Xwz3EOeNhe+M
+mrKb358iDp5o+WgU+S4HJJcGK9uptGgN9GYrf303GPMwmWOvC8xH5fV8WDBYGqMeEi+xFHlS8ymt
+MmiWpAkW8/rEjDJama58qzjyEcq+fuW4BJcxOydFHgACSOZIbVkCgYEA2f9RJ7+tOajthShh6LbV
+lhSNDjAeauBj5pcg8bZhLaCNWKCUBE2ob+YXvTL6mzx30faY5nutMdJfOI2Au7YqQgx8HeCBkCUi
+D5Ngx9yjQ2/vnNQSRjIY2mjj0/tzTlVNGJDxbwUr8DGug8BD6Wz+L1l+s8F3aqAFljp7HLMq8xkC
+gYEAsoobgSoH9A+uvPfEKdnPmVRDlS4KLJd/p1OTxz5GV8gXB99zJEa0v7l0vK5F3II8VW4RF5nf
+TiCTvj5dwh0OTAQg7qLmDhOauhIg1Cbk20mbADk30IKl7EduZQCtUorh2HB5KY17NxsQNVDEFGqQ
+e3zoshT3PITkTnTVY9FrD6kCgYEAwZa5JBpUo6q/Wwu0fuu2mvOfG+VhbbndHY5CBETY4aL9QqI/
+L98i4FQt6qeV4zt8kGlz+OIFuQO/6cHHe2rW9haONh4EENTY/Yn8XSAzoBSMbfHqVInyhiq1f6+C
+AyM/NryomtW14jTMbFXWOTnANJ4+JTV+baKzs2g1ohP95SkCgYB7RzFmdbiY1ASdGO/vWqc/wLnT
+hHID7qgdXU4DP84HMmOX/QG5iV8GtQPTfNJm+m1PEnkg4W24DOqg2gJ3/q7wTROOLwQlJtOmizkC
+XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
+"#;
+
+#[derive(Debug, Serialize)]
+struct GatewayTokenClaims {
+    iss: String,
+    sub: String,
+    aud: String,
+    exp: u64,
+    nbf: u64,
+    iat: u64,
+    jti: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scope: Option<String>,
+    groups: Vec<String>,
+    roles: Vec<String>,
+    tenant: String,
+    data_labels: Vec<String>,
 }
 
 /// Client handler that surfaces every server-initiated notification.
@@ -292,6 +374,75 @@ async fn cmd_auth_discovery(
         metadata.extensions.len()
     );
     Ok(())
+}
+
+fn cmd_gateway_jwks() -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(&conformance_jwks()?)?);
+    Ok(())
+}
+
+struct GatewayTokenInput {
+    issuer: String,
+    audience: String,
+    subject: String,
+    scopes: Vec<String>,
+    tenant: String,
+    groups: Vec<String>,
+    roles: Vec<String>,
+    data_labels: Vec<String>,
+    jwt_id: String,
+    ttl_minutes: i64,
+}
+
+fn cmd_gateway_token(input: GatewayTokenInput) -> Result<()> {
+    if input.ttl_minutes <= 0 {
+        return Err(anyhow!("ttl_minutes must be greater than zero"));
+    }
+
+    let now = Utc::now();
+    let expires_at = now
+        .checked_add_signed(TimeDelta::minutes(input.ttl_minutes))
+        .ok_or_else(|| anyhow!("ttl_minutes produces an invalid expiration timestamp"))?;
+    let scope = (!input.scopes.is_empty()).then(|| input.scopes.join(" "));
+    let claims = GatewayTokenClaims {
+        iss: input.issuer,
+        sub: input.subject,
+        aud: input.audience,
+        exp: unix_seconds(expires_at.timestamp())?,
+        nbf: unix_seconds(now.timestamp())?,
+        iat: unix_seconds(now.timestamp())?,
+        jti: input.jwt_id,
+        scope,
+        groups: input.groups,
+        roles: input.roles,
+        tenant: input.tenant,
+        data_labels: input.data_labels,
+    };
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some(CONFORMANCE_KEY_ID.to_string());
+    println!(
+        "{}",
+        encode(&header, &claims, &conformance_encoding_key()?)?
+    );
+    Ok(())
+}
+
+fn conformance_jwks() -> Result<JwkSet> {
+    let mut jwk = Jwk::from_encoding_key(&conformance_encoding_key()?, Algorithm::RS256)?;
+    jwk.common.key_id = Some(CONFORMANCE_KEY_ID.to_string());
+    Ok(JwkSet { keys: vec![jwk] })
+}
+
+fn conformance_encoding_key() -> Result<EncodingKey> {
+    let der_text = CONFORMANCE_RSA_PRIVATE_KEY_DER_B64
+        .lines()
+        .collect::<String>();
+    let der = BASE64_STANDARD.decode(der_text)?;
+    Ok(EncodingKey::from_rsa_der(&der))
+}
+
+fn unix_seconds(value: i64) -> Result<u64> {
+    u64::try_from(value).map_err(|_| anyhow!("timestamp before Unix epoch"))
 }
 
 fn infer_protected_resource_metadata_url(endpoint_url: &str) -> Result<String> {
@@ -730,19 +881,47 @@ async fn main() -> Result<()> {
         )
         .init();
     let args = Args::parse();
-    if let Cmd::AuthDiscovery {
-        metadata_url,
-        required_scopes,
-        required_extensions,
-    } = &args.cmd
-    {
-        return cmd_auth_discovery(
-            &args.url,
-            metadata_url.as_deref(),
+    match &args.cmd {
+        Cmd::AuthDiscovery {
+            metadata_url,
             required_scopes,
             required_extensions,
-        )
-        .await;
+        } => {
+            return cmd_auth_discovery(
+                &args.url,
+                metadata_url.as_deref(),
+                required_scopes,
+                required_extensions,
+            )
+            .await;
+        }
+        Cmd::GatewayJwks => return cmd_gateway_jwks(),
+        Cmd::GatewayToken {
+            issuer,
+            audience,
+            subject,
+            scopes,
+            tenant,
+            groups,
+            roles,
+            data_labels,
+            jwt_id,
+            ttl_minutes,
+        } => {
+            return cmd_gateway_token(GatewayTokenInput {
+                issuer: issuer.clone(),
+                audience: audience.clone(),
+                subject: subject.clone(),
+                scopes: scopes.clone(),
+                tenant: tenant.clone(),
+                groups: groups.clone(),
+                roles: roles.clone(),
+                data_labels: data_labels.clone(),
+                jwt_id: jwt_id.clone(),
+                ttl_minutes: *ttl_minutes,
+            });
+        }
+        _ => {}
     }
 
     let client = connect(&args).await?;
@@ -750,6 +929,8 @@ async fn main() -> Result<()> {
 
     let result = match args.cmd {
         Cmd::AuthDiscovery { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayJwks => unreachable!("handled before MCP connection"),
+        Cmd::GatewayToken { .. } => unreachable!("handled before MCP connection"),
         Cmd::Info => cmd_info(&client).await,
         Cmd::Models { query, r#type } => {
             let catalog = read_resource_json(&client, &uris.models_uri()).await?;
