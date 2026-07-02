@@ -197,6 +197,9 @@ enum Cmd {
         /// File touched after the listener is ready.
         #[arg(long)]
         ready_file: Option<PathBuf>,
+        /// Delay before posting the completion webhook.
+        #[arg(long, default_value_t = 250)]
+        completion_delay_ms: u64,
     },
     /// Print a private-key JWT client assertion signed by the conformance private key.
     GatewayClientAssertion {
@@ -1003,6 +1006,7 @@ async fn cmd_otlp_http_sink(
 struct FakeMediaProviderState {
     base_url: String,
     http: reqwest::Client,
+    completion_delay: Duration,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1011,12 +1015,17 @@ struct FakeBillingSearchRequest {
     prediction_uuids: Vec<String>,
 }
 
-async fn cmd_fake_media_provider(port: u16, ready_file: Option<PathBuf>) -> Result<()> {
+async fn cmd_fake_media_provider(
+    port: u16,
+    ready_file: Option<PathBuf>,
+    completion_delay_ms: u64,
+) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
     let base_url = format!("http://{}", listener.local_addr()?);
     let state = FakeMediaProviderState {
         base_url,
         http: reqwest::Client::new(),
+        completion_delay: Duration::from_millis(completion_delay_ms),
     };
     let router = AxumRouter::new()
         .route("/api/v3/models", axum_get(fake_media_models))
@@ -1077,6 +1086,7 @@ async fn fake_media_submit(
     let output_url = format!("{}/outputs/fake.png", state.base_url);
     if let Some(webhook_url) = query.get("webhook").cloned() {
         let http = state.http.clone();
+        let completion_delay = state.completion_delay;
         let terminal = json!({
             "id": prediction_id,
             "model": model_id,
@@ -1086,7 +1096,7 @@ async fn fake_media_submit(
             "executionTime": 0.2,
         });
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(250)).await;
+            tokio::time::sleep(completion_delay).await;
             if let Err(err) = http.post(webhook_url).json(&terminal).send().await {
                 eprintln!("fake media provider webhook failed: {err}");
             }
@@ -2111,8 +2121,12 @@ async fn main() -> Result<()> {
         } => {
             return cmd_otlp_http_sink(*port, ready_file.clone(), hits_file.clone()).await;
         }
-        Cmd::FakeMediaProvider { port, ready_file } => {
-            return cmd_fake_media_provider(*port, ready_file.clone()).await;
+        Cmd::FakeMediaProvider {
+            port,
+            ready_file,
+            completion_delay_ms,
+        } => {
+            return cmd_fake_media_provider(*port, ready_file.clone(), *completion_delay_ms).await;
         }
         Cmd::GatewayClientAssertion {
             client_id,

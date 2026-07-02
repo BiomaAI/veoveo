@@ -650,7 +650,7 @@ smoke-gateway-task-run:
         rm -rf "${tmpdir}"
     }
     trap cleanup EXIT
-    {{conformance}} fake-media-provider --port "${provider_port}" --ready-file "${provider_ready}" >"${provider_log}" 2>&1 &
+    {{conformance}} fake-media-provider --port "${provider_port}" --ready-file "${provider_ready}" --completion-delay-ms 4000 >"${provider_log}" 2>&1 &
     provider_pid=$!
     for _ in {1..150}; do
         if [ -f "${provider_ready}" ] && curl -fsS "${provider_base}/api/v3/models" >/dev/null 2>&1; then
@@ -681,12 +681,22 @@ smoke-gateway-task-run:
     cancel_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" run fake/image --tool-name media__run --input '{"prompt":"cancel"}' --cancel)"
     printf '%s\n' "${cancel_output}"
     printf '%s\n' "${cancel_output}" | grep -E '^cancelled task [^ ]+ \(status Cancelled\)$' >/dev/null
+    cancel_task_id="$(printf '%s\n' "${cancel_output}" | sed -n 's/^task \([^ ]*\) created.*/\1/p')"
+    test -n "${cancel_task_id}"
+    printf '%s\n' "${cancel_output}" | grep -F '  [resource list changed]' >/dev/null
+    printf '%s\n' "${cancel_output}" | grep -F "  [task ${cancel_task_id}] Working: submitted; prediction" >/dev/null
     complete_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" complete fake)"
     printf '%s\n' "${complete_output}" | grep -F 'fake/image'
     run_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" run fake/image --tool-name media__run --input '{"prompt":"smoke"}' --output-dir "${output_dir}")"
     printf '%s\n' "${run_output}"
     task_id="$(printf '%s\n' "${run_output}" | sed -n 's/^task \([^ ]*\) created.*/\1/p')"
     test -n "${task_id}"
+    printf '%s\n' "${run_output}" | grep -F '  [resource list changed]' >/dev/null
+    printf '%s\n' "${run_output}" | grep -F "  [task ${task_id}] Working: submitted; prediction" >/dev/null
+    printf '%s\n' "${run_output}" | grep -F "  [resource updated] media://prediction/" >/dev/null
+    printf '%s\n' "${run_output}" | grep -F "  [task ${task_id}] Completed: completed;" >/dev/null
+    printf '%s\n' "${run_output}" | grep -F 'subscribed to media://prediction/' >/dev/null
+    printf '%s\n' "${run_output}" | grep -F 'unsubscribed from media://prediction/' >/dev/null
     structured_json="$(printf '%s\n' "${run_output}" | sed -n 's/^structured: //p')"
     test -n "${structured_json}"
     printf '%s\n' "${structured_json}" | jq -e --arg task_id "${task_id}" 'all(.artifacts[]; .metadata.task_id == $task_id)' >/dev/null
