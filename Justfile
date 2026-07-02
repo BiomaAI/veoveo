@@ -3,6 +3,7 @@ set dotenv-load := true
 
 compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
 mcp-url := "http://localhost:8787/media/mcp"
+gateway-control-plane := "configs/gateway.local.json"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 
@@ -22,6 +23,15 @@ test:
 check:
     cargo fmt --all --check
     cargo test --workspace
+
+# Validate the typed gateway control plane.
+gateway-validate:
+    cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-control-plane}}
+
+# Smoke-test gateway contract/control-plane behavior without external services.
+smoke-gateway:
+    cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
+    just gateway-validate
 
 # Build the media MCP image.
 compose-build:
