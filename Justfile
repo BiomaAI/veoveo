@@ -36,6 +36,27 @@ gateway-validate:
 deployments-validate:
     {{conformance}} deployment-validate --file configs/deployments.json
 
+# Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
+contract-schemas output_dir='schemas':
+    {{conformance}} contract-schemas --output-dir '{{output_dir}}'
+
+# Smoke-test contract schema export for non-Rust implementations.
+smoke-contract-schemas:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmpdir="$(mktemp -d)"
+    cleanup() {
+        rm -rf "${tmpdir}"
+    }
+    trap cleanup EXIT
+    {{conformance}} contract-schemas --output-dir "${tmpdir}/schemas"
+    test -f "${tmpdir}/schemas/gateway-control-plane.schema.json"
+    test -f "${tmpdir}/schemas/artifact-metadata.schema.json"
+    test -f "${tmpdir}/schemas/usage-report.schema.json"
+    jq -e '."$schema" and .title == "GatewayControlPlane"' "${tmpdir}/schemas/gateway-control-plane.schema.json" >/dev/null
+    jq -e '.title == "ArtifactMetadata" and (.properties.compliance | type == "object")' "${tmpdir}/schemas/artifact-metadata.schema.json" >/dev/null
+    jq -e '.title == "UsageReport" and (.properties.records | type == "object")' "${tmpdir}/schemas/usage-report.schema.json" >/dev/null
+
 # Revoke one gateway JWT id until its original token expiration.
 gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.bioma.ai/oauth/default' profile='default' reason='operator_request':
     token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use --scope gateway:admin)"; payload="$(jq -n --arg issuer '{{issuer}}' --arg jwt_id '{{jwt_id}}' --arg expires_at '{{expires_at}}' --arg reason '{{reason}}' '{issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"; curl -fsS -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data "${payload}" "{{gateway-admin-url}}/{{profile}}/jwt-revocations"
@@ -47,6 +68,7 @@ gateway-prune-revoked-jwts profile='default':
 # Smoke-test gateway contract/control-plane behavior without external services.
 smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
+    just smoke-contract-schemas
     just gateway-validate
     just deployments-validate
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-smoke-control-plane}}

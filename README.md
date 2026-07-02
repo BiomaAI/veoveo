@@ -165,6 +165,20 @@ Artifact metadata carries typed compliance fields from the gateway principal, in
 artifact and task access from durable owner rows; object metadata is exported evidence, not
 the only authorization source.
 
+### Contract Schemas
+
+External Python and TypeScript MCP servers should use the Rust contract as the source of
+truth, not hand-maintained copies. Export JSON Schemas from `veoveo-mcp-contract`:
+
+```sh
+just contract-schemas schemas
+```
+
+The export includes gateway control data, policy/audit events, deployment profiles,
+gateway runtime projection records, internal identity assertions, artifact metadata,
+generation outputs, and usage reports. The maintained smoke suite runs
+`just smoke-contract-schemas` so schema generation stays wired into the contract.
+
 ### Local Process
 
 Run the media server and gateway in separate shells, with the same

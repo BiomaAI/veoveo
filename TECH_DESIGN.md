@@ -189,6 +189,7 @@ resilient provider-backed generation servers. That layer should standardize the 
 - usage estimates, actuals, and usage resources,
 - URI conventions across providers,
 - TTL/GC policy,
+- JSON Schema export for external Rust, Python, and TypeScript server implementations,
 - feature extension names such as `ai.veoveo/artifacts` and `ai.veoveo/usage`.
 
 This is not a rule that every MCP server must use tasks. It is a rule that any Veoveo MCP
