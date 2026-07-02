@@ -10,10 +10,44 @@ use std::{
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use reqwest::StatusCode;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
 const INTERNAL_SECRET: &str = "local-smoke-internal-token-secret-32-bytes-minimum";
 const PUBLIC_BASE_URL: &str = "https://veoveo.bioma.ai";
+
+#[derive(Debug, Deserialize)]
+struct SmokeGenerationRunOutput {
+    artifacts: Vec<SmokeArtifactMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SmokeArtifactMetadata {
+    #[serde(default)]
+    metadata: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct SmokeUsageReport {
+    task_id: String,
+    usage_uri: String,
+    records: Vec<SmokeUsageRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SmokeUsageRecord {
+    task_id: String,
+    kind: SmokeUsageKind,
+    amount: Option<f64>,
+    currency: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SmokeUsageKind {
+    Estimate,
+    Actual,
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "smoke", about = "Veoveo smoke-test harness")]
@@ -46,6 +80,15 @@ enum Cmd {
     },
     /// Smoke-test the media MCP HTTP boundary and internal assertion requirement.
     MediaMcpAuth {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built media MCP server binary path.
+        #[arg(long, default_value = "target/debug/server")]
+        media_bin: PathBuf,
+    },
+    /// Smoke-test direct hosted media task behavior without gateway projection.
+    MediaTaskRun {
         /// Built conformance binary path.
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
@@ -121,6 +164,10 @@ async fn main() -> Result<()> {
             conformance_bin,
             media_bin,
         } => media_mcp_auth(&conformance_bin, &media_bin).await,
+        Cmd::MediaTaskRun {
+            conformance_bin,
+            media_bin,
+        } => media_task_run(&conformance_bin, &media_bin).await,
         Cmd::GatewayTwoServers {
             conformance_bin,
             gateway_bin,
@@ -383,6 +430,111 @@ async fn media_mcp_auth(conformance: &Path, media: &Path) -> Result<()> {
     media_child.stop();
     cleanup.remove_on_drop();
     println!("media MCP auth smoke ok");
+    Ok(())
+}
+
+async fn media_task_run(conformance: &Path, media: &Path) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let media_port = 18807u16;
+    let provider_port = 18808u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+    let provider_log = tmpdir.join("provider.log");
+    let media_log = tmpdir.join("media.log");
+    let provider_ready = tmpdir.join("provider.ready");
+    let media_state_db = tmpdir.join("media-state.duckdb");
+    let output_dir = tmpdir.join("outputs");
+
+    let mut provider = spawn_fake_media_provider(
+        conformance,
+        provider_port,
+        &provider_ready,
+        &provider_log,
+        None,
+    )?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &media_state_db,
+        &provider_base,
+        &media_log,
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let health = reqwest::get(format!("{media_base}/media/healthz"))
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    contains(&health, "ok")?;
+
+    let mcp_url = format!("{media_base}/media/mcp");
+    let cancel_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "run".into(),
+            "fake/image".into(),
+            "--input".into(),
+            r#"{"prompt":"cancel"}"#.into(),
+            "--cancel".into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    let cancel_task_id = task_id_from_output(&cancel_output)?;
+    contains(
+        &cancel_output,
+        &format!("cancelled task {cancel_task_id} (status Cancelled)"),
+    )?;
+
+    let complete_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        ["complete".into(), "fake".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&complete_output, "fake/image")?;
+
+    let run_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "run".into(),
+            "fake/image".into(),
+            "--input".into(),
+            r#"{"prompt":"smoke"}"#.into(),
+            "--output-dir".into(),
+            output_dir.as_os_str().to_os_string(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    let task_id = task_id_from_output(&run_output)?;
+    let structured: SmokeGenerationRunOutput = structured_from_output(&run_output)?;
+    if structured.artifacts.is_empty() {
+        bail!("run output had no artifacts: {run_output}");
+    }
+    if structured.artifacts.iter().any(|artifact| {
+        artifact.metadata.get("task_id").and_then(Value::as_str) != Some(task_id.as_str())
+    }) {
+        bail!("not all artifact metadata rows used task id `{task_id}`: {structured:?}");
+    }
+    assert_output_file(&output_dir, "png")?;
+
+    let usage = wait_for_actual_usage(conformance, &mcp_url, &task_id, None)?;
+    assert_usage_report(&usage, "media", &task_id)?;
+
+    media_child.stop();
+    provider.stop();
+    cleanup.remove_on_drop();
+    println!("media task run smoke ok");
     Ok(())
 }
 
@@ -682,6 +834,27 @@ fn spawn_fake_hosted_mcp(
     )
 }
 
+fn spawn_fake_media_provider(
+    conformance: &Path,
+    port: u16,
+    ready_file: &Path,
+    log: &Path,
+    completion_delay_ms: Option<u64>,
+) -> Result<ChildGuard> {
+    let mut args = vec![
+        "fake-media-provider".into(),
+        "--port".into(),
+        port.to_string().into(),
+        "--ready-file".into(),
+        ready_file.as_os_str().to_os_string(),
+    ];
+    if let Some(delay) = completion_delay_ms {
+        args.push("--completion-delay-ms".into());
+        args.push(delay.to_string().into());
+    }
+    ChildGuard::spawn(conformance, args, [], log)
+}
+
 fn spawn_media_s3_smoke(
     media: &Path,
     port: u16,
@@ -709,6 +882,37 @@ fn spawn_media_s3_smoke(
             ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
             ("AWS_ACCESS_KEY_ID", "smoke".into()),
             ("AWS_SECRET_ACCESS_KEY", "smoke".into()),
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+        ],
+        log,
+    )
+}
+
+fn spawn_media_memory_smoke(
+    media: &Path,
+    port: u16,
+    public_base_url: &str,
+    state_db: &Path,
+    provider_base_url: &str,
+    log: &Path,
+) -> Result<ChildGuard> {
+    ChildGuard::spawn(
+        media,
+        [
+            "--port".into(),
+            port.to_string().into(),
+            "--public-base-url".into(),
+            public_base_url.into(),
+            "--state-db".into(),
+            state_db.as_os_str().to_os_string(),
+            "--artifact-store".into(),
+            "memory".into(),
+            "--provider-base-url".into(),
+            provider_base_url.into(),
+        ],
+        [
+            ("MEDIA_PROVIDER_WEBHOOK_SECRET", "".into()),
+            ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
         ],
         log,
@@ -796,6 +1000,17 @@ fn run_mcp(
     let mut all_args = vec!["--url".into(), format!("{gateway_base}/mcp/default").into()];
     all_args.extend(args);
     run_checked(conformance, all_args, [("MCP_BEARER_TOKEN", token.into())])
+}
+
+fn run_direct_mcp(
+    conformance: &Path,
+    url: &str,
+    args: impl IntoIterator<Item = OsString>,
+    envs: impl IntoIterator<Item = (&'static str, OsString)>,
+) -> Result<String> {
+    let mut all_args = vec!["--url".into(), url.into()];
+    all_args.extend(args);
+    run_checked(conformance, all_args, envs)
 }
 
 fn run_checked(
@@ -914,6 +1129,131 @@ fn assert_structured_field(output: &str, field: &str, expected: &str) -> Result<
     } else {
         bail!("structured field `{field}` did not equal `{expected}`: {structured}");
     }
+}
+
+fn task_id_from_output(output: &str) -> Result<String> {
+    output
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("task ")
+                .and_then(|rest| rest.split_whitespace().next())
+                .map(str::to_string)
+        })
+        .ok_or_else(|| anyhow!("command output had no task id:\n{output}"))
+}
+
+fn structured_from_output<T: DeserializeOwned>(output: &str) -> Result<T> {
+    let structured = output
+        .lines()
+        .find_map(|line| line.strip_prefix("structured: "))
+        .ok_or_else(|| anyhow!("command output had no structured content:\n{output}"))?;
+    Ok(serde_json::from_str(structured)?)
+}
+
+fn wait_for_actual_usage(
+    conformance: &Path,
+    mcp_url: &str,
+    task_id: &str,
+    bearer_token: Option<&str>,
+) -> Result<SmokeUsageReport> {
+    for _ in 0..90 {
+        let envs = usage_envs(bearer_token);
+        let output = run_raw(
+            conformance,
+            [
+                "--url".into(),
+                mcp_url.into(),
+                "usage".into(),
+                task_id.into(),
+            ],
+            envs,
+        )?;
+        if output.status.success() {
+            let stdout = String::from_utf8(output.stdout)?;
+            if let Ok(report) = serde_json::from_str::<SmokeUsageReport>(&stdout)
+                && report
+                    .records
+                    .iter()
+                    .any(|record| record.kind == SmokeUsageKind::Actual)
+            {
+                return Ok(report);
+            }
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    bail!("timed out waiting for actual usage for task `{task_id}`");
+}
+
+fn usage_envs(bearer_token: Option<&str>) -> Vec<(&'static str, OsString)> {
+    match bearer_token {
+        Some(token) => vec![("MCP_BEARER_TOKEN", token.into())],
+        None => vec![("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    }
+}
+
+fn assert_usage_report(report: &SmokeUsageReport, scheme: &str, task_id: &str) -> Result<()> {
+    if report.task_id != task_id {
+        bail!(
+            "usage report task id `{}` did not equal `{task_id}`",
+            report.task_id
+        );
+    }
+    let expected_uri = format!("{scheme}://usage/task/{task_id}");
+    if report.usage_uri != expected_uri {
+        bail!(
+            "usage report URI `{}` did not equal `{expected_uri}`",
+            report.usage_uri
+        );
+    }
+    if report
+        .records
+        .iter()
+        .any(|record| record.task_id != task_id)
+    {
+        bail!("usage report contained a record for a different task: {report:?}");
+    }
+    for expected_kind in [SmokeUsageKind::Estimate, SmokeUsageKind::Actual] {
+        let found = report.records.iter().any(|record| {
+            record.kind == expected_kind
+                && record.amount == Some(0.01)
+                && record.currency.as_deref() == Some("USD")
+        });
+        if !found {
+            bail!("usage report missing {expected_kind:?} USD 0.01 record: {report:?}");
+        }
+    }
+    Ok(())
+}
+
+fn assert_output_file(output_dir: &Path, extension: &str) -> Result<()> {
+    if contains_nonempty_file_with_extension(output_dir, extension)? {
+        Ok(())
+    } else {
+        bail!(
+            "no non-empty .{extension} output file found under {}",
+            output_dir.display()
+        );
+    }
+}
+
+fn contains_nonempty_file_with_extension(path: &Path, extension: &str) -> Result<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            if contains_nonempty_file_with_extension(&path, extension)? {
+                return Ok(true);
+            }
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some(extension)
+            && entry.metadata()?.len() > 0
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn assert_audit_method(summary: &Value, method: &str, min_allow: u64, min_deny: u64) -> Result<()> {
