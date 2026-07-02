@@ -49,7 +49,7 @@ services:
   media-mcp:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: crates/media-mcp/Dockerfile
     depends_on:
       rustfs-init:
         condition: service_completed_successfully
