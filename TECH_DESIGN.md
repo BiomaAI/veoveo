@@ -294,7 +294,10 @@ Gateway data must be split by sensitivity and lifecycle:
   Public plaintext HTTP upstreams are rejected by contract validation.
   OAuth client registrations are typed control data: each advertised profile auth mode must
   have a matching registered client grant, and each client must explicitly allow the scopes
-  required by the profile and its policy rules.
+  required by the profile and its policy rules. The gateway must reject OAuth client auth
+  method combinations it does not actually implement; the current supported combinations
+  are public `none` auth for browser authorization-code and enterprise-managed
+  authorization clients, and `private_key_jwt` for headless client-credentials clients.
   The enterprise identity provider and the MCP resource authorization server are separate
   control-plane objects: the IdP handles SSO and ID-JAG issuance, while the resource
   authorization server is the issuer/JWKS authority for profile-scoped MCP access tokens.

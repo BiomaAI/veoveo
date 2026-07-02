@@ -713,6 +713,11 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         scope: ScopeName,
     },
+    OAuthClientUnsupportedAuthConfiguration {
+        client: OAuthClientId,
+        grant_types: BTreeSet<OAuthGrantType>,
+        auth_methods: BTreeSet<OAuthClientAuthMethod>,
+    },
     MissingOAuthClientForAuthMode {
         profile: GatewayProfileId,
         auth_mode: AuthMode,
@@ -1080,6 +1085,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "OAuth client `{client}` allows profile `{profile}` but does not allow required scope `{scope}`"
+            ),
+            Self::OAuthClientUnsupportedAuthConfiguration {
+                client,
+                grant_types,
+                auth_methods,
+            } => write!(
+                f,
+                "OAuth client `{client}` uses unsupported grant/auth method combination: grants `{grant_types:?}`, auth methods `{auth_methods:?}`"
             ),
             Self::MissingOAuthClientForAuthMode { profile, auth_mode } => write!(
                 f,
@@ -1769,6 +1782,7 @@ fn validate_oauth_client_registration(
             GatewayControlPlaneError::OAuthClientPublicClientCredentials(client.id.clone()),
         );
     }
+    validate_oauth_client_auth_configuration(client)?;
 
     if client
         .auth_methods
@@ -1825,6 +1839,44 @@ fn validate_oauth_client_registration(
     }
 
     Ok(())
+}
+
+fn validate_oauth_client_auth_configuration(
+    client: &OAuthClientRegistration,
+) -> Result<(), GatewayControlPlaneError> {
+    let browser_grants = client
+        .grant_types
+        .iter()
+        .any(|grant| matches!(grant, OAuthGrantType::AuthorizationCodePkce));
+    let enterprise_managed_grants = client
+        .grant_types
+        .iter()
+        .any(|grant| matches!(grant, OAuthGrantType::EnterpriseManagedAuthorization));
+    let client_credentials_grants = client
+        .grant_types
+        .contains(&OAuthGrantType::ClientCredentials);
+
+    let expected = if client_credentials_grants {
+        BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt])
+    } else if browser_grants || enterprise_managed_grants {
+        BTreeSet::from([OAuthClientAuthMethod::None])
+    } else {
+        BTreeSet::new()
+    };
+
+    if expected == client.auth_methods
+        && !(client_credentials_grants && (browser_grants || enterprise_managed_grants))
+    {
+        return Ok(());
+    }
+
+    Err(
+        GatewayControlPlaneError::OAuthClientUnsupportedAuthConfiguration {
+            client: client.id.clone(),
+            grant_types: client.grant_types.clone(),
+            auth_methods: client.auth_methods.clone(),
+        },
+    )
 }
 
 fn validate_oidc_client_registration(
@@ -4340,6 +4392,91 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::OAuthClientMissingJwks { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
+        let mut clients = default_oauth_clients();
+        clients[0].auth_methods = BTreeSet::from([
+            OAuthClientAuthMethod::None,
+            OAuthClientAuthMethod::PrivateKeyJwt,
+        ]);
+        clients[0].jwks = Some(JwksSource::Remote {
+            jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/browser/jwks.json").unwrap(),
+        });
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: clients,
+            oidc_clients: default_oidc_clients(),
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("browser OAuth client must remain public none-auth");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OAuthClientUnsupportedAuthConfiguration { .. }
+        ));
+
+        let mut clients = default_oauth_clients();
+        clients[1].auth_methods = BTreeSet::from([OAuthClientAuthMethod::ClientSecretPost]);
+        clients[1].credential_secret =
+            Some(SecretReferenceId::new("enterprise_oidc_client_secret").unwrap());
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: clients,
+            oidc_clients: default_oidc_clients(),
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("client credentials must use private-key JWT");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OAuthClientUnsupportedAuthConfiguration { .. }
+        ));
+
+        let mut clients = default_oauth_clients();
+        clients[1].grant_types = BTreeSet::from([
+            OAuthGrantType::AuthorizationCodePkce,
+            OAuthGrantType::ClientCredentials,
+        ]);
+        clients[1].redirect_uris =
+            vec![OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap()];
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: clients,
+            oidc_clients: default_oidc_clients(),
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("one OAuth client must not mix browser and client credentials grants");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OAuthClientUnsupportedAuthConfiguration { .. }
         ));
     }
 

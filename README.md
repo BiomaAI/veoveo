@@ -169,6 +169,12 @@ routes use `compose_internal_http`, and production manifests should use `tls`,
 `mutual_tls`, or `service_mesh_mtls`. Public plaintext HTTP upstreams are rejected by
 contract validation.
 
+Gateway OAuth client registrations are also validated against implemented token endpoint
+paths. Browser authorization-code and enterprise-managed authorization clients use
+`auth_methods: ["none"]`; headless client-credentials clients use
+`auth_methods: ["private_key_jwt"]`. Client-secret and TLS-client-auth OAuth clients are
+not accepted until those flows are implemented end to end.
+
 ### Admin Operations
 
 Gateway admin operations are authenticated and policy-gated through `/admin/{profile}`.
