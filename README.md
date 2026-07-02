@@ -12,7 +12,7 @@ the contract crate.
 ```
 ┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────────┐   provider API     ┌───────────┐
 │  client   │ ────────────────────────▶ │  server (axum, :8787)   │ ◀────────────────▶ │ provider  │
-│  (rmcp)   │ ◀──── notifications ───── │  /mcp  /webhooks  /files│                    │           │
+│  (rmcp)   │ ◀──── notifications ───── │ /mcp /webhooks /artifacts│                   │           │
 └──────────┘                            └─────────────────────────┘                    └───────────┘
                                               ▲ public URL via cloudflared tunnel
 ```
@@ -20,6 +20,7 @@ the contract crate.
 - `/mcp` — MCP over streamable HTTP (rmcp 2.0)
 - `/webhooks/*` — internal provider callback receivers
 - `/files/*` — optional static dir so the provider can fetch input media by URL
+- `/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
 
 ## MCP surface
 
@@ -31,13 +32,16 @@ One tool, everything else is protocol:
 | resource `media://models` | compact catalog of all models (id, type, description, price) |
 | template `media://model/{model_id}` | full input JSON Schema + pricing for one model |
 | template `media://prediction/{id}` | live prediction state; **subscribable** — webhook arrival fires `notifications/resources/updated` |
+| template `media://artifact/{sha256}` | server-owned immutable artifact bytes stored in RustFS/S3-compatible storage |
+| resource `media://usage` | index of task usage resources |
+| template `media://usage/task/{task_id}` | usage estimates/actuals for one task |
 | `completion/complete` | model-id autocompletion over the whole catalog |
 | notifications | `tasks/status`, `progress`, `resources/updated`, `resources/list_changed` |
 
 Task lifecycle: `tools/call` (+`task` metadata) → `CreateTaskResult` → poll `tasks/get`
-(statusMessage carries the prediction id) → `tasks/result` returns output URLs as resource
-links + structured content. `tasks/cancel` aborts. Provider webhook delivery is the only
-server-side completion path.
+(statusMessage carries the prediction id) → `tasks/result` returns `media://artifact/{sha256}`
+resource links + structured content. `tasks/cancel` aborts. Provider webhook delivery is
+the only server-side completion path.
 
 ## Setup
 
@@ -67,12 +71,13 @@ docker compose --profile dev --profile tunnel up --build
 ```
 
 RustFS is available locally at `http://localhost:9000` with the development credentials
-defined in Compose. Those credentials are for the local stack only.
+defined in Compose. Compose also creates the `media-artifacts` bucket. Those credentials
+are for the local stack only.
 
-Task and prediction metadata are persisted in SQLite. Local runs default to
-`state.sqlite`; Compose stores the media server's state at
-`/var/lib/veoveo/media/state.sqlite` on the `media_state` volume. RustFS is for artifact
-bytes, not task durability.
+Task, prediction, artifact metadata, and usage metadata are persisted in SQLite. Local
+runs default to `state.sqlite`; Compose stores the media server's state at
+`/var/lib/veoveo/media/state.sqlite` on the `media_state` volume. RustFS stores artifact
+bytes only.
 
 ### Local Process
 
@@ -81,9 +86,13 @@ bytes, not task durability.
 cloudflared tunnel --url http://localhost:8787
 # note the printed https://….trycloudflare.com URL
 
-# 2. server
+# 2. server (requires a reachable S3-compatible artifact store)
+export AWS_ACCESS_KEY_ID=rustfsadmin
+export AWS_SECRET_ACCESS_KEY=rustfsadmin
+export AWS_DEFAULT_REGION=us-east-1
 cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
-    --public-url https://….trycloudflare.com
+    --public-url https://….trycloudflare.com \
+    --artifact-endpoint http://localhost:9000 --artifact-bucket media-artifacts
 
 # 3. conformance CLI
 cargo run -p veoveo-mcp-contract --bin conformance -- info
@@ -92,6 +101,8 @@ cargo run -p veoveo-mcp-contract --bin conformance -- complete gpt-image
 cargo run -p veoveo-mcp-contract --bin conformance -- schema openai/gpt-image-2/edit
 cargo run -p veoveo-mcp-contract --bin conformance -- run openai/gpt-image-2/edit \
     --input '{"prompt":"add a red wizard hat","images":["https://….trycloudflare.com/files/gol-real-roblox.jpeg"]}'
+cargo run -p veoveo-mcp-contract --bin conformance -- usage <task-id>
+cargo run -p veoveo-mcp-contract --bin conformance -- artifact <sha256>
 ```
 
 `--public-url` is required for generation because providers must be able to deliver
@@ -104,9 +115,12 @@ provider.
 Cargo.toml                                      veoveo workspace manifest
 crates/mcp-contract/                           reusable Veoveo MCP contract crate
 crates/mcp-contract/src/bin/conformance.rs     generic Veoveo MCP conformance CLI
+crates/mcp-contract/src/storage.rs             artifact store contract/types
+crates/mcp-contract/src/usage.rs               usage contract/types
 crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
+crates/media-mcp/src/artifacts.rs              S3-compatible artifact store implementation
 crates/media-mcp/src/provider.rs               internal provider API client + types
-crates/media-mcp/src/state.rs                  per-server SQLite task/prediction state
+crates/media-mcp/src/state.rs                  per-server SQLite task/prediction/artifact/usage state
 crates/media-mcp/src/webhook.rs                internal webhook signature verification
 crates/media-mcp/src/uris.rs                   media:// URI scheme
 crates/media-mcp/src/bin/server.rs             MCP server

@@ -296,7 +296,7 @@ impl MediaMcp {
     /// invocations through `enqueue_task`. This body only exists so the
     /// router publishes the tool with its schema.
     #[tool(
-        description = "Run any media model asynchronously. Must be invoked as an MCP task; read tasks/get and fetch outputs via tasks/result. Discover models via the media://models resource, and each model's input schema via media://model/{model_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
+        description = "Run any media model asynchronously. Must be invoked as an MCP task; read tasks/get and fetch media://artifact/{sha256} outputs via tasks/result. Discover models via media://models, input schemas via media://model/{model_id}, and usage via media://usage/task/{task_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
         execution(task_support = "required")
     )]
     async fn run(
@@ -665,7 +665,8 @@ impl ServerHandler for MediaMcp {
              (2) read media://model/{model_id} for its exact input JSON Schema; \
              (3) call the `run` tool as a task (SEP-1319) with {model, input}; \
              (4) the task statusMessage carries the prediction id — subscribe to media://prediction/{id} for push updates; \
-             (5) read tasks/get until completed, then tasks/result returns output URLs as resource links."
+             (5) read tasks/get until completed, then tasks/result returns media://artifact/{sha256} links; \
+             (6) read media://usage/task/{task_id} for usage estimates/actuals."
                 .into(),
         );
         info

@@ -7,6 +7,7 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use clap::{Parser, Subcommand};
 use rmcp::{
     ClientHandler, ServiceExt,
@@ -54,6 +55,15 @@ enum Cmd {
     Schema { model_id: String },
     /// Read the live state of a prediction resource.
     Prediction { id: String },
+    /// Read a task usage report.
+    Usage { task_id: String },
+    /// Read and save an artifact resource.
+    Artifact {
+        sha256: String,
+        /// Where to save the artifact file.
+        #[arg(long, default_value = "output")]
+        output_dir: PathBuf,
+    },
     /// Run a model as an MCP task and download its outputs.
     Run {
         model_id: String,
@@ -150,6 +160,23 @@ async fn read_resource_json(client: &Client, uri: &str) -> Result<Value> {
         })
         .ok_or_else(|| anyhow!("resource {uri} returned no text contents"))?;
     Ok(serde_json::from_str(&text)?)
+}
+
+async fn read_resource_blob(client: &Client, uri: &str) -> Result<(Vec<u8>, Option<String>)> {
+    let result = client
+        .read_resource(ReadResourceRequestParams::new(uri))
+        .await?;
+    let (blob, mime_type) = result
+        .contents
+        .iter()
+        .find_map(|c| match c {
+            rmcp::model::ResourceContents::BlobResourceContents {
+                blob, mime_type, ..
+            } => Some((blob.clone(), mime_type.clone())),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow!("resource {uri} returned no blob contents"))?;
+    Ok((BASE64_STANDARD.decode(blob)?, mime_type))
 }
 
 async fn cmd_info(client: &Client) -> Result<()> {
@@ -269,6 +296,58 @@ fn print_call_tool_result(result: &CallToolResult) -> Vec<String> {
     outputs
 }
 
+fn extension_for_mime(mime_type: Option<&str>) -> &'static str {
+    match mime_type.and_then(|m| m.split(';').next()) {
+        Some("image/png") => "png",
+        Some("image/jpeg") => "jpg",
+        Some("image/webp") => "webp",
+        Some("image/gif") => "gif",
+        Some("video/mp4") => "mp4",
+        Some("video/webm") => "webm",
+        Some("audio/mpeg") => "mp3",
+        Some("audio/wav") => "wav",
+        _ => "bin",
+    }
+}
+
+async fn save_output_uri(
+    client: &Client,
+    uris: &ProviderUris,
+    http: &reqwest::Client,
+    output_dir: &std::path::Path,
+    uri: &str,
+) -> Result<()> {
+    let (name, bytes) = if let Some(sha256) = uris.parse_artifact_uri(uri) {
+        let (bytes, mime_type) = read_resource_blob(client, uri).await?;
+        let ext = extension_for_mime(mime_type.as_deref());
+        (format!("{sha256}.{ext}"), bytes)
+    } else if uri.starts_with("http://") || uri.starts_with("https://") {
+        let name = uri
+            .split('?')
+            .next()
+            .and_then(|p| p.rsplit('/').next())
+            .filter(|n| !n.is_empty())
+            .unwrap_or("output.bin")
+            .to_string();
+        let bytes = http
+            .get(uri)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?
+            .to_vec();
+        (name, bytes)
+    } else {
+        return Err(anyhow!("unsupported output resource uri: {uri}"));
+    };
+
+    let path = output_dir.join(name);
+    std::fs::write(&path, &bytes)?;
+    println!("saved {} ({} bytes)", path.display(), bytes.len());
+    Ok(())
+}
+
 async fn cmd_run(
     client: &Client,
     uris: &ProviderUris,
@@ -381,23 +460,8 @@ async fn cmd_run(
     if !outputs.is_empty() {
         std::fs::create_dir_all(&output_dir)?;
         let http = reqwest::Client::new();
-        for url in outputs {
-            let name = url
-                .split('?')
-                .next()
-                .and_then(|p| p.rsplit('/').next())
-                .filter(|n| !n.is_empty())
-                .unwrap_or("output.bin");
-            let bytes = http
-                .get(&url)
-                .send()
-                .await?
-                .error_for_status()?
-                .bytes()
-                .await?;
-            let path = output_dir.join(name);
-            std::fs::write(&path, &bytes)?;
-            println!("saved {} ({} bytes)", path.display(), bytes.len());
+        for uri in outputs {
+            save_output_uri(client, uris, &http, &output_dir, &uri).await?;
         }
     }
     Ok(())
@@ -430,6 +494,17 @@ async fn main() -> Result<()> {
             let value = read_resource_json(&client, &uris.prediction_uri(&id)).await?;
             println!("{}", serde_json::to_string_pretty(&value)?);
             Ok(())
+        }
+        Cmd::Usage { task_id } => {
+            let value = read_resource_json(&client, &uris.usage_task_uri(&task_id)).await?;
+            println!("{}", serde_json::to_string_pretty(&value)?);
+            Ok(())
+        }
+        Cmd::Artifact { sha256, output_dir } => {
+            std::fs::create_dir_all(&output_dir)?;
+            let uri = uris.artifact_uri(&sha256);
+            let http = reqwest::Client::new();
+            save_output_uri(&client, &uris, &http, &output_dir, &uri).await
         }
         Cmd::Run {
             model_id,

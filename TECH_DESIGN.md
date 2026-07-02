@@ -97,6 +97,9 @@ learns the prediction URI to subscribe to *while the task is still running*.
 media://models                          catalog index (id, type, description, price)
 media://model/{model_id}                full input schema + pricing   (completable)
 media://prediction/{id}                 live prediction state         (subscribable)
+media://artifact/{sha256}               server-owned output artifact
+media://usage                           usage resource index
+media://usage/task/{task_id}            estimates/actuals for one task
 ```
 
 Tool names are scoped per-connection in MCP; hosts that aggregate servers do their own
@@ -110,13 +113,15 @@ tool results carry `ResourceLink` blocks, subscriptions target them.
 A completed `run` returns a `CallToolResult` carrying:
 
 - a human-readable text block (model, output count, timing),
-- one `ResourceLink` per output (CDN URL + mime type) — outputs are addressable, not blobs,
-- `structuredContent`: the full prediction JSON for programmatic consumers.
+- one `ResourceLink` per output (`media://artifact/{sha256}` + mime type) — outputs are
+  addressable without exposing provider CDN URLs,
+- `structuredContent`: the provider prediction JSON plus artifact metadata for
+  programmatic consumers.
 
-Base64 output is deliberately off for provider-backed webhook runs;
-media moves by URL in both directions. Inputs the provider must fetch are served from the
-server's own `/files/*` static route through the public tunnel URL — the same single
-process handles MCP, webhooks, and media.
+Provider output URLs are copied once into the server-owned artifact store, then redacted
+from the client-facing result. Inputs the provider must fetch are served from the server's
+own `/files/*` static route through the public tunnel URL — the same single process
+handles MCP, webhooks, artifacts, and media.
 
 ## The client surface is MCP, only MCP
 
@@ -141,10 +146,10 @@ tool-flattening failure mode wearing a different hat.
 cap messages around 4MB, embedded/blob resources are guided to ~1MB, base64 adds 33%, and
 the core protocol has no ranged reads, chunking, or resume (SEP-1597/1708/2356 are open
 precisely because of this). The spec's own idiom for large content is link-not-blob:
-`ResourceLink` blocks may carry any URI, including plain `https://`. So artifact results
-carry both identities: `artifact://{sha256}` as the canonical, protocol-readable one
-(blob via `resources/read` for small/medium content), and a `https://…/artifacts/{sha256}`
-content URL for bulk retrieval. That route is GET-only, immutable, content-addressed —
+`ResourceLink` blocks may carry any URI, including custom schemes. Artifact results carry
+both identities: `media://artifact/{sha256}` as the canonical, protocol-readable one
+(blob via `resources/read`), and a `https://…/artifacts/{sha256}` content URL in artifact
+metadata for bulk retrieval. That route is GET-only, immutable, content-addressed —
 functionally a private CDN. Clients never discover anything there; every URL they touch
 was handed to them by the protocol. The moment it grows a second verb, a listing, or any
 fact not already in the protocol, it has become an API and broken the rule.
@@ -180,7 +185,7 @@ resilient provider-backed generation servers. That layer should standardize the 
 - durable task recovery across restarts,
 - consistent task lifecycle for long-running provider jobs,
 - artifact ingestion into a server-owned store,
-- `artifact://{sha256}` plus `/artifacts/{sha256}` download URLs,
+- `{scheme}://artifact/{sha256}` plus `/artifacts/{sha256}` download URLs,
 - usage estimates, actuals, and usage resources,
 - URI conventions across providers,
 - TTL/GC policy,
@@ -239,6 +244,13 @@ The artifact store contract should target S3-compatible APIs so deployments can 
 RustFS locally, AWS S3, Cloudflare R2, Ceph/RGW, MinIO, or another compatible service
 without changing MCP behavior.
 
+For regulated data, the important separation is bytes vs. metadata. Artifact bytes live
+behind the injected object store; task, prediction, artifact, and usage metadata live in
+per-server SQLite by default. Artifact metadata already has optional classification,
+tenant, owner, and retention fields. Server logs must avoid prompts, webhook bodies,
+provider output URLs, signed URLs, and raw provider payloads; log only correlation ids
+such as `task_id`, `prediction_id`, `artifact_sha256`, `model_id`, and future `tenant_id`.
+
 For logging and observability, MCP servers should emit structured JSON logs to stdout and
 OpenTelemetry traces/metrics/logs where configured. Events must carry stable correlation
 fields: `task_id`, `prediction_id`, `artifact_sha256`, `provider`, `model_id`, and
@@ -261,7 +273,7 @@ settings at the enterprise object store; omit local logging UI and point OTEL ex
 the enterprise collector; provide secrets through their secret manager instead of `.env`.
 Compose profiles should make that explicit:
 
-- `default`: MCP servers plus bundled MinIO, state store, OTEL collector, and local logs UI,
+- `default`: MCP servers plus bundled RustFS, state store, OTEL collector, and local logs UI,
 - `enterprise`: MCP servers only, expecting external state/object/observability endpoints,
 - `dev`: local helpers such as static input files, tunnels, and test fixtures.
 
@@ -281,16 +293,19 @@ Both paths were proven against a production media provider, through a real cloud
 
 Plus: schema validation rejects bad input before submission, `tasks/cancel` aborts
 in-flight work, and completions rank prefix matches across the full 988-model registry.
+The local workspace tests cover the current artifact/usage URI contract, SQLite-backed
+state helpers, webhook signature verification, schema extraction, and conformance CLI
+build.
 
 ## Known gaps
 
-- **Artifact bytes are not yet ingested.** Task and prediction metadata are durable in
-  per-server SQLite, but provider output URLs are still returned directly instead of
-  copied into the server-owned S3-compatible artifact store.
+- **Provider actual billing is not available yet.** The usage ledger records provider-accepted
+  estimates from registry pricing/formula metadata. It does not invent actual usage rows
+  until a provider payload exposes billable actuals.
 - **Subscription identity is coarse.** Unsubscribe clears all peers for a URI — fine for
   owned single-client deployments, wrong for multi-tenant.
-- **No task/artifact GC.** Completed task entries and future artifacts need explicit
-  retention policy enforcement.
+- **No task/artifact GC.** Completed task entries and artifacts need explicit retention
+  policy enforcement.
 - **Tasks are an evolving extension.** SEP-1319 (2025-11-25) is what rmcp 2.0 ships; the
   2026-07-28 spec moves tasks to an extension with `tasks/update` for mid-flight input.
   Owning both ends means we migrate both sides in one commit when rmcp does.
