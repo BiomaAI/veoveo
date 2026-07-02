@@ -53,6 +53,7 @@ struct Args {
     /// Internal gateway signing secret for direct hosted-server conformance.
     #[arg(
         long,
+        env = "VEOVEO_INTERNAL_TOKEN_SECRET",
         global = true,
         hide_env_values = true,
         conflicts_with = "bearer_token"

@@ -67,7 +67,7 @@ smoke-gateway-http:
         fi
         rm -rf "${tmpdir}"
     }
-    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" --internal-token-secret "${internal_secret}" >"${log}" 2>&1 &
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-control-plane}} --state-db "${state_db}" >"${log}" 2>&1 &
     pid=$!
     trap cleanup EXIT
     for _ in {1..50}; do
@@ -106,7 +106,7 @@ smoke-media-mcp-auth:
         wait "${pid}" 2>/dev/null || true
         rm -rf "${tmpdir}"
     }
-    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke cargo run -p veoveo-media-mcp --bin server -- --port "${port}" --public-base-url https://veoveo.bioma.ai --state-db "${state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 --internal-token-secret "${internal_secret}" >"${log}" 2>&1 &
+    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${port}" --public-base-url https://veoveo.bioma.ai --state-db "${state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 >"${log}" 2>&1 &
     pid=$!
     trap cleanup EXIT
     for _ in {1..50}; do
@@ -120,7 +120,7 @@ smoke-media-mcp-auth:
     test "${status}" = "401"
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
     test "${status}" = "401"
-    {{conformance}} --url "${base}/media/mcp" --internal-token-secret "${internal_secret}" info >/dev/null
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${base}/media/mcp" info >/dev/null
 
 # Smoke-test authenticated gateway-to-media MCP forwarding.
 smoke-gateway-authenticated:
@@ -150,7 +150,7 @@ smoke-gateway-authenticated:
         rm -rf "${tmpdir}"
     }
     trap cleanup EXIT
-    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke cargo run -p veoveo-media-mcp --bin server -- --port "${media_port}" --public-base-url https://veoveo.bioma.ai --state-db "${media_state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 --internal-token-secret "${internal_secret}" >"${media_log}" 2>&1 &
+    MEDIA_PROVIDER_API_KEY=smoke AWS_ACCESS_KEY_ID=smoke AWS_SECRET_ACCESS_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${media_port}" --public-base-url https://veoveo.bioma.ai --state-db "${media_state_db}" --artifact-endpoint http://127.0.0.1:9 --artifact-bucket smoke-artifacts --artifact-region us-east-1 >"${media_log}" 2>&1 &
     media_pid=$!
     for _ in {1..50}; do
         if curl -fsS "${media_base}/media/healthz" >/dev/null 2>&1; then
@@ -159,7 +159,7 @@ smoke-gateway-authenticated:
         sleep 0.2
     done
     curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
-    cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" --internal-token-secret "${internal_secret}" >"${gateway_log}" 2>&1 &
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
     gateway_pid=$!
     for _ in {1..50}; do
         if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
@@ -169,11 +169,11 @@ smoke-gateway-authenticated:
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
     token="$({{conformance}} gateway-token --scope media:use --jwt-id smoke-gateway-authenticated)"
-    {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" info >/dev/null
-    {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" resource media://usage >/dev/null
-    {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${token}" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
+    env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
+    env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" resource media://usage >/dev/null
+    env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
     denied_token="$({{conformance}} gateway-token --scope gateway:admin --jwt-id smoke-gateway-denied)"
-    if {{conformance}} --url "${gateway_base}/mcp/default" --bearer-token "${denied_token}" info >/dev/null 2>&1; then
+    if env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${denied_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null 2>&1; then
         echo "missing-scope gateway token was unexpectedly authorized" >&2
         exit 1
     fi
@@ -216,35 +216,35 @@ health public_base_url='':
 
 # Show MCP server info and resource templates.
 info:
-    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" info
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} info
 
 # List models, optionally with a local query string.
 models query='':
-    if [ -n '{{query}}' ]; then {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" models '{{query}}'; else {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" models; fi
+    if [ -n '{{query}}' ]; then env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} models; fi
 
 # Complete model ids by prefix.
 complete prefix:
-    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" complete '{{prefix}}'
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
 
 # Read one model schema.
 schema model:
-    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" schema '{{model}}'
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} schema '{{model}}'
 
 # Run an arbitrary model with a raw JSON input object.
 run model input output_dir='output':
-    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" run '{{model}}' --input '{{input}}' --output-dir '{{output_dir}}'
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} run '{{model}}' --input '{{input}}' --output-dir '{{output_dir}}'
 
 # Run the default image edit e2e against the public base URL and save returned artifacts.
 run-edit public_base_url output_dir='output/e2e':
-    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
+    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
 
 # Read one task usage report.
 usage task_id:
-    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" usage '{{task_id}}'
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
 
 # Read and save one artifact by sha256.
 artifact sha256 output_dir='output':
-    {{conformance}} --url {{mcp-url}} --internal-token-secret "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" artifact '{{sha256}}' --output-dir '{{output_dir}}'
+    env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}" {{conformance}} --url {{mcp-url}} artifact '{{sha256}}' --output-dir '{{output_dir}}'
 
 # Start the stack, check health, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':
