@@ -509,14 +509,46 @@ impl GatewayCatalog {
                     );
                 }
                 RuleMatchDetail::MissingDataLabel => {
-                    strongest_missing_requirement =
-                        Some((PolicyReasonCode::MissingDataLabel, rule.id.clone()));
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingDataLabel,
+                        rule.id.clone(),
+                    );
+                }
+                RuleMatchDetail::MissingRole => {
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingRole,
+                        rule.id.clone(),
+                    );
+                }
+                RuleMatchDetail::MissingGroup => {
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingGroup,
+                        rule.id.clone(),
+                    );
+                }
+                RuleMatchDetail::MissingTenant => {
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingTenant,
+                        rule.id.clone(),
+                    );
+                }
+                RuleMatchDetail::MissingPrincipal => {
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingPrincipal,
+                        rule.id.clone(),
+                    );
                 }
                 RuleMatchDetail::MissingScope => {
-                    if strongest_missing_requirement.is_none() {
-                        strongest_missing_requirement =
-                            Some((PolicyReasonCode::MissingScope, rule.id.clone()));
-                    }
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingScope,
+                        rule.id.clone(),
+                    );
                 }
                 RuleMatchDetail::NoMatch => {}
             }
@@ -655,6 +687,10 @@ impl GatewayCatalog {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RuleMatchDetail {
     Match,
+    MissingPrincipal,
+    MissingTenant,
+    MissingGroup,
+    MissingRole,
     MissingScope,
     MissingDataLabel,
     NoMatch,
@@ -900,36 +936,103 @@ fn rule_match_detail(
     if !matches_target_filters(rule, request.target) {
         return RuleMatchDetail::NoMatch;
     }
+    let mut strongest_missing_requirement = RuleMatchDetail::Match;
     if !rule.principal_ids.is_empty() && !rule.principal_ids.contains(&request.principal.id) {
-        return RuleMatchDetail::NoMatch;
+        strongest_missing_requirement = strongest_missing_rule_detail(
+            strongest_missing_requirement,
+            RuleMatchDetail::MissingPrincipal,
+        );
     }
     if !rule.tenant_ids.is_empty() {
-        let Some(tenant) = &request.principal.tenant else {
-            return RuleMatchDetail::NoMatch;
-        };
-        if !rule.tenant_ids.contains(tenant) {
-            return RuleMatchDetail::NoMatch;
+        match &request.principal.tenant {
+            Some(tenant) if rule.tenant_ids.contains(tenant) => {}
+            _ => {
+                strongest_missing_requirement = strongest_missing_rule_detail(
+                    strongest_missing_requirement,
+                    RuleMatchDetail::MissingTenant,
+                );
+            }
         }
     }
     if !rule.groups.is_empty() && !intersects(&rule.groups, &request.principal.groups) {
-        return RuleMatchDetail::NoMatch;
+        strongest_missing_requirement = strongest_missing_rule_detail(
+            strongest_missing_requirement,
+            RuleMatchDetail::MissingGroup,
+        );
     }
     if !rule.roles.is_empty() && !intersects(&rule.roles, &request.principal.roles) {
-        return RuleMatchDetail::NoMatch;
+        strongest_missing_requirement = strongest_missing_rule_detail(
+            strongest_missing_requirement,
+            RuleMatchDetail::MissingRole,
+        );
     }
     if !rule.required_scopes.is_empty()
         && !rule.required_scopes.is_subset(&request.principal.scopes)
     {
-        return RuleMatchDetail::MissingScope;
+        strongest_missing_requirement = strongest_missing_rule_detail(
+            strongest_missing_requirement,
+            RuleMatchDetail::MissingScope,
+        );
     }
     if !rule.required_data_labels.is_empty()
         && !rule
             .required_data_labels
             .is_subset(&request.principal.data_labels)
     {
-        return RuleMatchDetail::MissingDataLabel;
+        strongest_missing_requirement = strongest_missing_rule_detail(
+            strongest_missing_requirement,
+            RuleMatchDetail::MissingDataLabel,
+        );
     }
-    RuleMatchDetail::Match
+    strongest_missing_requirement
+}
+
+fn strongest_missing_rule_detail(left: RuleMatchDetail, right: RuleMatchDetail) -> RuleMatchDetail {
+    if rule_detail_rank(right) > rule_detail_rank(left) {
+        right
+    } else {
+        left
+    }
+}
+
+fn rule_detail_rank(detail: RuleMatchDetail) -> u8 {
+    match detail {
+        RuleMatchDetail::MissingDataLabel => 60,
+        RuleMatchDetail::MissingRole => 50,
+        RuleMatchDetail::MissingGroup => 40,
+        RuleMatchDetail::MissingTenant => 30,
+        RuleMatchDetail::MissingPrincipal => 20,
+        RuleMatchDetail::MissingScope => 10,
+        RuleMatchDetail::Match | RuleMatchDetail::NoMatch => 0,
+    }
+}
+
+fn remember_strongest_missing_requirement(
+    current: &mut Option<(PolicyReasonCode, PolicyRuleId)>,
+    reason: PolicyReasonCode,
+    rule_id: PolicyRuleId,
+) {
+    let replace = current
+        .as_ref()
+        .map(|(current_reason, _)| {
+            missing_requirement_rank(reason) > missing_requirement_rank(*current_reason)
+        })
+        .unwrap_or(true);
+    if replace {
+        *current = Some((reason, rule_id));
+    }
+}
+
+fn missing_requirement_rank(reason: PolicyReasonCode) -> u8 {
+    match reason {
+        PolicyReasonCode::MissingDataLabel => 60,
+        PolicyReasonCode::MissingRole => 50,
+        PolicyReasonCode::MissingGroup => 40,
+        PolicyReasonCode::MissingTenant => 30,
+        PolicyReasonCode::MissingPrincipal => 20,
+        PolicyReasonCode::MissingScope => 10,
+        _ => 0,
+    }
 }
 
 fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
@@ -1028,15 +1131,15 @@ mod tests {
     use serde_json::Value;
     use veoveo_mcp_contract::{
         AuthMode, AuthorizationServerId, CompletionExposure, DataLabelId, Exposure,
-        GatewayControlPlaneError, GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId,
-        IdentityProviderOidcClientRegistration, JwksSource, JwtId,
+        GatewayControlPlaneError, GatewayTaskId, GroupId, HttpsUrl, IdentityProvider,
+        IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource, JwtId,
         MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
         MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
         OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
         OwnedRoutePurpose, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
-        ResourceAuthorizationServer, ResourceSelector, ScopeName, SecretLocator, SecretOwner,
-        SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure, TenantId,
-        TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
+        ResourceAuthorizationServer, ResourceSelector, RoleId, ScopeName, SecretLocator,
+        SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
+        TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
     };
 
     use super::*;
@@ -1421,6 +1524,111 @@ mod tests {
 
         assert_eq!(decision.effect, PolicyEffect::Allow);
         assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
+    }
+
+    #[test]
+    fn policy_denies_missing_tenant_with_specific_reason() {
+        let catalog = catalog();
+        let mut principal = principal(&["media:use"]);
+        principal.tenant = Some(TenantId::new("tenant-b").unwrap());
+        let decision = catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &PolicyTarget::Tool {
+                server: ServerSlug::new("media").unwrap(),
+                tool: LocalToolName::new("run").unwrap(),
+            },
+            trace_id: &TraceId::new("trace-tenant-deny").unwrap(),
+        });
+
+        assert_eq!(decision.effect, PolicyEffect::Deny);
+        assert_eq!(decision.reason, PolicyReasonCode::MissingTenant);
+        assert_eq!(
+            decision.rule_id,
+            Some(PolicyRuleId::new("allow_media_run").unwrap())
+        );
+    }
+
+    #[test]
+    fn policy_denies_missing_group_and_role_with_specific_reasons() {
+        let target = PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: LocalToolName::new("run").unwrap(),
+        };
+
+        let mut group_policy = policy();
+        group_policy.rules[0].groups = BTreeSet::from([GroupId::new("engineering").unwrap()]);
+        let group_catalog = catalog_with_policy(group_policy);
+        let mut principal = principal(&["media:use"]);
+        let decision = group_catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &target,
+            trace_id: &TraceId::new("trace-group-deny").unwrap(),
+        });
+        assert_eq!(decision.effect, PolicyEffect::Deny);
+        assert_eq!(decision.reason, PolicyReasonCode::MissingGroup);
+
+        principal.groups = BTreeSet::from([GroupId::new("engineering").unwrap()]);
+        let decision = group_catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &target,
+            trace_id: &TraceId::new("trace-group-allow").unwrap(),
+        });
+        assert_eq!(decision.effect, PolicyEffect::Allow);
+
+        let mut role_policy = policy();
+        role_policy.rules[0].roles = BTreeSet::from([RoleId::new("operator").unwrap()]);
+        let role_catalog = catalog_with_policy(role_policy);
+        let decision = role_catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &target,
+            trace_id: &TraceId::new("trace-role-deny").unwrap(),
+        });
+        assert_eq!(decision.effect, PolicyEffect::Deny);
+        assert_eq!(decision.reason, PolicyReasonCode::MissingRole);
+
+        principal.roles = BTreeSet::from([RoleId::new("operator").unwrap()]);
+        let decision = role_catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &target,
+            trace_id: &TraceId::new("trace-role-allow").unwrap(),
+        });
+        assert_eq!(decision.effect, PolicyEffect::Allow);
+    }
+
+    #[test]
+    fn policy_denies_missing_principal_allowlist_with_specific_reason() {
+        let mut policy = policy();
+        policy.rules[0].principal_ids =
+            BTreeSet::from([PrincipalId::new("allowed@example.com").unwrap()]);
+        let catalog = catalog_with_policy(policy);
+        let principal = principal(&["media:use"]);
+        let decision = catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &PolicyTarget::Tool {
+                server: ServerSlug::new("media").unwrap(),
+                tool: LocalToolName::new("run").unwrap(),
+            },
+            trace_id: &TraceId::new("trace-principal-deny").unwrap(),
+        });
+
+        assert_eq!(decision.effect, PolicyEffect::Deny);
+        assert_eq!(decision.reason, PolicyReasonCode::MissingPrincipal);
+        assert_eq!(
+            decision.rule_id,
+            Some(PolicyRuleId::new("allow_media_run").unwrap())
+        );
     }
 
     #[test]
