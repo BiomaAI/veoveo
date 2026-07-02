@@ -20,6 +20,7 @@ clap.workspace = true
 dotenvy.workspace = true
 duckdb.workspace = true
 jsonwebtoken.workspace = true
+parking_lot.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest"] }
 serde.workspace = true

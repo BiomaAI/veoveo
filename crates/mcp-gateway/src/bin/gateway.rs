@@ -3,7 +3,7 @@ use std::{
     net::SocketAddr,
     num::NonZeroU32,
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -31,6 +31,7 @@ use jsonwebtoken::{
     Algorithm, EncodingKey, Header, encode,
     jwk::{Jwk, JwkSet},
 };
+use parking_lot::RwLock;
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
@@ -3753,24 +3754,19 @@ async fn fetch_jwks(http: &reqwest::Client, url: &str) -> anyhow::Result<JwkSet>
 }
 
 fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
-    catalog
-        .read()
-        .expect("gateway catalog lock poisoned")
-        .clone()
+    catalog.read().clone()
 }
 
 fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
-    http.read()
-        .expect("gateway HTTP client lock poisoned")
-        .clone()
+    http.read().clone()
 }
 
 fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
-    *catalog.write().expect("gateway catalog lock poisoned") = new_catalog;
+    *catalog.write() = new_catalog;
 }
 
 fn replace_http_client(http: &SharedHttpClient, new_client: reqwest::Client) {
-    *http.write().expect("gateway HTTP client lock poisoned") = new_client;
+    *http.write() = new_client;
 }
 
 fn gateway_retention_cutoff(now: DateTime<Utc>, days: NonZeroU32) -> anyhow::Result<DateTime<Utc>> {
