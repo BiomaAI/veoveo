@@ -9,16 +9,21 @@ use std::{
 use anyhow::{Context, anyhow};
 use axum::{
     Form, Json, Router,
-    extract::{Path as AxumPath, Request, State},
+    extract::{Path as AxumPath, Query, Request, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE, PRAGMA, WWW_AUTHENTICATE},
+        header::{AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE, LOCATION, PRAGMA, WWW_AUTHENTICATE},
     },
     middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::{
+        STANDARD as BASE64_STANDARD, URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD,
+    },
+};
 use chrono::{DateTime, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
 use jsonwebtoken::{
@@ -29,20 +34,25 @@ use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
+use url::Url;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayInternalTokenIssuer, GatewayJwtRevocation,
-    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
-    OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType, PolicyDecision,
-    PolicyEffect, PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayAuthorizationCodeRecord,
+    GatewayAuthorizationRequest, GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayProfile,
+    GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
+    OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
+    OAuthGrantType, OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce,
+    PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect,
+    PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
     ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, SecretSource,
     TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
     GatewayCatalog, GatewayMcp, GatewayState, IdJagConfig, IdJagVerifier, JwtAuthConfig,
-    JwtVerifier, PolicyRequest, www_authenticate_challenge,
+    JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier, PolicyRequest, www_authenticate_challenge,
 };
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -50,6 +60,8 @@ const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
+const AUTHORIZATION_REQUEST_TTL_SECONDS: i64 = 10 * 60;
+const AUTHORIZATION_CODE_TTL_SECONDS: i64 = 5 * 60;
 type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
 
 #[derive(Parser, Debug)]
@@ -167,11 +179,44 @@ struct TokenRequest {
     #[serde(default)]
     scope: Option<String>,
     #[serde(default)]
+    code: Option<String>,
+    #[serde(default)]
+    redirect_uri: Option<String>,
+    #[serde(default)]
+    code_verifier: Option<String>,
+    #[serde(default)]
     client_assertion_type: Option<String>,
     #[serde(default)]
     client_assertion: Option<String>,
     #[serde(default)]
     assertion: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthorizationRequest {
+    response_type: String,
+    client_id: String,
+    redirect_uri: String,
+    code_challenge: String,
+    code_challenge_method: String,
+    #[serde(default)]
+    scope: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+    #[serde(default)]
+    resource: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthorizationCallback {
+    #[serde(default)]
+    code: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+    #[serde(default)]
+    error: Option<String>,
+    #[serde(default)]
+    error_description: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -180,6 +225,21 @@ struct TokenResponse {
     token_type: &'static str,
     expires_in: u64,
     scope: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OidcTokenResponse {
+    id_token: String,
+}
+
+#[derive(Debug, Clone)]
+struct OidcTokenExchangeRequest {
+    token_endpoint: String,
+    client_id: String,
+    client_secret: String,
+    auth_method: OidcClientAuthMethod,
+    redirect_uri: String,
+    code_verifier: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -317,6 +377,8 @@ async fn serve(
     let mut router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(readyz))
+        .route("/oauth/{profile}/authorize", get(authorize_endpoint))
+        .route("/oauth/{profile}/callback", get(authorization_callback))
         .route("/oauth/{profile}/token", post(token_endpoint))
         .route(
             "/.well-known/oauth-protected-resource/mcp/{profile}",
@@ -484,6 +546,678 @@ async fn authorization_server_jwks(
     (StatusCode::OK, headers, Json(jwks)).into_response()
 }
 
+async fn authorize_endpoint(
+    State(state): State<AppState>,
+    AxumPath(profile): AxumPath<String>,
+    Query(request): Query<AuthorizationRequest>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&profile_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
+    else {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: None,
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnknownAuthorizationServer,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "authorization server is unavailable",
+        );
+    };
+    if !profile
+        .auth_modes
+        .contains(&AuthMode::OidcAuthorizationCodePkce)
+    {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnsupportedGrantType,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_response_type",
+            "authorization code flow is not enabled for this gateway profile",
+        );
+    }
+    if request.response_type != "code"
+        || request
+            .resource
+            .as_deref()
+            .is_some_and(|resource| resource != profile.protected_resource.as_str())
+    {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidAuthorizationRequest,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "authorization request is invalid",
+        );
+    }
+    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+        Ok(client_id) => client_id,
+        Err(_) => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: None,
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidClient,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client is not allowed for this gateway profile",
+            );
+        }
+    };
+    let Some(client) = catalog.oauth_client(&client_id) else {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client is not allowed for this gateway profile",
+        );
+    };
+    if !authorization_code_client_allowed(profile, client) {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client is not allowed for this gateway profile",
+        );
+    }
+    let redirect_uri = match OAuthRedirectUri::new(request.redirect_uri.trim()) {
+        Ok(redirect_uri) if client.redirect_uris.contains(&redirect_uri) => redirect_uri,
+        _ => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthorizationRequest,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "redirect_uri is not registered for this client",
+            );
+        }
+    };
+    let scopes = match requested_token_scopes(&catalog, profile, client, request.scope.as_deref()) {
+        Ok(scopes) => scopes,
+        Err(err) => {
+            tracing::warn!(client = %client_id, "rejected authorization scope request: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidScope,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_scope",
+                "requested scope is not allowed",
+            );
+        }
+    };
+    let code_challenge = match PkceCodeChallenge::new(request.code_challenge.trim()) {
+        Ok(challenge) if request.code_challenge_method == "S256" => challenge,
+        _ => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidPkce,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "PKCE S256 code challenge is required",
+            );
+        }
+    };
+    let client_state = match request
+        .state
+        .as_deref()
+        .map(OAuthStateValue::new)
+        .transpose()
+    {
+        Ok(state) => state,
+        Err(_) => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthorizationRequest,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "state value is invalid",
+            );
+        }
+    };
+    let Some(oidc_client) = catalog.profile_oidc_client(profile) else {
+        tracing::error!(profile = %profile.id, "gateway profile is missing OIDC client registration");
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "OIDC client is not configured",
+        );
+    };
+    let Some(identity_provider) = catalog.identity_provider(&oidc_client.identity_provider) else {
+        tracing::error!(identity_provider = %oidc_client.identity_provider, "unknown identity provider");
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "identity provider is unavailable",
+        );
+    };
+    let Some(idp_authorization_endpoint) = identity_provider.authorization_endpoint.as_ref() else {
+        tracing::error!(identity_provider = %identity_provider.id, "identity provider has no authorization endpoint");
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "identity provider is not configured",
+        );
+    };
+
+    let idp_state = match random_oauth_state() {
+        Ok(value) => value,
+        Err(err) => return internal_error_response(err),
+    };
+    let idp_code_verifier = match random_pkce_verifier() {
+        Ok(value) => value,
+        Err(err) => return internal_error_response(err),
+    };
+    let idp_code_challenge = match pkce_s256_challenge(&idp_code_verifier) {
+        Ok(value) => value,
+        Err(err) => return internal_error_response(err),
+    };
+    let nonce = match random_oidc_nonce() {
+        Ok(value) => value,
+        Err(err) => return internal_error_response(err),
+    };
+    let now = Utc::now();
+    let expires_at =
+        match now.checked_add_signed(TimeDelta::seconds(AUTHORIZATION_REQUEST_TTL_SECONDS)) {
+            Some(value) => value,
+            None => return internal_error_response("authorization request expiration overflow"),
+        };
+    let authorization_request = GatewayAuthorizationRequest {
+        idp_state: idp_state.clone(),
+        profile: profile.id.clone(),
+        oauth_client_id: client_id.clone(),
+        oidc_client: oidc_client.id.clone(),
+        redirect_uri,
+        client_state,
+        requested_scopes: scopes,
+        code_challenge,
+        code_challenge_method: PkceCodeChallengeMethod::S256,
+        idp_code_verifier,
+        idp_code_challenge: idp_code_challenge.clone(),
+        idp_code_challenge_method: PkceCodeChallengeMethod::S256,
+        nonce: nonce.clone(),
+        created_at: now,
+        expires_at,
+    };
+    if let Err(err) = state
+        .gateway_state
+        .record_authorization_request(&authorization_request)
+    {
+        tracing::error!("failed to record gateway authorization request: {err}");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    if let Err(err) = record_oidc_auth_audit(
+        &state.gateway_state,
+        profile,
+        AuthAuditRecord {
+            authorization_server: Some(authorization_server),
+            client_id: Some(&client_id),
+            principal: None,
+            jwt_id: None,
+            outcome: AuthOutcome::Allow,
+            reason: AuthReasonCode::AuthAllow,
+            started_at,
+        },
+    ) {
+        return auth_audit_error_response(err);
+    }
+
+    let mut redirect = match Url::parse(idp_authorization_endpoint.as_str()) {
+        Ok(url) => url,
+        Err(err) => return internal_error_response(err),
+    };
+    redirect
+        .query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", oidc_client.client_id.as_str())
+        .append_pair("redirect_uri", oidc_client.redirect_uri.as_str())
+        .append_pair("scope", &scope_string(&oidc_client.scopes))
+        .append_pair("state", idp_state.as_str())
+        .append_pair("code_challenge", idp_code_challenge.as_str())
+        .append_pair("code_challenge_method", "S256")
+        .append_pair("nonce", nonce.as_str());
+    redirect_response(redirect.as_str())
+}
+
+async fn authorization_callback(
+    State(state): State<AppState>,
+    AxumPath(profile): AxumPath<String>,
+    Query(callback): Query<AuthorizationCallback>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&profile_id).cloned() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(authorization_server) = catalog
+        .authorization_server(&profile.authorization_server)
+        .cloned()
+    else {
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "authorization server is unavailable",
+        );
+    };
+    let Some(raw_state) = callback.state.as_deref() else {
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "state is required",
+        );
+    };
+    let idp_state = match OAuthStateValue::new(raw_state.trim()) {
+        Ok(value) => value,
+        Err(_) => {
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "state is invalid",
+            );
+        }
+    };
+    let authorization_request = match state
+        .gateway_state
+        .consume_authorization_request(&idp_state, Utc::now())
+    {
+        Ok(Some(request)) if request.profile == profile.id => request,
+        Ok(_) => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                &profile,
+                AuthAuditRecord {
+                    authorization_server: Some(&authorization_server),
+                    client_id: None,
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthorizationRequest,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "authorization state is invalid or expired",
+            );
+        }
+        Err(err) => {
+            tracing::error!("failed to consume gateway authorization state: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    if let Some(error) = callback.error.as_deref() {
+        let description = callback.error_description.as_deref();
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            &profile,
+            AuthAuditRecord {
+                authorization_server: Some(&authorization_server),
+                client_id: Some(&authorization_request.oauth_client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidAuthorizationRequest,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return redirect_with_oauth_error(
+            &authorization_request.redirect_uri,
+            error,
+            description,
+            authorization_request.client_state.as_ref(),
+        );
+    }
+    let Some(idp_code) = callback
+        .code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return redirect_with_oauth_error(
+            &authorization_request.redirect_uri,
+            "invalid_request",
+            Some("authorization code is required"),
+            authorization_request.client_state.as_ref(),
+        );
+    };
+    let idp_code = idp_code.to_string();
+    let Some(oidc_client) = catalog
+        .oidc_client(&authorization_request.oidc_client)
+        .cloned()
+    else {
+        tracing::error!(oidc_client = %authorization_request.oidc_client, "unknown OIDC client registration");
+        return redirect_with_oauth_error(
+            &authorization_request.redirect_uri,
+            "server_error",
+            Some("OIDC client is unavailable"),
+            authorization_request.client_state.as_ref(),
+        );
+    };
+    let Some(identity_provider) = catalog
+        .identity_provider(&oidc_client.identity_provider)
+        .cloned()
+    else {
+        tracing::error!(identity_provider = %oidc_client.identity_provider, "unknown identity provider");
+        return redirect_with_oauth_error(
+            &authorization_request.redirect_uri,
+            "server_error",
+            Some("identity provider is unavailable"),
+            authorization_request.client_state.as_ref(),
+        );
+    };
+    let Some(token_endpoint) = identity_provider
+        .token_endpoint
+        .as_ref()
+        .map(ToString::to_string)
+    else {
+        tracing::error!(identity_provider = %identity_provider.id, "identity provider has no token endpoint");
+        return redirect_with_oauth_error(
+            &authorization_request.redirect_uri,
+            "server_error",
+            Some("identity provider is not configured"),
+            authorization_request.client_state.as_ref(),
+        );
+    };
+    let client_secret = match secret_value(
+        &catalog,
+        &oidc_client.credential_secret,
+        SecretPurpose::OAuthClientSecret,
+    ) {
+        Ok(secret) => secret,
+        Err(err) => {
+            tracing::error!("failed to resolve OIDC client secret: {err}");
+            return redirect_with_oauth_error(
+                &authorization_request.redirect_uri,
+                "server_error",
+                Some("OIDC client secret is unavailable"),
+                authorization_request.client_state.as_ref(),
+            );
+        }
+    };
+    let idp_jwks_source = identity_provider.jwks.clone();
+    let idp_issuer = identity_provider.issuer.clone();
+    let oidc_client_id = oidc_client.client_id.clone();
+    let oidc_client_record_id = oidc_client.id.clone();
+    let token_exchange = OidcTokenExchangeRequest {
+        token_endpoint,
+        client_id: oidc_client.client_id.to_string(),
+        client_secret,
+        auth_method: oidc_client.auth_method,
+        redirect_uri: oidc_client.redirect_uri.to_string(),
+        code_verifier: authorization_request.idp_code_verifier.to_string(),
+    };
+    drop(catalog);
+    drop(identity_provider);
+    drop(oidc_client);
+    let token_response =
+        match exchange_oidc_authorization_code(&state.http, token_exchange, idp_code).await {
+            Ok(response) => response,
+            Err(err) => {
+                tracing::warn!("OIDC token exchange failed: {err}");
+                if let Err(err) = record_oidc_auth_audit(
+                    &state.gateway_state,
+                    &profile,
+                    AuthAuditRecord {
+                        authorization_server: Some(&authorization_server),
+                        client_id: Some(&authorization_request.oauth_client_id),
+                        principal: None,
+                        jwt_id: None,
+                        outcome: AuthOutcome::Deny,
+                        reason: AuthReasonCode::IdentityProviderUnavailable,
+                        started_at,
+                    },
+                ) {
+                    return auth_audit_error_response(err);
+                }
+                return redirect_with_oauth_error(
+                    &authorization_request.redirect_uri,
+                    "server_error",
+                    Some("identity provider token exchange failed"),
+                    authorization_request.client_state.as_ref(),
+                );
+            }
+        };
+    let idp_jwks = match load_jwks(&state.http, &idp_jwks_source).await {
+        Ok(jwks) => jwks,
+        Err(err) => {
+            tracing::warn!("failed to load identity provider JWKS for OIDC: {err}");
+            return redirect_with_oauth_error(
+                &authorization_request.redirect_uri,
+                "server_error",
+                Some("identity provider keys are unavailable"),
+                authorization_request.client_state.as_ref(),
+            );
+        }
+    };
+    let verifier = match OidcIdTokenConfig::new(
+        idp_issuer,
+        oidc_client_id,
+        authorization_request.nonce.clone(),
+        allowed_gateway_jwt_algorithms(),
+    ) {
+        Ok(config) => OidcIdTokenVerifier::new(config, idp_jwks),
+        Err(err) => return internal_error_response(err),
+    };
+    let verified_identity = match verifier.verify(&token_response.id_token) {
+        Ok(identity) => identity,
+        Err(err) => {
+            tracing::warn!("rejected OIDC ID token: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                &profile,
+                AuthAuditRecord {
+                    authorization_server: Some(&authorization_server),
+                    client_id: Some(&authorization_request.oauth_client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidOidcIdToken,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return redirect_with_oauth_error(
+                &authorization_request.redirect_uri,
+                "invalid_grant",
+                Some("identity token could not be validated"),
+                authorization_request.client_state.as_ref(),
+            );
+        }
+    };
+    let gateway_code = match random_authorization_code() {
+        Ok(code) => code,
+        Err(err) => return internal_error_response(err),
+    };
+    let now = Utc::now();
+    let expires_at =
+        match now.checked_add_signed(TimeDelta::seconds(AUTHORIZATION_CODE_TTL_SECONDS)) {
+            Some(value) => value,
+            None => return internal_error_response("authorization code expiration overflow"),
+        };
+    let code_record = GatewayAuthorizationCodeRecord {
+        code: gateway_code.clone(),
+        profile: profile.id.clone(),
+        oauth_client_id: authorization_request.oauth_client_id.clone(),
+        oidc_client: oidc_client_record_id,
+        redirect_uri: authorization_request.redirect_uri.clone(),
+        client_state: authorization_request.client_state.clone(),
+        scopes: authorization_request.requested_scopes.clone(),
+        code_challenge: authorization_request.code_challenge.clone(),
+        code_challenge_method: authorization_request.code_challenge_method,
+        principal: verified_identity.principal.clone(),
+        issued_at: now,
+        expires_at,
+        consumed_at: None,
+    };
+    if let Err(err) = state.gateway_state.record_authorization_code(&code_record) {
+        tracing::error!("failed to record gateway authorization code: {err}");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    if let Err(err) = record_oidc_auth_audit(
+        &state.gateway_state,
+        &profile,
+        AuthAuditRecord {
+            authorization_server: Some(&authorization_server),
+            client_id: Some(&authorization_request.oauth_client_id),
+            principal: Some(&verified_identity.principal),
+            jwt_id: None,
+            outcome: AuthOutcome::Allow,
+            reason: AuthReasonCode::AuthAllow,
+            started_at,
+        },
+    ) {
+        return auth_audit_error_response(err);
+    }
+    redirect_with_authorization_code(
+        &authorization_request.redirect_uri,
+        &gateway_code,
+        authorization_request.client_state.as_ref(),
+    )
+}
+
 async fn token_endpoint(
     State(state): State<AppState>,
     AxumPath(profile): AxumPath<String>,
@@ -502,12 +1236,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            None,
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::UnknownAuthorizationServer,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: None,
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnknownAuthorizationServer,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -530,6 +1267,18 @@ async fn token_endpoint(
         .await;
     }
 
+    if request.grant_type == "authorization_code" {
+        return token_endpoint_authorization_code(
+            &state,
+            &catalog,
+            profile,
+            authorization_server,
+            request,
+            started_at,
+        )
+        .await;
+    }
+
     if request.grant_type != "client_credentials"
         || !profile
             .auth_modes
@@ -538,12 +1287,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::UnsupportedGrantType,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnsupportedGrantType,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -560,12 +1312,15 @@ async fn token_endpoint(
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                None,
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidClient,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: None,
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidClient,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -580,12 +1335,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidClient,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -607,12 +1365,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidClient,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -627,12 +1388,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidClientAssertion,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClientAssertion,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -646,12 +1410,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidClientAssertion,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClientAssertion,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -667,12 +1434,15 @@ async fn token_endpoint(
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidAuthConfig,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidAuthConfig,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -689,12 +1459,15 @@ async fn token_endpoint(
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::AuthorizationServerUnavailable,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::AuthorizationServerUnavailable,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -716,12 +1489,15 @@ async fn token_endpoint(
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidAuthConfig,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthConfig,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -740,12 +1516,15 @@ async fn token_endpoint(
                 if let Err(err) = record_token_auth_audit(
                     &state.gateway_state,
                     profile,
-                    Some(authorization_server),
-                    Some(&client_id),
-                    None,
-                    AuthOutcome::Deny,
-                    AuthReasonCode::InvalidClientAssertion,
-                    started_at,
+                    AuthAuditRecord {
+                        authorization_server: Some(authorization_server),
+                        client_id: Some(&client_id),
+                        principal: None,
+                        jwt_id: None,
+                        outcome: AuthOutcome::Deny,
+                        reason: AuthReasonCode::InvalidClientAssertion,
+                        started_at,
+                    },
                 ) {
                     return auth_audit_error_response(err);
                 }
@@ -773,12 +1552,15 @@ async fn token_endpoint(
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                Some(&verified_assertion.jwt_id),
-                AuthOutcome::Deny,
-                AuthReasonCode::ClientAssertionReplay,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: Some(&verified_assertion.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::ClientAssertionReplay,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -801,12 +1583,15 @@ async fn token_endpoint(
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                Some(&verified_assertion.jwt_id),
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidScope,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: Some(&verified_assertion.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidScope,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -831,12 +1616,15 @@ async fn token_endpoint(
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                Some(&verified_assertion.jwt_id),
-                AuthOutcome::Deny,
-                AuthReasonCode::TokenSigningKeyUnavailable,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: Some(&verified_assertion.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::TokenSigningKeyUnavailable,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -850,12 +1638,15 @@ async fn token_endpoint(
     if let Err(err) = record_token_auth_audit(
         &state.gateway_state,
         profile,
-        Some(authorization_server),
-        Some(&client_id),
-        Some(&token.jwt_id),
-        AuthOutcome::Allow,
-        AuthReasonCode::AuthAllow,
-        started_at,
+        AuthAuditRecord {
+            authorization_server: Some(authorization_server),
+            client_id: Some(&client_id),
+            principal: None,
+            jwt_id: Some(&token.jwt_id),
+            outcome: AuthOutcome::Allow,
+            reason: AuthReasonCode::AuthAllow,
+            started_at,
+        },
     ) {
         return auth_audit_error_response(err);
     }
@@ -869,6 +1660,343 @@ async fn token_endpoint(
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(" "),
+    })
+}
+
+async fn token_endpoint_authorization_code(
+    state: &AppState,
+    catalog: &GatewayCatalog,
+    profile: &GatewayProfile,
+    authorization_server: &ResourceAuthorizationServer,
+    request: TokenRequest,
+    started_at: Instant,
+) -> axum::response::Response {
+    if !profile
+        .auth_modes
+        .contains(&AuthMode::OidcAuthorizationCodePkce)
+    {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnsupportedGrantType,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_grant_type",
+            "authorization code flow is not enabled for this gateway profile",
+        );
+    }
+    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+        Ok(client_id) => client_id,
+        Err(_) => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: None,
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidClient,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client authentication failed",
+            );
+        }
+    };
+    let Some(client) = catalog.oauth_client(&client_id) else {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    };
+    if !authorization_code_client_allowed(profile, client) {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    }
+    if request.scope.is_some() {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidScope,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_scope",
+            "authorization-code token exchange cannot request new scopes",
+        );
+    }
+    let code = match request
+        .code
+        .as_deref()
+        .map(str::trim)
+        .map(OAuthAuthorizationCode::new)
+        .transpose()
+    {
+        Ok(Some(code)) => code,
+        _ => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthorizationCode,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_grant",
+                "authorization code is invalid",
+            );
+        }
+    };
+    let redirect_uri = match request
+        .redirect_uri
+        .as_deref()
+        .map(str::trim)
+        .map(OAuthRedirectUri::new)
+        .transpose()
+    {
+        Ok(Some(redirect_uri)) => redirect_uri,
+        _ => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthorizationRequest,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "redirect_uri is required",
+            );
+        }
+    };
+    let code_verifier = match request
+        .code_verifier
+        .as_deref()
+        .map(str::trim)
+        .map(PkceCodeVerifier::new)
+        .transpose()
+    {
+        Ok(Some(code_verifier)) => code_verifier,
+        _ => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidPkce,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "PKCE code_verifier is required",
+            );
+        }
+    };
+    let code_record = match state
+        .gateway_state
+        .consume_authorization_code(&code, Utc::now())
+    {
+        Ok(Some(record)) => record,
+        Ok(None) => {
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthorizationCode,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_grant",
+                "authorization code is invalid or expired",
+            );
+        }
+        Err(err) => {
+            tracing::error!("failed to consume gateway authorization code: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let expected_challenge = match pkce_s256_challenge(&code_verifier) {
+        Ok(challenge) => challenge,
+        Err(err) => return internal_error_response(err),
+    };
+    if code_record.profile != profile.id
+        || code_record.oauth_client_id != client_id
+        || code_record.redirect_uri != redirect_uri
+        || code_record.code_challenge_method != PkceCodeChallengeMethod::S256
+        || code_record.code_challenge != expected_challenge
+    {
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: Some(&code_record.principal),
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidPkce,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_grant",
+            "authorization code binding is invalid",
+        );
+    }
+    let token = match issue_access_token(
+        catalog,
+        authorization_server,
+        profile,
+        &code_record.principal.subject,
+        PrincipalKind::User,
+        Some(&code_record.principal),
+        &code_record.scopes,
+    ) {
+        Ok(token) => token,
+        Err(err) => {
+            tracing::error!("failed to issue browser authorization-code access token: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: Some(&code_record.principal),
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::TokenSigningKeyUnavailable,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "token signing key is unavailable",
+            );
+        }
+    };
+    if let Err(err) = record_oidc_auth_audit(
+        &state.gateway_state,
+        profile,
+        AuthAuditRecord {
+            authorization_server: Some(authorization_server),
+            client_id: Some(&client_id),
+            principal: Some(&code_record.principal),
+            jwt_id: Some(&token.jwt_id),
+            outcome: AuthOutcome::Allow,
+            reason: AuthReasonCode::AuthAllow,
+            started_at,
+        },
+    ) {
+        return auth_audit_error_response(err);
+    }
+    token_response(TokenResponse {
+        access_token: token.access_token,
+        token_type: "Bearer",
+        expires_in: ACCESS_TOKEN_TTL_SECONDS as u64,
+        scope: scope_string(&code_record.scopes),
     })
 }
 
@@ -887,13 +2015,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            None,
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::UnsupportedGrantType,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: None,
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnsupportedGrantType,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -910,13 +2040,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                None,
-                None,
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidClient,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: None,
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidClient,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -931,13 +2063,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidClient,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -957,13 +2091,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidClient,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidClient,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -978,13 +2114,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidIdentityAssertion,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidIdentityAssertion,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -999,13 +2137,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidAuthConfig,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidAuthConfig,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -1020,13 +2160,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            None,
-            None,
-            AuthOutcome::Deny,
-            AuthReasonCode::UnknownIdentityProvider,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::UnknownIdentityProvider,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -1043,13 +2185,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                None,
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::IdentityProviderUnavailable,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::IdentityProviderUnavailable,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -1072,13 +2216,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                None,
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidAuthConfig,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidAuthConfig,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -1096,13 +2242,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                None,
-                None,
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidIdentityAssertion,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidIdentityAssertion,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -1122,13 +2270,15 @@ async fn token_endpoint_id_jag(
         if let Err(err) = record_id_jag_auth_audit(
             &state.gateway_state,
             profile,
-            Some(authorization_server),
-            Some(&client_id),
-            Some(&verified_id_jag.principal),
-            Some(&verified_id_jag.jwt_id),
-            AuthOutcome::Deny,
-            AuthReasonCode::InvalidIdentityAssertion,
-            started_at,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: Some(&verified_id_jag.principal),
+                jwt_id: Some(&verified_id_jag.jwt_id),
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidIdentityAssertion,
+                started_at,
+            },
         ) {
             return auth_audit_error_response(err);
         }
@@ -1155,13 +2305,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                Some(&verified_id_jag.principal),
-                Some(&verified_id_jag.jwt_id),
-                AuthOutcome::Deny,
-                AuthReasonCode::IdentityAssertionReplay,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: Some(&verified_id_jag.principal),
+                    jwt_id: Some(&verified_id_jag.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::IdentityAssertionReplay,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -1190,13 +2342,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                Some(&verified_id_jag.principal),
-                Some(&verified_id_jag.jwt_id),
-                AuthOutcome::Deny,
-                AuthReasonCode::InvalidScope,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: Some(&verified_id_jag.principal),
+                    jwt_id: Some(&verified_id_jag.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::InvalidScope,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -1222,13 +2376,15 @@ async fn token_endpoint_id_jag(
             if let Err(err) = record_id_jag_auth_audit(
                 &state.gateway_state,
                 profile,
-                Some(authorization_server),
-                Some(&client_id),
-                Some(&verified_id_jag.principal),
-                Some(&verified_id_jag.jwt_id),
-                AuthOutcome::Deny,
-                AuthReasonCode::TokenSigningKeyUnavailable,
-                started_at,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: Some(&verified_id_jag.principal),
+                    jwt_id: Some(&verified_id_jag.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::TokenSigningKeyUnavailable,
+                    started_at,
+                },
             ) {
                 return auth_audit_error_response(err);
             }
@@ -1242,13 +2398,15 @@ async fn token_endpoint_id_jag(
     if let Err(err) = record_id_jag_auth_audit(
         &state.gateway_state,
         profile,
-        Some(authorization_server),
-        Some(&client_id),
-        Some(&verified_id_jag.principal),
-        Some(&token.jwt_id),
-        AuthOutcome::Allow,
-        AuthReasonCode::AuthAllow,
-        started_at,
+        AuthAuditRecord {
+            authorization_server: Some(authorization_server),
+            client_id: Some(&client_id),
+            principal: Some(&verified_id_jag.principal),
+            jwt_id: Some(&token.jwt_id),
+            outcome: AuthOutcome::Allow,
+            reason: AuthReasonCode::AuthAllow,
+            started_at,
+        },
     ) {
         return auth_audit_error_response(err);
     }
@@ -1589,6 +2747,167 @@ fn id_jag_token_scopes(
     Ok(scopes)
 }
 
+fn authorization_code_client_allowed(
+    profile: &GatewayProfile,
+    client: &OAuthClientRegistration,
+) -> bool {
+    client.authorization_server == profile.authorization_server
+        && client.allowed_profiles.contains(&profile.id)
+        && client
+            .grant_types
+            .contains(&OAuthGrantType::AuthorizationCodePkce)
+        && client.auth_methods.contains(&OAuthClientAuthMethod::None)
+}
+
+fn scope_string(scopes: &BTreeSet<ScopeName>) -> String {
+    scopes
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn random_token_value() -> String {
+    format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
+}
+
+fn random_oauth_state() -> anyhow::Result<OAuthStateValue> {
+    Ok(OAuthStateValue::new(random_token_value())?)
+}
+
+fn random_authorization_code() -> anyhow::Result<OAuthAuthorizationCode> {
+    Ok(OAuthAuthorizationCode::new(random_token_value())?)
+}
+
+fn random_pkce_verifier() -> anyhow::Result<PkceCodeVerifier> {
+    Ok(PkceCodeVerifier::new(random_token_value())?)
+}
+
+fn random_oidc_nonce() -> anyhow::Result<OidcNonce> {
+    Ok(OidcNonce::new(random_token_value())?)
+}
+
+fn pkce_s256_challenge(verifier: &PkceCodeVerifier) -> anyhow::Result<PkceCodeChallenge> {
+    let digest = Sha256::digest(verifier.as_str().as_bytes());
+    Ok(PkceCodeChallenge::new(
+        BASE64_URL_SAFE_NO_PAD.encode(digest),
+    )?)
+}
+
+async fn exchange_oidc_authorization_code(
+    http: &reqwest::Client,
+    exchange: OidcTokenExchangeRequest,
+    idp_code: String,
+) -> anyhow::Result<OidcTokenResponse> {
+    let mut request = http.post(&exchange.token_endpoint);
+    let form_body = {
+        let mut form = url::form_urlencoded::Serializer::new(String::new());
+        form.append_pair("grant_type", "authorization_code")
+            .append_pair("code", &idp_code)
+            .append_pair("redirect_uri", &exchange.redirect_uri)
+            .append_pair("client_id", &exchange.client_id)
+            .append_pair("code_verifier", &exchange.code_verifier);
+        match exchange.auth_method {
+            OidcClientAuthMethod::ClientSecretPost => {
+                form.append_pair("client_secret", &exchange.client_secret);
+            }
+            OidcClientAuthMethod::ClientSecretBasic => {
+                let credentials = BASE64_STANDARD
+                    .encode(format!("{}:{}", exchange.client_id, exchange.client_secret));
+                request = request.header(AUTHORIZATION, format!("Basic {credentials}"));
+            }
+        }
+        form.finish()
+    };
+    let response = request
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_body)
+        .send()
+        .await?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(anyhow!(
+            "identity provider token endpoint returned {status}"
+        ));
+    }
+    Ok(response.json::<OidcTokenResponse>().await?)
+}
+
+fn secret_value(
+    catalog: &GatewayCatalog,
+    secret_id: &SecretReferenceId,
+    expected_purpose: SecretPurpose,
+) -> anyhow::Result<String> {
+    let secret = catalog
+        .secret_reference(secret_id)
+        .ok_or_else(|| anyhow!("unknown secret `{secret_id}`"))?;
+    if secret.source != SecretSource::Env {
+        return Err(anyhow!(
+            "secret `{secret_id}` uses unsupported source {:?}",
+            secret.source
+        ));
+    }
+    if secret.purpose != expected_purpose {
+        return Err(anyhow!(
+            "secret `{secret_id}` has purpose {:?}, expected {:?}",
+            secret.purpose,
+            expected_purpose
+        ));
+    }
+    std::env::var(secret.locator.as_str())
+        .with_context(|| format!("missing env secret `{}`", secret.locator))
+}
+
+fn redirect_response(location: &str) -> axum::response::Response {
+    let Ok(location) = HeaderValue::from_str(location) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let mut headers = HeaderMap::new();
+    headers.insert(LOCATION, location);
+    (StatusCode::FOUND, headers).into_response()
+}
+
+fn redirect_with_authorization_code(
+    redirect_uri: &OAuthRedirectUri,
+    code: &OAuthAuthorizationCode,
+    state: Option<&OAuthStateValue>,
+) -> axum::response::Response {
+    let mut url = match Url::parse(redirect_uri.as_str()) {
+        Ok(url) => url,
+        Err(err) => return internal_error_response(err),
+    };
+    url.query_pairs_mut().append_pair("code", code.as_str());
+    if let Some(state) = state {
+        url.query_pairs_mut().append_pair("state", state.as_str());
+    }
+    redirect_response(url.as_str())
+}
+
+fn redirect_with_oauth_error(
+    redirect_uri: &OAuthRedirectUri,
+    error: &str,
+    error_description: Option<&str>,
+    state: Option<&OAuthStateValue>,
+) -> axum::response::Response {
+    let mut url = match Url::parse(redirect_uri.as_str()) {
+        Ok(url) => url,
+        Err(err) => return internal_error_response(err),
+    };
+    url.query_pairs_mut().append_pair("error", error);
+    if let Some(error_description) = error_description {
+        url.query_pairs_mut()
+            .append_pair("error_description", error_description);
+    }
+    if let Some(state) = state {
+        url.query_pairs_mut().append_pair("state", state.as_str());
+    }
+    redirect_response(url.as_str())
+}
+
 fn issue_client_credentials_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
@@ -1858,44 +3177,52 @@ fn record_auth_audit(
         })
 }
 
-fn record_token_auth_audit(
-    gateway_state: &GatewayState,
-    profile: &GatewayProfile,
-    authorization_server: Option<&ResourceAuthorizationServer>,
-    client_id: Option<&OAuthClientId>,
-    jwt_id: Option<&JwtId>,
+struct AuthAuditRecord<'a> {
+    authorization_server: Option<&'a ResourceAuthorizationServer>,
+    client_id: Option<&'a OAuthClientId>,
+    principal: Option<&'a Principal>,
+    jwt_id: Option<&'a JwtId>,
     outcome: AuthOutcome,
     reason: AuthReasonCode,
     started_at: Instant,
+}
+
+fn record_token_auth_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    record: AuthAuditRecord<'_>,
 ) -> anyhow::Result<()> {
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
-    let token_issuer = authorization_server.map(|value| value.issuer.clone());
-    let token_subject = client_id
+    let token_issuer = record
+        .authorization_server
+        .map(|value| value.issuer.clone());
+    let token_subject = record
+        .client_id
         .map(|value| TokenSubject::new(value.as_str()))
         .transpose()?;
-    let principal = match (authorization_server, client_id) {
+    let principal = match (record.authorization_server, record.client_id) {
         (Some(authorization_server), Some(client_id)) => Some(PrincipalId::new(format!(
             "{}#{}",
             authorization_server.issuer, client_id
         ))?),
         _ => None,
     };
-    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
     gateway_state.record_auth_audit_event(&AuthAuditEvent {
         event_id,
         timestamp: chrono::Utc::now(),
         trace_id,
         profile: profile.id.clone(),
         protected_resource: profile.protected_resource.clone(),
-        outcome,
-        reason,
+        outcome: record.outcome,
+        reason: record.reason,
         method: AuthMethod::ClientCredentialsPrivateKeyJwt,
         principal,
         tenant: None,
         token_issuer,
         token_subject,
-        jwt_id: jwt_id.cloned(),
+        jwt_id: record.jwt_id.cloned(),
         latency_ms: Some(latency_ms),
         metadata: Default::default(),
     })
@@ -1904,23 +3231,23 @@ fn record_token_auth_audit(
 fn record_id_jag_auth_audit(
     gateway_state: &GatewayState,
     profile: &GatewayProfile,
-    authorization_server: Option<&ResourceAuthorizationServer>,
-    client_id: Option<&OAuthClientId>,
-    principal: Option<&Principal>,
-    jwt_id: Option<&JwtId>,
-    outcome: AuthOutcome,
-    reason: AuthReasonCode,
-    started_at: Instant,
+    record: AuthAuditRecord<'_>,
 ) -> anyhow::Result<()> {
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
-    let token_issuer = authorization_server.map(|value| value.issuer.clone());
-    let token_subject = match (principal, client_id) {
+    let token_issuer = record
+        .authorization_server
+        .map(|value| value.issuer.clone());
+    let token_subject = match (record.principal, record.client_id) {
         (Some(principal), _) => Some(principal.subject.clone()),
         (None, Some(client_id)) => Some(TokenSubject::new(client_id.as_str())?),
         (None, None) => None,
     };
-    let principal_id = match (principal, authorization_server, client_id) {
+    let principal_id = match (
+        record.principal,
+        record.authorization_server,
+        record.client_id,
+    ) {
         (Some(principal), _, _) => Some(principal.id.clone()),
         (None, Some(authorization_server), Some(client_id)) => Some(PrincipalId::new(format!(
             "{}#{}",
@@ -1928,22 +3255,70 @@ fn record_id_jag_auth_audit(
         ))?),
         _ => None,
     };
-    let tenant = principal.and_then(|value| value.tenant.clone());
-    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    let tenant = record.principal.and_then(|value| value.tenant.clone());
+    let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
     gateway_state.record_auth_audit_event(&AuthAuditEvent {
         event_id,
         timestamp: chrono::Utc::now(),
         trace_id,
         profile: profile.id.clone(),
         protected_resource: profile.protected_resource.clone(),
-        outcome,
-        reason,
+        outcome: record.outcome,
+        reason: record.reason,
         method: AuthMethod::EnterpriseManagedIdJag,
         principal: principal_id,
         tenant,
         token_issuer,
         token_subject,
-        jwt_id: jwt_id.cloned(),
+        jwt_id: record.jwt_id.cloned(),
+        latency_ms: Some(latency_ms),
+        metadata: Default::default(),
+    })
+}
+
+fn record_oidc_auth_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    record: AuthAuditRecord<'_>,
+) -> anyhow::Result<()> {
+    let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let token_issuer = record
+        .authorization_server
+        .map(|value| value.issuer.clone());
+    let token_subject = match (record.principal, record.client_id) {
+        (Some(principal), _) => Some(principal.subject.clone()),
+        (None, Some(client_id)) => Some(TokenSubject::new(client_id.as_str())?),
+        (None, None) => None,
+    };
+    let principal_id = match (
+        record.principal,
+        record.authorization_server,
+        record.client_id,
+    ) {
+        (Some(principal), _, _) => Some(principal.id.clone()),
+        (None, Some(authorization_server), Some(client_id)) => Some(PrincipalId::new(format!(
+            "{}#{}",
+            authorization_server.issuer, client_id
+        ))?),
+        _ => None,
+    };
+    let tenant = record.principal.and_then(|value| value.tenant.clone());
+    let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
+    gateway_state.record_auth_audit_event(&AuthAuditEvent {
+        event_id,
+        timestamp: chrono::Utc::now(),
+        trace_id,
+        profile: profile.id.clone(),
+        protected_resource: profile.protected_resource.clone(),
+        outcome: record.outcome,
+        reason: record.reason,
+        method: AuthMethod::OidcAuthorizationCodePkce,
+        principal: principal_id,
+        tenant,
+        token_issuer,
+        token_subject,
+        jwt_id: record.jwt_id.cloned(),
         latency_ms: Some(latency_ms),
         metadata: Default::default(),
     })

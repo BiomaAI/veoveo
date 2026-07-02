@@ -421,6 +421,19 @@ impl ClientHandler for CliHandler {
 
 type Client = rmcp::service::RunningService<rmcp::RoleClient, CliHandler>;
 
+struct AuthDiscoveryCheck<'a> {
+    endpoint_url: &'a str,
+    metadata_url: Option<&'a str>,
+    required_scopes: &'a [String],
+    required_extensions: &'a [String],
+    authorization_server_metadata_url: Option<&'a str>,
+    authorization_server_jwks_url: Option<&'a str>,
+    required_jwks_key_ids: &'a [String],
+    required_grant_types: &'a [String],
+    required_grant_profiles: &'a [String],
+    required_token_auth_methods: &'a [String],
+}
+
 async fn connect(args: &Args) -> Result<Client> {
     let mut config = StreamableHttpClientTransportConfig::with_uri(args.url.clone());
     if let Some(token) = &args.bearer_token {
@@ -432,21 +445,10 @@ async fn connect(args: &Args) -> Result<Client> {
     Ok(CliHandler.serve(transport).await?)
 }
 
-async fn cmd_auth_discovery(
-    endpoint_url: &str,
-    metadata_url: Option<&str>,
-    required_scopes: &[String],
-    required_extensions: &[String],
-    authorization_server_metadata_url: Option<&str>,
-    authorization_server_jwks_url: Option<&str>,
-    required_jwks_key_ids: &[String],
-    required_grant_types: &[String],
-    required_grant_profiles: &[String],
-    required_token_auth_methods: &[String],
-) -> Result<()> {
-    let metadata_url = match metadata_url {
+async fn cmd_auth_discovery(check: AuthDiscoveryCheck<'_>) -> Result<()> {
+    let metadata_url = match check.metadata_url {
         Some(value) => value.to_string(),
-        None => infer_protected_resource_metadata_url(endpoint_url)?,
+        None => infer_protected_resource_metadata_url(check.endpoint_url)?,
     };
     let http = reqwest::Client::new();
     let metadata = http
@@ -473,7 +475,7 @@ async fn cmd_auth_discovery(
             "protected-resource metadata does not support header bearer tokens"
         ));
     }
-    for scope in required_scopes {
+    for scope in check.required_scopes {
         if !metadata
             .scopes_supported
             .iter()
@@ -484,14 +486,14 @@ async fn cmd_auth_discovery(
             ));
         }
     }
-    for extension in required_extensions {
+    for extension in check.required_extensions {
         if !metadata.extensions.contains_key(extension) {
             return Err(anyhow!(
                 "protected-resource metadata is missing required extension `{extension}`"
             ));
         }
     }
-    if let Some(authorization_server_metadata_url) = authorization_server_metadata_url {
+    if let Some(authorization_server_metadata_url) = check.authorization_server_metadata_url {
         let authorization_server_metadata = http
             .get(authorization_server_metadata_url)
             .send()
@@ -510,7 +512,7 @@ async fn cmd_auth_discovery(
         if authorization_server_metadata.jwks_uri.is_none() {
             return Err(anyhow!("authorization-server metadata has no jwks_uri"));
         }
-        for grant_type in required_grant_types {
+        for grant_type in check.required_grant_types {
             if !authorization_server_metadata
                 .grant_types_supported
                 .iter()
@@ -521,7 +523,7 @@ async fn cmd_auth_discovery(
                 ));
             }
         }
-        for grant_profile in required_grant_profiles {
+        for grant_profile in check.required_grant_profiles {
             if !authorization_server_metadata
                 .authorization_grant_profiles_supported
                 .iter()
@@ -532,7 +534,7 @@ async fn cmd_auth_discovery(
                 ));
             }
         }
-        for auth_method in required_token_auth_methods {
+        for auth_method in check.required_token_auth_methods {
             if !authorization_server_metadata
                 .token_endpoint_auth_methods_supported
                 .iter()
@@ -543,8 +545,9 @@ async fn cmd_auth_discovery(
                 ));
             }
         }
-        if !required_jwks_key_ids.is_empty() {
-            let jwks_url = authorization_server_jwks_url
+        if !check.required_jwks_key_ids.is_empty() {
+            let jwks_url = check
+                .authorization_server_jwks_url
                 .or(authorization_server_metadata.jwks_uri.as_deref())
                 .ok_or_else(|| anyhow!("authorization-server JWKS URL is required"))?;
             let jwks = http
@@ -554,7 +557,7 @@ async fn cmd_auth_discovery(
                 .error_for_status()?
                 .json::<JwkSet>()
                 .await?;
-            for key_id in required_jwks_key_ids {
+            for key_id in check.required_jwks_key_ids {
                 if !jwks
                     .keys
                     .iter()
@@ -568,7 +571,7 @@ async fn cmd_auth_discovery(
         }
     }
 
-    let response = http.get(endpoint_url).send().await?;
+    let response = http.get(check.endpoint_url).send().await?;
     if response.status() != reqwest::StatusCode::UNAUTHORIZED {
         return Err(anyhow!(
             "unauthenticated MCP endpoint returned {}, expected 401",
@@ -588,7 +591,7 @@ async fn cmd_auth_discovery(
             "Bearer challenge is missing protected-resource metadata"
         ));
     }
-    for scope in required_scopes {
+    for scope in check.required_scopes {
         if !challenge.contains(scope) {
             return Err(anyhow!(
                 "Bearer challenge is missing required scope `{scope}`"
@@ -1240,7 +1243,7 @@ async fn cmd_run(
                 .split_whitespace()
                 .next()
                 .unwrap_or_default()
-                .trim_end_matches(|c: char| c == ';' || c == ',')
+                .trim_end_matches([';', ','])
                 .to_string();
             client
                 .subscribe(SubscribeRequestParams::new(uri.clone()))
@@ -1312,18 +1315,18 @@ async fn main() -> Result<()> {
             required_grant_profiles,
             required_token_auth_methods,
         } => {
-            return cmd_auth_discovery(
-                &args.url,
-                metadata_url.as_deref(),
+            return cmd_auth_discovery(AuthDiscoveryCheck {
+                endpoint_url: &args.url,
+                metadata_url: metadata_url.as_deref(),
                 required_scopes,
                 required_extensions,
-                authorization_server_metadata_url.as_deref(),
-                authorization_server_jwks_url.as_deref(),
+                authorization_server_metadata_url: authorization_server_metadata_url.as_deref(),
+                authorization_server_jwks_url: authorization_server_jwks_url.as_deref(),
                 required_jwks_key_ids,
                 required_grant_types,
                 required_grant_profiles,
                 required_token_auth_methods,
-            )
+            })
             .await;
         }
         Cmd::GatewayJwks => return cmd_gateway_jwks(),

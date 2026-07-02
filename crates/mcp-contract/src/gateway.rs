@@ -1757,9 +1757,7 @@ fn validate_oidc_client_registration(
             secret: client.credential_secret.clone(),
         });
     };
-    if secret.purpose != SecretPurpose::OAuthClientSecret
-        && secret.purpose != SecretPurpose::TokenExchangeCredential
-    {
+    if secret.purpose != SecretPurpose::OAuthClientSecret {
         return Err(GatewayControlPlaneError::OidcClientSecretPurposeMismatch {
             client: client.id.clone(),
             secret: client.credential_secret.clone(),
@@ -2272,6 +2270,7 @@ impl AuthOutcome {
 #[serde(rename_all = "snake_case")]
 pub enum AuthMethod {
     BearerJwt,
+    OidcAuthorizationCodePkce,
     ClientCredentialsPrivateKeyJwt,
     EnterpriseManagedIdJag,
 }
@@ -2280,6 +2279,7 @@ impl AuthMethod {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::BearerJwt => "bearer_jwt",
+            Self::OidcAuthorizationCodePkce => "oidc_authorization_code_pkce",
             Self::ClientCredentialsPrivateKeyJwt => "client_credentials_private_key_jwt",
             Self::EnterpriseManagedIdJag => "enterprise_managed_id_jag",
         }
@@ -2298,6 +2298,10 @@ pub enum AuthReasonCode {
     AuthorizationServerUnavailable,
     InvalidAuthConfig,
     InvalidBearerToken,
+    InvalidAuthorizationRequest,
+    InvalidAuthorizationCode,
+    InvalidPkce,
+    InvalidOidcIdToken,
     InvalidClient,
     UnsupportedGrantType,
     InvalidClientAssertion,
@@ -2321,6 +2325,10 @@ impl AuthReasonCode {
             Self::AuthorizationServerUnavailable => "authorization_server_unavailable",
             Self::InvalidAuthConfig => "invalid_auth_config",
             Self::InvalidBearerToken => "invalid_bearer_token",
+            Self::InvalidAuthorizationRequest => "invalid_authorization_request",
+            Self::InvalidAuthorizationCode => "invalid_authorization_code",
+            Self::InvalidPkce => "invalid_pkce",
+            Self::InvalidOidcIdToken => "invalid_oidc_id_token",
             Self::InvalidClient => "invalid_client",
             Self::UnsupportedGrantType => "unsupported_grant_type",
             Self::InvalidClientAssertion => "invalid_client_assertion",

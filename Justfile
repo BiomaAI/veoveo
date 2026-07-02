@@ -92,12 +92,19 @@ smoke-gateway-http:
         --required-grant-profile urn:ietf:params:oauth:grant-profile:id-jag \
         --required-token-auth-method none \
         --required-token-auth-method private_key_jwt
+    authorize_result="$(curl -sS -o /dev/null -w "%{http_code} %{redirect_url}" "${base}/oauth/default/authorize?response_type=code&client_id=veoveo-browser&redirect_uri=https%3A%2F%2Fveoveo.bioma.ai%2Foauth%2Fcallback&scope=media%3Ause&code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&code_challenge_method=S256&state=smoke-state")"
+    test "${authorize_result%% *}" = "302"
+    authorize_location="${authorize_result#* }"
+    case "${authorize_location}" in
+        https://idp.example.com/oauth2/authorize*) ;;
+        *) echo "unexpected authorize redirect: ${authorize_location}" >&2; exit 1 ;;
+    esac
     status="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${base}/admin/default/reload-control-plane")"
     test "${status}" = "401"
     kill "${pid}"
     wait "${pid}" 2>/dev/null || true
     pid=""
-    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":2'
+    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":3'
     cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db "${state_db}" --profile default --issuer https://veoveo.bioma.ai/oauth/default --jwt-id smoke-jwt --expires-at 2999-01-01T00:00:00Z --reason smoke >/dev/null
     test "$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db "${state_db}")" = "0"
 
