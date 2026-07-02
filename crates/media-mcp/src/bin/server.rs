@@ -69,7 +69,7 @@ use veoveo_mcp_contract::{
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
     provider::{BillingRecord, ModelEntry, Prediction, ProviderClient},
-    state::DuckdbState,
+    state::{ArtifactOwner, DuckdbState, TaskOwner},
     uris, webhook,
 };
 
@@ -152,6 +152,7 @@ struct AppState {
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
+    task_owners: RwLock<HashMap<String, TaskOwner>>,
     subscribers: SubscriptionHub,
 }
 
@@ -233,6 +234,9 @@ impl AppState {
         let Some(task_id) = self.durable.task_id_for_provider_job_id(&prediction.id)? else {
             return Ok(());
         };
+        let owner = task_owner(self, &task_id)
+            .await
+            .map_err(|err| anyhow::anyhow!("task ownership lookup failed: {err}"))?;
         let (status, message, payload, error) = if prediction.status == "failed" {
             let message = prediction
                 .error
@@ -247,7 +251,7 @@ impl AppState {
             )
         } else {
             let prediction_uri = uris::prediction_uri(&prediction.id);
-            match prediction_result(self, prediction).await {
+            match prediction_result(self, prediction, &task_id, &owner).await {
                 Ok(result) => (
                     TaskStatus::Completed,
                     format!(
@@ -625,6 +629,7 @@ fn public_prediction(prediction: &Prediction) -> GenerationPredictionSummary {
 
 #[derive(serde::Serialize)]
 struct OutputArtifactMetadata<'a> {
+    task_id: &'a str,
     job_id: &'a str,
     model_id: &'a str,
     output_index: usize,
@@ -633,6 +638,8 @@ struct OutputArtifactMetadata<'a> {
 async fn ingest_output_artifact(
     state: &AppState,
     prediction: &Prediction,
+    task_id: &str,
+    owner: &TaskOwner,
     url: &str,
     index: usize,
 ) -> anyhow::Result<ArtifactMetadata> {
@@ -652,21 +659,31 @@ async fn ingest_output_artifact(
     let mut artifact = ArtifactPut::new(bytes);
     artifact.mime_type = header_mime.or_else(|| guess_mime(url).map(str::to_string));
     artifact.filename = Some(filename_from_url(url, index));
+    artifact.compliance.owner_id = Some(owner.principal_id.to_string());
+    artifact.compliance.tenant_id = owner.tenant.as_ref().map(ToString::to_string);
     artifact.metadata = serde_json::to_value(OutputArtifactMetadata {
+        task_id,
         job_id: prediction.id.as_str(),
         model_id: prediction.model.as_str(),
         output_index: index,
     })?;
-    state.artifacts.put(artifact).await
+    let mut metadata = state.artifacts.put(artifact).await?;
+    let artifact_owner = artifact_owner_from_task(&metadata.sha256, owner);
+    state.durable.record_artifact_owner(&artifact_owner)?;
+    metadata.compliance.owner_id = Some(owner.principal_id.to_string());
+    metadata.compliance.tenant_id = owner.tenant.as_ref().map(ToString::to_string);
+    Ok(metadata)
 }
 
 async fn prediction_result(
     state: &AppState,
     prediction: &Prediction,
+    task_id: &str,
+    owner: &TaskOwner,
 ) -> anyhow::Result<CallToolResult> {
     let mut artifacts = Vec::new();
     for (i, url) in prediction.outputs.iter().enumerate() {
-        artifacts.push(ingest_output_artifact(state, prediction, url, i).await?);
+        artifacts.push(ingest_output_artifact(state, prediction, task_id, owner, url, i).await?);
     }
 
     let mut blocks = vec![ContentBlock::text(format!(
@@ -698,6 +715,7 @@ async fn run_task(
     state: Arc<AppState>,
     peer: Peer<RoleServer>,
     task_id: String,
+    owner: TaskOwner,
     args: RunArgs,
     progress_token: Option<ProgressToken>,
 ) {
@@ -834,7 +852,7 @@ async fn run_task(
         fail!(format!("prediction {prediction_id} failed: {msg}"));
     }
     notify_progress(&peer, &progress_token, 1.0, "completed").await;
-    let result = match prediction_result(&state, &prediction).await {
+    let result = match prediction_result(&state, &prediction, &task_id, &owner).await {
         Ok(result) => result,
         Err(e) => fail!(format!(
             "artifact ingestion failed for prediction {prediction_id}: {e}"
@@ -881,6 +899,133 @@ fn mcp_page<T>(
 ) -> Result<Page<T>, McpError> {
     paginate(items, request, LIST_PAGE_SIZE)
         .map_err(|e| McpError::invalid_params(e.to_string(), None))
+}
+
+fn internal_identity(
+    context: &RequestContext<RoleServer>,
+) -> Result<GatewayInternalIdentity, McpError> {
+    let parts = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+    parts
+        .extensions
+        .get::<GatewayInternalIdentity>()
+        .cloned()
+        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+}
+
+fn task_owner_from_identity(task_id: &str, identity: &GatewayInternalIdentity) -> TaskOwner {
+    TaskOwner {
+        task_id: task_id.to_string(),
+        principal_id: identity.principal.id.clone(),
+        profile: identity.profile.clone(),
+        tenant: identity.principal.tenant.clone(),
+    }
+}
+
+async fn optional_task_owner(
+    state: &AppState,
+    task_id: &str,
+) -> Result<Option<TaskOwner>, McpError> {
+    if let Some(owner) = state.task_owners.read().await.get(task_id).cloned() {
+        return Ok(Some(owner));
+    }
+    let Some(owner) = state
+        .durable
+        .task_owner(task_id)
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?
+    else {
+        return Ok(None);
+    };
+    state
+        .task_owners
+        .write()
+        .await
+        .insert(task_id.to_string(), owner.clone());
+    Ok(Some(owner))
+}
+
+async fn task_owner(state: &AppState, task_id: &str) -> Result<TaskOwner, McpError> {
+    optional_task_owner(state, task_id)
+        .await?
+        .ok_or_else(|| McpError::invalid_request("task ownership record missing", None))
+}
+
+async fn require_task_owner(
+    state: &AppState,
+    context: &RequestContext<RoleServer>,
+    task_id: &str,
+) -> Result<GatewayInternalIdentity, McpError> {
+    let identity = internal_identity(context)?;
+    let owner = task_owner(state, task_id).await?;
+    if owner.principal_id == identity.principal.id {
+        Ok(identity)
+    } else {
+        Err(McpError::invalid_request(
+            "media task policy denied request",
+            None,
+        ))
+    }
+}
+
+async fn optional_prediction_owner(
+    state: &AppState,
+    prediction_id: &str,
+) -> Result<Option<TaskOwner>, McpError> {
+    let Some(task_id) = state
+        .durable
+        .task_id_for_provider_job_id(prediction_id)
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?
+    else {
+        return Ok(None);
+    };
+    optional_task_owner(state, &task_id).await
+}
+
+async fn prediction_owner(state: &AppState, prediction_id: &str) -> Result<TaskOwner, McpError> {
+    optional_prediction_owner(state, prediction_id)
+        .await?
+        .ok_or_else(|| McpError::invalid_request("prediction ownership record missing", None))
+}
+
+fn artifact_owner_from_task(sha256: &str, owner: &TaskOwner) -> ArtifactOwner {
+    ArtifactOwner {
+        sha256: sha256.to_string(),
+        task_id: owner.task_id.clone(),
+        principal_id: owner.principal_id.clone(),
+        profile: owner.profile.clone(),
+        tenant: owner.tenant.clone(),
+    }
+}
+
+fn artifact_owner_allows(
+    state: &AppState,
+    sha256: &str,
+    identity: &GatewayInternalIdentity,
+) -> Result<bool, McpError> {
+    let owners = state
+        .durable
+        .artifact_owners(sha256)
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+    Ok(owners
+        .iter()
+        .any(|owner| owner.principal_id == identity.principal.id))
+}
+
+fn artifact_owned_by(
+    state: &AppState,
+    sha256: &str,
+    identity: &GatewayInternalIdentity,
+) -> Result<(), McpError> {
+    if artifact_owner_allows(state, sha256, identity)? {
+        Ok(())
+    } else {
+        Err(McpError::invalid_request(
+            "media artifact policy denied request",
+            None,
+        ))
+    }
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -1182,6 +1327,7 @@ impl ServerHandler for MediaMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CreateTaskResult, McpError> {
+        let identity = internal_identity(&context)?;
         if request.name != "run" {
             return Err(McpError::method_not_found::<
                 rmcp::model::CallToolRequestMethod,
@@ -1203,6 +1349,16 @@ impl ServerHandler for MediaMcp {
         task.ttl = ttl;
 
         self.state.tasks.insert(task.clone(), None).await;
+        let owner = task_owner_from_identity(&task_id, &identity);
+        self.state
+            .durable
+            .record_task_owner(&owner)
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        self.state
+            .task_owners
+            .write()
+            .await
+            .insert(task_id.clone(), owner.clone());
         if let Err(e) = self.state.durable.record_task(&task, None, None, None) {
             tracing::warn!(task_id, "failed to persist task creation: {e}");
         }
@@ -1210,6 +1366,7 @@ impl ServerHandler for MediaMcp {
             self.state.clone(),
             context.peer.clone(),
             task_id.clone(),
+            owner,
             args,
             progress_token,
         ));
@@ -1220,9 +1377,21 @@ impl ServerHandler for MediaMcp {
     async fn list_tasks(
         &self,
         request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ListTasksResult, McpError> {
-        let page = mcp_page(self.state.tasks.list().await, request.as_ref())?;
+        let identity = internal_identity(&context)?;
+        let all_tasks = self.state.tasks.list().await;
+        let owners = self.state.task_owners.read().await;
+        let tasks: Vec<Task> = all_tasks
+            .into_iter()
+            .filter(|task| {
+                owners
+                    .get(&task.task_id)
+                    .map(|owner| owner.principal_id == identity.principal.id)
+                    .unwrap_or(false)
+            })
+            .collect();
+        let page = mcp_page(tasks, request.as_ref())?;
         let mut result = ListTasksResult::new(page.items);
         result.next_cursor = page.next_cursor;
         Ok(result)
@@ -1231,8 +1400,9 @@ impl ServerHandler for MediaMcp {
     async fn get_task_info(
         &self,
         request: GetTaskParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
+        require_task_owner(&self.state, &context, &request.task_id).await?;
         let task = self
             .state
             .tasks
@@ -1245,8 +1415,9 @@ impl ServerHandler for MediaMcp {
     async fn get_task_result(
         &self,
         request: GetTaskPayloadParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<GetTaskPayloadResult, McpError> {
+        require_task_owner(&self.state, &context, &request.task_id).await?;
         match self.state.tasks.payload_state(&request.task_id).await {
             TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
             TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
@@ -1264,8 +1435,9 @@ impl ServerHandler for MediaMcp {
     async fn cancel_task(
         &self,
         request: CancelTaskParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CancelTaskResult, McpError> {
+        require_task_owner(&self.state, &context, &request.task_id).await?;
         let provider_job_id = self.state.tasks.provider_job_id(&request.task_id).await;
         let task = self
             .state
@@ -1288,8 +1460,9 @@ impl ServerHandler for MediaMcp {
     async fn list_resources(
         &self,
         request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        let identity = internal_identity(&context)?;
         let mut resources = vec![
             Resource::new(uris::MODELS_URI, "models")
                 .with_title("Media model catalog")
@@ -1302,9 +1475,23 @@ impl ServerHandler for MediaMcp {
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
-        for (id, p) in self.state.predictions.read().await.iter() {
+        let predictions: Vec<(String, Prediction)> = self
+            .state
+            .predictions
+            .read()
+            .await
+            .iter()
+            .map(|(id, prediction)| (id.clone(), prediction.clone()))
+            .collect();
+        for (id, p) in predictions {
+            let Some(owner) = optional_prediction_owner(&self.state, &id).await? else {
+                continue;
+            };
+            if owner.principal_id != identity.principal.id {
+                continue;
+            }
             resources.push(
-                Resource::new(uris::prediction_uri(id), format!("prediction {id}"))
+                Resource::new(uris::prediction_uri(&id), format!("prediction {id}"))
                     .with_description(format!("{} — status: {}", p.model, p.status))
                     .with_mime_type("application/json"),
             );
@@ -1315,6 +1502,9 @@ impl ServerHandler for MediaMcp {
             .list_artifacts()
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
         for artifact in artifacts {
+            if !artifact_owner_allows(&self.state, &artifact.sha256, &identity)? {
+                continue;
+            }
             let mut resource =
                 Resource::new(artifact.artifact_uri.clone(), artifact.sha256.clone())
                     .with_description(format!("artifact {}", artifact.sha256));
@@ -1329,6 +1519,12 @@ impl ServerHandler for MediaMcp {
             .usage_task_ids()
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
         for task_id in usage_task_ids {
+            let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                continue;
+            };
+            if owner.principal_id != identity.principal.id {
+                continue;
+            }
             resources.push(
                 Resource::new(
                     uris::usage_task_uri(&task_id),
@@ -1386,8 +1582,9 @@ impl ServerHandler for MediaMcp {
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
+        let identity = internal_identity(&context)?;
         let uri = request.uri.as_str();
         let text = if uri == uris::MODELS_URI {
             let models = self
@@ -1402,15 +1599,19 @@ impl ServerHandler for MediaMcp {
                 .durable
                 .usage_task_ids()
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-            let entries: Vec<Value> = task_ids
-                .into_iter()
-                .map(|task_id| {
-                    json!({
-                        "task_id": task_id,
-                        "usage_uri": uris::usage_task_uri(&task_id),
-                    })
-                })
-                .collect();
+            let mut entries: Vec<Value> = Vec::new();
+            for task_id in task_ids {
+                let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                    continue;
+                };
+                if owner.principal_id != identity.principal.id {
+                    continue;
+                }
+                entries.push(json!({
+                    "task_id": task_id,
+                    "usage_uri": uris::usage_task_uri(&task_id),
+                }));
+            }
             serde_json::to_string(&entries)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(model_id) = uris::parse_model_uri(uri) {
@@ -1428,6 +1629,13 @@ impl ServerHandler for MediaMcp {
             serde_json::to_string(&entry)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(id) = uris::parse_prediction_uri(uri) {
+            let owner = prediction_owner(&self.state, id).await?;
+            if owner.principal_id != identity.principal.id {
+                return Err(McpError::invalid_request(
+                    "media prediction policy denied request",
+                    None,
+                ));
+            }
             let prediction = self
                 .state
                 .predictions
@@ -1441,6 +1649,7 @@ impl ServerHandler for MediaMcp {
             serde_json::to_string(&public_prediction(&prediction))
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(task_id) = uris::parse_usage_task_uri(uri) {
+            require_task_owner(&self.state, &context, task_id).await?;
             let records = self
                 .state
                 .durable
@@ -1456,6 +1665,16 @@ impl ServerHandler for MediaMcp {
             serde_json::to_string(&report)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(sha256) = uris::parse_artifact_uri(uri) {
+            let metadata = self
+                .state
+                .artifacts
+                .head(sha256)
+                .await
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?
+                .ok_or_else(|| {
+                    McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
+                })?;
+            artifact_owned_by(&self.state, &metadata.sha256, &identity)?;
             let artifact = self
                 .state
                 .artifacts
@@ -1487,6 +1706,16 @@ impl ServerHandler for MediaMcp {
         request: SubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
+        let identity = internal_identity(&context)?;
+        let prediction_id = uris::parse_prediction_uri(&request.uri)
+            .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
+        let owner = prediction_owner(&self.state, prediction_id).await?;
+        if owner.principal_id != identity.principal.id {
+            return Err(McpError::invalid_request(
+                "media subscription policy denied request",
+                None,
+            ));
+        }
         self.state
             .subscribers
             .subscribe(request.uri.clone(), context.peer.clone())
@@ -1497,8 +1726,18 @@ impl ServerHandler for MediaMcp {
     async fn unsubscribe(
         &self,
         request: UnsubscribeRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
+        let identity = internal_identity(&context)?;
+        let prediction_id = uris::parse_prediction_uri(&request.uri)
+            .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
+        let owner = prediction_owner(&self.state, prediction_id).await?;
+        if owner.principal_id != identity.principal.id {
+            return Err(McpError::invalid_request(
+                "media subscription policy denied request",
+                None,
+            ));
+        }
         self.state.subscribers.unsubscribe(&request.uri).await;
         Ok(())
     }
@@ -1708,6 +1947,11 @@ async fn main() -> anyhow::Result<()> {
         .into_iter()
         .map(|p| (p.id.clone(), p))
         .collect();
+    let task_owners = durable
+        .load_task_owners()?
+        .into_iter()
+        .map(|owner| (owner.task_id.clone(), owner))
+        .collect();
 
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?),
@@ -1720,6 +1964,7 @@ async fn main() -> anyhow::Result<()> {
         artifacts,
         pending: Mutex::new(HashMap::new()),
         predictions: RwLock::new(predictions),
+        task_owners: RwLock::new(task_owners),
         subscribers: SubscriptionHub::new(),
     });
 

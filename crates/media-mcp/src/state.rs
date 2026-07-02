@@ -6,7 +6,8 @@ use duckdb::{OptionalExt, params};
 use rmcp::model::Task;
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, DuckDbAnalytics, SharedDuckDbConnection, UsageRecord, open_duckdb,
+    ArtifactMetadata, DuckDbAnalytics, GatewayProfileId, PrincipalId, SharedDuckDbConnection,
+    TenantId, UsageRecord, open_duckdb,
 };
 
 use crate::provider::Prediction;
@@ -23,6 +24,23 @@ pub struct PersistedTask {
     pub payload: Option<Value>,
     pub error: Option<String>,
     pub provider_job_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskOwner {
+    pub task_id: String,
+    pub principal_id: PrincipalId,
+    pub profile: GatewayProfileId,
+    pub tenant: Option<TenantId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactOwner {
+    pub sha256: String,
+    pub task_id: String,
+    pub principal_id: PrincipalId,
+    pub profile: GatewayProfileId,
+    pub tenant: Option<TenantId>,
 }
 
 #[derive(Clone)]
@@ -60,6 +78,26 @@ impl DuckdbState {
                 sha256 TEXT PRIMARY KEY,
                 metadata_json TEXT NOT NULL,
                 updated_at TIMESTAMP NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS task_owners (
+                task_id TEXT PRIMARY KEY,
+                principal_id TEXT NOT NULL,
+                profile TEXT NOT NULL,
+                tenant TEXT,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS artifact_owners (
+                sha256 TEXT NOT NULL,
+                task_id TEXT NOT NULL,
+                principal_id TEXT NOT NULL,
+                profile TEXT NOT NULL,
+                tenant TEXT,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (sha256, task_id, principal_id)
             );
             "#,
             )?;
@@ -175,6 +213,79 @@ impl DuckdbState {
         Ok(tasks)
     }
 
+    pub fn record_task_owner(&self, owner: &TaskOwner) -> Result<()> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO task_owners (
+                task_id, principal_id, profile, tenant, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+            ON CONFLICT(task_id) DO UPDATE SET
+                principal_id = excluded.principal_id,
+                profile = excluded.profile,
+                tenant = excluded.tenant,
+                updated_at = excluded.updated_at
+            "#,
+            params![
+                owner.task_id.as_str(),
+                owner.principal_id.as_str(),
+                owner.profile.as_str(),
+                owner.tenant.as_ref().map(TenantId::as_str),
+                chrono::Utc::now()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn load_task_owners(&self) -> Result<Vec<TaskOwner>> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let mut stmt =
+            conn.prepare("SELECT task_id, principal_id, profile, tenant FROM task_owners")?;
+        let rows = stmt.query_map([], |row| {
+            let task_id: String = row.get(0)?;
+            let principal_id: String = row.get(1)?;
+            let profile: String = row.get(2)?;
+            let tenant: Option<String> = row.get(3)?;
+            Ok((task_id, principal_id, profile, tenant))
+        })?;
+        let mut owners = Vec::new();
+        for row in rows {
+            let (task_id, principal_id, profile, tenant) = row?;
+            owners.push(TaskOwner {
+                task_id,
+                principal_id: PrincipalId::new(principal_id)?,
+                profile: GatewayProfileId::new(profile)?,
+                tenant: tenant.map(TenantId::new).transpose()?,
+            });
+        }
+        Ok(owners)
+    }
+
+    pub fn task_owner(&self, task_id: &str) -> Result<Option<TaskOwner>> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let row = conn
+            .query_row(
+                "SELECT principal_id, profile, tenant FROM task_owners WHERE task_id = ?1",
+                params![task_id],
+                |row| {
+                    let principal_id: String = row.get(0)?;
+                    let profile: String = row.get(1)?;
+                    let tenant: Option<String> = row.get(2)?;
+                    Ok((principal_id, profile, tenant))
+                },
+            )
+            .optional()?;
+        row.map(|(principal_id, profile, tenant)| {
+            Ok(TaskOwner {
+                task_id: task_id.to_string(),
+                principal_id: PrincipalId::new(principal_id)?,
+                profile: GatewayProfileId::new(profile)?,
+                tenant: tenant.map(TenantId::new).transpose()?,
+            })
+        })
+        .transpose()
+    }
+
     pub fn load_predictions(&self) -> Result<Vec<Prediction>> {
         let conn = self.conn.lock().expect("duckdb state mutex poisoned");
         let mut stmt =
@@ -238,6 +349,56 @@ impl DuckdbState {
         Ok(artifacts)
     }
 
+    pub fn record_artifact_owner(&self, owner: &ArtifactOwner) -> Result<()> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO artifact_owners (
+                sha256, task_id, principal_id, profile, tenant, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+            ON CONFLICT(sha256, task_id, principal_id) DO UPDATE SET
+                profile = excluded.profile,
+                tenant = excluded.tenant,
+                updated_at = excluded.updated_at
+            "#,
+            params![
+                owner.sha256.as_str(),
+                owner.task_id.as_str(),
+                owner.principal_id.as_str(),
+                owner.profile.as_str(),
+                owner.tenant.as_ref().map(TenantId::as_str),
+                chrono::Utc::now()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn artifact_owners(&self, sha256: &str) -> Result<Vec<ArtifactOwner>> {
+        let conn = self.conn.lock().expect("duckdb state mutex poisoned");
+        let mut stmt = conn.prepare(
+            "SELECT task_id, principal_id, profile, tenant FROM artifact_owners WHERE sha256 = ?1",
+        )?;
+        let rows = stmt.query_map(params![sha256], |row| {
+            let task_id: String = row.get(0)?;
+            let principal_id: String = row.get(1)?;
+            let profile: String = row.get(2)?;
+            let tenant: Option<String> = row.get(3)?;
+            Ok((task_id, principal_id, profile, tenant))
+        })?;
+        let mut owners = Vec::new();
+        for row in rows {
+            let (task_id, principal_id, profile, tenant) = row?;
+            owners.push(ArtifactOwner {
+                sha256: sha256.to_string(),
+                task_id,
+                principal_id: PrincipalId::new(principal_id)?,
+                profile: GatewayProfileId::new(profile)?,
+                tenant: tenant.map(TenantId::new).transpose()?,
+            });
+        }
+        Ok(owners)
+    }
+
     pub fn record_usage(&self, record: &UsageRecord) -> Result<()> {
         self.analytics.record_usage(record)
     }
@@ -252,5 +413,55 @@ impl DuckdbState {
 
     pub fn usage_task_ids(&self) -> Result<Vec<String>> {
         self.analytics.usage_task_ids()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_path(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "veoveo-media-state-{label}-{}.duckdb",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn task_owner_round_trips() {
+        let path = temp_path("task-owner");
+        let state = DuckdbState::open(&path).unwrap();
+        let owner = TaskOwner {
+            task_id: "task-1".to_string(),
+            principal_id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
+            profile: GatewayProfileId::new("default").unwrap(),
+            tenant: Some(TenantId::new("tenant-a").unwrap()),
+        };
+
+        state.record_task_owner(&owner).unwrap();
+
+        assert_eq!(state.task_owner("task-1").unwrap(), Some(owner.clone()));
+        assert_eq!(state.load_task_owners().unwrap(), vec![owner]);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn artifact_owner_round_trips() {
+        let path = temp_path("artifact-owner");
+        let state = DuckdbState::open(&path).unwrap();
+        let owner = ArtifactOwner {
+            sha256: "a".repeat(64),
+            task_id: "task-1".to_string(),
+            principal_id: PrincipalId::new("https://idp.example.com#user-1").unwrap(),
+            profile: GatewayProfileId::new("default").unwrap(),
+            tenant: Some(TenantId::new("tenant-a").unwrap()),
+        };
+
+        state.record_artifact_owner(&owner).unwrap();
+
+        assert_eq!(state.artifact_owners(&"a".repeat(64)).unwrap(), vec![owner]);
+
+        let _ = std::fs::remove_file(path);
     }
 }
