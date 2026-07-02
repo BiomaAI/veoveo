@@ -11,20 +11,26 @@ generic full-protocol conformance CLI lives in the contract crate.
 ## Architecture
 
 ```
-┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────────┐   internal MCP     ┌─────────────────────────┐
-│  client  │ ────────────────────────▶ │ gateway (axum, :8788)  │ ─────────────────▶ │ media-mcp (axum, :8787)│
-│  (rmcp)  │ ◀──── notifications ───── │ /mcp/default           │ ◀───────────────── │ /media/mcp /media/...  │
-└──────────┘                            └─────────────────────────┘                   └───────────┬─────────────┘
-                                              ▲ public base URL via Cloudflare Tunnel              │ provider API/webhook
-                                                                                                   ▼
-                                                                                              ┌───────────┐
-                                                                                              │ provider  │
-                                                                                              └───────────┘
+┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────┐   single origin   ┌─────────────────────────┐
+│  client  │ ────────────────────────▶ │ Cloudflare Tunnel   │ ────────────────▶ │ edge proxy (:8780)     │
+│  (rmcp)  │ ◀──── notifications ───── │ or enterprise edge  │                   │ /mcp, /oauth, /media   │
+└──────────┘                            └─────────────────────┘                   └───────────┬─────────────┘
+                                                                                                │
+                                        ┌─────────────────────────┐   internal MCP              │
+                                        │ gateway (axum, :8788)  │ ◀────────────────────────────┤
+                                        │ /mcp/default           │ ────────────────────────────▶ │
+                                        └───────────┬─────────────┘                              │
+                                                    │ internal MCP                               │ provider/content paths
+                                                    ▼                                            ▼
+                                           ┌─────────────────────────┐                   ┌───────────┐
+                                           │ media-mcp (axum, :8787)│ ────────────────▶ │ provider  │
+                                           │ /media/mcp /media/...  │  provider API     └───────────┘
+                                           └─────────────────────────┘
 ```
 
-- `/mcp/default` — gateway MCP profile over streamable HTTP (rmcp 2.0)
-- `/media/mcp` — internal media MCP endpoint for conformance and service composition; requires a gateway-signed internal token
-- `/media/webhooks` — internal provider callback receiver
+- `/mcp/default` — gateway MCP profile over streamable HTTP (rmcp 2.0), routed by the edge proxy to `mcp-gateway`
+- `/media/mcp` — internal media MCP endpoint for conformance and service composition; not routed by the public edge and requires a gateway-signed internal token
+- `/media/webhooks` — provider callback receiver routed by the edge proxy to `media-mcp`
 - `/media/files/*` — optional static dir so the provider can fetch input media by URL
 - `/media/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
 
@@ -62,16 +68,20 @@ opaque to the contract; `https://veoveo.bioma.ai`,
 `https://staging.veoveo.bioma.ai`, and an enterprise-owned hostname are all equivalent
 as long as they route to the deployment.
 
-External MCP clients use the gateway profile endpoint. Hosted servers still own provider
-plumbing paths below the same origin:
+External MCP clients use the gateway profile endpoint. The edge proxy is the public
+boundary for the single origin. Hosted servers still own provider plumbing paths below the
+same origin:
 
 | Surface | Endpoint |
 |---|---|
 | gateway profile | `{PUBLIC_BASE_URL}/mcp/default` |
-| media internal MCP | `{PUBLIC_BASE_URL}/media/mcp` (gateway-signed internal token required) |
 | media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
+
+`/media/mcp` is intentionally not a public client route. For local conformance or service
+debugging, use the direct service endpoint with a gateway-signed internal token, such as
+`http://localhost:8787/media/mcp` in the development Compose stack.
 
 ## Setup
 
@@ -89,9 +99,11 @@ PUBLIC_BASE_URL=https://veoveo.bioma.ai
 
 ### Docker Compose
 
-The default development stack runs `mcp-gateway`, `media-mcp`, RustFS, an OpenTelemetry
-collector, and the managed Cloudflare tunnel. RustFS image/version and local
-S3-compatible wiring are defined in `compose.yaml`.
+The default development stack runs the edge proxy, `mcp-gateway`, `media-mcp`, RustFS, an
+OpenTelemetry collector, and the managed Cloudflare tunnel. RustFS image/version, edge
+routing, and local S3-compatible wiring are defined in `compose.yaml`.
+The Cloudflare named tunnel should route the public hostname to `http://edge:8080`;
+individual MCP server containers are not public tunnel targets.
 
 ```sh
 cp .env.example .env

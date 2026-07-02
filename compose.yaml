@@ -140,6 +140,18 @@ services:
     profiles:
       - dev
 
+  edge:
+    image: caddy:2.11.2
+    depends_on:
+      - mcp-gateway
+      - media-mcp
+    volumes:
+      - ./configs/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "8780:8080"
+    profiles:
+      - dev
+
 volumes:
   rustfs_data:
   media_state:

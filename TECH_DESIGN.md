@@ -360,8 +360,11 @@ The implementation plan is production-gateway-first:
 3. Add gateway durability for runtime state and audit/analytics. Use DuckDB where it fits
    analytics and local durability, but keep secret values in `.env` for local development
    and secret-manager references for enterprise deployments.
-4. Route `/mcp/{profile}` to the gateway in Compose while keeping provider plumbing such as
-   `/media/webhooks`, `/media/files`, and `/media/artifacts` owned by the media server.
+4. Route the single public origin through an explicit edge proxy in Compose. The edge
+   routes `/mcp/{profile}`, `/oauth/*`, `.well-known` auth metadata, and `/admin/*` to the
+   gateway, while routing provider plumbing such as `/media/webhooks`, `/media/files`, and
+   `/media/artifacts` to the owning media server. Direct hosted-server MCP routes such as
+   `/media/mcp` remain internal/testing targets and are not public client routes.
 5. Implement protected-resource metadata, `WWW-Authenticate` challenges, JWT/JWKS
    validation, audience/resource binding, profile-scoped policy, and structured audit
    events before exposing the gateway as the default client entrypoint.

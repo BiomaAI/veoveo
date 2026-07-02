@@ -2,9 +2,9 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
 compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
-mcp-url := "http://localhost:8788/mcp/default"
-gateway-token-url := "http://localhost:8788/oauth/default/token"
-gateway-admin-url := "http://localhost:8788/admin"
+mcp-url := "http://localhost:8780/mcp/default"
+gateway-token-url := "http://localhost:8780/oauth/default/token"
+gateway-admin-url := "http://localhost:8780/admin"
 gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-contract --bin conformance --"
@@ -637,6 +637,8 @@ logs service='mcp-gateway':
 
 # Check local health and, optionally, public tunnel health.
 health public_base_url='':
+    curl -fsS http://localhost:8780/healthz
+    @echo
     curl -fsS http://localhost:8788/healthz
     @echo
     curl -fsS http://localhost:8787/media/healthz
