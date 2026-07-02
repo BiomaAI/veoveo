@@ -238,10 +238,16 @@ impl GatewayControlPlane {
         }
 
         let mut servers = BTreeSet::new();
+        let mut resource_schemes = BTreeSet::new();
         for server in &self.servers {
             if !servers.insert(server.slug.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateServer(
                     server.slug.clone(),
+                ));
+            }
+            if !resource_schemes.insert(server.uri_scheme.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateResourceScheme(
+                    server.uri_scheme.clone(),
                 ));
             }
         }
@@ -285,6 +291,10 @@ impl GatewayControlPlane {
             validate_profile_auth_modes(profile, identity_provider)?;
         }
 
+        for policy in &self.policies {
+            validate_policy_set(policy, &profiles, &servers, &resource_schemes)?;
+        }
+
         let mut secrets = BTreeSet::new();
         for secret in &self.secrets {
             if !secrets.insert(secret.id.clone()) {
@@ -319,9 +329,29 @@ impl GatewayControlPlane {
 pub enum GatewayControlPlaneError {
     DuplicateIdentityProvider(IdentityProviderId),
     DuplicateServer(ServerSlug),
+    DuplicateResourceScheme(ResourceScheme),
     DuplicateProfile(GatewayProfileId),
     DuplicatePolicy(PolicyVersion),
     DuplicateSecret(SecretReferenceId),
+    DuplicatePolicyRule {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+    },
+    UnknownPolicyRuleProfile {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        profile: GatewayProfileId,
+    },
+    UnknownPolicyRuleServer {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        server: ServerSlug,
+    },
+    UnknownPolicyRuleResourceScheme {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        scheme: ResourceScheme,
+    },
     UnknownServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -378,9 +408,39 @@ impl fmt::Display for GatewayControlPlaneError {
                 write!(f, "duplicate identity provider `{identity_provider}`")
             }
             Self::DuplicateServer(server) => write!(f, "duplicate server manifest `{server}`"),
+            Self::DuplicateResourceScheme(scheme) => {
+                write!(f, "duplicate server resource scheme `{scheme}`")
+            }
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
+            Self::DuplicatePolicyRule { policy, rule } => {
+                write!(f, "duplicate policy rule `{rule}` in policy `{policy}`")
+            }
+            Self::UnknownPolicyRuleProfile {
+                policy,
+                rule,
+                profile,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown profile `{profile}`"
+            ),
+            Self::UnknownPolicyRuleServer {
+                policy,
+                rule,
+                server,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown server `{server}`"
+            ),
+            Self::UnknownPolicyRuleResourceScheme {
+                policy,
+                rule,
+                scheme,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown resource scheme `{scheme}`"
+            ),
             Self::UnknownServer { profile, server } => write!(
                 f,
                 "gateway profile `{profile}` references unknown server `{server}`"
@@ -424,6 +484,51 @@ impl fmt::Display for GatewayControlPlaneError {
 }
 
 impl std::error::Error for GatewayControlPlaneError {}
+
+fn validate_policy_set(
+    policy: &PolicySet,
+    profiles: &BTreeSet<GatewayProfileId>,
+    servers: &BTreeSet<ServerSlug>,
+    resource_schemes: &BTreeSet<ResourceScheme>,
+) -> Result<(), GatewayControlPlaneError> {
+    let mut rules = BTreeSet::new();
+    for rule in &policy.rules {
+        if !rules.insert(rule.id.clone()) {
+            return Err(GatewayControlPlaneError::DuplicatePolicyRule {
+                policy: policy.version.clone(),
+                rule: rule.id.clone(),
+            });
+        }
+        for profile in &rule.profiles {
+            if !profiles.contains(profile) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRuleProfile {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    profile: profile.clone(),
+                });
+            }
+        }
+        for server in &rule.servers {
+            if !servers.contains(server) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRuleServer {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    server: server.clone(),
+                });
+            }
+        }
+        for scheme in &rule.resource_schemes {
+            if !resource_schemes.contains(scheme) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRuleResourceScheme {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    scheme: scheme.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
 
 fn validate_profile_auth_modes(
     profile: &GatewayProfile,
@@ -1786,6 +1891,116 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::UnknownSecretOwnerServer { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_duplicate_resource_schemes() {
+        let mut second_server = media_manifest();
+        second_server.slug = ServerSlug::new("simulation").unwrap();
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest(), second_server],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("duplicate resource schemes must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::DuplicateResourceScheme(_)
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_duplicate_policy_rule_ids() {
+        let mut policy = default_policy();
+        policy.rules.push(policy.rules[0].clone());
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("duplicate policy rule ids must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::DuplicatePolicyRule { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_unknown_policy_rule_references() {
+        let mut policy = default_policy();
+        policy.rules[0].profiles = BTreeSet::from([GatewayProfileId::new("missing").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown policy profile must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownPolicyRuleProfile { .. }
+        ));
+
+        let mut policy = default_policy();
+        policy.rules[0].servers = BTreeSet::from([ServerSlug::new("missing").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown policy server must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownPolicyRuleServer { .. }
+        ));
+
+        let mut policy = default_policy();
+        policy.rules[0].resource_schemes =
+            BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown policy resource scheme must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownPolicyRuleResourceScheme { .. }
         ));
     }
 
