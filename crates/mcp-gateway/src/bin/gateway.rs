@@ -276,10 +276,12 @@ struct AccessTokenClaims {
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     tracing_subscriber::fmt()
+        .json()
+        .flatten_event(true)
         .with_ansi(false)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,gateway=debug".into()),
+                .unwrap_or_else(|_| "info,veoveo_mcp_gateway=debug".into()),
         )
         .init();
 
@@ -451,9 +453,11 @@ async fn serve(
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(
-        "veoveo-mcp-gateway listening on http://{addr} with {} server(s), {} profile(s)",
-        initial_catalog.server_count(),
-        initial_catalog.profile_count()
+        service = "veoveo-mcp-gateway",
+        address = %addr,
+        server_count = initial_catalog.server_count(),
+        profile_count = initial_catalog.profile_count(),
+        "listening"
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)

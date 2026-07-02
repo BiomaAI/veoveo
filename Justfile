@@ -101,6 +101,7 @@ smoke-gateway-http:
         sleep 0.2
     done
     curl -fsS "${base}/readyz" | grep -F '"profiles":1'
+    grep -E '^\{' "${log}" | jq -e 'select(.message == "listening" and .service == "veoveo-mcp-gateway" and .server_count == 1 and .profile_count == 1)' >/dev/null
     {{conformance}} --url "${base}/mcp/default" auth-discovery \
         --metadata-url "${base}/.well-known/oauth-protected-resource/mcp/default" \
         --authorization-server-metadata-url "${base}/.well-known/oauth-authorization-server/oauth/default" \
@@ -191,6 +192,7 @@ smoke-media-mcp-auth:
         sleep 0.2
     done
     curl -fsS "${base}/media/healthz" | grep -F 'ok'
+    grep -E '^\{' "${log}" | jq -e 'select(.message == "listening" and .service == "veoveo-media-mcp" and .mcp_path == "/media/mcp")' >/dev/null
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/mcp")"
     test "${status}" = "401"
     status="$(curl -sS -o /dev/null -w "%{http_code}" "${base}/media/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")"
@@ -235,6 +237,7 @@ smoke-gateway-authenticated:
         sleep 0.2
     done
     curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
+    grep -E '^\{' "${media_log}" | jq -e 'select(.message == "listening" and .service == "veoveo-media-mcp" and .mcp_path == "/media/mcp")' >/dev/null
     VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
     gateway_pid=$!
     for _ in {1..150}; do
@@ -244,6 +247,7 @@ smoke-gateway-authenticated:
         sleep 0.2
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
+    grep -E '^\{' "${gateway_log}" | jq -e 'select(.message == "listening" and .service == "veoveo-mcp-gateway" and .server_count == 1 and .profile_count == 1)' >/dev/null
     token_endpoint="${gateway_base}/oauth/default/token"
     admin_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use --scope gateway:admin)"
     status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"

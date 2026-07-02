@@ -1944,10 +1944,12 @@ async fn artifact_download(
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     tracing_subscriber::fmt()
+        .json()
+        .flatten_event(true)
         .with_ansi(false)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,server=debug".into()),
+                .unwrap_or_else(|_| "info,veoveo_media_mcp=debug".into()),
         )
         .init();
     let args = Args::parse();
@@ -2069,9 +2071,11 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(
-        "veoveo-media-mcp listening on http://{addr} (mcp at {}, public_url={})",
-        public_endpoint.path("mcp"),
-        public_endpoint.public_url()
+        service = "veoveo-media-mcp",
+        address = %addr,
+        mcp_path = public_endpoint.path("mcp"),
+        public_url = public_endpoint.public_url(),
+        "listening"
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)
