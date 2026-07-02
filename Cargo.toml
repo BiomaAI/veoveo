@@ -3,4 +3,36 @@ name = "wavespeed-mcp-server"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "wavespeed_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
+
 [dependencies]
+anyhow = "1.0.103"
+axum = "0.8.9"
+chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
+clap = { version = "4.6.1", features = ["derive", "env"] }
+dotenvy = "0.15.7"
+futures = "0.3.32"
+hex = "0.4.3"
+hmac = "0.13.0"
+jsonschema = "0.46.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rmcp = { version = "2.0.0", features = ["server", "macros", "transport-streamable-http-server", "client", "transport-streamable-http-client-reqwest"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.11.0"
+tokio = { version = "1.52.3", features = ["full"] }
+tokio-util = "0.7.18"
+tower-http = { version = "0.7.0", features = ["fs", "trace", "cors"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = { version = "1.23.4", features = ["v4"] }
