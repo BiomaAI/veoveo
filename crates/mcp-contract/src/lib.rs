@@ -23,7 +23,13 @@ pub mod waiters;
 
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
-pub use deployment::{PublicDeployment, ServerPublicEndpoint};
+pub use deployment::{
+    DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,
+    DeploymentRequirementId, DeploymentServiceKind, NetworkBoundaryRule, NetworkTarget,
+    ObjectStoreDeployment, ObjectStoreKind, PublicDeployment, RegulatedDataControls,
+    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerPublicEndpoint, TelemetrySignal,
+    TelemetrySinkDeployment, TelemetrySinkKind,
+};
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
     AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId,

@@ -1,0 +1,223 @@
+{
+  "profiles": [
+    {
+      "id": "local",
+      "kind": "local",
+      "required_services": [
+        "gateway",
+        "hosted_mcp_server",
+        "object_store",
+        "state_store",
+        "telemetry_collector",
+        "tunnel_or_ingress"
+      ],
+      "secret_sources": ["env"],
+      "object_stores": [
+        {
+          "id": "rustfs",
+          "kind": "s3_compatible",
+          "servers": ["media"],
+          "endpoint": "http://rustfs:9000",
+          "server_side_encryption_required": false,
+          "customer_managed_keys_required": false
+        }
+      ],
+      "telemetry_sinks": [
+        {
+          "id": "otel-local",
+          "kind": "open_telemetry_collector",
+          "endpoint": "http://otel-collector:4318",
+          "signals": ["logs", "traces", "audit_events"]
+        }
+      ],
+      "ingress": [
+        {
+          "id": "gateway-public",
+          "target": "mcp-gateway",
+          "ports": [443, 8788],
+          "tls_required": true
+        }
+      ],
+      "egress": [
+        {
+          "id": "artifact-store",
+          "target": "rustfs",
+          "ports": [9000],
+          "tls_required": false
+        },
+        {
+          "id": "telemetry",
+          "target": "otel-collector",
+          "ports": [4318],
+          "tls_required": false
+        },
+        {
+          "id": "media-provider",
+          "target": "media-provider-api",
+          "ports": [443],
+          "tls_required": true
+        }
+      ],
+      "retention": {
+        "task_metadata_days": 30,
+        "artifact_metadata_days": 30,
+        "artifact_bytes_days": 30,
+        "usage_analytics_days": 365,
+        "audit_event_days": 365
+      }
+    },
+    {
+      "id": "enterprise",
+      "kind": "enterprise",
+      "required_services": [
+        "gateway",
+        "hosted_mcp_server",
+        "object_store",
+        "state_store",
+        "secret_manager",
+        "identity_provider",
+        "authorization_server",
+        "telemetry_collector",
+        "tunnel_or_ingress"
+      ],
+      "secret_sources": ["vault", "cloud_secret_manager", "enterprise_managed"],
+      "object_stores": [
+        {
+          "id": "enterprise-object-store",
+          "kind": "enterprise_managed",
+          "servers": ["media"],
+          "server_side_encryption_required": true,
+          "customer_managed_keys_required": true
+        }
+      ],
+      "telemetry_sinks": [
+        {
+          "id": "enterprise-otel",
+          "kind": "enterprise_managed",
+          "signals": ["logs", "traces", "metrics", "audit_events"]
+        }
+      ],
+      "ingress": [
+        {
+          "id": "enterprise-gateway",
+          "target": "enterprise-ingress",
+          "ports": [443],
+          "tls_required": true
+        }
+      ],
+      "egress": [
+        {
+          "id": "enterprise-object-store",
+          "target": "enterprise-object-store",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
+          "id": "enterprise-identity-provider",
+          "target": "enterprise-idp",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
+          "id": "enterprise-telemetry",
+          "target": "enterprise-telemetry",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
+          "id": "media-provider",
+          "target": "media-provider-api",
+          "ports": [443],
+          "tls_required": true
+        }
+      ],
+      "retention": {
+        "task_metadata_days": 90,
+        "artifact_metadata_days": 90,
+        "artifact_bytes_days": 90,
+        "usage_analytics_days": 2555,
+        "audit_event_days": 2555
+      }
+    },
+    {
+      "id": "regulated",
+      "kind": "regulated",
+      "required_services": [
+        "gateway",
+        "hosted_mcp_server",
+        "object_store",
+        "state_store",
+        "secret_manager",
+        "identity_provider",
+        "authorization_server",
+        "telemetry_collector",
+        "tunnel_or_ingress"
+      ],
+      "secret_sources": ["vault", "kms_backed_store", "enterprise_managed"],
+      "object_stores": [
+        {
+          "id": "regulated-object-store",
+          "kind": "enterprise_managed",
+          "servers": ["media"],
+          "server_side_encryption_required": true,
+          "customer_managed_keys_required": true
+        }
+      ],
+      "telemetry_sinks": [
+        {
+          "id": "regulated-siem",
+          "kind": "siem",
+          "signals": ["logs", "traces", "metrics", "audit_events"]
+        }
+      ],
+      "ingress": [
+        {
+          "id": "regulated-gateway",
+          "target": "regulated-private-ingress",
+          "ports": [443],
+          "tls_required": true
+        }
+      ],
+      "egress": [
+        {
+          "id": "regulated-object-store",
+          "target": "regulated-object-store",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
+          "id": "regulated-identity-provider",
+          "target": "regulated-idp",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
+          "id": "regulated-siem",
+          "target": "regulated-siem",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
+          "id": "media-provider",
+          "target": "approved-media-provider-api",
+          "ports": [443],
+          "tls_required": true
+        }
+      ],
+      "retention": {
+        "task_metadata_days": 365,
+        "artifact_metadata_days": 365,
+        "artifact_bytes_days": 365,
+        "usage_analytics_days": 2555,
+        "audit_event_days": 2555
+      },
+      "regulated_controls": {
+        "allowed_labels": ["cui", "itar", "pii"],
+        "require_us_person": true,
+        "require_private_network": true,
+        "require_customer_managed_keys": true,
+        "require_audit_export": true
+      }
+    }
+  ]
+}

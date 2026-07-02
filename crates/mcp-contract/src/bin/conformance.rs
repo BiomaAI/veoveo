@@ -51,7 +51,7 @@ use url::Url;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
     InternalTokenSecret, Principal, PrincipalId, PrincipalKind, ProviderUris, ScopeName,
-    ServerSlug, TenantId, TokenIssuer, TokenSubject,
+    SelfHostedDeploymentPlan, ServerSlug, TenantId, TokenIssuer, TokenSubject,
 };
 
 #[derive(Parser, Debug)]
@@ -87,6 +87,12 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Cmd {
+    /// Validate a typed self-hosted deployment profile plan.
+    DeploymentValidate {
+        /// JSON deployment profile plan.
+        #[arg(long)]
+        file: PathBuf,
+    },
     /// Verify protected-resource metadata and unauthenticated Bearer challenge.
     AuthDiscovery {
         /// Protected-resource metadata URL. If omitted, inferred from /mcp/{profile}.
@@ -1690,6 +1696,11 @@ async fn main() -> Result<()> {
         .init();
     let args = Args::parse();
     match &args.cmd {
+        Cmd::DeploymentValidate { file } => {
+            let plan = SelfHostedDeploymentPlan::load_json(file)?;
+            println!("ok: {} deployment profile(s)", plan.profiles.len());
+            return Ok(());
+        }
         Cmd::AuthDiscovery {
             metadata_url,
             required_scopes,
@@ -1871,6 +1882,7 @@ async fn main() -> Result<()> {
         Cmd::GatewaySmokeControlPlane { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayFakeOidcIdp { .. } => unreachable!("handled before MCP connection"),
         Cmd::OtlpHttpSink { .. } => unreachable!("handled before MCP connection"),
+        Cmd::DeploymentValidate { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayTokenExchange { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayIdJag { .. } => unreachable!("handled before MCP connection"),

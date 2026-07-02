@@ -30,6 +30,10 @@ check:
 gateway-validate:
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-control-plane}}
 
+# Validate typed self-hosted deployment profiles.
+deployments-validate:
+    {{conformance}} deployment-validate --file configs/deployments.json
+
 # Revoke one gateway JWT id until its original token expiration.
 gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.bioma.ai/oauth/default' profile='default' reason='operator_request':
     mkdir -p data/gateway
@@ -44,6 +48,7 @@ gateway-prune-revoked-jwts:
 smoke-gateway:
     cargo test -p veoveo-mcp-contract -p veoveo-mcp-gateway
     just gateway-validate
+    just deployments-validate
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-smoke-control-plane}}
     just smoke-gateway-http
     just smoke-otel
