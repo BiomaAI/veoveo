@@ -23,9 +23,10 @@ use rmcp::{
 };
 use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
-    CompletionExposure, GatewayAction, GatewayProfileId, GatewayTaskId, GatewayTaskMapping,
-    GatewayToolName, LocalToolName, PolicyEffect, PolicyTarget, PromptName, ResourceUri,
-    ServerSlug, TaskExposure as ContractTaskExposure, UpstreamTaskId, UpstreamTransport, paginate,
+    AuditEvent, CompletionExposure, GatewayAction, GatewayProfileId, GatewayTaskId,
+    GatewayTaskMapping, GatewayToolName, LocalToolName, McpMethodName, PolicyDecision,
+    PolicyEffect, PolicyTarget, PromptName, ResourceUri, ServerSlug,
+    TaskExposure as ContractTaskExposure, TraceId, UpstreamTaskId, UpstreamTransport, paginate,
 };
 
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
@@ -144,16 +145,7 @@ impl GatewayMcp {
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<AuthenticatedSubject, McpError> {
-        let subject = self.authenticated(context)?;
-        let trace_id = veoveo_mcp_contract::TraceId::new(uuid::Uuid::new_v4().to_string())
-            .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
-        let decision = self.catalog.decide(PolicyRequest {
-            principal: &subject.principal,
-            profile: &self.profile_id,
-            action,
-            target: &target,
-            trace_id: &trace_id,
-        });
+        let (subject, decision) = self.evaluate_policy(context, action, target)?;
         if decision.effect == PolicyEffect::Allow {
             Ok(subject)
         } else {
@@ -171,6 +163,54 @@ impl GatewayMcp {
         }
     }
 
+    fn allows(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        target: PolicyTarget,
+    ) -> Result<bool, McpError> {
+        let (_subject, decision) = self.evaluate_policy(context, action, target)?;
+        Ok(decision.effect == PolicyEffect::Allow)
+    }
+
+    fn evaluate_policy(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        target: PolicyTarget,
+    ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
+        let subject = self.authenticated(context)?;
+        let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
+            .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
+        let decision = self.catalog.decide(PolicyRequest {
+            principal: &subject.principal,
+            profile: &self.profile_id,
+            action,
+            target: &target,
+            trace_id: &trace_id,
+        });
+        let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
+            .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
+        self.state
+            .record_audit_event(&AuditEvent {
+                event_id,
+                timestamp: decision.evaluated_at,
+                trace_id,
+                profile: self.profile_id.clone(),
+                method: audit_method_name(action)?,
+                action,
+                target,
+                decision: decision.clone(),
+                principal: Some(subject.principal.id.clone()),
+                tenant: subject.principal.tenant.clone(),
+                token_issuer: Some(subject.access_token.issuer.clone()),
+                latency_ms: None,
+                metadata: BTreeMap::new(),
+            })
+            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+        Ok((subject, decision))
+    }
+
     fn authorize_tool(
         &self,
         context: &RequestContext<RoleServer>,
@@ -181,6 +221,16 @@ impl GatewayMcp {
         self.authorize(context, action, PolicyTarget::Tool { server, tool })
     }
 
+    fn allows_tool(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        server: ServerSlug,
+        tool: LocalToolName,
+    ) -> Result<bool, McpError> {
+        self.allows(context, action, PolicyTarget::Tool { server, tool })
+    }
+
     fn authorize_resource(
         &self,
         context: &RequestContext<RoleServer>,
@@ -188,20 +238,19 @@ impl GatewayMcp {
         server: ServerSlug,
         uri: &str,
     ) -> Result<AuthenticatedSubject, McpError> {
-        let uri = ResourceUri::new(uri.to_string())
-            .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
-        let target = match resource_read_kind(uri.as_str()) {
-            ResourceReadKind::Artifact => PolicyTarget::Artifact {
-                server,
-                artifact_uri: uri,
-            },
-            ResourceReadKind::Usage => PolicyTarget::Usage {
-                server,
-                usage_uri: uri,
-            },
-            ResourceReadKind::General => PolicyTarget::Resource { server, uri },
-        };
+        let target = resource_policy_target(server, uri)?;
         self.authorize(context, action, target)
+    }
+
+    fn allows_resource(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        server: ServerSlug,
+        uri: &str,
+    ) -> Result<bool, McpError> {
+        let target = resource_policy_target(server, uri)?;
+        self.allows(context, action, target)
     }
 
     fn authorize_prompt(
@@ -212,6 +261,16 @@ impl GatewayMcp {
         prompt: PromptName,
     ) -> Result<AuthenticatedSubject, McpError> {
         self.authorize(context, action, PolicyTarget::Prompt { server, prompt })
+    }
+
+    fn allows_prompt(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        server: ServerSlug,
+        prompt: PromptName,
+    ) -> Result<bool, McpError> {
+        self.allows(context, action, PolicyTarget::Prompt { server, prompt })
     }
 
     fn authorize_task(
@@ -276,6 +335,35 @@ impl GatewayMcp {
     }
 }
 
+fn resource_policy_target(server: ServerSlug, uri: &str) -> Result<PolicyTarget, McpError> {
+    let uri = ResourceUri::new(uri.to_string())
+        .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
+    Ok(match resource_read_kind(uri.as_str()) {
+        ResourceReadKind::Artifact => PolicyTarget::Artifact {
+            server,
+            artifact_uri: uri,
+        },
+        ResourceReadKind::Usage => PolicyTarget::Usage {
+            server,
+            usage_uri: uri,
+        },
+        ResourceReadKind::General => PolicyTarget::Resource { server, uri },
+    })
+}
+
+fn audit_method_name(action: GatewayAction) -> Result<McpMethodName, McpError> {
+    let method = match action {
+        GatewayAction::ArtifactRead | GatewayAction::UsageRead => "resources/read",
+        GatewayAction::AdminRead | GatewayAction::AdminWrite => {
+            return Err(mcp_internal("admin audit method is not an MCP method"));
+        }
+        other => other
+            .mcp_method()
+            .ok_or_else(|| mcp_internal("gateway action does not map to an MCP method"))?,
+    };
+    McpMethodName::new(method).map_err(|err| mcp_internal(format!("invalid MCP method: {err}")))
+}
+
 impl ServerHandler for GatewayMcp {
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::default();
@@ -338,15 +426,12 @@ impl ServerHandler for GatewayMcp {
                     LocalToolName::new(tool.name.as_ref().to_string()).map_err(|err| {
                         mcp_internal(format!("upstream exposed invalid tool name: {err}"))
                     })?;
-                if self
-                    .authorize_tool(
-                        &context,
-                        GatewayAction::ToolsList,
-                        server_slug.clone(),
-                        local_tool.clone(),
-                    )
-                    .is_err()
-                {
+                if !self.allows_tool(
+                    &context,
+                    GatewayAction::ToolsList,
+                    server_slug.clone(),
+                    local_tool.clone(),
+                )? {
                     continue;
                 }
                 let gateway_name = self
@@ -452,15 +537,12 @@ impl ServerHandler for GatewayMcp {
                 .await
                 .map_err(upstream_error)?
             {
-                if self
-                    .authorize_resource(
-                        &context,
-                        GatewayAction::ResourcesList,
-                        server_slug.clone(),
-                        &resource.uri,
-                    )
-                    .is_err()
-                {
+                if !self.allows_resource(
+                    &context,
+                    GatewayAction::ResourcesList,
+                    server_slug.clone(),
+                    &resource.uri,
+                )? {
                     continue;
                 }
                 resources.push(resource);
@@ -489,15 +571,12 @@ impl ServerHandler for GatewayMcp {
                 .await
                 .map_err(upstream_error)?
             {
-                if self
-                    .authorize_resource(
-                        &context,
-                        GatewayAction::ResourcesTemplatesList,
-                        server_slug.clone(),
-                        &template.uri_template,
-                    )
-                    .is_err()
-                {
+                if !self.allows_resource(
+                    &context,
+                    GatewayAction::ResourcesTemplatesList,
+                    server_slug.clone(),
+                    &template.uri_template,
+                )? {
                     continue;
                 }
                 templates.push(template);
@@ -576,15 +655,12 @@ impl ServerHandler for GatewayMcp {
                 let prompt_name = PromptName::new(prompt.name.clone()).map_err(|err| {
                     mcp_internal(format!("upstream exposed invalid prompt name: {err}"))
                 })?;
-                if self
-                    .authorize_prompt(
-                        &context,
-                        GatewayAction::PromptsList,
-                        server_slug.clone(),
-                        prompt_name,
-                    )
-                    .is_err()
-                {
+                if !self.allows_prompt(
+                    &context,
+                    GatewayAction::PromptsList,
+                    server_slug.clone(),
+                    prompt_name,
+                )? {
                     continue;
                 }
                 prompts.push(prompt);

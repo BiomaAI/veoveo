@@ -189,6 +189,16 @@ impl GatewayState {
         Ok(())
     }
 
+    #[cfg(test)]
+    fn audit_event_count(&self) -> Result<u64> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM gateway_audit_events", [], |row| {
+                row.get(0)
+            })?;
+        Ok(count as u64)
+    }
+
     fn query_mapping<P>(&self, sql: &str, params: P) -> Result<Option<GatewayTaskMapping>>
     where
         P: duckdb::Params,
@@ -208,7 +218,12 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use chrono::Utc;
-    use veoveo_mcp_contract::{ServerSlug, UpstreamTaskId};
+    use std::collections::BTreeMap;
+
+    use veoveo_mcp_contract::{
+        GatewayAction, McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
+        ServerSlug, TraceId, UpstreamTaskId,
+    };
 
     use super::*;
 
@@ -252,6 +267,54 @@ mod tests {
                 .unwrap(),
             vec![mapping]
         );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn audit_event_records_structured_evidence() {
+        let path = temp_path("audit");
+        let state = GatewayState::open(&path).unwrap();
+        let profile = GatewayProfileId::new("default").unwrap();
+        let action = GatewayAction::ToolsList;
+        let target = PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: veoveo_mcp_contract::LocalToolName::new("run").unwrap(),
+        };
+        let trace_id = TraceId::new("trace-1").unwrap();
+        let decision = PolicyDecision {
+            effect: PolicyEffect::Allow,
+            reason: PolicyReasonCode::PolicyAllow,
+            evaluated_at: Utc::now(),
+            profile: profile.clone(),
+            action,
+            target: target.clone(),
+            principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+            tenant: None,
+            policy_version: None,
+            rule_id: None,
+            trace_id: trace_id.clone(),
+        };
+
+        state
+            .record_audit_event(&AuditEvent {
+                event_id: TraceId::new("event-1").unwrap(),
+                timestamp: Utc::now(),
+                trace_id,
+                profile,
+                method: McpMethodName::new("tools/list").unwrap(),
+                action,
+                target,
+                decision,
+                principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                tenant: None,
+                token_issuer: None,
+                latency_ms: Some(12),
+                metadata: BTreeMap::new(),
+            })
+            .unwrap();
+
+        assert_eq!(state.audit_event_count().unwrap(), 1);
 
         let _ = std::fs::remove_file(path);
     }
