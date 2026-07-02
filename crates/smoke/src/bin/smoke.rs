@@ -15,6 +15,16 @@ use reqwest::{
     header::{CONTENT_TYPE, LOCATION},
     redirect::Policy,
 };
+use rmcp::{
+    ClientHandler, ServiceExt,
+    model::{
+        ClientCapabilities, ClientInfo, Implementation, ReadResourceRequestParams, ResourceContents,
+    },
+    service::RunningService,
+    transport::{
+        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
+    },
+};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -234,6 +244,20 @@ impl Drop for ContainerGuard {
             .status();
     }
 }
+
+#[derive(Clone, Default)]
+struct SmokeMcpClient;
+
+impl ClientHandler for SmokeMcpClient {
+    fn get_info(&self) -> ClientInfo {
+        ClientInfo::new(
+            ClientCapabilities::default(),
+            Implementation::new("veoveo-smoke", env!("CARGO_PKG_VERSION")),
+        )
+    }
+}
+
+type SmokeMcpSession = RunningService<rmcp::RoleClient, SmokeMcpClient>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -1229,6 +1253,8 @@ async fn gateway_authenticated(
         ["info".into()],
         [("MCP_BEARER_TOKEN", ema_token.into())],
     )?;
+    let live_policy_session = connect_mcp_session(&gateway_mcp_url, token).await?;
+    read_mcp_resource_json(&live_policy_session, "media://usage").await?;
 
     let cui_control_plane = tmpdir.join("gateway.cui.json");
     write_cui_control_plane(control_plane, &cui_control_plane)?;
@@ -1247,6 +1273,8 @@ async fn gateway_authenticated(
         token,
         ["resource".into(), "media://usage".into()],
     )?;
+    assert_mcp_session_resource_denied(&live_policy_session, "media://usage").await?;
+    live_policy_session.cancel().await?;
     let missing_group_token = gateway_id_jag_token(
         conformance,
         &gateway_base,
@@ -2252,6 +2280,34 @@ fn run_mcp(
     let mut all_args = vec!["--url".into(), format!("{gateway_base}/mcp/default").into()];
     all_args.extend(args);
     run_checked(conformance, all_args, [("MCP_BEARER_TOKEN", token.into())])
+}
+
+async fn connect_mcp_session(url: &str, bearer_token: &str) -> Result<SmokeMcpSession> {
+    let transport = StreamableHttpClientTransport::from_config(
+        StreamableHttpClientTransportConfig::with_uri(url.to_string())
+            .auth_header(bearer_token.to_string()),
+    );
+    Ok(SmokeMcpClient.serve(transport).await?)
+}
+
+async fn read_mcp_resource_json(session: &SmokeMcpSession, uri: &str) -> Result<Value> {
+    let result = session
+        .read_resource(ReadResourceRequestParams::new(uri))
+        .await?;
+    let Some(text) = result.contents.iter().find_map(|content| match content {
+        ResourceContents::TextResourceContents { text, .. } => Some(text.as_str()),
+        _ => None,
+    }) else {
+        bail!("MCP resource `{uri}` did not return text content: {result:?}");
+    };
+    Ok(serde_json::from_str(text)?)
+}
+
+async fn assert_mcp_session_resource_denied(session: &SmokeMcpSession, uri: &str) -> Result<()> {
+    if read_mcp_resource_json(session, uri).await.is_ok() {
+        bail!("same MCP session unexpectedly read `{uri}` after policy update");
+    }
+    Ok(())
 }
 
 fn gateway_id_jag_token(conformance: &Path, gateway_base: &str, args: &[&str]) -> Result<String> {
