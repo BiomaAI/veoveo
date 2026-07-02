@@ -538,7 +538,7 @@ smoke-gateway-task-run:
         sleep 0.2
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
-    token="$({{conformance}} gateway-token-exchange --token-url "${gateway_base}/oauth/default/token" --scope media:use)"
+    token="$({{conformance}} gateway-id-jag-token-exchange --token-url "${gateway_base}/oauth/default/token" --id-jag-scope media:use --group engineering --role operator --data-label cui)"
     cancel_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" run fake/image --tool-name media__run --input '{"prompt":"cancel"}' --cancel)"
     printf '%s\n' "${cancel_output}"
     printf '%s\n' "${cancel_output}" | grep -E '^cancelled task [^ ]+ \(status Cancelled\)$' >/dev/null
@@ -551,6 +551,7 @@ smoke-gateway-task-run:
     structured_json="$(printf '%s\n' "${run_output}" | sed -n 's/^structured: //p')"
     test -n "${structured_json}"
     printf '%s\n' "${structured_json}" | jq -e --arg task_id "${task_id}" 'all(.artifacts[]; .metadata.task_id == $task_id)' >/dev/null
+    printf '%s\n' "${structured_json}" | jq -e 'all(.artifacts[]; .compliance.tenant_id == "tenant-a" and (.compliance.data_labels | index("cui")))' >/dev/null
     find "${output_dir}" -type f -name '*.png' -size +0c | grep -q .
     usage_json=""
     for _ in {1..90}; do

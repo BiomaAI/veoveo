@@ -1,21 +1,27 @@
+use std::collections::BTreeSet;
+
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::gateway::{DataLabelId, PrincipalId, TenantId};
+
 /// Compliance and tenancy labels that travel with server-owned artifacts.
 ///
-/// These fields are metadata for policy enforcement and audit routing. They are
-/// intentionally optional because local/dev servers may not have tenant or data
-/// classification context yet.
+/// Object metadata is not the only authorization source; servers should keep
+/// owner rows for task/artifact access checks. These typed fields keep exported
+/// artifact metadata aligned with the gateway principal and policy model.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ComplianceMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub classification: Option<String>,
+    pub classification: Option<DataLabelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<TenantId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub owner_id: Option<String>,
+    pub owner_id: Option<PrincipalId>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub data_labels: BTreeSet<DataLabelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retention_expires_at: Option<DateTime<Utc>>,
 }

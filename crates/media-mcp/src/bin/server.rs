@@ -736,8 +736,9 @@ async fn ingest_output_artifact(
     let mut artifact = ArtifactPut::new(bytes);
     artifact.mime_type = header_mime.or_else(|| guess_mime(url).map(str::to_string));
     artifact.filename = Some(filename_from_url(url, index));
-    artifact.compliance.owner_id = Some(owner.principal_id.to_string());
-    artifact.compliance.tenant_id = owner.tenant.as_ref().map(ToString::to_string);
+    artifact.compliance.owner_id = Some(owner.principal_id.clone());
+    artifact.compliance.tenant_id = owner.tenant.clone();
+    artifact.compliance.data_labels = owner.data_labels.clone();
     artifact.compliance.retention_expires_at =
         Some(state.retention.artifact_expires_at(now_utc())?);
     artifact.metadata = serde_json::to_value(OutputArtifactMetadata {
@@ -749,8 +750,9 @@ async fn ingest_output_artifact(
     let mut metadata = state.artifacts.put(artifact).await?;
     let artifact_owner = artifact_owner_from_task(&metadata.sha256, owner);
     state.durable.record_artifact_owner(&artifact_owner)?;
-    metadata.compliance.owner_id = Some(owner.principal_id.to_string());
-    metadata.compliance.tenant_id = owner.tenant.as_ref().map(ToString::to_string);
+    metadata.compliance.owner_id = Some(owner.principal_id.clone());
+    metadata.compliance.tenant_id = owner.tenant.clone();
+    metadata.compliance.data_labels = owner.data_labels.clone();
     Ok(metadata)
 }
 
