@@ -178,6 +178,15 @@ enum Cmd {
         #[arg(long)]
         hits_file: PathBuf,
     },
+    /// Serve a local fake media provider for webhook-only gateway smoke tests.
+    FakeMediaProvider {
+        /// HTTP listen port.
+        #[arg(long)]
+        port: u16,
+        /// File touched after the listener is ready.
+        #[arg(long)]
+        ready_file: Option<PathBuf>,
+    },
     /// Print a private-key JWT client assertion signed by the conformance private key.
     GatewayClientAssertion {
         /// OAuth client id used as issuer and subject.
@@ -338,6 +347,9 @@ enum Cmd {
     /// Run a model as an MCP task and download its outputs.
     Run {
         model_id: String,
+        /// Tool name to invoke. Direct media uses `run`; the gateway exposes `media__run`.
+        #[arg(long, default_value = "run")]
+        tool_name: String,
         /// Model input as a JSON object (see `schema <model_id>`).
         #[arg(long)]
         input: String,
@@ -866,6 +878,146 @@ async fn cmd_otlp_http_sink(
     }
     axum::serve(listener, router).await?;
     Ok(())
+}
+
+#[derive(Clone)]
+struct FakeMediaProviderState {
+    base_url: String,
+    http: reqwest::Client,
+}
+
+#[derive(Debug, Deserialize)]
+struct FakeBillingSearchRequest {
+    #[serde(default)]
+    prediction_uuids: Vec<String>,
+}
+
+async fn cmd_fake_media_provider(port: u16, ready_file: Option<PathBuf>) -> Result<()> {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+    let base_url = format!("http://{}", listener.local_addr()?);
+    let state = FakeMediaProviderState {
+        base_url,
+        http: reqwest::Client::new(),
+    };
+    let router = AxumRouter::new()
+        .route("/api/v3/models", axum_get(fake_media_models))
+        .route("/api/v3/billings/search", axum_post(fake_media_billing))
+        .route("/api/v3/{*model_id}", axum_post(fake_media_submit))
+        .route("/outputs/fake.png", axum_get(fake_media_output))
+        .with_state(state);
+    if let Some(path) = ready_file {
+        std::fs::write(path, b"ready\n")?;
+    }
+    axum::serve(listener, router).await?;
+    Ok(())
+}
+
+fn fake_media_envelope(data: Value) -> AxumJson<Value> {
+    AxumJson(json!({
+        "code": 200,
+        "message": "ok",
+        "data": data,
+    }))
+}
+
+async fn fake_media_models() -> AxumJson<Value> {
+    fake_media_envelope(json!([
+        {
+            "model_id": "fake/image",
+            "name": "Fake image",
+            "type": "image-to-image",
+            "description": "Deterministic local smoke-test model.",
+            "base_price": 0.01,
+            "formula": "fixed smoke price",
+            "api_schema": {
+                "api_schemas": [
+                    {
+                        "type": "model_run",
+                        "request_schema": {
+                            "type": "object",
+                            "required": ["prompt"],
+                            "properties": {
+                                "prompt": { "type": "string" }
+                            },
+                            "additionalProperties": true
+                        }
+                    }
+                ]
+            }
+        }
+    ]))
+}
+
+async fn fake_media_submit(
+    AxumState(state): AxumState<FakeMediaProviderState>,
+    AxumPath(model_id): AxumPath<String>,
+    AxumQuery(query): AxumQuery<BTreeMap<String, String>>,
+    AxumJson(input): AxumJson<Value>,
+) -> AxumJson<Value> {
+    let prediction_id = format!("fake-{}", uuid::Uuid::new_v4());
+    let output_url = format!("{}/outputs/fake.png", state.base_url);
+    if let Some(webhook_url) = query.get("webhook").cloned() {
+        let http = state.http.clone();
+        let terminal = json!({
+            "id": prediction_id,
+            "model": model_id,
+            "outputs": [output_url],
+            "status": "completed",
+            "input": input,
+            "executionTime": 0.2,
+        });
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            if let Err(err) = http.post(webhook_url).json(&terminal).send().await {
+                eprintln!("fake media provider webhook failed: {err}");
+            }
+        });
+    }
+
+    fake_media_envelope(json!({
+        "id": prediction_id,
+        "model": model_id,
+        "outputs": [],
+        "status": "processing",
+    }))
+}
+
+async fn fake_media_billing(
+    AxumJson(request): AxumJson<FakeBillingSearchRequest>,
+) -> AxumJson<Value> {
+    let prediction_id = request
+        .prediction_uuids
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "fake-unknown".to_string());
+    fake_media_envelope(json!({
+        "items": [
+            {
+                "uuid": format!("billing-{prediction_id}"),
+                "billing_type": "deduct",
+                "price": 0.01,
+                "created_at": Utc::now(),
+                "updated_at": Utc::now(),
+                "order": {
+                    "uuid": format!("order-{prediction_id}"),
+                    "state": "completed",
+                    "status": "completed"
+                },
+                "prediction": {
+                    "uuid": prediction_id,
+                    "model_uuid": "fake/image",
+                    "status": "completed"
+                }
+            }
+        ]
+    }))
+}
+
+async fn fake_media_output() -> impl AxumIntoResponse {
+    let bytes = BASE64_STANDARD
+        .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
+        .expect("valid embedded PNG");
+    ([("content-type", "image/png")], bytes)
 }
 
 async fn otlp_sink_hit(
@@ -1571,6 +1723,7 @@ async fn save_output_uri(
 async fn cmd_run(
     client: &Client,
     uris: &ProviderUris,
+    tool_name: String,
     model_id: String,
     input: String,
     output_dir: PathBuf,
@@ -1579,7 +1732,7 @@ async fn cmd_run(
     let input: Value = serde_json::from_str(&input)?;
 
     // tools/call augmented with SEP-1319 task metadata + a progress token.
-    let mut params = CallToolRequestParams::new("run")
+    let mut params = CallToolRequestParams::new(tool_name)
         .with_arguments(
             serde_json::json!({ "model": model_id, "input": input })
                 .as_object()
@@ -1771,6 +1924,9 @@ async fn main() -> Result<()> {
         } => {
             return cmd_otlp_http_sink(*port, ready_file.clone(), hits_file.clone()).await;
         }
+        Cmd::FakeMediaProvider { port, ready_file } => {
+            return cmd_fake_media_provider(*port, ready_file.clone()).await;
+        }
         Cmd::GatewayClientAssertion {
             client_id,
             audience,
@@ -1882,6 +2038,7 @@ async fn main() -> Result<()> {
         Cmd::GatewaySmokeControlPlane { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayFakeOidcIdp { .. } => unreachable!("handled before MCP connection"),
         Cmd::OtlpHttpSink { .. } => unreachable!("handled before MCP connection"),
+        Cmd::FakeMediaProvider { .. } => unreachable!("handled before MCP connection"),
         Cmd::DeploymentValidate { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayTokenExchange { .. } => unreachable!("handled before MCP connection"),
@@ -1920,10 +2077,16 @@ async fn main() -> Result<()> {
         }
         Cmd::Run {
             model_id,
+            tool_name,
             input,
             output_dir,
             cancel,
-        } => cmd_run(&client, &uris, model_id, input, output_dir, cancel).await,
+        } => {
+            cmd_run(
+                &client, &uris, tool_name, model_id, input, output_dir, cancel,
+            )
+            .await
+        }
     };
 
     client.cancel().await?;

@@ -74,6 +74,8 @@ services:
       - "/app/assets"
       - "--state-db"
       - "/var/lib/veoveo/media/state.duckdb"
+      - "--artifact-store"
+      - "s3-compatible"
       - "--artifact-endpoint"
       - "http://rustfs:9000"
       - "--artifact-bucket"

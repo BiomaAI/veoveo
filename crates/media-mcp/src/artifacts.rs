@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use object_store::{
     Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, aws::AmazonS3Builder,
-    path::Path,
+    memory::InMemory, path::Path,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -61,6 +61,14 @@ impl ArtifactRepository {
             .context("building S3-compatible artifact store")?;
 
         Ok(Self::new(Arc::new(inner), state, uris, download_base_url))
+    }
+
+    pub fn new_in_memory(
+        state: DuckdbState,
+        uris: ProviderUris,
+        download_base_url: impl Into<String>,
+    ) -> Self {
+        Self::new(Arc::new(InMemory::new()), state, uris, download_base_url)
     }
 
     fn object_path(sha256: &str) -> Result<Path> {

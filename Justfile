@@ -54,6 +54,7 @@ smoke-gateway:
     just smoke-otel
     just smoke-media-mcp-auth
     just smoke-gateway-authenticated
+    just smoke-gateway-task-run
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
@@ -368,6 +369,93 @@ smoke-gateway-authenticated:
     audit_counts="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${gateway_state_db}")"
     echo "${audit_counts}" | grep -E '"auth_events":[1-9][0-9]*'
     echo "${audit_counts}" | grep -E '"policy_events":[1-9][0-9]*'
+
+# Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
+smoke-gateway-task-run:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    media_port=18801
+    gateway_port=18802
+    provider_port=18806
+    media_base="http://127.0.0.1:${media_port}"
+    gateway_base="http://127.0.0.1:${gateway_port}"
+    provider_base="http://127.0.0.1:${provider_port}"
+    tmpdir="$(mktemp -d)"
+    provider_log="${tmpdir}/provider.log"
+    media_log="${tmpdir}/media.log"
+    gateway_log="${tmpdir}/gateway.log"
+    provider_ready="${tmpdir}/provider.ready"
+    media_state_db="${tmpdir}/media-state.duckdb"
+    gateway_state_db="${tmpdir}/gateway-state.duckdb"
+    output_dir="${tmpdir}/outputs"
+    internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
+    auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
+    provider_pid=""
+    media_pid=""
+    gateway_pid=""
+    cleanup() {
+        if [ -n "${gateway_pid}" ]; then
+            kill "${gateway_pid}" 2>/dev/null || true
+            wait "${gateway_pid}" 2>/dev/null || true
+        fi
+        if [ -n "${media_pid}" ]; then
+            kill "${media_pid}" 2>/dev/null || true
+            wait "${media_pid}" 2>/dev/null || true
+        fi
+        if [ -n "${provider_pid}" ]; then
+            kill "${provider_pid}" 2>/dev/null || true
+            wait "${provider_pid}" 2>/dev/null || true
+        fi
+        rm -rf "${tmpdir}"
+    }
+    trap cleanup EXIT
+    {{conformance}} fake-media-provider --port "${provider_port}" --ready-file "${provider_ready}" >"${provider_log}" 2>&1 &
+    provider_pid=$!
+    for _ in {1..150}; do
+        if [ -f "${provider_ready}" ] && curl -fsS "${provider_base}/api/v3/models" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    test -f "${provider_ready}"
+    MEDIA_PROVIDER_WEBHOOK_SECRET= MEDIA_PROVIDER_API_KEY=smoke VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" cargo run -p veoveo-media-mcp --bin server -- --port "${media_port}" --public-base-url "${media_base}" --state-db "${media_state_db}" --artifact-store memory --provider-base-url "${provider_base}" >"${media_log}" 2>&1 &
+    media_pid=$!
+    for _ in {1..150}; do
+        if curl -fsS "${media_base}/media/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
+    VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="${auth_private_key}" cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port "${gateway_port}" --public-base-url https://veoveo.bioma.ai --control-plane {{gateway-smoke-control-plane}} --state-db "${gateway_state_db}" >"${gateway_log}" 2>&1 &
+    gateway_pid=$!
+    for _ in {1..150}; do
+        if curl -fsS "${gateway_base}/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
+    token="$({{conformance}} gateway-token-exchange --token-url "${gateway_base}/oauth/default/token" --scope media:use)"
+    run_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" run fake/image --tool-name media__run --input '{"prompt":"smoke"}' --output-dir "${output_dir}")"
+    printf '%s\n' "${run_output}"
+    task_id="$(printf '%s\n' "${run_output}" | sed -n 's/^task \([^ ]*\) created.*/\1/p')"
+    test -n "${task_id}"
+    structured_json="$(printf '%s\n' "${run_output}" | sed -n 's/^structured: //p')"
+    test -n "${structured_json}"
+    printf '%s\n' "${structured_json}" | jq -e --arg task_id "${task_id}" 'all(.artifacts[]; .metadata.task_id == $task_id)' >/dev/null
+    find "${output_dir}" -type f -name '*.png' -size +0c | grep -q .
+    usage_json=""
+    for _ in {1..90}; do
+        usage_json="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" usage "${task_id}" 2>/dev/null || true)"
+        if printf '%s\n' "${usage_json}" | jq -e '.records[]? | select(.kind == "actual" and .amount == 0.01 and .currency == "USD")' >/dev/null; then
+            break
+        fi
+        sleep 0.25
+    done
+    printf '%s\n' "${usage_json}" | jq -e --arg task_id "${task_id}" '.task_id == $task_id and .usage_uri == ("media://usage/task/" + $task_id) and all(.records[]; .task_id == $task_id)' >/dev/null
+    printf '%s\n' "${usage_json}" | jq -e '.records[] | select(.kind == "estimate" and .amount == 0.01 and .currency == "USD")' >/dev/null
+    printf '%s\n' "${usage_json}" | jq -e '.records[] | select(.kind == "actual" and .amount == 0.01 and .currency == "USD")' >/dev/null
 
 # Build MCP images.
 compose-build:

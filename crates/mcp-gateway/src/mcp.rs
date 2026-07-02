@@ -13,9 +13,9 @@ use rmcp::{
         InitializeRequestParams, InitializeResult, JsonObject, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListTasksRequest, ListTasksResult,
         ListToolsResult, Notification, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Reference, ServerCapabilities, ServerInfo, ServerNotification,
-        ServerResult, SubscribeRequestParams, TaskStatusNotificationParam, TasksCapability,
-        UnsubscribeRequestParams,
+        ReadResourceResult, Reference, ResourceContents, ServerCapabilities, ServerInfo,
+        ServerNotification, ServerResult, SubscribeRequestParams, TaskStatusNotificationParam,
+        TasksCapability, UnsubscribeRequestParams,
     },
     service::{NotificationContext, Peer, RequestContext, RoleClient, RoleServer, RunningService},
     transport::{
@@ -25,10 +25,11 @@ use rmcp::{
 use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
     AuditEvent, CompletionExposure, GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId,
-    GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, GatewayToolName, LocalToolName,
-    McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId,
-    PromptName, ResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TraceId,
-    UpstreamTaskId, UpstreamTransport, paginate,
+    GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping,
+    GatewayToolName, GenerationRunOutput, LocalToolName, McpMethodName, PolicyDecision,
+    PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId, PromptName, ProviderResourceUri,
+    ResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TaskIdProjection, TraceId,
+    UpstreamTaskId, UpstreamTransport, UsageReport, paginate,
 };
 
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
@@ -154,6 +155,8 @@ impl GatewayMcp {
                 .reinit_on_expired_session(false),
         );
         let handler = GatewayUpstreamHandler {
+            profile_id: self.profile_id.clone(),
+            principal_id: subject.principal.id.clone(),
             upstream_server: server_slug.clone(),
             state: self.state.clone(),
             downstream,
@@ -291,6 +294,37 @@ impl GatewayMcp {
         self.authorize(context, action, target)
     }
 
+    fn authorize_projected_resource(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        projection: &GatewayResourceProjection,
+    ) -> Result<AuthenticatedSubject, McpError> {
+        let Some(task) = &projection.task else {
+            return self.authorize_resource(
+                context,
+                action,
+                projection.server.clone(),
+                projection.gateway_uri.as_str(),
+            );
+        };
+        let subject = self.authenticated(context)?;
+        let target =
+            resource_policy_target(projection.server.clone(), projection.gateway_uri.as_str())?;
+        if task.upstream_server != projection.server {
+            return Err(mcp_internal("invalid gateway resource projection"));
+        }
+        let mapping = self.task_mapping(task.gateway_task_id.as_str())?;
+        if mapping.upstream_server != projection.server
+            || mapping.upstream_task_id != task.upstream_task_id
+            || !task_mapping_allows_principal(&self.profile_id, &mapping, &subject.principal.id)
+        {
+            self.record_policy_denial(&subject, action, target, PolicyReasonCode::UnknownTask)?;
+            return Err(mcp_invalid_params("unknown gateway task id"));
+        }
+        self.authorize(context, action, target)
+    }
+
     fn allows_resource(
         &self,
         context: &RequestContext<RoleServer>,
@@ -423,6 +457,48 @@ impl GatewayMcp {
             .ok_or_else(|| mcp_invalid_params(format!("resource URI is not exposed: {uri}")))
     }
 
+    fn project_resource_for_upstream(
+        &self,
+        uri: &str,
+    ) -> Result<GatewayResourceProjection, McpError> {
+        let server = self.server_for_resource(uri)?;
+        let parsed = ProviderResourceUri::parse(uri)
+            .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
+        let Some(task_id) = parsed.usage_task_id() else {
+            return Ok(GatewayResourceProjection {
+                server,
+                gateway_uri: gateway_resource_uri(uri)?,
+                upstream_uri: gateway_resource_uri(uri)?,
+                task: None,
+            });
+        };
+        let mapping = self.task_mapping(task_id)?;
+        if mapping.upstream_server != server {
+            return Err(mcp_invalid_params(
+                "usage task id belongs to another server",
+            ));
+        }
+        let upstream_uri = parsed
+            .with_usage_task_id(mapping.upstream_task_id.as_str())
+            .map_err(|err| mcp_internal(format!("failed to project usage URI: {err}")))?
+            .to_string();
+        Ok(GatewayResourceProjection {
+            server,
+            gateway_uri: gateway_resource_uri(uri)?,
+            upstream_uri: gateway_resource_uri(&upstream_uri)?,
+            task: Some(TaskIdProjection::from(&mapping)),
+        })
+    }
+
+    fn project_upstream_resource_for_owner(
+        &self,
+        server: &ServerSlug,
+        owner: &PrincipalId,
+        uri: &str,
+    ) -> Result<Option<GatewayResourceProjection>, McpError> {
+        project_upstream_resource_for_owner(&self.state, &self.profile_id, owner, server, uri)
+    }
+
     fn server_for_prompt(&self, prompt: &str) -> Result<ServerSlug, McpError> {
         let prompt = PromptName::new(prompt.to_string())
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;
@@ -485,6 +561,160 @@ fn task_mapping_allows_principal(
 fn gateway_resource_uri(uri: &str) -> Result<ResourceUri, McpError> {
     ResourceUri::new(uri.to_string())
         .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))
+}
+
+fn identity_resource_projection(
+    server: ServerSlug,
+    uri: &str,
+) -> Result<GatewayResourceProjection, McpError> {
+    let uri = gateway_resource_uri(uri)?;
+    Ok(GatewayResourceProjection {
+        server,
+        gateway_uri: uri.clone(),
+        upstream_uri: uri,
+        task: None,
+    })
+}
+
+fn project_upstream_resource_for_owner(
+    state: &GatewayState,
+    profile_id: &GatewayProfileId,
+    owner: &PrincipalId,
+    server: &ServerSlug,
+    uri: &str,
+) -> Result<Option<GatewayResourceProjection>, McpError> {
+    let parsed = ProviderResourceUri::parse(uri)
+        .map_err(|err| mcp_internal(format!("upstream exposed invalid resource URI: {err}")))?;
+    let Some(upstream_task_id) = parsed.usage_task_id() else {
+        return Ok(Some(identity_resource_projection(server.clone(), uri)?));
+    };
+    let upstream_task_id = UpstreamTaskId::new(upstream_task_id.to_string())
+        .map_err(|err| mcp_internal(format!("upstream exposed invalid usage task id: {err}")))?;
+    let Some(mapping) = state
+        .task_mapping_by_upstream(server, &upstream_task_id)
+        .map_err(|err| mcp_internal(format!("failed to read gateway task mapping: {err}")))?
+    else {
+        return Ok(None);
+    };
+    if !task_mapping_allows_principal(profile_id, &mapping, owner) {
+        return Ok(None);
+    }
+    let gateway_uri = parsed
+        .with_usage_task_id(mapping.gateway_task_id.as_str())
+        .map_err(|err| mcp_internal(format!("failed to project usage URI: {err}")))?
+        .to_string();
+    Ok(Some(GatewayResourceProjection {
+        server: server.clone(),
+        gateway_uri: gateway_resource_uri(&gateway_uri)?,
+        upstream_uri: gateway_resource_uri(uri)?,
+        task: Some(TaskIdProjection::from(&mapping)),
+    }))
+}
+
+fn project_listed_resource(
+    resource: &mut rmcp::model::Resource,
+    projection: &GatewayResourceProjection,
+) {
+    resource.uri = projection.gateway_uri.to_string();
+    if let Some(task) = &projection.task {
+        resource.name = format!("usage for task {}", task.gateway_task_id);
+        resource.description =
+            Some("Usage estimates and actuals for one gateway task.".to_string());
+    }
+}
+
+fn project_read_resource_result(
+    result: &mut ReadResourceResult,
+    projection: &GatewayResourceProjection,
+) -> Result<(), McpError> {
+    let Some(task) = &projection.task else {
+        return Ok(());
+    };
+    for content in &mut result.contents {
+        match content {
+            ResourceContents::TextResourceContents { uri, text, .. } => {
+                *uri = projection.gateway_uri.to_string();
+                let mut report: UsageReport = serde_json::from_str(text).map_err(|err| {
+                    mcp_internal(format!(
+                        "upstream usage resource was not a usage report: {err}"
+                    ))
+                })?;
+                project_usage_report(&mut report, projection, task);
+                *text = serde_json::to_string(&report).map_err(|err| {
+                    mcp_internal(format!("failed to encode projected usage report: {err}"))
+                })?;
+            }
+            ResourceContents::BlobResourceContents { .. } => {
+                return Err(mcp_internal(
+                    "upstream usage resource returned blob content",
+                ));
+            }
+            _ => {
+                return Err(mcp_internal(
+                    "upstream usage resource returned unknown content",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn project_usage_report(
+    report: &mut UsageReport,
+    projection: &GatewayResourceProjection,
+    task: &TaskIdProjection,
+) {
+    report.task_id = task.gateway_task_id.to_string();
+    report.usage_uri = projection.gateway_uri.to_string();
+    for record in &mut report.records {
+        if record.task_id == task.upstream_task_id.as_str() {
+            record.task_id = task.gateway_task_id.to_string();
+        }
+    }
+}
+
+fn project_task_payload_result(
+    payload: &mut GetTaskPayloadResult,
+    mapping: &GatewayTaskMapping,
+) -> Result<(), McpError> {
+    let mut result: CallToolResult = serde_json::from_value(payload.0.clone()).map_err(|err| {
+        mcp_internal(format!(
+            "upstream task payload was not a tool result: {err}"
+        ))
+    })?;
+    project_call_tool_result(&mut result, mapping)?;
+    payload.0 = serde_json::to_value(result)
+        .map_err(|err| mcp_internal(format!("failed to encode projected task payload: {err}")))?;
+    Ok(())
+}
+
+fn project_call_tool_result(
+    result: &mut CallToolResult,
+    mapping: &GatewayTaskMapping,
+) -> Result<(), McpError> {
+    let Some(structured) = &mut result.structured_content else {
+        return Ok(());
+    };
+    let Ok(mut output) = serde_json::from_value::<GenerationRunOutput>(structured.clone()) else {
+        return Ok(());
+    };
+    for artifact in &mut output.artifacts {
+        if let Some(metadata) = artifact.metadata.as_object_mut()
+            && metadata.get("task_id").and_then(|value| value.as_str())
+                == Some(mapping.upstream_task_id.as_str())
+        {
+            metadata.insert(
+                "task_id".to_string(),
+                serde_json::Value::String(mapping.gateway_task_id.to_string()),
+            );
+        }
+    }
+    *structured = serde_json::to_value(output).map_err(|err| {
+        mcp_internal(format!(
+            "failed to encode projected generation output: {err}"
+        ))
+    })?;
+    Ok(())
 }
 
 fn resource_policy_target(server: ServerSlug, uri: &str) -> Result<PolicyTarget, McpError> {
@@ -690,15 +920,24 @@ impl ServerHandler for GatewayMcp {
             let upstream = self
                 .upstream(&server_slug, context.peer.clone(), &subject)
                 .await?;
-            for resource in upstream
+            for mut resource in upstream
                 .list_all_resources()
                 .await
                 .map_err(upstream_error)?
             {
+                let Some(projection) = self.project_upstream_resource_for_owner(
+                    &server_slug,
+                    &subject.principal.id,
+                    &resource.uri,
+                )?
+                else {
+                    continue;
+                };
+                project_listed_resource(&mut resource, &projection);
                 if !self.allows_resource(
                     &context,
                     GatewayAction::ResourcesList,
-                    server_slug.clone(),
+                    projection.server.clone(),
                     &resource.uri,
                 )? {
                     continue;
@@ -755,23 +994,25 @@ impl ServerHandler for GatewayMcp {
 
     async fn read_resource(
         &self,
-        request: ReadResourceRequestParams,
+        mut request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
-        let server = self.server_for_resource(&request.uri)?;
-        let subject = self.authorize_resource(
+        let projection = self.project_resource_for_upstream(&request.uri)?;
+        let subject = self.authorize_projected_resource(
             &context,
             resource_read_action(&request.uri),
-            server.clone(),
-            &request.uri,
+            &projection,
         )?;
+        request.uri = projection.upstream_uri.to_string();
         let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
+            .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
-        upstream
+        let mut result = upstream
             .read_resource(request)
             .await
-            .map_err(upstream_error)
+            .map_err(upstream_error)?;
+        project_read_resource_result(&mut result, &projection)?;
+        Ok(result)
     }
 
     async fn subscribe(
@@ -779,17 +1020,18 @@ impl ServerHandler for GatewayMcp {
         request: SubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
+        let mut request = request;
         let uri = request.uri.clone();
-        let resource_uri = gateway_resource_uri(&uri)?;
-        let server = self.server_for_resource(&uri)?;
-        let subject = self.authorize_resource(
+        let projection = self.project_resource_for_upstream(&uri)?;
+        let resource_uri = projection.gateway_uri.clone();
+        let subject = self.authorize_projected_resource(
             &context,
             GatewayAction::ResourcesSubscribe,
-            server.clone(),
-            &uri,
+            &projection,
         )?;
+        request.uri = projection.upstream_uri.to_string();
         let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
+            .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
         upstream.subscribe(request).await.map_err(upstream_error)?;
         let now = Utc::now();
@@ -797,7 +1039,7 @@ impl ServerHandler for GatewayMcp {
             .record_resource_subscription(&GatewayResourceSubscription {
                 profile: self.profile_id.clone(),
                 owner: subject.principal.id,
-                upstream_server: server,
+                upstream_server: projection.server,
                 resource_uri,
                 created_at: now,
                 updated_at: now,
@@ -815,9 +1057,11 @@ impl ServerHandler for GatewayMcp {
         request: UnsubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
+        let mut request = request;
         let uri = request.uri.clone();
-        let resource_uri = gateway_resource_uri(&uri)?;
-        let server = self.server_for_resource(&uri)?;
+        let projection = self.project_resource_for_upstream(&uri)?;
+        let resource_uri = projection.gateway_uri.clone();
+        let server = projection.server.clone();
         let subject = self.authenticated(&context)?;
         let subscription = self
             .state
@@ -841,12 +1085,12 @@ impl ServerHandler for GatewayMcp {
             )?;
             return Err(mcp_invalid_params("unknown gateway resource subscription"));
         }
-        let subject = self.authorize_resource(
+        let subject = self.authorize_projected_resource(
             &context,
             GatewayAction::ResourcesUnsubscribe,
-            server.clone(),
-            &uri,
+            &projection,
         )?;
+        request.uri = projection.upstream_uri.to_string();
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
             .await?;
@@ -1058,8 +1302,22 @@ impl ServerHandler for GatewayMcp {
             .await
             .map_err(upstream_error)?;
         match result {
-            ServerResult::GetTaskPayloadResult(result) => Ok(result),
-            ServerResult::CustomResult(result) => Ok(GetTaskPayloadResult::new(result.0)),
+            ServerResult::GetTaskPayloadResult(mut result) => {
+                project_task_payload_result(&mut result, &mapping)?;
+                Ok(result)
+            }
+            ServerResult::CallToolResult(result) => {
+                let payload = serde_json::to_value(result)
+                    .map_err(|err| mcp_internal(format!("failed to encode task payload: {err}")))?;
+                let mut result = GetTaskPayloadResult::new(payload);
+                project_task_payload_result(&mut result, &mapping)?;
+                Ok(result)
+            }
+            ServerResult::CustomResult(result) => {
+                let mut result = GetTaskPayloadResult::new(result.0);
+                project_task_payload_result(&mut result, &mapping)?;
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tasks/result", other)),
         }
     }
@@ -1094,6 +1352,8 @@ impl ServerHandler for GatewayMcp {
 
 #[derive(Debug, Clone)]
 pub struct GatewayUpstreamHandler {
+    profile_id: GatewayProfileId,
+    principal_id: PrincipalId,
     upstream_server: ServerSlug,
     state: GatewayState,
     downstream: Peer<RoleServer>,
@@ -1122,9 +1382,36 @@ impl ClientHandler for GatewayUpstreamHandler {
 
     async fn on_resource_updated(
         &self,
-        params: rmcp::model::ResourceUpdatedNotificationParam,
+        mut params: rmcp::model::ResourceUpdatedNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) {
+        match project_upstream_resource_for_owner(
+            &self.state,
+            &self.profile_id,
+            &self.principal_id,
+            &self.upstream_server,
+            &params.uri,
+        ) {
+            Ok(Some(projection)) => {
+                params.uri = projection.gateway_uri.to_string();
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    upstream_server = %self.upstream_server,
+                    upstream_uri = %params.uri,
+                    "dropped resource update notification for unmapped upstream resource"
+                );
+                return;
+            }
+            Err(err) => {
+                tracing::warn!(
+                    upstream_server = %self.upstream_server,
+                    upstream_uri = %params.uri,
+                    "failed to project resource update notification: {err}"
+                );
+                return;
+            }
+        }
         if let Err(err) = self.downstream.notify_resource_updated(params).await {
             tracing::warn!(
                 upstream_server = %self.upstream_server,
@@ -1193,6 +1480,14 @@ impl ClientHandler for GatewayUpstreamHandler {
                 return;
             }
         };
+        if !task_mapping_allows_principal(&self.profile_id, &mapping, &self.principal_id) {
+            tracing::warn!(
+                upstream_server = %self.upstream_server,
+                upstream_task_id = %upstream_task_id,
+                "dropped task status notification for another gateway principal"
+            );
+            return;
+        }
         params.task.task_id = mapping.gateway_task_id.to_string();
         let notification = ServerNotification::TaskStatusNotification(Notification::new(params));
         if let Err(err) = self.downstream.send_notification(notification).await {
@@ -1212,15 +1507,12 @@ enum ResourceReadKind {
 }
 
 fn resource_read_kind(uri: &str) -> ResourceReadKind {
-    let Some((_, path)) = uri.split_once("://") else {
-        return ResourceReadKind::General;
-    };
-    if path.starts_with("artifact/") {
-        ResourceReadKind::Artifact
-    } else if path.starts_with("usage/") {
-        ResourceReadKind::Usage
-    } else {
-        ResourceReadKind::General
+    match ProviderResourceUri::parse(uri) {
+        Ok(ProviderResourceUri::Artifact { .. }) => ResourceReadKind::Artifact,
+        Ok(ProviderResourceUri::UsageRoot { .. } | ProviderResourceUri::UsageTask { .. }) => {
+            ResourceReadKind::Usage
+        }
+        Ok(_) | Err(_) => ResourceReadKind::General,
     }
 }
 
@@ -1305,6 +1597,11 @@ fn mcp_internal(message: impl Into<String>) -> McpError {
 mod tests {
     use super::*;
 
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        let unique = uuid::Uuid::new_v4();
+        std::env::temp_dir().join(format!("veoveo-gateway-mcp-{name}-{unique}.duckdb"))
+    }
+
     fn mapping(profile: &str, owner: &str) -> GatewayTaskMapping {
         let now = Utc::now();
         GatewayTaskMapping {
@@ -1336,5 +1633,126 @@ mod tests {
             &mapping,
             &owner
         ));
+    }
+
+    #[test]
+    fn upstream_usage_resource_projects_to_gateway_task_id_for_owner() {
+        let path = temp_path("usage-projection");
+        let state = GatewayState::open(&path).unwrap();
+        let mapping = mapping("default", "issuer#owner");
+        state.record_task_mapping(&mapping).unwrap();
+
+        let projection = project_upstream_resource_for_owner(
+            &state,
+            &GatewayProfileId::new("default").unwrap(),
+            &PrincipalId::new("issuer#owner").unwrap(),
+            &ServerSlug::new("media").unwrap(),
+            "media://usage/task/upstream-task-1",
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(
+            projection.gateway_uri.as_str(),
+            "media://usage/task/gateway-task-1"
+        );
+        assert_eq!(
+            projection.upstream_uri.as_str(),
+            "media://usage/task/upstream-task-1"
+        );
+        assert_eq!(projection.task.unwrap(), TaskIdProjection::from(&mapping));
+
+        assert!(
+            project_upstream_resource_for_owner(
+                &state,
+                &GatewayProfileId::new("default").unwrap(),
+                &PrincipalId::new("issuer#other").unwrap(),
+                &ServerSlug::new("media").unwrap(),
+                "media://usage/task/upstream-task-1",
+            )
+            .unwrap()
+            .is_none()
+        );
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn usage_report_body_projects_to_gateway_task_id() {
+        let mapping = mapping("default", "issuer#owner");
+        let projection = GatewayResourceProjection {
+            server: ServerSlug::new("media").unwrap(),
+            gateway_uri: ResourceUri::new("media://usage/task/gateway-task-1").unwrap(),
+            upstream_uri: ResourceUri::new("media://usage/task/upstream-task-1").unwrap(),
+            task: Some(TaskIdProjection::from(&mapping)),
+        };
+        let text = serde_json::json!({
+            "task_id": "upstream-task-1",
+            "usage_uri": "media://usage/task/upstream-task-1",
+            "records": [{
+                "task_id": "upstream-task-1",
+                "model_id": "fake/image",
+                "kind": "actual",
+                "amount": 0.01,
+                "currency": "USD",
+                "recorded_at": "2026-07-02T00:00:00Z",
+                "metadata": null
+            }]
+        })
+        .to_string();
+        let mut result = ReadResourceResult::new(vec![ResourceContents::text(
+            text,
+            "media://usage/task/upstream-task-1",
+        )]);
+
+        project_read_resource_result(&mut result, &projection).unwrap();
+
+        let ResourceContents::TextResourceContents { uri, text, .. } = &result.contents[0] else {
+            panic!("expected text resource content");
+        };
+        assert_eq!(uri, "media://usage/task/gateway-task-1");
+        let report: UsageReport = serde_json::from_str(text).unwrap();
+        assert_eq!(report.task_id, "gateway-task-1");
+        assert_eq!(report.usage_uri, "media://usage/task/gateway-task-1");
+        assert_eq!(report.records[0].task_id, "gateway-task-1");
+    }
+
+    #[test]
+    fn task_payload_generation_output_projects_artifact_task_metadata() {
+        let mapping = mapping("default", "issuer#owner");
+        let mut payload = GetTaskPayloadResult::new(serde_json::json!({
+            "content": [],
+            "structuredContent": {
+                "prediction": {
+                    "id": "prediction-1",
+                    "model_id": "fake/image",
+                    "status": "completed",
+                    "output_count": 1
+                },
+                "artifacts": [{
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "byte_len": 68,
+                    "mime_type": "image/png",
+                    "filename": "output.png",
+                    "artifact_uri": "media://artifact/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "created_at": "2026-07-02T00:00:00Z",
+                    "metadata": {
+                        "task_id": "upstream-task-1",
+                        "job_id": "prediction-1",
+                        "model_id": "fake/image",
+                        "output_index": 0
+                    }
+                }]
+            }
+        }));
+
+        project_task_payload_result(&mut payload, &mapping).unwrap();
+
+        let result: CallToolResult = serde_json::from_value(payload.0).unwrap();
+        let output: GenerationRunOutput =
+            serde_json::from_value(result.structured_content.unwrap()).unwrap();
+        assert_eq!(
+            output.artifacts[0].metadata["task_id"].as_str(),
+            Some("gateway-task-1")
+        );
     }
 }

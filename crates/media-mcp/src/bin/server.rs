@@ -36,7 +36,7 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, TimeDelta, Utc};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -71,7 +71,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
-    provider::{BillingRecord, ModelEntry, Prediction, ProviderClient},
+    provider::{BillingRecord, DEFAULT_BASE_URL, ModelEntry, Prediction, ProviderClient},
     state::{ArtifactOwner, DuckdbState, TaskOwner},
     uris, webhook,
 };
@@ -100,6 +100,9 @@ struct Args {
     /// DuckDB state database path for task, prediction, artifact, and usage metadata.
     #[arg(long, default_value = "state.duckdb")]
     state_db: PathBuf,
+    /// Object store backend for server-owned artifacts.
+    #[arg(long, default_value = "s3-compatible")]
+    artifact_store: ArtifactStoreBackend,
     /// S3-compatible endpoint used for server-owned artifacts.
     #[arg(long, default_value = "http://localhost:9000")]
     artifact_endpoint: String,
@@ -114,6 +117,9 @@ struct Args {
     artifact_allow_http: bool,
     #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
     api_key: Option<String>,
+    /// Provider API base URL. Hidden because the concrete provider is an implementation detail.
+    #[arg(long, default_value = DEFAULT_BASE_URL, hide = true)]
+    provider_base_url: String,
     #[arg(long, env = "MEDIA_PROVIDER_WEBHOOK_SECRET", hide_env_values = true)]
     webhook_secret: Option<String>,
     /// Secret used to verify gateway-to-server internal identity assertions.
@@ -131,6 +137,13 @@ struct Args {
     /// Retention window for usage analytics.
     #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
     usage_analytics_retention_days: NonZeroU32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum ArtifactStoreBackend {
+    S3Compatible,
+    Memory,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -177,7 +190,10 @@ impl Args {
     }
 
     fn provider_webhook_secret(&self) -> Option<String> {
-        self.webhook_secret.clone()
+        self.webhook_secret
+            .as_deref()
+            .filter(|secret| !secret.is_empty())
+            .map(str::to_string)
     }
 
     fn retention_policy(&self) -> MediaRetentionPolicy {
@@ -2075,17 +2091,24 @@ async fn main() -> anyhow::Result<()> {
         ServerSlug::new(SERVER_SLUG)?,
         InternalTokenSecret::new(args.internal_token_secret.clone())?,
     );
-    let artifacts = ArtifactRepository::new_s3_compatible(
-        S3ArtifactConfig {
-            endpoint: args.artifact_endpoint.clone(),
-            bucket: args.artifact_bucket.clone(),
-            region: args.artifact_region.clone(),
-            allow_http: args.artifact_allow_http,
-        },
-        durable.clone(),
-        ProviderUris::new("media"),
-        public_endpoint.public_url().to_string(),
-    )?;
+    let artifacts = match args.artifact_store {
+        ArtifactStoreBackend::S3Compatible => ArtifactRepository::new_s3_compatible(
+            S3ArtifactConfig {
+                endpoint: args.artifact_endpoint.clone(),
+                bucket: args.artifact_bucket.clone(),
+                region: args.artifact_region.clone(),
+                allow_http: args.artifact_allow_http,
+            },
+            durable.clone(),
+            ProviderUris::new(SERVER_SLUG),
+            public_endpoint.public_url().to_string(),
+        )?,
+        ArtifactStoreBackend::Memory => ArtifactRepository::new_in_memory(
+            durable.clone(),
+            ProviderUris::new(SERVER_SLUG),
+            public_endpoint.public_url().to_string(),
+        ),
+    };
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
         tasks
@@ -2110,7 +2133,8 @@ async fn main() -> anyhow::Result<()> {
         .collect();
 
     let state = Arc::new(AppState {
-        provider: ProviderClient::new(args.provider_api_key()?),
+        provider: ProviderClient::new(args.provider_api_key()?)
+            .with_base(args.provider_base_url.clone()),
         http: reqwest::Client::new(),
         public_endpoint: public_endpoint.clone(),
         webhook_secret: args.provider_webhook_secret(),
