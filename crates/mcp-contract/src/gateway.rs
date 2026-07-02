@@ -3080,6 +3080,10 @@ impl ResourceUriTemplate {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn matches_uri(&self, uri: &ResourceUri) -> bool {
+        resource_uri_template_matches(self.as_str(), uri.as_str())
+    }
 }
 
 impl AsRef<str> for ResourceUriTemplate {
@@ -3466,13 +3470,126 @@ fn validate_resource_uri(value: &str) -> Result<(), IdentifierError> {
 
 fn validate_uri_template(value: &str) -> Result<(), IdentifierError> {
     validate_resource_uri(value)?;
-    if !value.contains('{') || !value.contains('}') {
+    let parts = parse_simple_resource_uri_template(value)?;
+    if !parts
+        .iter()
+        .any(|part| matches!(part, ResourceUriTemplatePart::Variable(_)))
+    {
         return Err(IdentifierError::new(
             value,
             "must include at least one URI-template variable",
         ));
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResourceUriTemplatePart<'a> {
+    Literal(&'a str),
+    Variable(&'a str),
+}
+
+fn parse_simple_resource_uri_template(
+    value: &str,
+) -> Result<Vec<ResourceUriTemplatePart<'_>>, IdentifierError> {
+    let mut parts = Vec::new();
+    let mut remaining = value;
+    let mut last_was_variable = false;
+    while !remaining.is_empty() {
+        let next_open = remaining.find('{');
+        let next_close = remaining.find('}');
+        match (next_open, next_close) {
+            (None, None) => {
+                parts.push(ResourceUriTemplatePart::Literal(remaining));
+                break;
+            }
+            (None, Some(_)) => {
+                return Err(IdentifierError::new(
+                    value,
+                    "must use balanced simple {variable} expressions",
+                ));
+            }
+            (Some(open), Some(close)) if close < open => {
+                return Err(IdentifierError::new(
+                    value,
+                    "must use balanced simple {variable} expressions",
+                ));
+            }
+            (Some(open), _) if open > 0 => {
+                let (literal, rest) = remaining.split_at(open);
+                parts.push(ResourceUriTemplatePart::Literal(literal));
+                remaining = rest;
+                last_was_variable = false;
+            }
+            (Some(_), _) => {
+                let close = remaining[1..]
+                    .find('}')
+                    .map(|index| index + 1)
+                    .ok_or_else(|| {
+                        IdentifierError::new(
+                            value,
+                            "must use balanced simple {variable} expressions",
+                        )
+                    })?;
+                let variable = &remaining[1..close];
+                if last_was_variable {
+                    return Err(IdentifierError::new(
+                        value,
+                        "must separate URI-template variables with literal text",
+                    ));
+                }
+                validate_path_id(variable).map_err(|_| {
+                    IdentifierError::new(
+                        value,
+                        "template variables must be simple lowercase identifiers",
+                    )
+                })?;
+                parts.push(ResourceUriTemplatePart::Variable(variable));
+                remaining = &remaining[close + 1..];
+                last_was_variable = true;
+            }
+        }
+    }
+    Ok(parts)
+}
+
+fn resource_uri_template_matches(template: &str, uri: &str) -> bool {
+    let Ok(parts) = parse_simple_resource_uri_template(template) else {
+        return false;
+    };
+    let mut remaining = uri;
+    for (index, part) in parts.iter().enumerate() {
+        match part {
+            ResourceUriTemplatePart::Literal(literal) => {
+                let Some(next) = remaining.strip_prefix(literal) else {
+                    return false;
+                };
+                remaining = next;
+            }
+            ResourceUriTemplatePart::Variable(_) => {
+                let next_literal = parts[index + 1..].iter().find_map(|part| match part {
+                    ResourceUriTemplatePart::Literal(literal) => Some(*literal),
+                    ResourceUriTemplatePart::Variable(_) => None,
+                });
+                let value = if let Some(next_literal) = next_literal {
+                    let Some(end) = remaining.find(next_literal) else {
+                        return false;
+                    };
+                    let value = &remaining[..end];
+                    remaining = &remaining[end..];
+                    value
+                } else {
+                    let value = remaining;
+                    remaining = "";
+                    value
+                };
+                if value.is_empty() || value.chars().any(|c| c.is_control() || c.is_whitespace()) {
+                    return false;
+                }
+            }
+        }
+    }
+    remaining.is_empty()
 }
 
 #[cfg(test)]
@@ -3720,6 +3837,37 @@ mod tests {
         assert!(UpstreamUrl::new("http://media-mcp/media/mcp?debug=true").is_err());
         assert!(ResourceUri::new("media://artifact/abc").is_ok());
         assert!(ResourceUriTemplate::new("media://model").is_err());
+    }
+
+    #[test]
+    fn resource_uri_templates_match_simple_resource_uris() {
+        let model_template = ResourceUriTemplate::new("media://model/{model_id}").unwrap();
+        assert!(
+            model_template.matches_uri(&ResourceUri::new("media://model/provider/model").unwrap())
+        );
+        assert!(model_template.matches_uri(&ResourceUri::new("media://model/simple").unwrap()));
+        assert!(!model_template.matches_uri(&ResourceUri::new("media://models").unwrap()));
+        assert!(
+            !model_template
+                .matches_uri(&ResourceUri::new("simulation://model/provider/model").unwrap())
+        );
+
+        let usage_template = ResourceUriTemplate::new("media://usage/task/{task_id}").unwrap();
+        assert!(
+            usage_template.matches_uri(&ResourceUri::new("media://usage/task/task-1").unwrap())
+        );
+        assert!(!usage_template.matches_uri(&ResourceUri::new("media://usage/task/").unwrap()));
+        assert!(!usage_template.matches_uri(&ResourceUri::new("media://usage").unwrap()));
+    }
+
+    #[test]
+    fn resource_uri_templates_reject_unsupported_expressions() {
+        assert!(ResourceUriTemplate::new("media://model/{}").is_err());
+        assert!(ResourceUriTemplate::new("media://model/{+model_id}").is_err());
+        assert!(ResourceUriTemplate::new("media://model/{model id}").is_err());
+        assert!(ResourceUriTemplate::new("media://model/{model_id").is_err());
+        assert!(ResourceUriTemplate::new("media://model/model_id}").is_err());
+        assert!(ResourceUriTemplate::new("media://model/{left}{right}").is_err());
     }
 
     #[test]

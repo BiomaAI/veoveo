@@ -692,7 +692,9 @@ impl GatewayCatalog {
                         veoveo_mcp_contract::ResourceSelector::UriPrefix { prefix } => {
                             uri.as_str().starts_with(prefix.as_ref())
                         }
-                        veoveo_mcp_contract::ResourceSelector::Template { .. } => false,
+                        veoveo_mcp_contract::ResourceSelector::Template { uri_template } => {
+                            uri_template.matches_uri(uri)
+                        }
                     })
                 {
                     Ok(())
@@ -1210,10 +1212,10 @@ mod tests {
         MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
         OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
         OwnedRoutePurpose, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
-        ResourceAuthorizationServer, ResourceSelector, RoleId, ScopeName, SecretLocator,
-        SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
-        TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
-        UpstreamTransportSecurity, UpstreamUrl,
+        ResourceAuthorizationServer, ResourceSelector, ResourceUri, ResourceUriTemplate, RoleId,
+        ScopeName, SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId,
+        SecretSource, TaskExposure, TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint,
+        UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
     };
 
     use super::*;
@@ -1436,11 +1438,18 @@ mod tests {
     }
 
     fn catalog_with_policy(policy: PolicySet) -> GatewayCatalog {
+        catalog_with_profile_and_policy(profile(), policy)
+    }
+
+    fn catalog_with_profile_and_policy(
+        profile: GatewayProfile,
+        policy: PolicySet,
+    ) -> GatewayCatalog {
         GatewayCatalog::from_control_plane(GatewayControlPlane {
             identity_providers: vec![identity_provider()],
             authorization_servers: vec![authorization_server()],
             servers: vec![media_manifest()],
-            profiles: vec![profile()],
+            profiles: vec![profile],
             policies: vec![policy],
             oauth_clients: oauth_clients(),
             oidc_clients: oidc_clients(),
@@ -1522,6 +1531,46 @@ mod tests {
 
         assert_eq!(decision.effect, PolicyEffect::Allow);
         assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
+    }
+
+    #[test]
+    fn policy_allows_template_exposed_resource_uri() {
+        let mut profile = profile();
+        profile.servers[0].resources = Exposure::Listed(vec![ResourceSelector::Template {
+            uri_template: ResourceUriTemplate::new("media://usage/task/{task_id}").unwrap(),
+        }]);
+        let mut policy = policy();
+        policy.rules[0].actions = BTreeSet::from([GatewayAction::UsageRead]);
+        policy.rules[0].tools.clear();
+        policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
+        let catalog = catalog_with_profile_and_policy(profile, policy);
+        let principal = principal(&["media:use"]);
+
+        let decision = catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::UsageRead,
+            target: &PolicyTarget::Usage {
+                server: ServerSlug::new("media").unwrap(),
+                usage_uri: ResourceUri::new("media://usage/task/task-1").unwrap(),
+            },
+            trace_id: &TraceId::new("trace-template-allow").unwrap(),
+        });
+        assert_eq!(decision.effect, PolicyEffect::Allow);
+        assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
+
+        let decision = catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::UsageRead,
+            target: &PolicyTarget::Usage {
+                server: ServerSlug::new("media").unwrap(),
+                usage_uri: ResourceUri::new("media://usage").unwrap(),
+            },
+            trace_id: &TraceId::new("trace-template-deny").unwrap(),
+        });
+        assert_eq!(decision.effect, PolicyEffect::Deny);
+        assert_eq!(decision.reason, PolicyReasonCode::PolicyDeny);
     }
 
     #[test]
