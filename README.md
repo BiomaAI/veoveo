@@ -148,6 +148,23 @@ Local Compose uses gateway-signed internal JWTs over the private Docker network.
 and regulated profiles must use mTLS or service-mesh mTLS transport plus gateway-signed
 assertions.
 
+### Admin Operations
+
+Gateway admin operations are authenticated and policy-gated through `/admin/{profile}`.
+Control-plane reload/apply, JWT revocation, and revocation pruning emit structured audit
+events in the gateway DuckDB state. The maintained local recipes call the admin API; they
+do not mutate the gateway state database directly:
+
+```sh
+just gateway-revoke-jwt <jwt-id> 2026-07-02T20:00:00Z
+just gateway-prune-revoked-jwts
+```
+
+Artifact metadata carries typed compliance fields from the gateway principal, including
+`tenant_id`, `owner_id`, `data_labels`, and `retention_expires_at`. Media still enforces
+artifact and task access from durable owner rows; object metadata is exported evidence, not
+the only authorization source.
+
 ### Local Process
 
 Run the media server and gateway in separate shells, with the same
