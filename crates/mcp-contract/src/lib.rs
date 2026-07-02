@@ -30,14 +30,14 @@ pub use gateway::{
     GatewayToolName, GroupId, HttpsUrl, IdentifierError, IdentityProvider,
     IdentityProviderEndpoint, IdentityProviderId, JwtId, LocalToolName,
     MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
-    McpMethodName, McpSurfaceCapabilities, MountPath, OwnedRoute, OwnedRoutePurpose,
-    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
-    PolicyTarget, PolicyVersion, Principal, PrincipalId, PrincipalKind, ProfileServerExposure,
-    PromptName, ProtectedResourceId, ResourceScheme, ResourceSelector, ResourceUri,
-    ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner,
-    SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug,
-    TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTaskId,
-    UpstreamTransport,
+    McpMethodName, McpSurfaceCapabilities, McpSurfaceCapability, MountPath, OwnedRoute,
+    OwnedRoutePurpose, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId,
+    PolicySet, PolicyTarget, PolicyVersion, Principal, PrincipalId, PrincipalKind,
+    ProfileServerExposure, PromptName, ProtectedResourceId, ResourceScheme, ResourceSelector,
+    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
+    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
+    ServerSlug, TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    UpstreamTaskId, UpstreamTransport,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use internal_auth::{

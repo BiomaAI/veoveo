@@ -237,14 +237,16 @@ impl GatewayControlPlane {
             }
         }
 
-        let mut servers = BTreeSet::new();
+        let mut servers = BTreeMap::new();
+        let mut server_ids = BTreeSet::new();
         let mut resource_schemes = BTreeSet::new();
         for server in &self.servers {
-            if !servers.insert(server.slug.clone()) {
+            if !server_ids.insert(server.slug.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateServer(
                     server.slug.clone(),
                 ));
             }
+            servers.insert(server.slug.clone(), server);
             if !resource_schemes.insert(server.uri_scheme.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateResourceScheme(
                     server.uri_scheme.clone(),
@@ -280,19 +282,27 @@ impl GatewayControlPlane {
                     policy_version: profile.policy_version.clone(),
                 });
             }
+            let mut profile_servers = BTreeSet::new();
             for exposure in &profile.servers {
-                if !servers.contains(&exposure.server) {
-                    return Err(GatewayControlPlaneError::UnknownServer {
+                if !profile_servers.insert(exposure.server.clone()) {
+                    return Err(GatewayControlPlaneError::DuplicateProfileServer {
                         profile: profile.id.clone(),
                         server: exposure.server.clone(),
                     });
                 }
+                let Some(server) = servers.get(&exposure.server) else {
+                    return Err(GatewayControlPlaneError::UnknownServer {
+                        profile: profile.id.clone(),
+                        server: exposure.server.clone(),
+                    });
+                };
+                validate_profile_server_exposure(profile, exposure, server)?;
             }
             validate_profile_auth_modes(profile, identity_provider)?;
         }
 
         for policy in &self.policies {
-            validate_policy_set(policy, &profiles, &servers, &resource_schemes)?;
+            validate_policy_set(policy, &profiles, &server_ids, &resource_schemes)?;
         }
 
         let mut secrets = BTreeSet::new();
@@ -311,7 +321,7 @@ impl GatewayControlPlane {
                     }
                 }
                 SecretOwner::Server { server } => {
-                    if !servers.contains(server) {
+                    if !server_ids.contains(server) {
                         return Err(GatewayControlPlaneError::UnknownSecretOwnerServer {
                             secret: secret.id.clone(),
                             server: server.clone(),
@@ -333,6 +343,10 @@ pub enum GatewayControlPlaneError {
     DuplicateProfile(GatewayProfileId),
     DuplicatePolicy(PolicyVersion),
     DuplicateSecret(SecretReferenceId),
+    DuplicateProfileServer {
+        profile: GatewayProfileId,
+        server: ServerSlug,
+    },
     DuplicatePolicyRule {
         policy: PolicyVersion,
         rule: PolicyRuleId,
@@ -355,6 +369,27 @@ pub enum GatewayControlPlaneError {
     UnknownServer {
         profile: GatewayProfileId,
         server: ServerSlug,
+    },
+    ProfileExposesDisabledCapability {
+        profile: GatewayProfileId,
+        server: ServerSlug,
+        capability: McpSurfaceCapability,
+    },
+    UnknownProfileTool {
+        profile: GatewayProfileId,
+        server: ServerSlug,
+        tool: LocalToolName,
+    },
+    UnknownProfilePrompt {
+        profile: GatewayProfileId,
+        server: ServerSlug,
+        prompt: PromptName,
+    },
+    ProfileResourceSelectorMismatch {
+        profile: GatewayProfileId,
+        server: ServerSlug,
+        expected_scheme: ResourceScheme,
+        selector: ResourceSelector,
     },
     UnknownPolicy {
         profile: GatewayProfileId,
@@ -380,6 +415,29 @@ pub enum GatewayControlPlaneError {
         secret: SecretReferenceId,
         server: ServerSlug,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpSurfaceCapability {
+    Tools,
+    Resources,
+    ResourceTemplates,
+    Prompts,
+    Completions,
+    Tasks,
+}
+
+impl McpSurfaceCapability {
+    fn description(self) -> &'static str {
+        match self {
+            Self::Tools => "tools",
+            Self::Resources => "resources",
+            Self::ResourceTemplates => "resource templates",
+            Self::Prompts => "prompts",
+            Self::Completions => "completions",
+            Self::Tasks => "tasks",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -414,6 +472,10 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
+            Self::DuplicateProfileServer { profile, server } => write!(
+                f,
+                "gateway profile `{profile}` exposes server `{server}` more than once"
+            ),
             Self::DuplicatePolicyRule { policy, rule } => {
                 write!(f, "duplicate policy rule `{rule}` in policy `{policy}`")
             }
@@ -444,6 +506,41 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::UnknownServer { profile, server } => write!(
                 f,
                 "gateway profile `{profile}` references unknown server `{server}`"
+            ),
+            Self::ProfileExposesDisabledCapability {
+                profile,
+                server,
+                capability,
+            } => write!(
+                f,
+                "gateway profile `{profile}` exposes {} for server `{server}`, but the server manifest disables that capability",
+                capability.description()
+            ),
+            Self::UnknownProfileTool {
+                profile,
+                server,
+                tool,
+            } => write!(
+                f,
+                "gateway profile `{profile}` exposes unknown tool `{tool}` for server `{server}`"
+            ),
+            Self::UnknownProfilePrompt {
+                profile,
+                server,
+                prompt,
+            } => write!(
+                f,
+                "gateway profile `{profile}` exposes unknown prompt `{prompt}` for server `{server}`"
+            ),
+            Self::ProfileResourceSelectorMismatch {
+                profile,
+                server,
+                expected_scheme,
+                selector,
+            } => write!(
+                f,
+                "gateway profile `{profile}` exposes resource selector {} for server `{server}`, expected scheme `{expected_scheme}`",
+                resource_selector_description(selector)
             ),
             Self::UnknownPolicy {
                 profile,
@@ -484,6 +581,243 @@ impl fmt::Display for GatewayControlPlaneError {
 }
 
 impl std::error::Error for GatewayControlPlaneError {}
+
+fn validate_profile_server_exposure(
+    profile: &GatewayProfile,
+    exposure: &ProfileServerExposure,
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    validate_tool_exposure(profile, exposure, server)?;
+    validate_resource_exposure(profile, exposure, server)?;
+    validate_prompt_exposure(profile, exposure, server)?;
+    if matches!(exposure.completions, CompletionExposure::Enabled) {
+        require_server_capability(
+            profile,
+            server,
+            McpSurfaceCapability::Completions,
+            server.capabilities.completions,
+        )?;
+    }
+    if matches!(exposure.tasks, TaskExposure::Enabled) {
+        require_server_capability(
+            profile,
+            server,
+            McpSurfaceCapability::Tasks,
+            server.capabilities.tasks,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_tool_exposure(
+    profile: &GatewayProfile,
+    exposure: &ProfileServerExposure,
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    match &exposure.tools {
+        Exposure::None => {}
+        Exposure::All => {
+            require_server_capability(
+                profile,
+                server,
+                McpSurfaceCapability::Tools,
+                server.capabilities.tools,
+            )?;
+        }
+        Exposure::Listed(tools) => {
+            require_server_capability(
+                profile,
+                server,
+                McpSurfaceCapability::Tools,
+                server.capabilities.tools,
+            )?;
+            for tool in tools {
+                if !server.tools.is_empty() && !server.tools.iter().any(|known| known == tool) {
+                    return Err(GatewayControlPlaneError::UnknownProfileTool {
+                        profile: profile.id.clone(),
+                        server: exposure.server.clone(),
+                        tool: tool.clone(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_resource_exposure(
+    profile: &GatewayProfile,
+    exposure: &ProfileServerExposure,
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    match &exposure.resources {
+        Exposure::None => {}
+        Exposure::All => {
+            require_any_server_capability(
+                profile,
+                exposure,
+                &[
+                    (
+                        McpSurfaceCapability::Resources,
+                        server.capabilities.resources,
+                    ),
+                    (
+                        McpSurfaceCapability::ResourceTemplates,
+                        server.capabilities.resource_templates,
+                    ),
+                ],
+            )?;
+        }
+        Exposure::Listed(selectors) => {
+            for selector in selectors {
+                match selector {
+                    ResourceSelector::Scheme { scheme } => {
+                        require_server_capability(
+                            profile,
+                            server,
+                            McpSurfaceCapability::Resources,
+                            server.capabilities.resources,
+                        )?;
+                        if scheme != &server.uri_scheme {
+                            return Err(
+                                GatewayControlPlaneError::ProfileResourceSelectorMismatch {
+                                    profile: profile.id.clone(),
+                                    server: exposure.server.clone(),
+                                    expected_scheme: server.uri_scheme.clone(),
+                                    selector: selector.clone(),
+                                },
+                            );
+                        }
+                    }
+                    ResourceSelector::UriPrefix { prefix } => {
+                        require_server_capability(
+                            profile,
+                            server,
+                            McpSurfaceCapability::Resources,
+                            server.capabilities.resources,
+                        )?;
+                        if !resource_text_uses_scheme(prefix.as_str(), &server.uri_scheme) {
+                            return Err(
+                                GatewayControlPlaneError::ProfileResourceSelectorMismatch {
+                                    profile: profile.id.clone(),
+                                    server: exposure.server.clone(),
+                                    expected_scheme: server.uri_scheme.clone(),
+                                    selector: selector.clone(),
+                                },
+                            );
+                        }
+                    }
+                    ResourceSelector::Template { uri_template } => {
+                        require_server_capability(
+                            profile,
+                            server,
+                            McpSurfaceCapability::ResourceTemplates,
+                            server.capabilities.resource_templates,
+                        )?;
+                        if !resource_text_uses_scheme(uri_template.as_str(), &server.uri_scheme) {
+                            return Err(
+                                GatewayControlPlaneError::ProfileResourceSelectorMismatch {
+                                    profile: profile.id.clone(),
+                                    server: exposure.server.clone(),
+                                    expected_scheme: server.uri_scheme.clone(),
+                                    selector: selector.clone(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_prompt_exposure(
+    profile: &GatewayProfile,
+    exposure: &ProfileServerExposure,
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    match &exposure.prompts {
+        Exposure::None => {}
+        Exposure::All => {
+            require_server_capability(
+                profile,
+                server,
+                McpSurfaceCapability::Prompts,
+                server.capabilities.prompts,
+            )?;
+        }
+        Exposure::Listed(prompts) => {
+            require_server_capability(
+                profile,
+                server,
+                McpSurfaceCapability::Prompts,
+                server.capabilities.prompts,
+            )?;
+            for prompt in prompts {
+                if !server.prompts.is_empty() && !server.prompts.iter().any(|known| known == prompt)
+                {
+                    return Err(GatewayControlPlaneError::UnknownProfilePrompt {
+                        profile: profile.id.clone(),
+                        server: exposure.server.clone(),
+                        prompt: prompt.clone(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn require_server_capability(
+    profile: &GatewayProfile,
+    server: &ServerManifest,
+    capability: McpSurfaceCapability,
+    enabled: bool,
+) -> Result<(), GatewayControlPlaneError> {
+    if enabled {
+        Ok(())
+    } else {
+        Err(GatewayControlPlaneError::ProfileExposesDisabledCapability {
+            profile: profile.id.clone(),
+            server: server.slug.clone(),
+            capability,
+        })
+    }
+}
+
+fn require_any_server_capability(
+    profile: &GatewayProfile,
+    exposure: &ProfileServerExposure,
+    capabilities: &[(McpSurfaceCapability, bool)],
+) -> Result<(), GatewayControlPlaneError> {
+    if capabilities.iter().any(|(_, enabled)| *enabled) {
+        Ok(())
+    } else {
+        Err(GatewayControlPlaneError::ProfileExposesDisabledCapability {
+            profile: profile.id.clone(),
+            server: exposure.server.clone(),
+            capability: capabilities
+                .first()
+                .map(|(capability, _)| *capability)
+                .unwrap_or(McpSurfaceCapability::Resources),
+        })
+    }
+}
+
+fn resource_text_uses_scheme(text: &str, scheme: &ResourceScheme) -> bool {
+    text.starts_with(&format!("{}://", scheme.as_str()))
+}
+
+fn resource_selector_description(selector: &ResourceSelector) -> String {
+    match selector {
+        ResourceSelector::Scheme { scheme } => format!("scheme `{scheme}`"),
+        ResourceSelector::UriPrefix { prefix } => format!("URI prefix `{prefix}`"),
+        ResourceSelector::Template { uri_template } => {
+            format!("URI template `{uri_template}`")
+        }
+    }
+}
 
 fn validate_policy_set(
     policy: &PolicySet,
@@ -1682,6 +2016,127 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::UnknownServer { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_duplicate_profile_server_reference() {
+        let mut profile = default_profile();
+        profile.servers.push(profile.servers[0].clone());
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("duplicate profile server exposure must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::DuplicateProfileServer { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_unknown_profile_tool() {
+        let mut profile = default_profile();
+        profile.servers[0].tools = Exposure::Listed(vec![LocalToolName::new("simulate").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown profile tool must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownProfileTool { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_unknown_profile_prompt() {
+        let mut profile = default_profile();
+        profile.servers[0].prompts =
+            Exposure::Listed(vec![PromptName::new("unknown-prompt").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("unknown profile prompt must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownProfilePrompt { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_profile_resource_scheme_mismatch() {
+        let mut profile = default_profile();
+        profile.servers[0].resources = Exposure::Listed(vec![ResourceSelector::Scheme {
+            scheme: ResourceScheme::new("simulation").unwrap(),
+        }]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("profile resource selector must stay server-scoped");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ProfileResourceSelectorMismatch { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_disabled_profile_capability() {
+        let mut manifest = media_manifest();
+        manifest.capabilities.tasks = false;
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![manifest],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("profile cannot expose disabled task capability");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ProfileExposesDisabledCapability {
+                capability: McpSurfaceCapability::Tasks,
+                ..
+            }
         ));
     }
 
