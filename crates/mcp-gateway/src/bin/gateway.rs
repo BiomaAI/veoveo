@@ -1,4 +1,9 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::{
     Json, Router,
@@ -27,6 +32,8 @@ use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
     JwtVerifier, www_authenticate_challenge,
 };
+
+const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -156,7 +163,10 @@ async fn serve(
         "::1".to_string(),
         deployment.host_authority().to_string(),
     ];
-    let http = reqwest::Client::new();
+    let http = reqwest::Client::builder()
+        .timeout(GATEWAY_AUTH_HTTP_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
     let state = AppState {
         catalog: catalog.clone(),
     };
