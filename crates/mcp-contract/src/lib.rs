@@ -10,6 +10,7 @@ pub mod analytics;
 pub mod deployment;
 pub mod gateway;
 pub mod generation;
+pub mod internal_auth;
 pub mod pagination;
 pub mod provider;
 pub mod storage;
@@ -36,6 +37,11 @@ pub use gateway::{
     TraceId, UpstreamEndpoint, UpstreamTaskId, UpstreamTransport,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
+pub use internal_auth::{
+    GatewayInternalIdentity, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    InternalTokenError, InternalTokenSecret, IssuedGatewayInternalToken,
+    MIN_INTERNAL_TOKEN_SECRET_BYTES,
+};
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
 pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};

@@ -21,6 +21,7 @@ base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 duckdb = { workspace = true, optional = true }
+jsonwebtoken.workspace = true
 reqwest = { workspace = true, features = ["rustls"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "reqwest"] }
 schemars.workspace = true
@@ -28,3 +29,4 @@ serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing-subscriber.workspace = true
+uuid.workspace = true

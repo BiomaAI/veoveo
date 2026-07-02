@@ -3837,6 +3837,7 @@ dependencies = [
  "chrono",
  "clap",
  "duckdb",
+ "jsonwebtoken",
  "reqwest 0.13.4",
  "rmcp",
  "schemars",
@@ -3844,6 +3845,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
