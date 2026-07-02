@@ -3468,6 +3468,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-mcp-gateway"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
 name = "veoveo-media-mcp"
 version = "0.1.0"
 dependencies = [

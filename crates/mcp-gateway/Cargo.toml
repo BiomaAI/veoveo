@@ -1,0 +1,27 @@
+[package]
+name = "veoveo-mcp-gateway"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_mcp_gateway"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gateway"
+path = "src/bin/gateway.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+chrono.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+veoveo-mcp-contract.workspace = true

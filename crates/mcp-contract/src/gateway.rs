@@ -784,6 +784,22 @@ impl ResourceUriPrefix {
         validate_resource_uri(&value)?;
         Ok(Self(value))
     }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for ResourceUriPrefix {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for ResourceUriPrefix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
 }
 
 impl TryFrom<String> for ResourceUriPrefix {
@@ -809,6 +825,22 @@ impl ResourceUriTemplate {
         let value = value.into();
         validate_uri_template(&value)?;
         Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for ResourceUriTemplate {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for ResourceUriTemplate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
@@ -872,6 +904,7 @@ pub struct McpSurfaceCapabilities {
 pub enum AuthMode {
     OidcAuthorizationCodePkce,
     EnterpriseManagedAuthorization,
+    #[serde(rename = "oauth_client_credentials")]
     OAuthClientCredentials,
 }
 

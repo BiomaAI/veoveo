@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/mcp-gateway",
     "crates/mcp-contract",
     "crates/media-mcp",
 ]
