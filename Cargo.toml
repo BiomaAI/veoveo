@@ -25,6 +25,7 @@ futures = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"
 jsonschema = "0.46.8"
+jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto"] }
 object_store = { version = "0.14.0", default-features = false, features = ["aws"] }
 reqwest = { version = "0.12", default-features = false }
 rmcp = "2.0.0"

@@ -5,7 +5,10 @@ use std::{
     sync::Arc,
 };
 
+pub mod auth;
+
 use anyhow::{Context, Result};
+pub use auth::{AuthError, AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId, GatewayToolName,
     LocalToolName, McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule,

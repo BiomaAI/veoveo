@@ -17,6 +17,7 @@ axum.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
+jsonwebtoken.workspace = true
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest"] }
 serde.workspace = true
 serde_json.workspace = true
