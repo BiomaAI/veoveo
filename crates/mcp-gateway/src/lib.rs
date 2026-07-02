@@ -21,9 +21,10 @@ use veoveo_mcp_contract::{
     AuthMode, AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, GatewayToolName, IdentityProvider, IdentityProviderId, JwksSource,
     LocalToolName, McpMethodName, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthGrantType, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId,
-    PolicySet, PolicyTarget, PolicyVersion, Principal, ResourceAuthorizationServer, ResourceScheme,
-    ScopeName, SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TraceId,
+    OAuthGrantType, OidcClientRegistrationId, PolicyDecision, PolicyEffect, PolicyReasonCode,
+    PolicyRule, PolicyRuleId, PolicySet, PolicyTarget, PolicyVersion, Principal,
+    ResourceAuthorizationServer, ResourceScheme, ScopeName, SecretReference, SecretReferenceId,
+    ServerManifest, ServerSlug, TraceId,
 };
 
 const ID_JAG_GRANT_PROFILE: &str = "urn:ietf:params:oauth:grant-profile:id-jag";
@@ -37,6 +38,7 @@ pub struct GatewayCatalog {
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
     oauth_clients: BTreeMap<OAuthClientId, usize>,
+    oidc_clients: BTreeMap<OidcClientRegistrationId, usize>,
     secrets: BTreeMap<SecretReferenceId, usize>,
 }
 
@@ -80,6 +82,12 @@ impl GatewayCatalog {
             .enumerate()
             .map(|(index, client)| (client.id.clone(), index))
             .collect();
+        let oidc_clients = control_plane
+            .oidc_clients
+            .iter()
+            .enumerate()
+            .map(|(index, client)| (client.id.clone(), index))
+            .collect();
         let secrets = control_plane
             .secrets
             .iter()
@@ -95,6 +103,7 @@ impl GatewayCatalog {
             profiles,
             policies,
             oauth_clients,
+            oidc_clients,
             secrets,
         })
     }
@@ -299,6 +308,25 @@ impl GatewayCatalog {
                     && client.allowed_profiles.contains(&profile.id)
             })
             .collect()
+    }
+
+    pub fn oidc_client(
+        &self,
+        client_id: &OidcClientRegistrationId,
+    ) -> Option<&veoveo_mcp_contract::IdentityProviderOidcClientRegistration> {
+        self.oidc_clients
+            .get(client_id)
+            .map(|index| &self.control_plane.oidc_clients[*index])
+    }
+
+    pub fn profile_oidc_client(
+        &self,
+        profile: &GatewayProfile,
+    ) -> Option<&veoveo_mcp_contract::IdentityProviderOidcClientRegistration> {
+        self.control_plane.oidc_clients.iter().find(|client| {
+            client.identity_provider == profile.identity_provider
+                && client.authorization_server == profile.authorization_server
+        })
     }
 
     pub fn secret_reference(&self, secret_id: &SecretReferenceId) -> Option<&SecretReference> {
@@ -994,10 +1022,11 @@ mod tests {
     use veoveo_mcp_contract::{
         AuthMode, AuthorizationServerId, CompletionExposure, DataLabelId, Exposure,
         GatewayControlPlaneError, GatewayTaskId, HttpsUrl, IdentityProvider, IdentityProviderId,
-        JwksSource, JwtId, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
-        MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
-        OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OwnedRoute, OwnedRoutePurpose,
-        PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
+        IdentityProviderOidcClientRegistration, JwksSource, JwtId,
+        MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
+        MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
+        OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
+        OwnedRoutePurpose, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
         ResourceAuthorizationServer, ResourceSelector, ScopeName, SecretLocator, SecretOwner,
         SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure, TenantId,
         TokenIssuer, TokenSubject, UpstreamEndpoint, UpstreamTransport,
@@ -1048,6 +1077,18 @@ mod tests {
             source: SecretSource::Env,
             purpose: SecretPurpose::JwksPrivateKey,
             locator: SecretLocator::new("VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64").unwrap(),
+            owner: SecretOwner::Gateway,
+            rotation_hint: None,
+            metadata: Value::Null,
+        }
+    }
+
+    fn oidc_client_secret() -> SecretReference {
+        SecretReference {
+            id: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
+            source: SecretSource::Env,
+            purpose: SecretPurpose::OAuthClientSecret,
+            locator: SecretLocator::new("VEOVEO_IDP_OIDC_CLIENT_SECRET").unwrap(),
             owner: SecretOwner::Gateway,
             rotation_hint: None,
             metadata: Value::Null,
@@ -1185,6 +1226,25 @@ mod tests {
         ]
     }
 
+    fn oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
+        vec![IdentityProviderOidcClientRegistration {
+            id: OidcClientRegistrationId::new("enterprise").unwrap(),
+            identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+            authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
+            client_id: OidcClientId::new("veoveo-gateway").unwrap(),
+            redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/default/callback")
+                .unwrap(),
+            auth_method: OidcClientAuthMethod::ClientSecretPost,
+            credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
+            scopes: BTreeSet::from([
+                ScopeName::new("openid").unwrap(),
+                ScopeName::new("profile").unwrap(),
+                ScopeName::new("email").unwrap(),
+            ]),
+            metadata: Value::Null,
+        }]
+    }
+
     fn catalog() -> GatewayCatalog {
         catalog_with_policy(policy())
     }
@@ -1197,8 +1257,10 @@ mod tests {
             profiles: vec![profile()],
             policies: vec![policy],
             oauth_clients: oauth_clients(),
+            oidc_clients: oidc_clients(),
             secrets: vec![
                 signing_secret(),
+                oidc_client_secret(),
                 SecretReference {
                     id: SecretReferenceId::new("media_provider_key").unwrap(),
                     source: SecretSource::Env,
@@ -1556,7 +1618,8 @@ mod tests {
             }],
             policies: vec![policy()],
             oauth_clients: oauth_clients(),
-            secrets: vec![signing_secret()],
+            oidc_clients: oidc_clients(),
+            secrets: vec![signing_secret(), oidc_client_secret()],
             metadata: Value::Null,
         })
         .expect_err("unknown server should fail");

@@ -191,6 +191,16 @@ typed_id!(
     "Registered OAuth client id allowed to request gateway-profile tokens."
 );
 typed_id!(
+    OidcClientRegistrationId,
+    validate_path_id,
+    "Gateway registration id for its OIDC client relationship with an enterprise identity provider."
+);
+typed_id!(
+    OidcClientId,
+    validate_claim_text,
+    "OIDC client id assigned to the gateway by an enterprise identity provider."
+);
+typed_id!(
     TokenIssuer,
     validate_claim_text,
     "Expected token issuer identifier."
@@ -240,6 +250,7 @@ pub struct GatewayControlPlane {
     pub policies: Vec<PolicySet>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub oauth_clients: Vec<OAuthClientRegistration>,
+    pub oidc_clients: Vec<IdentityProviderOidcClientRegistration>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secrets: Vec<SecretReference>,
     #[serde(default)]
@@ -411,6 +422,21 @@ impl GatewayControlPlane {
             }
         }
 
+        let mut oidc_clients = BTreeSet::new();
+        for client in &self.oidc_clients {
+            if !oidc_clients.insert(client.id.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateOidcClient(
+                    client.id.clone(),
+                ));
+            }
+            validate_oidc_client_registration(
+                client,
+                &identity_providers,
+                &authorization_servers,
+                &secret_refs,
+            )?;
+        }
+
         let mut oauth_clients = BTreeSet::new();
         for client in &self.oauth_clients {
             if !oauth_clients.insert(client.id.clone()) {
@@ -441,6 +467,22 @@ impl GatewayControlPlane {
                     });
                 }
             }
+            if profile
+                .auth_modes
+                .contains(&AuthMode::OidcAuthorizationCodePkce)
+            {
+                let has_oidc_client = self.oidc_clients.iter().any(|client| {
+                    client.identity_provider == profile.identity_provider
+                        && client.authorization_server == profile.authorization_server
+                });
+                if !has_oidc_client {
+                    return Err(GatewayControlPlaneError::MissingOidcClientForProfile {
+                        profile: profile.id.clone(),
+                        identity_provider: profile.identity_provider.clone(),
+                        authorization_server: profile.authorization_server.clone(),
+                    });
+                }
+            }
         }
 
         Ok(())
@@ -457,6 +499,7 @@ pub enum GatewayControlPlaneError {
     DuplicatePolicy(PolicyVersion),
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
+    DuplicateOidcClient(OidcClientRegistrationId),
     DuplicateProfileServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -619,6 +662,35 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         auth_mode: AuthMode,
     },
+    UnknownOidcClientIdentityProvider {
+        client: OidcClientRegistrationId,
+        identity_provider: IdentityProviderId,
+    },
+    UnknownOidcClientAuthorizationServer {
+        client: OidcClientRegistrationId,
+        authorization_server: AuthorizationServerId,
+    },
+    OidcClientAuthorizationServerIdentityProviderMismatch {
+        client: OidcClientRegistrationId,
+        identity_provider: IdentityProviderId,
+        authorization_server: AuthorizationServerId,
+        authorization_server_identity_provider: Option<IdentityProviderId>,
+    },
+    UnknownOidcClientSecret {
+        client: OidcClientRegistrationId,
+        secret: SecretReferenceId,
+    },
+    OidcClientSecretPurposeMismatch {
+        client: OidcClientRegistrationId,
+        secret: SecretReferenceId,
+        purpose: SecretPurpose,
+    },
+    OidcClientMissingOpenIdScope(OidcClientRegistrationId),
+    MissingOidcClientForProfile {
+        profile: GatewayProfileId,
+        identity_provider: IdentityProviderId,
+        authorization_server: AuthorizationServerId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -695,6 +767,9 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
             Self::DuplicateOAuthClient(client) => {
                 write!(f, "duplicate OAuth client registration `{client}`")
+            }
+            Self::DuplicateOidcClient(client) => {
+                write!(f, "duplicate OIDC client registration `{client}`")
             }
             Self::DuplicateProfileServer { profile, server } => write!(
                 f,
@@ -946,6 +1021,52 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::MissingOAuthClientForAuthMode { profile, auth_mode } => write!(
                 f,
                 "gateway profile `{profile}` advertises auth mode `{auth_mode:?}` without a matching OAuth client registration"
+            ),
+            Self::UnknownOidcClientIdentityProvider {
+                client,
+                identity_provider,
+            } => write!(
+                f,
+                "OIDC client `{client}` references unknown identity provider `{identity_provider}`"
+            ),
+            Self::UnknownOidcClientAuthorizationServer {
+                client,
+                authorization_server,
+            } => write!(
+                f,
+                "OIDC client `{client}` references unknown resource authorization server `{authorization_server}`"
+            ),
+            Self::OidcClientAuthorizationServerIdentityProviderMismatch {
+                client,
+                identity_provider,
+                authorization_server,
+                authorization_server_identity_provider,
+            } => write!(
+                f,
+                "OIDC client `{client}` uses identity provider `{identity_provider}` but resource authorization server `{authorization_server}` is bound to `{authorization_server_identity_provider:?}`"
+            ),
+            Self::UnknownOidcClientSecret { client, secret } => write!(
+                f,
+                "OIDC client `{client}` references unknown secret `{secret}`"
+            ),
+            Self::OidcClientSecretPurposeMismatch {
+                client,
+                secret,
+                purpose,
+            } => write!(
+                f,
+                "OIDC client `{client}` references secret `{secret}` with invalid purpose `{purpose:?}`"
+            ),
+            Self::OidcClientMissingOpenIdScope(client) => {
+                write!(f, "OIDC client `{client}` must request the `openid` scope")
+            }
+            Self::MissingOidcClientForProfile {
+                profile,
+                identity_provider,
+                authorization_server,
+            } => write!(
+                f,
+                "gateway profile `{profile}` advertises OIDC auth without an OIDC client for identity provider `{identity_provider}` and resource authorization server `{authorization_server}`"
             ),
         }
     }
@@ -1571,6 +1692,66 @@ fn validate_oauth_client_registration(
     Ok(())
 }
 
+fn validate_oidc_client_registration(
+    client: &IdentityProviderOidcClientRegistration,
+    identity_providers: &BTreeMap<IdentityProviderId, &IdentityProvider>,
+    authorization_servers: &BTreeMap<AuthorizationServerId, &ResourceAuthorizationServer>,
+    secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
+) -> Result<(), GatewayControlPlaneError> {
+    if !identity_providers.contains_key(&client.identity_provider) {
+        return Err(
+            GatewayControlPlaneError::UnknownOidcClientIdentityProvider {
+                client: client.id.clone(),
+                identity_provider: client.identity_provider.clone(),
+            },
+        );
+    }
+    let Some(authorization_server) = authorization_servers.get(&client.authorization_server) else {
+        return Err(
+            GatewayControlPlaneError::UnknownOidcClientAuthorizationServer {
+                client: client.id.clone(),
+                authorization_server: client.authorization_server.clone(),
+            },
+        );
+    };
+    if authorization_server.identity_provider.as_ref() != Some(&client.identity_provider) {
+        return Err(
+            GatewayControlPlaneError::OidcClientAuthorizationServerIdentityProviderMismatch {
+                client: client.id.clone(),
+                identity_provider: client.identity_provider.clone(),
+                authorization_server: client.authorization_server.clone(),
+                authorization_server_identity_provider: authorization_server
+                    .identity_provider
+                    .clone(),
+            },
+        );
+    }
+    let Some(secret) = secrets.get(&client.credential_secret) else {
+        return Err(GatewayControlPlaneError::UnknownOidcClientSecret {
+            client: client.id.clone(),
+            secret: client.credential_secret.clone(),
+        });
+    };
+    if secret.purpose != SecretPurpose::OAuthClientSecret
+        && secret.purpose != SecretPurpose::TokenExchangeCredential
+    {
+        return Err(GatewayControlPlaneError::OidcClientSecretPurposeMismatch {
+            client: client.id.clone(),
+            secret: client.credential_secret.clone(),
+            purpose: secret.purpose,
+        });
+    }
+    if !client
+        .scopes
+        .contains(&ScopeName::new("openid").expect("valid literal"))
+    {
+        return Err(GatewayControlPlaneError::OidcClientMissingOpenIdScope(
+            client.id.clone(),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct IdentityProvider {
     pub id: IdentityProviderId,
@@ -1628,6 +1809,30 @@ pub struct OAuthClientRegistration {
     pub jwks: Option<JwksSource>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct IdentityProviderOidcClientRegistration {
+    pub id: OidcClientRegistrationId,
+    pub identity_provider: IdentityProviderId,
+    pub authorization_server: AuthorizationServerId,
+    pub client_id: OidcClientId,
+    pub redirect_uri: OAuthRedirectUri,
+    pub auth_method: OidcClientAuthMethod,
+    pub credential_secret: SecretReferenceId,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub scopes: BTreeSet<ScopeName>,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum OidcClientAuthMethod {
+    ClientSecretBasic,
+    ClientSecretPost,
 }
 
 #[derive(
@@ -2165,6 +2370,7 @@ pub enum SecretSource {
 pub enum SecretPurpose {
     ProviderApiKey,
     WebhookSecret,
+    #[serde(rename = "oauth_client_secret")]
     OAuthClientSecret,
     GatewaySigningKey,
     JwksPrivateKey,
@@ -2841,8 +3047,20 @@ mod tests {
         }
     }
 
+    fn oidc_client_secret() -> SecretReference {
+        SecretReference {
+            id: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
+            source: SecretSource::Env,
+            purpose: SecretPurpose::OAuthClientSecret,
+            locator: SecretLocator::new("VEOVEO_IDP_OIDC_CLIENT_SECRET").unwrap(),
+            owner: SecretOwner::Gateway,
+            rotation_hint: None,
+            metadata: Value::Null,
+        }
+    }
+
     fn default_secrets() -> Vec<SecretReference> {
-        vec![signing_secret()]
+        vec![signing_secret(), oidc_client_secret()]
     }
 
     fn media_manifest() -> ServerManifest {
@@ -2974,6 +3192,25 @@ mod tests {
         ]
     }
 
+    fn default_oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
+        vec![IdentityProviderOidcClientRegistration {
+            id: OidcClientRegistrationId::new("enterprise").unwrap(),
+            identity_provider: IdentityProviderId::new("enterprise").unwrap(),
+            authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
+            client_id: OidcClientId::new("veoveo-gateway").unwrap(),
+            redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/default/callback")
+                .unwrap(),
+            auth_method: OidcClientAuthMethod::ClientSecretPost,
+            credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
+            scopes: BTreeSet::from([
+                ScopeName::new("openid").unwrap(),
+                ScopeName::new("profile").unwrap(),
+                ScopeName::new("email").unwrap(),
+            ]),
+            metadata: Value::Null,
+        }]
+    }
+
     #[test]
     fn identifiers_reject_invalid_wire_values() {
         assert!(ServerSlug::new("Media").is_err());
@@ -3024,8 +3261,10 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: vec![
                 signing_secret(),
+                oidc_client_secret(),
                 SecretReference {
                     id: SecretReferenceId::new("media_provider_key").unwrap(),
                     source: SecretSource::Env,
@@ -3055,6 +3294,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3078,6 +3318,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3103,6 +3344,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3129,6 +3371,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3156,6 +3399,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3181,6 +3425,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3209,6 +3454,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3234,6 +3480,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3259,6 +3506,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3284,6 +3532,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3309,6 +3558,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3336,6 +3586,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3366,6 +3617,7 @@ mod tests {
             profiles: vec![profile],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3392,6 +3644,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: vec![
                 signing_secret(),
                 SecretReference {
@@ -3425,6 +3678,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: vec![
                 signing_secret(),
                 SecretReference {
@@ -3461,6 +3715,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: vec![],
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3476,6 +3731,58 @@ mod tests {
     }
 
     #[test]
+    fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
+        let mut profile = default_profile();
+        profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            oidc_clients: vec![],
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("browser OIDC auth requires an OIDC client registration");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingOidcClientForProfile { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_oidc_client_without_openid_scope() {
+        let mut clients = default_oidc_clients();
+        clients[0].scopes.remove(&ScopeName::new("openid").unwrap());
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![media_manifest()],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            oidc_clients: clients,
+            secrets: default_secrets(),
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("OIDC clients must request the openid scope");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::OidcClientMissingOpenIdScope(_)
+        ));
+    }
+
+    #[test]
     fn control_plane_rejects_public_client_credentials() {
         let mut clients = default_oauth_clients();
         clients[1].auth_methods = BTreeSet::from([OAuthClientAuthMethod::None]);
@@ -3486,6 +3793,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: clients,
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3511,6 +3819,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: clients,
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3538,6 +3847,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: clients,
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3563,6 +3873,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![default_policy()],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3588,6 +3899,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3613,6 +3925,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3635,6 +3948,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3658,6 +3972,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3680,6 +3995,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3702,6 +4018,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3728,6 +4045,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
@@ -3757,6 +4075,7 @@ mod tests {
             profiles: vec![default_profile()],
             policies: vec![policy],
             oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
             secrets: default_secrets(),
             metadata: Value::Null,
         };
