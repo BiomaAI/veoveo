@@ -57,7 +57,7 @@ services:
       - "--port"
       - "8787"
       - "--public-url"
-      - "${PUBLIC_URL:?set PUBLIC_URL to your named tunnel URL}"
+      - "${PUBLIC_URL}"
       - "--static-dir"
       - "/app/assets"
       - "--state-db"
@@ -69,7 +69,7 @@ services:
       - "--artifact-region"
       - "us-east-1"
     environment:
-      MEDIA_PROVIDER_API_KEY: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
+      MEDIA_PROVIDER_API_KEY: "${MEDIA_PROVIDER_API_KEY}"
       MEDIA_PROVIDER_WEBHOOK_SECRET: "${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"
       AWS_ACCESS_KEY_ID: rustfsadmin
       AWS_SECRET_ACCESS_KEY: rustfsadmin
@@ -81,19 +81,6 @@ services:
       - "8787:8787"
     profiles:
       - dev
-
-  cloudflared:
-    image: cloudflare/cloudflared:2026.2.0
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
-    depends_on:
-      - media-mcp
-    profiles:
-      - tunnel
 
 volumes:
   rustfs_data:

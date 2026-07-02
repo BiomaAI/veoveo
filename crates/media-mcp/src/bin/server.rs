@@ -105,6 +105,16 @@ struct Args {
 }
 
 impl Args {
+    fn public_url(&self) -> anyhow::Result<String> {
+        let public_url = self.public_url.trim().trim_end_matches('/').to_string();
+        anyhow::ensure!(!public_url.is_empty(), "missing PUBLIC_URL");
+        anyhow::ensure!(
+            public_url.starts_with("http://") || public_url.starts_with("https://"),
+            "PUBLIC_URL must start with http:// or https://"
+        );
+        Ok(public_url)
+    }
+
     fn provider_api_key(&self) -> anyhow::Result<&str> {
         self.api_key
             .as_deref()
@@ -1110,6 +1120,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let args = Args::parse();
+    let public_url = args.public_url()?;
     let durable = SqliteState::open(&args.state_db)?;
     let artifacts = S3ArtifactStore::new(
         S3ArtifactConfig {
@@ -1120,7 +1131,7 @@ async fn main() -> anyhow::Result<()> {
         },
         durable.clone(),
         ProviderUris::new("media"),
-        args.public_url.clone(),
+        public_url.clone(),
     )?;
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
@@ -1143,7 +1154,7 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?),
         http: reqwest::Client::new(),
-        public_url: args.public_url.clone(),
+        public_url: public_url.clone(),
         webhook_secret: args.provider_webhook_secret(),
         registry: RwLock::new(None),
         tasks,
@@ -1189,7 +1200,7 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(
         "veoveo-media-mcp listening on http://{addr} (mcp at /mcp, public_url={})",
-        args.public_url
+        public_url
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)

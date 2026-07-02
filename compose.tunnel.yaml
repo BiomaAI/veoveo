@@ -1,0 +1,13 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2026.2.0
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - "${CLOUDFLARED_TUNNEL_TOKEN}"
+    depends_on:
+      - media-mcp
+    profiles:
+      - tunnel

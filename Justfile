@@ -1,6 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; : "${PUBLIC_URL:?set PUBLIC_URL}"; : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"; export MEDIA_PROVIDER_API_KEY PUBLIC_URL CLOUDFLARED_TUNNEL_TOKEN; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
+compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; export MEDIA_PROVIDER_API_KEY; export PUBLIC_URL="${PUBLIC_URL:-}"; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
+tunnel-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; : "${PUBLIC_URL:?set PUBLIC_URL}"; : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"; export MEDIA_PROVIDER_API_KEY PUBLIC_URL CLOUDFLARED_TUNNEL_TOKEN; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
 mcp-url := "http://localhost:8787/mcp"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
@@ -23,16 +24,24 @@ check:
     cargo test --workspace
 
 # Render the dev Compose config with secrets redacted.
-compose-config:
-    {{compose-env}}; docker compose --profile dev config | sed -E 's/(MEDIA_PROVIDER_API_KEY: ).*/\1[redacted]/; s/(MEDIA_PROVIDER_WEBHOOK_SECRET: ).*/\1[redacted]/; s/(AWS_SECRET_ACCESS_KEY: ).*/\1[redacted]/'
+compose-config public_url='':
+    {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; : "${PUBLIC_URL:?set PUBLIC_URL}"; docker compose --profile dev config | sed -E 's/(MEDIA_PROVIDER_API_KEY: ).*/\1[redacted]/; s/(MEDIA_PROVIDER_WEBHOOK_SECRET: ).*/\1[redacted]/; s/(AWS_SECRET_ACCESS_KEY: ).*/\1[redacted]/'
 
 # Build and start RustFS plus media-mcp. Pass a public tunnel URL for real provider webhooks.
 compose-up public_url='':
-    {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; docker compose --profile dev up --build -d
+    {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; : "${PUBLIC_URL:?set PUBLIC_URL}"; docker compose --profile dev up --build -d
+
+# Build and start RustFS plus media-mcp plus a named Cloudflare tunnel.
+compose-up-named-tunnel:
+    {{tunnel-compose-env}}; docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel up --build -d
 
 # Stop the dev Compose stack.
 compose-down:
     {{compose-env}}; docker compose --profile dev down --remove-orphans
+
+# Stop the dev stack plus named tunnel.
+compose-down-named-tunnel:
+    {{tunnel-compose-env}}; docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel down --remove-orphans
 
 # Stop the dev Compose stack and remove its volumes.
 compose-down-volumes:
