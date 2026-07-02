@@ -960,7 +960,7 @@ async fn require_task_owner(
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
     let owner = task_owner(state, task_id).await?;
-    if owner.principal_id == identity.principal.id {
+    if task_owner_allows(&owner, &identity) {
         Ok(identity)
     } else {
         Err(McpError::invalid_request(
@@ -1011,7 +1011,7 @@ fn artifact_owner_allows(
         .map_err(|e| McpError::internal_error(e.to_string(), None))?;
     Ok(owners
         .iter()
-        .any(|owner| owner.principal_id == identity.principal.id))
+        .any(|owner| artifact_owner_allows_identity(owner, identity)))
 }
 
 fn artifact_owned_by(
@@ -1027,6 +1027,21 @@ fn artifact_owned_by(
             None,
         ))
     }
+}
+
+fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
+    owner.principal_id == identity.principal.id
+        && owner.profile == identity.profile
+        && owner.tenant == identity.principal.tenant
+}
+
+fn artifact_owner_allows_identity(
+    owner: &ArtifactOwner,
+    identity: &GatewayInternalIdentity,
+) -> bool {
+    owner.principal_id == identity.principal.id
+        && owner.profile == identity.profile
+        && owner.tenant == identity.principal.tenant
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -1388,7 +1403,7 @@ impl ServerHandler for MediaMcp {
             .filter(|task| {
                 owners
                     .get(&task.task_id)
-                    .map(|owner| owner.principal_id == identity.principal.id)
+                    .map(|owner| task_owner_allows(owner, &identity))
                     .unwrap_or(false)
             })
             .collect();
@@ -1488,7 +1503,7 @@ impl ServerHandler for MediaMcp {
             let Some(owner) = optional_prediction_owner(&self.state, &id).await? else {
                 continue;
             };
-            if owner.principal_id != identity.principal.id {
+            if !task_owner_allows(&owner, &identity) {
                 continue;
             }
             resources.push(
@@ -1523,7 +1538,7 @@ impl ServerHandler for MediaMcp {
             let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
                 continue;
             };
-            if owner.principal_id != identity.principal.id {
+            if !task_owner_allows(&owner, &identity) {
                 continue;
             }
             resources.push(
@@ -1605,7 +1620,7 @@ impl ServerHandler for MediaMcp {
                 let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
                     continue;
                 };
-                if owner.principal_id != identity.principal.id {
+                if !task_owner_allows(&owner, &identity) {
                     continue;
                 }
                 entries.push(json!({
@@ -1631,7 +1646,7 @@ impl ServerHandler for MediaMcp {
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(id) = uris::parse_prediction_uri(uri) {
             let owner = prediction_owner(&self.state, id).await?;
-            if owner.principal_id != identity.principal.id {
+            if !task_owner_allows(&owner, &identity) {
                 return Err(McpError::invalid_request(
                     "media prediction policy denied request",
                     None,
@@ -1711,7 +1726,7 @@ impl ServerHandler for MediaMcp {
         let prediction_id = uris::parse_prediction_uri(&request.uri)
             .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
         let owner = prediction_owner(&self.state, prediction_id).await?;
-        if owner.principal_id != identity.principal.id {
+        if !task_owner_allows(&owner, &identity) {
             return Err(McpError::invalid_request(
                 "media subscription policy denied request",
                 None,
@@ -1733,7 +1748,7 @@ impl ServerHandler for MediaMcp {
         let prediction_id = uris::parse_prediction_uri(&request.uri)
             .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
         let owner = prediction_owner(&self.state, prediction_id).await?;
-        if owner.principal_id != identity.principal.id {
+        if !task_owner_allows(&owner, &identity) {
             return Err(McpError::invalid_request(
                 "media subscription policy denied request",
                 None,
@@ -2066,7 +2081,19 @@ async fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::internal_bearer_token;
+    use std::collections::BTreeSet;
+
+    use chrono::Utc;
+    use veoveo_mcp_contract::{
+        DataLabelId, GatewayInternalIdentity, GatewayProfileId, GroupId, JwtId, Principal,
+        PrincipalId, PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer,
+        TokenSubject,
+    };
+
+    use super::{
+        ArtifactOwner, TaskOwner, artifact_owner_allows_identity, internal_bearer_token,
+        task_owner_allows,
+    };
 
     #[test]
     fn internal_bearer_parser_is_strict() {
@@ -2077,5 +2104,88 @@ mod tests {
         assert!(internal_bearer_token("Basic abc.def.ghi").is_err());
         assert!(internal_bearer_token("Bearer").is_err());
         assert!(internal_bearer_token("Bearer abc def").is_err());
+    }
+
+    #[test]
+    fn task_owner_requires_principal_profile_and_tenant() {
+        let identity = internal_identity_for("default", Some("tenant-a"));
+        let owner = TaskOwner {
+            task_id: "task-1".to_string(),
+            principal_id: identity.principal.id.clone(),
+            profile: identity.profile.clone(),
+            tenant: identity.principal.tenant.clone(),
+        };
+
+        assert!(task_owner_allows(&owner, &identity));
+        assert!(!task_owner_allows(
+            &TaskOwner {
+                profile: GatewayProfileId::new("research").unwrap(),
+                ..owner.clone()
+            },
+            &identity
+        ));
+        assert!(!task_owner_allows(
+            &TaskOwner {
+                tenant: Some(TenantId::new("tenant-b").unwrap()),
+                ..owner
+            },
+            &identity
+        ));
+    }
+
+    #[test]
+    fn artifact_owner_requires_principal_profile_and_tenant() {
+        let identity = internal_identity_for("default", None);
+        let owner = ArtifactOwner {
+            sha256: "a".repeat(64),
+            task_id: "task-1".to_string(),
+            principal_id: identity.principal.id.clone(),
+            profile: identity.profile.clone(),
+            tenant: identity.principal.tenant.clone(),
+        };
+
+        assert!(artifact_owner_allows_identity(&owner, &identity));
+        assert!(!artifact_owner_allows_identity(
+            &ArtifactOwner {
+                profile: GatewayProfileId::new("ops").unwrap(),
+                ..owner.clone()
+            },
+            &identity
+        ));
+        assert!(!artifact_owner_allows_identity(
+            &ArtifactOwner {
+                tenant: Some(TenantId::new("tenant-a").unwrap()),
+                ..owner
+            },
+            &identity
+        ));
+    }
+
+    fn internal_identity_for(profile: &str, tenant: Option<&str>) -> GatewayInternalIdentity {
+        let issuer = TokenIssuer::new("https://idp.example.com").unwrap();
+        let subject = TokenSubject::new("user-1").unwrap();
+        let principal = Principal {
+            id: PrincipalId::new(format!("{issuer}#{subject}")).unwrap(),
+            kind: PrincipalKind::User,
+            issuer,
+            subject,
+            tenant: tenant.map(TenantId::new).transpose().unwrap(),
+            groups: BTreeSet::<GroupId>::new(),
+            roles: BTreeSet::<RoleId>::new(),
+            scopes: BTreeSet::<ScopeName>::new(),
+            data_labels: BTreeSet::<DataLabelId>::new(),
+            authenticated_at: Some(Utc::now()),
+        };
+        let now = Utc::now();
+        GatewayInternalIdentity {
+            issuer: TokenIssuer::new("veoveo-gateway").unwrap(),
+            profile: GatewayProfileId::new(profile).unwrap(),
+            server: ServerSlug::new("media").unwrap(),
+            principal,
+            jwt_id: JwtId::new("test-jwt").unwrap(),
+            issued_at: now,
+            not_before: now,
+            expires_at: now + chrono::TimeDelta::minutes(5),
+        }
     }
 }

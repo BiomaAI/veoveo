@@ -63,7 +63,7 @@ impl ArtifactRepository {
     }
 
     fn object_path(sha256: &str) -> Result<Path> {
-        Path::parse(&artifact_object_key(sha256)).context("building artifact object key")
+        Path::parse(artifact_object_key(sha256)).context("building artifact object key")
     }
 
     fn download_url(&self, sha256: &str) -> String {
