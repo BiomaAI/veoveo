@@ -324,6 +324,7 @@ fn unix_timestamp(value: u64, claim: &'static str) -> Result<DateTime<Utc>, Auth
 
 #[cfg(test)]
 mod tests {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
     use jsonwebtoken::{
         Algorithm, EncodingKey, Header, encode,
         jwk::{Jwk, JwkSet},
@@ -334,7 +335,29 @@ mod tests {
 
     const ISSUER: &str = "https://idp.example.com";
     const AUDIENCE: &str = "https://veoveo.bioma.ai/mcp/default";
-    const SECRET: &[u8] = b"test-secret-for-gateway-jwt-validation";
+    const RSA_PRIVATE_KEY_DER_B64: &str = r#"
+MIIEpAIBAAKCAQEAvCUS6tGS9/VE3pGzncb1rDsZt/V/LkPHl2QO9jDlaO/jAEdfPOtCSsSyv7dY
++nmY61GpXedIpqg6U7gcU/TcOVar0APPbKZ3OERrvrX9w5/oTJyqK42Lwybl9vmFApcRDIexmSQ8
+HBdc1tQPqdkSCHS2csfZVxAQ64PLh48017Q+w8L1UuXYOxD8QdpQx2R1TD3bOiSeaZRs2Utww6rb
+ex0/Gn6kkYJw3kr+rQgqmmmOoZuEi7p3qSg6KXvKf3hcfugKQlRIamdP8FOz/3sM2vf2jzUV9BUM
+xtOF/yj2GzLmUYHxPtn+K46QDTcGpFyYN6gAPaiGBKkxxZDIaHgosQIDAQABAoIBAAl/bB7tRTht
++ePr8ker2m1PPvc/xgOzgX0BnLU+JuiXGowiLjs8q5graZQeyPe9AXSYpt6CDVN3cNlW1RxCY0ck
+OlBqDtOu7BwLrS4/kO/KD9+lNXx1HOn1Odzvv/CPaHmL1JH057Fp1wKTyjYiaoQBg0/USaMY4SfI
+e5LsbmgYn71s03MXf9/TgKErBRXiIYPW9aKvpKlfCQ8pGV1/i/rTy+Sj87rk+8+fU+fPVyKUWsjA
+gNHm+FmhCPPPVm4qh6Vw/NmuOpfRf1mzfVi7rBq0t5ehHkmW3KVSWY9+v3EttoXjC9iXFIr1OXp5
+aoaZZIXpjw3vAlaKwXbuu7lUZhkCgYEA3PGDT2UgWCFjEJjpi2fQzCBfVQC3lgJ8Xwz3EOeNhe+M
+mrKb358iDp5o+WgU+S4HJJcGK9uptGgN9GYrf303GPMwmWOvC8xH5fV8WDBYGqMeEi+xFHlS8ymt
+MmiWpAkW8/rEjDJama58qzjyEcq+fuW4BJcxOydFHgACSOZIbVkCgYEA2f9RJ7+tOajthShh6LbV
+lhSNDjAeauBj5pcg8bZhLaCNWKCUBE2ob+YXvTL6mzx30faY5nutMdJfOI2Au7YqQgx8HeCBkCUi
+D5Ngx9yjQ2/vnNQSRjIY2mjj0/tzTlVNGJDxbwUr8DGug8BD6Wz+L1l+s8F3aqAFljp7HLMq8xkC
+gYEAsoobgSoH9A+uvPfEKdnPmVRDlS4KLJd/p1OTxz5GV8gXB99zJEa0v7l0vK5F3II8VW4RF5nf
+TiCTvj5dwh0OTAQg7qLmDhOauhIg1Cbk20mbADk30IKl7EduZQCtUorh2HB5KY17NxsQNVDEFGqQ
+e3zoshT3PITkTnTVY9FrD6kCgYEAwZa5JBpUo6q/Wwu0fuu2mvOfG+VhbbndHY5CBETY4aL9QqI/
+L98i4FQt6qeV4zt8kGlz+OIFuQO/6cHHe2rW9haONh4EENTY/Yn8XSAzoBSMbfHqVInyhiq1f6+C
+AyM/NryomtW14jTMbFXWOTnANJ4+JTV+baKzs2g1ohP95SkCgYB7RzFmdbiY1ASdGO/vWqc/wLnT
+hHID7qgdXU4DP84HMmOX/QG5iV8GtQPTfNJm+m1PEnkg4W24DOqg2gJ3/q7wTROOLwQlJtOmizkC
+XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
+"#;
 
     #[derive(Debug, Serialize)]
     struct TestClaims<'a> {
@@ -353,8 +376,9 @@ mod tests {
     }
 
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
-        let mut jwk = Jwk::from_encoding_key(&EncodingKey::from_secret(SECRET), Algorithm::HS256)
-            .expect("jwk from hmac key");
+        let encoding_key = rsa_encoding_key();
+        let mut jwk =
+            Jwk::from_encoding_key(&encoding_key, Algorithm::RS256).expect("jwk from RSA key");
         jwk.common.key_id = Some("test-key".to_string());
         JwtVerifier::new(
             JwtAuthConfig::new(
@@ -364,7 +388,7 @@ mod tests {
                     .iter()
                     .map(|scope| ScopeName::new(*scope).unwrap())
                     .collect(),
-                vec![Algorithm::HS256],
+                vec![Algorithm::RS256],
             )
             .unwrap(),
             JwkSet { keys: vec![jwk] },
@@ -372,8 +396,9 @@ mod tests {
     }
 
     fn token(scope: &str) -> BearerToken {
-        let mut header = Header::new(Algorithm::HS256);
+        let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-key".to_string());
+        let encoding_key = rsa_encoding_key();
         let token = encode(
             &header,
             &TestClaims {
@@ -390,10 +415,18 @@ mod tests {
                 tenant: "tenant-a",
                 data_labels: vec!["pii", "cui"],
             },
-            &EncodingKey::from_secret(SECRET),
+            &encoding_key,
         )
         .expect("token encodes");
         BearerToken(token)
+    }
+
+    fn rsa_encoding_key() -> EncodingKey {
+        let der_text = RSA_PRIVATE_KEY_DER_B64.lines().collect::<String>();
+        let der = BASE64_STANDARD
+            .decode(der_text)
+            .expect("base64 RSA test key");
+        EncodingKey::from_rsa_der(&der)
     }
 
     #[test]
