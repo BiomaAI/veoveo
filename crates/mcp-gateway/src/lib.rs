@@ -7,6 +7,7 @@ use std::{
 
 pub mod auth;
 pub mod mcp;
+mod mcp_support;
 pub mod secrets;
 pub mod state;
 
