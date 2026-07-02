@@ -26,8 +26,9 @@ use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
     AuditEvent, CompletionExposure, GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId,
     GatewayTaskId, GatewayTaskMapping, GatewayToolName, LocalToolName, McpMethodName,
-    PolicyDecision, PolicyEffect, PolicyTarget, PrincipalId, PromptName, ResourceUri, ServerSlug,
-    TaskExposure as ContractTaskExposure, TraceId, UpstreamTaskId, UpstreamTransport, paginate,
+    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId, PromptName,
+    ResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TraceId, UpstreamTaskId,
+    UpstreamTransport, paginate,
 };
 
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
@@ -340,6 +341,72 @@ impl GatewayMcp {
         )
     }
 
+    fn authorize_mapped_task(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        mapping: &GatewayTaskMapping,
+    ) -> Result<AuthenticatedSubject, McpError> {
+        let subject = self.authenticated(context)?;
+        let target = PolicyTarget::Task {
+            server: mapping.upstream_server.clone(),
+            gateway_task_id: mapping.gateway_task_id.clone(),
+        };
+        if !task_mapping_allows_principal(&self.profile_id, mapping, &subject.principal.id) {
+            self.record_policy_denial(&subject, action, target, PolicyReasonCode::UnknownTask)?;
+            return Err(mcp_invalid_params("unknown gateway task id"));
+        }
+        self.authorize(context, action, target)
+    }
+
+    fn record_policy_denial(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        target: PolicyTarget,
+        reason: PolicyReasonCode,
+    ) -> Result<(), McpError> {
+        let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
+            .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
+        let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
+            .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
+        let policy_version = self
+            .catalog
+            .profile(&self.profile_id)
+            .map(|profile| profile.policy_version.clone());
+        let decision = PolicyDecision {
+            effect: PolicyEffect::Deny,
+            reason,
+            evaluated_at: Utc::now(),
+            profile: self.profile_id.clone(),
+            action,
+            target: target.clone(),
+            principal: Some(subject.principal.id.clone()),
+            tenant: subject.principal.tenant.clone(),
+            policy_version,
+            rule_id: None,
+            trace_id: trace_id.clone(),
+        };
+        self.state
+            .record_audit_event(&AuditEvent {
+                event_id,
+                timestamp: decision.evaluated_at,
+                trace_id,
+                profile: self.profile_id.clone(),
+                method: audit_method_name(action)?,
+                action,
+                target,
+                decision,
+                principal: Some(subject.principal.id.clone()),
+                tenant: subject.principal.tenant.clone(),
+                token_issuer: Some(subject.access_token.issuer.clone()),
+                latency_ms: None,
+                metadata: BTreeMap::new(),
+            })
+            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+        Ok(())
+    }
+
     fn task_mapping(&self, task_id: &str) -> Result<GatewayTaskMapping, McpError> {
         let gateway_task_id = GatewayTaskId::new(task_id.to_string())
             .map_err(|err| mcp_invalid_params(format!("invalid gateway task id: {err}")))?;
@@ -405,6 +472,14 @@ fn internal_token_expires_at(subject: &AuthenticatedSubject) -> Result<DateTime<
         ));
     }
     Ok(expires_at)
+}
+
+fn task_mapping_allows_principal(
+    profile_id: &GatewayProfileId,
+    mapping: &GatewayTaskMapping,
+    principal_id: &PrincipalId,
+) -> bool {
+    &mapping.profile == profile_id && &mapping.owner == principal_id
 }
 
 fn resource_policy_target(server: ServerSlug, uri: &str) -> Result<PolicyTarget, McpError> {
@@ -883,12 +958,7 @@ impl ServerHandler for GatewayMcp {
     ) -> Result<GetTaskResult, McpError> {
         let mapping = self.task_mapping(&request.task_id)?;
         let server = mapping.upstream_server.clone();
-        let subject = self.authorize_task(
-            &context,
-            GatewayAction::TasksGet,
-            server.clone(),
-            request.task_id.clone(),
-        )?;
+        let subject = self.authorize_mapped_task(&context, GatewayAction::TasksGet, &mapping)?;
         request.task_id = mapping.upstream_task_id.to_string();
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
@@ -913,12 +983,7 @@ impl ServerHandler for GatewayMcp {
     ) -> Result<GetTaskPayloadResult, McpError> {
         let mapping = self.task_mapping(&request.task_id)?;
         let server = mapping.upstream_server.clone();
-        let subject = self.authorize_task(
-            &context,
-            GatewayAction::TasksResult,
-            server.clone(),
-            request.task_id.clone(),
-        )?;
+        let subject = self.authorize_mapped_task(&context, GatewayAction::TasksResult, &mapping)?;
         request.task_id = mapping.upstream_task_id.to_string();
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
@@ -943,12 +1008,7 @@ impl ServerHandler for GatewayMcp {
     ) -> Result<CancelTaskResult, McpError> {
         let mapping = self.task_mapping(&request.task_id)?;
         let server = mapping.upstream_server.clone();
-        let subject = self.authorize_task(
-            &context,
-            GatewayAction::TasksCancel,
-            server.clone(),
-            request.task_id.clone(),
-        )?;
+        let subject = self.authorize_mapped_task(&context, GatewayAction::TasksCancel, &mapping)?;
         request.task_id = mapping.upstream_task_id.to_string();
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
@@ -1176,4 +1236,42 @@ fn mcp_invalid_params(message: impl Into<String>) -> McpError {
 
 fn mcp_internal(message: impl Into<String>) -> McpError {
     McpError::internal_error(message.into(), None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mapping(profile: &str, owner: &str) -> GatewayTaskMapping {
+        let now = Utc::now();
+        GatewayTaskMapping {
+            gateway_task_id: GatewayTaskId::new("gateway-task-1").unwrap(),
+            upstream_server: ServerSlug::new("media").unwrap(),
+            upstream_task_id: UpstreamTaskId::new("upstream-task-1").unwrap(),
+            profile: GatewayProfileId::new(profile).unwrap(),
+            owner: PrincipalId::new(owner).unwrap(),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn task_mapping_authorizes_only_owning_profile_and_principal() {
+        let profile = GatewayProfileId::new("default").unwrap();
+        let owner = PrincipalId::new("issuer#owner").unwrap();
+        let mapping = mapping("default", "issuer#owner");
+
+        assert!(task_mapping_allows_principal(&profile, &mapping, &owner));
+
+        assert!(!task_mapping_allows_principal(
+            &profile,
+            &mapping,
+            &PrincipalId::new("issuer#other").unwrap()
+        ));
+        assert!(!task_mapping_allows_principal(
+            &GatewayProfileId::new("ops").unwrap(),
+            &mapping,
+            &owner
+        ));
+    }
 }
