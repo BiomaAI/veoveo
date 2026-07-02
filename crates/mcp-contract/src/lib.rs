@@ -6,6 +6,7 @@
 //! normalizes catalog and prediction behavior.
 
 pub mod analytics;
+pub mod deployment;
 pub mod provider;
 pub mod storage;
 pub mod subscriptions;
@@ -15,6 +16,7 @@ pub mod usage;
 pub mod waiters;
 
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
+pub use deployment::{PublicDeployment, ServerPublicEndpoint};
 pub use provider::Provider;
 pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};
 pub use subscriptions::SubscriptionHub;

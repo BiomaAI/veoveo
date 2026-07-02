@@ -56,8 +56,8 @@ services:
     command:
       - "--port"
       - "8787"
-      - "--public-url"
-      - "${PUBLIC_URL}"
+      - "--public-base-url"
+      - "${PUBLIC_BASE_URL}"
       - "--static-dir"
       - "/app/assets"
       - "--state-db"

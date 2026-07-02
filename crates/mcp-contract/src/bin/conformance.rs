@@ -29,7 +29,7 @@ use veoveo_mcp_contract::ProviderUris;
 #[command(name = "conformance", about = "Veoveo MCP conformance client")]
 struct Args {
     /// MCP endpoint of the server under test.
-    #[arg(long, default_value = "http://localhost:8787/mcp", global = true)]
+    #[arg(long, default_value = "http://localhost:8787/media/mcp", global = true)]
     url: String,
     /// URI scheme used by the server's Veoveo resources.
     #[arg(long, default_value = "media", global = true)]

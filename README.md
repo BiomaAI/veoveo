@@ -12,15 +12,15 @@ the contract crate.
 ```
 ┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────────┐   provider API     ┌───────────┐
 │  client   │ ────────────────────────▶ │  server (axum, :8787)   │ ◀────────────────▶ │ provider  │
-│  (rmcp)   │ ◀──── notifications ───── │ /mcp /webhooks /artifacts│                   │           │
+│  (rmcp)   │ ◀──── notifications ───── │ /media/mcp /media/...   │                   │           │
 └──────────┘                            └─────────────────────────┘                    └───────────┘
-                                              ▲ public URL via cloudflared tunnel
+                                              ▲ public base URL via Cloudflare Tunnel
 ```
 
-- `/mcp` — MCP over streamable HTTP (rmcp 2.0)
-- `/webhooks/*` — internal provider callback receivers
-- `/files/*` — optional static dir so the provider can fetch input media by URL
-- `/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
+- `/media/mcp` — MCP over streamable HTTP (rmcp 2.0)
+- `/media/webhooks` — internal provider callback receiver
+- `/media/files/*` — optional static dir so the provider can fetch input media by URL
+- `/media/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
 
 ## MCP surface
 
@@ -43,6 +43,19 @@ Task lifecycle: `tools/call` (+`task` metadata) → `CreateTaskResult` → poll 
 resource links + structured content. `tasks/cancel` aborts. Provider webhook delivery is
 the only server-side completion path.
 
+## Public Routing
+
+`PUBLIC_BASE_URL` is the public origin for the whole Veoveo deployment. Its hostname is
+opaque to the contract; `https://veoveo.bioma.ai`,
+`https://staging.veoveo.bioma.ai`, and an enterprise-owned hostname are all equivalent
+as long as they route to the deployment.
+
+Each MCP server owns one path segment below that origin:
+
+| Server | MCP endpoint | Provider webhook | Input files |
+|---|---|---|---|
+| media | `{PUBLIC_BASE_URL}/media/mcp` | `{PUBLIC_BASE_URL}/media/webhooks` | `{PUBLIC_BASE_URL}/media/files/*` |
+
 ## Setup
 
 `.env`:
@@ -50,6 +63,7 @@ the only server-side completion path.
 ```
 MEDIA_PROVIDER_API_KEY=...
 MEDIA_PROVIDER_WEBHOOK_SECRET=whsec_...   # optional; enables webhook signature verification
+PUBLIC_BASE_URL=https://veoveo.bioma.ai
 ```
 
 ## Run
@@ -61,14 +75,14 @@ tunnel. RustFS image/version and local S3-compatible wiring are defined in `comp
 
 ```sh
 cp .env.example .env
-# fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_URL, and
+# fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_BASE_URL, and
 # CLOUDFLARED_TUNNEL_TOKEN for the named tunnel.
 
 just compose-build
 just compose-up
 
 # include the tunnel service when the named tunnel token is configured
-docker compose --profile dev --profile tunnel up --build
+just compose-up-named-tunnel
 ```
 
 The media image uses BuildKit cache mounts for Cargo registry, git, and target output.
@@ -91,7 +105,7 @@ bytes only.
 
 ```sh
 # 1. public endpoint so the provider can reach the webhook + input files
-cloudflared tunnel --config /dev/null --url http://127.0.0.1:8787
+just tunnel
 # note the printed https://….trycloudflare.com URL
 
 # 2. server (requires a reachable S3-compatible artifact store)
@@ -99,7 +113,7 @@ export AWS_ACCESS_KEY_ID=rustfsadmin
 export AWS_SECRET_ACCESS_KEY=rustfsadmin
 export AWS_DEFAULT_REGION=us-east-1
 cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
-    --public-url https://….trycloudflare.com \
+    --public-base-url https://….trycloudflare.com \
     --artifact-endpoint http://localhost:9000 --artifact-bucket media-artifacts
 
 # 3. conformance CLI
@@ -108,13 +122,13 @@ cargo run -p veoveo-mcp-contract --bin conformance -- models kling --type image-
 cargo run -p veoveo-mcp-contract --bin conformance -- complete gpt-image
 cargo run -p veoveo-mcp-contract --bin conformance -- schema openai/gpt-image-2/edit
 cargo run -p veoveo-mcp-contract --bin conformance -- run openai/gpt-image-2/edit \
-    --input '{"prompt":"add a red wizard hat","images":["https://….trycloudflare.com/files/gol-real-roblox.jpeg"]}'
+    --input '{"prompt":"add a red wizard hat","images":["https://….trycloudflare.com/media/files/gol-real-roblox.jpeg"]}'
 cargo run -p veoveo-mcp-contract --bin conformance -- usage <task-id>
 cargo run -p veoveo-mcp-contract --bin conformance -- artifact <sha256>
 ```
 
-`--public-url` is required for generation because providers must be able to deliver
-webhook callbacks. `/files` URLs also need that public base URL to be reachable by the
+`--public-base-url` is required for generation because providers must be able to deliver
+webhook callbacks. `/media/files` URLs also need that public base URL to be reachable by the
 provider.
 
 ## Layout
@@ -124,6 +138,7 @@ Cargo.toml                                      veoveo workspace manifest
 crates/mcp-contract/                           reusable Veoveo MCP contract crate
 crates/mcp-contract/src/bin/conformance.rs     generic Veoveo MCP conformance CLI
 crates/mcp-contract/src/analytics.rs           shared DuckDB usage analytics schema/store
+crates/mcp-contract/src/deployment.rs          shared public URL/server mount contract
 crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
 crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
@@ -143,6 +158,7 @@ and the shared contract crate.
 Use `just --list` for the maintained command recipes. The common path is:
 
 ```sh
-just tunnel
-just e2e https://your-public-tunnel.example.com
+just compose-up-named-tunnel
+just health https://veoveo.bioma.ai
+just e2e https://veoveo.bioma.ai
 ```

@@ -1,9 +1,10 @@
 //! Media MCP server.
 //!
 //! One axum process exposing:
-//!   /mcp                 — MCP over streamable HTTP (rmcp)
-//!   /webhooks/media      — internal provider callback receiver (HMAC-verified)
-//!   /files/*             — optional static media dir so providers can fetch inputs by URL
+//!   /media/mcp             — MCP over streamable HTTP (rmcp)
+//!   /media/webhooks        — internal provider callback receiver (HMAC-verified)
+//!   /media/files/*         — optional static media dir so providers can fetch inputs by URL
+//!   /media/artifacts/*     — immutable artifact bytes already surfaced by MCP
 //!
 //! MCP surface (protocol-maximal, single tool):
 //!   tool `run(model, input)`         — task-required (SEP-1319)
@@ -56,9 +57,9 @@ use rmcp::{
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ProviderUris, SubscriptionHub, TaskPayloadState, TaskStore,
-    UsageKind, UsageRecord, UsageReport, is_sha256, notify_progress, notify_task_status, now_iso,
-    now_utc,
+    ArtifactMetadata, ArtifactPut, ProviderUris, PublicDeployment, ServerPublicEndpoint,
+    SubscriptionHub, TaskPayloadState, TaskStore, UsageKind, UsageRecord, UsageReport, is_sha256,
+    notify_progress, notify_task_status, now_iso, now_utc,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -72,6 +73,7 @@ const TASK_POLL_INTERVAL_MS: u64 = 3000;
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
+const SERVER_SLUG: &str = "media";
 
 #[derive(Parser, Debug)]
 #[command(name = "server", about = "Media MCP server (streamable HTTP)")]
@@ -79,11 +81,11 @@ struct Args {
     /// Port to bind on 0.0.0.0.
     #[arg(long, default_value_t = 8787)]
     port: u16,
-    /// Public base URL reachable by the media provider (e.g. the cloudflared tunnel URL).
+    /// Public base URL reachable by the media provider.
     /// Required because media task completion is webhook-only.
-    #[arg(long, env = "PUBLIC_URL")]
-    public_url: String,
-    /// Directory served at /files/* so the media provider can fetch input media by URL.
+    #[arg(long, env = "PUBLIC_BASE_URL")]
+    public_base_url: String,
+    /// Directory served at /media/files/* so the media provider can fetch input media by URL.
     #[arg(long)]
     static_dir: Option<PathBuf>,
     /// DuckDB state database path for task, prediction, artifact, and usage metadata.
@@ -108,14 +110,8 @@ struct Args {
 }
 
 impl Args {
-    fn public_url(&self) -> anyhow::Result<String> {
-        let public_url = self.public_url.trim().trim_end_matches('/').to_string();
-        anyhow::ensure!(!public_url.is_empty(), "missing PUBLIC_URL");
-        anyhow::ensure!(
-            public_url.starts_with("http://") || public_url.starts_with("https://"),
-            "PUBLIC_URL must start with http:// or https://"
-        );
-        Ok(public_url)
+    fn public_endpoint(&self) -> anyhow::Result<ServerPublicEndpoint> {
+        PublicDeployment::new(&self.public_base_url)?.server(SERVER_SLUG)
     }
 
     fn provider_api_key(&self) -> anyhow::Result<&str> {
@@ -138,7 +134,7 @@ struct RegistryCache {
 struct AppState {
     provider: ProviderClient,
     http: reqwest::Client,
-    public_url: String,
+    public_endpoint: ServerPublicEndpoint,
     webhook_secret: Option<String>,
     registry: RwLock<Option<RegistryCache>>,
     tasks: TaskStore,
@@ -755,7 +751,7 @@ async fn run_task(
     notify_progress(&peer, &progress_token, 0.1, "input validated").await;
 
     // 2. Submit with the callback URL. Completion is webhook-only.
-    let webhook_url = format!("{}/webhooks/media", state.public_url.trim_end_matches('/'));
+    let webhook_url = state.public_endpoint.url("webhooks");
     let prediction = match state
         .provider
         .submit(&args.model, &input, Some(&webhook_url))
@@ -1359,7 +1355,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let args = Args::parse();
-    let public_url = args.public_url()?;
+    let public_endpoint = args.public_endpoint()?;
     let durable = DuckdbState::open(&args.state_db)?;
     let artifacts = ArtifactRepository::new_s3_compatible(
         S3ArtifactConfig {
@@ -1370,7 +1366,7 @@ async fn main() -> anyhow::Result<()> {
         },
         durable.clone(),
         ProviderUris::new("media"),
-        public_url.clone(),
+        public_endpoint.public_url().to_string(),
     )?;
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
@@ -1393,7 +1389,7 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?),
         http: reqwest::Client::new(),
-        public_url: public_url.clone(),
+        public_endpoint: public_endpoint.clone(),
         webhook_secret: args.provider_webhook_secret(),
         registry: RwLock::new(None),
         tasks,
@@ -1427,21 +1423,28 @@ async fn main() -> anyhow::Result<()> {
         StreamableHttpServerConfig::default().with_cancellation_token(ct.child_token()),
     );
 
-    let mut router = Router::new()
+    let mut server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route("/webhooks/media", post(media_webhook))
+        .route("/webhooks", post(media_webhook))
         .route("/artifacts/{sha256}", get(artifact_download))
         .with_state(state.clone())
         .nest_service("/mcp", mcp_service);
     if let Some(dir) = &args.static_dir {
-        tracing::info!("serving static files from {} at /files", dir.display());
-        router = router.nest_service("/files", tower_http::services::ServeDir::new(dir));
+        tracing::info!(
+            "serving static files from {} at {}/files",
+            dir.display(),
+            public_endpoint.mount_path()
+        );
+        server_router =
+            server_router.nest_service("/files", tower_http::services::ServeDir::new(dir));
     }
+    let router = Router::new().nest(public_endpoint.mount_path(), server_router);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     tracing::info!(
-        "veoveo-media-mcp listening on http://{addr} (mcp at /mcp, public_url={})",
-        public_url
+        "veoveo-media-mcp listening on http://{addr} (mcp at {}, public_url={})",
+        public_endpoint.path("mcp"),
+        public_endpoint.public_url()
     );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)

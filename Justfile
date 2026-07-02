@@ -1,8 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; export MEDIA_PROVIDER_API_KEY; export PUBLIC_URL="${PUBLIC_URL:-}"; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
-tunnel-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; : "${PUBLIC_URL:?set PUBLIC_URL}"; : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"; export MEDIA_PROVIDER_API_KEY PUBLIC_URL CLOUDFLARED_TUNNEL_TOKEN; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
-mcp-url := "http://localhost:8787/mcp"
+compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; export MEDIA_PROVIDER_API_KEY; export PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
+tunnel-compose-env := 'set -a; [ ! -f .env ] || . ./.env; set +a; : "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"; : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"; : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"; export MEDIA_PROVIDER_API_KEY PUBLIC_BASE_URL CLOUDFLARED_TUNNEL_TOKEN; export MEDIA_PROVIDER_WEBHOOK_SECRET="${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"'
+mcp-url := "http://localhost:8787/media/mcp"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 
@@ -24,16 +24,16 @@ check:
     cargo test --workspace
 
 # Render the dev Compose config with secrets redacted.
-compose-config public_url='':
-    {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; : "${PUBLIC_URL:?set PUBLIC_URL}"; docker compose --profile dev config | sed -E 's/(MEDIA_PROVIDER_API_KEY: ).*/\1[redacted]/; s/(MEDIA_PROVIDER_WEBHOOK_SECRET: ).*/\1[redacted]/; s/(AWS_SECRET_ACCESS_KEY: ).*/\1[redacted]/'
+compose-config public_base_url='':
+    {{compose-env}}; if [ -n '{{public_base_url}}' ]; then export PUBLIC_BASE_URL='{{public_base_url}}'; fi; : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"; docker compose --profile dev config | sed -E 's/(MEDIA_PROVIDER_API_KEY: ).*/\1[redacted]/; s/(MEDIA_PROVIDER_WEBHOOK_SECRET: ).*/\1[redacted]/; s/(AWS_SECRET_ACCESS_KEY: ).*/\1[redacted]/'
 
 # Build the media MCP image.
 compose-build:
     docker compose --profile dev build media-mcp
 
-# Build and start RustFS plus media-mcp. Pass a public tunnel URL for real provider webhooks.
-compose-up public_url='':
-    {{compose-env}}; if [ -n '{{public_url}}' ]; then export PUBLIC_URL='{{public_url}}'; fi; : "${PUBLIC_URL:?set PUBLIC_URL}"; docker compose --profile dev up --build -d
+# Build and start RustFS plus media-mcp. Pass a public base URL for real provider webhooks.
+compose-up public_base_url='':
+    {{compose-env}}; if [ -n '{{public_base_url}}' ]; then export PUBLIC_BASE_URL='{{public_base_url}}'; fi; : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"; docker compose --profile dev up --build -d
 
 # Build and start RustFS plus media-mcp plus a named Cloudflare tunnel.
 compose-up-named-tunnel:
@@ -64,10 +64,10 @@ tunnel protocol='http2':
     cloudflared tunnel --config /dev/null --protocol {{protocol}} --url http://127.0.0.1:8787
 
 # Check local health and, optionally, public tunnel health.
-health public_url='':
-    curl -fsS http://localhost:8787/healthz
+health public_base_url='':
+    curl -fsS http://localhost:8787/media/healthz
     @echo
-    if [ -n '{{public_url}}' ]; then curl -fsS '{{public_url}}/healthz'; echo; fi
+    if [ -n '{{public_base_url}}' ]; then curl -fsS '{{public_base_url}}/media/healthz'; echo; fi
 
 # Show MCP server info and resource templates.
 info:
@@ -89,9 +89,9 @@ schema model:
 run model input output_dir='output':
     cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} run '{{model}}' --input '{{input}}' --output-dir '{{output_dir}}'
 
-# Run the default image edit e2e against the public URL and save returned artifacts.
-run-edit public_url output_dir='output/e2e':
-    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_url}}/files/{{default-input-image}}\"]}"; cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
+# Run the default image edit e2e against the public base URL and save returned artifacts.
+run-edit public_base_url output_dir='output/e2e':
+    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} run '{{default-model}}' --input "$input" --output-dir '{{output_dir}}'
 
 # Read one task usage report.
 usage task_id:
@@ -102,8 +102,8 @@ artifact sha256 output_dir='output':
     cargo run -p veoveo-mcp-contract --bin conformance -- --url {{mcp-url}} artifact '{{sha256}}' --output-dir '{{output_dir}}'
 
 # Start the stack, check health, print MCP info, and run the default edit task.
-e2e public_url output_dir='output/e2e':
-    just compose-up '{{public_url}}'
-    just health '{{public_url}}'
+e2e public_base_url output_dir='output/e2e':
+    just compose-up '{{public_base_url}}'
+    just health '{{public_base_url}}'
     just info
-    just run-edit '{{public_url}}' '{{output_dir}}'
+    just run-edit '{{public_base_url}}' '{{output_dir}}'
