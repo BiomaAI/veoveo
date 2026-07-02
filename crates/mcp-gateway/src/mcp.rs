@@ -1,4 +1,9 @@
-use std::{borrow::Cow, collections::BTreeMap, fmt, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::Arc,
+};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
@@ -11,11 +16,11 @@ use rmcp::{
         GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
         GetTaskPayloadRequest, GetTaskPayloadResult, GetTaskRequest, GetTaskResult, Implementation,
         InitializeRequestParams, InitializeResult, JsonObject, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListTasksRequest, ListTasksResult,
-        ListToolsResult, Notification, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Reference, ResourceContents, ServerCapabilities, ServerInfo,
-        ServerNotification, ServerResult, SubscribeRequestParams, TaskStatusNotificationParam,
-        TasksCapability, UnsubscribeRequestParams,
+        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, ListToolsResult,
+        Notification, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
+        Reference, ResourceContents, ServerCapabilities, ServerInfo, ServerNotification,
+        ServerResult, SubscribeRequestParams, TaskStatusNotificationParam, TasksCapability,
+        UnsubscribeRequestParams,
     },
     service::{NotificationContext, Peer, RequestContext, RoleClient, RoleServer, RunningService},
     transport::{
@@ -356,25 +361,6 @@ impl GatewayMcp {
         self.allows(context, action, PolicyTarget::Prompt { server, prompt })
     }
 
-    fn authorize_task(
-        &self,
-        context: &RequestContext<RoleServer>,
-        action: GatewayAction,
-        server: ServerSlug,
-        task_id: impl Into<String>,
-    ) -> Result<AuthenticatedSubject, McpError> {
-        let gateway_task_id = GatewayTaskId::new(task_id.into())
-            .map_err(|err| mcp_invalid_params(format!("invalid task id: {err}")))?;
-        self.authorize(
-            context,
-            action,
-            PolicyTarget::Task {
-                server,
-                gateway_task_id,
-            },
-        )
-    }
-
     fn authorize_mapped_task(
         &self,
         context: &RequestContext<RoleServer>,
@@ -511,17 +497,6 @@ impl GatewayMcp {
             _ => Err(mcp_internal(format!(
                 "prompt `{prompt}` is ambiguous across profile servers"
             ))),
-        }
-    }
-
-    fn single_task_server(&self) -> Result<ServerSlug, McpError> {
-        let servers = self.profile_task_servers();
-        match servers.as_slice() {
-            [server] => Ok(server.clone()),
-            [] => Err(mcp_invalid_request("profile does not expose MCP tasks")),
-            _ => Err(mcp_invalid_request(
-                "tasks/list requires one task-enabled server in the current profile",
-            )),
         }
     }
 }
@@ -1216,46 +1191,66 @@ impl ServerHandler for GatewayMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListTasksResult, McpError> {
-        let server = self.single_task_server()?;
-        let subject =
-            self.authorize_task(&context, GatewayAction::TasksList, server.clone(), "list")?;
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        let result = upstream
-            .send_request(ClientRequest::ListTasksRequest(match request {
-                Some(params) => ListTasksRequest::with_param(params),
-                None => ListTasksRequest::default(),
-            }))
-            .await
-            .map_err(upstream_error)?;
-        match result {
-            ServerResult::ListTasksResult(mut result) => {
-                let mappings = self
-                    .state
-                    .task_mappings_for_owner(&self.profile_id, &subject.principal.id, &server)
-                    .map_err(|err| {
-                        mcp_internal(format!("failed to read gateway task mappings: {err}"))
-                    })?;
-                let mut by_upstream = BTreeMap::new();
-                for mapping in mappings {
-                    by_upstream.insert(
-                        mapping.upstream_task_id.to_string(),
-                        mapping.gateway_task_id.to_string(),
-                    );
-                }
-                result.tasks.retain_mut(|task| {
-                    if let Some(gateway_task_id) = by_upstream.get(&task.task_id) {
-                        task.task_id = gateway_task_id.clone();
-                        true
-                    } else {
-                        false
-                    }
-                });
-                Ok(result)
-            }
-            other => Err(unexpected_upstream_response("tasks/list", other)),
+        let subject = self.authenticated(&context)?;
+        let task_servers = self
+            .profile_task_servers()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        if task_servers.is_empty() {
+            return Err(mcp_invalid_request("profile does not expose MCP tasks"));
         }
+        let mut allowed_task_servers = BTreeSet::new();
+        for server in task_servers {
+            let allowed = self.allows(
+                &context,
+                GatewayAction::TasksList,
+                PolicyTarget::TaskList {
+                    server: server.clone(),
+                },
+            )?;
+            if allowed {
+                allowed_task_servers.insert(server);
+            }
+        }
+
+        let all_mappings = self
+            .state
+            .task_mappings_for_profile_owner(&self.profile_id, &subject.principal.id)
+            .map_err(|err| mcp_internal(format!("failed to read gateway task mappings: {err}")))?;
+        let mut mappings = Vec::new();
+        for mapping in all_mappings {
+            if !allowed_task_servers.contains(&mapping.upstream_server) {
+                continue;
+            }
+            mappings.push(mapping);
+        }
+
+        let page = paginate(mappings, request.as_ref(), GATEWAY_PAGE_SIZE)
+            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        let mut tasks = Vec::with_capacity(page.items.len());
+        for mapping in page.items {
+            let server = mapping.upstream_server.clone();
+            let upstream = self
+                .upstream(&server, context.peer.clone(), &subject)
+                .await?;
+            let result = upstream
+                .send_request(ClientRequest::GetTaskRequest(GetTaskRequest::new(
+                    GetTaskParams::new(mapping.upstream_task_id.to_string()),
+                )))
+                .await
+                .map_err(upstream_error)?;
+            match result {
+                ServerResult::GetTaskResult(mut result) => {
+                    result.task.task_id = mapping.gateway_task_id.to_string();
+                    tasks.push(result.task);
+                }
+                other => return Err(unexpected_upstream_response("tasks/get", other)),
+            }
+        }
+
+        let mut result = ListTasksResult::new(tasks);
+        result.next_cursor = page.next_cursor;
+        Ok(result)
     }
 
     async fn get_task_info(

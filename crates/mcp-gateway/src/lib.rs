@@ -659,6 +659,19 @@ impl GatewayCatalog {
                     Err(PolicyReasonCode::PolicyDeny)
                 }
             }
+            PolicyTarget::TaskList { server } => {
+                let _manifest = self.server(server).ok_or(PolicyReasonCode::UnknownServer)?;
+                let exposure = profile
+                    .servers
+                    .iter()
+                    .find(|exposure| &exposure.server == server)
+                    .ok_or(PolicyReasonCode::PolicyDeny)?;
+                if exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled {
+                    Ok(())
+                } else {
+                    Err(PolicyReasonCode::PolicyDeny)
+                }
+            }
             PolicyTarget::Task {
                 server,
                 gateway_task_id: _,
@@ -1069,6 +1082,7 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
         PolicyTarget::Prompt { server, prompt } => {
             filter_matches(&rule.servers, server) && filter_matches(&rule.prompts, prompt)
         }
+        PolicyTarget::TaskList { server } => filter_matches(&rule.servers, server),
         PolicyTarget::Task {
             server,
             gateway_task_id: _,
@@ -1438,6 +1452,27 @@ mod tests {
                 tool: LocalToolName::new("run").unwrap(),
             },
             trace_id: &TraceId::new("trace-1").unwrap(),
+        });
+
+        assert_eq!(decision.effect, PolicyEffect::Allow);
+        assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
+    }
+
+    #[test]
+    fn policy_allows_task_list_without_fake_task_id() {
+        let mut policy = policy();
+        policy.rules[0].actions = BTreeSet::from([GatewayAction::TasksList]);
+        policy.rules[0].tools = BTreeSet::new();
+        let catalog = catalog_with_policy(policy);
+        let principal = principal(&["media:use"]);
+        let decision = catalog.decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::TasksList,
+            target: &PolicyTarget::TaskList {
+                server: ServerSlug::new("media").unwrap(),
+            },
+            trace_id: &TraceId::new("trace-task-list").unwrap(),
         });
 
         assert_eq!(decision.effect, PolicyEffect::Allow);

@@ -2225,6 +2225,9 @@ pub enum PolicyTarget {
         server: ServerSlug,
         prompt: PromptName,
     },
+    TaskList {
+        server: ServerSlug,
+    },
     Task {
         server: ServerSlug,
         gateway_task_id: GatewayTaskId,

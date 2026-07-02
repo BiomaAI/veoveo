@@ -793,6 +793,30 @@ impl GatewayState {
         Ok(mappings)
     }
 
+    pub fn task_mappings_for_profile_owner(
+        &self,
+        profile: &GatewayProfileId,
+        owner: &PrincipalId,
+    ) -> Result<Vec<GatewayTaskMapping>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT mapping_json
+            FROM gateway_task_mappings
+            WHERE profile = ?1 AND owner = ?2
+            ORDER BY updated_at, gateway_task_id
+            "#,
+        )?;
+        let rows = stmt.query_map(params![profile.as_str(), owner.as_str()], |row| {
+            row.get::<_, String>(0)
+        })?;
+        let mut mappings = Vec::new();
+        for row in rows {
+            mappings.push(serde_json::from_str(&row?)?);
+        }
+        Ok(mappings)
+    }
+
     pub fn record_resource_subscription(
         &self,
         subscription: &GatewayResourceSubscription,
@@ -1157,17 +1181,28 @@ mod tests {
     fn task_mapping_round_trips_by_gateway_and_upstream_ids() {
         let path = temp_path("tasks");
         let state = GatewayState::open(&path).unwrap();
+        let now = Utc::now();
         let mapping = GatewayTaskMapping {
             gateway_task_id: GatewayTaskId::new("gateway-task-1").unwrap(),
             upstream_server: ServerSlug::new("media").unwrap(),
             upstream_task_id: UpstreamTaskId::new("upstream-task-1").unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
             owner: PrincipalId::new("issuer#subject").unwrap(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
+        };
+        let other_server_mapping = GatewayTaskMapping {
+            gateway_task_id: GatewayTaskId::new("gateway-task-2").unwrap(),
+            upstream_server: ServerSlug::new("simulation").unwrap(),
+            upstream_task_id: UpstreamTaskId::new("upstream-task-2").unwrap(),
+            profile: mapping.profile.clone(),
+            owner: mapping.owner.clone(),
+            created_at: now,
+            updated_at: now + chrono::TimeDelta::seconds(1),
         };
 
         state.record_task_mapping(&mapping).unwrap();
+        state.record_task_mapping(&other_server_mapping).unwrap();
 
         assert_eq!(
             state.task_mapping(&mapping.gateway_task_id).unwrap(),
@@ -1183,7 +1218,13 @@ mod tests {
             state
                 .task_mappings_for_owner(&mapping.profile, &mapping.owner, &mapping.upstream_server)
                 .unwrap(),
-            vec![mapping]
+            vec![mapping.clone()]
+        );
+        assert_eq!(
+            state
+                .task_mappings_for_profile_owner(&mapping.profile, &mapping.owner)
+                .unwrap(),
+            vec![mapping, other_server_mapping]
         );
 
         let _ = std::fs::remove_file(path);
