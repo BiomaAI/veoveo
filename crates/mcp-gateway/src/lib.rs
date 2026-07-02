@@ -1,16 +1,13 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt, fs,
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, fs, path::Path, sync::Arc};
 
 pub mod auth;
 pub mod mcp;
 mod mcp_support;
+mod metadata;
 mod policy;
 pub mod secrets;
 pub mod state;
+mod tool_name;
 
 use anyhow::{Context, Result};
 pub use auth::{
@@ -19,21 +16,22 @@ pub use auth::{
     VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
 pub use mcp::GatewayMcp;
+pub use metadata::{
+    AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,
+    ProtectedResourceMetadata, www_authenticate_challenge,
+};
 use parking_lot::RwLock;
 pub use policy::{PolicyRequest, mcp_method_name, resource_scheme_from_uri};
 use policy::{exposure_contains, resource_scheme};
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
-use serde::{Deserialize, Serialize};
 pub use state::{GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayState};
+pub use tool_name::{GatewayNameError, GatewayToolProjection};
 use veoveo_mcp_contract::{
-    AuthMode, AuthorizationServerId, GatewayControlPlane, GatewayProfile, GatewayProfileId,
-    GatewayToolName, IdentityProvider, IdentityProviderId, JwksSource, LocalToolName,
-    OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
-    OidcClientRegistrationId, PolicySet, PolicyVersion, ResourceAuthorizationServer, ScopeName,
-    SecretReference, SecretReferenceId, ServerManifest, ServerSlug,
+    AuthorizationServerId, GatewayControlPlane, GatewayProfile, GatewayProfileId, IdentityProvider,
+    IdentityProviderId, OAuthClientId, OAuthClientRegistration, OidcClientRegistrationId,
+    PolicySet, PolicyVersion, ResourceAuthorizationServer, SecretReference, SecretReferenceId,
+    ServerManifest, ServerSlug,
 };
-
-const ID_JAG_GRANT_PROFILE: &str = "urn:ietf:params:oauth:grant-profile:id-jag";
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalogHandle {
@@ -224,141 +222,6 @@ impl GatewayCatalog {
             .map(|index| &self.control_plane.authorization_servers[*index])
     }
 
-    pub fn protected_resource_metadata(
-        &self,
-        profile_id: &GatewayProfileId,
-    ) -> Result<ProtectedResourceMetadata, GatewayMetadataError> {
-        let profile = self
-            .profile(profile_id)
-            .ok_or_else(|| GatewayMetadataError::UnknownProfile(profile_id.clone()))?;
-        let authorization_server = self
-            .authorization_server(&profile.authorization_server)
-            .ok_or_else(|| GatewayMetadataError::UnknownAuthorizationServer {
-                profile: profile.id.clone(),
-                authorization_server: profile.authorization_server.clone(),
-            })?;
-
-        Ok(ProtectedResourceMetadata {
-            resource: profile.protected_resource.to_string(),
-            authorization_servers: vec![authorization_server.issuer.to_string()],
-            scopes_supported: self
-                .profile_supported_scopes(profile)
-                .into_iter()
-                .map(|scope| scope.to_string())
-                .collect(),
-            bearer_methods_supported: vec!["header".to_string()],
-            extensions: authorization_extensions(profile),
-        })
-    }
-
-    pub fn authorization_server_metadata(
-        &self,
-        profile_id: &GatewayProfileId,
-    ) -> Result<AuthorizationServerMetadata, GatewayMetadataError> {
-        let profile = self
-            .profile(profile_id)
-            .ok_or_else(|| GatewayMetadataError::UnknownProfile(profile_id.clone()))?;
-        let authorization_server = self
-            .authorization_server(&profile.authorization_server)
-            .ok_or_else(|| GatewayMetadataError::UnknownAuthorizationServer {
-                profile: profile.id.clone(),
-                authorization_server: profile.authorization_server.clone(),
-            })?;
-        let clients = self.profile_oauth_clients(profile);
-        let token_auth_methods = clients
-            .iter()
-            .flat_map(|client| client.auth_methods.iter().copied())
-            .map(oauth_client_auth_method_name)
-            .collect::<BTreeSet<_>>();
-        let grant_types = profile
-            .auth_modes
-            .iter()
-            .copied()
-            .map(OAuthGrantType::from)
-            .map(oauth_grant_type_name)
-            .collect::<BTreeSet<_>>();
-        let supports_authorization_code = profile
-            .auth_modes
-            .contains(&AuthMode::OidcAuthorizationCodePkce);
-        let supports_private_key_jwt = clients.iter().any(|client| {
-            client
-                .auth_methods
-                .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
-        });
-
-        Ok(AuthorizationServerMetadata {
-            issuer: authorization_server.issuer.to_string(),
-            authorization_endpoint: authorization_server
-                .authorization_endpoint
-                .as_ref()
-                .map(ToString::to_string),
-            token_endpoint: authorization_server.token_endpoint.to_string(),
-            jwks_uri: match &authorization_server.jwks {
-                JwksSource::Remote { jwks_uri } => Some(jwks_uri.to_string()),
-                JwksSource::File { .. } => None,
-            },
-            scopes_supported: self
-                .profile_supported_scopes(profile)
-                .into_iter()
-                .map(|scope| scope.to_string())
-                .collect(),
-            response_types_supported: if supports_authorization_code {
-                vec!["code".to_string()]
-            } else {
-                Vec::new()
-            },
-            grant_types_supported: grant_types.into_iter().map(str::to_string).collect(),
-            code_challenge_methods_supported: if supports_authorization_code {
-                vec!["S256".to_string()]
-            } else {
-                Vec::new()
-            },
-            token_endpoint_auth_methods_supported: token_auth_methods
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
-            token_endpoint_auth_signing_alg_values_supported: if supports_private_key_jwt {
-                vec![
-                    "RS256".to_string(),
-                    "RS384".to_string(),
-                    "RS512".to_string(),
-                    "PS256".to_string(),
-                    "PS384".to_string(),
-                    "PS512".to_string(),
-                    "ES256".to_string(),
-                    "ES384".to_string(),
-                    "EdDSA".to_string(),
-                ]
-            } else {
-                Vec::new()
-            },
-            authorization_grant_profiles_supported: if profile
-                .auth_modes
-                .contains(&AuthMode::EnterpriseManagedAuthorization)
-            {
-                vec![ID_JAG_GRANT_PROFILE.to_string()]
-            } else {
-                Vec::new()
-            },
-        })
-    }
-
-    pub fn profile_supported_scopes(&self, profile: &GatewayProfile) -> BTreeSet<ScopeName> {
-        let mut scopes = profile
-            .required_scopes
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        if let Some(policy) = self.policy(&profile.policy_version) {
-            for rule in &policy.rules {
-                if rule.profiles.is_empty() || rule.profiles.contains(&profile.id) {
-                    scopes.extend(rule.required_scopes.iter().cloned());
-                }
-            }
-        }
-        scopes
-    }
-
     pub fn oauth_client(&self, client_id: &OAuthClientId) -> Option<&OAuthClientRegistration> {
         self.oauth_clients
             .get(client_id)
@@ -472,203 +335,12 @@ impl GatewayCatalog {
             .get(version)
             .map(|index| &self.control_plane.policies[*index])
     }
-
-    pub fn project_tool_name(
-        &self,
-        server: &ServerSlug,
-        tool: &LocalToolName,
-    ) -> Result<GatewayToolName, GatewayNameError> {
-        if self.server(server).is_none() {
-            return Err(GatewayNameError::UnknownServer(server.clone()));
-        }
-        GatewayToolProjection::new(server.clone(), tool.clone()).gateway_name()
-    }
-
-    pub fn parse_tool_name(
-        &self,
-        name: &GatewayToolName,
-    ) -> Result<GatewayToolProjection, GatewayNameError> {
-        let projection = GatewayToolProjection::parse(name)?;
-        if self.server(&projection.server).is_none() {
-            return Err(GatewayNameError::UnknownServer(projection.server));
-        }
-        Ok(projection)
-    }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProtectedResourceMetadata {
-    pub resource: String,
-    pub authorization_servers: Vec<String>,
-    pub scopes_supported: Vec<String>,
-    pub bearer_methods_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub extensions: BTreeMap<String, AuthorizationExtensionMetadata>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AuthorizationServerMetadata {
-    pub issuer: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub authorization_endpoint: Option<String>,
-    pub token_endpoint: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub jwks_uri: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub scopes_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub response_types_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub grant_types_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub code_challenge_methods_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub token_endpoint_auth_methods_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub token_endpoint_auth_signing_alg_values_supported: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub authorization_grant_profiles_supported: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct AuthorizationExtensionMetadata {}
-
-fn authorization_extensions(
-    profile: &GatewayProfile,
-) -> BTreeMap<String, AuthorizationExtensionMetadata> {
-    profile
-        .auth_modes
-        .iter()
-        .filter_map(|mode| mode.mcp_extension_id())
-        .map(|extension| {
-            (
-                extension.to_string(),
-                AuthorizationExtensionMetadata::default(),
-            )
-        })
-        .collect()
-}
-
-fn oauth_grant_type_name(grant_type: OAuthGrantType) -> &'static str {
-    match grant_type {
-        OAuthGrantType::AuthorizationCodePkce => "authorization_code",
-        OAuthGrantType::ClientCredentials => "client_credentials",
-        OAuthGrantType::EnterpriseManagedAuthorization => {
-            "urn:ietf:params:oauth:grant-type:jwt-bearer"
-        }
-    }
-}
-
-fn oauth_client_auth_method_name(auth_method: OAuthClientAuthMethod) -> &'static str {
-    match auth_method {
-        OAuthClientAuthMethod::None => "none",
-        OAuthClientAuthMethod::PrivateKeyJwt => "private_key_jwt",
-        OAuthClientAuthMethod::ClientSecretBasic => "client_secret_basic",
-        OAuthClientAuthMethod::ClientSecretPost => "client_secret_post",
-        OAuthClientAuthMethod::TlsClientAuth => "tls_client_auth",
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GatewayMetadataError {
-    UnknownProfile(GatewayProfileId),
-    UnknownAuthorizationServer {
-        profile: GatewayProfileId,
-        authorization_server: AuthorizationServerId,
-    },
-}
-
-impl fmt::Display for GatewayMetadataError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnknownProfile(profile) => write!(f, "unknown gateway profile `{profile}`"),
-            Self::UnknownAuthorizationServer {
-                profile,
-                authorization_server,
-            } => write!(
-                f,
-                "gateway profile `{profile}` references unknown resource authorization server `{authorization_server}`"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for GatewayMetadataError {}
-
-pub fn www_authenticate_challenge(metadata_url: &str, scopes: &[ScopeName]) -> String {
-    let scope = scopes
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(" ");
-    if scope.is_empty() {
-        format!(r#"Bearer resource_metadata="{metadata_url}""#)
-    } else {
-        format!(r#"Bearer resource_metadata="{metadata_url}", scope="{scope}""#)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GatewayToolProjection {
-    pub server: ServerSlug,
-    pub tool: LocalToolName,
-}
-
-impl GatewayToolProjection {
-    pub fn new(server: ServerSlug, tool: LocalToolName) -> Self {
-        Self { server, tool }
-    }
-
-    pub fn gateway_name(&self) -> Result<GatewayToolName, GatewayNameError> {
-        GatewayToolName::new(format!("{}__{}", self.server, self.tool))
-            .map_err(GatewayNameError::InvalidProjectedToolName)
-    }
-
-    pub fn parse(name: &GatewayToolName) -> Result<Self, GatewayNameError> {
-        let Some((server, tool)) = name.as_str().split_once("__") else {
-            return Err(GatewayNameError::MissingNamespace(name.clone()));
-        };
-        if tool.contains("__") {
-            return Err(GatewayNameError::InvalidNamespaceShape(name.clone()));
-        }
-        Ok(Self {
-            server: ServerSlug::new(server).map_err(GatewayNameError::InvalidServerSlug)?,
-            tool: LocalToolName::new(tool).map_err(GatewayNameError::InvalidLocalToolName)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GatewayNameError {
-    UnknownServer(ServerSlug),
-    MissingNamespace(GatewayToolName),
-    InvalidNamespaceShape(GatewayToolName),
-    InvalidServerSlug(veoveo_mcp_contract::IdentifierError),
-    InvalidLocalToolName(veoveo_mcp_contract::IdentifierError),
-    InvalidProjectedToolName(veoveo_mcp_contract::IdentifierError),
-}
-
-impl fmt::Display for GatewayNameError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnknownServer(server) => write!(f, "unknown server `{server}`"),
-            Self::MissingNamespace(name) => {
-                write!(f, "gateway tool `{name}` is missing server namespace")
-            }
-            Self::InvalidNamespaceShape(name) => {
-                write!(f, "gateway tool `{name}` has an invalid namespace shape")
-            }
-            Self::InvalidServerSlug(err)
-            | Self::InvalidLocalToolName(err)
-            | Self::InvalidProjectedToolName(err) => err.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for GatewayNameError {}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use chrono::{DateTime, Utc};
     use rmcp::handler::server::ServerHandler;
     use serde_json::Value;
@@ -677,7 +349,7 @@ mod tests {
         GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayControlPlaneError,
         GatewayInternalTokenIssuer, GatewayTaskId, GroupId, HttpsUrl, IdentityProvider,
         IdentityProviderId, IdentityProviderOidcClientRegistration, InternalTokenSecret,
-        JwksSource, JwtId, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
+        JwksSource, JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
         MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
         OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OidcClientAuthMethod,
         OidcClientId, OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PolicyEffect,
