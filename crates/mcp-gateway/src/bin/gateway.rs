@@ -50,13 +50,14 @@ use veoveo_mcp_contract::{
     OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce, PkceCodeChallenge,
     PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyTarget,
     Principal, PrincipalId, PrincipalKind, PublicDeployment, ResourceAuthorizationServer,
-    ScopeName, SecretPurpose, SecretReferenceId, SecretSource, TelemetryGuard, TokenIssuer,
-    TokenSubject, TraceId, init_server_telemetry,
+    ScopeName, SecretPurpose, SecretReferenceId, TelemetryGuard, TokenIssuer, TokenSubject,
+    TraceId, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
-    GatewayCatalog, GatewayMcp, GatewayState, IdJagConfig, IdJagVerifier, JwtAuthConfig,
-    JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier, PolicyRequest, www_authenticate_challenge,
+    GatewayCatalog, GatewayMcp, GatewaySecretResolver, GatewayState, IdJagConfig, IdJagVerifier,
+    JwtAuthConfig, JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier, PolicyRequest,
+    ResolvedSecretString, www_authenticate_challenge,
 };
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -269,7 +270,7 @@ struct OidcTokenResponse {
 struct OidcTokenExchangeRequest {
     token_endpoint: String,
     client_id: String,
-    client_secret: String,
+    client_secret: ResolvedSecretString,
     auth_method: OidcClientAuthMethod,
     redirect_uri: String,
     code_verifier: String,
@@ -1126,7 +1127,7 @@ async fn authorization_callback(
             authorization_request.client_state.as_ref(),
         );
     };
-    let client_secret = match secret_value(
+    let client_secret = match GatewaySecretResolver::new().resolve_string(
         &catalog,
         &oidc_client.credential_secret,
         SecretPurpose::OAuthClientSecret,
@@ -2997,11 +2998,14 @@ async fn exchange_oidc_authorization_code(
             .append_pair("code_verifier", &exchange.code_verifier);
         match exchange.auth_method {
             OidcClientAuthMethod::ClientSecretPost => {
-                form.append_pair("client_secret", &exchange.client_secret);
+                form.append_pair("client_secret", exchange.client_secret.expose_secret());
             }
             OidcClientAuthMethod::ClientSecretBasic => {
-                let credentials = BASE64_STANDARD
-                    .encode(format!("{}:{}", exchange.client_id, exchange.client_secret));
+                let credentials = BASE64_STANDARD.encode(format!(
+                    "{}:{}",
+                    exchange.client_id,
+                    exchange.client_secret.expose_secret()
+                ));
                 request = request.header(AUTHORIZATION, format!("Basic {credentials}"));
             }
         }
@@ -3019,31 +3023,6 @@ async fn exchange_oidc_authorization_code(
         ));
     }
     Ok(response.json::<OidcTokenResponse>().await?)
-}
-
-fn secret_value(
-    catalog: &GatewayCatalog,
-    secret_id: &SecretReferenceId,
-    expected_purpose: SecretPurpose,
-) -> anyhow::Result<String> {
-    let secret = catalog
-        .secret_reference(secret_id)
-        .ok_or_else(|| anyhow!("unknown secret `{secret_id}`"))?;
-    if secret.source != SecretSource::Env {
-        return Err(anyhow!(
-            "secret `{secret_id}` uses unsupported source {:?}",
-            secret.source
-        ));
-    }
-    if secret.purpose != expected_purpose {
-        return Err(anyhow!(
-            "secret `{secret_id}` has purpose {:?}, expected {:?}",
-            secret.purpose,
-            expected_purpose
-        ));
-    }
-    std::env::var(secret.locator.as_str())
-        .with_context(|| format!("missing env secret `{}`", secret.locator))
 }
 
 fn redirect_response(location: &str) -> axum::response::Response {
@@ -3206,26 +3185,10 @@ fn access_token_signing_key(
     secret_id: &SecretReferenceId,
     expected_purpose: SecretPurpose,
 ) -> anyhow::Result<EncodingKey> {
-    let secret = catalog
-        .secret_reference(secret_id)
-        .ok_or_else(|| anyhow!("unknown access-token signing secret `{secret_id}`"))?;
-    if secret.source != SecretSource::Env {
-        return Err(anyhow!(
-            "access-token signing secret `{secret_id}` uses unsupported source {:?}",
-            secret.source
-        ));
-    }
-    if secret.purpose != expected_purpose {
-        return Err(anyhow!(
-            "access-token signing secret `{secret_id}` has purpose {:?}, expected {:?}",
-            secret.purpose,
-            expected_purpose
-        ));
-    }
-    let value = std::env::var(secret.locator.as_str())
-        .with_context(|| format!("missing env secret `{}`", secret.locator))?;
+    let value =
+        GatewaySecretResolver::new().resolve_string(catalog, secret_id, expected_purpose)?;
     let der = BASE64_STANDARD
-        .decode(value.trim())
+        .decode(value.expose_secret().trim())
         .context("access-token signing key must be base64-encoded RSA DER")?;
     Ok(EncodingKey::from_rsa_der(&der))
 }

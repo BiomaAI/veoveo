@@ -7,6 +7,7 @@ use std::{
 
 pub mod auth;
 pub mod mcp;
+pub mod secrets;
 pub mod state;
 
 use anyhow::{Context, Result};
@@ -16,6 +17,7 @@ pub use auth::{
     VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
 pub use mcp::GatewayMcp;
+pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 use serde::{Deserialize, Serialize};
 pub use state::{GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayState};
 use veoveo_mcp_contract::{
