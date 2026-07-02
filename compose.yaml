@@ -122,6 +122,8 @@ services:
       - "/etc/veoveo/gateway.json"
       - "--state-db"
       - "/var/lib/veoveo/gateway/state.duckdb"
+      - "--audit-event-retention-days"
+      - "365"
     volumes:
       - ./configs/gateway.local.json:/etc/veoveo/gateway.json:ro
       - gateway_state:/var/lib/veoveo/gateway

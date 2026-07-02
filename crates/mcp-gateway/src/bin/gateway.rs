@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
+    num::NonZeroU32,
     path::PathBuf,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
@@ -133,7 +134,15 @@ enum Command {
         /// Secret used to sign gateway-to-server internal identity assertions.
         #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
         internal_token_secret: String,
+        /// Retention window for gateway audit evidence.
+        #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
+        audit_event_retention_days: NonZeroU32,
     },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GatewayRetentionPolicy {
+    audit_event_days: NonZeroU32,
 }
 
 #[derive(Clone)]
@@ -345,13 +354,18 @@ async fn main() -> anyhow::Result<()> {
             control_plane,
             state_db,
             internal_token_secret,
+            audit_event_retention_days,
         } => {
+            let retention = GatewayRetentionPolicy {
+                audit_event_days: audit_event_retention_days,
+            };
             serve(
                 port,
                 public_base_url,
                 control_plane,
                 state_db,
                 internal_token_secret,
+                retention,
             )
             .await
         }
@@ -364,8 +378,11 @@ async fn serve(
     control_plane: PathBuf,
     state_db: PathBuf,
     internal_token_secret: String,
+    retention: GatewayRetentionPolicy,
 ) -> anyhow::Result<()> {
     let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
+    run_gateway_retention_gc(&gateway_state, retention)?;
+    spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
     let file_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
     let mounted_profile_ids = profile_ids(&file_catalog);
     let latest_revision = gateway_state.latest_control_plane_revision()?;
@@ -3277,6 +3294,41 @@ fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
 
 fn replace_http_client(http: &SharedHttpClient, new_client: reqwest::Client) {
     *http.write().expect("gateway HTTP client lock poisoned") = new_client;
+}
+
+fn gateway_retention_cutoff(now: DateTime<Utc>, days: NonZeroU32) -> anyhow::Result<DateTime<Utc>> {
+    now.checked_sub_signed(TimeDelta::days(i64::from(days.get())))
+        .ok_or_else(|| anyhow!("gateway retention cutoff overflow for {days} day window"))
+}
+
+fn run_gateway_retention_gc(
+    gateway_state: &GatewayState,
+    retention: GatewayRetentionPolicy,
+) -> anyhow::Result<()> {
+    let now = Utc::now();
+    let audit_cutoff = gateway_retention_cutoff(now, retention.audit_event_days)?;
+    let audit_summary = gateway_state.delete_audit_events_before(audit_cutoff)?;
+    let authorization_records_deleted = gateway_state.prune_expired_authorization_records(now)?;
+    let jwt_revocations_deleted = gateway_state.prune_expired_jwt_revocations(now)?;
+    tracing::info!(
+        deleted_auth_audit_events = audit_summary.auth_events_deleted,
+        deleted_policy_audit_events = audit_summary.policy_events_deleted,
+        deleted_authorization_records = authorization_records_deleted,
+        deleted_jwt_revocations = jwt_revocations_deleted,
+        "gateway retention gc completed"
+    );
+    Ok(())
+}
+
+fn spawn_gateway_retention_gc_loop(gateway_state: GatewayState, retention: GatewayRetentionPolicy) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60 * 60)).await;
+            if let Err(err) = run_gateway_retention_gc(&gateway_state, retention) {
+                tracing::error!("gateway retention gc failed: {err}");
+            }
+        }
+    });
 }
 
 fn build_http_client(catalog: &GatewayCatalog) -> anyhow::Result<reqwest::Client> {

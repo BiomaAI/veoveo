@@ -18,6 +18,12 @@ pub struct GatewayAuditCounts {
     pub policy_events: u64,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct GatewayAuditRetentionSummary {
+    pub auth_events_deleted: u64,
+    pub policy_events_deleted: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct GatewayState {
     conn: SharedDuckDbConnection,
@@ -224,6 +230,25 @@ impl GatewayState {
         Ok(GatewayAuditCounts {
             auth_events: self.count_rows(GatewayAuditTable::Auth)?,
             policy_events: self.count_rows(GatewayAuditTable::Policy)?,
+        })
+    }
+
+    pub fn delete_audit_events_before(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<GatewayAuditRetentionSummary> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let policy_events_deleted = conn.execute(
+            "DELETE FROM gateway_audit_events WHERE timestamp < ?1",
+            params![cutoff],
+        )?;
+        let auth_events_deleted = conn.execute(
+            "DELETE FROM gateway_auth_audit_events WHERE timestamp < ?1",
+            params![cutoff],
+        )?;
+        Ok(GatewayAuditRetentionSummary {
+            auth_events_deleted: u64::try_from(auth_events_deleted)?,
+            policy_events_deleted: u64::try_from(policy_events_deleted)?,
         })
     }
 
@@ -1368,6 +1393,97 @@ mod tests {
             .unwrap();
 
         assert_eq!(state.auth_audit_event_count().unwrap(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn audit_retention_deletes_only_events_before_cutoff() {
+        let path = temp_path("audit-retention");
+        let state = GatewayState::open(&path).unwrap();
+        let profile = GatewayProfileId::new("default").unwrap();
+        let target = PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: veoveo_mcp_contract::LocalToolName::new("run").unwrap(),
+        };
+        let old = Utc::now() - TimeDelta::days(10);
+        let fresh = Utc::now();
+
+        for (event_id, timestamp) in [("old-policy", old), ("fresh-policy", fresh)] {
+            let trace_id = TraceId::new(format!("trace-{event_id}")).unwrap();
+            let decision = PolicyDecision {
+                effect: PolicyEffect::Allow,
+                reason: PolicyReasonCode::PolicyAllow,
+                evaluated_at: timestamp,
+                profile: profile.clone(),
+                action: GatewayAction::ToolsList,
+                target: target.clone(),
+                principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                tenant: None,
+                policy_version: None,
+                rule_id: None,
+                trace_id: trace_id.clone(),
+            };
+            state
+                .record_audit_event(&AuditEvent {
+                    event_id: TraceId::new(event_id).unwrap(),
+                    timestamp,
+                    trace_id,
+                    profile: profile.clone(),
+                    method: McpMethodName::new("tools/list").unwrap(),
+                    action: GatewayAction::ToolsList,
+                    target: target.clone(),
+                    decision,
+                    principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                    tenant: None,
+                    token_issuer: None,
+                    latency_ms: Some(12),
+                    metadata: BTreeMap::new(),
+                })
+                .unwrap();
+        }
+
+        for (event_id, timestamp) in [("old-auth", old), ("fresh-auth", fresh)] {
+            state
+                .record_auth_audit_event(&AuthAuditEvent {
+                    event_id: TraceId::new(event_id).unwrap(),
+                    timestamp,
+                    trace_id: TraceId::new(format!("trace-{event_id}")).unwrap(),
+                    profile: profile.clone(),
+                    protected_resource: ProtectedResourceId::new(
+                        "https://veoveo.bioma.ai/mcp/default",
+                    )
+                    .unwrap(),
+                    outcome: AuthOutcome::Allow,
+                    reason: AuthReasonCode::AuthAllow,
+                    method: AuthMethod::BearerJwt,
+                    principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                    tenant: None,
+                    token_issuer: None,
+                    token_subject: None,
+                    jwt_id: None,
+                    latency_ms: Some(3),
+                    metadata: BTreeMap::new(),
+                })
+                .unwrap();
+        }
+
+        assert_eq!(
+            state
+                .delete_audit_events_before(Utc::now() - TimeDelta::days(1))
+                .unwrap(),
+            GatewayAuditRetentionSummary {
+                auth_events_deleted: 1,
+                policy_events_deleted: 1,
+            }
+        );
+        assert_eq!(
+            state.audit_counts().unwrap(),
+            GatewayAuditCounts {
+                auth_events: 1,
+                policy_events: 1,
+            }
+        );
 
         let _ = std::fs::remove_file(path);
     }

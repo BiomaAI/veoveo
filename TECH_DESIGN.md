@@ -474,7 +474,9 @@ Media server retention is enforced locally: terminal task metadata, provider pre
 rows, usage analytics rows, artifact metadata, artifact owners, and artifact bytes are
 pruned by configured non-zero retention windows on startup and hourly thereafter. Artifact
 metadata records carry `retention_expires_at` evidence, and object bytes are deleted
-through the configured `object_store` backend.
+through the configured `object_store` backend. Gateway audit retention is enforced on the
+same startup/hourly cadence for auth audit rows, policy audit rows, expired authorization
+records, and expired JWT revocations.
 
 ## Known gaps
 

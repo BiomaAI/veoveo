@@ -108,6 +108,7 @@ smoke-gateway-http:
     done
     curl -fsS "${base}/readyz" | grep -F '"profiles":1'
     grep -E '^\{' "${log}" | jq -e 'select(.message == "listening" and .service == "veoveo-mcp-gateway" and .server_count == 1 and .profile_count == 1)' >/dev/null
+    grep -E '^\{' "${log}" | jq -e 'select(.message == "gateway retention gc completed")' >/dev/null
     {{conformance}} --url "${base}/mcp/default" auth-discovery \
         --metadata-url "${base}/.well-known/oauth-protected-resource/mcp/default" \
         --authorization-server-metadata-url "${base}/.well-known/oauth-authorization-server/oauth/default" \
@@ -314,6 +315,7 @@ smoke-gateway-authenticated:
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
     grep -E '^\{' "${gateway_log}" | jq -e 'select(.message == "listening" and .service == "veoveo-mcp-gateway" and .server_count == 1 and .profile_count == 1)' >/dev/null
+    grep -E '^\{' "${gateway_log}" | jq -e 'select(.message == "gateway retention gc completed")' >/dev/null
     token_endpoint="${gateway_base}/oauth/default/token"
     admin_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use --scope gateway:admin)"
     status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"

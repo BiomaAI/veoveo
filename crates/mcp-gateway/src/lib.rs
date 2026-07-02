@@ -17,7 +17,7 @@ pub use auth::{
 };
 pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
-pub use state::{GatewayAuditCounts, GatewayState};
+pub use state::{GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayState};
 use veoveo_mcp_contract::{
     AuthMode, AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, GatewayToolName, IdentityProvider, IdentityProviderId, JwksSource,
