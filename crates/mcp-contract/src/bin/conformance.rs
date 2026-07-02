@@ -82,6 +82,18 @@ enum Cmd {
         /// MCP extension id that must appear in protected-resource metadata.
         #[arg(long = "required-extension")]
         required_extensions: Vec<String>,
+        /// Authorization-server metadata URL to verify.
+        #[arg(long)]
+        authorization_server_metadata_url: Option<String>,
+        /// OAuth grant type that must appear in authorization-server metadata.
+        #[arg(long = "required-grant-type")]
+        required_grant_types: Vec<String>,
+        /// OAuth grant profile that must appear in authorization-server metadata.
+        #[arg(long = "required-grant-profile")]
+        required_grant_profiles: Vec<String>,
+        /// Token endpoint auth method that must appear in authorization-server metadata.
+        #[arg(long = "required-token-auth-method")]
+        required_token_auth_methods: Vec<String>,
     },
     /// Print the deterministic conformance JWKS as JSON.
     GatewayJwks,
@@ -178,6 +190,18 @@ struct AuthDiscoveryMetadata {
     bearer_methods_supported: Vec<String>,
     #[serde(default)]
     extensions: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthorizationServerDiscoveryMetadata {
+    issuer: String,
+    token_endpoint: String,
+    #[serde(default)]
+    grant_types_supported: Vec<String>,
+    #[serde(default)]
+    token_endpoint_auth_methods_supported: Vec<String>,
+    #[serde(default)]
+    authorization_grant_profiles_supported: Vec<String>,
 }
 
 const CONFORMANCE_KEY_ID: &str = "test-key";
@@ -294,6 +318,10 @@ async fn cmd_auth_discovery(
     metadata_url: Option<&str>,
     required_scopes: &[String],
     required_extensions: &[String],
+    authorization_server_metadata_url: Option<&str>,
+    required_grant_types: &[String],
+    required_grant_profiles: &[String],
+    required_token_auth_methods: &[String],
 ) -> Result<()> {
     let metadata_url = match metadata_url {
         Some(value) => value.to_string(),
@@ -340,6 +368,56 @@ async fn cmd_auth_discovery(
             return Err(anyhow!(
                 "protected-resource metadata is missing required extension `{extension}`"
             ));
+        }
+    }
+    if let Some(authorization_server_metadata_url) = authorization_server_metadata_url {
+        let authorization_server_metadata = http
+            .get(authorization_server_metadata_url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<AuthorizationServerDiscoveryMetadata>()
+            .await?;
+        if authorization_server_metadata.issuer.is_empty() {
+            return Err(anyhow!("authorization-server metadata has empty issuer"));
+        }
+        if authorization_server_metadata.token_endpoint.is_empty() {
+            return Err(anyhow!(
+                "authorization-server metadata has empty token endpoint"
+            ));
+        }
+        for grant_type in required_grant_types {
+            if !authorization_server_metadata
+                .grant_types_supported
+                .iter()
+                .any(|candidate| candidate == grant_type)
+            {
+                return Err(anyhow!(
+                    "authorization-server metadata is missing required grant type `{grant_type}`"
+                ));
+            }
+        }
+        for grant_profile in required_grant_profiles {
+            if !authorization_server_metadata
+                .authorization_grant_profiles_supported
+                .iter()
+                .any(|candidate| candidate == grant_profile)
+            {
+                return Err(anyhow!(
+                    "authorization-server metadata is missing required grant profile `{grant_profile}`"
+                ));
+            }
+        }
+        for auth_method in required_token_auth_methods {
+            if !authorization_server_metadata
+                .token_endpoint_auth_methods_supported
+                .iter()
+                .any(|candidate| candidate == auth_method)
+            {
+                return Err(anyhow!(
+                    "authorization-server metadata is missing required token auth method `{auth_method}`"
+                ));
+            }
         }
     }
 
@@ -919,12 +997,20 @@ async fn main() -> Result<()> {
             metadata_url,
             required_scopes,
             required_extensions,
+            authorization_server_metadata_url,
+            required_grant_types,
+            required_grant_profiles,
+            required_token_auth_methods,
         } => {
             return cmd_auth_discovery(
                 &args.url,
                 metadata_url.as_deref(),
                 required_scopes,
                 required_extensions,
+                authorization_server_metadata_url.as_deref(),
+                required_grant_types,
+                required_grant_profiles,
+                required_token_auth_methods,
             )
             .await;
         }

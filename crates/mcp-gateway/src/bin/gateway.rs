@@ -252,6 +252,10 @@ async fn serve(
             "/.well-known/oauth-protected-resource/mcp/{profile}",
             get(protected_resource_metadata),
         )
+        .route(
+            "/.well-known/oauth-authorization-server/oauth/{profile}",
+            get(authorization_server_metadata),
+        )
         .with_state(state);
 
     for profile in initial_catalog.profiles() {
@@ -346,6 +350,24 @@ async fn protected_resource_metadata(
     };
     let catalog = current_catalog(&state.catalog);
     match catalog.protected_resource_metadata(&profile_id) {
+        Ok(metadata) => {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+            (StatusCode::OK, headers, Json(metadata)).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn authorization_server_metadata(
+    State(state): State<AppState>,
+    AxumPath(profile): AxumPath<String>,
+) -> impl IntoResponse {
+    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    match catalog.authorization_server_metadata(&profile_id) {
         Ok(metadata) => {
             let mut headers = HeaderMap::new();
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));

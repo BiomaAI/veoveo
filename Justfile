@@ -79,9 +79,16 @@ smoke-gateway-http:
     curl -fsS "${base}/readyz" | grep -F '"profiles":1'
     {{conformance}} --url "${base}/mcp/default" auth-discovery \
         --metadata-url "${base}/.well-known/oauth-protected-resource/mcp/default" \
+        --authorization-server-metadata-url "${base}/.well-known/oauth-authorization-server/oauth/default" \
         --required-scope media:use \
         --required-extension io.modelcontextprotocol/enterprise-managed-authorization \
-        --required-extension io.modelcontextprotocol/oauth-client-credentials
+        --required-extension io.modelcontextprotocol/oauth-client-credentials \
+        --required-grant-type authorization_code \
+        --required-grant-type client_credentials \
+        --required-grant-type urn:ietf:params:oauth:grant-type:jwt-bearer \
+        --required-grant-profile urn:ietf:params:oauth:grant-profile:id-jag \
+        --required-token-auth-method none \
+        --required-token-auth-method private_key_jwt
     status="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${base}/admin/default/reload-control-plane")"
     test "${status}" = "401"
     kill "${pid}"

@@ -15,12 +15,15 @@ pub use mcp::GatewayMcp;
 use serde::{Deserialize, Serialize};
 pub use state::{GatewayAuditCounts, GatewayState};
 use veoveo_mcp_contract::{
-    AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile, GatewayProfileId,
-    GatewayToolName, IdentityProvider, IdentityProviderId, LocalToolName, McpMethodName,
+    AuthMode, AuthorizationServerId, GatewayAction, GatewayControlPlane, GatewayProfile,
+    GatewayProfileId, GatewayToolName, IdentityProvider, IdentityProviderId, JwksSource,
+    LocalToolName, McpMethodName, OAuthClientAuthMethod, OAuthClientRegistration, OAuthGrantType,
     PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
     PolicyTarget, PolicyVersion, Principal, ResourceAuthorizationServer, ResourceScheme, ScopeName,
     ServerManifest, ServerSlug, TraceId,
 };
+
+const ID_JAG_GRANT_PROFILE: &str = "urn:ietf:params:oauth:grant-profile:id-jag";
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalog {
@@ -154,6 +157,98 @@ impl GatewayCatalog {
         })
     }
 
+    pub fn authorization_server_metadata(
+        &self,
+        profile_id: &GatewayProfileId,
+    ) -> Result<AuthorizationServerMetadata, GatewayMetadataError> {
+        let profile = self
+            .profile(profile_id)
+            .ok_or_else(|| GatewayMetadataError::UnknownProfile(profile_id.clone()))?;
+        let authorization_server = self
+            .authorization_server(&profile.authorization_server)
+            .ok_or_else(|| GatewayMetadataError::UnknownAuthorizationServer {
+                profile: profile.id.clone(),
+                authorization_server: profile.authorization_server.clone(),
+            })?;
+        let clients = self.profile_oauth_clients(profile);
+        let token_auth_methods = clients
+            .iter()
+            .flat_map(|client| client.auth_methods.iter().copied())
+            .map(oauth_client_auth_method_name)
+            .collect::<BTreeSet<_>>();
+        let grant_types = profile
+            .auth_modes
+            .iter()
+            .copied()
+            .map(OAuthGrantType::from)
+            .map(oauth_grant_type_name)
+            .collect::<BTreeSet<_>>();
+        let supports_authorization_code = profile
+            .auth_modes
+            .contains(&AuthMode::OidcAuthorizationCodePkce);
+        let supports_private_key_jwt = clients.iter().any(|client| {
+            client
+                .auth_methods
+                .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
+        });
+
+        Ok(AuthorizationServerMetadata {
+            issuer: authorization_server.issuer.to_string(),
+            authorization_endpoint: authorization_server
+                .authorization_endpoint
+                .as_ref()
+                .map(ToString::to_string),
+            token_endpoint: authorization_server.token_endpoint.to_string(),
+            jwks_uri: match &authorization_server.jwks {
+                JwksSource::Remote { jwks_uri } => Some(jwks_uri.to_string()),
+                JwksSource::File { .. } => None,
+            },
+            scopes_supported: self
+                .profile_supported_scopes(profile)
+                .into_iter()
+                .map(|scope| scope.to_string())
+                .collect(),
+            response_types_supported: if supports_authorization_code {
+                vec!["code".to_string()]
+            } else {
+                Vec::new()
+            },
+            grant_types_supported: grant_types.into_iter().map(str::to_string).collect(),
+            code_challenge_methods_supported: if supports_authorization_code {
+                vec!["S256".to_string()]
+            } else {
+                Vec::new()
+            },
+            token_endpoint_auth_methods_supported: token_auth_methods
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            token_endpoint_auth_signing_alg_values_supported: if supports_private_key_jwt {
+                vec![
+                    "RS256".to_string(),
+                    "RS384".to_string(),
+                    "RS512".to_string(),
+                    "PS256".to_string(),
+                    "PS384".to_string(),
+                    "PS512".to_string(),
+                    "ES256".to_string(),
+                    "ES384".to_string(),
+                    "EdDSA".to_string(),
+                ]
+            } else {
+                Vec::new()
+            },
+            authorization_grant_profiles_supported: if profile
+                .auth_modes
+                .contains(&AuthMode::EnterpriseManagedAuthorization)
+            {
+                vec![ID_JAG_GRANT_PROFILE.to_string()]
+            } else {
+                Vec::new()
+            },
+        })
+    }
+
     fn profile_supported_scopes(&self, profile: &GatewayProfile) -> BTreeSet<ScopeName> {
         let mut scopes = profile
             .required_scopes
@@ -168,6 +263,17 @@ impl GatewayCatalog {
             }
         }
         scopes
+    }
+
+    fn profile_oauth_clients(&self, profile: &GatewayProfile) -> Vec<&OAuthClientRegistration> {
+        self.control_plane
+            .oauth_clients
+            .iter()
+            .filter(|client| {
+                client.authorization_server == profile.authorization_server
+                    && client.allowed_profiles.contains(&profile.id)
+            })
+            .collect()
     }
 
     pub fn server(&self, server_slug: &ServerSlug) -> Option<&ServerManifest> {
@@ -498,6 +604,30 @@ pub struct ProtectedResourceMetadata {
     pub extensions: BTreeMap<String, AuthorizationExtensionMetadata>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizationServerMetadata {
+    pub issuer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_endpoint: Option<String>,
+    pub token_endpoint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jwks_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub response_types_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grant_types_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub code_challenge_methods_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub token_endpoint_auth_methods_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub token_endpoint_auth_signing_alg_values_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authorization_grant_profiles_supported: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AuthorizationExtensionMetadata {}
 
@@ -515,6 +645,26 @@ fn authorization_extensions(
             )
         })
         .collect()
+}
+
+fn oauth_grant_type_name(grant_type: OAuthGrantType) -> &'static str {
+    match grant_type {
+        OAuthGrantType::AuthorizationCodePkce => "authorization_code",
+        OAuthGrantType::ClientCredentials => "client_credentials",
+        OAuthGrantType::EnterpriseManagedAuthorization => {
+            "urn:ietf:params:oauth:grant-type:jwt-bearer"
+        }
+    }
+}
+
+fn oauth_client_auth_method_name(auth_method: OAuthClientAuthMethod) -> &'static str {
+    match auth_method {
+        OAuthClientAuthMethod::None => "none",
+        OAuthClientAuthMethod::PrivateKeyJwt => "private_key_jwt",
+        OAuthClientAuthMethod::ClientSecretBasic => "client_secret_basic",
+        OAuthClientAuthMethod::ClientSecretPost => "client_secret_post",
+        OAuthClientAuthMethod::TlsClientAuth => "tls_client_auth",
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1209,6 +1359,68 @@ mod tests {
             metadata
                 .extensions
                 .contains_key(MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION)
+        );
+    }
+
+    #[test]
+    fn builds_authorization_server_metadata_for_profile() {
+        let catalog = catalog();
+        let metadata = catalog
+            .authorization_server_metadata(&GatewayProfileId::new("default").unwrap())
+            .unwrap();
+
+        assert_eq!(metadata.issuer, "https://veoveo.bioma.ai/oauth/default");
+        assert_eq!(
+            metadata.authorization_endpoint.as_deref(),
+            Some("https://veoveo.bioma.ai/oauth/default/authorize")
+        );
+        assert_eq!(
+            metadata.token_endpoint,
+            "https://veoveo.bioma.ai/oauth/default/token"
+        );
+        assert_eq!(
+            metadata.jwks_uri.as_deref(),
+            Some("https://veoveo.bioma.ai/oauth/default/jwks.json")
+        );
+        assert_eq!(metadata.scopes_supported, vec!["media:use".to_string()]);
+        assert_eq!(metadata.response_types_supported, vec!["code".to_string()]);
+        assert!(
+            metadata
+                .grant_types_supported
+                .contains(&"authorization_code".to_string())
+        );
+        assert!(
+            metadata
+                .grant_types_supported
+                .contains(&"client_credentials".to_string())
+        );
+        assert!(
+            metadata
+                .grant_types_supported
+                .contains(&"urn:ietf:params:oauth:grant-type:jwt-bearer".to_string())
+        );
+        assert_eq!(
+            metadata.code_challenge_methods_supported,
+            vec!["S256".to_string()]
+        );
+        assert!(
+            metadata
+                .token_endpoint_auth_methods_supported
+                .contains(&"private_key_jwt".to_string())
+        );
+        assert!(
+            metadata
+                .token_endpoint_auth_methods_supported
+                .contains(&"none".to_string())
+        );
+        assert!(
+            metadata
+                .token_endpoint_auth_signing_alg_values_supported
+                .contains(&"RS256".to_string())
+        );
+        assert_eq!(
+            metadata.authorization_grant_profiles_supported,
+            vec!["urn:ietf:params:oauth:grant-profile:id-jag".to_string()]
         );
     }
 
