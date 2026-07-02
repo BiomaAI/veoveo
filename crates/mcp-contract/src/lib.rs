@@ -10,11 +10,15 @@ pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
 pub mod uri;
+pub mod usage;
 pub mod waiters;
 
 pub use provider::Provider;
-pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactStore};
+pub use storage::{
+    ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactStore, ComplianceMetadata,
+};
 pub use subscriptions::SubscriptionHub;
 pub use tasks::{TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso};
-pub use uri::ProviderUris;
+pub use uri::{ProviderUris, artifact_object_key, is_sha256};
+pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;
