@@ -9,8 +9,8 @@ use veoveo_mcp_contract::{
     GatewayAuthorizationRequest, GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource,
     GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
     GatewayTaskMapping, JwtId, McpMethodName, OAuthAuthorizationCode, OAuthClientId,
-    OAuthStateValue, PolicyDecision, PolicyEffect, PrincipalId, ResourceUri, ServerSlug,
-    SharedDuckDbConnection, TokenIssuer, UpstreamTaskId, open_duckdb,
+    OAuthStateValue, PolicyDecision, PolicyEffect, PolicyReasonCode, PrincipalId, ResourceUri,
+    ServerSlug, SharedDuckDbConnection, TokenIssuer, UpstreamTaskId, open_duckdb,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -25,6 +25,12 @@ pub struct GatewayPolicyAuditMethodSummary {
     pub allow_events: u64,
     pub deny_events: u64,
     pub total_events: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayPolicyAuditReasonSummary {
+    pub reason: PolicyReasonCode,
+    pub events: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -273,6 +279,32 @@ impl GatewayState {
                 PolicyEffect::Deny => entry.deny_events += 1,
             }
             entry.total_events += 1;
+        }
+        Ok(summaries.into_values().collect())
+    }
+
+    pub fn policy_audit_reason_summary(&self) -> Result<Vec<GatewayPolicyAuditReasonSummary>> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT decision_json
+            FROM gateway_audit_events
+            ORDER BY timestamp, event_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut summaries =
+            std::collections::BTreeMap::<PolicyReasonCode, GatewayPolicyAuditReasonSummary>::new();
+        for row in rows {
+            let decision: PolicyDecision = serde_json::from_str(&row?)?;
+            let entry =
+                summaries
+                    .entry(decision.reason)
+                    .or_insert(GatewayPolicyAuditReasonSummary {
+                        reason: decision.reason,
+                        events: 0,
+                    });
+            entry.events += 1;
         }
         Ok(summaries.into_values().collect())
     }
@@ -980,6 +1012,7 @@ mod tests {
         method: &str,
         action: GatewayAction,
         effect: PolicyEffect,
+        reason: PolicyReasonCode,
     ) {
         let profile = GatewayProfileId::new("default").unwrap();
         let target = PolicyTarget::Tool {
@@ -990,10 +1023,7 @@ mod tests {
         let principal = PrincipalId::new("issuer#subject").unwrap();
         let decision = PolicyDecision {
             effect,
-            reason: match effect {
-                PolicyEffect::Allow => PolicyReasonCode::PolicyAllow,
-                PolicyEffect::Deny => PolicyReasonCode::PolicyDeny,
-            },
+            reason,
             evaluated_at: Utc::now(),
             profile: profile.clone(),
             action,
@@ -1470,6 +1500,7 @@ mod tests {
             "tools/list",
             GatewayAction::ToolsList,
             PolicyEffect::Allow,
+            PolicyReasonCode::PolicyAllow,
         );
         record_policy_audit(
             &state,
@@ -1477,6 +1508,7 @@ mod tests {
             "tools/list",
             GatewayAction::ToolsList,
             PolicyEffect::Deny,
+            PolicyReasonCode::PolicyDeny,
         );
         record_policy_audit(
             &state,
@@ -1484,6 +1516,15 @@ mod tests {
             "resources/read",
             GatewayAction::ResourcesRead,
             PolicyEffect::Allow,
+            PolicyReasonCode::PolicyAllow,
+        );
+        record_policy_audit(
+            &state,
+            "event-resource-label-deny",
+            "resources/read",
+            GatewayAction::ResourcesRead,
+            PolicyEffect::Deny,
+            PolicyReasonCode::MissingDataLabel,
         );
 
         let summary = state.policy_audit_method_summary().unwrap();
@@ -1503,7 +1544,17 @@ mod tests {
         );
         assert_eq!(
             summary_by_method.get("resources/read"),
-            Some(&(1_u64, 0_u64, 1_u64))
+            Some(&(1_u64, 1_u64, 2_u64))
+        );
+
+        let reason_summary = state.policy_audit_reason_summary().unwrap();
+        let summary_by_reason: BTreeMap<PolicyReasonCode, u64> = reason_summary
+            .into_iter()
+            .map(|entry| (entry.reason, entry.events))
+            .collect();
+        assert_eq!(
+            summary_by_reason.get(&PolicyReasonCode::MissingDataLabel),
+            Some(&1_u64)
         );
 
         let _ = std::fs::remove_file(path);

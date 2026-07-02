@@ -97,6 +97,12 @@ enum Command {
         #[arg(long)]
         state_db: PathBuf,
     },
+    /// Print gateway policy audit counts grouped by decision reason as JSON.
+    AuditReasonSummary {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+    },
     /// Add a gateway JWT id to the durable revocation set.
     RevokeJwt {
         /// DuckDB file for gateway runtime state and audit evidence.
@@ -336,6 +342,14 @@ async fn main() -> anyhow::Result<()> {
             println!(
                 "{}",
                 serde_json::to_string(&state.policy_audit_method_summary()?)?
+            );
+            Ok(())
+        }
+        Command::AuditReasonSummary { state_db } => {
+            let state = GatewayState::open(&state_db)?;
+            println!(
+                "{}",
+                serde_json::to_string(&state.policy_audit_reason_summary()?)?
             );
             Ok(())
         }

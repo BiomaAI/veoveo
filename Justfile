@@ -426,6 +426,15 @@ smoke-gateway-authenticated:
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" tasks >/dev/null
     ema_token="$({{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --group engineering --role operator --data-label cui)"
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${ema_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
+    cui_control_plane="${tmpdir}/gateway.cui.json"
+    jq '(.policies[] | select(.version == "2026-07-02") | .rules[] | select(.id == "allow_media_profile_use") | .required_data_labels) = ["cui"]' {{gateway-smoke-control-plane}} >"${cui_control_plane}"
+    cui_apply="$(curl -fsS -X PUT -H "Authorization: Bearer ${admin_token}" -H "Content-Type: application/json" --data-binary @"${cui_control_plane}" "${gateway_base}/admin/default/control-plane")"
+    echo "${cui_apply}" | jq -e '.status == "applied" and .servers == 1 and .profiles == 1' >/dev/null
+    if env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" resource media://usage >/dev/null 2>&1; then
+        echo "missing-data-label gateway token was unexpectedly authorized" >&2
+        exit 1
+    fi
+    env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${ema_token}" {{conformance}} --url "${gateway_base}/mcp/default" resource media://usage >/dev/null
     replay_jti="smoke-id-jag-replay"
     {{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --jwt-id "${replay_jti}" >/dev/null
     if {{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --jwt-id "${replay_jti}" >/dev/null 2>&1; then
@@ -443,6 +452,8 @@ smoke-gateway-authenticated:
     audit_counts="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${gateway_state_db}")"
     echo "${audit_counts}" | grep -E '"auth_events":[1-9][0-9]*'
     echo "${audit_counts}" | grep -E '"policy_events":[1-9][0-9]*'
+    audit_reasons="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-reason-summary --state-db "${gateway_state_db}")"
+    echo "${audit_reasons}" | jq -e '.[] | select(.reason == "missing_data_label" and .events >= 1)' >/dev/null
 
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
 smoke-gateway-task-run:
