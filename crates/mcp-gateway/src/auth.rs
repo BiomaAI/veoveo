@@ -26,6 +26,14 @@ pub struct ClientAssertionConfig {
     pub algorithms: Vec<Algorithm>,
 }
 
+#[derive(Debug, Clone)]
+pub struct IdJagConfig {
+    pub issuer: TokenIssuer,
+    pub audience: TokenIssuer,
+    pub resource: ProtectedResourceId,
+    pub algorithms: Vec<Algorithm>,
+}
+
 impl ClientAssertionConfig {
     pub fn new(
         client_id: OAuthClientId,
@@ -75,6 +83,32 @@ impl JwtAuthConfig {
             issuer,
             audience,
             required_scopes,
+            algorithms,
+        })
+    }
+}
+
+impl IdJagConfig {
+    pub fn new(
+        issuer: TokenIssuer,
+        audience: TokenIssuer,
+        resource: ProtectedResourceId,
+        algorithms: Vec<Algorithm>,
+    ) -> Result<Self, AuthError> {
+        if algorithms.is_empty() {
+            return Err(AuthError::MissingAllowedAlgorithms);
+        }
+        if let Some(algorithm) = algorithms
+            .iter()
+            .copied()
+            .find(|algorithm| is_symmetric_algorithm(*algorithm))
+        {
+            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
+        }
+        Ok(Self {
+            issuer,
+            audience,
+            resource,
             algorithms,
         })
     }
@@ -262,6 +296,106 @@ impl ClientAssertionVerifier {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct IdJagVerifier {
+    config: IdJagConfig,
+    jwks: JwkSet,
+}
+
+impl IdJagVerifier {
+    pub fn new(config: IdJagConfig, jwks: JwkSet) -> Self {
+        Self { config, jwks }
+    }
+
+    pub fn verify(&self, assertion: &str) -> Result<VerifiedIdJag, AuthError> {
+        if assertion.is_empty() || assertion.chars().any(char::is_whitespace) {
+            return Err(AuthError::InvalidIdentityAssertion);
+        }
+        let header = decode_header(assertion).map_err(AuthError::Jwt)?;
+        if !self.config.algorithms.contains(&header.alg) {
+            return Err(AuthError::DisallowedAlgorithm(header.alg));
+        }
+        let key_id = header.kid.ok_or(AuthError::MissingKeyId)?;
+        let jwk = self
+            .jwks
+            .find(&key_id)
+            .ok_or_else(|| AuthError::UnknownKeyId(key_id.clone()))?;
+        validate_jwk_algorithm(jwk.common.key_algorithm, header.alg)?;
+        let key = DecodingKey::from_jwk(jwk).map_err(AuthError::Jwt)?;
+
+        let algorithms = allowed_algorithms_for_header(&self.config.algorithms, header.alg)?;
+        let mut validation = Validation::new(header.alg);
+        validation.algorithms = algorithms;
+        validation.validate_nbf = true;
+        validation.set_issuer(&[self.config.issuer.as_str()]);
+        validation.set_audience(&[self.config.audience.as_str()]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "jti"]);
+
+        let data = decode::<IdJagClaims>(assertion, &key, &validation).map_err(AuthError::Jwt)?;
+        let claims = data.claims;
+        let resource = claims
+            .resource
+            .as_deref()
+            .ok_or(AuthError::MissingIdentityAssertionResource)?;
+        if resource != self.config.resource.as_str() {
+            return Err(AuthError::InvalidIdentityAssertionResource);
+        }
+        let scopes = claims.scopes()?;
+        if scopes.is_empty() {
+            return Err(AuthError::MissingIdentityAssertionScope);
+        }
+
+        let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
+        let subject = TokenSubject::new(claims.sub.clone()).map_err(AuthError::Claim)?;
+        let client_id = OAuthClientId::new(claims.client_id.clone()).map_err(AuthError::Claim)?;
+        let principal = Principal {
+            id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
+            kind: PrincipalKind::User,
+            issuer,
+            subject,
+            tenant: claims
+                .tenant
+                .map(TenantId::new)
+                .transpose()
+                .map_err(AuthError::Claim)?,
+            groups: claims
+                .groups
+                .map(StringListClaim::into_values)
+                .unwrap_or_default()
+                .into_iter()
+                .map(GroupId::new)
+                .collect::<Result<_, _>>()
+                .map_err(AuthError::Claim)?,
+            roles: claims
+                .roles
+                .map(StringListClaim::into_values)
+                .unwrap_or_default()
+                .into_iter()
+                .map(RoleId::new)
+                .collect::<Result<_, _>>()
+                .map_err(AuthError::Claim)?,
+            scopes: scopes.clone(),
+            data_labels: claims
+                .data_labels
+                .map(StringListClaim::into_values)
+                .unwrap_or_default()
+                .into_iter()
+                .map(DataLabelId::new)
+                .collect::<Result<_, _>>()
+                .map_err(AuthError::Claim)?,
+            authenticated_at: Some(Utc::now()),
+        };
+
+        Ok(VerifiedIdJag {
+            client_id,
+            principal,
+            scopes,
+            jwt_id: JwtId::new(claims.jti).map_err(AuthError::Claim)?,
+            expires_at: unix_timestamp(claims.exp, "exp")?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedSubject {
     pub access_token: AccessTokenSubject,
@@ -271,6 +405,15 @@ pub struct AuthenticatedSubject {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedClientAssertion {
     pub client_id: OAuthClientId,
+    pub jwt_id: JwtId,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedIdJag {
+    pub client_id: OAuthClientId,
+    pub principal: Principal,
+    pub scopes: BTreeSet<ScopeName>,
     pub jwt_id: JwtId,
     pub expires_at: DateTime<Utc>,
 }
@@ -316,7 +459,54 @@ struct ClientAssertionClaims {
     iat: Option<u64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct IdJagClaims {
+    iss: String,
+    sub: String,
+    aud: StringListClaim,
+    exp: u64,
+    jti: String,
+    client_id: String,
+    #[serde(default)]
+    resource: Option<String>,
+    #[serde(default)]
+    nbf: Option<u64>,
+    #[serde(default)]
+    iat: Option<u64>,
+    #[serde(default)]
+    scope: Option<String>,
+    #[serde(default)]
+    scp: Option<StringListClaim>,
+    #[serde(default)]
+    groups: Option<StringListClaim>,
+    #[serde(default)]
+    roles: Option<StringListClaim>,
+    #[serde(default)]
+    tenant: Option<String>,
+    #[serde(default)]
+    data_labels: Option<StringListClaim>,
+    #[serde(default)]
+    email: Option<String>,
+}
+
 impl JwtClaims {
+    fn scopes(&self) -> Result<BTreeSet<ScopeName>, AuthError> {
+        let mut values = BTreeSet::new();
+        if let Some(scope) = &self.scope {
+            for item in scope.split_whitespace() {
+                values.insert(ScopeName::new(item).map_err(AuthError::Claim)?);
+            }
+        }
+        if let Some(scp) = &self.scp {
+            for item in scp.values() {
+                values.insert(ScopeName::new(item).map_err(AuthError::Claim)?);
+            }
+        }
+        Ok(values)
+    }
+}
+
+impl IdJagClaims {
     fn scopes(&self) -> Result<BTreeSet<ScopeName>, AuthError> {
         let mut values = BTreeSet::new();
         if let Some(scope) = &self.scope {
@@ -371,6 +561,10 @@ pub enum AuthError {
     InvalidClientAssertion,
     InvalidClientAssertionAudience,
     ClientAssertionSubjectMismatch,
+    InvalidIdentityAssertion,
+    MissingIdentityAssertionResource,
+    InvalidIdentityAssertionResource,
+    MissingIdentityAssertionScope,
     InvalidTimestamp { claim: &'static str, value: u64 },
     Claim(veoveo_mcp_contract::IdentifierError),
     Jwt(jsonwebtoken::errors::Error),
@@ -402,6 +596,16 @@ impl fmt::Display for AuthError {
             }
             Self::ClientAssertionSubjectMismatch => {
                 write!(f, "client assertion subject must match client id")
+            }
+            Self::InvalidIdentityAssertion => write!(f, "invalid identity assertion"),
+            Self::MissingIdentityAssertionResource => {
+                write!(f, "identity assertion is missing resource")
+            }
+            Self::InvalidIdentityAssertionResource => {
+                write!(f, "identity assertion resource does not match gateway profile")
+            }
+            Self::MissingIdentityAssertionScope => {
+                write!(f, "identity assertion is missing scope")
             }
             Self::InvalidTimestamp { claim, value } => {
                 write!(f, "JWT claim `{claim}` has invalid timestamp `{value}`")
@@ -542,6 +746,24 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         jti: &'a str,
     }
 
+    #[derive(Debug, Serialize)]
+    struct TestIdJagClaims<'a> {
+        iss: &'a str,
+        sub: &'a str,
+        aud: &'a str,
+        resource: &'a str,
+        client_id: &'a str,
+        exp: u64,
+        nbf: u64,
+        iat: u64,
+        jti: &'a str,
+        scope: &'a str,
+        groups: Vec<&'a str>,
+        roles: Vec<&'a str>,
+        tenant: &'a str,
+        data_labels: Vec<&'a str>,
+    }
+
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
         verifier_with_algorithms(required_scopes, vec![Algorithm::RS256])
     }
@@ -613,6 +835,33 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &encoding_key,
         )
         .expect("client assertion encodes")
+    }
+
+    fn id_jag(resource: &str, jwt_id: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("test-key".to_string());
+        let encoding_key = rsa_encoding_key();
+        encode(
+            &header,
+            &TestIdJagClaims {
+                iss: ISSUER,
+                sub: "00u123",
+                aud: "https://veoveo.bioma.ai/oauth/default",
+                resource,
+                client_id: "veoveo-browser",
+                exp: 4_102_444_800,
+                nbf: 1_700_000_000,
+                iat: 1_700_000_000,
+                jti: jwt_id,
+                scope: "media:use",
+                groups: vec!["engineering"],
+                roles: vec!["operator"],
+                tenant: "tenant-a",
+                data_labels: vec!["cui"],
+            },
+            &encoding_key,
+        )
+        .expect("ID-JAG encodes")
     }
 
     fn rsa_encoding_key() -> EncodingKey {
@@ -758,5 +1007,57 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect_err("subject mismatch should fail");
 
         assert!(matches!(err, AuthError::ClientAssertionSubjectMismatch));
+    }
+
+    #[test]
+    fn verifies_enterprise_managed_id_jag() {
+        let verifier = IdJagVerifier::new(
+            IdJagConfig::new(
+                TokenIssuer::new(ISSUER).unwrap(),
+                TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+                ProtectedResourceId::new(AUDIENCE).unwrap(),
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let verified = verifier
+            .verify(&id_jag(AUDIENCE, "id-jag-1"))
+            .expect("valid ID-JAG");
+
+        assert_eq!(verified.client_id.as_str(), "veoveo-browser");
+        assert_eq!(verified.principal.subject.as_str(), "00u123");
+        assert!(
+            verified
+                .scopes
+                .contains(&ScopeName::new("media:use").unwrap())
+        );
+        assert!(
+            verified
+                .principal
+                .data_labels
+                .contains(&DataLabelId::new("cui").unwrap())
+        );
+    }
+
+    #[test]
+    fn rejects_id_jag_for_wrong_resource() {
+        let verifier = IdJagVerifier::new(
+            IdJagConfig::new(
+                TokenIssuer::new(ISSUER).unwrap(),
+                TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+                ProtectedResourceId::new(AUDIENCE).unwrap(),
+                vec![Algorithm::RS256],
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let err = verifier
+            .verify(&id_jag("https://veoveo.bioma.ai/mcp/other", "id-jag-2"))
+            .expect_err("wrong resource should fail");
+
+        assert!(matches!(err, AuthError::InvalidIdentityAssertionResource));
     }
 }

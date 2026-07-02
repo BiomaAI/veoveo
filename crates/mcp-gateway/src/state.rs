@@ -105,6 +105,18 @@ impl GatewayState {
             CREATE INDEX IF NOT EXISTS idx_gateway_client_assertion_jtis_expires
             ON gateway_client_assertion_jtis(expires_at);
 
+            CREATE TABLE IF NOT EXISTS gateway_id_jag_jtis (
+                authorization_server TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                jwt_id TEXT NOT NULL,
+                seen_at TIMESTAMP NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                PRIMARY KEY(authorization_server, client_id, jwt_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_id_jag_jtis_expires
+            ON gateway_id_jag_jtis(expires_at);
+
             CREATE TABLE IF NOT EXISTS gateway_audit_events (
                 event_id TEXT PRIMARY KEY,
                 trace_id TEXT NOT NULL,
@@ -247,6 +259,57 @@ impl GatewayState {
         conn.execute(
             r#"
             INSERT INTO gateway_client_assertion_jtis (
+                authorization_server, client_id, jwt_id, seen_at, expires_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(authorization_server, client_id, jwt_id) DO UPDATE SET
+                seen_at = excluded.seen_at,
+                expires_at = excluded.expires_at
+            "#,
+            params![
+                authorization_server.as_str(),
+                client_id.as_str(),
+                jwt_id.as_str(),
+                now,
+                expires_at,
+            ],
+        )?;
+        Ok(true)
+    }
+
+    pub fn record_id_jag_jti(
+        &self,
+        authorization_server: &AuthorizationServerId,
+        client_id: &OAuthClientId,
+        jwt_id: &JwtId,
+        expires_at: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> Result<bool> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            "DELETE FROM gateway_id_jag_jtis WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        let existing: Option<DateTime<Utc>> = conn
+            .query_row(
+                r#"
+                SELECT expires_at
+                FROM gateway_id_jag_jtis
+                WHERE authorization_server = ?1 AND client_id = ?2 AND jwt_id = ?3
+                "#,
+                params![
+                    authorization_server.as_str(),
+                    client_id.as_str(),
+                    jwt_id.as_str()
+                ],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if existing.is_some_and(|existing_expires_at| existing_expires_at > now) {
+            return Ok(false);
+        }
+        conn.execute(
+            r#"
+            INSERT INTO gateway_id_jag_jtis (
                 authorization_server, client_id, jwt_id, seen_at, expires_at
             ) VALUES (?1, ?2, ?3, ?4, ?5)
             ON CONFLICT(authorization_server, client_id, jwt_id) DO UPDATE SET
@@ -759,6 +822,47 @@ mod tests {
         assert!(
             state
                 .record_client_assertion_jti(
+                    &authorization_server,
+                    &client_id,
+                    &jwt_id,
+                    now + TimeDelta::minutes(10),
+                    expires_at + TimeDelta::seconds(1),
+                )
+                .unwrap()
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn id_jag_jti_replay_is_rejected_until_expiration() {
+        let path = temp_path("id-jag-jti");
+        let state = GatewayState::open(&path).unwrap();
+        let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
+        let client_id = OAuthClientId::new("veoveo-browser").unwrap();
+        let jwt_id = JwtId::new("id-jag-1").unwrap();
+        let now = Utc::now();
+        let expires_at = now + TimeDelta::minutes(5);
+
+        assert!(
+            state
+                .record_id_jag_jti(&authorization_server, &client_id, &jwt_id, expires_at, now)
+                .unwrap()
+        );
+        assert!(
+            !state
+                .record_id_jag_jti(
+                    &authorization_server,
+                    &client_id,
+                    &jwt_id,
+                    expires_at,
+                    now + TimeDelta::seconds(1),
+                )
+                .unwrap()
+        );
+        assert!(
+            state
+                .record_id_jag_jti(
                     &authorization_server,
                     &client_id,
                     &jwt_id,

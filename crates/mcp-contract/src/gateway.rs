@@ -2043,6 +2043,7 @@ impl AuthOutcome {
 pub enum AuthMethod {
     BearerJwt,
     ClientCredentialsPrivateKeyJwt,
+    EnterpriseManagedIdJag,
 }
 
 impl AuthMethod {
@@ -2050,6 +2051,7 @@ impl AuthMethod {
         match self {
             Self::BearerJwt => "bearer_jwt",
             Self::ClientCredentialsPrivateKeyJwt => "client_credentials_private_key_jwt",
+            Self::EnterpriseManagedIdJag => "enterprise_managed_id_jag",
         }
     }
 }
@@ -2070,6 +2072,8 @@ pub enum AuthReasonCode {
     UnsupportedGrantType,
     InvalidClientAssertion,
     ClientAssertionReplay,
+    InvalidIdentityAssertion,
+    IdentityAssertionReplay,
     InvalidScope,
     TokenSigningKeyUnavailable,
     TokenRevoked,
@@ -2091,6 +2095,8 @@ impl AuthReasonCode {
             Self::UnsupportedGrantType => "unsupported_grant_type",
             Self::InvalidClientAssertion => "invalid_client_assertion",
             Self::ClientAssertionReplay => "client_assertion_replay",
+            Self::InvalidIdentityAssertion => "invalid_identity_assertion",
+            Self::IdentityAssertionReplay => "identity_assertion_replay",
             Self::InvalidScope => "invalid_scope",
             Self::TokenSigningKeyUnavailable => "token_signing_key_unavailable",
             Self::TokenRevoked => "token_revoked",
