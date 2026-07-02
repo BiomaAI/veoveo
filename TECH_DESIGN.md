@@ -265,6 +265,10 @@ The gateway must implement MCP-compatible HTTP authorization:
   private-key JWT client authentication.
 - Audience/resource-bound access tokens scoped to one gateway profile.
 
+Reference: [Enterprise-Managed Authorization: Zero-touch OAuth for MCP](https://blog.modelcontextprotocol.io/posts/enterprise-managed-auth/)
+announces the stable MCP Enterprise-Managed Authorization extension and frames the IdP as
+the centralized policy and audit authority for enterprise MCP access.
+
 The gateway maps authenticated claims to strongly typed Veoveo principals, tenants,
 groups, roles, scopes, and data labels. Hosted servers should receive a short-lived
 gateway-issued internal token or signed identity assertion, not raw external IdP tokens by
