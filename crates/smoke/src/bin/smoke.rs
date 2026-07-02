@@ -759,6 +759,32 @@ async fn gateway_http(conformance: &Path, gateway: &Path, base_control_plane: &P
         [],
     )?;
 
+    let client_assertion_replay_jti = "smoke-client-assertion-replay";
+    gateway_token(
+        conformance,
+        &base,
+        &[
+            "--scope",
+            "media:use",
+            "--jwt-id",
+            client_assertion_replay_jti,
+        ],
+    )?;
+    if gateway_token(
+        conformance,
+        &base,
+        &[
+            "--scope",
+            "media:use",
+            "--jwt-id",
+            client_assertion_replay_jti,
+        ],
+    )
+    .is_ok()
+    {
+        bail!("replayed private-key JWT client assertion was unexpectedly accepted");
+    }
+
     let http = reqwest::Client::builder()
         .redirect(Policy::none())
         .build()?;
