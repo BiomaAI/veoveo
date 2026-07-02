@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     fmt,
-    sync::Arc,
 };
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -37,7 +36,9 @@ use veoveo_mcp_contract::{
     UpstreamTaskId, UpstreamTransport, UsageReport, paginate,
 };
 
-use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
+use crate::{
+    AuthenticatedSubject, GatewayCatalog, GatewayCatalogHandle, GatewayState, PolicyRequest,
+};
 
 const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
@@ -45,7 +46,7 @@ const INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS: i64 = 30;
 
 #[derive(Debug)]
 pub struct GatewayMcp {
-    catalog: Arc<GatewayCatalog>,
+    catalog: GatewayCatalogHandle,
     state: GatewayState,
     profile_id: GatewayProfileId,
     internal_token_issuer: GatewayInternalTokenIssuer,
@@ -54,7 +55,7 @@ pub struct GatewayMcp {
 
 impl GatewayMcp {
     pub fn new(
-        catalog: Arc<GatewayCatalog>,
+        catalog: GatewayCatalogHandle,
         profile_id: GatewayProfileId,
         state: GatewayState,
         internal_token_issuer: GatewayInternalTokenIssuer,
@@ -70,6 +71,7 @@ impl GatewayMcp {
 
     fn profile_servers(&self) -> Vec<ServerSlug> {
         self.catalog
+            .current()
             .profile_servers(&self.profile_id)
             .into_iter()
             .map(|(_, server)| server.slug.clone())
@@ -78,6 +80,7 @@ impl GatewayMcp {
 
     fn profile_task_servers(&self) -> Vec<ServerSlug> {
         self.catalog
+            .current()
             .profile_servers(&self.profile_id)
             .into_iter()
             .filter(|(exposure, server)| {
@@ -88,7 +91,8 @@ impl GatewayMcp {
     }
 
     fn auth_extension_capabilities(&self) -> Option<ExtensionCapabilities> {
-        let profile = self.catalog.profile(&self.profile_id)?;
+        let catalog = self.catalog.current();
+        let profile = catalog.profile(&self.profile_id)?;
         let extensions: ExtensionCapabilities = profile
             .auth_modes
             .iter()
@@ -108,9 +112,12 @@ impl GatewayMcp {
         downstream: Peer<RoleServer>,
         subject: &AuthenticatedSubject,
     ) -> Result<Peer<RoleClient>, McpError> {
+        let snapshot = self.catalog.snapshot();
+        let catalog_generation = snapshot.generation();
         let key = UpstreamCacheKey {
             server: server_slug.clone(),
             principal: subject.principal.id.clone(),
+            catalog_generation,
         };
         let refresh_after = Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS);
         {
@@ -123,8 +130,8 @@ impl GatewayMcp {
             }
         }
 
-        let server = self
-            .catalog
+        let server = snapshot
+            .catalog()
             .server(server_slug)
             .ok_or_else(|| mcp_invalid_params(format!("unknown upstream server `{server_slug}`")))?
             .clone();
@@ -239,7 +246,8 @@ impl GatewayMcp {
         let subject = self.authenticated(context)?;
         let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
             .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
-        let decision = self.catalog.decide(PolicyRequest {
+        let catalog = self.catalog.current();
+        let decision = catalog.decide(PolicyRequest {
             principal: &subject.principal,
             profile: &self.profile_id,
             action,
@@ -392,6 +400,7 @@ impl GatewayMcp {
             .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
         let policy_version = self
             .catalog
+            .current()
             .profile(&self.profile_id)
             .map(|profile| profile.policy_version.clone());
         let decision = PolicyDecision {
@@ -438,6 +447,7 @@ impl GatewayMcp {
 
     fn server_for_resource(&self, uri: &str) -> Result<ServerSlug, McpError> {
         self.catalog
+            .current()
             .server_for_resource_uri(&self.profile_id, uri)
             .map(|(_, server)| server.slug.clone())
             .ok_or_else(|| mcp_invalid_params(format!("resource URI is not exposed: {uri}")))
@@ -488,7 +498,8 @@ impl GatewayMcp {
     fn server_for_prompt(&self, prompt: &str) -> Result<ServerSlug, McpError> {
         let prompt = PromptName::new(prompt.to_string())
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;
-        let matches = self.catalog.prompt_servers(&self.profile_id, &prompt);
+        let catalog = self.catalog.current();
+        let matches = catalog.prompt_servers(&self.profile_id, &prompt);
         match matches.as_slice() {
             [(_, server)] => Ok(server.slug.clone()),
             [] => Err(mcp_invalid_params(format!(
@@ -505,6 +516,7 @@ impl GatewayMcp {
 struct UpstreamCacheKey {
     server: ServerSlug,
     principal: PrincipalId,
+    catalog_generation: u64,
 }
 
 #[derive(Debug)]
@@ -723,7 +735,8 @@ fn audit_method_name(action: GatewayAction) -> Result<McpMethodName, McpError> {
 impl ServerHandler for GatewayMcp {
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::default();
-        for (_, server) in self.catalog.profile_servers(&self.profile_id) {
+        let catalog = self.catalog.current();
+        for (_, server) in catalog.profile_servers(&self.profile_id) {
             if server.capabilities.tools {
                 capabilities.tools.get_or_insert_default();
             }
@@ -796,6 +809,7 @@ impl ServerHandler for GatewayMcp {
                 }
                 let gateway_name = self
                     .catalog
+                    .current()
                     .project_tool_name(&server_slug, &local_tool)
                     .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
                 tool.name = Cow::Owned(gateway_name.to_string());
@@ -817,7 +831,8 @@ impl ServerHandler for GatewayMcp {
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let projection = parse_gateway_tool(&self.catalog, &request.name)?;
+        let catalog = self.catalog.current();
+        let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authorize_tool(
             &context,
             GatewayAction::ToolsCall,
@@ -836,7 +851,8 @@ impl ServerHandler for GatewayMcp {
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CreateTaskResult, McpError> {
-        let projection = parse_gateway_tool(&self.catalog, &request.name)?;
+        let catalog = self.catalog.current();
+        let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authorize_tool(
             &context,
             GatewayAction::ToolsCall,
@@ -1151,8 +1167,8 @@ impl ServerHandler for GatewayMcp {
             Reference::Prompt(reference) => self.server_for_prompt(&reference.name)?,
             _ => return Err(mcp_invalid_params("unsupported completion reference kind")),
         };
-        let (_profile, exposure, manifest) = self
-            .catalog
+        let catalog = self.catalog.current();
+        let (_profile, exposure, manifest) = catalog
             .profile_server(&self.profile_id, &server)
             .ok_or_else(|| mcp_invalid_params(format!("server `{server}` is not exposed")))?;
         if exposure.completions != CompletionExposure::Enabled || !manifest.capabilities.completions

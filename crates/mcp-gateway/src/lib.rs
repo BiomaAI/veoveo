@@ -17,6 +17,7 @@ pub use auth::{
     VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
 pub use mcp::GatewayMcp;
+use parking_lot::RwLock;
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 use serde::{Deserialize, Serialize};
 pub use state::{GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayState};
@@ -31,6 +32,62 @@ use veoveo_mcp_contract::{
 };
 
 const ID_JAG_GRANT_PROFILE: &str = "urn:ietf:params:oauth:grant-profile:id-jag";
+
+#[derive(Debug, Clone)]
+pub struct GatewayCatalogHandle {
+    state: Arc<RwLock<GatewayCatalogHandleState>>,
+}
+
+#[derive(Debug)]
+struct GatewayCatalogHandleState {
+    catalog: Arc<GatewayCatalog>,
+    generation: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct GatewayCatalogSnapshot {
+    catalog: Arc<GatewayCatalog>,
+    generation: u64,
+}
+
+impl GatewayCatalogHandle {
+    pub fn new(catalog: Arc<GatewayCatalog>) -> Self {
+        Self {
+            state: Arc::new(RwLock::new(GatewayCatalogHandleState {
+                catalog,
+                generation: 0,
+            })),
+        }
+    }
+
+    pub fn current(&self) -> Arc<GatewayCatalog> {
+        self.snapshot().catalog
+    }
+
+    pub fn snapshot(&self) -> GatewayCatalogSnapshot {
+        let state = self.state.read();
+        GatewayCatalogSnapshot {
+            catalog: state.catalog.clone(),
+            generation: state.generation,
+        }
+    }
+
+    pub fn replace(&self, catalog: Arc<GatewayCatalog>) {
+        let mut state = self.state.write();
+        state.catalog = catalog;
+        state.generation = state.generation.saturating_add(1);
+    }
+}
+
+impl GatewayCatalogSnapshot {
+    pub fn catalog(&self) -> &Arc<GatewayCatalog> {
+        &self.catalog
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalog {
@@ -1142,11 +1199,13 @@ fn intersects<T: Ord>(left: &BTreeSet<T>, right: &BTreeSet<T>) -> bool {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};
+    use rmcp::handler::server::ServerHandler;
     use serde_json::Value;
     use veoveo_mcp_contract::{
         AuthMode, AuthorizationServerId, CompletionExposure, DataLabelId, Exposure,
-        GatewayControlPlaneError, GatewayTaskId, GroupId, HttpsUrl, IdentityProvider,
-        IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource, JwtId,
+        GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayControlPlaneError, GatewayInternalTokenIssuer,
+        GatewayTaskId, GroupId, HttpsUrl, IdentityProvider, IdentityProviderId,
+        IdentityProviderOidcClientRegistration, InternalTokenSecret, JwksSource, JwtId,
         MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
         MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
         OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
@@ -1403,6 +1462,11 @@ mod tests {
             metadata: Value::Null,
         })
         .unwrap()
+    }
+
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        let unique = uuid::Uuid::new_v4();
+        std::env::temp_dir().join(format!("veoveo-gateway-lib-{name}-{unique}.duckdb"))
     }
 
     fn principal(scopes: &[&str]) -> Principal {
@@ -1695,6 +1759,70 @@ mod tests {
 
         assert_eq!(catalog.server_count(), 1);
         assert_eq!(catalog.profile_count(), 1);
+    }
+
+    #[test]
+    fn catalog_handle_reads_replaced_catalog_with_new_generation() {
+        let handle = GatewayCatalogHandle::new(Arc::new(catalog()));
+        let principal = principal(&["media:use"]);
+        let target = PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: LocalToolName::new("run").unwrap(),
+        };
+        let first = handle.snapshot();
+        let first_decision = first.catalog().decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &target,
+            trace_id: &TraceId::new("trace-live-before").unwrap(),
+        });
+
+        assert_eq!(first.generation(), 0);
+        assert_eq!(first_decision.effect, PolicyEffect::Allow);
+
+        let mut denied_policy = policy();
+        denied_policy.rules.clear();
+        handle.replace(Arc::new(catalog_with_policy(denied_policy)));
+        let second = handle.snapshot();
+        let second_decision = second.catalog().decide(PolicyRequest {
+            principal: &principal,
+            profile: &GatewayProfileId::new("default").unwrap(),
+            action: GatewayAction::ToolsCall,
+            target: &target,
+            trace_id: &TraceId::new("trace-live-after").unwrap(),
+        });
+
+        assert_eq!(second.generation(), 1);
+        assert_eq!(second_decision.effect, PolicyEffect::Deny);
+    }
+
+    #[test]
+    fn gateway_mcp_reads_replaced_catalog_from_existing_handler() {
+        let initial_catalog = Arc::new(catalog());
+        let mut replacement_control_plane = initial_catalog.control_plane().clone();
+        replacement_control_plane.profiles[0].servers.clear();
+        replacement_control_plane.policies[0].rules.clear();
+        let replacement_catalog =
+            Arc::new(GatewayCatalog::from_control_plane(replacement_control_plane).unwrap());
+        let handle = GatewayCatalogHandle::new(initial_catalog);
+        let state = GatewayState::open(temp_path("live-catalog")).unwrap();
+        let internal_token_issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+            InternalTokenSecret::new("local-dev-internal-token-secret-32-bytes-minimum").unwrap(),
+        );
+        let mcp = GatewayMcp::new(
+            handle.clone(),
+            GatewayProfileId::new("default").unwrap(),
+            state,
+            internal_token_issuer,
+        );
+
+        assert!(mcp.get_info().capabilities.tools.is_some());
+
+        handle.replace(replacement_catalog);
+
+        assert!(mcp.get_info().capabilities.tools.is_none());
     }
 
     #[test]

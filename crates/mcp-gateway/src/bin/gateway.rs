@@ -57,9 +57,9 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
-    GatewayCatalog, GatewayMcp, GatewaySecretResolver, GatewayState, IdJagConfig, IdJagVerifier,
-    JwtAuthConfig, JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier, PolicyRequest,
-    ResolvedSecretString, www_authenticate_challenge,
+    GatewayCatalog, GatewayCatalogHandle, GatewayMcp, GatewaySecretResolver, GatewayState,
+    IdJagConfig, IdJagVerifier, JwtAuthConfig, JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier,
+    PolicyRequest, ResolvedSecretString, www_authenticate_challenge,
 };
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -73,7 +73,7 @@ const ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD: &str = "admin/reload-control-pla
 const ADMIN_CONTROL_PLANE_RESULT_METHOD: &str = "admin/control-plane/result";
 const ADMIN_JWT_REVOCATIONS_RESULT_METHOD: &str = "admin/jwt-revocations/result";
 const ADMIN_JWT_REVOCATIONS_PRUNE_RESULT_METHOD: &str = "admin/jwt-revocations/prune/result";
-type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
+type SharedCatalog = GatewayCatalogHandle;
 type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
 type ProfileMcpService = StreamableHttpService<GatewayMcp, LocalSessionManager>;
 type SharedProfileMcpServices = Arc<RwLock<BTreeMap<GatewayProfileId, ProfileMcpService>>>;
@@ -412,7 +412,7 @@ async fn serve(
     } else {
         file_catalog
     };
-    let catalog = Arc::new(RwLock::new(initial_catalog.clone()));
+    let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         InternalTokenSecret::new(internal_token_secret)?,
@@ -555,9 +555,8 @@ fn build_profile_mcp_service(
             let gateway_state = state.gateway_state.clone();
             let profile_id = profile_id.clone();
             move || {
-                let catalog = current_catalog(&catalog);
                 Ok(GatewayMcp::new(
-                    catalog,
+                    catalog.clone(),
                     profile_id.clone(),
                     gateway_state.clone(),
                     internal_token_issuer.clone(),
@@ -3776,7 +3775,7 @@ async fn fetch_jwks(http: &reqwest::Client, url: &str) -> anyhow::Result<JwkSet>
 }
 
 fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
-    catalog.read().clone()
+    catalog.current()
 }
 
 fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
@@ -3784,7 +3783,7 @@ fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
 }
 
 fn replace_catalog(catalog: &SharedCatalog, new_catalog: Arc<GatewayCatalog>) {
-    *catalog.write() = new_catalog;
+    catalog.replace(new_catalog);
 }
 
 fn replace_http_client(http: &SharedHttpClient, new_client: reqwest::Client) {
