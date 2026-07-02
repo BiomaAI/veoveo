@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "conformance"
 path = "src/bin/conformance.rs"
 
+[[bin]]
+name = "smoke"
+path = "src/bin/smoke.rs"
+
 [features]
 default = ["analytics"]
 analytics = ["dep:duckdb"]
@@ -30,7 +34,7 @@ opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true
 rcgen.workspace = true
 reqwest = { workspace = true, features = ["rustls"] }
-rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "reqwest"] }
+rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest"] }
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

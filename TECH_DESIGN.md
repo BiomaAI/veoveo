@@ -476,6 +476,41 @@ The design rule is simple: MCP servers may depend on per-server SQL durability,
 S3-compatible artifact storage, and standard telemetry. They must not depend specifically
 on RustFS, Loki, or any other default Compose service.
 
+## Smoke test architecture
+
+All smoke tests live in Rust. The smoke suite is product code for verifying the Veoveo
+contract under realistic process boundaries, not ad hoc shell glue.
+
+The Rust smoke harness owns:
+
+- starting and stopping gateway, hosted MCP servers, provider fixtures, IdP fixtures,
+  OTLP fixtures, and edge fixtures,
+- readiness checks, timeouts, retries, and cleanup,
+- HTTP/MCP calls through typed helpers,
+- JSON parsing and strongly typed assertions where the schema is known,
+- temporary filesystem fixtures and artifact inspection,
+- audit, policy-denial, notification, task, artifact, and usage assertions.
+
+The Justfile stays as a human command dispatcher. A smoke recipe may build the required
+binaries and invoke the Rust smoke harness, but it must not contain process orchestration,
+curl/jq assertions, retry loops, or cleanup traps. Deterministic CLI transcript tests may
+use CLI-focused crates where useful, but gateway/media smoke behavior should be exercised
+through the Rust harness so failures are typed, debuggable, and maintainable.
+
+Docker is allowed in smoke tests when it is testing a real deployment boundary or an
+external dependency shape: edge proxy routing, S3-compatible object storage, OpenTelemetry
+collectors, container networking, image startup, or Compose-rendered configuration. Docker
+containers must be started, checked, and cleaned up by the Rust smoke harness or a
+maintained Rust Docker test crate when that crate provides clear value. Docker must not
+become a shell-script escape hatch inside the Justfile.
+
+Smoke-test dependencies are allowed only when they are current, maintained, and remove
+real complexity from our actual tests. Crates such as CLI assertion or snapshot tools are
+not adopted by default; they must improve the gateway/media smoke suite rather than force
+dynamic multi-service checks into transcript testing. When a crate does not materially
+improve process lifecycle, fixture setup, typed assertions, cleanup, or diagnostics, the
+in-repo Rust harness remains the right solution.
+
 ## Verified behavior
 
 Both paths were proven against a production media provider, through a real cloudflared tunnel:

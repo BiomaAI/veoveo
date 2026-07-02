@@ -105,6 +105,7 @@ smoke-gateway:
     just smoke-media-mcp-auth
     just smoke-media-task-run
     just smoke-gateway-authenticated
+    just smoke-gateway-two-servers
     just smoke-gateway-task-run
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
@@ -610,6 +611,11 @@ smoke-gateway-authenticated:
     echo "${audit_reasons}" | jq -e '.[] | select(.reason == "missing_data_label" and .events >= 1)' >/dev/null
     echo "${audit_reasons}" | jq -e '.[] | select(.reason == "missing_group" and .events >= 1)' >/dev/null
     echo "${audit_reasons}" | jq -e '.[] | select(.reason == "missing_role" and .events >= 1)' >/dev/null
+
+# Smoke-test one gateway profile routing to two hosted MCP servers.
+smoke-gateway-two-servers:
+    cargo build -p veoveo-mcp-contract --bin conformance --bin smoke -p veoveo-mcp-gateway --bin gateway
+    target/debug/smoke gateway-two-servers --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
 smoke-gateway-task-run:

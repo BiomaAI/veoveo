@@ -15,8 +15,9 @@ use anyhow::{Result, anyhow};
 use axum::{
     Form as AxumForm, Json as AxumJson, Router as AxumRouter,
     body::Bytes as AxumBytes,
-    extract::{Path as AxumPath, Query as AxumQuery, State as AxumState},
-    http::StatusCode as AxumStatusCode,
+    extract::{Path as AxumPath, Query as AxumQuery, Request as AxumRequest, State as AxumState},
+    http::{HeaderMap as AxumHeaderMap, StatusCode as AxumStatusCode, header::AUTHORIZATION},
+    middleware::{self as axum_middleware, Next as AxumNext},
     response::IntoResponse as AxumIntoResponse,
     routing::{get as axum_get, post as axum_post},
 };
@@ -31,18 +32,27 @@ use jsonwebtoken::{
 use rcgen::generate_simple_self_signed;
 use reqwest::header::WWW_AUTHENTICATE;
 use rmcp::{
-    ClientHandler, ServiceExt,
+    ClientHandler, RoleServer, ServerHandler, ServiceExt,
     model::{
         ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams, ClientCapabilities,
-        ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock, GetPromptRequestParams,
-        GetTaskParams, GetTaskPayloadParams, Implementation, ListTasksRequest, NumberOrString,
-        ProgressNotificationParam, ProgressToken, ReadResourceRequestParams, Reference, Request,
-        RequestParamsMeta, ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams,
-        TaskMetadata, TaskStatus, TaskStatusNotificationParam, UnsubscribeRequestParams,
+        ClientInfo, ClientRequest, CompleteRequestParams, CompleteResult, CompletionInfo,
+        ContentBlock, GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
+        Implementation, JsonObject, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListTasksRequest, ListToolsResult, NumberOrString,
+        PaginatedRequestParams, ProgressNotificationParam, ProgressToken, Prompt, PromptArgument,
+        PromptMessage, ReadResourceRequestParams, ReadResourceResult, Reference, Request,
+        RequestParamsMeta, Resource, ResourceContents, ResourceTemplate,
+        ResourceUpdatedNotificationParam, Role, ServerCapabilities, ServerInfo, ServerResult,
+        SubscribeRequestParams, TaskMetadata, TaskStatus, TaskStatusNotificationParam, TaskSupport,
+        Tool, ToolExecution, UnsubscribeRequestParams,
     },
-    service::NotificationContext,
+    service::{NotificationContext, RequestContext},
     transport::{
-        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
+        StreamableHttpClientTransport,
+        streamable_http_client::StreamableHttpClientTransportConfig,
+        streamable_http_server::{
+            StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        },
     },
 };
 use serde::{Deserialize, Serialize};
@@ -51,12 +61,12 @@ use url::Url;
 use veoveo_mcp_contract::{
     AccessTokenSubject, ArtifactMetadata, AuditEvent, AuthAuditEvent, ComplianceMetadata,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayControlPlane, GatewayInternalIdentity,
-    GatewayInternalTokenIssuer, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
-    GatewayJwtRevocationRequest, GatewayProfileId, GatewayResourceProjection,
-    GatewayResourceSubscription, GatewayTaskMapping, GenerationPredictionSummary,
-    GenerationRunOutput, InternalTokenSecret, PolicyDecision, Principal, PrincipalId,
-    PrincipalKind, ScopeName, SelfHostedDeploymentPlan, ServerManifest, ServerResourceUris,
-    ServerSlug, TenantId, TokenIssuer, TokenSubject, UsageRecord, UsageReport,
+    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayJwtRevocationApplyResult,
+    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfileId,
+    GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskMapping,
+    GenerationPredictionSummary, GenerationRunOutput, InternalTokenSecret, PolicyDecision,
+    Principal, PrincipalId, PrincipalKind, ScopeName, SelfHostedDeploymentPlan, ServerManifest,
+    ServerResourceUris, ServerSlug, TenantId, TokenIssuer, TokenSubject, UsageRecord, UsageReport,
 };
 
 #[derive(Parser, Debug)]
@@ -153,6 +163,21 @@ enum Cmd {
         #[arg(long)]
         trusted_ca_path: PathBuf,
     },
+    /// Write a two-upstream gateway smoke control plane for hosted-server routing tests.
+    GatewayTwoServerSmokeControlPlane {
+        /// Base gateway control plane JSON.
+        #[arg(long)]
+        base: PathBuf,
+        /// Output gateway control plane JSON.
+        #[arg(long)]
+        output: PathBuf,
+        /// Fake media MCP upstream URL.
+        #[arg(long)]
+        media_upstream_url: String,
+        /// Fake simulation MCP upstream URL.
+        #[arg(long)]
+        simulation_upstream_url: String,
+    },
     /// Serve a local HTTPS fake OIDC IdP for browser authorization-code smoke tests.
     GatewayFakeOidcIdp {
         /// HTTPS listen port.
@@ -200,6 +225,24 @@ enum Cmd {
         /// Delay before posting the completion webhook.
         #[arg(long, default_value_t = 250)]
         completion_delay_ms: u64,
+    },
+    /// Serve a generic hosted MCP server that requires gateway internal authorization.
+    FakeHostedMcp {
+        /// HTTP listen port.
+        #[arg(long)]
+        port: u16,
+        /// Hosted server slug and mount path segment.
+        #[arg(long)]
+        server: String,
+        /// Server-owned resource URI scheme.
+        #[arg(long)]
+        scheme: String,
+        /// Secret used to verify gateway-issued internal identity assertions.
+        #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
+        internal_token_secret: String,
+        /// File touched after the listener is ready.
+        #[arg(long)]
+        ready_file: Option<PathBuf>,
     },
     /// Print a private-key JWT client assertion signed by the conformance private key.
     GatewayClientAssertion {
@@ -342,6 +385,26 @@ enum Cmd {
         /// Prompt arguments as a JSON object.
         #[arg(long)]
         arguments: Option<String>,
+    },
+    /// Call one non-task tool directly.
+    Call {
+        /// Tool name to invoke.
+        #[arg(long)]
+        tool_name: String,
+        /// Tool arguments as a JSON object.
+        #[arg(long)]
+        arguments: String,
+    },
+    /// Autocomplete any resource-template argument via completion/complete.
+    CompleteResource {
+        /// Resource URI/template reference.
+        #[arg(long)]
+        uri: String,
+        /// Argument name to complete.
+        #[arg(long)]
+        argument: String,
+        /// Completion prefix.
+        prefix: String,
     },
     /// List MCP tasks visible to the authenticated principal.
     Tasks,
@@ -928,6 +991,239 @@ fn cmd_gateway_smoke_control_plane(
     Ok(())
 }
 
+fn cmd_gateway_two_server_smoke_control_plane(
+    base: PathBuf,
+    output: PathBuf,
+    media_upstream_url: String,
+    simulation_upstream_url: String,
+) -> Result<()> {
+    validate_loopback_http_url(&media_upstream_url, "--media-upstream-url")?;
+    validate_loopback_http_url(&simulation_upstream_url, "--simulation-upstream-url")?;
+
+    let mut control_plane: Value = serde_json::from_str(&std::fs::read_to_string(&base)?)?;
+    configure_fake_server(
+        &mut control_plane,
+        "media",
+        "media",
+        "/media",
+        "/media/mcp",
+        &media_upstream_url,
+        "media-plan",
+    )?;
+    append_server_manifest(
+        &mut control_plane,
+        json!({
+            "slug": "simulation",
+            "uri_scheme": "simulation",
+            "mount_path": "/simulation",
+            "mcp_path": "/simulation/mcp",
+            "upstream": {
+                "transport": "streamable_http",
+                "url": simulation_upstream_url,
+                "security": "loopback_http"
+            },
+            "capabilities": fake_hosted_capabilities(),
+            "tools": ["run"],
+            "prompts": ["simulation-plan"],
+            "required_scopes": ["simulation:use"],
+            "owned_routes": [],
+            "metadata": {}
+        }),
+    )?;
+    configure_default_profile_for_fake_servers(&mut control_plane)?;
+    configure_policy_for_fake_servers(&mut control_plane)?;
+    add_scope_to_oauth_clients(&mut control_plane, "simulation:use")?;
+
+    let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
+    parsed.validate()?;
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
+fn validate_loopback_http_url(value: &str, label: &str) -> Result<()> {
+    let url = Url::parse(value)?;
+    if url.scheme() != "http" {
+        return Err(anyhow!("{label} must use http for loopback smoke"));
+    }
+    let Some(host) = url.host_str() else {
+        return Err(anyhow!("{label} must include a host"));
+    };
+    if !matches!(host, "127.0.0.1" | "localhost") {
+        return Err(anyhow!("{label} must use a loopback host"));
+    }
+    Ok(())
+}
+
+fn control_plane_array_mut<'a>(
+    control_plane: &'a mut Value,
+    key: &str,
+) -> Result<&'a mut Vec<Value>> {
+    control_plane
+        .get_mut(key)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no `{key}` array"))
+}
+
+fn configure_fake_server(
+    control_plane: &mut Value,
+    slug: &str,
+    scheme: &str,
+    mount_path: &str,
+    mcp_path: &str,
+    upstream_url: &str,
+    prompt: &str,
+) -> Result<()> {
+    let servers = control_plane_array_mut(control_plane, "servers")?;
+    let server = servers
+        .iter_mut()
+        .find(|server| server.get("slug").and_then(Value::as_str) == Some(slug))
+        .ok_or_else(|| anyhow!("control plane has no `{slug}` server"))?;
+    server["uri_scheme"] = json!(scheme);
+    server["mount_path"] = json!(mount_path);
+    server["mcp_path"] = json!(mcp_path);
+    server["upstream"] = json!({
+        "transport": "streamable_http",
+        "url": upstream_url,
+        "security": "loopback_http"
+    });
+    server["capabilities"] = fake_hosted_capabilities();
+    server["tools"] = json!(["run"]);
+    server["prompts"] = json!([prompt]);
+    server["owned_routes"] = json!([]);
+    Ok(())
+}
+
+fn append_server_manifest(control_plane: &mut Value, server: Value) -> Result<()> {
+    control_plane_array_mut(control_plane, "servers")?.push(server);
+    Ok(())
+}
+
+fn fake_hosted_capabilities() -> Value {
+    json!({
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": true,
+        "completions": true,
+        "tasks": false,
+        "notifications": false
+    })
+}
+
+fn configure_default_profile_for_fake_servers(control_plane: &mut Value) -> Result<()> {
+    let profiles = control_plane_array_mut(control_plane, "profiles")?;
+    let profile = profiles
+        .iter_mut()
+        .find(|profile| profile.get("id").and_then(Value::as_str) == Some("default"))
+        .ok_or_else(|| anyhow!("control plane has no `default` profile"))?;
+    profile["servers"] = json!([
+        fake_profile_server_exposure("media", "media"),
+        fake_profile_server_exposure("simulation", "simulation"),
+    ]);
+    Ok(())
+}
+
+fn fake_profile_server_exposure(server: &str, scheme: &str) -> Value {
+    json!({
+        "server": server,
+        "tools": {
+            "mode": "listed",
+            "items": ["run"]
+        },
+        "resources": {
+            "mode": "listed",
+            "items": [
+                {
+                    "kind": "scheme",
+                    "scheme": scheme
+                }
+            ]
+        },
+        "prompts": {
+            "mode": "all"
+        },
+        "completions": "enabled",
+        "tasks": "disabled"
+    })
+}
+
+fn configure_policy_for_fake_servers(control_plane: &mut Value) -> Result<()> {
+    let policies = control_plane_array_mut(control_plane, "policies")?;
+    let policy = policies
+        .iter_mut()
+        .find(|policy| policy.get("version").and_then(Value::as_str) == Some("2026-07-02"))
+        .ok_or_else(|| anyhow!("control plane has no `2026-07-02` policy"))?;
+    let rules = policy
+        .get_mut("rules")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("policy has no rules array"))?;
+    let media_rule = rules
+        .iter_mut()
+        .find(|rule| rule.get("id").and_then(Value::as_str) == Some("allow_media_profile_use"))
+        .ok_or_else(|| anyhow!("policy has no `allow_media_profile_use` rule"))?;
+    *media_rule = fake_policy_rule(
+        "allow_media_profile_use",
+        "media",
+        "media",
+        "media-plan",
+        "media:use",
+    );
+    rules.push(fake_policy_rule(
+        "allow_simulation_profile_use",
+        "simulation",
+        "simulation",
+        "simulation-plan",
+        "simulation:use",
+    ));
+    Ok(())
+}
+
+fn fake_policy_rule(id: &str, server: &str, scheme: &str, prompt: &str, scope: &str) -> Value {
+    json!({
+        "id": id,
+        "effect": "allow",
+        "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete"
+        ],
+        "profiles": ["default"],
+        "servers": [server],
+        "tools": ["run"],
+        "resource_schemes": [scheme],
+        "prompts": [prompt],
+        "required_scopes": [scope],
+        "metadata": {}
+    })
+}
+
+fn add_scope_to_oauth_clients(control_plane: &mut Value, scope: &str) -> Result<()> {
+    for client in control_plane_array_mut(control_plane, "oauth_clients")? {
+        let scopes = client
+            .get_mut("allowed_scopes")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| anyhow!("OAuth client has no allowed_scopes array"))?;
+        if !scopes
+            .iter()
+            .any(|candidate| candidate.as_str() == Some(scope))
+        {
+            scopes.push(json!(scope));
+        }
+    }
+    Ok(())
+}
+
 async fn cmd_gateway_fake_oidc_idp(
     port: u16,
     cert_pem: PathBuf,
@@ -1147,6 +1443,349 @@ async fn fake_media_output() -> impl AxumIntoResponse {
         .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
         .expect("valid embedded PNG");
     ([("content-type", "image/png")], bytes)
+}
+
+#[derive(Clone)]
+struct FakeHostedMcp {
+    server: String,
+    scheme: String,
+}
+
+#[derive(Clone)]
+struct FakeHostedAuthState {
+    verifier: GatewayInternalTokenVerifier,
+}
+
+impl FakeHostedMcp {
+    fn new(server: impl Into<String>, scheme: impl Into<String>) -> Self {
+        Self {
+            server: server.into(),
+            scheme: scheme.into(),
+        }
+    }
+
+    fn scenarios_uri(&self) -> String {
+        format!("{}://scenarios", self.scheme)
+    }
+
+    fn scenario_template(&self) -> String {
+        format!("{}://scenario/{{scenario_id}}", self.scheme)
+    }
+
+    fn scenario_uri(&self, scenario_id: &str) -> String {
+        format!("{}://scenario/{scenario_id}", self.scheme)
+    }
+
+    fn prompt_name(&self) -> String {
+        format!("{}-plan", self.server)
+    }
+
+    fn scenario_ids(&self) -> [&'static str; 3] {
+        ["orbital-docking", "supply-chain", "thermal-control"]
+    }
+}
+
+impl ServerHandler for FakeHostedMcp {
+    fn get_info(&self) -> ServerInfo {
+        let caps: ServerCapabilities = ServerCapabilities::builder()
+            .enable_tools()
+            .enable_resources()
+            .enable_prompts()
+            .enable_completions()
+            .build();
+        let mut info = ServerInfo::default();
+        info.capabilities = caps;
+        info.server_info = Implementation::new(self.server.clone(), env!("CARGO_PKG_VERSION"));
+        info.instructions = Some(format!(
+            "Generic hosted {} MCP fixture for gateway multi-server conformance.",
+            self.server
+        ));
+        info
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, rmcp::ErrorData> {
+        let input_schema: JsonObject = serde_json::from_value(json!({
+            "type": "object",
+            "required": ["scenario"],
+            "properties": {
+                "scenario": { "type": "string" }
+            },
+            "additionalProperties": false
+        }))
+        .map_err(|err| rmcp::ErrorData::internal_error(err.to_string(), None))?;
+        let tool = Tool::new(
+            "run",
+            format!("Run a deterministic {} fixture scenario.", self.server),
+            input_schema,
+        )
+        .with_title(format!("{} run", self.server))
+        .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden));
+        Ok(ListToolsResult {
+            tools: vec![tool],
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        if request.name != "run" {
+            return Err(rmcp::ErrorData::invalid_params(
+                format!("unknown tool `{}`", request.name),
+                None,
+            ));
+        }
+        let arguments = Value::Object(request.arguments.unwrap_or_default());
+        let scenario = arguments
+            .get("scenario")
+            .and_then(Value::as_str)
+            .ok_or_else(|| rmcp::ErrorData::invalid_params("missing scenario argument", None))?;
+        let mut result = CallToolResult::success(vec![ContentBlock::text(format!(
+            "{} fixture accepted scenario {scenario}",
+            self.server
+        ))]);
+        result.structured_content = Some(json!({
+            "server": self.server,
+            "scheme": self.scheme,
+            "scenario": scenario,
+            "scenario_uri": self.scenario_uri(scenario)
+        }));
+        Ok(result)
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, rmcp::ErrorData> {
+        Ok(ListResourcesResult {
+            resources: vec![
+                Resource::new(self.scenarios_uri(), format!("{} scenarios", self.server))
+                    .with_title(format!("{} scenario catalog", self.server))
+                    .with_description("Deterministic fixture scenario catalog.")
+                    .with_mime_type("application/json"),
+            ],
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, rmcp::ErrorData> {
+        Ok(ListResourceTemplatesResult {
+            resource_templates: vec![
+                ResourceTemplate::new(self.scenario_template(), "scenario")
+                    .with_title(format!("{} scenario", self.server))
+                    .with_description("Deterministic fixture scenario by id.")
+                    .with_mime_type("application/json"),
+            ],
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, rmcp::ErrorData> {
+        let text = if request.uri == self.scenarios_uri() {
+            serde_json::to_string(&json!({
+                "server": self.server,
+                "scheme": self.scheme,
+                "scenarios": self.scenario_ids()
+                    .into_iter()
+                    .map(|scenario_id| json!({
+                        "scenario_id": scenario_id,
+                        "uri": self.scenario_uri(scenario_id)
+                    }))
+                    .collect::<Vec<_>>()
+            }))
+        } else if let Some(scenario_id) = request
+            .uri
+            .strip_prefix(&format!("{}://scenario/", self.scheme))
+        {
+            serde_json::to_string(&json!({
+                "server": self.server,
+                "scenario_id": scenario_id,
+                "status": "available",
+                "uri": self.scenario_uri(scenario_id)
+            }))
+        } else {
+            return Err(rmcp::ErrorData::resource_not_found(
+                format!("unknown fixture resource `{}`", request.uri),
+                None,
+            ));
+        }
+        .map_err(|err| rmcp::ErrorData::internal_error(err.to_string(), None))?;
+        Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(text, request.uri).with_mime_type("application/json"),
+        ]))
+    }
+
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, rmcp::ErrorData> {
+        Ok(ListPromptsResult {
+            prompts: vec![
+                Prompt::new(
+                    self.prompt_name(),
+                    Some(format!("Draft a {} fixture execution plan.", self.server)),
+                    Some(vec![
+                        PromptArgument::new("scenario")
+                            .with_description("Scenario id from the fixture catalog.")
+                            .with_required(true),
+                    ]),
+                )
+                .with_title(format!("{} plan", self.server)),
+            ],
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, rmcp::ErrorData> {
+        if request.name != self.prompt_name() {
+            return Err(rmcp::ErrorData::invalid_params(
+                format!("unknown prompt `{}`", request.name),
+                None,
+            ));
+        }
+        let scenario = request
+            .arguments
+            .and_then(|args| args.get("scenario").cloned())
+            .and_then(|value| value.as_str().map(str::to_string))
+            .unwrap_or_else(|| "unspecified".to_string());
+        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+            Role::User,
+            format!(
+                "Prepare a {} fixture plan for scenario `{scenario}`. Read {} first.",
+                self.server,
+                self.scenario_uri(&scenario)
+            ),
+        )])
+        .with_description(format!("{} fixture plan", self.server)))
+    }
+
+    async fn complete(
+        &self,
+        request: CompleteRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CompleteResult, rmcp::ErrorData> {
+        let Reference::Resource(reference) = &request.r#ref else {
+            return Ok(CompleteResult::default());
+        };
+        if reference.uri != self.scenario_template() || request.argument.name != "scenario_id" {
+            return Ok(CompleteResult::default());
+        }
+        let prefix = request.argument.value.to_lowercase();
+        let values = self
+            .scenario_ids()
+            .into_iter()
+            .filter(|scenario_id| scenario_id.starts_with(&prefix))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let completion =
+            CompletionInfo::with_pagination(values.clone(), Some(values.len() as u32), false)
+                .map_err(|err| rmcp::ErrorData::internal_error(err.to_string(), None))?;
+        Ok(CompleteResult::new(completion))
+    }
+}
+
+async fn cmd_fake_hosted_mcp(
+    port: u16,
+    server: String,
+    scheme: String,
+    internal_token_secret: String,
+    ready_file: Option<PathBuf>,
+) -> Result<()> {
+    let server_slug = ServerSlug::new(server.clone())?;
+    let verifier = GatewayInternalTokenVerifier::new(
+        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        server_slug,
+        InternalTokenSecret::new(internal_token_secret)?,
+    );
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+    let allowed_hosts = vec!["localhost".to_string(), "127.0.0.1".to_string()];
+    let mcp_service = StreamableHttpService::new(
+        {
+            let server = server.clone();
+            let scheme = scheme.clone();
+            move || Ok(FakeHostedMcp::new(server.clone(), scheme.clone()))
+        },
+        LocalSessionManager::default().into(),
+        StreamableHttpServerConfig::default().with_allowed_hosts(allowed_hosts),
+    );
+    let mcp_router = AxumRouter::new()
+        .route_service("/", mcp_service.clone())
+        .route_service("/{*path}", mcp_service)
+        .layer(axum_middleware::from_fn_with_state(
+            FakeHostedAuthState { verifier },
+            authenticate_fake_hosted_mcp,
+        ));
+    let router = AxumRouter::new().nest(
+        &format!("/{server}"),
+        AxumRouter::new()
+            .route("/healthz", axum_get(|| async { "ok" }))
+            .nest("/mcp", mcp_router),
+    );
+    if let Some(path) = ready_file {
+        std::fs::write(path, b"ready\n")?;
+    }
+    axum::serve(listener, router).await?;
+    Ok(())
+}
+
+async fn authenticate_fake_hosted_mcp(
+    AxumState(state): AxumState<FakeHostedAuthState>,
+    mut request: AxumRequest,
+    next: AxumNext,
+) -> axum::response::Response {
+    match verify_fake_hosted_internal_authorization(&state.verifier, request.headers()) {
+        Ok(identity) => {
+            request
+                .extensions_mut()
+                .insert::<GatewayInternalIdentity>(identity);
+            next.run(request).await
+        }
+        Err(message) => (AxumStatusCode::UNAUTHORIZED, message).into_response(),
+    }
+}
+
+fn verify_fake_hosted_internal_authorization(
+    verifier: &GatewayInternalTokenVerifier,
+    headers: &AxumHeaderMap,
+) -> Result<GatewayInternalIdentity, String> {
+    let header = headers
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| "missing internal authorization".to_string())?;
+    let Some((scheme, token)) = header.split_once(' ') else {
+        return Err("missing bearer token".to_string());
+    };
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return Err("authorization scheme must be Bearer".to_string());
+    }
+    if token.is_empty() || token.chars().any(char::is_whitespace) {
+        return Err("bearer token contains invalid whitespace".to_string());
+    }
+    verifier.verify(token).map_err(|err| err.to_string())
 }
 
 async fn otlp_sink_hit(
@@ -1753,6 +2392,42 @@ async fn cmd_prompt(client: &Client, name: String, arguments: Option<String>) ->
     Ok(())
 }
 
+async fn cmd_call(client: &Client, tool_name: String, arguments: String) -> Result<()> {
+    let arguments = serde_json::from_str::<Value>(&arguments)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| anyhow!("tool arguments must be a JSON object"))?;
+    let result = client
+        .call_tool(CallToolRequestParams::new(tool_name).with_arguments(arguments))
+        .await?;
+    print_call_tool_result(&result);
+    Ok(())
+}
+
+async fn cmd_complete_resource(
+    client: &Client,
+    uri: String,
+    argument: String,
+    prefix: String,
+) -> Result<()> {
+    let result = client
+        .complete(CompleteRequestParams::new(
+            Reference::for_resource(uri),
+            ArgumentInfo::new(argument, prefix),
+        ))
+        .await?;
+    for value in &result.completion.values {
+        println!("{value}");
+    }
+    println!(
+        "\n{} shown, total {:?}, has_more {:?}",
+        result.completion.values.len(),
+        result.completion.total,
+        result.completion.has_more
+    );
+    Ok(())
+}
+
 async fn cmd_tasks(client: &Client) -> Result<()> {
     let result = client
         .send_request(ClientRequest::ListTasksRequest(ListTasksRequest::default()))
@@ -2094,6 +2769,19 @@ async fn main() -> Result<()> {
                 trusted_ca_path.clone(),
             );
         }
+        Cmd::GatewayTwoServerSmokeControlPlane {
+            base,
+            output,
+            media_upstream_url,
+            simulation_upstream_url,
+        } => {
+            return cmd_gateway_two_server_smoke_control_plane(
+                base.clone(),
+                output.clone(),
+                media_upstream_url.clone(),
+                simulation_upstream_url.clone(),
+            );
+        }
         Cmd::GatewayFakeOidcIdp {
             port,
             cert_pem,
@@ -2127,6 +2815,22 @@ async fn main() -> Result<()> {
             completion_delay_ms,
         } => {
             return cmd_fake_media_provider(*port, ready_file.clone(), *completion_delay_ms).await;
+        }
+        Cmd::FakeHostedMcp {
+            port,
+            server,
+            scheme,
+            internal_token_secret,
+            ready_file,
+        } => {
+            return cmd_fake_hosted_mcp(
+                *port,
+                server.clone(),
+                scheme.clone(),
+                internal_token_secret.clone(),
+                ready_file.clone(),
+            )
+            .await;
         }
         Cmd::GatewayClientAssertion {
             client_id,
@@ -2237,9 +2941,13 @@ async fn main() -> Result<()> {
         Cmd::GatewayJwks => unreachable!("handled before MCP connection"),
         Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),
         Cmd::GatewaySmokeControlPlane { .. } => unreachable!("handled before MCP connection"),
+        Cmd::GatewayTwoServerSmokeControlPlane { .. } => {
+            unreachable!("handled before MCP connection")
+        }
         Cmd::GatewayFakeOidcIdp { .. } => unreachable!("handled before MCP connection"),
         Cmd::OtlpHttpSink { .. } => unreachable!("handled before MCP connection"),
         Cmd::FakeMediaProvider { .. } => unreachable!("handled before MCP connection"),
+        Cmd::FakeHostedMcp { .. } => unreachable!("handled before MCP connection"),
         Cmd::ContractSchemas { .. } => unreachable!("handled before MCP connection"),
         Cmd::DeploymentValidate { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),
@@ -2255,6 +2963,15 @@ async fn main() -> Result<()> {
         Cmd::Prompts => cmd_prompts(&client).await,
         Cmd::Resource { uri } => cmd_resource(&client, uri).await,
         Cmd::Prompt { name, arguments } => cmd_prompt(&client, name, arguments).await,
+        Cmd::Call {
+            tool_name,
+            arguments,
+        } => cmd_call(&client, tool_name, arguments).await,
+        Cmd::CompleteResource {
+            uri,
+            argument,
+            prefix,
+        } => cmd_complete_resource(&client, uri, argument, prefix).await,
         Cmd::Tasks => cmd_tasks(&client).await,
         Cmd::Schema { model_id } => {
             let value = read_resource_json(&client, &uris.model_uri(&model_id)).await?;

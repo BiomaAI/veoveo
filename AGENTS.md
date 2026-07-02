@@ -33,6 +33,21 @@ and explicit domain types whenever the shape is known or controlled by our contr
 Use raw JSON only at genuinely open-ended boundaries, such as provider-specific model
 input schemas or opaque provider payloads that cannot be modeled honestly yet.
 
+## Justfile Discipline
+
+Do not abuse the Justfile as a smoke-test framework or scripting language. Keep recipes as
+short, memorable dispatch commands for humans. Complex orchestration, process lifecycle,
+assertions, retries, JSON parsing, and cleanup belong in Rust smoke harnesses.
+
+All smoke tests for this repository must be implemented in Rust. The Justfile may build
+and dispatch those Rust smoke commands, but it must not contain shell-based smoke-test
+logic.
+
+Only add smoke-test helper crates when they are current, maintained, and remove concrete
+complexity from our actual multi-process smoke tests. Do not add a crate just because it
+is popular for CLI tests; if it does not materially improve server lifecycle,
+readiness, assertions, cleanup, or diagnostics, keep the in-repo Rust harness.
+
 ## Naming
 
 The workspace is `veoveo`. Crates are Veoveo crates. Folder names should stay concise and
