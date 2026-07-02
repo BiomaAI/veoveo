@@ -225,9 +225,12 @@ pub struct GatewayControlPlane {
 
 impl GatewayControlPlane {
     pub fn validate(&self) -> Result<(), GatewayControlPlaneError> {
-        let mut identity_providers = BTreeSet::new();
+        let mut identity_providers = BTreeMap::new();
         for identity_provider in &self.identity_providers {
-            if !identity_providers.insert(identity_provider.id.clone()) {
+            if identity_providers
+                .insert(identity_provider.id.clone(), identity_provider)
+                .is_some()
+            {
                 return Err(GatewayControlPlaneError::DuplicateIdentityProvider(
                     identity_provider.id.clone(),
                 ));
@@ -259,12 +262,12 @@ impl GatewayControlPlane {
                     profile.id.clone(),
                 ));
             }
-            if !identity_providers.contains(&profile.identity_provider) {
+            let Some(identity_provider) = identity_providers.get(&profile.identity_provider) else {
                 return Err(GatewayControlPlaneError::UnknownIdentityProvider {
                     profile: profile.id.clone(),
                     identity_provider: profile.identity_provider.clone(),
                 });
-            }
+            };
             if !policies.contains(&profile.policy_version) {
                 return Err(GatewayControlPlaneError::UnknownPolicy {
                     profile: profile.id.clone(),
@@ -279,6 +282,7 @@ impl GatewayControlPlane {
                     });
                 }
             }
+            validate_profile_auth_modes(profile, identity_provider)?;
         }
 
         let mut secrets = BTreeSet::new();
@@ -311,6 +315,33 @@ pub enum GatewayControlPlaneError {
         profile: GatewayProfileId,
         identity_provider: IdentityProviderId,
     },
+    MissingAuthModes {
+        profile: GatewayProfileId,
+    },
+    MissingIdentityProviderEndpoint {
+        profile: GatewayProfileId,
+        identity_provider: IdentityProviderId,
+        endpoint: IdentityProviderEndpoint,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityProviderEndpoint {
+    Authorization,
+    Token,
+    EnterpriseManagedAuthorization,
+    ClientCredentials,
+}
+
+impl IdentityProviderEndpoint {
+    fn description(self) -> &'static str {
+        match self {
+            Self::Authorization => "authorization endpoint",
+            Self::Token => "token endpoint",
+            Self::EnterpriseManagedAuthorization => "enterprise-managed authorization endpoint",
+            Self::ClientCredentials => "client-credentials endpoint",
+        }
+    }
 }
 
 impl fmt::Display for GatewayControlPlaneError {
@@ -341,11 +372,88 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "gateway profile `{profile}` references unknown identity provider `{identity_provider}`"
             ),
+            Self::MissingAuthModes { profile } => {
+                write!(f, "gateway profile `{profile}` declares no auth modes")
+            }
+            Self::MissingIdentityProviderEndpoint {
+                profile,
+                identity_provider,
+                endpoint,
+            } => write!(
+                f,
+                "gateway profile `{profile}` requires {} on identity provider `{identity_provider}`",
+                endpoint.description()
+            ),
         }
     }
 }
 
 impl std::error::Error for GatewayControlPlaneError {}
+
+fn validate_profile_auth_modes(
+    profile: &GatewayProfile,
+    identity_provider: &IdentityProvider,
+) -> Result<(), GatewayControlPlaneError> {
+    if profile.auth_modes.is_empty() {
+        return Err(GatewayControlPlaneError::MissingAuthModes {
+            profile: profile.id.clone(),
+        });
+    }
+    for auth_mode in &profile.auth_modes {
+        match auth_mode {
+            AuthMode::OidcAuthorizationCodePkce => {
+                require_identity_provider_endpoint(
+                    profile,
+                    identity_provider,
+                    IdentityProviderEndpoint::Authorization,
+                    identity_provider.authorization_endpoint.is_some(),
+                )?;
+                require_identity_provider_endpoint(
+                    profile,
+                    identity_provider,
+                    IdentityProviderEndpoint::Token,
+                    identity_provider.token_endpoint.is_some(),
+                )?;
+            }
+            AuthMode::EnterpriseManagedAuthorization => {
+                require_identity_provider_endpoint(
+                    profile,
+                    identity_provider,
+                    IdentityProviderEndpoint::EnterpriseManagedAuthorization,
+                    identity_provider
+                        .enterprise_managed_authorization_endpoint
+                        .is_some(),
+                )?;
+            }
+            AuthMode::OAuthClientCredentials => {
+                require_identity_provider_endpoint(
+                    profile,
+                    identity_provider,
+                    IdentityProviderEndpoint::ClientCredentials,
+                    identity_provider.client_credentials_endpoint.is_some(),
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn require_identity_provider_endpoint(
+    profile: &GatewayProfile,
+    identity_provider: &IdentityProvider,
+    endpoint: IdentityProviderEndpoint,
+    present: bool,
+) -> Result<(), GatewayControlPlaneError> {
+    if present {
+        Ok(())
+    } else {
+        Err(GatewayControlPlaneError::MissingIdentityProviderEndpoint {
+            profile: profile.id.clone(),
+            identity_provider: identity_provider.id.clone(),
+            endpoint,
+        })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct IdentityProvider {
@@ -1457,6 +1565,133 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::UnknownIdentityProvider { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_profile_without_auth_modes() {
+        let mut profile = default_profile();
+        profile.auth_modes.clear();
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config.validate().expect_err("empty auth modes must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingAuthModes { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
+        let mut idp = identity_provider();
+        idp.authorization_endpoint = None;
+        let mut profile = default_profile();
+        profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![idp],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("OIDC browser auth requires authorization endpoint");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingIdentityProviderEndpoint {
+                endpoint: IdentityProviderEndpoint::Authorization,
+                ..
+            }
+        ));
+
+        let mut idp = identity_provider();
+        idp.token_endpoint = None;
+        let mut profile = default_profile();
+        profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![idp],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("OIDC browser auth requires token endpoint");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingIdentityProviderEndpoint {
+                endpoint: IdentityProviderEndpoint::Token,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
+        let mut idp = identity_provider();
+        idp.enterprise_managed_authorization_endpoint = None;
+        let mut profile = default_profile();
+        profile.auth_modes = BTreeSet::from([AuthMode::EnterpriseManagedAuthorization]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![idp],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("enterprise-managed auth requires endpoint");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingIdentityProviderEndpoint {
+                endpoint: IdentityProviderEndpoint::EnterpriseManagedAuthorization,
+                ..
+            }
+        ));
+
+        let mut idp = identity_provider();
+        idp.client_credentials_endpoint = None;
+        let mut profile = default_profile();
+        profile.auth_modes = BTreeSet::from([AuthMode::OAuthClientCredentials]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![idp],
+            servers: vec![media_manifest()],
+            profiles: vec![profile],
+            policies: vec![default_policy()],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("client-credentials auth requires endpoint");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::MissingIdentityProviderEndpoint {
+                endpoint: IdentityProviderEndpoint::ClientCredentials,
+                ..
+            }
         ));
     }
 
