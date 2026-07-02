@@ -384,18 +384,30 @@ smoke-gateway-authenticated:
     set -euo pipefail
     media_port=18801
     gateway_port=18802
+    edge_port=18809
     media_base="http://127.0.0.1:${media_port}"
     gateway_base="http://127.0.0.1:${gateway_port}"
+    edge_base="http://127.0.0.1:${edge_port}"
     tmpdir="$(mktemp -d)"
     media_log="${tmpdir}/media.log"
     gateway_log="${tmpdir}/gateway.log"
+    edge_log="${tmpdir}/edge.log"
+    edge_caddyfile="${tmpdir}/Caddyfile"
     media_state_db="${tmpdir}/media-state.duckdb"
     gateway_state_db="${tmpdir}/gateway-state.duckdb"
     internal_secret="local-smoke-internal-token-secret-32-bytes-minimum"
     auth_private_key="$({{conformance}} gateway-private-key-der-b64)"
     media_pid=""
     gateway_pid=""
+    edge_pid=""
+    edge_name="veoveo-edge-smoke-${edge_port}-$$"
     cleanup() {
+        if [ -n "${edge_name}" ]; then
+            docker rm -f "${edge_name}" >/dev/null 2>&1 || true
+        fi
+        if [ -n "${edge_pid}" ]; then
+            wait "${edge_pid}" 2>/dev/null || true
+        fi
         if [ -n "${gateway_pid}" ]; then
             kill "${gateway_pid}" 2>/dev/null || true
             wait "${gateway_pid}" 2>/dev/null || true
@@ -429,6 +441,61 @@ smoke-gateway-authenticated:
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
     grep -E '^\{' "${gateway_log}" | jq -e 'select(.message == "listening" and .service == "veoveo-mcp-gateway" and .server_count == 1 and .profile_count == 1)' >/dev/null
     grep -E '^\{' "${gateway_log}" | jq -e 'select(.message == "gateway retention gc completed")' >/dev/null
+    {
+        printf '%s\n' '{'
+        printf '%s\n' '    admin off'
+        printf '%s\n' '    auto_https off'
+        printf '%s\n' '}'
+        printf '%s\n' ''
+        printf '%s\n' ':8080 {'
+        printf '%s\n' '    handle /mcp* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${gateway_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /oauth* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${gateway_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /.well-known/oauth-* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${gateway_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /admin* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${gateway_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /healthz {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${gateway_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /readyz {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${gateway_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /media/webhooks* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${media_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /media/files* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${media_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /media/artifacts* {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${media_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    handle /media/healthz {'
+        printf '%s\n' "        reverse_proxy host.docker.internal:${media_port}"
+        printf '%s\n' '    }'
+        printf '%s\n' '    respond /media/mcp* 404'
+        printf '%s\n' '    respond 404'
+        printf '%s\n' '}'
+    } >"${edge_caddyfile}"
+    docker run --rm --name "${edge_name}" --add-host=host.docker.internal:host-gateway -p "127.0.0.1:${edge_port}:8080" -v "${edge_caddyfile}:/etc/caddy/Caddyfile:ro" caddy:2.11.2 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile >"${edge_log}" 2>&1 &
+    edge_pid=$!
+    for _ in {1..150}; do
+        if curl -fsS "${edge_base}/healthz" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.2
+    done
+    curl -fsS "${edge_base}/healthz" | grep -F 'ok'
+    curl -fsS "${edge_base}/media/healthz" | grep -F 'ok'
+    edge_media_mcp_status="$(curl -sS -o /dev/null -w "%{http_code}" "${edge_base}/media/mcp")"
+    test "${edge_media_mcp_status}" = "404"
+    edge_token="$({{conformance}} gateway-token-exchange --token-url "${edge_base}/oauth/default/token" --scope media:use)"
+    env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${edge_token}" {{conformance}} --url "${edge_base}/mcp/default" info >/dev/null
     token_endpoint="${gateway_base}/oauth/default/token"
     admin_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use --scope gateway:admin)"
     status="$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${admin_token}" -X POST "${gateway_base}/admin/default/reload-control-plane")"
