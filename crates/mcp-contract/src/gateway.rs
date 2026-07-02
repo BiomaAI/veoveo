@@ -381,6 +381,11 @@ pub enum GatewayControlPlaneError {
         rule: PolicyRuleId,
         prompt: PromptName,
     },
+    PolicyRuleActionUnsupportedByServerScope {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        action: GatewayAction,
+    },
     UnknownServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -537,6 +542,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "policy `{policy}` rule `{rule}` references unknown prompt `{prompt}` in its server scope"
+            ),
+            Self::PolicyRuleActionUnsupportedByServerScope {
+                policy,
+                rule,
+                action,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` allows action `{action:?}` outside its server capability scope"
             ),
             Self::UnknownServer { profile, server } => write!(
                 f,
@@ -887,6 +900,7 @@ fn validate_policy_set(
             }
         }
         let server_scope = policy_rule_server_scope(rule, servers);
+        validate_policy_rule_actions(policy, rule, &server_scope)?;
         for scheme in &rule.resource_schemes {
             if !resource_schemes.contains(scheme) {
                 return Err(GatewayControlPlaneError::UnknownPolicyRuleResourceScheme {
@@ -933,6 +947,55 @@ fn validate_policy_set(
         }
     }
     Ok(())
+}
+
+fn validate_policy_rule_actions(
+    policy: &PolicySet,
+    rule: &PolicyRule,
+    server_scope: &[&ServerManifest],
+) -> Result<(), GatewayControlPlaneError> {
+    for action in &rule.actions {
+        let supported = if rule.servers.is_empty() {
+            server_scope
+                .iter()
+                .any(|server| server_supports_gateway_action(server, *action))
+        } else {
+            server_scope
+                .iter()
+                .all(|server| server_supports_gateway_action(server, *action))
+        };
+        if !supported {
+            return Err(
+                GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    action: *action,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction) -> bool {
+    match action {
+        GatewayAction::ToolsList | GatewayAction::ToolsCall => server.capabilities.tools,
+        GatewayAction::ResourcesList | GatewayAction::ResourcesRead => {
+            server.capabilities.resources
+        }
+        GatewayAction::ResourcesTemplatesList => server.capabilities.resource_templates,
+        GatewayAction::ResourcesSubscribe | GatewayAction::ResourcesUnsubscribe => {
+            server.capabilities.resource_subscriptions
+        }
+        GatewayAction::PromptsList | GatewayAction::PromptsGet => server.capabilities.prompts,
+        GatewayAction::CompletionComplete => server.capabilities.completions,
+        GatewayAction::TasksList
+        | GatewayAction::TasksGet
+        | GatewayAction::TasksResult
+        | GatewayAction::TasksCancel => server.capabilities.tasks,
+        GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
+        GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
+    }
 }
 
 fn policy_rule_server_scope<'a>(
@@ -2629,6 +2692,36 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::PolicyRuleResourceSchemeOutsideServerScope { .. }
+        ));
+    }
+
+    #[test]
+    fn control_plane_rejects_policy_action_outside_server_capabilities() {
+        let mut manifest = media_manifest();
+        manifest.capabilities.resource_subscriptions = false;
+        let mut policy = default_policy();
+        policy.rules[0].actions = BTreeSet::from([GatewayAction::ResourcesUnsubscribe]);
+        policy.rules[0].tools.clear();
+        policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
+        let config = GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            servers: vec![manifest],
+            profiles: vec![default_profile()],
+            policies: vec![policy],
+            secrets: vec![],
+            metadata: Value::Null,
+        };
+
+        let err = config
+            .validate()
+            .expect_err("policy action outside server capabilities must fail");
+
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
+                action: GatewayAction::ResourcesUnsubscribe,
+                ..
+            }
         ));
     }
 
