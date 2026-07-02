@@ -314,6 +314,8 @@ smoke-media-task-run:
         sleep 0.2
     done
     curl -fsS "${media_base}/media/healthz" | grep -F 'ok'
+    complete_output="$(env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${media_base}/media/mcp" complete fake)"
+    printf '%s\n' "${complete_output}" | grep -F 'fake/image'
     run_output="$(env -u MCP_BEARER_TOKEN VEOVEO_INTERNAL_TOKEN_SECRET="${internal_secret}" {{conformance}} --url "${media_base}/media/mcp" run fake/image --input '{"prompt":"smoke"}' --output-dir "${output_dir}")"
     printf '%s\n' "${run_output}"
     task_id="$(printf '%s\n' "${run_output}" | sed -n 's/^task \([^ ]*\) created.*/\1/p')"
@@ -505,6 +507,8 @@ smoke-gateway-task-run:
     done
     curl -fsS "${gateway_base}/readyz" | grep -F '"profiles":1'
     token="$({{conformance}} gateway-token-exchange --token-url "${gateway_base}/oauth/default/token" --scope media:use)"
+    complete_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" complete fake)"
+    printf '%s\n' "${complete_output}" | grep -F 'fake/image'
     run_output="$(env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" run fake/image --tool-name media__run --input '{"prompt":"smoke"}' --output-dir "${output_dir}")"
     printf '%s\n' "${run_output}"
     task_id="$(printf '%s\n' "${run_output}" | sed -n 's/^task \([^ ]*\) created.*/\1/p')"
