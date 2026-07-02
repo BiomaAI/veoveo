@@ -104,33 +104,6 @@ enum Command {
         #[arg(long)]
         state_db: PathBuf,
     },
-    /// Add a gateway JWT id to the durable revocation set.
-    RevokeJwt {
-        /// DuckDB file for gateway runtime state and audit evidence.
-        #[arg(long)]
-        state_db: PathBuf,
-        /// Gateway profile whose protected resource accepted the JWT.
-        #[arg(long)]
-        profile: GatewayProfileId,
-        /// Token issuer claim.
-        #[arg(long)]
-        issuer: TokenIssuer,
-        /// JWT id claim.
-        #[arg(long)]
-        jwt_id: JwtId,
-        /// Expiration timestamp for this revocation entry, normally the JWT exp claim.
-        #[arg(long)]
-        expires_at: DateTime<Utc>,
-        /// Operator-readable revocation reason stored as evidence.
-        #[arg(long)]
-        reason: Option<String>,
-    },
-    /// Remove expired gateway JWT revocation entries.
-    PruneRevokedJwts {
-        /// DuckDB file for gateway runtime state and audit evidence.
-        #[arg(long)]
-        state_db: PathBuf,
-    },
     /// Start the gateway process.
     Serve {
         /// Port to bind on 0.0.0.0.
@@ -352,31 +325,6 @@ async fn main() -> anyhow::Result<()> {
                 "{}",
                 serde_json::to_string(&state.policy_audit_reason_summary()?)?
             );
-            Ok(())
-        }
-        Command::RevokeJwt {
-            state_db,
-            profile,
-            issuer,
-            jwt_id,
-            expires_at,
-            reason,
-        } => {
-            let state = GatewayState::open(&state_db)?;
-            state.record_jwt_revocation(&GatewayJwtRevocation {
-                profile,
-                issuer,
-                jwt_id,
-                revoked_at: Utc::now(),
-                expires_at,
-                reason,
-            })?;
-            println!("ok");
-            Ok(())
-        }
-        Command::PruneRevokedJwts { state_db } => {
-            let state = GatewayState::open(&state_db)?;
-            println!("{}", state.prune_expired_jwt_revocations(Utc::now())?);
             Ok(())
         }
         Command::Serve {
