@@ -44,14 +44,15 @@ use veoveo_mcp_contract::{
     CertificateAuthoritySource, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction,
     GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
     GatewayControlPlaneRevision, GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource,
-    GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayProfile, GatewayProfileId,
-    InternalTokenSecret, JwksSource, JwtId, McpMethodName, OAuthAuthorizationCode,
-    OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
-    OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce, PkceCodeChallenge,
-    PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyTarget,
-    Principal, PrincipalId, PrincipalKind, PublicDeployment, ResourceAuthorizationServer,
-    ScopeName, SecretPurpose, SecretReferenceId, TelemetryGuard, TokenIssuer, TokenSubject,
-    TraceId, init_server_telemetry,
+    GatewayInternalTokenIssuer, GatewayJwtRevocation, GatewayJwtRevocationAdminStatus,
+    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
+    GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
+    OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
+    OAuthGrantType, OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcNonce,
+    PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect,
+    PolicyTarget, Principal, PrincipalId, PrincipalKind, PublicDeployment,
+    ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, TelemetryGuard,
+    TokenIssuer, TokenSubject, TraceId, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
@@ -533,6 +534,8 @@ async fn serve(
                 get(read_control_plane).put(update_control_plane),
             )
             .route("/reload-control-plane", post(reload_control_plane))
+            .route("/jwt-revocations", post(revoke_jwt))
+            .route("/jwt-revocations/prune", post(prune_jwt_revocations))
             .with_state(admin_state)
             .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
         router = router.nest(&format!("/admin/{profile_id}"), admin_router);
@@ -2541,6 +2544,7 @@ async fn reload_control_plane(
         subject,
         GatewayAction::AdminWrite,
         "admin/reload-control-plane",
+        BTreeMap::new(),
         started_at,
     ) {
         Ok(authorized) => authorized,
@@ -2612,6 +2616,7 @@ async fn read_control_plane(
         subject,
         GatewayAction::AdminRead,
         "admin/control-plane",
+        BTreeMap::new(),
         started_at,
     ) {
         Ok(authorized) => authorized,
@@ -2650,6 +2655,7 @@ async fn update_control_plane(
         subject,
         GatewayAction::AdminWrite,
         "admin/control-plane",
+        BTreeMap::new(),
         started_at,
     ) {
         Ok(authorized) => authorized,
@@ -2729,6 +2735,98 @@ async fn update_control_plane(
         sha256,
         servers,
         profiles,
+    })
+    .into_response()
+}
+
+async fn revoke_jwt(
+    State(state): State<AdminState>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+    Json(request): Json<GatewayJwtRevocationRequest>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let metadata = admin_revocation_metadata(&request);
+    let (_catalog, profile, subject) = match authorize_admin_request(
+        &state,
+        subject,
+        GatewayAction::AdminWrite,
+        "admin/jwt-revocations",
+        metadata,
+        started_at,
+    ) {
+        Ok(authorized) => authorized,
+        Err(response) => return *response,
+    };
+
+    let revoked_at = Utc::now();
+    if request.expires_at <= revoked_at {
+        return (
+            StatusCode::BAD_REQUEST,
+            "revocation expiration must be in the future",
+        )
+            .into_response();
+    }
+    let revocation = GatewayJwtRevocation {
+        profile: profile.id,
+        issuer: request.issuer,
+        jwt_id: request.jwt_id,
+        revoked_at,
+        expires_at: request.expires_at,
+        reason: request.reason,
+    };
+    if let Err(err) = state.gateway_state.record_jwt_revocation(&revocation) {
+        tracing::error!("failed to persist gateway JWT revocation: {err}");
+        return internal_error_response(err);
+    }
+    tracing::info!(
+        profile = %state.profile_id,
+        principal = %subject.principal.id,
+        issuer = %revocation.issuer,
+        jwt_id = %revocation.jwt_id,
+        "gateway JWT revoked"
+    );
+    Json(GatewayJwtRevocationApplyResult {
+        status: GatewayJwtRevocationAdminStatus::Revoked,
+        revocation,
+    })
+    .into_response()
+}
+
+async fn prune_jwt_revocations(
+    State(state): State<AdminState>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let (_catalog, _profile, subject) = match authorize_admin_request(
+        &state,
+        subject,
+        GatewayAction::AdminWrite,
+        "admin/jwt-revocations/prune",
+        BTreeMap::from([("operation".to_string(), "prune_jwt_revocations".to_string())]),
+        started_at,
+    ) {
+        Ok(authorized) => authorized,
+        Err(response) => return *response,
+    };
+    let deleted = match state
+        .gateway_state
+        .prune_expired_jwt_revocations(Utc::now())
+    {
+        Ok(deleted) => deleted,
+        Err(err) => {
+            tracing::error!("failed to prune expired gateway JWT revocations: {err}");
+            return internal_error_response(err);
+        }
+    };
+    tracing::info!(
+        profile = %state.profile_id,
+        principal = %subject.principal.id,
+        deleted,
+        "expired gateway JWT revocations pruned"
+    );
+    Json(GatewayJwtRevocationPruneResult {
+        status: GatewayJwtRevocationAdminStatus::Pruned,
+        deleted,
     })
     .into_response()
 }
@@ -3382,6 +3480,7 @@ fn authorize_admin_request(
     subject: AuthenticatedSubject,
     action: GatewayAction,
     audit_method: &str,
+    audit_metadata: BTreeMap<String, String>,
     started_at: Instant,
 ) -> std::result::Result<
     (Arc<GatewayCatalog>, GatewayProfile, AuthenticatedSubject),
@@ -3412,6 +3511,7 @@ fn authorize_admin_request(
             target,
             decision: decision.clone(),
             method: audit_method,
+            metadata: audit_metadata,
             started_at,
         },
     ) {
@@ -3445,7 +3545,20 @@ struct AdminAuditRecord<'a> {
     target: PolicyTarget,
     decision: PolicyDecision,
     method: &'a str,
+    metadata: BTreeMap<String, String>,
     started_at: Instant,
+}
+
+fn admin_revocation_metadata(request: &GatewayJwtRevocationRequest) -> BTreeMap<String, String> {
+    let mut metadata = BTreeMap::new();
+    metadata.insert("operation".to_string(), "revoke_jwt".to_string());
+    metadata.insert("issuer".to_string(), request.issuer.to_string());
+    metadata.insert("jwt_id".to_string(), request.jwt_id.to_string());
+    metadata.insert("expires_at".to_string(), request.expires_at.to_rfc3339());
+    if let Some(reason) = &request.reason {
+        metadata.insert("reason".to_string(), reason.clone());
+    }
+    metadata
 }
 
 fn record_admin_audit(
@@ -3469,7 +3582,7 @@ fn record_admin_audit(
         tenant: subject.principal.tenant.clone(),
         token_issuer: Some(subject.access_token.issuer.clone()),
         latency_ms: Some(latency_ms),
-        metadata: BTreeMap::new(),
+        metadata: record.metadata,
     })?;
     Ok(())
 }

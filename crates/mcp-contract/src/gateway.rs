@@ -2387,6 +2387,34 @@ pub struct GatewayJwtRevocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayJwtRevocationRequest {
+    pub issuer: TokenIssuer,
+    pub jwt_id: JwtId,
+    pub expires_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayJwtRevocationAdminStatus {
+    Revoked,
+    Pruned,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayJwtRevocationApplyResult {
+    pub status: GatewayJwtRevocationAdminStatus,
+    pub revocation: GatewayJwtRevocation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayJwtRevocationPruneResult {
+    pub status: GatewayJwtRevocationAdminStatus,
+    pub deleted: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayAuthorizationRequest {
     pub idp_state: OAuthStateValue,
     pub profile: GatewayProfileId,

@@ -4,6 +4,7 @@ set dotenv-load := true
 compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
 mcp-url := "http://localhost:8788/mcp/default"
 gateway-token-url := "http://localhost:8788/oauth/default/token"
+gateway-admin-url := "http://localhost:8788/admin"
 gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-contract --bin conformance --"
@@ -37,13 +38,11 @@ deployments-validate:
 
 # Revoke one gateway JWT id until its original token expiration.
 gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.bioma.ai/oauth/default' profile='default' reason='operator_request':
-    mkdir -p data/gateway
-    cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db data/gateway/state.duckdb --profile '{{profile}}' --issuer '{{issuer}}' --jwt-id '{{jwt_id}}' --expires-at '{{expires_at}}' --reason '{{reason}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use --scope gateway:admin)"; payload="$(jq -n --arg issuer '{{issuer}}' --arg jwt_id '{{jwt_id}}' --arg expires_at '{{expires_at}}' --arg reason '{{reason}}' '{issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"; curl -fsS -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data "${payload}" "{{gateway-admin-url}}/{{profile}}/jwt-revocations"
 
 # Remove expired gateway JWT revocation entries.
-gateway-prune-revoked-jwts:
-    mkdir -p data/gateway
-    cargo run -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db data/gateway/state.duckdb
+gateway-prune-revoked-jwts profile='default':
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope media:use --scope gateway:admin)"; curl -fsS -X POST -H "Authorization: Bearer ${token}" "{{gateway-admin-url}}/{{profile}}/jwt-revocations/prune"
 
 # Smoke-test gateway contract/control-plane behavior without external services.
 smoke-gateway:
@@ -170,12 +169,21 @@ smoke-gateway-http:
     test "${callback_replay_status}" = "400"
     status="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${base}/admin/default/reload-control-plane")"
     test "${status}" = "401"
+    admin_token="$({{conformance}} gateway-token-exchange --token-url "${base}/oauth/default/token" --scope media:use --scope gateway:admin)"
+    revocation_payload="$(jq -n --arg issuer 'https://veoveo.bioma.ai/oauth/default' --arg jwt_id 'smoke-jwt' --arg expires_at '2999-01-01T00:00:00Z' --arg reason 'smoke' '{issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"
+    revocation_result="$(curl -fsS -X POST -H "Authorization: Bearer ${admin_token}" -H "Content-Type: application/json" --data "${revocation_payload}" "${base}/admin/default/jwt-revocations")"
+    echo "${revocation_result}" | jq -e '.status == "revoked" and .revocation.jwt_id == "smoke-jwt"' >/dev/null
+    prune_result="$(curl -fsS -X POST -H "Authorization: Bearer ${admin_token}" "${base}/admin/default/jwt-revocations/prune")"
+    echo "${prune_result}" | jq -e '.status == "pruned" and .deleted == 0' >/dev/null
     kill "${pid}"
     wait "${pid}" 2>/dev/null || true
     pid=""
-    cargo run -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}" | grep -F '"auth_events":7'
-    cargo run -p veoveo-mcp-gateway --bin gateway -- revoke-jwt --state-db "${state_db}" --profile default --issuer https://veoveo.bioma.ai/oauth/default --jwt-id smoke-jwt --expires-at 2999-01-01T00:00:00Z --reason smoke >/dev/null
-    test "$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- prune-revoked-jwts --state-db "${state_db}")" = "0"
+    audit_counts="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-counts --state-db "${state_db}")"
+    echo "${audit_counts}" | grep -E '"auth_events":[1-9][0-9]*'
+    echo "${audit_counts}" | grep -E '"policy_events":[1-9][0-9]*'
+    audit_summary="$(cargo run -q -p veoveo-mcp-gateway --bin gateway -- audit-method-summary --state-db "${state_db}")"
+    echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations" and .allow_events == 1)' >/dev/null
+    echo "${audit_summary}" | jq -e '.[] | select(.method == "admin/jwt-revocations/prune" and .allow_events == 1)' >/dev/null
 
 # Smoke-test OTLP HTTP log and trace export from the gateway.
 smoke-otel:
@@ -424,6 +432,15 @@ smoke-gateway-authenticated:
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompts >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" prompt media-model-select --arguments '{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}' >/dev/null
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${token}" {{conformance}} --url "${gateway_base}/mcp/default" tasks >/dev/null
+    revoked_token="$({{conformance}} gateway-token-exchange --token-url "${token_endpoint}" --scope media:use)"
+    revoked_jti="$(jq -nr --arg token "${revoked_token}" '$token | split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | . + (["","===","==","="][length % 4]) | @base64d | fromjson | .jti')"
+    revocation_payload="$(jq -n --arg issuer 'https://veoveo.bioma.ai/oauth/default' --arg jwt_id "${revoked_jti}" --arg expires_at '2999-01-01T00:00:00Z' --arg reason 'smoke' '{issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"
+    revocation_result="$(curl -fsS -X POST -H "Authorization: Bearer ${admin_token}" -H "Content-Type: application/json" --data "${revocation_payload}" "${gateway_base}/admin/default/jwt-revocations")"
+    echo "${revocation_result}" | jq -e --arg jwt_id "${revoked_jti}" '.status == "revoked" and .revocation.jwt_id == $jwt_id' >/dev/null
+    if env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${revoked_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null 2>&1; then
+        echo "revoked gateway token was unexpectedly authorized" >&2
+        exit 1
+    fi
     ema_token="$({{conformance}} gateway-id-jag-token-exchange --token-url "${token_endpoint}" --id-jag-scope media:use --group engineering --role operator --data-label cui)"
     env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="${ema_token}" {{conformance}} --url "${gateway_base}/mcp/default" info >/dev/null
     cui_control_plane="${tmpdir}/gateway.cui.json"
