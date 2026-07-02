@@ -3,6 +3,7 @@ use anyhow::{Result, anyhow};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicDeployment {
     base_url: String,
+    host_authority: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,12 +14,19 @@ pub struct ServerPublicEndpoint {
 
 impl PublicDeployment {
     pub fn new(base_url: impl AsRef<str>) -> Result<Self> {
-        let base_url = normalize_base_url(base_url.as_ref())?;
-        Ok(Self { base_url })
+        let (base_url, host_authority) = normalize_base_url(base_url.as_ref())?;
+        Ok(Self {
+            base_url,
+            host_authority,
+        })
     }
 
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    pub fn host_authority(&self) -> &str {
+        &self.host_authority
     }
 
     pub fn server(&self, server_slug: impl AsRef<str>) -> Result<ServerPublicEndpoint> {
@@ -60,25 +68,38 @@ impl ServerPublicEndpoint {
     }
 }
 
-fn normalize_base_url(input: &str) -> Result<String> {
+fn normalize_base_url(input: &str) -> Result<(String, String)> {
     let value = input.trim().trim_end_matches('/').to_string();
     if value.is_empty() {
         return Err(anyhow!("missing PUBLIC_BASE_URL"));
     }
-    if !(value.starts_with("http://") || value.starts_with("https://")) {
+    let authority = if let Some(rest) = value.strip_prefix("http://") {
+        rest
+    } else if let Some(rest) = value.strip_prefix("https://") {
+        rest
+    } else {
         return Err(anyhow!(
             "PUBLIC_BASE_URL must start with http:// or https://"
         ));
-    }
+    };
     if value.contains(['?', '#']) || value.chars().any(char::is_whitespace) {
         return Err(anyhow!(
             "PUBLIC_BASE_URL must not contain whitespace, query, or fragment"
         ));
     }
-    if value == "http://" || value == "https://" {
+    if authority.is_empty() {
         return Err(anyhow!("PUBLIC_BASE_URL must include a host"));
     }
-    Ok(value)
+    if authority.contains('/') {
+        return Err(anyhow!(
+            "PUBLIC_BASE_URL must be an origin and must not include a path"
+        ));
+    }
+    if authority.contains('@') {
+        return Err(anyhow!("PUBLIC_BASE_URL must not include userinfo"));
+    }
+    let host_authority = authority.to_string();
+    Ok((value, host_authority))
 }
 
 fn normalize_server_slug(input: &str) -> Result<String> {
@@ -113,6 +134,7 @@ mod tests {
         let media = deployment.server("media").expect("valid server");
 
         assert_eq!(deployment.base_url(), "https://veoveo.bioma.ai");
+        assert_eq!(deployment.host_authority(), "veoveo.bioma.ai");
         assert_eq!(media.mount_path(), "/media");
         assert_eq!(media.public_url(), "https://veoveo.bioma.ai/media");
         assert_eq!(media.path("mcp"), "/media/mcp");
@@ -132,10 +154,31 @@ mod tests {
             deployment.base_url(),
             "https://deep.staging.enterprise.example.com"
         );
+        assert_eq!(
+            deployment.host_authority(),
+            "deep.staging.enterprise.example.com"
+        );
         assert_eq!(media.mount_path(), "/media");
         assert_eq!(
             media.public_url(),
             "https://deep.staging.enterprise.example.com/media"
         );
+    }
+
+    #[test]
+    fn preserves_explicit_public_port_for_host_validation() {
+        let deployment =
+            PublicDeployment::new("https://veoveo.bioma.ai:8443").expect("valid deployment");
+
+        assert_eq!(deployment.base_url(), "https://veoveo.bioma.ai:8443");
+        assert_eq!(deployment.host_authority(), "veoveo.bioma.ai:8443");
+    }
+
+    #[test]
+    fn rejects_base_url_paths() {
+        let err = PublicDeployment::new("https://veoveo.bioma.ai/base")
+            .expect_err("base URL path should fail");
+
+        assert!(err.to_string().contains("must not include a path"));
     }
 }

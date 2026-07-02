@@ -110,8 +110,8 @@ struct Args {
 }
 
 impl Args {
-    fn public_endpoint(&self) -> anyhow::Result<ServerPublicEndpoint> {
-        PublicDeployment::new(&self.public_base_url)?.server(SERVER_SLUG)
+    fn public_deployment(&self) -> anyhow::Result<PublicDeployment> {
+        PublicDeployment::new(&self.public_base_url)
     }
 
     fn provider_api_key(&self) -> anyhow::Result<&str> {
@@ -1355,7 +1355,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let args = Args::parse();
-    let public_endpoint = args.public_endpoint()?;
+    let public_deployment = args.public_deployment()?;
+    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let durable = DuckdbState::open(&args.state_db)?;
     let artifacts = ArtifactRepository::new_s3_compatible(
         S3ArtifactConfig {
@@ -1414,13 +1415,21 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let ct = tokio_util::sync::CancellationToken::new();
+    let allowed_hosts = vec![
+        "localhost".to_string(),
+        "127.0.0.1".to_string(),
+        "::1".to_string(),
+        public_deployment.host_authority().to_string(),
+    ];
     let mcp_service = StreamableHttpService::new(
         {
             let state = state.clone();
             move || Ok(MediaMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default().with_cancellation_token(ct.child_token()),
+        StreamableHttpServerConfig::default()
+            .with_allowed_hosts(allowed_hosts)
+            .with_cancellation_token(ct.child_token()),
     );
 
     let mut server_router = Router::new()
