@@ -2443,6 +2443,32 @@ pub struct GatewayTaskMapping {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TaskIdProjection {
+    pub gateway_task_id: GatewayTaskId,
+    pub upstream_server: ServerSlug,
+    pub upstream_task_id: UpstreamTaskId,
+}
+
+impl From<&GatewayTaskMapping> for TaskIdProjection {
+    fn from(mapping: &GatewayTaskMapping) -> Self {
+        Self {
+            gateway_task_id: mapping.gateway_task_id.clone(),
+            upstream_server: mapping.upstream_server.clone(),
+            upstream_task_id: mapping.upstream_task_id.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayResourceProjection {
+    pub server: ServerSlug,
+    pub gateway_uri: ResourceUri,
+    pub upstream_uri: ResourceUri,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task: Option<TaskIdProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayResourceSubscription {
     pub profile: GatewayProfileId,
     pub owner: PrincipalId,

@@ -37,21 +37,22 @@ pub use gateway::{
     Exposure, GatewayAction, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
     GatewayControlPlane, GatewayControlPlaneError, GatewayControlPlaneRevision,
     GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource, GatewayJwtRevocation,
-    GatewayProfile, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
-    GatewayTaskMapping, GatewayToolName, GroupId, HttpsUrl, IdentifierError, IdentityProvider,
-    IdentityProviderEndpoint, IdentityProviderId, IdentityProviderOidcClientRegistration,
-    JwksFilePath, JwksSource, JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
-    MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, McpMethodName, McpSurfaceCapabilities,
-    McpSurfaceCapability, MountPath, OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId,
-    OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OAuthStateValue,
-    OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OidcNonce, OwnedRoute,
-    OwnedRoutePurpose, PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier,
-    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
-    PolicyTarget, PolicyVersion, Principal, PrincipalId, PrincipalKind, ProfileServerExposure,
-    PromptName, ProtectedResourceId, ResourceAuthorizationServer, ResourceScheme, ResourceSelector,
-    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
-    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
-    ServerSlug, TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    GatewayProfile, GatewayProfileId, GatewayResourceProjection, GatewayResourceSubscription,
+    GatewayTaskId, GatewayTaskMapping, GatewayToolName, GroupId, HttpsUrl, IdentifierError,
+    IdentityProvider, IdentityProviderEndpoint, IdentityProviderId,
+    IdentityProviderOidcClientRegistration, JwksFilePath, JwksSource, JwtId, LocalToolName,
+    MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
+    McpMethodName, McpSurfaceCapabilities, McpSurfaceCapability, MountPath, OAuthAuthorizationCode,
+    OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType,
+    OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod, OidcClientId,
+    OidcClientRegistrationId, OidcNonce, OwnedRoute, OwnedRoutePurpose, PkceCodeChallenge,
+    PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode,
+    PolicyRule, PolicyRuleId, PolicySet, PolicyTarget, PolicyVersion, Principal, PrincipalId,
+    PrincipalKind, ProfileServerExposure, PromptName, ProtectedResourceId,
+    ResourceAuthorizationServer, ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix,
+    ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
+    SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug, TaskExposure,
+    TaskIdProjection, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
     UpstreamTaskId, UpstreamTransport,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
@@ -68,6 +69,8 @@ pub use tasks::{
     PrunedTask, TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso, now_utc,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
-pub use uri::{ProviderUris, artifact_object_key, is_sha256};
+pub use uri::{
+    ProviderResourceUri, ProviderResourceUriError, ProviderUris, artifact_object_key, is_sha256,
+};
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;
