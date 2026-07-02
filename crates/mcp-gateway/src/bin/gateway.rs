@@ -6,37 +6,46 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::{Context, anyhow};
 use axum::{
-    Json, Router,
+    Form, Json, Router,
     extract::{Path as AxumPath, Request, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{AUTHORIZATION, CONTENT_TYPE, WWW_AUTHENTICATE},
+        header::{AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE, PRAGMA, WWW_AUTHENTICATE},
     },
     middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
 };
-use chrono::{DateTime, Utc};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{DateTime, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use jsonwebtoken::{Algorithm, jwk::JwkSet};
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode, jwk::JwkSet};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode,
+    AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayInternalTokenIssuer, GatewayJwtRevocation,
     GatewayProfile, GatewayProfileId, InternalTokenSecret, JwksSource, JwtId, McpMethodName,
-    PolicyDecision, PolicyEffect, PolicyTarget, PublicDeployment, TokenIssuer, TraceId,
+    OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthGrantType, PolicyDecision,
+    PolicyEffect, PolicyTarget, PrincipalId, PrincipalKind, PublicDeployment,
+    ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, SecretSource,
+    TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
-    AuthenticatedSubject, BearerToken, GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig,
-    JwtVerifier, PolicyRequest, www_authenticate_challenge,
+    AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
+    GatewayCatalog, GatewayMcp, GatewayState, JwtAuthConfig, JwtVerifier, PolicyRequest,
+    www_authenticate_challenge,
 };
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
+    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 type SharedCatalog = Arc<RwLock<Arc<GatewayCatalog>>>;
 
 #[derive(Parser, Debug)]
@@ -110,6 +119,8 @@ enum Command {
 #[derive(Clone)]
 struct AppState {
     catalog: SharedCatalog,
+    gateway_state: GatewayState,
+    http: reqwest::Client,
 }
 
 #[derive(Clone)]
@@ -142,6 +153,46 @@ struct ReloadResult {
     status: &'static str,
     servers: usize,
     profiles: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenRequest {
+    grant_type: String,
+    client_id: String,
+    #[serde(default)]
+    scope: Option<String>,
+    #[serde(default)]
+    client_assertion_type: Option<String>,
+    #[serde(default)]
+    client_assertion: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct TokenResponse {
+    access_token: String,
+    token_type: &'static str,
+    expires_in: u64,
+    scope: String,
+}
+
+#[derive(Debug, Serialize)]
+struct OAuthErrorResponse {
+    error: &'static str,
+    error_description: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct AccessTokenClaims {
+    iss: String,
+    sub: String,
+    aud: String,
+    exp: u64,
+    nbf: u64,
+    iat: u64,
+    jti: String,
+    principal_kind: PrincipalKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scope: Option<String>,
 }
 
 #[tokio::main]
@@ -243,11 +294,14 @@ async fn serve(
         .build()?;
     let state = AppState {
         catalog: catalog.clone(),
+        gateway_state: gateway_state.clone(),
+        http: http.clone(),
     };
 
     let mut router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(readyz))
+        .route("/oauth/{profile}/token", post(token_endpoint))
         .route(
             "/.well-known/oauth-protected-resource/mcp/{profile}",
             get(protected_resource_metadata),
@@ -375,6 +429,380 @@ async fn authorization_server_metadata(
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+async fn token_endpoint(
+    State(state): State<AppState>,
+    AxumPath(profile): AxumPath<String>,
+    Form(request): Form<TokenRequest>,
+) -> axum::response::Response {
+    let started_at = Instant::now();
+    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&profile_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
+    else {
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            None,
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::UnknownAuthorizationServer,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "authorization server is unavailable",
+        );
+    };
+
+    if request.grant_type != "client_credentials"
+        || !profile
+            .auth_modes
+            .contains(&AuthMode::OAuthClientCredentials)
+    {
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            None,
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::UnsupportedGrantType,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_grant_type",
+            "grant type is not supported for this gateway profile",
+        );
+    }
+
+    let client_id = match OAuthClientId::new(request.client_id.trim()) {
+        Ok(client_id) => client_id,
+        Err(_) => {
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                None,
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidClient,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client authentication failed",
+            );
+        }
+    };
+    let Some(client) = catalog.oauth_client(&client_id) else {
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidClient,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    };
+    if client.authorization_server != profile.authorization_server
+        || !client.allowed_profiles.contains(&profile.id)
+        || !client.grant_types.contains(&OAuthGrantType::ClientCredentials)
+        || !client
+            .auth_methods
+            .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
+    {
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidClient,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    }
+
+    if request.client_assertion_type.as_deref() != Some(CLIENT_ASSERTION_TYPE_JWT_BEARER) {
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidClientAssertion,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    }
+    let Some(assertion) = request.client_assertion.as_deref() else {
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidClientAssertion,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::UNAUTHORIZED,
+            "invalid_client",
+            "client authentication failed",
+        );
+    };
+
+    let Some(client_jwks_source) = client.jwks.as_ref() else {
+        tracing::error!(client = %client_id, "private-key JWT client is missing JWKS source");
+        if let Err(err) = record_token_auth_audit(
+            &state.gateway_state,
+            profile,
+            Some(authorization_server),
+            Some(&client_id),
+            None,
+            AuthOutcome::Deny,
+            AuthReasonCode::InvalidAuthConfig,
+            started_at,
+        ) {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "client authentication is not configured",
+        );
+    };
+    let client_jwks = match load_jwks(&state.http, client_jwks_source).await {
+        Ok(jwks) => jwks,
+        Err(err) => {
+            tracing::warn!(client = %client_id, "failed to load OAuth client JWKS: {err}");
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::AuthorizationServerUnavailable,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client authentication failed",
+            );
+        }
+    };
+    let assertion_config = match ClientAssertionConfig::new(
+        client_id.clone(),
+        authorization_server.token_endpoint.as_str(),
+        allowed_gateway_jwt_algorithms(),
+    ) {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::error!("invalid client assertion verifier config: {err}");
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                None,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidAuthConfig,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "client authentication is not configured",
+            );
+        }
+    };
+    let verified_assertion =
+        match ClientAssertionVerifier::new(assertion_config, client_jwks).verify(assertion) {
+            Ok(verified) => verified,
+            Err(err) => {
+                tracing::warn!(client = %client_id, "rejected OAuth client assertion: {err}");
+                if let Err(err) = record_token_auth_audit(
+                    &state.gateway_state,
+                    profile,
+                    Some(authorization_server),
+                    Some(&client_id),
+                    None,
+                    AuthOutcome::Deny,
+                    AuthReasonCode::InvalidClientAssertion,
+                    started_at,
+                ) {
+                    return auth_audit_error_response(err);
+                }
+                return oauth_error_response(
+                    StatusCode::UNAUTHORIZED,
+                    "invalid_client",
+                    "client authentication failed",
+                );
+            }
+        };
+    match state.gateway_state.record_client_assertion_jti(
+        &authorization_server.id,
+        &client_id,
+        &verified_assertion.jwt_id,
+        verified_assertion.expires_at,
+        Utc::now(),
+    ) {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(
+                client = %client_id,
+                jwt_id = %verified_assertion.jwt_id,
+                "rejected replayed OAuth client assertion"
+            );
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                Some(&verified_assertion.jwt_id),
+                AuthOutcome::Deny,
+                AuthReasonCode::ClientAssertionReplay,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::UNAUTHORIZED,
+                "invalid_client",
+                "client authentication failed",
+            );
+        }
+        Err(err) => {
+            tracing::error!("failed to record OAuth client assertion replay state: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
+
+    let scopes = match requested_token_scopes(&catalog, profile, client, request.scope.as_deref()) {
+        Ok(scopes) => scopes,
+        Err(err) => {
+            tracing::warn!(client = %client_id, "rejected token scope request: {err}");
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                Some(&verified_assertion.jwt_id),
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidScope,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_scope",
+                "requested scope is not allowed",
+            );
+        }
+    };
+
+    let token = match issue_client_credentials_access_token(
+        &catalog,
+        authorization_server,
+        profile,
+        &client_id,
+        &scopes,
+    ) {
+        Ok(token) => token,
+        Err(err) => {
+            tracing::error!("failed to issue client credentials access token: {err}");
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                Some(authorization_server),
+                Some(&client_id),
+                Some(&verified_assertion.jwt_id),
+                AuthOutcome::Deny,
+                AuthReasonCode::TokenSigningKeyUnavailable,
+                started_at,
+            ) {
+                return auth_audit_error_response(err);
+            }
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "token signing key is unavailable",
+            );
+        }
+    };
+    if let Err(err) = record_token_auth_audit(
+        &state.gateway_state,
+        profile,
+        Some(authorization_server),
+        Some(&client_id),
+        Some(&token.jwt_id),
+        AuthOutcome::Allow,
+        AuthReasonCode::AuthAllow,
+        started_at,
+    ) {
+        return auth_audit_error_response(err);
+    }
+
+    token_response(TokenResponse {
+        access_token: token.access_token,
+        token_type: "Bearer",
+        expires_in: ACCESS_TOKEN_TTL_SECONDS as u64,
+        scope: scopes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" "),
+    })
 }
 
 async fn reload_control_plane(
@@ -631,6 +1059,143 @@ async fn authenticate_mcp(
     next.run(request).await
 }
 
+#[derive(Debug)]
+struct IssuedAccessToken {
+    access_token: String,
+    jwt_id: JwtId,
+}
+
+fn requested_token_scopes(
+    catalog: &GatewayCatalog,
+    profile: &GatewayProfile,
+    client: &OAuthClientRegistration,
+    raw_scope: Option<&str>,
+) -> anyhow::Result<BTreeSet<ScopeName>> {
+    let raw_scope = raw_scope.ok_or_else(|| anyhow!("scope is required"))?;
+    let scopes = raw_scope
+        .split_whitespace()
+        .map(ScopeName::new)
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if scopes.is_empty() {
+        return Err(anyhow!("scope is required"));
+    }
+    let profile_supported_scopes = catalog.profile_supported_scopes(profile);
+    if !scopes.is_subset(&client.allowed_scopes) {
+        return Err(anyhow!("requested scope is not allowed for OAuth client"));
+    }
+    if !scopes.is_subset(&profile_supported_scopes) {
+        return Err(anyhow!(
+            "requested scope is not supported by gateway profile"
+        ));
+    }
+    Ok(scopes)
+}
+
+fn issue_client_credentials_access_token(
+    catalog: &GatewayCatalog,
+    authorization_server: &ResourceAuthorizationServer,
+    profile: &GatewayProfile,
+    client_id: &OAuthClientId,
+    scopes: &BTreeSet<ScopeName>,
+) -> anyhow::Result<IssuedAccessToken> {
+    let signing_key = access_token_signing_key(
+        catalog,
+        &authorization_server.access_token_signing_key,
+        SecretPurpose::JwksPrivateKey,
+    )?;
+    let now = Utc::now();
+    let expires_at = now
+        .checked_add_signed(TimeDelta::seconds(ACCESS_TOKEN_TTL_SECONDS))
+        .ok_or_else(|| anyhow!("access token expiration overflow"))?;
+    let jwt_id = JwtId::new(uuid::Uuid::new_v4().to_string())?;
+    let scope = (!scopes.is_empty()).then(|| {
+        scopes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" ")
+    });
+    let claims = AccessTokenClaims {
+        iss: authorization_server.issuer.to_string(),
+        sub: client_id.to_string(),
+        aud: profile.protected_resource.to_string(),
+        exp: unix_seconds(expires_at.timestamp())?,
+        nbf: unix_seconds(now.timestamp())?,
+        iat: unix_seconds(now.timestamp())?,
+        jti: jwt_id.to_string(),
+        principal_kind: PrincipalKind::Service,
+        scope,
+    };
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some(authorization_server.access_token_key_id.to_string());
+    let access_token = encode(&header, &claims, &signing_key)?;
+    Ok(IssuedAccessToken {
+        access_token,
+        jwt_id,
+    })
+}
+
+fn access_token_signing_key(
+    catalog: &GatewayCatalog,
+    secret_id: &SecretReferenceId,
+    expected_purpose: SecretPurpose,
+) -> anyhow::Result<EncodingKey> {
+    let secret = catalog
+        .secret_reference(secret_id)
+        .ok_or_else(|| anyhow!("unknown access-token signing secret `{secret_id}`"))?;
+    if secret.source != SecretSource::Env {
+        return Err(anyhow!(
+            "access-token signing secret `{secret_id}` uses unsupported source {:?}",
+            secret.source
+        ));
+    }
+    if secret.purpose != expected_purpose {
+        return Err(anyhow!(
+            "access-token signing secret `{secret_id}` has purpose {:?}, expected {:?}",
+            secret.purpose,
+            expected_purpose
+        ));
+    }
+    let value = std::env::var(secret.locator.as_str())
+        .with_context(|| format!("missing env secret `{}`", secret.locator))?;
+    let der = BASE64_STANDARD
+        .decode(value.trim())
+        .context("access-token signing key must be base64-encoded RSA DER")?;
+    Ok(EncodingKey::from_rsa_der(&der))
+}
+
+fn unix_seconds(value: i64) -> anyhow::Result<u64> {
+    u64::try_from(value).map_err(|_| anyhow!("timestamp before Unix epoch"))
+}
+
+fn token_response(response: TokenResponse) -> axum::response::Response {
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(PRAGMA, HeaderValue::from_static("no-cache"));
+    (StatusCode::OK, headers, Json(response)).into_response()
+}
+
+fn oauth_error_response(
+    status: StatusCode,
+    error: &'static str,
+    error_description: &'static str,
+) -> axum::response::Response {
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(PRAGMA, HeaderValue::from_static("no-cache"));
+    (
+        status,
+        headers,
+        Json(OAuthErrorResponse {
+            error,
+            error_description,
+        }),
+    )
+        .into_response()
+}
+
 async fn load_jwks(http: &reqwest::Client, jwks: &JwksSource) -> anyhow::Result<JwkSet> {
     match jwks {
         JwksSource::Remote { jwks_uri } => fetch_jwks(http, jwks_uri.as_str()).await,
@@ -728,6 +1293,49 @@ fn record_auth_audit(
             latency_ms: Some(latency_ms),
             metadata: Default::default(),
         })
+}
+
+fn record_token_auth_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    authorization_server: Option<&ResourceAuthorizationServer>,
+    client_id: Option<&OAuthClientId>,
+    jwt_id: Option<&JwtId>,
+    outcome: AuthOutcome,
+    reason: AuthReasonCode,
+    started_at: Instant,
+) -> anyhow::Result<()> {
+    let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
+    let token_issuer = authorization_server.map(|value| value.issuer.clone());
+    let token_subject = client_id
+        .map(|value| TokenSubject::new(value.as_str()))
+        .transpose()?;
+    let principal = match (authorization_server, client_id) {
+        (Some(authorization_server), Some(client_id)) => Some(PrincipalId::new(format!(
+            "{}#{}",
+            authorization_server.issuer, client_id
+        ))?),
+        _ => None,
+    };
+    let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
+    gateway_state.record_auth_audit_event(&AuthAuditEvent {
+        event_id,
+        timestamp: chrono::Utc::now(),
+        trace_id,
+        profile: profile.id.clone(),
+        protected_resource: profile.protected_resource.clone(),
+        outcome,
+        reason,
+        method: AuthMethod::ClientCredentialsPrivateKeyJwt,
+        principal,
+        tenant: None,
+        token_issuer,
+        token_subject,
+        jwt_id: jwt_id.cloned(),
+        latency_ms: Some(latency_ms),
+        metadata: Default::default(),
+    })
 }
 
 fn auth_audit_error_response(err: anyhow::Error) -> axum::response::Response {
