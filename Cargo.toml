@@ -16,6 +16,7 @@ edition = "2024"
 anyhow = "1.0.103"
 async-trait = "0.1.89"
 axum = "0.8.9"
+base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
@@ -23,6 +24,7 @@ futures = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"
 jsonschema = "0.46.8"
+object_store = { version = "0.14.0", default-features = false, features = ["aws"] }
 reqwest = { version = "0.12", default-features = false }
 rmcp = "2.0.0"
 rusqlite = "0.40.1"

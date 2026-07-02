@@ -23,11 +23,15 @@ use std::{
 
 use axum::{
     Router,
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Path as AxumPath, State},
+    http::{
+        HeaderMap, HeaderValue, StatusCode,
+        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
+    },
     response::IntoResponse,
     routing::{get, post},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -51,9 +55,11 @@ use rmcp::{
 use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    SubscriptionHub, TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso,
+    ArtifactMetadata, ArtifactPut, ArtifactStore, ProviderUris, SubscriptionHub, TaskPayloadState,
+    TaskStore, is_sha256, notify_progress, notify_task_status, now_iso,
 };
 use veoveo_media_mcp::{
+    artifacts::{S3ArtifactConfig, S3ArtifactStore},
     provider::{ModelEntry, Prediction, ProviderClient},
     state::SqliteState,
     uris, webhook,
@@ -79,6 +85,18 @@ struct Args {
     /// SQLite state database path for task and prediction metadata.
     #[arg(long, default_value = "state.sqlite")]
     state_db: PathBuf,
+    /// S3-compatible endpoint used for server-owned artifacts.
+    #[arg(long, default_value = "http://localhost:9000")]
+    artifact_endpoint: String,
+    /// S3-compatible bucket used for server-owned artifacts.
+    #[arg(long, default_value = "media-artifacts")]
+    artifact_bucket: String,
+    /// S3 signing region for the artifact store.
+    #[arg(long, default_value = "us-east-1")]
+    artifact_region: String,
+    /// Allow plain HTTP for local S3-compatible artifact stores.
+    #[arg(long, default_value_t = true)]
+    artifact_allow_http: bool,
     #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
     api_key: Option<String>,
     #[arg(long, env = "MEDIA_PROVIDER_WEBHOOK_SECRET", hide_env_values = true)]
@@ -117,11 +135,13 @@ struct RegistryCache {
 
 struct AppState {
     provider: ProviderClient,
+    http: reqwest::Client,
     public_url: String,
     webhook_secret: Option<String>,
     registry: RwLock<Option<RegistryCache>>,
     tasks: TaskStore,
     durable: SqliteState,
+    artifacts: S3ArtifactStore,
     /// prediction id -> waiter for its webhook callback
     pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     predictions: RwLock<HashMap<String, Prediction>>,
@@ -212,16 +232,21 @@ impl AppState {
             )
         } else {
             let prediction_uri = uris::prediction_uri(&prediction.id);
-            let result = prediction_result(prediction);
-            (
-                TaskStatus::Completed,
-                format!(
-                    "completed; {} output(s); resource {prediction_uri}",
-                    prediction.outputs.len()
+            match prediction_result(self, prediction).await {
+                Ok(result) => (
+                    TaskStatus::Completed,
+                    format!(
+                        "completed; {} artifact(s); resource {prediction_uri}",
+                        prediction.outputs.len()
+                    ),
+                    serde_json::to_value(&result).ok(),
+                    None,
                 ),
-                serde_json::to_value(&result).ok(),
-                None,
-            )
+                Err(e) => {
+                    let message = format!("artifact ingestion failed for {}: {e}", prediction.id);
+                    (TaskStatus::Failed, message.clone(), None, Some(message))
+                }
+            }
         };
         if let Some(snapshot) = self
             .tasks
@@ -329,25 +354,76 @@ fn guess_mime(url: &str) -> Option<&'static str> {
     })
 }
 
-fn prediction_result(prediction: &Prediction) -> CallToolResult {
+fn filename_from_url(url: &str, index: usize) -> String {
+    url.split('?')
+        .next()
+        .and_then(|p| p.rsplit('/').next())
+        .filter(|n| !n.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("output-{index}.bin"))
+}
+
+async fn ingest_output_artifact(
+    state: &AppState,
+    prediction: &Prediction,
+    url: &str,
+    index: usize,
+) -> anyhow::Result<ArtifactMetadata> {
+    let response = state
+        .http
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()
+        .map_err(|e| anyhow::anyhow!("provider output {index} fetch failed: {e}"))?;
+    let header_mime = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let bytes = response.bytes().await?.to_vec();
+    let mut artifact = ArtifactPut::new(bytes);
+    artifact.mime_type = header_mime.or_else(|| guess_mime(url).map(str::to_string));
+    artifact.filename = Some(filename_from_url(url, index));
+    artifact.metadata = json!({
+        "provider": "wavespeed",
+        "provider_job_id": prediction.id,
+        "model_id": prediction.model,
+        "output_index": index,
+    });
+    state.artifacts.put(artifact).await
+}
+
+async fn prediction_result(
+    state: &AppState,
+    prediction: &Prediction,
+) -> anyhow::Result<CallToolResult> {
+    let mut artifacts = Vec::new();
+    for (i, url) in prediction.outputs.iter().enumerate() {
+        artifacts.push(ingest_output_artifact(state, prediction, url, i).await?);
+    }
+
     let mut blocks = vec![ContentBlock::text(format!(
-        "prediction {} ({}) completed with {} output(s) in {:.1}s",
+        "prediction {} ({}) completed with {} artifact(s) in {:.1}s",
         prediction.id,
         prediction.model,
-        prediction.outputs.len(),
+        artifacts.len(),
         prediction.execution_time.unwrap_or_default() / 1000.0,
     ))];
-    for (i, url) in prediction.outputs.iter().enumerate() {
-        let mut link = Resource::new(url.clone(), format!("output-{i}"))
-            .with_description(format!("output {i} of prediction {}", prediction.id));
-        if let Some(mime) = guess_mime(url) {
-            link = link.with_mime_type(mime);
+    for (i, artifact) in artifacts.iter().enumerate() {
+        let mut link = Resource::new(artifact.artifact_uri.clone(), format!("output-{i}"))
+            .with_description(format!("artifact {i} of prediction {}", prediction.id));
+        if let Some(mime) = &artifact.mime_type {
+            link = link.with_mime_type(mime.clone());
         }
         blocks.push(ContentBlock::ResourceLink(link));
     }
     let mut result = CallToolResult::success(blocks);
-    result.structured_content = serde_json::to_value(prediction).ok();
-    result
+    result.structured_content = Some(json!({
+        "prediction": prediction,
+        "artifacts": artifacts,
+    }));
+    Ok(result)
 }
 
 /// The long-running body of a `run` task: validate → submit → await webhook
@@ -491,14 +567,19 @@ async fn run_task(
         fail!(format!("prediction {prediction_id} failed: {msg}"));
     }
     notify_progress(&peer, &progress_token, 1.0, "completed").await;
-    let result = prediction_result(&prediction);
+    let result = match prediction_result(&state, &prediction).await {
+        Ok(result) => result,
+        Err(e) => fail!(format!(
+            "artifact ingestion failed for prediction {prediction_id}: {e}"
+        )),
+    };
     update_task(
         &state,
         &peer,
         &task_id,
         TaskStatus::Completed,
         format!(
-            "completed; {} output(s); resource {prediction_uri}",
+            "completed; {} artifact(s); resource {prediction_uri}",
             prediction.outputs.len()
         ),
         serde_json::to_value(&result).ok(),
@@ -677,6 +758,20 @@ impl ServerHandler for MediaMcp {
                     .with_mime_type("application/json"),
             );
         }
+        let artifacts = self
+            .state
+            .durable
+            .list_artifacts()
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+        for artifact in artifacts {
+            let mut resource =
+                Resource::new(artifact.artifact_uri.clone(), artifact.sha256.clone())
+                    .with_description(format!("artifact {}", artifact.sha256));
+            if let Some(mime) = artifact.mime_type {
+                resource = resource.with_mime_type(mime);
+            }
+            resources.push(resource);
+        }
         Ok(ListResourcesResult {
             resources,
             next_cursor: None,
@@ -705,6 +800,11 @@ impl ServerHandler for MediaMcp {
                          the provider reports a terminal state.",
                     )
                     .with_mime_type("application/json"),
+                ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
+                    .with_title("Media artifact")
+                    .with_description(
+                        "Server-owned immutable output artifact, addressed by sha256.",
+                    ),
             ],
             next_cursor: None,
             meta: None,
@@ -751,6 +851,22 @@ impl ServerHandler for MediaMcp {
                 })?;
             serde_json::to_string(&prediction)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
+        } else if let Some(sha256) = uris::parse_artifact_uri(uri) {
+            let artifact = self
+                .state
+                .artifacts
+                .get(sha256)
+                .await
+                .map_err(|e| McpError::internal_error(e.to_string(), None))?
+                .ok_or_else(|| {
+                    McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
+                })?;
+            let blob = BASE64_STANDARD.encode(&artifact.bytes);
+            let mut content = ResourceContents::blob(blob, uri);
+            if let Some(mime) = artifact.metadata.mime_type {
+                content = content.with_mime_type(mime);
+            }
+            return Ok(ReadResourceResult::new(vec![content]));
         } else {
             return Err(McpError::resource_not_found(
                 format!("unknown resource uri: {uri}"),
@@ -869,6 +985,37 @@ async fn media_webhook(
     (StatusCode::OK, "ok").into_response()
 }
 
+async fn artifact_download(
+    State(state): State<Arc<AppState>>,
+    AxumPath(sha256): AxumPath<String>,
+) -> impl IntoResponse {
+    if !is_sha256(&sha256) {
+        return (StatusCode::NOT_FOUND, "not found").into_response();
+    }
+    let artifact = match state.artifacts.get(&sha256).await {
+        Ok(Some(artifact)) => artifact,
+        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
+        Err(e) => {
+            tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "artifact unavailable").into_response();
+        }
+    };
+
+    let mut headers = HeaderMap::new();
+    if let Some(mime) = &artifact.metadata.mime_type
+        && let Ok(value) = HeaderValue::from_str(mime)
+    {
+        headers.insert(CONTENT_TYPE, value);
+    }
+    if let Some(filename) = &artifact.metadata.filename {
+        let safe = filename.replace(['"', '\r', '\n'], "_");
+        if let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{safe}\"")) {
+            headers.insert(CONTENT_DISPOSITION, value);
+        }
+    }
+    (StatusCode::OK, headers, artifact.bytes).into_response()
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
@@ -880,6 +1027,17 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let args = Args::parse();
     let durable = SqliteState::open(&args.state_db)?;
+    let artifacts = S3ArtifactStore::new(
+        S3ArtifactConfig {
+            endpoint: args.artifact_endpoint.clone(),
+            bucket: args.artifact_bucket.clone(),
+            region: args.artifact_region.clone(),
+            allow_http: args.artifact_allow_http,
+        },
+        durable.clone(),
+        ProviderUris::new("media"),
+        args.public_url.clone(),
+    )?;
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
         tasks
@@ -900,11 +1058,13 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?),
+        http: reqwest::Client::new(),
         public_url: args.public_url.clone(),
         webhook_secret: args.provider_webhook_secret(),
         registry: RwLock::new(None),
         tasks,
         durable,
+        artifacts,
         pending: Mutex::new(HashMap::new()),
         predictions: RwLock::new(predictions),
         subscribers: SubscriptionHub::new(),
@@ -934,6 +1094,7 @@ async fn main() -> anyhow::Result<()> {
     let mut router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/webhooks/media", post(media_webhook))
+        .route("/artifacts/{sha256}", get(artifact_download))
         .with_state(state.clone())
         .nest_service("/mcp", mcp_service);
     if let Some(dir) = &args.static_dir {

@@ -26,12 +26,33 @@ services:
     profiles:
       - dev
 
+  rustfs-init:
+    image: amazon/aws-cli:2
+    depends_on:
+      rustfs:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket media-artifacts 2>/dev/null \
+          || aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket media-artifacts; do
+          sleep 2
+        done
+    environment:
+      AWS_ACCESS_KEY_ID: rustfsadmin
+      AWS_SECRET_ACCESS_KEY: rustfsadmin
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_PAGER: ""
+    profiles:
+      - dev
+
   media-mcp:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - rustfs
+      rustfs-init:
+        condition: service_completed_successfully
     command:
       - "--port"
       - "8787"
@@ -41,9 +62,18 @@ services:
       - "/app/assets"
       - "--state-db"
       - "/var/lib/veoveo/media/state.sqlite"
+      - "--artifact-endpoint"
+      - "http://rustfs:9000"
+      - "--artifact-bucket"
+      - "media-artifacts"
+      - "--artifact-region"
+      - "us-east-1"
     environment:
       MEDIA_PROVIDER_API_KEY: "${MEDIA_PROVIDER_API_KEY:?set MEDIA_PROVIDER_API_KEY}"
       MEDIA_PROVIDER_WEBHOOK_SECRET: "${MEDIA_PROVIDER_WEBHOOK_SECRET:-}"
+      AWS_ACCESS_KEY_ID: rustfsadmin
+      AWS_SECRET_ACCESS_KEY: rustfsadmin
+      AWS_DEFAULT_REGION: us-east-1
     volumes:
       - ./assets:/app/assets:ro
       - media_state:/var/lib/veoveo/media

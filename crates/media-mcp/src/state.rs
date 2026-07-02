@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use rmcp::model::Task;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::Value;
+use veoveo_mcp_contract::ArtifactMetadata;
 
 use crate::provider::Prediction;
 
@@ -53,6 +54,12 @@ impl SqliteState {
                 prediction_json TEXT NOT NULL,
                 status TEXT NOT NULL,
                 model TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS artifacts (
+                sha256 TEXT PRIMARY KEY,
+                metadata_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
             "#,
@@ -192,5 +199,48 @@ impl SqliteState {
             )
             .optional()?;
         Ok(json.map(|s| serde_json::from_str(&s)).transpose()?)
+    }
+
+    pub fn record_artifact(&self, metadata: &ArtifactMetadata) -> Result<()> {
+        let metadata_json = serde_json::to_string(metadata)?;
+        let conn = self.conn.lock().expect("sqlite state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO artifacts (sha256, metadata_json, updated_at)
+            VALUES (?1, ?2, ?3)
+            ON CONFLICT(sha256) DO UPDATE SET
+                metadata_json = excluded.metadata_json,
+                updated_at = excluded.updated_at
+            "#,
+            params![
+                metadata.sha256.as_str(),
+                metadata_json,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn artifact(&self, sha256: &str) -> Result<Option<ArtifactMetadata>> {
+        let conn = self.conn.lock().expect("sqlite state mutex poisoned");
+        let json = conn
+            .query_row(
+                "SELECT metadata_json FROM artifacts WHERE sha256 = ?1",
+                params![sha256],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        Ok(json.map(|s| serde_json::from_str(&s)).transpose()?)
+    }
+
+    pub fn list_artifacts(&self) -> Result<Vec<ArtifactMetadata>> {
+        let conn = self.conn.lock().expect("sqlite state mutex poisoned");
+        let mut stmt = conn.prepare("SELECT metadata_json FROM artifacts ORDER BY updated_at")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut artifacts = Vec::new();
+        for row in rows {
+            artifacts.push(serde_json::from_str(&row?)?);
+        }
+        Ok(artifacts)
     }
 }

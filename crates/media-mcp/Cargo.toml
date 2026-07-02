@@ -13,7 +13,9 @@ path = "src/bin/server.rs"
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
+base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
@@ -21,6 +23,7 @@ futures.workspace = true
 hex.workspace = true
 hmac.workspace = true
 jsonschema.workspace = true
+object_store.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
 rusqlite = { workspace = true, features = ["bundled"] }
