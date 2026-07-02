@@ -54,7 +54,8 @@ pub fn verify(
     }
 
     let key = secret.strip_prefix("whsec_").unwrap_or(secret);
-    let mut payload = Vec::with_capacity(webhook_id.len() + webhook_timestamp.len() + body.len() + 2);
+    let mut payload =
+        Vec::with_capacity(webhook_id.len() + webhook_timestamp.len() + body.len() + 2);
     payload.extend_from_slice(webhook_id.as_bytes());
     payload.push(b'.');
     payload.extend_from_slice(webhook_timestamp.as_bytes());
@@ -69,8 +70,8 @@ pub fn verify(
         let Ok(sig_bytes) = hex::decode(hex_sig) else {
             continue;
         };
-        let mut mac = HmacSha256::new_from_slice(key.as_bytes())
-            .expect("hmac accepts any key length");
+        let mut mac =
+            HmacSha256::new_from_slice(key.as_bytes()).expect("hmac accepts any key length");
         mac.update(&payload);
         if mac.verify_slice(&sig_bytes).is_ok() {
             return Ok(());
@@ -82,8 +83,7 @@ pub fn verify(
 /// Compute the `v3,<hex>` signature for a payload — used by tests and local tooling.
 pub fn sign(secret: &str, webhook_id: &str, webhook_timestamp: &str, body: &[u8]) -> String {
     let key = secret.strip_prefix("whsec_").unwrap_or(secret);
-    let mut mac =
-        HmacSha256::new_from_slice(key.as_bytes()).expect("hmac accepts any key length");
+    let mut mac = HmacSha256::new_from_slice(key.as_bytes()).expect("hmac accepts any key length");
     mac.update(webhook_id.as_bytes());
     mac.update(b".");
     mac.update(webhook_timestamp.as_bytes());

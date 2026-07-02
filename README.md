@@ -56,15 +56,15 @@ cloudflared tunnel --url http://localhost:8787
 # note the printed https://….trycloudflare.com URL
 
 # 2. server
-cargo run --bin server -- --port 8787 --static-dir assets \
+cargo run -p wavespeed-mcp-server --bin server -- --port 8787 --static-dir assets \
     --public-url https://….trycloudflare.com
 
 # 3. client
-cargo run --bin client -- info
-cargo run --bin client -- models kling --type image-to-video
-cargo run --bin client -- complete gpt-image
-cargo run --bin client -- schema openai/gpt-image-2/edit
-cargo run --bin client -- run openai/gpt-image-2/edit \
+cargo run -p wavespeed-mcp-server --bin client -- info
+cargo run -p wavespeed-mcp-server --bin client -- models kling --type image-to-video
+cargo run -p wavespeed-mcp-server --bin client -- complete gpt-image
+cargo run -p wavespeed-mcp-server --bin client -- schema openai/gpt-image-2/edit
+cargo run -p wavespeed-mcp-server --bin client -- run openai/gpt-image-2/edit \
     --input '{"prompt":"add a red wizard hat","images":["https://….trycloudflare.com/files/gol-real-roblox.jpeg"]}'
 ```
 
@@ -74,12 +74,15 @@ receiving webhooks, and `/files` URLs won't be reachable by WaveSpeed.
 ## Layout
 
 ```
-src/lib.rs          shared crate (wavespeed_mcp)
-src/wavespeed.rs    WaveSpeed v3 API client + types (registry, predictions)
-src/webhook.rs      HMAC-SHA256 webhook signature verification
-src/uris.rs         wavespeed:// URI scheme
-src/bin/server.rs   MCP server
-src/bin/client.rs   MCP client CLI
+Cargo.toml                                      workspace manifest
+crates/mcp-foundation/                         reusable MCP server foundation
+crates/wavespeed-mcp-server/src/lib.rs         shared WaveSpeed crate (wavespeed_mcp)
+crates/wavespeed-mcp-server/src/wavespeed.rs   WaveSpeed v3 API client + types
+crates/wavespeed-mcp-server/src/webhook.rs     HMAC-SHA256 webhook verification
+crates/wavespeed-mcp-server/src/uris.rs        wavespeed:// URI scheme
+crates/wavespeed-mcp-server/src/bin/server.rs  MCP server
+crates/wavespeed-mcp-server/src/bin/client.rs  MCP client CLI
 ```
 
-`cargo test` covers signature verification, URI parsing, and schema extraction.
+`cargo test --workspace` covers signature verification, URI parsing, schema extraction,
+and the shared foundation crate.

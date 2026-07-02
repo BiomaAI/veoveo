@@ -40,8 +40,8 @@ use rmcp::{
         PaginatedRequestParams, ProgressNotificationParam, ProgressToken,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
         ResourceTemplate, ResourceUpdatedNotificationParam, ServerCapabilities, ServerInfo,
-        ServerNotification, SubscribeRequestParams, Task, TaskStatus,
-        TaskStatusNotificationParam, TasksCapability, UnsubscribeRequestParams,
+        ServerNotification, SubscribeRequestParams, Task, TaskStatus, TaskStatusNotificationParam,
+        TasksCapability, UnsubscribeRequestParams,
     },
     schemars,
     service::{Peer, RequestContext},
@@ -160,9 +160,7 @@ impl AppState {
             .await
             .insert(id.clone(), prediction.clone());
 
-        if terminal
-            && let Some(tx) = self.pending.lock().await.remove(&id)
-        {
+        if terminal && let Some(tx) = self.pending.lock().await.remove(&id) {
             let _ = tx.send(prediction);
         }
 
@@ -532,8 +530,7 @@ impl ServerHandler for WavespeedMcp {
             .build();
         let mut info = ServerInfo::default();
         info.capabilities = caps;
-        info.server_info =
-            rmcp::model::Implementation::new("wavespeed", env!("CARGO_PKG_VERSION"));
+        info.server_info = rmcp::model::Implementation::new("wavespeed", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
             "Async gateway to every WaveSpeed model. Workflow: \
              (1) read wavespeed://models (or use completion/complete on wavespeed://model/{model_id}) to pick a model; \
@@ -556,10 +553,11 @@ impl ServerHandler for WavespeedMcp {
                 rmcp::model::CallToolRequestMethod,
             >());
         }
-        let args: RunArgs = serde_json::from_value(Value::Object(
-            request.arguments.clone().unwrap_or_default(),
-        ))
-        .map_err(|e| McpError::invalid_params(format!("invalid run arguments: {e}"), None))?;
+        let args: RunArgs =
+            serde_json::from_value(Value::Object(request.arguments.clone().unwrap_or_default()))
+                .map_err(|e| {
+                    McpError::invalid_params(format!("invalid run arguments: {e}"), None)
+                })?;
 
         let progress_token = request.meta.as_ref().and_then(|m| m.get_progress_token());
         let ttl = request.task.as_ref().and_then(|t| t.ttl);
@@ -627,9 +625,7 @@ impl ServerHandler for WavespeedMcp {
                 .payload
                 .clone()
                 .map(GetTaskPayloadResult::new)
-                .ok_or_else(|| {
-                    McpError::internal_error("completed task lost its payload", None)
-                }),
+                .ok_or_else(|| McpError::internal_error("completed task lost its payload", None)),
             TaskStatus::Failed => Err(McpError::internal_error(
                 entry
                     .error

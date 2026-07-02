@@ -11,13 +11,12 @@ use clap::{Parser, Subcommand};
 use rmcp::{
     ClientHandler, ServiceExt,
     model::{
-        ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams,
-        ClientCapabilities, ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock,
-        GetTaskParams, GetTaskPayloadParams, Implementation, LoggingMessageNotificationParam,
-        NumberOrString, ProgressNotificationParam, ProgressToken, ReadResourceRequestParams,
-        Reference, Request, RequestParamsMeta, ResourceUpdatedNotificationParam,
-        ServerResult, SubscribeRequestParams, TaskMetadata, TaskStatus,
-        TaskStatusNotificationParam,
+        ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams, ClientCapabilities,
+        ClientInfo, ClientRequest, CompleteRequestParams, ContentBlock, GetTaskParams,
+        GetTaskPayloadParams, Implementation, LoggingMessageNotificationParam, NumberOrString,
+        ProgressNotificationParam, ProgressToken, ReadResourceRequestParams, Reference, Request,
+        RequestParamsMeta, ResourceUpdatedNotificationParam, ServerResult, SubscribeRequestParams,
+        TaskMetadata, TaskStatus, TaskStatusNotificationParam,
     },
     service::NotificationContext,
     transport::StreamableHttpClientTransport,
@@ -115,10 +114,7 @@ impl ClientHandler for CliHandler {
         println!("  [resource updated] {}", params.uri);
     }
 
-    async fn on_resource_list_changed(
-        &self,
-        _context: NotificationContext<rmcp::RoleClient>,
-    ) {
+    async fn on_resource_list_changed(&self, _context: NotificationContext<rmcp::RoleClient>) {
         println!("  [resource list changed]");
     }
 
@@ -157,9 +153,15 @@ async fn cmd_info(client: &Client) -> Result<()> {
     let info = client
         .peer_info()
         .ok_or_else(|| anyhow!("no server info"))?;
-    println!("server: {} v{}", info.server_info.name, info.server_info.version);
+    println!(
+        "server: {} v{}",
+        info.server_info.name, info.server_info.version
+    );
     println!("protocol: {}", info.protocol_version);
-    println!("capabilities: {}", serde_json::to_string_pretty(&info.capabilities)?);
+    println!(
+        "capabilities: {}",
+        serde_json::to_string_pretty(&info.capabilities)?
+    );
     if let Some(instructions) = &info.instructions {
         println!("instructions:\n{instructions}");
     }
@@ -178,7 +180,11 @@ async fn cmd_info(client: &Client) -> Result<()> {
     }
     let templates = client.list_resource_templates(Default::default()).await?;
     for t in templates.resource_templates {
-        println!("template: {} — {}", t.uri_template, t.description.unwrap_or_default());
+        println!(
+            "template: {} — {}",
+            t.uri_template,
+            t.description.unwrap_or_default()
+        );
     }
     Ok(())
 }
@@ -317,9 +323,7 @@ async fn cmd_run(
         let message = info.task.status_message.clone().unwrap_or_default();
         println!("poll: {:?} — {message}", info.task.status);
 
-        if !subscribed
-            && let Some(idx) = message.find("wavespeed://prediction/")
-        {
+        if !subscribed && let Some(idx) = message.find("wavespeed://prediction/") {
             let uri: String = message[idx..]
                 .split_whitespace()
                 .next()
@@ -395,8 +399,7 @@ async fn cmd_run(
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "warn".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
         )
         .init();
     let args = Args::parse();
