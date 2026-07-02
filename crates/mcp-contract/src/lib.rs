@@ -26,9 +26,9 @@ pub use deployment::{PublicDeployment, ServerPublicEndpoint};
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
     AuthReasonCode, CompletionExposure, DataLabelId, Exposure, GatewayAction, GatewayControlPlane,
-    GatewayControlPlaneError, GatewayProfile, GatewayProfileId, GatewayTaskId, GatewayTaskMapping,
-    GatewayToolName, GroupId, HttpsUrl, IdentifierError, IdentityProvider,
-    IdentityProviderEndpoint, IdentityProviderId, JwtId, LocalToolName,
+    GatewayControlPlaneError, GatewayProfile, GatewayProfileId, GatewayResourceSubscription,
+    GatewayTaskId, GatewayTaskMapping, GatewayToolName, GroupId, HttpsUrl, IdentifierError,
+    IdentityProvider, IdentityProviderEndpoint, IdentityProviderId, JwtId, LocalToolName,
     MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
     McpMethodName, McpSurfaceCapabilities, McpSurfaceCapability, MountPath, OwnedRoute,
     OwnedRoutePurpose, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId,

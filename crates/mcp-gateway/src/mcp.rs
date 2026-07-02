@@ -25,10 +25,10 @@ use rmcp::{
 use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
     AuditEvent, CompletionExposure, GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId,
-    GatewayTaskId, GatewayTaskMapping, GatewayToolName, LocalToolName, McpMethodName,
-    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId, PromptName,
-    ResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TraceId, UpstreamTaskId,
-    UpstreamTransport, paginate,
+    GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, GatewayToolName, LocalToolName,
+    McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId,
+    PromptName, ResourceUri, ServerSlug, TaskExposure as ContractTaskExposure, TraceId,
+    UpstreamTaskId, UpstreamTransport, paginate,
 };
 
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest};
@@ -482,9 +482,13 @@ fn task_mapping_allows_principal(
     &mapping.profile == profile_id && &mapping.owner == principal_id
 }
 
+fn gateway_resource_uri(uri: &str) -> Result<ResourceUri, McpError> {
+    ResourceUri::new(uri.to_string())
+        .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))
+}
+
 fn resource_policy_target(server: ServerSlug, uri: &str) -> Result<PolicyTarget, McpError> {
-    let uri = ResourceUri::new(uri.to_string())
-        .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
+    let uri = gateway_resource_uri(uri)?;
     Ok(match resource_read_kind(uri.as_str()) {
         ResourceReadKind::Artifact => PolicyTarget::Artifact {
             server,
@@ -775,17 +779,35 @@ impl ServerHandler for GatewayMcp {
         request: SubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        let server = self.server_for_resource(&request.uri)?;
+        let uri = request.uri.clone();
+        let resource_uri = gateway_resource_uri(&uri)?;
+        let server = self.server_for_resource(&uri)?;
         let subject = self.authorize_resource(
             &context,
             GatewayAction::ResourcesSubscribe,
             server.clone(),
-            &request.uri,
+            &uri,
         )?;
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
             .await?;
-        upstream.subscribe(request).await.map_err(upstream_error)
+        upstream.subscribe(request).await.map_err(upstream_error)?;
+        let now = Utc::now();
+        self.state
+            .record_resource_subscription(&GatewayResourceSubscription {
+                profile: self.profile_id.clone(),
+                owner: subject.principal.id,
+                upstream_server: server,
+                resource_uri,
+                created_at: now,
+                updated_at: now,
+            })
+            .map_err(|err| {
+                mcp_internal(format!(
+                    "failed to persist gateway resource subscription: {err}"
+                ))
+            })?;
+        Ok(())
     }
 
     async fn unsubscribe(
@@ -793,17 +815,58 @@ impl ServerHandler for GatewayMcp {
         request: UnsubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        let server = self.server_for_resource(&request.uri)?;
+        let uri = request.uri.clone();
+        let resource_uri = gateway_resource_uri(&uri)?;
+        let server = self.server_for_resource(&uri)?;
+        let subject = self.authenticated(&context)?;
+        let subscription = self
+            .state
+            .resource_subscription(
+                &self.profile_id,
+                &subject.principal.id,
+                &server,
+                &resource_uri,
+            )
+            .map_err(|err| {
+                mcp_internal(format!(
+                    "failed to read gateway resource subscription: {err}"
+                ))
+            })?;
+        if subscription.is_none() {
+            self.record_policy_denial(
+                &subject,
+                GatewayAction::ResourcesUnsubscribe,
+                resource_policy_target(server.clone(), resource_uri.as_str())?,
+                PolicyReasonCode::UnknownResource,
+            )?;
+            return Err(mcp_invalid_params("unknown gateway resource subscription"));
+        }
         let subject = self.authorize_resource(
             &context,
-            GatewayAction::ResourcesSubscribe,
+            GatewayAction::ResourcesUnsubscribe,
             server.clone(),
-            &request.uri,
+            &uri,
         )?;
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
             .await?;
-        upstream.unsubscribe(request).await.map_err(upstream_error)
+        upstream
+            .unsubscribe(request)
+            .await
+            .map_err(upstream_error)?;
+        self.state
+            .delete_resource_subscription(
+                &self.profile_id,
+                &subject.principal.id,
+                &server,
+                &resource_uri,
+            )
+            .map_err(|err| {
+                mcp_internal(format!(
+                    "failed to delete gateway resource subscription: {err}"
+                ))
+            })?;
+        Ok(())
     }
 
     async fn list_prompts(

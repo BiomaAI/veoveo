@@ -4,8 +4,9 @@ use anyhow::Result;
 use duckdb::{OptionalExt, params};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, GatewayProfileId, GatewayTaskId, GatewayTaskMapping, PrincipalId,
-    SharedDuckDbConnection, UpstreamTaskId, open_duckdb,
+    AuditEvent, AuthAuditEvent, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
+    GatewayTaskMapping, PrincipalId, ResourceUri, ServerSlug, SharedDuckDbConnection,
+    UpstreamTaskId, open_duckdb,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -62,6 +63,20 @@ impl GatewayState {
 
             CREATE INDEX IF NOT EXISTS idx_gateway_task_mappings_owner
             ON gateway_task_mappings(profile, owner, upstream_server);
+
+            CREATE TABLE IF NOT EXISTS gateway_resource_subscriptions (
+                profile TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                upstream_server TEXT NOT NULL,
+                resource_uri TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                subscription_json TEXT NOT NULL,
+                PRIMARY KEY(profile, owner, upstream_server, resource_uri)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_gateway_resource_subscriptions_owner
+            ON gateway_resource_subscriptions(profile, owner, upstream_server);
 
             CREATE TABLE IF NOT EXISTS gateway_audit_events (
                 event_id TEXT PRIMARY KEY,
@@ -198,6 +213,80 @@ impl GatewayState {
         Ok(mappings)
     }
 
+    pub fn record_resource_subscription(
+        &self,
+        subscription: &GatewayResourceSubscription,
+    ) -> Result<()> {
+        let subscription_json = serde_json::to_string(subscription)?;
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            INSERT INTO gateway_resource_subscriptions (
+                profile, owner, upstream_server, resource_uri,
+                created_at, updated_at, subscription_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ON CONFLICT(profile, owner, upstream_server, resource_uri) DO UPDATE SET
+                updated_at = excluded.updated_at,
+                subscription_json = excluded.subscription_json
+            "#,
+            params![
+                subscription.profile.as_str(),
+                subscription.owner.as_str(),
+                subscription.upstream_server.as_str(),
+                subscription.resource_uri.as_str(),
+                subscription.created_at,
+                subscription.updated_at,
+                subscription_json,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn resource_subscription(
+        &self,
+        profile: &GatewayProfileId,
+        owner: &PrincipalId,
+        upstream_server: &ServerSlug,
+        resource_uri: &ResourceUri,
+    ) -> Result<Option<GatewayResourceSubscription>> {
+        self.query_subscription(
+            r#"
+            SELECT subscription_json
+            FROM gateway_resource_subscriptions
+            WHERE profile = ?1 AND owner = ?2 AND upstream_server = ?3 AND resource_uri = ?4
+            "#,
+            params![
+                profile.as_str(),
+                owner.as_str(),
+                upstream_server.as_str(),
+                resource_uri.as_str()
+            ],
+        )
+    }
+
+    pub fn delete_resource_subscription(
+        &self,
+        profile: &GatewayProfileId,
+        owner: &PrincipalId,
+        upstream_server: &ServerSlug,
+        resource_uri: &ResourceUri,
+    ) -> Result<()> {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        conn.execute(
+            r#"
+            DELETE FROM gateway_resource_subscriptions
+            WHERE profile = ?1 AND owner = ?2 AND upstream_server = ?3 AND resource_uri = ?4
+            "#,
+            params![
+                profile.as_str(),
+                owner.as_str(),
+                upstream_server.as_str(),
+                resource_uri.as_str()
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn record_audit_event(&self, event: &AuditEvent) -> Result<()> {
         let target_json = serde_json::to_string(&event.target)?;
         let decision_json = serde_json::to_string(&event.decision)?;
@@ -317,6 +406,23 @@ impl GatewayState {
             .map(|json| serde_json::from_str(&json))
             .transpose()?)
     }
+
+    fn query_subscription<P>(
+        &self,
+        sql: &str,
+        params: P,
+    ) -> Result<Option<GatewayResourceSubscription>>
+    where
+        P: duckdb::Params,
+    {
+        let conn = self.conn.lock().expect("gateway state mutex poisoned");
+        let subscription_json = conn
+            .query_row(sql, params, |row| row.get::<_, String>(0))
+            .optional()?;
+        Ok(subscription_json
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?)
+    }
 }
 
 #[cfg(test)]
@@ -373,6 +479,57 @@ mod tests {
                 .task_mappings_for_owner(&mapping.profile, &mapping.owner, &mapping.upstream_server)
                 .unwrap(),
             vec![mapping]
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn resource_subscription_round_trips_and_deletes_by_owner() {
+        let path = temp_path("subscriptions");
+        let state = GatewayState::open(&path).unwrap();
+        let subscription = GatewayResourceSubscription {
+            profile: GatewayProfileId::new("default").unwrap(),
+            owner: PrincipalId::new("issuer#subject").unwrap(),
+            upstream_server: ServerSlug::new("media").unwrap(),
+            resource_uri: ResourceUri::new("media://artifact/abc").unwrap(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        state.record_resource_subscription(&subscription).unwrap();
+
+        assert_eq!(
+            state
+                .resource_subscription(
+                    &subscription.profile,
+                    &subscription.owner,
+                    &subscription.upstream_server,
+                    &subscription.resource_uri,
+                )
+                .unwrap(),
+            Some(subscription.clone())
+        );
+
+        state
+            .delete_resource_subscription(
+                &subscription.profile,
+                &subscription.owner,
+                &subscription.upstream_server,
+                &subscription.resource_uri,
+            )
+            .unwrap();
+
+        assert_eq!(
+            state
+                .resource_subscription(
+                    &subscription.profile,
+                    &subscription.owner,
+                    &subscription.upstream_server,
+                    &subscription.resource_uri,
+                )
+                .unwrap(),
+            None
         );
 
         let _ = std::fs::remove_file(path);

@@ -1164,6 +1164,7 @@ pub enum GatewayAction {
     ResourcesTemplatesList,
     ResourcesRead,
     ResourcesSubscribe,
+    ResourcesUnsubscribe,
     PromptsList,
     PromptsGet,
     CompletionComplete,
@@ -1186,6 +1187,7 @@ impl GatewayAction {
             Self::ResourcesTemplatesList => Some("resources/templates/list"),
             Self::ResourcesRead => Some("resources/read"),
             Self::ResourcesSubscribe => Some("resources/subscribe"),
+            Self::ResourcesUnsubscribe => Some("resources/unsubscribe"),
             Self::PromptsList => Some("prompts/list"),
             Self::PromptsGet => Some("prompts/get"),
             Self::CompletionComplete => Some("completion/complete"),
@@ -1451,6 +1453,16 @@ pub struct GatewayTaskMapping {
     pub upstream_task_id: UpstreamTaskId,
     pub profile: GatewayProfileId,
     pub owner: PrincipalId,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayResourceSubscription {
+    pub profile: GatewayProfileId,
+    pub owner: PrincipalId,
+    pub upstream_server: ServerSlug,
+    pub resource_uri: ResourceUri,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -2057,6 +2069,18 @@ mod tests {
             Some(MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION)
         );
         assert_eq!(AuthMode::OidcAuthorizationCodePkce.mcp_extension_id(), None);
+    }
+
+    #[test]
+    fn gateway_actions_expose_subscription_mcp_methods() {
+        assert_eq!(
+            GatewayAction::ResourcesSubscribe.mcp_method(),
+            Some("resources/subscribe")
+        );
+        assert_eq!(
+            GatewayAction::ResourcesUnsubscribe.mcp_method(),
+            Some("resources/unsubscribe")
+        );
     }
 
     #[test]

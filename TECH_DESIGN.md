@@ -232,7 +232,7 @@ forward or aggregate the protocol surfaces our servers rely on:
 
 - `tools/list` and `tools/call`,
 - `resources/list`, `resources/templates/list`, `resources/read`, and
-  `resources/subscribe`,
+  `resources/subscribe`/`resources/unsubscribe`,
 - `prompts/list` and `prompts/get`,
 - `completion/complete`,
 - `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel`,
