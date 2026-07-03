@@ -541,6 +541,7 @@ pub(crate) async fn gateway_authenticated(
         run_gateway_json(gateway, "auth-audit-reason-summary", &gateway_state_db)?;
     assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 10)?;
     assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "invalid_bearer_token", 3)?;
     assert_reason_summary_at_least(&auth_reason_summary, "identity_assertion_replay", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "token_revoked", 1)?;
     let auth_principal_kind_summary =
