@@ -195,6 +195,10 @@ just gateway-revoke-jwt <jwt-id> 2026-07-02T20:00:00Z
 just gateway-prune-revoked-jwts
 cargo run -p veoveo-mcp-gateway --bin gateway -- audit-metadata-summary \
   --state-db data/gateway/state.duckdb --metadata-key operation_status
+cargo run -p veoveo-mcp-gateway --bin gateway -- auth-audit-method-summary \
+  --state-db data/gateway/state.duckdb
+cargo run -p veoveo-mcp-gateway --bin gateway -- auth-audit-metadata-summary \
+  --state-db data/gateway/state.duckdb --metadata-key principal_data_labels
 ```
 
 Artifact metadata carries typed compliance fields from the gateway principal, including

@@ -78,6 +78,15 @@ enum Command {
         #[arg(long)]
         state_db: PathBuf,
     },
+    /// Print gateway auth audit counts grouped by one metadata value as JSON.
+    AuthAuditMetadataSummary {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+        /// Metadata key to group by.
+        #[arg(long)]
+        metadata_key: String,
+    },
     /// Print gateway policy audit counts grouped by MCP method as JSON.
     AuditMethodSummary {
         /// DuckDB file for gateway runtime state and audit evidence.
@@ -182,6 +191,17 @@ async fn main() -> anyhow::Result<()> {
             println!(
                 "{}",
                 serde_json::to_string(&state.auth_audit_reason_summary()?)?
+            );
+            Ok(())
+        }
+        Command::AuthAuditMetadataSummary {
+            state_db,
+            metadata_key,
+        } => {
+            let state = GatewayState::open(&state_db)?;
+            println!(
+                "{}",
+                serde_json::to_string(&state.auth_audit_metadata_summary(&metadata_key)?)?
             );
             Ok(())
         }

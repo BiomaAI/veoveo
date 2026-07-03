@@ -70,3 +70,22 @@ pub(crate) fn run_gateway_metadata_summary(
     )?;
     Ok(serde_json::from_str(&output)?)
 }
+
+pub(crate) fn run_gateway_auth_metadata_summary(
+    gateway: &Path,
+    state_db: &Path,
+    metadata_key: &str,
+) -> Result<Value> {
+    let output = run_checked(
+        gateway,
+        [
+            "auth-audit-metadata-summary".into(),
+            "--state-db".into(),
+            state_db.as_os_str().to_os_string(),
+            "--metadata-key".into(),
+            metadata_key.into(),
+        ],
+        [],
+    )?;
+    Ok(serde_json::from_str(&output)?)
+}

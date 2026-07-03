@@ -11,9 +11,10 @@ mod subscriptions;
 mod tasks;
 
 pub use audit::{
-    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMethodSummary,
-    GatewayAuthAuditReasonSummary, GatewayPolicyAuditMetadataSummary,
-    GatewayPolicyAuditMethodSummary, GatewayPolicyAuditReasonSummary,
+    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
+    GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary,
+    GatewayPolicyAuditMetadataSummary, GatewayPolicyAuditMethodSummary,
+    GatewayPolicyAuditReasonSummary,
 };
 
 #[derive(Debug, Clone)]
@@ -136,6 +137,17 @@ mod tests {
         reason: AuthReasonCode,
         method: AuthMethod,
     ) {
+        record_auth_audit_with_metadata(state, event_id, outcome, reason, method, BTreeMap::new());
+    }
+
+    fn record_auth_audit_with_metadata(
+        state: &GatewayState,
+        event_id: &str,
+        outcome: AuthOutcome,
+        reason: AuthReasonCode,
+        method: AuthMethod,
+        metadata: BTreeMap<String, String>,
+    ) {
         state
             .record_auth_audit_event(&AuthAuditEvent {
                 event_id: TraceId::new(event_id).unwrap(),
@@ -154,7 +166,7 @@ mod tests {
                 token_subject: None,
                 jwt_id: None,
                 latency_ms: Some(3),
-                metadata: BTreeMap::new(),
+                metadata,
             })
             .unwrap();
     }
@@ -804,8 +816,20 @@ mod tests {
             AuthReasonCode::ClientAssertionReplay,
             AuthMethod::ClientCredentialsPrivateKeyJwt,
         );
+        record_auth_audit_with_metadata(
+            &state,
+            "event-4",
+            AuthOutcome::Allow,
+            AuthReasonCode::AuthAllow,
+            AuthMethod::EnterpriseManagedIdJag,
+            BTreeMap::from([
+                ("principal_kind".to_string(), "user".to_string()),
+                ("principal_data_labels".to_string(), "cui".to_string()),
+                ("principal_assurances".to_string(), "us_person".to_string()),
+            ]),
+        );
 
-        assert_eq!(state.auth_audit_event_count().unwrap(), 3);
+        assert_eq!(state.auth_audit_event_count().unwrap(), 4);
         let method_summary: BTreeMap<AuthMethod, (u64, u64, u64)> = state
             .auth_audit_method_summary()
             .unwrap()
@@ -822,6 +846,10 @@ mod tests {
             method_summary.get(&AuthMethod::ClientCredentialsPrivateKeyJwt),
             Some(&(0, 1, 1))
         );
+        assert_eq!(
+            method_summary.get(&AuthMethod::EnterpriseManagedIdJag),
+            Some(&(1, 0, 1))
+        );
         let reason_summary: BTreeMap<AuthReasonCode, u64> = state
             .auth_audit_reason_summary()
             .unwrap()
@@ -832,11 +860,18 @@ mod tests {
             reason_summary.get(&AuthReasonCode::MissingAuthorizationHeader),
             Some(&1)
         );
-        assert_eq!(reason_summary.get(&AuthReasonCode::AuthAllow), Some(&1));
+        assert_eq!(reason_summary.get(&AuthReasonCode::AuthAllow), Some(&2));
         assert_eq!(
             reason_summary.get(&AuthReasonCode::ClientAssertionReplay),
             Some(&1)
         );
+        let metadata_summary: BTreeMap<String, u64> = state
+            .auth_audit_metadata_summary("principal_data_labels")
+            .unwrap()
+            .into_iter()
+            .map(|entry| (entry.metadata_value, entry.events))
+            .collect();
+        assert_eq!(metadata_summary.get("cui"), Some(&1));
 
         let _ = std::fs::remove_file(path);
     }

@@ -515,6 +515,15 @@ pub(crate) async fn gateway_authenticated(
     assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "identity_assertion_replay", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "token_revoked", 1)?;
+    let auth_principal_kind_summary =
+        run_gateway_auth_metadata_summary(gateway, &gateway_state_db, "principal_kind")?;
+    assert_metadata_summary_at_least(&auth_principal_kind_summary, "user", 1)?;
+    let auth_principal_label_summary =
+        run_gateway_auth_metadata_summary(gateway, &gateway_state_db, "principal_data_labels")?;
+    assert_metadata_summary_at_least(&auth_principal_label_summary, "cui", 1)?;
+    let auth_principal_assurance_summary =
+        run_gateway_auth_metadata_summary(gateway, &gateway_state_db, "principal_assurances")?;
+    assert_metadata_summary_at_least(&auth_principal_assurance_summary, "us_person", 1)?;
     let audit_summary = run_gateway_json(gateway, "audit-method-summary", &gateway_state_db)?;
     assert_audit_method(&audit_summary, "tools/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/list", 1, 0)?;

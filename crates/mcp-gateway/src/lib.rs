@@ -24,7 +24,7 @@ pub use policy::{PolicyRequest, mcp_method_name, resource_scheme_from_uri};
 pub use principal_audit::{merge_principal_audit_metadata, principal_audit_metadata};
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 pub use state::{
-    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMethodSummary,
-    GatewayAuthAuditReasonSummary, GatewayState,
+    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
+    GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary, GatewayState,
 };
 pub use tool_name::{GatewayNameError, GatewayToolProjection};

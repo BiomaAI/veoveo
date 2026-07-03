@@ -15,7 +15,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest,
-    merge_principal_audit_metadata, www_authenticate_challenge,
+    merge_principal_audit_metadata, principal_audit_metadata, www_authenticate_challenge,
 };
 
 use crate::runtime::{AdminState, ProfileAuthState, current_catalog};
@@ -274,7 +274,9 @@ pub(super) fn record_auth_audit(
             token_subject,
             jwt_id,
             latency_ms: Some(latency_ms),
-            metadata: Default::default(),
+            metadata: subject
+                .map(|value| principal_audit_metadata(&value.principal))
+                .unwrap_or_default(),
         })
 }
 
@@ -326,7 +328,10 @@ pub(super) fn record_token_auth_audit(
         token_subject,
         jwt_id: record.jwt_id.cloned(),
         latency_ms: Some(latency_ms),
-        metadata: Default::default(),
+        metadata: record
+            .principal
+            .map(principal_audit_metadata)
+            .unwrap_or_default(),
     })
 }
 
@@ -375,7 +380,10 @@ pub(super) fn record_id_jag_auth_audit(
         token_subject,
         jwt_id: record.jwt_id.cloned(),
         latency_ms: Some(latency_ms),
-        metadata: Default::default(),
+        metadata: record
+            .principal
+            .map(principal_audit_metadata)
+            .unwrap_or_default(),
     })
 }
 
@@ -424,7 +432,10 @@ pub(super) fn record_oidc_auth_audit(
         token_subject,
         jwt_id: record.jwt_id.cloned(),
         latency_ms: Some(latency_ms),
-        metadata: Default::default(),
+        metadata: record
+            .principal
+            .map(principal_audit_metadata)
+            .unwrap_or_default(),
     })
 }
 

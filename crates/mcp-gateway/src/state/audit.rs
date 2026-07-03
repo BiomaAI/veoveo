@@ -32,6 +32,13 @@ pub struct GatewayAuthAuditReasonSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayAuthAuditMetadataSummary {
+    pub metadata_key: String,
+    pub metadata_value: String,
+    pub events: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GatewayPolicyAuditMethodSummary {
     pub method: McpMethodName,
     pub allow_events: u64,
@@ -133,6 +140,36 @@ impl GatewayState {
             entry.events += 1;
         }
         Ok(summaries.into_values().collect())
+    }
+
+    pub fn auth_audit_metadata_summary(
+        &self,
+        metadata_key: &str,
+    ) -> Result<Vec<GatewayAuthAuditMetadataSummary>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT event_json
+            FROM gateway_auth_audit_events
+            ORDER BY timestamp, event_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut summaries = BTreeMap::<String, u64>::new();
+        for row in rows {
+            let event: AuthAuditEvent = serde_json::from_str(&row?)?;
+            if let Some(metadata_value) = event.metadata.get(metadata_key) {
+                *summaries.entry(metadata_value.clone()).or_default() += 1;
+            }
+        }
+        Ok(summaries
+            .into_iter()
+            .map(|(metadata_value, events)| GatewayAuthAuditMetadataSummary {
+                metadata_key: metadata_key.to_string(),
+                metadata_value,
+                events,
+            })
+            .collect())
     }
 
     pub fn policy_audit_method_summary(&self) -> Result<Vec<GatewayPolicyAuditMethodSummary>> {
