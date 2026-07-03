@@ -131,6 +131,7 @@ services:
       - "365"
     volumes:
       - ./configs/gateway.local.json:/etc/veoveo/gateway.json:ro
+      - ./configs/jwks.smoke.json:/etc/veoveo/jwks.smoke.json:ro
       - gateway_state:/var/lib/veoveo/gateway
     environment:
       VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"

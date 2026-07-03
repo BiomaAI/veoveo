@@ -218,8 +218,8 @@
       "auth_methods": ["private_key_jwt"],
       "allowed_scopes": ["media:use", "gateway:admin"],
       "jwks": {
-        "source": "remote",
-        "jwks_uri": "https://idp.example.com/oauth2/clients/veoveo-headless/jwks.json"
+        "source": "file",
+        "path": "/etc/veoveo/jwks.smoke.json"
       },
       "metadata": {}
     }
