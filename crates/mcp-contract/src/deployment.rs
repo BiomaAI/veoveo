@@ -584,6 +584,14 @@ impl SelfHostedDeploymentProfile {
                 self.id
             );
         }
+        for server in &state_store_servers {
+            if !deployed_servers.contains(server) {
+                bail!(
+                    "deployment profile `{}` state store owner references undeployed hosted server `{server}`",
+                    self.id
+                );
+            }
+        }
         for server in deployed_servers {
             if !state_store_servers.contains(&server) {
                 bail!(
@@ -994,6 +1002,32 @@ mod tests {
 
         plan.validate()
             .expect("server state-store coverage should validate");
+    }
+
+    #[test]
+    fn deployment_rejects_state_store_for_undeployed_server() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].state_stores.push(StateStoreDeployment {
+            id: DeploymentRequirementId::new("simulation-duckdb").unwrap(),
+            kind: StateStoreKind::DuckDb,
+            owners: BTreeSet::from([StateStoreOwner::Server {
+                server: ServerSlug::new("simulation").unwrap(),
+            }]),
+            endpoint: None,
+            durable_volume_required: true,
+            encrypted_at_rest_required: false,
+            customer_managed_keys_required: false,
+        });
+
+        let err = plan
+            .validate()
+            .expect_err("undeployed server state store owner must fail");
+
+        assert!(
+            err.to_string()
+                .contains("state store owner references undeployed hosted server `simulation`")
+        );
     }
 
     #[test]
