@@ -73,6 +73,11 @@ smoke-otel:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke otel --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
+# Smoke-test gateway Vault KV v2 secret resolution.
+smoke-gateway-vault-secrets:
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    target/debug/smoke gateway-vault-secrets --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
+
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server

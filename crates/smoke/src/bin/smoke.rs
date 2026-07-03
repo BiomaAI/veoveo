@@ -145,6 +145,15 @@ enum Cmd {
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
     },
+    /// Smoke-test gateway secret resolution against a real Vault KV v2 service.
+    GatewayVaultSecrets {
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Base gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+    },
 }
 
 #[tokio::main]
@@ -194,5 +203,9 @@ async fn main() -> Result<()> {
             gateway_bin,
             control_plane,
         } => gateway_task_run(&conformance_bin, &media_bin, &gateway_bin, &control_plane).await,
+        Cmd::GatewayVaultSecrets {
+            gateway_bin,
+            control_plane,
+        } => gateway_vault_secrets(&gateway_bin, &control_plane).await,
     }
 }

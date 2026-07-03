@@ -7,10 +7,13 @@ mod basic;
 mod gateway;
 #[path = "scenarios/media.rs"]
 mod media;
+#[path = "scenarios/secrets.rs"]
+mod secrets;
 
 pub(crate) use basic::*;
 pub(crate) use gateway::*;
 pub(crate) use media::*;
+pub(crate) use secrets::*;
 
 pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Path) -> Result<()> {
     let conformance = Path::new("target/debug/conformance");
@@ -93,6 +96,9 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
 
     suite_step("gateway OpenTelemetry export");
     otel(conformance, gateway, smoke_control_plane).await?;
+
+    suite_step("gateway Vault secret resolution");
+    gateway_vault_secrets(gateway, smoke_control_plane).await?;
 
     suite_step("media MCP auth boundary");
     media_mcp_auth(conformance, media).await?;

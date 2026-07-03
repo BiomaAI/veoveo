@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, net::SocketAddr, num::NonZeroU32, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap, fmt::Write as _, net::SocketAddr, num::NonZeroU32, path::PathBuf,
+    sync::Arc,
+};
 
 #[path = "gateway/admin.rs"]
 mod admin;
@@ -32,13 +35,18 @@ use parking_lot::RwLock;
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
-    InternalTokenSecret, PublicDeployment, TelemetryGuard, TokenIssuer, init_server_telemetry,
+    InternalTokenSecret, PublicDeployment, SecretPurpose, SecretReferenceId, SecretSource,
+    TelemetryGuard, TokenIssuer, init_server_telemetry,
 };
-use veoveo_mcp_gateway::{GatewayCatalog, GatewayCatalogHandle, GatewayMcp, GatewayState};
+use veoveo_mcp_gateway::{
+    GatewayCatalog, GatewayCatalogHandle, GatewayMcp, GatewaySecretResolver, GatewayState,
+};
 
 use admin::{
     prune_jwt_revocations, read_control_plane, reload_control_plane, revoke_jwt,
@@ -69,6 +77,18 @@ enum Command {
         /// JSON control plane file.
         #[arg(long)]
         control_plane: PathBuf,
+    },
+    /// Resolve one configured secret and print redacted evidence as JSON.
+    ResolveSecret {
+        /// JSON control plane file.
+        #[arg(long)]
+        control_plane: PathBuf,
+        /// Secret reference id.
+        #[arg(long)]
+        secret_id: String,
+        /// Expected secret purpose, using the JSON control-plane value.
+        #[arg(long)]
+        purpose: String,
     },
     /// Print aggregate gateway audit counts as JSON.
     AuditCounts {
@@ -136,6 +156,29 @@ async fn main() -> anyhow::Result<()> {
             );
             Ok(())
         }
+        Command::ResolveSecret {
+            control_plane,
+            secret_id,
+            purpose,
+        } => {
+            let catalog = GatewayCatalog::load_json(&control_plane)?;
+            let secret_id = SecretReferenceId::new(secret_id)?;
+            let purpose = parse_secret_purpose(&purpose)?;
+            let resolved = GatewaySecretResolver::new()
+                .resolve_string(&catalog, &secret_id, purpose)
+                .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&ResolvedSecretEvidence {
+                    id: resolved.id().to_string(),
+                    source: resolved.source(),
+                    purpose: resolved.purpose(),
+                    byte_length: resolved.expose_secret().len(),
+                    sha256: sha256_hex(resolved.expose_secret().as_bytes()),
+                })?
+            );
+            Ok(())
+        }
         Command::AuditCounts { state_db } => {
             let state = GatewayState::open(&state_db)?;
             println!("{}", serde_json::to_string(&state.audit_counts()?)?);
@@ -190,6 +233,29 @@ async fn main() -> anyhow::Result<()> {
             .await
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+struct ResolvedSecretEvidence {
+    id: String,
+    source: SecretSource,
+    purpose: SecretPurpose,
+    byte_length: usize,
+    sha256: String,
+}
+
+fn parse_secret_purpose(value: &str) -> anyhow::Result<SecretPurpose> {
+    serde_json::from_value(serde_json::Value::String(value.to_owned()))
+        .map_err(|err| anyhow::anyhow!("invalid secret purpose `{value}`: {err}"))
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("write to string");
+    }
+    output
 }
 
 async fn serve(
