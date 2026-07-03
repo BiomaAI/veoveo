@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},
+    time::Duration,
 };
 
 mod authorization;
@@ -51,6 +52,7 @@ use upstream_http::build_upstream_http_client;
 const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 const INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS: i64 = 30;
+const UPSTREAM_CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug)]
 pub struct GatewayMcp {
@@ -128,6 +130,7 @@ impl GatewayMcp {
             catalog_generation,
         };
         let refresh_after = Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS);
+        self.close_stale_upstreams(catalog_generation).await;
         {
             let upstreams = self.upstreams.read().await;
             if let Some(connection) = upstreams.get(&key)
@@ -156,7 +159,16 @@ impl GatewayMcp {
         {
             return Ok(connection.running.peer().clone());
         }
-        upstreams.remove(&key);
+        let expired_connection = upstreams.remove(&key);
+        drop(upstreams);
+        if let Some(connection) = expired_connection {
+            close_upstream_connection(
+                key.clone(),
+                connection,
+                "expired or closed upstream connection",
+            )
+            .await;
+        }
 
         let token_expires_at = internal_token_expires_at(subject)?;
         let internal_token = self
@@ -188,14 +200,61 @@ impl GatewayMcp {
             .await
             .map_err(|err| mcp_internal(format!("failed to initialize upstream MCP: {err}")))?;
         let peer = running.peer().clone();
-        upstreams.insert(
-            key,
+        let mut upstreams = self.upstreams.write().await;
+        if let Some(connection) = upstreams.get(&key)
+            && !connection.running.is_closed()
+            && connection.expires_at > refresh_after
+        {
+            let existing_peer = connection.running.peer().clone();
+            drop(upstreams);
+            close_upstream_connection(
+                key,
+                UpstreamConnection {
+                    running,
+                    expires_at: internal_token.identity.expires_at,
+                },
+                "superseded upstream connection",
+            )
+            .await;
+            return Ok(existing_peer);
+        }
+        let replaced = upstreams.insert(
+            key.clone(),
             UpstreamConnection {
                 running,
                 expires_at: internal_token.identity.expires_at,
             },
         );
+        drop(upstreams);
+        if let Some(connection) = replaced {
+            close_upstream_connection(key, connection, "replaced upstream connection").await;
+        }
         Ok(peer)
+    }
+
+    async fn close_stale_upstreams(&self, current_generation: u64) {
+        let stale_connections = {
+            let mut upstreams = self.upstreams.write().await;
+            let stale_keys = upstreams
+                .iter()
+                .filter_map(|(key, connection)| {
+                    if key.catalog_generation != current_generation
+                        || connection.running.is_closed()
+                    {
+                        Some(key.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            stale_keys
+                .into_iter()
+                .filter_map(|key| upstreams.remove(&key).map(|connection| (key, connection)))
+                .collect::<Vec<_>>()
+        };
+        for (key, connection) in stale_connections {
+            close_upstream_connection(key, connection, "stale upstream connection").await;
+        }
     }
 }
 
@@ -210,6 +269,49 @@ struct UpstreamCacheKey {
 struct UpstreamConnection {
     running: RunningService<RoleClient, GatewayUpstreamHandler>,
     expires_at: DateTime<Utc>,
+}
+
+async fn close_upstream_connection(
+    key: UpstreamCacheKey,
+    mut connection: UpstreamConnection,
+    reason: &'static str,
+) {
+    if connection.running.is_closed() {
+        return;
+    }
+    match connection
+        .running
+        .close_with_timeout(UPSTREAM_CLOSE_TIMEOUT)
+        .await
+    {
+        Ok(Some(_)) => {
+            tracing::debug!(
+                server = %key.server,
+                principal = %key.principal,
+                catalog_generation = key.catalog_generation,
+                reason,
+                "closed gateway upstream MCP connection"
+            );
+        }
+        Ok(None) => {
+            tracing::warn!(
+                server = %key.server,
+                principal = %key.principal,
+                catalog_generation = key.catalog_generation,
+                reason,
+                "timed out closing gateway upstream MCP connection"
+            );
+        }
+        Err(err) => {
+            tracing::warn!(
+                server = %key.server,
+                principal = %key.principal,
+                catalog_generation = key.catalog_generation,
+                reason,
+                "failed to close gateway upstream MCP connection: {err}"
+            );
+        }
+    }
 }
 
 fn internal_token_expires_at(subject: &AuthenticatedSubject) -> Result<DateTime<Utc>, McpError> {

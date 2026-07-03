@@ -285,9 +285,9 @@ Gateway data must be split by sensitivity and lifecycle:
   definitions, and secret references. This data is dynamic and durable. It should start as
   typed files plus hot reload or an explicit admin API, then move to a control-plane store
   without changing the MCP contract.
-  The file-backed gateway exposes an authenticated admin reload path for mounted profiles;
-  the set of mounted profile route ids is immutable during reload and changing it is a
-  deploy operation.
+  The file-backed gateway exposes authenticated admin reload and apply paths. Profile
+  routes are data-driven under `/mcp/{profile}`, so adding or removing a profile is an
+  authenticated control-plane change, not a new public domain or edge-route change.
   Server manifests declare typed upstream transport security next to each upstream URL:
   `loopback_http` for local tests, `compose_internal_http` for Docker Compose service-name
   routes, and `tls`, `mutual_tls`, or `service_mesh_mtls` for production deployments.
