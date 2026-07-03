@@ -66,6 +66,25 @@ pub(crate) fn run_direct_mcp(
     run_checked(conformance, all_args, envs)
 }
 
+pub(crate) fn assert_direct_mcp_denied(
+    conformance: &Path,
+    url: &str,
+    args: impl IntoIterator<Item = OsString>,
+    envs: impl IntoIterator<Item = (&'static str, OsString)>,
+) -> Result<()> {
+    let mut all_args = vec!["--url".into(), url.into()];
+    all_args.extend(args);
+    let output = run_raw(conformance, all_args, envs)?;
+    if output.status.success() {
+        bail!(
+            "direct MCP command was unexpectedly authorized\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(())
+}
+
 pub(crate) fn assert_mcp_denied(
     conformance: &Path,
     mcp_url: &str,

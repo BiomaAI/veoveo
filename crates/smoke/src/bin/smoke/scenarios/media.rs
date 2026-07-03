@@ -217,6 +217,40 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
     let usage = wait_for_actual_usage(conformance, &mcp_url, &task_id, None)?;
     assert_usage_report(&usage, "media", &task_id)?;
 
+    let other_profile_tasks = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        ["--internal-profile".into(), "ops".into(), "tasks".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&other_profile_tasks, "0 task(s)")?;
+
+    assert_direct_mcp_denied(
+        conformance,
+        &mcp_url,
+        [
+            "--internal-profile".into(),
+            "ops".into(),
+            "usage".into(),
+            task_id.clone().into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+
+    assert_direct_mcp_denied(
+        conformance,
+        &mcp_url,
+        [
+            "--internal-profile".into(),
+            "ops".into(),
+            "artifact".into(),
+            structured.artifacts[0].sha256.clone().into(),
+            "--output-dir".into(),
+            tmpdir.join("denied-artifacts").as_os_str().to_os_string(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+
     let task_review_output = run_direct_mcp(
         conformance,
         &mcp_url,
