@@ -173,5 +173,6 @@ pub(crate) fn gateway_serve_args(
         control_plane.as_os_str().to_os_string(),
         "--state-db".into(),
         state_db.as_os_str().to_os_string(),
+        "--allow-loopback-hosts".into(),
     ]
 }

@@ -104,6 +104,9 @@ enum Command {
         /// Secret used to sign gateway-to-server internal identity assertions.
         #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
         internal_token_secret: String,
+        /// Allow loopback Host headers for local development and smoke tests.
+        #[arg(long, default_value_t = false)]
+        allow_loopback_hosts: bool,
         /// Retention window for gateway audit evidence.
         #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
         audit_event_retention_days: NonZeroU32,
@@ -187,6 +190,7 @@ async fn main() -> anyhow::Result<()> {
             control_plane,
             state_db,
             internal_token_secret,
+            allow_loopback_hosts,
             audit_event_retention_days,
         } => {
             let retention = GatewayRetentionPolicy {
@@ -198,6 +202,7 @@ async fn main() -> anyhow::Result<()> {
                 control_plane,
                 state_db,
                 internal_token_secret,
+                allow_loopback_hosts,
                 retention,
             )
             .await

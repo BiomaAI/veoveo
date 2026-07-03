@@ -124,6 +124,7 @@ services:
       - "/etc/veoveo/gateway.json"
       - "--state-db"
       - "/var/lib/veoveo/gateway/state.duckdb"
+      - "--allow-loopback-hosts"
       - "--audit-event-retention-days"
       - "365"
     volumes:
