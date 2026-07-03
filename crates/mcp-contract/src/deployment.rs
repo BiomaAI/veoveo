@@ -239,10 +239,28 @@ pub enum TelemetrySignal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct NetworkBoundaryRule {
     pub id: DeploymentRequirementId,
+    pub target_kind: NetworkTargetKind,
     pub target: NetworkTarget,
     #[serde(default)]
     pub ports: BTreeSet<u16>,
     pub tls_required: bool,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkTargetKind {
+    Gateway,
+    HostedMcpServer,
+    ObjectStore,
+    StateStore,
+    SecretManager,
+    IdentityProvider,
+    AuthorizationServer,
+    TelemetryCollector,
+    TunnelOrIngress,
+    ExternalProviderApi,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -409,6 +427,7 @@ impl SelfHostedDeploymentProfile {
         for rule in self.ingress.iter().chain(&self.egress) {
             rule.validate(&self.id)?;
         }
+        self.validate_network_coverage()?;
         self.service_to_service.validate(&self.id, self.kind)?;
 
         match self.kind {
@@ -550,6 +569,74 @@ impl SelfHostedDeploymentProfile {
         Ok(())
     }
 
+    fn validate_network_coverage(&self) -> Result<()> {
+        for rule in self.ingress.iter().chain(&self.egress) {
+            if let Some(service) = rule.target_kind.service_kind()
+                && !self.required_services.contains(&service)
+            {
+                bail!(
+                    "deployment profile `{}` network rule `{}` targets service `{service:?}` that is not declared in required_services",
+                    self.id,
+                    rule.id
+                );
+            }
+        }
+
+        if !self.ingress.iter().any(|rule| {
+            matches!(
+                rule.target_kind,
+                NetworkTargetKind::Gateway
+                    | NetworkTargetKind::AuthorizationServer
+                    | NetworkTargetKind::TunnelOrIngress
+            )
+        }) {
+            bail!(
+                "deployment profile `{}` must declare ingress for gateway, authorization server, or tunnel/ingress",
+                self.id
+            );
+        }
+
+        for kind in [
+            NetworkTargetKind::HostedMcpServer,
+            NetworkTargetKind::ObjectStore,
+            NetworkTargetKind::TelemetryCollector,
+        ] {
+            self.require_egress_target(kind)?;
+        }
+
+        if self.secret_sources.iter().any(enterprise_secret_source) {
+            self.require_egress_target(NetworkTargetKind::SecretManager)?;
+        }
+
+        if self
+            .required_services
+            .contains(&DeploymentServiceKind::IdentityProvider)
+        {
+            self.require_egress_target(NetworkTargetKind::IdentityProvider)?;
+        }
+
+        if self
+            .state_stores
+            .iter()
+            .any(|store| store.kind == StateStoreKind::EnterpriseManaged)
+        {
+            self.require_egress_target(NetworkTargetKind::StateStore)?;
+        }
+
+        Ok(())
+    }
+
+    fn require_egress_target(&self, kind: NetworkTargetKind) -> Result<()> {
+        if self.egress.iter().any(|rule| rule.target_kind == kind) {
+            Ok(())
+        } else {
+            bail!(
+                "deployment profile `{}` must declare egress for `{kind:?}`",
+                self.id
+            )
+        }
+    }
+
     fn validate_state_store_coverage(&self) -> Result<()> {
         let has_gateway = self.state_stores.iter().any(|store| {
             store
@@ -663,7 +750,30 @@ impl NetworkBoundaryRule {
                 self.id
             );
         }
+        if self.target_kind == NetworkTargetKind::ExternalProviderApi && !self.tls_required {
+            bail!(
+                "deployment profile `{profile}` external provider network rule `{}` must require TLS",
+                self.id
+            );
+        }
         Ok(())
+    }
+}
+
+impl NetworkTargetKind {
+    fn service_kind(self) -> Option<DeploymentServiceKind> {
+        match self {
+            Self::Gateway => Some(DeploymentServiceKind::Gateway),
+            Self::HostedMcpServer => Some(DeploymentServiceKind::HostedMcpServer),
+            Self::ObjectStore => Some(DeploymentServiceKind::ObjectStore),
+            Self::StateStore => Some(DeploymentServiceKind::StateStore),
+            Self::SecretManager => Some(DeploymentServiceKind::SecretManager),
+            Self::IdentityProvider => Some(DeploymentServiceKind::IdentityProvider),
+            Self::AuthorizationServer => Some(DeploymentServiceKind::AuthorizationServer),
+            Self::TelemetryCollector => Some(DeploymentServiceKind::TelemetryCollector),
+            Self::TunnelOrIngress => Some(DeploymentServiceKind::TunnelOrIngress),
+            Self::ExternalProviderApi => None,
+        }
     }
 }
 
@@ -1031,6 +1141,57 @@ mod tests {
     }
 
     #[test]
+    fn deployment_requires_network_coverage_for_core_services() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0]
+            .egress
+            .retain(|rule| rule.target_kind != NetworkTargetKind::HostedMcpServer);
+
+        let err = plan
+            .validate()
+            .expect_err("hosted server egress must be explicit");
+
+        assert!(err.to_string().contains("HostedMcpServer"));
+    }
+
+    #[test]
+    fn enterprise_deployment_requires_secret_manager_network() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
+        plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
+        plan.profiles[0]
+            .egress
+            .retain(|rule| rule.target_kind != NetworkTargetKind::SecretManager);
+
+        let err = plan
+            .validate()
+            .expect_err("secret manager egress must be explicit");
+
+        assert!(err.to_string().contains("SecretManager"));
+    }
+
+    #[test]
+    fn deployment_rejects_plaintext_external_provider_network() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].egress.push(NetworkBoundaryRule {
+            id: DeploymentRequirementId::new("provider").unwrap(),
+            target_kind: NetworkTargetKind::ExternalProviderApi,
+            target: NetworkTarget::new("media-provider-api").unwrap(),
+            ports: BTreeSet::from([443]),
+            tls_required: false,
+        });
+
+        let err = plan
+            .validate()
+            .expect_err("external provider egress must require TLS");
+
+        assert!(err.to_string().contains("external provider"));
+    }
+
+    #[test]
     fn regulated_deployment_requires_controls() {
         let mut plan: SelfHostedDeploymentPlan =
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
@@ -1139,6 +1300,22 @@ mod tests {
         for rule in profile.ingress.iter_mut().chain(&mut profile.egress) {
             rule.tls_required = true;
         }
+        profile.egress.extend([
+            NetworkBoundaryRule {
+                id: DeploymentRequirementId::new("secret-manager").unwrap(),
+                target_kind: NetworkTargetKind::SecretManager,
+                target: NetworkTarget::new("enterprise-vault").unwrap(),
+                ports: BTreeSet::from([443]),
+                tls_required: true,
+            },
+            NetworkBoundaryRule {
+                id: DeploymentRequirementId::new("identity-provider").unwrap(),
+                target_kind: NetworkTargetKind::IdentityProvider,
+                target: NetworkTarget::new("enterprise-idp").unwrap(),
+                ports: BTreeSet::from([443]),
+                tls_required: true,
+            },
+        ]);
     }
 
     fn valid_deployment_plan_json() -> &'static str {
@@ -1208,6 +1385,7 @@ mod tests {
               "ingress": [
                 {
                   "id": "gateway",
+                  "target_kind": "gateway",
                   "target": "mcp-gateway",
                   "ports": [443],
                   "tls_required": true
@@ -1215,9 +1393,24 @@ mod tests {
               ],
               "egress": [
                 {
+                  "id": "hosted-media-mcp",
+                  "target_kind": "hosted_mcp_server",
+                  "target": "media-mcp",
+                  "ports": [8787],
+                  "tls_required": false
+                },
+                {
                   "id": "object-store",
+                  "target_kind": "object_store",
                   "target": "rustfs",
                   "ports": [9000],
+                  "tls_required": false
+                },
+                {
+                  "id": "telemetry",
+                  "target_kind": "telemetry_collector",
+                  "target": "otel-collector",
+                  "ports": [4318],
                   "tls_required": false
                 }
               ],

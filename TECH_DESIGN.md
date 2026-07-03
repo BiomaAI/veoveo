@@ -395,7 +395,7 @@ The implementation plan is production-gateway-first:
    failures, policy denials, and audit emission.
 9. Add self-hosted deployment profiles for local, enterprise, and regulated environments.
    Each profile must declare required external services, secret sources, object stores,
-   DuckDB state stores, telemetry sinks, allowed ingress, allowed egress, and
+   DuckDB state stores, telemetry sinks, typed ingress/egress target kinds, and
    data-retention behavior.
 
 ## Enterprise deployment and pluggable infrastructure

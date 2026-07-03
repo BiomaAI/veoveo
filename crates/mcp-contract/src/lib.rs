@@ -27,10 +27,11 @@ pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use deployment::{
     DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,
     DeploymentRequirementId, DeploymentServiceKind, GatewayToServerIdentity, NetworkBoundaryRule,
-    NetworkTarget, ObjectStoreDeployment, ObjectStoreKind, PublicDeployment, RegulatedDataControls,
-    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerPublicEndpoint,
-    ServiceToServiceSecurity, ServiceToServiceTransport, StateStoreDeployment, StateStoreKind,
-    StateStoreOwner, TelemetrySignal, TelemetrySinkDeployment, TelemetrySinkKind,
+    NetworkTarget, NetworkTargetKind, ObjectStoreDeployment, ObjectStoreKind, PublicDeployment,
+    RegulatedDataControls, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile,
+    ServerPublicEndpoint, ServiceToServiceSecurity, ServiceToServiceTransport,
+    StateStoreDeployment, StateStoreKind, StateStoreOwner, TelemetrySignal,
+    TelemetrySinkDeployment, TelemetrySinkKind,
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,

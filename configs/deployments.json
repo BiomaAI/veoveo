@@ -64,6 +64,7 @@
       "ingress": [
         {
           "id": "gateway-public",
+          "target_kind": "gateway",
           "target": "mcp-gateway",
           "ports": [443, 8788],
           "tls_required": true
@@ -71,19 +72,29 @@
       ],
       "egress": [
         {
+          "id": "hosted-media-mcp",
+          "target_kind": "hosted_mcp_server",
+          "target": "media-mcp",
+          "ports": [8787],
+          "tls_required": false
+        },
+        {
           "id": "artifact-store",
+          "target_kind": "object_store",
           "target": "rustfs",
           "ports": [9000],
           "tls_required": false
         },
         {
           "id": "telemetry",
+          "target_kind": "telemetry_collector",
           "target": "otel-collector",
           "ports": [4318],
           "tls_required": false
         },
         {
           "id": "media-provider",
+          "target_kind": "external_provider_api",
           "target": "media-provider-api",
           "ports": [443],
           "tls_required": true
@@ -162,6 +173,7 @@
       "ingress": [
         {
           "id": "enterprise-gateway",
+          "target_kind": "tunnel_or_ingress",
           "target": "enterprise-ingress",
           "ports": [443],
           "tls_required": true
@@ -169,25 +181,43 @@
       ],
       "egress": [
         {
+          "id": "enterprise-hosted-mcp",
+          "target_kind": "hosted_mcp_server",
+          "target": "enterprise-hosted-mcp-services",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
           "id": "enterprise-object-store",
+          "target_kind": "object_store",
           "target": "enterprise-object-store",
           "ports": [443],
           "tls_required": true
         },
         {
+          "id": "enterprise-secret-manager",
+          "target_kind": "secret_manager",
+          "target": "enterprise-vault",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
           "id": "enterprise-identity-provider",
+          "target_kind": "identity_provider",
           "target": "enterprise-idp",
           "ports": [443],
           "tls_required": true
         },
         {
           "id": "enterprise-telemetry",
+          "target_kind": "telemetry_collector",
           "target": "enterprise-telemetry",
           "ports": [443],
           "tls_required": true
         },
         {
           "id": "media-provider",
+          "target_kind": "external_provider_api",
           "target": "media-provider-api",
           "ports": [443],
           "tls_required": true
@@ -266,6 +296,7 @@
       "ingress": [
         {
           "id": "regulated-gateway",
+          "target_kind": "tunnel_or_ingress",
           "target": "regulated-private-ingress",
           "ports": [443],
           "tls_required": true
@@ -273,25 +304,43 @@
       ],
       "egress": [
         {
+          "id": "regulated-hosted-mcp",
+          "target_kind": "hosted_mcp_server",
+          "target": "regulated-hosted-mcp-services",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
           "id": "regulated-object-store",
+          "target_kind": "object_store",
           "target": "regulated-object-store",
           "ports": [443],
           "tls_required": true
         },
         {
+          "id": "regulated-secret-manager",
+          "target_kind": "secret_manager",
+          "target": "regulated-vault",
+          "ports": [443],
+          "tls_required": true
+        },
+        {
           "id": "regulated-identity-provider",
+          "target_kind": "identity_provider",
           "target": "regulated-idp",
           "ports": [443],
           "tls_required": true
         },
         {
           "id": "regulated-siem",
+          "target_kind": "telemetry_collector",
           "target": "regulated-siem",
           "ports": [443],
           "tls_required": true
         },
         {
           "id": "media-provider",
+          "target_kind": "external_provider_api",
           "target": "approved-media-provider-api",
           "ports": [443],
           "tls_required": true

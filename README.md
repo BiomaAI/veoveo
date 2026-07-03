@@ -164,6 +164,11 @@ Local Compose uses gateway-signed internal JWTs over the private Docker network.
 and regulated profiles must use mTLS or service-mesh mTLS transport plus gateway-signed
 assertions.
 
+Deployment network rules are typed by target kind. Profiles must declare explicit ingress
+and egress for the gateway, hosted MCP servers, object stores, telemetry collectors,
+enterprise secret managers, identity providers, and external provider APIs instead of
+leaving those boundaries as opaque hostnames.
+
 Gateway control-plane server manifests also declare upstream transport security next to
 the upstream URL. Local loopback tests use `loopback_http`, Docker Compose service-name
 routes use `compose_internal_http`, and production manifests should use `tls`,
