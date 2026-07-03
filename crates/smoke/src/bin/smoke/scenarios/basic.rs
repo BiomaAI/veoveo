@@ -103,6 +103,10 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("gateway-control-plane.schema.json"),
         "GatewayControlPlane",
     )?;
+    assert_schema_title(
+        &schemas.join("principal-audit-attributes.schema.json"),
+        "PrincipalAuditAttributes",
+    )?;
     let artifact = assert_schema_title(
         &schemas.join("artifact-metadata.schema.json"),
         "ArtifactMetadata",

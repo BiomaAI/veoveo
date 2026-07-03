@@ -824,6 +824,15 @@ pub(crate) async fn gateway_authenticated(
     assert_reason_summary_at_least(&audit_reasons, "missing_principal_assurance", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_role", 1)?;
+    let principal_kind_summary =
+        run_gateway_metadata_summary(gateway, &gateway_state_db, "principal_kind")?;
+    assert_metadata_summary_at_least(&principal_kind_summary, "user", 1)?;
+    let principal_label_summary =
+        run_gateway_metadata_summary(gateway, &gateway_state_db, "principal_data_labels")?;
+    assert_metadata_summary_at_least(&principal_label_summary, "cui", 1)?;
+    let principal_assurance_summary =
+        run_gateway_metadata_summary(gateway, &gateway_state_db, "principal_assurances")?;
+    assert_metadata_summary_at_least(&principal_assurance_summary, "us_person", 1)?;
 
     media_child.stop();
     cleanup.remove_on_drop();

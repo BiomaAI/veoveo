@@ -322,6 +322,11 @@ Gateway data must be split by sensitivity and lifecycle:
   principal, tenant, profile, method, target server, action, decision, reason code, policy
   version, trace id, and timestamp. They must not contain raw prompts, provider payloads,
   bearer tokens, secrets, signed URLs, artifact bytes, or webhook bodies.
+  Principal authorization context must be captured as typed audit evidence, not only
+  ad hoc strings: kind, groups, roles, scopes, data labels, assurances, and
+  authentication time belong in `PrincipalAuditAttributes`. Analytics-friendly metadata
+  summaries may duplicate those values for DuckDB grouping, but the typed event payload is
+  the source of evidence.
 - **Analytics**: usage, cost, latency, error rates, policy-denial rates, and access
   patterns. DuckDB is appropriate for local/server analytics and exportable reporting; it
   is not the secret store.

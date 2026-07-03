@@ -25,6 +25,11 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     add_schema!(schemas, "principal.schema.json", Principal);
     add_schema!(
         schemas,
+        "principal-audit-attributes.schema.json",
+        PrincipalAuditAttributes
+    );
+    add_schema!(
+        schemas,
         "access-token-subject.schema.json",
         AccessTokenSubject
     );

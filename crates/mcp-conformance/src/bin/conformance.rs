@@ -65,8 +65,9 @@ use veoveo_mcp_contract::{
     GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfileId,
     GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskMapping,
     GenerationPredictionSummary, GenerationRunOutput, InternalTokenSecret, PolicyDecision,
-    Principal, PrincipalId, PrincipalKind, ScopeName, SelfHostedDeploymentPlan, ServerManifest,
-    ServerResourceUris, ServerSlug, TenantId, TokenIssuer, TokenSubject, UsageRecord, UsageReport,
+    Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind, ScopeName,
+    SelfHostedDeploymentPlan, ServerManifest, ServerResourceUris, ServerSlug, TenantId,
+    TokenIssuer, TokenSubject, UsageRecord, UsageReport,
 };
 
 #[path = "conformance/auth_discovery.rs"]

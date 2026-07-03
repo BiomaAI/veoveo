@@ -7,8 +7,9 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{
     AuditEvent, GatewayAction, GatewayResourceProjection, GatewayTaskId, GatewayTaskMapping,
-    LocalToolName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalId,
-    PromptName, ServerResourceUri, ServerSlug, TaskIdProjection, TraceId,
+    LocalToolName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
+    PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind, PromptName,
+    ServerResourceUri, ServerSlug, TaskIdProjection, TraceId,
 };
 
 use crate::{
@@ -102,10 +103,11 @@ impl GatewayMcp {
                 target,
                 decision: decision.clone(),
                 principal: Some(subject.principal.id.clone()),
+                principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
                 tenant: subject.principal.tenant.clone(),
                 token_issuer: Some(subject.access_token.issuer.clone()),
                 latency_ms: None,
-                metadata: BTreeMap::new(),
+                metadata: principal_audit_metadata(&subject.principal),
             })
             .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
         Ok((subject, decision))
@@ -262,10 +264,11 @@ impl GatewayMcp {
                 target,
                 decision,
                 principal: Some(subject.principal.id.clone()),
+                principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
                 tenant: subject.principal.tenant.clone(),
                 token_issuer: Some(subject.access_token.issuer.clone()),
                 latency_ms: None,
-                metadata: BTreeMap::new(),
+                metadata: principal_audit_metadata(&subject.principal),
             })
             .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
         Ok(())
@@ -344,5 +347,61 @@ impl GatewayMcp {
                 "prompt `{prompt}` is ambiguous across profile servers"
             ))),
         }
+    }
+}
+
+fn principal_audit_metadata(
+    principal: &veoveo_mcp_contract::Principal,
+) -> BTreeMap<String, String> {
+    let mut metadata = BTreeMap::new();
+    metadata.insert(
+        "principal_kind".to_string(),
+        principal_kind_value(principal.kind).to_string(),
+    );
+    insert_joined(&mut metadata, "principal_groups", &principal.groups);
+    insert_joined(&mut metadata, "principal_roles", &principal.roles);
+    insert_joined(&mut metadata, "principal_scopes", &principal.scopes);
+    insert_joined(
+        &mut metadata,
+        "principal_data_labels",
+        &principal.data_labels,
+    );
+    if !principal.assurances.is_empty() {
+        metadata.insert(
+            "principal_assurances".to_string(),
+            principal
+                .assurances
+                .iter()
+                .map(|assurance| match assurance {
+                    PrincipalAssurance::UsPerson => "us_person",
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+    }
+    metadata
+}
+
+fn principal_kind_value(kind: PrincipalKind) -> &'static str {
+    match kind {
+        PrincipalKind::User => "user",
+        PrincipalKind::Service => "service",
+    }
+}
+
+fn insert_joined<T: ToString>(
+    metadata: &mut BTreeMap<String, String>,
+    key: &str,
+    values: &std::collections::BTreeSet<T>,
+) {
+    if !values.is_empty() {
+        metadata.insert(
+            key.to_string(),
+            values
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+        );
     }
 }

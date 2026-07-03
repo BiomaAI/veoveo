@@ -10,7 +10,8 @@ use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction,
     GatewayControlPlane, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, JwtId,
     McpMethodName, OAuthClientId, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
-    Principal, PrincipalId, ResourceAuthorizationServer, TokenSubject, TraceId,
+    Principal, PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
+    ResourceAuthorizationServer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest, www_authenticate_challenge,
@@ -228,10 +229,11 @@ fn record_admin_audit(
         target: record.target,
         decision: record.decision,
         principal: Some(subject.principal.id.clone()),
+        principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
         tenant: subject.principal.tenant.clone(),
         token_issuer: Some(subject.access_token.issuer.clone()),
         latency_ms: Some(latency_ms),
-        metadata: record.metadata,
+        metadata: merge_principal_audit_metadata(record.metadata, &subject.principal),
     })?;
     Ok(())
 }
@@ -264,6 +266,8 @@ pub(super) fn record_auth_audit(
             reason,
             method: AuthMethod::BearerJwt,
             principal,
+            principal_attributes: subject
+                .map(|value| PrincipalAuditAttributes::from(&value.principal)),
             tenant,
             token_issuer,
             token_subject,
@@ -315,6 +319,7 @@ pub(super) fn record_token_auth_audit(
         reason: record.reason,
         method: AuthMethod::ClientCredentialsPrivateKeyJwt,
         principal,
+        principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
         tenant: None,
         token_issuer,
         token_subject,
@@ -363,6 +368,7 @@ pub(super) fn record_id_jag_auth_audit(
         reason: record.reason,
         method: AuthMethod::EnterpriseManagedIdJag,
         principal: principal_id,
+        principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
         tenant,
         token_issuer,
         token_subject,
@@ -411,6 +417,7 @@ pub(super) fn record_oidc_auth_audit(
         reason: record.reason,
         method: AuthMethod::OidcAuthorizationCodePkce,
         principal: principal_id,
+        principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
         tenant,
         token_issuer,
         token_subject,
@@ -418,6 +425,62 @@ pub(super) fn record_oidc_auth_audit(
         latency_ms: Some(latency_ms),
         metadata: Default::default(),
     })
+}
+
+fn merge_principal_audit_metadata(
+    mut metadata: BTreeMap<String, String>,
+    principal: &Principal,
+) -> BTreeMap<String, String> {
+    metadata.insert(
+        "principal_kind".to_string(),
+        principal_kind_value(principal.kind).to_string(),
+    );
+    insert_joined(&mut metadata, "principal_groups", &principal.groups);
+    insert_joined(&mut metadata, "principal_roles", &principal.roles);
+    insert_joined(&mut metadata, "principal_scopes", &principal.scopes);
+    insert_joined(
+        &mut metadata,
+        "principal_data_labels",
+        &principal.data_labels,
+    );
+    if !principal.assurances.is_empty() {
+        metadata.insert(
+            "principal_assurances".to_string(),
+            principal
+                .assurances
+                .iter()
+                .map(|assurance| match assurance {
+                    PrincipalAssurance::UsPerson => "us_person",
+                })
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+    }
+    metadata
+}
+
+fn principal_kind_value(kind: PrincipalKind) -> &'static str {
+    match kind {
+        PrincipalKind::User => "user",
+        PrincipalKind::Service => "service",
+    }
+}
+
+fn insert_joined<T: ToString>(
+    metadata: &mut BTreeMap<String, String>,
+    key: &str,
+    values: &std::collections::BTreeSet<T>,
+) {
+    if !values.is_empty() {
+        metadata.insert(
+            key.to_string(),
+            values
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+    }
 }
 
 pub(super) fn auth_audit_error_response(err: anyhow::Error) -> Response {

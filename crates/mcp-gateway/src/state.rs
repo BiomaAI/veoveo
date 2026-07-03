@@ -38,15 +38,16 @@ mod tests {
 
     use veoveo_mcp_contract::{
         AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, AuthorizationServerId,
-        GatewayAction, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
+        DataLabelId, GatewayAction, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
         GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
         GatewayControlPlaneRevisionSource, GatewayJwtRevocation, GatewayProfileId,
-        GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, JwtId, McpMethodName,
-        OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
+        GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, GroupId, JwtId,
+        McpMethodName, OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
         OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
         PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-        PrincipalId, PrincipalKind, ProtectedResourceId, ResourceUri, ScopeName, ServerSlug,
-        TokenIssuer, TokenSubject, TraceId, UpstreamTaskId,
+        PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
+        ProtectedResourceId, ResourceUri, RoleId, ScopeName, ServerSlug, TokenIssuer, TokenSubject,
+        TraceId, UpstreamTaskId,
     };
 
     use super::*;
@@ -118,6 +119,7 @@ mod tests {
                 target,
                 decision,
                 principal: Some(principal),
+                principal_attributes: None,
                 tenant: None,
                 token_issuer: None,
                 latency_ms: Some(12),
@@ -571,6 +573,19 @@ mod tests {
             rule_id: None,
             trace_id: trace_id.clone(),
         };
+        let principal = Principal {
+            id: PrincipalId::new("issuer#subject").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("issuer").unwrap(),
+            subject: TokenSubject::new("subject").unwrap(),
+            tenant: None,
+            groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
+            roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
+            assurances: BTreeSet::from([PrincipalAssurance::UsPerson]),
+            authenticated_at: Some(Utc::now()),
+        };
 
         state
             .record_audit_event(&AuditEvent {
@@ -582,7 +597,8 @@ mod tests {
                 action,
                 target,
                 decision,
-                principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                principal: Some(principal.id.clone()),
+                principal_attributes: Some(PrincipalAuditAttributes::from(&principal)),
                 tenant: None,
                 token_issuer: None,
                 latency_ms: Some(12),
@@ -591,6 +607,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(state.audit_event_count().unwrap(), 1);
+        let event_json: String = state
+            .conn
+            .lock()
+            .query_row("SELECT event_json FROM gateway_audit_events", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let event: AuditEvent = serde_json::from_str(&event_json).unwrap();
+        let attributes = event
+            .principal_attributes
+            .expect("principal audit attributes should be stored");
+        assert_eq!(attributes.kind, PrincipalKind::User);
+        assert_eq!(attributes.groups, principal.groups);
+        assert_eq!(attributes.roles, principal.roles);
+        assert_eq!(attributes.scopes, principal.scopes);
+        assert_eq!(attributes.data_labels, principal.data_labels);
+        assert_eq!(attributes.assurances, principal.assurances);
 
         let _ = std::fs::remove_file(path);
     }
@@ -729,6 +762,7 @@ mod tests {
                 reason: AuthReasonCode::MissingAuthorizationHeader,
                 method: AuthMethod::BearerJwt,
                 principal: None,
+                principal_attributes: None,
                 tenant: None,
                 token_issuer: None,
                 token_subject: None,
@@ -781,6 +815,7 @@ mod tests {
                     target: target.clone(),
                     decision,
                     principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                    principal_attributes: None,
                     tenant: None,
                     token_issuer: None,
                     latency_ms: Some(12),
@@ -804,6 +839,7 @@ mod tests {
                     reason: AuthReasonCode::AuthAllow,
                     method: AuthMethod::BearerJwt,
                     principal: Some(PrincipalId::new("issuer#subject").unwrap()),
+                    principal_attributes: None,
                     tenant: None,
                     token_issuer: None,
                     token_subject: None,

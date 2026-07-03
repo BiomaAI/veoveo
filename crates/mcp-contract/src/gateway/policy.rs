@@ -142,6 +142,37 @@ pub enum PrincipalAssurance {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PrincipalAuditAttributes {
+    pub kind: PrincipalKind,
+    #[serde(default)]
+    pub groups: BTreeSet<GroupId>,
+    #[serde(default)]
+    pub roles: BTreeSet<RoleId>,
+    #[serde(default)]
+    pub scopes: BTreeSet<ScopeName>,
+    #[serde(default)]
+    pub data_labels: BTreeSet<DataLabelId>,
+    #[serde(default)]
+    pub assurances: BTreeSet<PrincipalAssurance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authenticated_at: Option<DateTime<Utc>>,
+}
+
+impl From<&Principal> for PrincipalAuditAttributes {
+    fn from(principal: &Principal) -> Self {
+        Self {
+            kind: principal.kind,
+            groups: principal.groups.clone(),
+            roles: principal.roles.clone(),
+            scopes: principal.scopes.clone(),
+            data_labels: principal.data_labels.clone(),
+            assurances: principal.assurances.clone(),
+            authenticated_at: principal.authenticated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct AccessTokenSubject {
     pub issuer: TokenIssuer,
     pub subject: TokenSubject,
@@ -279,6 +310,8 @@ pub struct AuditEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub principal: Option<PrincipalId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal_attributes: Option<PrincipalAuditAttributes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tenant: Option<TenantId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_issuer: Option<TokenIssuer>,
@@ -300,6 +333,8 @@ pub struct AuthAuditEvent {
     pub method: AuthMethod,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub principal: Option<PrincipalId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal_attributes: Option<PrincipalAuditAttributes>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tenant: Option<TenantId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
