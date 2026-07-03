@@ -10,11 +10,12 @@ use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction,
     GatewayControlPlane, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, JwtId,
     McpMethodName, OAuthClientId, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
-    Principal, PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
-    ResourceAuthorizationServer, TokenSubject, TraceId,
+    Principal, PrincipalAuditAttributes, PrincipalId, ResourceAuthorizationServer, TokenSubject,
+    TraceId,
 };
 use veoveo_mcp_gateway::{
-    AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest, www_authenticate_challenge,
+    AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest,
+    merge_principal_audit_metadata, www_authenticate_challenge,
 };
 
 use crate::runtime::{AdminState, ProfileAuthState, current_catalog};
@@ -425,62 +426,6 @@ pub(super) fn record_oidc_auth_audit(
         latency_ms: Some(latency_ms),
         metadata: Default::default(),
     })
-}
-
-fn merge_principal_audit_metadata(
-    mut metadata: BTreeMap<String, String>,
-    principal: &Principal,
-) -> BTreeMap<String, String> {
-    metadata.insert(
-        "principal_kind".to_string(),
-        principal_kind_value(principal.kind).to_string(),
-    );
-    insert_joined(&mut metadata, "principal_groups", &principal.groups);
-    insert_joined(&mut metadata, "principal_roles", &principal.roles);
-    insert_joined(&mut metadata, "principal_scopes", &principal.scopes);
-    insert_joined(
-        &mut metadata,
-        "principal_data_labels",
-        &principal.data_labels,
-    );
-    if !principal.assurances.is_empty() {
-        metadata.insert(
-            "principal_assurances".to_string(),
-            principal
-                .assurances
-                .iter()
-                .map(|assurance| match assurance {
-                    PrincipalAssurance::UsPerson => "us_person",
-                })
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-    }
-    metadata
-}
-
-fn principal_kind_value(kind: PrincipalKind) -> &'static str {
-    match kind {
-        PrincipalKind::User => "user",
-        PrincipalKind::Service => "service",
-    }
-}
-
-fn insert_joined<T: ToString>(
-    metadata: &mut BTreeMap<String, String>,
-    key: &str,
-    values: &std::collections::BTreeSet<T>,
-) {
-    if !values.is_empty() {
-        metadata.insert(
-            key.to_string(),
-            values
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-    }
 }
 
 pub(super) fn auth_audit_error_response(err: anyhow::Error) -> Response {

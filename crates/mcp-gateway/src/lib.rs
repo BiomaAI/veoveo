@@ -4,6 +4,7 @@ pub mod mcp;
 mod mcp_support;
 mod metadata;
 mod policy;
+mod principal_audit;
 pub mod secrets;
 pub mod state;
 mod tool_name;
@@ -20,6 +21,7 @@ pub use metadata::{
     ProtectedResourceMetadata, www_authenticate_challenge,
 };
 pub use policy::{PolicyRequest, mcp_method_name, resource_scheme_from_uri};
+pub use principal_audit::{merge_principal_audit_metadata, principal_audit_metadata};
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 pub use state::{GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayState};
 pub use tool_name::{GatewayNameError, GatewayToolProjection};
