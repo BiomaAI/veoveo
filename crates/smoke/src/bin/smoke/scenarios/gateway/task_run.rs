@@ -167,6 +167,44 @@ pub(crate) async fn gateway_task_run(
     )?;
     assert_usage_report(&usage, "media", &task_id)?;
 
+    let media_mcp_url = format!("{media_base}/media/mcp");
+    let other_profile_tasks = run_direct_mcp(
+        conformance,
+        &media_mcp_url,
+        ["--internal-profile".into(), "ops".into(), "tasks".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&other_profile_tasks, "0 task(s)")?;
+
+    assert_direct_mcp_denied(
+        conformance,
+        &media_mcp_url,
+        [
+            "--internal-profile".into(),
+            "ops".into(),
+            "usage".into(),
+            task_id.clone().into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+
+    assert_direct_mcp_denied(
+        conformance,
+        &media_mcp_url,
+        [
+            "--internal-profile".into(),
+            "ops".into(),
+            "artifact".into(),
+            structured.artifacts[0].sha256.clone().into(),
+            "--output-dir".into(),
+            tmpdir
+                .join("denied-gateway-artifacts")
+                .as_os_str()
+                .to_os_string(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+
     gateway_child.stop();
     let audit_summary = run_checked(
         gateway,
