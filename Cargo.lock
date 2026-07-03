@@ -4362,7 +4362,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
-name = "veoveo-mcp-contract"
+name = "veoveo-mcp-conformance"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4371,6 +4371,26 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "jsonwebtoken",
+ "rcgen",
+ "reqwest 0.13.4",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
+name = "veoveo-mcp-contract"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
  "duckdb",
  "jsonwebtoken",
  "opentelemetry",
@@ -4378,8 +4398,6 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parking_lot",
- "rcgen",
- "reqwest 0.13.4",
  "rmcp",
  "schemars",
  "serde",

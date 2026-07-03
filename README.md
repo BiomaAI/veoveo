@@ -6,7 +6,7 @@ Long-running generation is handled by MCP **tasks** (SEP-1319) and provider webh
 instead of blocking calls.
 
 The gateway is the normal client entrypoint. The media server lives in its own crate; the
-generic full-protocol conformance CLI lives in the contract crate.
+generic full-protocol conformance CLI lives in its own conformance crate.
 
 ## Architecture
 
@@ -228,7 +228,7 @@ cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
     --artifact-endpoint http://localhost:9000 --artifact-bucket media-artifacts
 
 # 3. gateway
-export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo-mcp-contract --bin conformance -- gateway-private-key-der-b64)"
+export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-private-key-der-b64)"
 cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
     --public-base-url https://veoveo.bioma.ai \
     --control-plane configs/gateway.local.json \
@@ -236,20 +236,20 @@ cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
 
 # 4. conformance CLI through the gateway
 unset VEOVEO_INTERNAL_TOKEN_SECRET
-export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-contract --bin conformance -- gateway-token-exchange \
+export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-token-exchange \
     --token-url http://localhost:8788/oauth/default/token --scope media:use)"
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default info
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default prompts
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default prompt media-image-edit \
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default info
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default prompts
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default prompt media-image-edit \
     --arguments '{"image_url":"https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg","edit_goal":"add a red wizard hat"}'
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default models kling --type image-to-video
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default complete gpt-image
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default schema openai/gpt-image-2/edit
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default run openai/gpt-image-2/edit \
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default models kling --type image-to-video
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default complete gpt-image
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default schema openai/gpt-image-2/edit
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default run openai/gpt-image-2/edit \
     --tool-name media__run \
     --input '{"prompt":"add a red wizard hat","images":["https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg"]}'
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default usage <task-id>
-cargo run -p veoveo-mcp-contract --bin conformance -- --url http://localhost:8788/mcp/default artifact <sha256>
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default usage <task-id>
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default artifact <sha256>
 ```
 
 `--public-base-url` is required for generation because providers must be able to deliver
@@ -261,11 +261,11 @@ provider.
 ```
 Cargo.toml                                      veoveo workspace manifest
 crates/mcp-contract/                           reusable Veoveo MCP contract crate
-crates/mcp-contract/src/bin/conformance.rs     generic Veoveo MCP conformance CLI
 crates/mcp-contract/src/analytics.rs           shared DuckDB usage analytics schema/store
 crates/mcp-contract/src/deployment.rs          shared public URL/server mount contract
 crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
+crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
 crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
 crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler
 crates/mcp-gateway/src/state.rs                gateway DuckDB runtime/audit state

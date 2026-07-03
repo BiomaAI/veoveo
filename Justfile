@@ -7,7 +7,7 @@ gateway-token-url := "http://localhost:8780/oauth/default/token"
 gateway-admin-url := "http://localhost:8780/admin"
 gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
-conformance := "cargo run -p veoveo-mcp-contract --bin conformance --"
+conformance := "cargo run -p veoveo-mcp-conformance --bin conformance --"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 
@@ -47,7 +47,7 @@ contract-schemas output_dir='schemas':
 
 # Smoke-test contract schema export for non-Rust implementations.
 smoke-contract-schemas:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke
     target/debug/smoke contract-schemas --conformance-bin target/debug/conformance
 
 # Revoke one gateway JWT id until its original token expiration.
@@ -65,37 +65,37 @@ smoke-gateway:
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke gateway-http --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test OTLP HTTP log and trace export from the gateway.
 smoke-otel:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke otel --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
     target/debug/smoke media-mcp-auth --conformance-bin target/debug/conformance --media-bin target/debug/server
 
 # Smoke-test direct hosted media task behavior without the gateway projection layer.
 smoke-media-task-run:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
     target/debug/smoke media-task-run --conformance-bin target/debug/conformance --media-bin target/debug/server
 
 # Smoke-test authenticated gateway-to-media MCP forwarding.
 smoke-gateway-authenticated:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke gateway-authenticated --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test one gateway profile routing to two hosted MCP servers.
 smoke-gateway-two-servers:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke gateway-two-servers --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
 smoke-gateway-task-run:
-    cargo build -p veoveo-mcp-contract --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway
     target/debug/smoke gateway-task-run --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Build MCP images.

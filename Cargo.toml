@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/mcp-gateway",
+    "crates/mcp-conformance",
     "crates/mcp-contract",
     "crates/media-mcp",
     "crates/smoke",

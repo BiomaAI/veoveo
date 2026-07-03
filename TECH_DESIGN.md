@@ -527,8 +527,8 @@ Both paths were proven against a production media provider, through a real cloud
 Plus: schema validation rejects bad input before submission, `tasks/cancel` aborts
 in-flight work, and completions rank prefix matches across the full 988-model registry.
 The local workspace tests cover the current artifact/usage URI contract, DuckDB-backed
-state and analytics helpers, webhook signature verification, schema extraction, and conformance CLI
-build.
+state and analytics helpers, webhook signature verification, schema extraction, and the
+separate conformance CLI crate build.
 
 Media server retention is enforced locally: terminal task metadata, provider prediction
 rows, usage analytics rows, artifact metadata, artifact owners, and artifact bytes are
