@@ -897,10 +897,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let ct = tokio_util::sync::CancellationToken::new();
-    let allowed_hosts = Arc::new(public_allowed_hosts(
+    let mut allowed_hosts = public_allowed_hosts(
         &public_deployment,
         args.allow_loopback_hosts,
-    ));
+    );
+    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
+    let allowed_hosts = Arc::new(allowed_hosts);
     let internal_auth_state = InternalMcpAuthState {
         verifier: internal_token_verifier,
     };

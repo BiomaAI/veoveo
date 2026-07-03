@@ -2,7 +2,7 @@ use std::{num::NonZeroU32, path::PathBuf};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use clap::{Parser, ValueEnum};
-use veoveo_mcp_contract::PublicDeployment;
+use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_media_mcp::provider::DEFAULT_BASE_URL;
 
 #[derive(Parser, Debug)]
@@ -39,6 +39,9 @@ pub(super) struct Args {
     /// Allow loopback Host headers for local development and smoke tests.
     #[arg(long, default_value_t = false)]
     pub(super) allow_loopback_hosts: bool,
+    /// Additional exact Host authorities trusted for private service-to-service traffic.
+    #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]
+    pub(super) allowed_hosts: Vec<String>,
     #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
     api_key: Option<String>,
     /// Provider API base URL. Hidden because the concrete provider is an implementation detail.
@@ -61,6 +64,13 @@ pub(super) struct Args {
     /// Retention window for usage analytics.
     #[arg(long, default_value = "365", value_parser = clap::value_parser!(NonZeroU32))]
     usage_analytics_retention_days: NonZeroU32,
+}
+
+fn parse_allowed_host(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    parse_allowed_host_authority(value)
+        .map(|_| value.to_string())
+        .ok_or_else(|| "expected a host authority such as media-mcp:8787".to_string())
 }
 
 impl Args {

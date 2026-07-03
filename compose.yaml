@@ -73,6 +73,8 @@ services:
       - "--static-dir"
       - "/app/assets"
       - "--allow-loopback-hosts"
+      - "--allowed-host"
+      - "media-mcp:8787"
       - "--state-db"
       - "/var/lib/veoveo/media/state.duckdb"
       - "--artifact-store"
