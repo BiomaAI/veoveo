@@ -43,12 +43,18 @@ pub(crate) async fn compose_config() -> Result<()> {
     }
     for expected in [
         "image: caddy:2.11.2",
+        "image: rustfs/rustfs:1.0.0-beta.8",
         "target: /etc/caddy/Caddyfile",
+        "http://rustfs:9000",
         "target: 8080",
         "published: \"8780\"",
         "edge:",
+        "rustfs:",
     ] {
         contains(&compose_output, expected)?;
+    }
+    if compose_output.to_ascii_lowercase().contains("minio") {
+        bail!("compose config must use RustFS/S3-compatible storage, not MinIO");
     }
 
     let gateway_dockerfile = fs::read_to_string("crates/mcp-gateway/Dockerfile")?;
@@ -59,6 +65,10 @@ pub(crate) async fn compose_config() -> Result<()> {
     )?;
 
     let caddyfile = env::current_dir()?.join("configs/Caddyfile");
+    let caddyfile_text = fs::read_to_string(&caddyfile)?;
+    contains(&caddyfile_text, "respond /media/mcp* 404")?;
+    contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
+    contains(&caddyfile_text, "reverse_proxy media-mcp:8787")?;
     run_checked(
         Path::new("docker"),
         [
