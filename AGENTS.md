@@ -39,10 +39,16 @@ Do not create monolithic god files. Rust files should have a focused responsibil
 compose through explicit modules instead of growing into thousands of lines of mixed
 types, HTTP routes, state, auth, policy, CLI, tests, and helpers.
 
-When a source file is approaching roughly 1,000 lines, prefer extracting a cohesive
-module before adding more behavior. Files above roughly 1,500 lines require a concrete
-reason to remain that large. Generated files, schema snapshots, and intentionally dense
-test fixtures are the only normal exceptions.
+Rust is verbose, and many files include colocated tests. A source file around 1,000 lines
+is acceptable when it has one clear concern and remains easy to navigate. Do not split
+files mechanically by line count alone.
+
+Split a file when responsibilities start to compound: mixed protocol handling, HTTP
+routes, persistence, auth, policy, CLI, tests, and helpers in one place; repeated local
+helper patterns; hard-to-name sections; or changes that require understanding unrelated
+behavior. Files above roughly 1,500 lines require a concrete reason to remain that large.
+Generated files, schema snapshots, and intentionally dense test fixtures are the normal
+exceptions.
 
 Binary entrypoints should stay thin: parse CLI/config, initialize dependencies, wire
 routes/services, and delegate real behavior to modules. New gateway work should be split
@@ -52,6 +58,10 @@ HTTP wiring, and command handlers instead of continuing to expand one file.
 Gateway code is not exempt from this rule while it is moving fast. When a gateway file
 starts mixing unrelated concerns, split the concern into a module in the same change
 instead of deferring cleanup until after the feature lands.
+
+The gateway is expected to support many hosted MCP servers, profiles, and auth policies.
+That scale alone is not a refactor trigger. Refactor when the code stops composing cleanly
+or when server-specific behavior leaks into generic gateway modules.
 
 ## Justfile Discipline
 
