@@ -114,6 +114,26 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         "GatewayControlPlane",
     )?;
     assert_schema_title(
+        &schemas.join("resource-authorization-server.schema.json"),
+        "ResourceAuthorizationServer",
+    )?;
+    assert_schema_title(
+        &schemas.join("oauth-client-registration.schema.json"),
+        "OAuthClientRegistration",
+    )?;
+    assert_schema_title(
+        &schemas.join("gateway-task-mapping.schema.json"),
+        "GatewayTaskMapping",
+    )?;
+    assert_schema_title(
+        &schemas.join("gateway-resource-subscription.schema.json"),
+        "GatewayResourceSubscription",
+    )?;
+    assert_schema_title(
+        &schemas.join("gateway-internal-identity.schema.json"),
+        "GatewayInternalIdentity",
+    )?;
+    assert_schema_title(
         &schemas.join("principal-audit-attributes.schema.json"),
         "PrincipalAuditAttributes",
     )?;
@@ -125,6 +145,43 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("tenant-definition.schema.json"),
         "TenantDefinition",
     )?;
+    let auth_audit = assert_schema_title(
+        &schemas.join("auth-audit-event.schema.json"),
+        "AuthAuditEvent",
+    )?;
+    for property in ["outcome", "reason", "method", "protected_resource"] {
+        if !auth_audit
+            .get("properties")
+            .and_then(|properties| properties.get(property))
+            .is_some_and(Value::is_object)
+        {
+            bail!("auth audit schema has no object `{property}` property");
+        }
+    }
+    let deployment = assert_schema_title(
+        &schemas.join("self-hosted-deployment-plan.schema.json"),
+        "SelfHostedDeploymentPlan",
+    )?;
+    if !deployment
+        .get("properties")
+        .and_then(|properties| properties.get("profiles"))
+        .is_some_and(Value::is_object)
+    {
+        bail!("deployment plan schema has no object profiles property");
+    }
+    let deployment_profile = assert_schema_title(
+        &schemas.join("self-hosted-deployment-profile.schema.json"),
+        "SelfHostedDeploymentProfile",
+    )?;
+    for property in ["service_to_service", "state_stores", "telemetry_sinks"] {
+        if !deployment_profile
+            .get("properties")
+            .and_then(|properties| properties.get(property))
+            .is_some_and(Value::is_object)
+        {
+            bail!("deployment profile schema has no object `{property}` property");
+        }
+    }
     let artifact = assert_schema_title(
         &schemas.join("artifact-metadata.schema.json"),
         "ArtifactMetadata",
