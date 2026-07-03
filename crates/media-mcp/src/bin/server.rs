@@ -66,7 +66,7 @@ use veoveo_mcp_contract::{
     InternalTokenSecret, Page, PublicDeployment, ServerPublicEndpoint, ServerResourceUris,
     ServerSlug, SubscriptionHub, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer,
     UsageReport, init_server_telemetry, is_sha256, notify_progress, notify_task_status, now_iso,
-    paginate,
+    paginate, public_allowed_hosts,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -75,6 +75,8 @@ use veoveo_media_mcp::{
     uris, webhook,
 };
 
+#[path = "server/host.rs"]
+mod host;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
 #[path = "server/outputs.rs"]
@@ -88,6 +90,7 @@ mod retention;
 #[path = "server/usage.rs"]
 mod usage;
 
+use host::validate_host;
 use internal_auth::{
     InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
 };
@@ -143,6 +146,9 @@ struct Args {
     /// Allow plain HTTP for local S3-compatible artifact stores.
     #[arg(long, default_value_t = false)]
     artifact_allow_http: bool,
+    /// Allow loopback Host headers for local development and smoke tests.
+    #[arg(long, default_value_t = false)]
+    allow_loopback_hosts: bool,
     #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
     api_key: Option<String>,
     /// Provider API base URL. Hidden because the concrete provider is an implementation detail.
@@ -1394,12 +1400,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let ct = tokio_util::sync::CancellationToken::new();
-    let allowed_hosts = vec![
-        "localhost".to_string(),
-        "127.0.0.1".to_string(),
-        "::1".to_string(),
-        public_deployment.host_authority().to_string(),
-    ];
+    let allowed_hosts = Arc::new(public_allowed_hosts(
+        &public_deployment,
+        args.allow_loopback_hosts,
+    ));
     let internal_auth_state = InternalMcpAuthState {
         verifier: internal_token_verifier,
     };
@@ -1410,7 +1414,7 @@ async fn main() -> anyhow::Result<()> {
         },
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default()
-            .with_allowed_hosts(allowed_hosts)
+            .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(ct.child_token()),
     );
     let mcp_router = Router::new()
@@ -1438,6 +1442,10 @@ async fn main() -> anyhow::Result<()> {
     }
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
+        .layer(middleware::from_fn_with_state(
+            allowed_hosts.clone(),
+            validate_host,
+        ))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),

@@ -18,13 +18,13 @@ pub(super) async fn validate_host(
     let Some(authority) = request_authority(&request) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    if host_is_allowed(&authority, &allowed_hosts) {
+    if host_authority_is_allowed(&authority, &allowed_hosts) {
         return next.run(request).await;
     }
     tracing::warn!(
         host = authority.host(),
         port = authority.port(),
-        "rejected gateway request for untrusted host"
+        "rejected media request for untrusted host"
     );
     StatusCode::MISDIRECTED_REQUEST.into_response()
 }
@@ -37,8 +37,4 @@ fn request_authority(request: &Request) -> Option<HostAuthority> {
         .uri()
         .authority()
         .and_then(|authority| parse_request_host_authority(authority.as_str()))
-}
-
-fn host_is_allowed(host: &HostAuthority, allowed_hosts: &[String]) -> bool {
-    host_authority_is_allowed(host, allowed_hosts)
 }

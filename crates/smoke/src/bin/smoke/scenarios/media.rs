@@ -20,6 +20,15 @@ pub(crate) async fn media_mcp_auth(conformance: &Path, media: &Path) -> Result<(
         .text()
         .await?;
     contains(&health, "ok")?;
+    let untrusted_host_status = reqwest::Client::new()
+        .get(format!("{base}/media/healthz"))
+        .header(HOST, "evil.example.com")
+        .send()
+        .await?
+        .status();
+    if untrusted_host_status != StatusCode::MISDIRECTED_REQUEST {
+        bail!("media untrusted Host status was {untrusted_host_status}, expected 421");
+    }
     assert_json_log(
         &log,
         &[

@@ -72,6 +72,7 @@ services:
       - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
       - "--static-dir"
       - "/app/assets"
+      - "--allow-loopback-hosts"
       - "--state-db"
       - "/var/lib/veoveo/media/state.duckdb"
       - "--artifact-store"

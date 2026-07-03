@@ -10,6 +10,7 @@ pub mod analytics;
 pub mod deployment;
 pub mod gateway;
 pub mod generation;
+pub mod host;
 pub mod internal_auth;
 pub mod pagination;
 pub mod provider;
@@ -59,6 +60,10 @@ pub use gateway::{
     UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
+pub use host::{
+    HostAuthority, host_authority_is_allowed, parse_allowed_host_authority,
+    parse_request_host_authority, public_allowed_hosts,
+};
 pub use internal_auth::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenIssuer,
     GatewayInternalTokenVerifier, InternalTokenError, InternalTokenSecret,

@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
-    InternalTokenSecret, PublicDeployment, TokenIssuer,
+    InternalTokenSecret, PublicDeployment, TokenIssuer, public_allowed_hosts,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayCatalogHandle, GatewayMcp};
 
@@ -71,7 +71,7 @@ pub(super) async fn serve(
     );
     let deployment = PublicDeployment::new(public_base_url)?;
     let ct = CancellationToken::new();
-    let allowed_hosts = Arc::new(allowed_hosts(&deployment, allow_loopback_hosts));
+    let allowed_hosts = Arc::new(public_allowed_hosts(&deployment, allow_loopback_hosts));
     let http = Arc::new(RwLock::new(build_http_client(&initial_catalog)?));
     let state = AppState {
         catalog: catalog.clone(),
@@ -230,18 +230,6 @@ async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
     })
 }
 
-fn allowed_hosts(deployment: &PublicDeployment, allow_loopback_hosts: bool) -> Vec<String> {
-    let mut hosts = vec![deployment.host_authority().to_string()];
-    if allow_loopback_hosts {
-        hosts.extend([
-            "localhost".to_string(),
-            "127.0.0.1".to_string(),
-            "::1".to_string(),
-        ]);
-    }
-    hosts
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,7 +238,10 @@ mod tests {
     fn production_allowed_hosts_use_public_authority_only() {
         let deployment = PublicDeployment::new("https://veoveo.bioma.ai").expect("valid URL");
 
-        assert_eq!(allowed_hosts(&deployment, false), vec!["veoveo.bioma.ai"]);
+        assert_eq!(
+            public_allowed_hosts(&deployment, false),
+            vec!["veoveo.bioma.ai"]
+        );
     }
 
     #[test]
@@ -258,7 +249,7 @@ mod tests {
         let deployment = PublicDeployment::new("https://veoveo.bioma.ai").expect("valid URL");
 
         assert_eq!(
-            allowed_hosts(&deployment, true),
+            public_allowed_hosts(&deployment, true),
             vec!["veoveo.bioma.ai", "localhost", "127.0.0.1", "::1"]
         );
     }
