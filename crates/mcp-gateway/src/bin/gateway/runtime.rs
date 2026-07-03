@@ -113,11 +113,14 @@ pub(super) fn run_gateway_retention_gc(
     let audit_summary = gateway_state.delete_audit_events_before(audit_cutoff)?;
     let authorization_records_deleted = gateway_state.prune_expired_authorization_records(now)?;
     let jwt_revocations_deleted = gateway_state.prune_expired_jwt_revocations(now)?;
+    let replay_summary = gateway_state.prune_expired_replay_ids(now)?;
     tracing::info!(
         deleted_auth_audit_events = audit_summary.auth_events_deleted,
         deleted_policy_audit_events = audit_summary.policy_events_deleted,
         deleted_authorization_records = authorization_records_deleted,
         deleted_jwt_revocations = jwt_revocations_deleted,
+        deleted_client_assertion_replay_ids = replay_summary.client_assertion_jtis_deleted,
+        deleted_id_jag_replay_ids = replay_summary.id_jag_jtis_deleted,
         "gateway retention gc completed"
     );
     Ok(())

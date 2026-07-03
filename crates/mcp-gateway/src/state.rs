@@ -19,6 +19,7 @@ pub use audit::{
     GatewayPolicyAuditMetadataSummary, GatewayPolicyAuditMethodSummary,
     GatewayPolicyAuditReasonSummary,
 };
+pub use auth_state::GatewayReplayRetentionSummary;
 
 #[derive(Debug, Clone)]
 pub struct GatewayState {
@@ -426,6 +427,121 @@ mod tests {
                     &jwt_id,
                     now + TimeDelta::minutes(10),
                     expires_at + TimeDelta::seconds(1),
+                )
+                .unwrap()
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn replay_id_retention_prunes_expired_client_assertion_and_id_jag_rows() {
+        let path = temp_path("replay-id-retention");
+        let state = GatewayState::open(&path).unwrap();
+        let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
+        let client_id = OAuthClientId::new("veoveo-headless").unwrap();
+        let old_seen_at = Utc::now() - TimeDelta::minutes(10);
+        let now = Utc::now();
+        let old_expires_at = now - TimeDelta::minutes(5);
+        let fresh_expires_at = now + TimeDelta::minutes(5);
+        let old_client_assertion_jti = JwtId::new("old-client-assertion").unwrap();
+        let fresh_client_assertion_jti = JwtId::new("fresh-client-assertion").unwrap();
+        let old_id_jag_jti = JwtId::new("old-id-jag").unwrap();
+        let fresh_id_jag_jti = JwtId::new("fresh-id-jag").unwrap();
+
+        assert!(
+            state
+                .record_client_assertion_jti(
+                    &authorization_server,
+                    &client_id,
+                    &old_client_assertion_jti,
+                    old_expires_at,
+                    old_seen_at,
+                )
+                .unwrap()
+        );
+        assert!(
+            state
+                .record_client_assertion_jti(
+                    &authorization_server,
+                    &client_id,
+                    &fresh_client_assertion_jti,
+                    fresh_expires_at,
+                    old_seen_at,
+                )
+                .unwrap()
+        );
+        assert!(
+            state
+                .record_id_jag_jti(
+                    &authorization_server,
+                    &client_id,
+                    &old_id_jag_jti,
+                    old_expires_at,
+                    old_seen_at,
+                )
+                .unwrap()
+        );
+        assert!(
+            state
+                .record_id_jag_jti(
+                    &authorization_server,
+                    &client_id,
+                    &fresh_id_jag_jti,
+                    fresh_expires_at,
+                    old_seen_at,
+                )
+                .unwrap()
+        );
+
+        assert_eq!(
+            state.prune_expired_replay_ids(now).unwrap(),
+            GatewayReplayRetentionSummary {
+                client_assertion_jtis_deleted: 1,
+                id_jag_jtis_deleted: 1,
+            }
+        );
+        assert!(
+            state
+                .record_client_assertion_jti(
+                    &authorization_server,
+                    &client_id,
+                    &old_client_assertion_jti,
+                    fresh_expires_at,
+                    now + TimeDelta::seconds(1),
+                )
+                .unwrap()
+        );
+        assert!(
+            !state
+                .record_client_assertion_jti(
+                    &authorization_server,
+                    &client_id,
+                    &fresh_client_assertion_jti,
+                    fresh_expires_at,
+                    now + TimeDelta::seconds(1),
+                )
+                .unwrap()
+        );
+        assert!(
+            state
+                .record_id_jag_jti(
+                    &authorization_server,
+                    &client_id,
+                    &old_id_jag_jti,
+                    fresh_expires_at,
+                    now + TimeDelta::seconds(1),
+                )
+                .unwrap()
+        );
+        assert!(
+            !state
+                .record_id_jag_jti(
+                    &authorization_server,
+                    &client_id,
+                    &fresh_id_jag_jti,
+                    fresh_expires_at,
+                    now + TimeDelta::seconds(1),
                 )
                 .unwrap()
         );

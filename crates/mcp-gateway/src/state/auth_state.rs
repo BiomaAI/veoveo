@@ -9,6 +9,12 @@ use veoveo_mcp_contract::{
 
 use super::GatewayState;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GatewayReplayRetentionSummary {
+    pub client_assertion_jtis_deleted: u64,
+    pub id_jag_jtis_deleted: u64,
+}
+
 impl GatewayState {
     pub fn record_jwt_revocation(&self, revocation: &GatewayJwtRevocation) -> Result<()> {
         let revocation_json = serde_json::to_string(revocation)?;
@@ -161,6 +167,25 @@ impl GatewayState {
             ],
         )?;
         Ok(true)
+    }
+
+    pub fn prune_expired_replay_ids(
+        &self,
+        now: DateTime<Utc>,
+    ) -> Result<GatewayReplayRetentionSummary> {
+        let conn = self.conn.lock();
+        let client_assertion_jtis_deleted = conn.execute(
+            "DELETE FROM gateway_client_assertion_jtis WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        let id_jag_jtis_deleted = conn.execute(
+            "DELETE FROM gateway_id_jag_jtis WHERE expires_at <= ?1",
+            params![now],
+        )?;
+        Ok(GatewayReplayRetentionSummary {
+            client_assertion_jtis_deleted: u64::try_from(client_assertion_jtis_deleted)?,
+            id_jag_jtis_deleted: u64::try_from(id_jag_jtis_deleted)?,
+        })
     }
 
     pub fn record_authorization_request(
