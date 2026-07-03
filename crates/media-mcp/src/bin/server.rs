@@ -57,7 +57,7 @@ use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GenerationRunOutput,
     InternalTokenSecret, Page, ServerResourceUris, ServerSlug, SubscriptionHub, TaskPayloadState,
     TaskStore, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, is_sha256,
-    notify_progress, now_iso, paginate, public_allowed_hosts,
+    notify_progress, now_iso, paginate, public_allowed_hosts, related_task_meta,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -477,7 +477,7 @@ impl ServerHandler for MediaMcp {
             progress_token,
         ));
         self.state.tasks.set_join(&task_id, join).await;
-        Ok(CreateTaskResult::new(task))
+        Ok(CreateTaskResult::new(task).with_meta(related_task_meta(task_id)))
     }
 
     async fn list_tasks(

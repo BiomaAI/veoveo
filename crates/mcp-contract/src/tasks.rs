@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use rmcp::{
     RoleServer,
     model::{
-        Notification, ProgressNotificationParam, ProgressToken, ServerNotification, Task,
-        TaskStatus, TaskStatusNotificationParam,
+        JsonObject, Meta, Notification, ProgressNotificationParam, ProgressToken,
+        ServerNotification, Task, TaskStatus, TaskStatusNotificationParam,
     },
     service::Peer,
 };
@@ -48,6 +48,27 @@ pub enum TaskPayloadState {
 pub struct PrunedTask {
     pub task_id: String,
     pub provider_job_id: Option<String>,
+}
+
+pub const RELATED_TASK_META_KEY: &str = "io.modelcontextprotocol/related-task";
+
+pub fn related_task_meta(task_id: impl Into<String>) -> Meta {
+    let mut meta = JsonObject::new();
+    meta.insert(
+        RELATED_TASK_META_KEY.to_string(),
+        serde_json::json!({ "taskId": task_id.into() }),
+    );
+    Meta(meta)
+}
+
+pub fn set_related_task_meta(meta: &mut Option<Meta>, task_id: impl Into<String>) {
+    let task_id = task_id.into();
+    let mut value = meta.take().unwrap_or_default();
+    value.0.insert(
+        RELATED_TASK_META_KEY.to_string(),
+        serde_json::json!({ "taskId": task_id }),
+    );
+    *meta = Some(value);
 }
 
 #[derive(Default)]
@@ -261,6 +282,21 @@ mod tests {
             last_updated_at.to_rfc3339(),
             last_updated_at.to_rfc3339(),
         )
+    }
+
+    #[test]
+    fn related_task_meta_uses_mcp_key_and_task_id() {
+        let mut meta = None;
+        set_related_task_meta(&mut meta, "task-1");
+
+        let meta = meta.expect("related task meta should be set");
+        assert_eq!(
+            meta.0
+                .get(RELATED_TASK_META_KEY)
+                .and_then(|value| value.get("taskId"))
+                .and_then(Value::as_str),
+            Some("task-1")
+        );
     }
 
     #[tokio::test]

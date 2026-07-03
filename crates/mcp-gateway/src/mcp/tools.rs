@@ -9,6 +9,7 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{
     GatewayAction, GatewayTaskId, GatewayTaskMapping, LocalToolName, UpstreamTaskId, paginate,
+    related_task_meta,
 };
 
 use crate::mcp_support::{
@@ -199,6 +200,7 @@ impl GatewayMcp {
                     )
                     .await;
                 result.task.task_id = gateway_task_id.to_string();
+                result.meta = Some(related_task_meta(gateway_task_id.as_str()));
                 Ok(result)
             }
             other => {

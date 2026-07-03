@@ -8,6 +8,7 @@ use veoveo_mcp_contract::{
     GatewayAction, GatewayProfileId, GatewayResourceProjection, GatewayTaskMapping,
     GatewayToolName, GenerationRunOutput, McpMethodName, PolicyTarget, PrincipalId, ResourceUri,
     ServerResourceUri, ServerSlug, TaskIdProjection, UpstreamTaskId, UsageReport,
+    set_related_task_meta,
 };
 
 use crate::{GatewayCatalog, GatewayState};
@@ -179,6 +180,7 @@ fn project_call_tool_result(
     result: &mut CallToolResult,
     mapping: &GatewayTaskMapping,
 ) -> Result<(), McpError> {
+    set_related_task_meta(&mut result.meta, mapping.gateway_task_id.as_str());
     let Some(structured) = &mut result.structured_content else {
         return Ok(());
     };
@@ -462,6 +464,15 @@ mod tests {
         project_task_payload_result(&mut payload, &mapping).unwrap();
 
         let result: CallToolResult = serde_json::from_value(payload.0).unwrap();
+        assert_eq!(
+            result
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.0.get(veoveo_mcp_contract::RELATED_TASK_META_KEY))
+                .and_then(|value| value.get("taskId"))
+                .and_then(|value| value.as_str()),
+            Some("gateway-task-1")
+        );
         let output: GenerationRunOutput =
             serde_json::from_value(result.structured_content.unwrap()).unwrap();
         assert_eq!(

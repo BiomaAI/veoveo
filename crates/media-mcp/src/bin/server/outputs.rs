@@ -2,6 +2,7 @@ use axum::http::header::CONTENT_TYPE;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_mcp_contract::{
     ArtifactMetadata, ArtifactPut, GenerationPredictionSummary, GenerationRunOutput, now_utc,
+    set_related_task_meta,
 };
 use veoveo_media_mcp::{provider::Prediction, state::TaskOwner};
 
@@ -128,5 +129,6 @@ pub(super) async fn prediction_result(
         prediction: public_prediction(prediction),
         artifacts,
     })?);
+    set_related_task_meta(&mut result.meta, task_id);
     Ok(result)
 }

@@ -70,11 +70,11 @@ use veoveo_mcp_contract::{
     IdentityProviderOidcClientRegistration, InternalTokenSecret, McpSurfaceCapabilities,
     NetworkBoundaryRule, OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision,
     PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
-    ProfileServerExposure, RegulatedDataControls, ResourceAuthorizationServer, ScopeName,
-    SecretReference, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest,
-    ServerResourceUris, ServerSlug, ServiceToServiceSecurity, StateStoreDeployment,
-    TelemetrySinkDeployment, TenantDefinition, TenantId, TokenIssuer, TokenSubject,
-    UpstreamEndpoint, UsageRecord, UsageReport,
+    ProfileServerExposure, RELATED_TASK_META_KEY, RegulatedDataControls,
+    ResourceAuthorizationServer, ScopeName, SecretReference, SelfHostedDeploymentPlan,
+    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
+    ServiceToServiceSecurity, StateStoreDeployment, TelemetrySinkDeployment, TenantDefinition,
+    TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
 };
 
 #[path = "conformance/auth_discovery.rs"]

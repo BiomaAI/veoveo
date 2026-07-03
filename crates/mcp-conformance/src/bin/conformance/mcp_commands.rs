@@ -363,6 +363,23 @@ fn task_from_cancel_result(result: ServerResult) -> Result<rmcp::model::Task> {
     }
 }
 
+fn ensure_related_task_meta(
+    meta: Option<&rmcp::model::Meta>,
+    task_id: &str,
+    context: &str,
+) -> Result<()> {
+    let related = meta
+        .and_then(|meta| meta.0.get(RELATED_TASK_META_KEY))
+        .and_then(|value| value.get("taskId"))
+        .and_then(Value::as_str);
+    if related != Some(task_id) {
+        return Err(anyhow!(
+            "{context} _meta `{RELATED_TASK_META_KEY}` was {related:?}, expected `{task_id}`"
+        ));
+    }
+    Ok(())
+}
+
 pub(super) async fn cmd_run(
     client: &Client,
     uris: &ServerResourceUris,
@@ -392,6 +409,7 @@ pub(super) async fn cmd_run(
         return Err(anyhow!("expected CreateTaskResult, got {created:?}"));
     };
     let task_id = created.task.task_id.clone();
+    ensure_related_task_meta(created.meta.as_ref(), &task_id, "tools/call task response")?;
     println!(
         "task {task_id} created (status {:?}, poll {}ms)",
         created.task.status,
@@ -522,6 +540,7 @@ pub(super) async fn cmd_run(
         ServerResult::CustomResult(c) => serde_json::from_value(c.0)?,
         other => return Err(anyhow!("unexpected tasks/result payload: {other:?}")),
     };
+    ensure_related_task_meta(result.meta.as_ref(), &task_id, "tasks/result payload")?;
     let outputs = print_call_tool_result(&result);
 
     if !outputs.is_empty() {

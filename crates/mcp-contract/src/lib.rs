@@ -75,7 +75,8 @@ pub use provider::Provider;
 pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};
 pub use subscriptions::SubscriptionHub;
 pub use tasks::{
-    PrunedTask, TaskPayloadState, TaskStore, notify_progress, notify_task_status, now_iso, now_utc,
+    PrunedTask, RELATED_TASK_META_KEY, TaskPayloadState, TaskStore, notify_progress,
+    notify_task_status, now_iso, now_utc, related_task_meta, set_related_task_meta,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use uri::{
