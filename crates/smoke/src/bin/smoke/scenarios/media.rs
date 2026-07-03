@@ -197,9 +197,12 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
     )?;
     let task_id = task_id_from_output(&run_output)?;
     for expected in [
+        "  [progress] 10%".to_string(),
         "  [resource list changed]".to_string(),
         format!("  [task {task_id}] Working: submitted; prediction"),
+        "  [progress] 30%".to_string(),
         "  [resource updated] media://prediction/".to_string(),
+        "  [progress] 100%".to_string(),
         format!("  [task {task_id}] Completed: completed;"),
         "subscribed to media://prediction/".to_string(),
         "unsubscribed from media://prediction/".to_string(),

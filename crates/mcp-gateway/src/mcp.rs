@@ -1,6 +1,7 @@
 mod authorization;
 mod completion;
 mod info;
+mod progress;
 mod prompts;
 mod resources;
 mod tasks;
@@ -50,6 +51,7 @@ pub struct GatewayMcp {
     profile_id: GatewayProfileId,
     internal_token_issuer: GatewayInternalTokenIssuer,
     upstreams: UpstreamConnectionCache,
+    progress_tokens: progress::GatewayProgressTokens,
 }
 
 impl GatewayMcp {
@@ -65,6 +67,7 @@ impl GatewayMcp {
             profile_id,
             internal_token_issuer,
             upstreams: UpstreamConnectionCache::new(),
+            progress_tokens: progress::GatewayProgressTokens::default(),
         }
     }
 
@@ -129,6 +132,7 @@ impl GatewayMcp {
             server_slug.clone(),
             self.state.clone(),
             downstream,
+            self.progress_tokens.clone(),
         );
         let running = handler
             .serve(transport)

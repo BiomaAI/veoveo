@@ -374,8 +374,9 @@ pub(super) async fn cmd_run(
 ) -> Result<()> {
     let input: Value = serde_json::from_str(&input)?;
 
-    // tools/call augmented with SEP-1319 task metadata + a progress token.
-    let mut params = CallToolRequestParams::new(tool_name)
+    // tools/call augmented with SEP-1319 task metadata. RMCP adds the active
+    // progress token to request metadata.
+    let params = CallToolRequestParams::new(tool_name)
         .with_arguments(
             serde_json::json!({ "model": model_id, "input": input })
                 .as_object()
@@ -383,7 +384,6 @@ pub(super) async fn cmd_run(
                 .unwrap(),
         )
         .with_task(TaskMetadata::new().with_ttl(3_600_000));
-    params.set_progress_token(ProgressToken(NumberOrString::String(Arc::from("run"))));
 
     let created = client
         .send_request(ClientRequest::CallToolRequest(Request::new(params)))

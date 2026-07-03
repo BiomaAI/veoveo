@@ -445,7 +445,7 @@ impl ServerHandler for MediaMcp {
                     McpError::invalid_params(format!("invalid run arguments: {e}"), None)
                 })?;
 
-        let progress_token = request.meta.as_ref().and_then(|m| m.get_progress_token());
+        let progress_token = context.meta.get_progress_token();
         let ttl = request.task.as_ref().and_then(|t| t.ttl);
         let task_id = uuid::Uuid::new_v4().to_string();
         let now = now_iso();

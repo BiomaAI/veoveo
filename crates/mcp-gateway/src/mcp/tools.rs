@@ -5,7 +5,7 @@ use rmcp::{
         CallToolRequest, CallToolRequestParams, CallToolResult, ClientRequest, CreateTaskResult,
         ErrorData as McpError, ListToolsResult, PaginatedRequestParams, ServerResult,
     },
-    service::{RequestContext, RoleServer},
+    service::{PeerRequestOptions, RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
     GatewayAction, GatewayTaskId, GatewayTaskMapping, LocalToolName, UpstreamTaskId, paginate,
@@ -76,10 +76,42 @@ impl GatewayMcp {
             projection.tool.clone(),
         )?;
         request.name = Cow::Owned(projection.tool.to_string());
+        let downstream_progress_token = context.meta.get_progress_token();
         let upstream = self
             .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
-        upstream.call_tool(request).await.map_err(upstream_error)
+        let handle = upstream
+            .send_cancellable_request(
+                ClientRequest::CallToolRequest(CallToolRequest::new(request)),
+                PeerRequestOptions::no_options(),
+            )
+            .await
+            .map_err(upstream_error)?;
+        if let Some(downstream_token) = downstream_progress_token {
+            self.progress_tokens
+                .register(
+                    &self.profile_id,
+                    &subject.principal.id,
+                    &projection.server,
+                    handle.progress_token.clone(),
+                    downstream_token,
+                )
+                .await;
+        }
+        let upstream_token = handle.progress_token.clone();
+        let result = handle.await_response().await.map_err(upstream_error);
+        self.progress_tokens
+            .remove_token(
+                &self.profile_id,
+                &subject.principal.id,
+                &projection.server,
+                &upstream_token,
+            )
+            .await;
+        match result? {
+            ServerResult::CallToolResult(result) => Ok(result),
+            other => Err(unexpected_upstream_response("tools/call", other)),
+        }
     }
 
     pub(super) async fn handle_enqueue_task(
@@ -96,15 +128,43 @@ impl GatewayMcp {
             projection.tool.clone(),
         )?;
         request.name = Cow::Owned(projection.tool.to_string());
+        let downstream_progress_token = context.meta.get_progress_token();
         let upstream = self
             .upstream(&projection.server, context.peer.clone(), &subject)
             .await?;
-        let result = upstream
-            .send_request(ClientRequest::CallToolRequest(CallToolRequest::new(
-                request,
-            )))
+        let handle = upstream
+            .send_cancellable_request(
+                ClientRequest::CallToolRequest(CallToolRequest::new(request)),
+                PeerRequestOptions::no_options(),
+            )
             .await
             .map_err(upstream_error)?;
+        if let Some(downstream_token) = downstream_progress_token {
+            self.progress_tokens
+                .register(
+                    &self.profile_id,
+                    &subject.principal.id,
+                    &projection.server,
+                    handle.progress_token.clone(),
+                    downstream_token,
+                )
+                .await;
+        }
+        let upstream_progress_token = handle.progress_token.clone();
+        let result = match handle.await_response().await {
+            Ok(result) => result,
+            Err(err) => {
+                self.progress_tokens
+                    .remove_token(
+                        &self.profile_id,
+                        &subject.principal.id,
+                        &projection.server,
+                        &upstream_progress_token,
+                    )
+                    .await;
+                return Err(upstream_error(err));
+            }
+        };
         match result {
             ServerResult::CreateTaskResult(mut result) => {
                 let upstream_task_id =
@@ -120,7 +180,7 @@ impl GatewayMcp {
                     .record_task_mapping(&GatewayTaskMapping {
                         gateway_task_id: gateway_task_id.clone(),
                         upstream_server: projection.server.clone(),
-                        upstream_task_id,
+                        upstream_task_id: upstream_task_id.clone(),
                         profile: self.profile_id.clone(),
                         owner: subject.principal.id.clone(),
                         created_at: now,
@@ -129,10 +189,29 @@ impl GatewayMcp {
                     .map_err(|err| {
                         mcp_internal(format!("failed to persist gateway task mapping: {err}"))
                     })?;
+                self.progress_tokens
+                    .attach_task(
+                        &self.profile_id,
+                        &subject.principal.id,
+                        &projection.server,
+                        &upstream_progress_token,
+                        upstream_task_id,
+                    )
+                    .await;
                 result.task.task_id = gateway_task_id.to_string();
                 Ok(result)
             }
-            other => Err(unexpected_upstream_response("tools/call task", other)),
+            other => {
+                self.progress_tokens
+                    .remove_token(
+                        &self.profile_id,
+                        &subject.principal.id,
+                        &projection.server,
+                        &upstream_progress_token,
+                    )
+                    .await;
+                Err(unexpected_upstream_response("tools/call task", other))
+            }
         }
     }
 }

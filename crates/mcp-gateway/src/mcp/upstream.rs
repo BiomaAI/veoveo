@@ -12,6 +12,8 @@ use crate::{
     mcp_support::{project_upstream_resource_for_owner, task_mapping_allows_principal},
 };
 
+use super::progress::{GatewayProgressTokens, is_terminal};
+
 #[derive(Debug, Clone)]
 pub(super) struct GatewayUpstreamHandler {
     profile_id: GatewayProfileId,
@@ -19,6 +21,7 @@ pub(super) struct GatewayUpstreamHandler {
     upstream_server: ServerSlug,
     state: GatewayState,
     downstream: Peer<RoleServer>,
+    progress_tokens: GatewayProgressTokens,
 }
 
 impl GatewayUpstreamHandler {
@@ -28,6 +31,7 @@ impl GatewayUpstreamHandler {
         upstream_server: ServerSlug,
         state: GatewayState,
         downstream: Peer<RoleServer>,
+        progress_tokens: GatewayProgressTokens,
     ) -> Self {
         Self {
             profile_id,
@@ -35,6 +39,7 @@ impl GatewayUpstreamHandler {
             upstream_server,
             state,
             downstream,
+            progress_tokens,
         }
     }
 }
@@ -49,9 +54,26 @@ impl ClientHandler for GatewayUpstreamHandler {
 
     async fn on_progress(
         &self,
-        params: rmcp::model::ProgressNotificationParam,
+        mut params: rmcp::model::ProgressNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) {
+        let Some(downstream_token) = self
+            .progress_tokens
+            .translate(
+                &self.profile_id,
+                &self.principal_id,
+                &self.upstream_server,
+                &params.progress_token,
+            )
+            .await
+        else {
+            tracing::warn!(
+                upstream_server = %self.upstream_server,
+                "dropped progress notification for unknown upstream progress token"
+            );
+            return;
+        };
+        params.progress_token = downstream_token;
         if let Err(err) = self.downstream.notify_progress(params).await {
             tracing::warn!(
                 upstream_server = %self.upstream_server,
@@ -167,6 +189,16 @@ impl ClientHandler for GatewayUpstreamHandler {
                 "dropped task status notification for another gateway principal"
             );
             return;
+        }
+        if is_terminal(&params.task.status) {
+            self.progress_tokens
+                .remove_task(
+                    &self.profile_id,
+                    &self.principal_id,
+                    &self.upstream_server,
+                    &upstream_task_id,
+                )
+                .await;
         }
         params.task.task_id = mapping.gateway_task_id.to_string();
         let notification = ServerNotification::TaskStatusNotification(Notification::new(params));
