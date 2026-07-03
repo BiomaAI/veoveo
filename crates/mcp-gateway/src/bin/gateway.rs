@@ -9,6 +9,8 @@ mod admin;
 mod audit;
 #[path = "gateway/auth.rs"]
 mod auth;
+#[path = "gateway/host.rs"]
+mod host;
 #[path = "gateway/http_util.rs"]
 mod http_util;
 #[path = "gateway/oauth.rs"]
@@ -56,6 +58,7 @@ use auth::{
     authenticate_mcp, authorization_server_jwks, authorization_server_metadata,
     protected_resource_metadata,
 };
+use host::validate_host;
 use oauth::{authorization_callback, authorize_endpoint, token_endpoint};
 use runtime::{
     AdminState, AppState, DynamicMcpState, GatewayRetentionPolicy, ProfileAuthState,
@@ -369,10 +372,15 @@ async fn serve(
         .with_state(admin_state)
         .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
     router = router.merge(admin_router);
-    let router = router.layer(
-        TraceLayer::new_for_http()
-            .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-    );
+    let router = router
+        .layer(middleware::from_fn_with_state(
+            allowed_hosts.clone(),
+            validate_host,
+        ))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(

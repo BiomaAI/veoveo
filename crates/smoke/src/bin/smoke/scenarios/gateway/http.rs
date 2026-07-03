@@ -99,6 +99,17 @@ pub(crate) async fn gateway_http(
     )?;
     wait_for_http(&format!("{base}/healthz")).await?;
     assert_ready_profiles(&base, 1).await?;
+    let untrusted_host_status = reqwest::Client::new()
+        .get(format!(
+            "{base}/.well-known/oauth-protected-resource/mcp/default"
+        ))
+        .header(HOST, "evil.example.com")
+        .send()
+        .await?
+        .status();
+    if untrusted_host_status != StatusCode::MISDIRECTED_REQUEST {
+        bail!("untrusted Host status was {untrusted_host_status}, expected 421");
+    }
     assert_json_log(
         &gateway_log,
         &[("message", "listening"), ("service", "veoveo-mcp-gateway")],

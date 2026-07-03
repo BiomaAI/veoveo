@@ -12,7 +12,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use clap::{Parser, Subcommand};
 use reqwest::{
     StatusCode,
-    header::{CONTENT_TYPE, LOCATION},
+    header::{CONTENT_TYPE, HOST, LOCATION},
     redirect::Policy,
 };
 use rmcp::{
