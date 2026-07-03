@@ -133,6 +133,26 @@ pub(crate) async fn gateway_authenticated(
         &["--scope", "media:use", "--scope", "gateway:admin"],
     )?;
     let http = reqwest::Client::new();
+    assert_http_get_status(
+        &format!("{gateway_base}/admin/default/control-plane"),
+        None,
+        StatusCode::UNAUTHORIZED,
+    )
+    .await?;
+    let media_only_admin_token =
+        gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    assert_http_get_status(
+        &format!("{gateway_base}/admin/default/control-plane"),
+        Some(media_only_admin_token.trim()),
+        StatusCode::FORBIDDEN,
+    )
+    .await?;
+    assert_http_post_status(
+        &format!("{gateway_base}/admin/default/reload-control-plane"),
+        Some(media_only_admin_token.trim()),
+        StatusCode::FORBIDDEN,
+    )
+    .await?;
     let reload = post_json(
         &http,
         &format!("{gateway_base}/admin/default/reload-control-plane"),
@@ -470,7 +490,12 @@ pub(crate) async fn gateway_authenticated(
     assert_audit_method(&audit_summary, "prompts/list", 2, 0)?;
     assert_audit_method(&audit_summary, "prompts/get", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/list", 1, 0)?;
+    assert_audit_method(&audit_summary, "admin/control-plane", 1, 1)?;
+    assert_audit_method(&audit_summary, "admin/reload-control-plane", 1, 1)?;
+    assert_audit_method(&audit_summary, "admin/control-plane/result", 1, 0)?;
+    assert_audit_method(&audit_summary, "admin/reload-control-plane/result", 1, 0)?;
     let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &gateway_state_db)?;
+    assert_reason_summary_at_least(&audit_reasons, "missing_scope", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_principal_assurance", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;

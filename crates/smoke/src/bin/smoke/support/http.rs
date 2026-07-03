@@ -81,6 +81,24 @@ pub(crate) async fn assert_http_status(url: &str, expected: StatusCode) -> Resul
     }
 }
 
+pub(crate) async fn assert_http_get_status(
+    url: &str,
+    bearer_token: Option<&str>,
+    expected: StatusCode,
+) -> Result<()> {
+    let client = reqwest::Client::new();
+    let mut request = client.get(url);
+    if let Some(token) = bearer_token {
+        request = request.bearer_auth(token);
+    }
+    let status = request.send().await?.status();
+    if status == expected {
+        Ok(())
+    } else {
+        bail!("expected GET {url} to return {expected}, got {status}");
+    }
+}
+
 pub(crate) async fn assert_http_post_status(
     url: &str,
     bearer_token: Option<&str>,
