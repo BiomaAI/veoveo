@@ -195,6 +195,19 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
             bail!("deployment profile schema has no object `{property}` property");
         }
     }
+    let network_boundary = assert_schema_title(
+        &schemas.join("network-boundary-rule.schema.json"),
+        "NetworkBoundaryRule",
+    )?;
+    for property in ["target_kind", "target", "ports", "tls_required"] {
+        if !network_boundary
+            .get("properties")
+            .and_then(|properties| properties.get(property))
+            .is_some_and(Value::is_object)
+        {
+            bail!("network boundary schema has no object `{property}` property");
+        }
+    }
     let artifact = assert_schema_title(
         &schemas.join("artifact-metadata.schema.json"),
         "ArtifactMetadata",

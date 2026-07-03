@@ -68,13 +68,13 @@ use veoveo_mcp_contract::{
     GatewayResourceProjection, GatewayResourceSubscription, GatewayTaskMapping,
     GenerationPredictionSummary, GenerationRunOutput, IdentityProvider,
     IdentityProviderOidcClientRegistration, InternalTokenSecret, McpSurfaceCapabilities,
-    OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision, PolicyRule, PolicySet,
-    Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind, ProfileServerExposure,
-    RegulatedDataControls, ResourceAuthorizationServer, ScopeName, SecretReference,
-    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
-    ServerSlug, ServiceToServiceSecurity, StateStoreDeployment, TelemetrySinkDeployment,
-    TenantDefinition, TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord,
-    UsageReport,
+    NetworkBoundaryRule, OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision,
+    PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
+    ProfileServerExposure, RegulatedDataControls, ResourceAuthorizationServer, ScopeName,
+    SecretReference, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest,
+    ServerResourceUris, ServerSlug, ServiceToServiceSecurity, StateStoreDeployment,
+    TelemetrySinkDeployment, TenantDefinition, TenantId, TokenIssuer, TokenSubject,
+    UpstreamEndpoint, UsageRecord, UsageReport,
 };
 
 #[path = "conformance/auth_discovery.rs"]

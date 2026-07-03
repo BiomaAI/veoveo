@@ -160,6 +160,11 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
+        "network-boundary-rule.schema.json",
+        NetworkBoundaryRule
+    );
+    add_schema!(
+        schemas,
         "data-retention-policy.schema.json",
         DataRetentionPolicy
     );
