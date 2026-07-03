@@ -141,7 +141,7 @@ struct Args {
     #[arg(long, default_value = "us-east-1")]
     artifact_region: String,
     /// Allow plain HTTP for local S3-compatible artifact stores.
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = false)]
     artifact_allow_http: bool,
     #[arg(long, env = "MEDIA_PROVIDER_API_KEY", hide_env_values = true)]
     api_key: Option<String>,

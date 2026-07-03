@@ -65,6 +65,7 @@ pub(crate) fn spawn_media_s3_smoke(
             state_db.as_os_str().to_os_string(),
             "--artifact-endpoint".into(),
             "http://127.0.0.1:9".into(),
+            "--artifact-allow-http".into(),
             "--artifact-bucket".into(),
             "smoke-artifacts".into(),
             "--artifact-region".into(),

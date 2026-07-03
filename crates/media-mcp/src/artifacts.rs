@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
 use object_store::{
     Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, aws::AmazonS3Builder,
@@ -51,6 +51,7 @@ impl ArtifactRepository {
         uris: ServerResourceUris,
         download_base_url: impl Into<String>,
     ) -> Result<Self> {
+        config.validate()?;
         let inner = AmazonS3Builder::from_env()
             .with_endpoint(config.endpoint)
             .with_bucket_name(config.bucket)
@@ -174,5 +175,57 @@ impl ArtifactRepository {
             }
         }
         Ok(deleted)
+    }
+}
+
+impl S3ArtifactConfig {
+    fn validate(&self) -> Result<()> {
+        let url = reqwest::Url::parse(&self.endpoint)
+            .with_context(|| format!("parsing artifact endpoint `{}`", self.endpoint))?;
+        match url.scheme() {
+            "https" => Ok(()),
+            "http" if self.allow_http => Ok(()),
+            "http" => bail!(
+                "artifact endpoint `{}` uses HTTP; pass --artifact-allow-http only for local development",
+                self.endpoint
+            ),
+            scheme => bail!(
+                "artifact endpoint `{}` uses unsupported scheme `{scheme}`",
+                self.endpoint
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::S3ArtifactConfig;
+
+    fn config(endpoint: &str, allow_http: bool) -> S3ArtifactConfig {
+        S3ArtifactConfig {
+            endpoint: endpoint.to_string(),
+            bucket: "media-artifacts".to_string(),
+            region: "us-east-1".to_string(),
+            allow_http,
+        }
+    }
+
+    #[test]
+    fn artifact_endpoint_defaults_to_tls() {
+        config("https://rustfs.example.com", false)
+            .validate()
+            .expect("https endpoint is valid");
+    }
+
+    #[test]
+    fn artifact_http_requires_explicit_local_allowance() {
+        let err = config("http://rustfs:9000", false)
+            .validate()
+            .expect_err("HTTP endpoint should fail closed");
+
+        assert!(err.to_string().contains("--artifact-allow-http"));
+        config("http://rustfs:9000", true)
+            .validate()
+            .expect("explicit local HTTP endpoint is valid");
     }
 }

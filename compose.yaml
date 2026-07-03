@@ -78,6 +78,7 @@ services:
       - "s3-compatible"
       - "--artifact-endpoint"
       - "http://rustfs:9000"
+      - "--artifact-allow-http"
       - "--artifact-bucket"
       - "media-artifacts"
       - "--artifact-region"
