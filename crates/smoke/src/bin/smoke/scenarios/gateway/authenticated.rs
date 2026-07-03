@@ -499,6 +499,22 @@ pub(crate) async fn gateway_authenticated(
     let audit_counts = run_gateway_json(gateway, "audit-counts", &gateway_state_db)?;
     assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
     assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
+    let auth_method_summary =
+        run_gateway_json(gateway, "auth-audit-method-summary", &gateway_state_db)?;
+    assert_audit_method(&auth_method_summary, "bearer_jwt", 10, 2)?;
+    assert_audit_method(
+        &auth_method_summary,
+        "client_credentials_private_key_jwt",
+        4,
+        0,
+    )?;
+    assert_audit_method(&auth_method_summary, "enterprise_managed_id_jag", 5, 1)?;
+    let auth_reason_summary =
+        run_gateway_json(gateway, "auth-audit-reason-summary", &gateway_state_db)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 10)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "identity_assertion_replay", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "token_revoked", 1)?;
     let audit_summary = run_gateway_json(gateway, "audit-method-summary", &gateway_state_db)?;
     assert_audit_method(&audit_summary, "tools/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/list", 1, 0)?;

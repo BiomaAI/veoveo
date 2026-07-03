@@ -344,6 +344,21 @@ pub(crate) async fn gateway_http(
     let audit_counts = run_gateway_json(gateway, "audit-counts", &state_db)?;
     assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
     assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
+    let auth_method_summary = run_gateway_json(gateway, "auth-audit-method-summary", &state_db)?;
+    assert_audit_method(&auth_method_summary, "bearer_jwt", 2, 1)?;
+    assert_audit_method(
+        &auth_method_summary,
+        "client_credentials_private_key_jwt",
+        2,
+        1,
+    )?;
+    assert_audit_method(&auth_method_summary, "oidc_authorization_code_pkce", 1, 2)?;
+    let auth_reason_summary = run_gateway_json(gateway, "auth-audit-reason-summary", &state_db)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 4)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "client_assertion_replay", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "invalid_authorization_code", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "invalid_pkce", 1)?;
     let audit_summary = run_gateway_json(gateway, "audit-method-summary", &state_db)?;
     assert_audit_method(&audit_summary, "admin/jwt-revocations", 2, 0)?;
     assert_audit_method(&audit_summary, "admin/jwt-revocations/prune", 1, 0)?;

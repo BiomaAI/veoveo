@@ -5,7 +5,8 @@ use chrono::{DateTime, Utc};
 use duckdb::params;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AuditEvent, AuthAuditEvent, McpMethodName, PolicyDecision, PolicyEffect, PolicyReasonCode,
+    AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, McpMethodName,
+    PolicyDecision, PolicyEffect, PolicyReasonCode,
 };
 
 use super::GatewayState;
@@ -14,6 +15,20 @@ use super::GatewayState;
 pub struct GatewayAuditCounts {
     pub auth_events: u64,
     pub policy_events: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayAuthAuditMethodSummary {
+    pub method: AuthMethod,
+    pub allow_events: u64,
+    pub deny_events: u64,
+    pub total_events: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GatewayAuthAuditReasonSummary {
+    pub reason: AuthReasonCode,
+    pub events: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -64,6 +79,60 @@ impl GatewayState {
             auth_events: self.count_rows(GatewayAuditTable::Auth)?,
             policy_events: self.count_rows(GatewayAuditTable::Policy)?,
         })
+    }
+
+    pub fn auth_audit_method_summary(&self) -> Result<Vec<GatewayAuthAuditMethodSummary>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT event_json
+            FROM gateway_auth_audit_events
+            ORDER BY method, timestamp, event_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut summaries = BTreeMap::<AuthMethod, GatewayAuthAuditMethodSummary>::new();
+        for row in rows {
+            let event: AuthAuditEvent = serde_json::from_str(&row?)?;
+            let entry = summaries
+                .entry(event.method)
+                .or_insert(GatewayAuthAuditMethodSummary {
+                    method: event.method,
+                    allow_events: 0,
+                    deny_events: 0,
+                    total_events: 0,
+                });
+            match event.outcome {
+                AuthOutcome::Allow => entry.allow_events += 1,
+                AuthOutcome::Deny => entry.deny_events += 1,
+            }
+            entry.total_events += 1;
+        }
+        Ok(summaries.into_values().collect())
+    }
+
+    pub fn auth_audit_reason_summary(&self) -> Result<Vec<GatewayAuthAuditReasonSummary>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT event_json
+            FROM gateway_auth_audit_events
+            ORDER BY reason, timestamp, event_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut summaries = BTreeMap::<AuthReasonCode, GatewayAuthAuditReasonSummary>::new();
+        for row in rows {
+            let event: AuthAuditEvent = serde_json::from_str(&row?)?;
+            let entry = summaries
+                .entry(event.reason)
+                .or_insert(GatewayAuthAuditReasonSummary {
+                    reason: event.reason,
+                    events: 0,
+                });
+            entry.events += 1;
+        }
+        Ok(summaries.into_values().collect())
     }
 
     pub fn policy_audit_method_summary(&self) -> Result<Vec<GatewayPolicyAuditMethodSummary>> {

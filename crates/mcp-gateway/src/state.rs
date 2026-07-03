@@ -11,7 +11,8 @@ mod subscriptions;
 mod tasks;
 
 pub use audit::{
-    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayPolicyAuditMetadataSummary,
+    GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMethodSummary,
+    GatewayAuthAuditReasonSummary, GatewayPolicyAuditMetadataSummary,
     GatewayPolicyAuditMethodSummary, GatewayPolicyAuditReasonSummary,
 };
 
@@ -124,6 +125,36 @@ mod tests {
                 token_issuer: None,
                 latency_ms: Some(12),
                 metadata,
+            })
+            .unwrap();
+    }
+
+    fn record_auth_audit(
+        state: &GatewayState,
+        event_id: &str,
+        outcome: AuthOutcome,
+        reason: AuthReasonCode,
+        method: AuthMethod,
+    ) {
+        state
+            .record_auth_audit_event(&AuthAuditEvent {
+                event_id: TraceId::new(event_id).unwrap(),
+                timestamp: Utc::now(),
+                trace_id: TraceId::new(format!("trace-{event_id}")).unwrap(),
+                profile: GatewayProfileId::new("default").unwrap(),
+                protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
+                    .unwrap(),
+                outcome,
+                reason,
+                method,
+                principal: None,
+                principal_attributes: None,
+                tenant: None,
+                token_issuer: None,
+                token_subject: None,
+                jwt_id: None,
+                latency_ms: Some(3),
+                metadata: BTreeMap::new(),
             })
             .unwrap();
     }
@@ -752,29 +783,60 @@ mod tests {
         let path = temp_path("auth-audit");
         let state = GatewayState::open(&path).unwrap();
 
-        state
-            .record_auth_audit_event(&AuthAuditEvent {
-                event_id: TraceId::new("event-1").unwrap(),
-                timestamp: Utc::now(),
-                trace_id: TraceId::new("trace-1").unwrap(),
-                profile: GatewayProfileId::new("default").unwrap(),
-                protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
-                    .unwrap(),
-                outcome: AuthOutcome::Deny,
-                reason: AuthReasonCode::MissingAuthorizationHeader,
-                method: AuthMethod::BearerJwt,
-                principal: None,
-                principal_attributes: None,
-                tenant: None,
-                token_issuer: None,
-                token_subject: None,
-                jwt_id: None,
-                latency_ms: Some(3),
-                metadata: BTreeMap::new(),
-            })
-            .unwrap();
+        record_auth_audit(
+            &state,
+            "event-1",
+            AuthOutcome::Deny,
+            AuthReasonCode::MissingAuthorizationHeader,
+            AuthMethod::BearerJwt,
+        );
+        record_auth_audit(
+            &state,
+            "event-2",
+            AuthOutcome::Allow,
+            AuthReasonCode::AuthAllow,
+            AuthMethod::BearerJwt,
+        );
+        record_auth_audit(
+            &state,
+            "event-3",
+            AuthOutcome::Deny,
+            AuthReasonCode::ClientAssertionReplay,
+            AuthMethod::ClientCredentialsPrivateKeyJwt,
+        );
 
-        assert_eq!(state.auth_audit_event_count().unwrap(), 1);
+        assert_eq!(state.auth_audit_event_count().unwrap(), 3);
+        let method_summary: BTreeMap<AuthMethod, (u64, u64, u64)> = state
+            .auth_audit_method_summary()
+            .unwrap()
+            .into_iter()
+            .map(|entry| {
+                (
+                    entry.method,
+                    (entry.allow_events, entry.deny_events, entry.total_events),
+                )
+            })
+            .collect();
+        assert_eq!(method_summary.get(&AuthMethod::BearerJwt), Some(&(1, 1, 2)));
+        assert_eq!(
+            method_summary.get(&AuthMethod::ClientCredentialsPrivateKeyJwt),
+            Some(&(0, 1, 1))
+        );
+        let reason_summary: BTreeMap<AuthReasonCode, u64> = state
+            .auth_audit_reason_summary()
+            .unwrap()
+            .into_iter()
+            .map(|entry| (entry.reason, entry.events))
+            .collect();
+        assert_eq!(
+            reason_summary.get(&AuthReasonCode::MissingAuthorizationHeader),
+            Some(&1)
+        );
+        assert_eq!(reason_summary.get(&AuthReasonCode::AuthAllow), Some(&1));
+        assert_eq!(
+            reason_summary.get(&AuthReasonCode::ClientAssertionReplay),
+            Some(&1)
+        );
 
         let _ = std::fs::remove_file(path);
     }

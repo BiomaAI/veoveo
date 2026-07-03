@@ -66,6 +66,18 @@ enum Command {
         #[arg(long)]
         state_db: PathBuf,
     },
+    /// Print gateway auth audit counts grouped by auth method as JSON.
+    AuthAuditMethodSummary {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+    },
+    /// Print gateway auth audit counts grouped by auth reason as JSON.
+    AuthAuditReasonSummary {
+        /// DuckDB file for gateway runtime state and audit evidence.
+        #[arg(long)]
+        state_db: PathBuf,
+    },
     /// Print gateway policy audit counts grouped by MCP method as JSON.
     AuditMethodSummary {
         /// DuckDB file for gateway runtime state and audit evidence.
@@ -155,6 +167,22 @@ async fn main() -> anyhow::Result<()> {
         Command::AuditCounts { state_db } => {
             let state = GatewayState::open(&state_db)?;
             println!("{}", serde_json::to_string(&state.audit_counts()?)?);
+            Ok(())
+        }
+        Command::AuthAuditMethodSummary { state_db } => {
+            let state = GatewayState::open(&state_db)?;
+            println!(
+                "{}",
+                serde_json::to_string(&state.auth_audit_method_summary()?)?
+            );
+            Ok(())
+        }
+        Command::AuthAuditReasonSummary { state_db } => {
+            let state = GatewayState::open(&state_db)?;
+            println!(
+                "{}",
+                serde_json::to_string(&state.auth_audit_reason_summary()?)?
+            );
             Ok(())
         }
         Command::AuditMethodSummary { state_db } => {
