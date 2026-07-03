@@ -129,8 +129,9 @@ are for the local stack only.
 
 Task, prediction, artifact metadata, and usage metadata are persisted in DuckDB. The
 shared contract crate owns the DuckDB usage analytics schema so every MCP server can
-record estimates and actual billing rows the same way. Local runs default to
-`state.duckdb`; Compose stores the media server's state at
+record estimates and actual billing rows the same way. Deployment profiles declare
+typed DuckDB state stores for the gateway and each hosted MCP server. Local runs default
+to `state.duckdb`; Compose stores the media server's state at
 `/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. Gateway runtime state
 and audit evidence live at `/var/lib/veoveo/gateway/state.duckdb` on the `gateway_state`
 volume. RustFS stores artifact bytes only.

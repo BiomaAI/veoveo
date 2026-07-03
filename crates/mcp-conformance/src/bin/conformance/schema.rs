@@ -145,6 +145,11 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
+        "state-store-deployment.schema.json",
+        StateStoreDeployment
+    );
+    add_schema!(
+        schemas,
         "telemetry-sink-deployment.schema.json",
         TelemetrySinkDeployment
     );

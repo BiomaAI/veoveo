@@ -395,7 +395,8 @@ The implementation plan is production-gateway-first:
    failures, policy denials, and audit emission.
 9. Add self-hosted deployment profiles for local, enterprise, and regulated environments.
    Each profile must declare required external services, secret sources, object stores,
-   telemetry sinks, allowed ingress, allowed egress, and data-retention behavior.
+   DuckDB state stores, telemetry sinks, allowed ingress, allowed egress, and
+   data-retention behavior.
 
 ## Enterprise deployment and pluggable infrastructure
 
@@ -463,7 +464,9 @@ compiled into those servers, not deployed as a runtime service. The default Comp
 should include batteries-included infrastructure:
 
 - one container per MCP server (`veoveo-media-mcp`, future provider servers),
-- a mounted DuckDB volume per server for durable task/prediction metadata and shared usage analytics,
+- typed DuckDB state-store declarations for the gateway and each hosted server, backed
+  locally by mounted DuckDB volumes for durable task/prediction metadata and shared usage
+  analytics,
 - RustFS as the default S3-compatible artifact store,
 - an OpenTelemetry collector,
 - optional Loki/Grafana or equivalent local log UI.

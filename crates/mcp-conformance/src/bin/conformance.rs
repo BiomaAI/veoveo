@@ -71,7 +71,7 @@ use veoveo_mcp_contract::{
     PolicyDecision, PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId,
     PrincipalKind, ProfileServerExposure, RegulatedDataControls, ResourceAuthorizationServer,
     ScopeName, SecretReference, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile,
-    ServerManifest, ServerResourceUris, ServerSlug, ServiceToServiceSecurity,
+    ServerManifest, ServerResourceUris, ServerSlug, ServiceToServiceSecurity, StateStoreDeployment,
     TelemetrySinkDeployment, TenantDefinition, TenantId, TokenIssuer, TokenSubject,
     UpstreamEndpoint, UsageRecord, UsageReport,
 };

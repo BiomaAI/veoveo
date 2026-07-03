@@ -26,6 +26,33 @@
           "customer_managed_keys_required": false
         }
       ],
+      "state_stores": [
+        {
+          "id": "gateway-duckdb",
+          "kind": "duckdb",
+          "owners": [
+            {
+              "kind": "gateway"
+            }
+          ],
+          "durable_volume_required": true,
+          "encrypted_at_rest_required": false,
+          "customer_managed_keys_required": false
+        },
+        {
+          "id": "media-duckdb",
+          "kind": "duckdb",
+          "owners": [
+            {
+              "kind": "server",
+              "server": "media"
+            }
+          ],
+          "durable_volume_required": true,
+          "encrypted_at_rest_required": false,
+          "customer_managed_keys_required": false
+        }
+      ],
       "telemetry_sinks": [
         {
           "id": "otel-local",
@@ -95,6 +122,33 @@
           "kind": "enterprise_managed",
           "servers": ["media"],
           "server_side_encryption_required": true,
+          "customer_managed_keys_required": true
+        }
+      ],
+      "state_stores": [
+        {
+          "id": "enterprise-gateway-duckdb",
+          "kind": "duckdb",
+          "owners": [
+            {
+              "kind": "gateway"
+            }
+          ],
+          "durable_volume_required": true,
+          "encrypted_at_rest_required": true,
+          "customer_managed_keys_required": true
+        },
+        {
+          "id": "enterprise-media-duckdb",
+          "kind": "duckdb",
+          "owners": [
+            {
+              "kind": "server",
+              "server": "media"
+            }
+          ],
+          "durable_volume_required": true,
+          "encrypted_at_rest_required": true,
           "customer_managed_keys_required": true
         }
       ],
@@ -172,6 +226,33 @@
           "kind": "enterprise_managed",
           "servers": ["media"],
           "server_side_encryption_required": true,
+          "customer_managed_keys_required": true
+        }
+      ],
+      "state_stores": [
+        {
+          "id": "regulated-gateway-duckdb",
+          "kind": "duckdb",
+          "owners": [
+            {
+              "kind": "gateway"
+            }
+          ],
+          "durable_volume_required": true,
+          "encrypted_at_rest_required": true,
+          "customer_managed_keys_required": true
+        },
+        {
+          "id": "regulated-media-duckdb",
+          "kind": "duckdb",
+          "owners": [
+            {
+              "kind": "server",
+              "server": "media"
+            }
+          ],
+          "durable_volume_required": true,
+          "encrypted_at_rest_required": true,
           "customer_managed_keys_required": true
         }
       ],

@@ -29,8 +29,8 @@ pub use deployment::{
     DeploymentRequirementId, DeploymentServiceKind, GatewayToServerIdentity, NetworkBoundaryRule,
     NetworkTarget, ObjectStoreDeployment, ObjectStoreKind, PublicDeployment, RegulatedDataControls,
     SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerPublicEndpoint,
-    ServiceToServiceSecurity, ServiceToServiceTransport, TelemetrySignal, TelemetrySinkDeployment,
-    TelemetrySinkKind,
+    ServiceToServiceSecurity, ServiceToServiceTransport, StateStoreDeployment, StateStoreKind,
+    StateStoreOwner, TelemetrySignal, TelemetrySinkDeployment, TelemetrySinkKind,
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,

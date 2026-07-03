@@ -87,6 +87,8 @@ pub struct SelfHostedDeploymentProfile {
     #[serde(default)]
     pub object_stores: Vec<ObjectStoreDeployment>,
     #[serde(default)]
+    pub state_stores: Vec<StateStoreDeployment>,
+    #[serde(default)]
     pub telemetry_sinks: Vec<TelemetrySinkDeployment>,
     #[serde(default)]
     pub ingress: Vec<NetworkBoundaryRule>,
@@ -171,6 +173,36 @@ pub enum ObjectStoreKind {
     AzureBlob,
     Gcs,
     EnterpriseManaged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StateStoreDeployment {
+    pub id: DeploymentRequirementId,
+    pub kind: StateStoreKind,
+    #[serde(default)]
+    pub owners: BTreeSet<StateStoreOwner>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<DeploymentEndpoint>,
+    pub durable_volume_required: bool,
+    pub encrypted_at_rest_required: bool,
+    pub customer_managed_keys_required: bool,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum StateStoreKind {
+    #[serde(rename = "duckdb")]
+    DuckDb,
+    EnterpriseManaged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum StateStoreOwner {
+    Gateway,
+    Server { server: ServerSlug },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -353,6 +385,7 @@ impl SelfHostedDeploymentProfile {
         require_nonempty(!self.secret_sources.is_empty(), &self.id, "secret_sources")?;
         self.validate_secret_sources()?;
         require_nonempty(!self.object_stores.is_empty(), &self.id, "object_stores")?;
+        require_nonempty(!self.state_stores.is_empty(), &self.id, "state_stores")?;
         require_nonempty(
             !self.telemetry_sinks.is_empty(),
             &self.id,
@@ -366,6 +399,10 @@ impl SelfHostedDeploymentProfile {
         for object_store in &self.object_stores {
             object_store.validate(&self.id)?;
         }
+        for state_store in &self.state_stores {
+            state_store.validate(&self.id)?;
+        }
+        self.validate_state_store_coverage()?;
         for telemetry_sink in &self.telemetry_sinks {
             telemetry_sink.validate(&self.id)?;
         }
@@ -475,6 +512,30 @@ impl SelfHostedDeploymentProfile {
             }
         }
 
+        for state_store in &self.state_stores {
+            if !state_store.durable_volume_required {
+                bail!(
+                    "deployment profile `{}` state store `{}` must require durable storage",
+                    self.id,
+                    state_store.id
+                );
+            }
+            if !state_store.encrypted_at_rest_required {
+                bail!(
+                    "deployment profile `{}` state store `{}` must require encryption at rest",
+                    self.id,
+                    state_store.id
+                );
+            }
+            if !state_store.customer_managed_keys_required {
+                bail!(
+                    "deployment profile `{}` state store `{}` must require customer-managed keys",
+                    self.id,
+                    state_store.id
+                );
+            }
+        }
+
         if !self
             .telemetry_sinks
             .iter()
@@ -482,6 +543,36 @@ impl SelfHostedDeploymentProfile {
         {
             bail!(
                 "deployment profile `{}` must export audit events to a telemetry sink",
+                self.id
+            );
+        }
+
+        Ok(())
+    }
+
+    fn validate_state_store_coverage(&self) -> Result<()> {
+        let has_gateway = self.state_stores.iter().any(|store| {
+            store
+                .owners
+                .iter()
+                .any(|owner| matches!(owner, StateStoreOwner::Gateway))
+        });
+        if !has_gateway {
+            bail!(
+                "deployment profile `{}` must declare a state store owned by the gateway",
+                self.id
+            );
+        }
+
+        let has_server = self.state_stores.iter().any(|store| {
+            store
+                .owners
+                .iter()
+                .any(|owner| matches!(owner, StateStoreOwner::Server { .. }))
+        });
+        if !has_server {
+            bail!(
+                "deployment profile `{}` must declare at least one hosted-server state store",
                 self.id
             );
         }
@@ -507,6 +598,25 @@ impl ObjectStoreDeployment {
         if self.customer_managed_keys_required && !self.server_side_encryption_required {
             bail!(
                 "deployment profile `{profile}` object store `{}` requires customer-managed keys without server-side encryption",
+                self.id
+            );
+        }
+        Ok(())
+    }
+}
+
+impl StateStoreDeployment {
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
+        require_nonempty(!self.owners.is_empty(), profile, "state_stores.owners")?;
+        if self.customer_managed_keys_required && !self.encrypted_at_rest_required {
+            bail!(
+                "deployment profile `{profile}` state store `{}` requires customer-managed keys without encryption at rest",
+                self.id
+            );
+        }
+        if matches!(self.kind, StateStoreKind::DuckDb) && self.endpoint.is_some() {
+            bail!(
+                "deployment profile `{profile}` DuckDB state store `{}` must not declare an endpoint",
                 self.id
             );
         }
@@ -816,6 +926,28 @@ mod tests {
     }
 
     #[test]
+    fn deployment_requires_gateway_and_server_state_stores() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].state_stores.clear();
+
+        let err = plan.validate().expect_err("state stores must be explicit");
+
+        assert!(err.to_string().contains("state_stores"));
+
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].state_stores[0].owners = BTreeSet::from([StateStoreOwner::Gateway]);
+        plan.profiles[0].state_stores[1].owners = BTreeSet::from([StateStoreOwner::Gateway]);
+
+        let err = plan
+            .validate()
+            .expect_err("hosted server state store must be explicit");
+
+        assert!(err.to_string().contains("hosted-server state store"));
+    }
+
+    #[test]
     fn regulated_deployment_requires_controls() {
         let mut plan: SelfHostedDeploymentPlan =
             serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
@@ -842,6 +974,22 @@ mod tests {
             .expect_err("enterprise service transport must fail");
 
         assert!(err.to_string().contains("requires mTLS"));
+    }
+
+    #[test]
+    fn enterprise_deployment_requires_hardened_state_store() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        harden_profile_for_enterprise(&mut plan.profiles[0]);
+        plan.profiles[0].kind = DeploymentProfileKind::Enterprise;
+        plan.profiles[0].state_stores[0].encrypted_at_rest_required = false;
+        plan.profiles[0].state_stores[0].customer_managed_keys_required = false;
+
+        let err = plan
+            .validate()
+            .expect_err("enterprise state store encryption must fail");
+
+        assert!(err.to_string().contains("must require encryption at rest"));
     }
 
     #[test]
@@ -897,6 +1045,11 @@ mod tests {
             object_store.server_side_encryption_required = true;
             object_store.customer_managed_keys_required = true;
         }
+        for state_store in &mut profile.state_stores {
+            state_store.durable_volume_required = true;
+            state_store.encrypted_at_rest_required = true;
+            state_store.customer_managed_keys_required = true;
+        }
         for sink in &mut profile.telemetry_sinks {
             sink.signals.insert(TelemetrySignal::AuditEvents);
         }
@@ -931,6 +1084,33 @@ mod tests {
                   "servers": ["media"],
                   "endpoint": "http://rustfs:9000",
                   "server_side_encryption_required": false,
+                  "customer_managed_keys_required": false
+                }
+              ],
+              "state_stores": [
+                {
+                  "id": "gateway-duckdb",
+                  "kind": "duckdb",
+                  "owners": [
+                    {
+                      "kind": "gateway"
+                    }
+                  ],
+                  "durable_volume_required": true,
+                  "encrypted_at_rest_required": false,
+                  "customer_managed_keys_required": false
+                },
+                {
+                  "id": "media-duckdb",
+                  "kind": "duckdb",
+                  "owners": [
+                    {
+                      "kind": "server",
+                      "server": "media"
+                    }
+                  ],
+                  "durable_volume_required": true,
+                  "encrypted_at_rest_required": false,
                   "customer_managed_keys_required": false
                 }
               ],
