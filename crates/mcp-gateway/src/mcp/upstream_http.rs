@@ -76,3 +76,135 @@ pub(super) async fn build_upstream_http_client(
         .build()
         .map_err(|err| mcp_internal(format!("failed to build upstream HTTP client: {err}")))
 }
+
+#[cfg(test)]
+mod tests {
+    use rcgen::generate_simple_self_signed;
+    use serde_json::json;
+    use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug};
+
+    use super::*;
+
+    const SMOKE_CONTROL_PLANE: &str = include_str!("../../../../configs/gateway.smoke.json");
+
+    #[tokio::test]
+    async fn builds_client_with_mutual_tls_material_from_typed_secrets() {
+        let certified_key = generate_simple_self_signed(vec!["media.internal".to_string()])
+            .expect("test certificate material");
+        let cert_pem = certified_key.cert.pem();
+        let key_pem = certified_key.signing_key.serialize_pem();
+        let ca_path = write_temp_ca(&cert_pem);
+        let cert_env = unique_env_name("CERT");
+        let key_env = unique_env_name("KEY");
+
+        set_test_env(&cert_env, &cert_pem);
+        set_test_env(&key_env, &key_pem);
+
+        let catalog = catalog_with_mutual_tls_upstream(&ca_path, &cert_env, &key_env);
+        let server = catalog
+            .server(&ServerSlug::new("media").expect("server slug"))
+            .expect("media server");
+
+        build_upstream_http_client(&catalog, server)
+            .await
+            .expect("mutual TLS upstream client");
+
+        let _ = std::fs::remove_file(ca_path);
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_mutual_tls_identity_material() {
+        let certified_key = generate_simple_self_signed(vec!["media.internal".to_string()])
+            .expect("test certificate material");
+        let cert_pem = certified_key.cert.pem();
+        let ca_path = write_temp_ca(&cert_pem);
+        let cert_env = unique_env_name("CERT");
+        let key_env = unique_env_name("KEY");
+
+        set_test_env(&cert_env, &cert_pem);
+        set_test_env(&key_env, "not a private key");
+
+        let catalog = catalog_with_mutual_tls_upstream(&ca_path, &cert_env, &key_env);
+        let server = catalog
+            .server(&ServerSlug::new("media").expect("server slug"))
+            .expect("media server");
+
+        let err = build_upstream_http_client(&catalog, server)
+            .await
+            .expect_err("invalid mutual TLS material must fail closed");
+        let message = format!("{err:?}");
+        assert!(
+            message.contains("failed to parse upstream TLS client identity"),
+            "unexpected error: {message}"
+        );
+
+        let _ = std::fs::remove_file(ca_path);
+    }
+
+    fn catalog_with_mutual_tls_upstream(
+        ca_path: &std::path::Path,
+        cert_env: &str,
+        key_env: &str,
+    ) -> GatewayCatalog {
+        let mut control_plane: serde_json::Value =
+            serde_json::from_str(SMOKE_CONTROL_PLANE).expect("smoke control plane json");
+        let upstream = &mut control_plane["servers"][0]["upstream"];
+        upstream["url"] = json!("https://media.internal/media/mcp");
+        upstream["security"] = json!("mutual_tls");
+        upstream["trusted_certificate_authorities"] = json!([
+            {
+                "source": "file",
+                "path": ca_path.to_string_lossy()
+            }
+        ]);
+        upstream["client_certificate"] = json!("media_upstream_tls_client_certificate");
+        upstream["client_private_key"] = json!("media_upstream_tls_client_private_key");
+
+        control_plane["secrets"]
+            .as_array_mut()
+            .expect("secrets array")
+            .extend([
+                json!({
+                    "id": "media_upstream_tls_client_certificate",
+                    "source": "env",
+                    "purpose": "tls_client_certificate",
+                    "locator": cert_env,
+                    "owner": {
+                        "kind": "gateway"
+                    }
+                }),
+                json!({
+                    "id": "media_upstream_tls_client_private_key",
+                    "source": "env",
+                    "purpose": "tls_client_private_key",
+                    "locator": key_env,
+                    "owner": {
+                        "kind": "gateway"
+                    }
+                }),
+            ]);
+
+        let control_plane: GatewayControlPlane =
+            serde_json::from_value(control_plane).expect("typed control plane");
+        GatewayCatalog::from_control_plane(control_plane).expect("validated catalog")
+    }
+
+    fn write_temp_ca(cert_pem: &str) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("veoveo-upstream-ca-{}.pem", uuid::Uuid::new_v4()));
+        std::fs::write(&path, cert_pem).expect("write CA certificate");
+        path
+    }
+
+    fn unique_env_name(label: &str) -> String {
+        format!("VEOVEO_TEST_UPSTREAM_TLS_{label}_{}", uuid::Uuid::new_v4()).replace('-', "_")
+    }
+
+    fn set_test_env(name: &str, value: &str) {
+        // Rust 2024 marks process environment mutation unsafe because other threads may read it.
+        // The tests use unique variable names and never mutate the same key twice.
+        unsafe {
+            std::env::set_var(name, value);
+        }
+    }
+}

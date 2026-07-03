@@ -38,3 +38,4 @@ veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
 
 [dev-dependencies]
 base64.workspace = true
+rcgen.workspace = true
