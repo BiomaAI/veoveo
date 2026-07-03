@@ -60,19 +60,20 @@ use serde_json::{Value, json};
 use url::Url;
 use veoveo_mcp_contract::{
     AccessTokenSubject, ArtifactMetadata, AuditEvent, AuthAuditEvent, ComplianceMetadata,
-    DataRetentionPolicy, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord,
-    GatewayAuthorizationRequest, GatewayControlPlane, GatewayInternalIdentity,
-    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayJwtRevocation,
-    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
-    GatewayProfile, GatewayProfileId, GatewayResourceProjection, GatewayResourceSubscription,
-    GatewayTaskMapping, GenerationPredictionSummary, GenerationRunOutput, IdentityProvider,
-    IdentityProviderOidcClientRegistration, InternalTokenSecret, McpSurfaceCapabilities,
-    OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision, PolicyRule, PolicySet,
-    Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind, ProfileServerExposure,
-    RegulatedDataControls, ResourceAuthorizationServer, ScopeName, SecretReference,
-    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
-    ServerSlug, ServiceToServiceSecurity, TelemetrySinkDeployment, TenantId, TokenIssuer,
-    TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
+    DataLabelDefinition, DataRetentionPolicy, GATEWAY_INTERNAL_TOKEN_ISSUER,
+    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
+    GatewayInternalIdentity, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
+    GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
+    GatewayResourceSubscription, GatewayTaskMapping, GenerationPredictionSummary,
+    GenerationRunOutput, IdentityProvider, IdentityProviderOidcClientRegistration,
+    InternalTokenSecret, McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
+    PolicyDecision, PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId,
+    PrincipalKind, ProfileServerExposure, RegulatedDataControls, ResourceAuthorizationServer,
+    ScopeName, SecretReference, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile,
+    ServerManifest, ServerResourceUris, ServerSlug, ServiceToServiceSecurity,
+    TelemetrySinkDeployment, TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord,
+    UsageReport,
 };
 
 #[path = "conformance/auth_discovery.rs"]

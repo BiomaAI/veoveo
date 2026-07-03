@@ -135,6 +135,7 @@ mod tests {
             servers: Vec::new(),
             profiles: Vec::new(),
             policies: Vec::new(),
+            data_labels: Vec::new(),
             oauth_clients: Vec::new(),
             oidc_clients: Vec::new(),
             secrets: Vec::new(),

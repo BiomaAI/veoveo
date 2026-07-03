@@ -65,6 +65,20 @@ impl GatewayCatalog {
             );
         };
 
+        if request
+            .principal
+            .data_labels
+            .iter()
+            .any(|label| self.data_label(label).is_none())
+        {
+            return deny(
+                &request,
+                PolicyReasonCode::UnknownDataLabel,
+                request.target.clone(),
+                Some(policy.version.clone()),
+            );
+        }
+
         if let Err(reason) = self.profile_allows_target(profile, request.action, request.target) {
             return deny(
                 &request,

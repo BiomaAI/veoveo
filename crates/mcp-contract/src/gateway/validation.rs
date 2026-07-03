@@ -403,6 +403,7 @@ pub(super) fn validate_policy_set(
     profiles: &BTreeSet<GatewayProfileId>,
     servers: &BTreeMap<ServerSlug, &ServerManifest>,
     resource_schemes: &BTreeSet<ResourceScheme>,
+    data_labels: &BTreeSet<DataLabelId>,
 ) -> Result<(), GatewayControlPlaneError> {
     let mut rules = BTreeSet::new();
     for rule in &policy.rules {
@@ -473,6 +474,15 @@ pub(super) fn validate_policy_set(
                     policy: policy.version.clone(),
                     rule: rule.id.clone(),
                     prompt: prompt.clone(),
+                });
+            }
+        }
+        for label in &rule.required_data_labels {
+            if !data_labels.contains(label) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRuleDataLabel {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    label: label.clone(),
                 });
             }
         }

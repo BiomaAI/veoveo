@@ -79,17 +79,7 @@ pub(crate) async fn gateway_two_servers(
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        [
-            "serve".into(),
-            "--port".into(),
-            gateway_port.to_string().into(),
-            "--public-base-url".into(),
-            PUBLIC_BASE_URL.into(),
-            "--control-plane".into(),
-            generated_control_plane.as_os_str().to_os_string(),
-            "--state-db".into(),
-            gateway_state_db.as_os_str().to_os_string(),
-        ],
+        gateway_serve_args(gateway_port, &generated_control_plane, &gateway_state_db),
         [
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             (

@@ -37,6 +37,8 @@ mod auth_config;
 pub use auth_config::*;
 mod ids;
 pub use ids::*;
+mod data_label;
+pub use data_label::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayControlPlane {
@@ -45,6 +47,7 @@ pub struct GatewayControlPlane {
     pub servers: Vec<ServerManifest>,
     pub profiles: Vec<GatewayProfile>,
     pub policies: Vec<PolicySet>,
+    pub data_labels: Vec<DataLabelDefinition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub oauth_clients: Vec<OAuthClientRegistration>,
     pub oidc_clients: Vec<IdentityProviderOidcClientRegistration>,
@@ -138,6 +141,15 @@ impl GatewayControlPlane {
             policy_by_id.insert(policy.version.clone(), policy);
         }
 
+        let mut data_labels = BTreeSet::new();
+        for data_label in &self.data_labels {
+            if !data_labels.insert(data_label.id.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateDataLabel(
+                    data_label.id.clone(),
+                ));
+            }
+        }
+
         let mut profiles = BTreeSet::new();
         let mut profile_by_id = BTreeMap::new();
         for profile in &self.profiles {
@@ -187,7 +199,7 @@ impl GatewayControlPlane {
         }
 
         for policy in &self.policies {
-            validate_policy_set(policy, &profiles, &servers, &resource_schemes)?;
+            validate_policy_set(policy, &profiles, &servers, &resource_schemes, &data_labels)?;
         }
 
         let mut secrets = BTreeSet::new();
@@ -317,6 +329,7 @@ pub enum GatewayControlPlaneError {
     DuplicateResourceScheme(ResourceScheme),
     DuplicateProfile(GatewayProfileId),
     DuplicatePolicy(PolicyVersion),
+    DuplicateDataLabel(DataLabelId),
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
@@ -357,6 +370,11 @@ pub enum GatewayControlPlaneError {
         policy: PolicyVersion,
         rule: PolicyRuleId,
         prompt: PromptName,
+    },
+    UnknownPolicyRuleDataLabel {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        label: DataLabelId,
     },
     PolicyRuleActionUnsupportedByServerScope {
         policy: PolicyVersion,
@@ -612,6 +630,7 @@ impl fmt::Display for GatewayControlPlaneError {
             }
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
+            Self::DuplicateDataLabel(label) => write!(f, "duplicate data label `{label}`"),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
             Self::DuplicateOAuthClient(client) => {
                 write!(f, "duplicate OAuth client registration `{client}`")
@@ -669,6 +688,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "policy `{policy}` rule `{rule}` references unknown prompt `{prompt}` in its server scope"
+            ),
+            Self::UnknownPolicyRuleDataLabel {
+                policy,
+                rule,
+                label,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown data label `{label}`"
             ),
             Self::PolicyRuleActionUnsupportedByServerScope {
                 policy,

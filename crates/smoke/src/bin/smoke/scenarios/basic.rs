@@ -107,6 +107,10 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("principal-audit-attributes.schema.json"),
         "PrincipalAuditAttributes",
     )?;
+    assert_schema_title(
+        &schemas.join("data-label-definition.schema.json"),
+        "DataLabelDefinition",
+    )?;
     let artifact = assert_schema_title(
         &schemas.join("artifact-metadata.schema.json"),
         "ArtifactMetadata",
@@ -169,17 +173,7 @@ pub(crate) async fn otel(conformance: &Path, gateway: &Path, control_plane: &Pat
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        [
-            "serve".into(),
-            "--port".into(),
-            gateway_port.to_string().into(),
-            "--public-base-url".into(),
-            PUBLIC_BASE_URL.into(),
-            "--control-plane".into(),
-            control_plane.as_os_str().to_os_string(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
-        ],
+        gateway_serve_args(gateway_port, control_plane, &state_db),
         [
             ("OTEL_EXPORTER_OTLP_ENDPOINT", otlp_base.into()),
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),

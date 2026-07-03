@@ -135,6 +135,7 @@ fn control_plane_with_server_and_secrets(
         servers: vec![server],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets,
@@ -165,6 +166,32 @@ fn default_policy() -> PolicySet {
         }],
         metadata: Value::Null,
     }
+}
+
+fn default_data_labels() -> Vec<DataLabelDefinition> {
+    vec![
+        DataLabelDefinition {
+            id: DataLabelId::new("cui").unwrap(),
+            title: Some("Controlled Unclassified Information".to_string()),
+            description: None,
+            regulated: true,
+            metadata: Value::Null,
+        },
+        DataLabelDefinition {
+            id: DataLabelId::new("itar").unwrap(),
+            title: Some("ITAR-controlled data".to_string()),
+            description: None,
+            regulated: true,
+            metadata: Value::Null,
+        },
+        DataLabelDefinition {
+            id: DataLabelId::new("pii").unwrap(),
+            title: Some("Personally Identifiable Information".to_string()),
+            description: None,
+            regulated: true,
+            metadata: Value::Null,
+        },
+    ]
 }
 
 fn default_profile() -> GatewayProfile {
@@ -326,6 +353,7 @@ fn control_plane_validates_upstream_transport_security() {
         servers: vec![loopback_manifest],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -344,6 +372,7 @@ fn control_plane_validates_upstream_transport_security() {
         servers: vec![mesh_manifest],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -364,6 +393,7 @@ fn control_plane_validates_upstream_transport_security() {
         servers: vec![public_plaintext_manifest],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -512,6 +542,7 @@ fn control_plane_validates_cross_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: vec![
@@ -545,6 +576,7 @@ fn control_plane_rejects_unknown_server_reference() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -569,6 +601,7 @@ fn control_plane_rejects_duplicate_profile_server_reference() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -595,6 +628,7 @@ fn control_plane_rejects_unknown_profile_tool() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -621,6 +655,7 @@ fn control_plane_rejects_unknown_profile_prompt() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -649,6 +684,7 @@ fn control_plane_rejects_profile_resource_scheme_mismatch() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -675,6 +711,7 @@ fn control_plane_rejects_disabled_profile_capability() {
         servers: vec![manifest],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -704,6 +741,7 @@ fn control_plane_rejects_unknown_identity_provider_reference() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -730,6 +768,7 @@ fn control_plane_rejects_unknown_authorization_server_reference() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -756,6 +795,7 @@ fn control_plane_rejects_authorization_server_unknown_identity_provider() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -782,6 +822,7 @@ fn control_plane_rejects_profile_without_auth_modes() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -808,6 +849,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -836,6 +878,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -867,6 +910,7 @@ fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -894,6 +938,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: vec![
@@ -928,6 +973,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: vec![
@@ -965,6 +1011,7 @@ fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: vec![],
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -991,6 +1038,7 @@ fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: vec![],
         secrets: default_secrets(),
@@ -1017,6 +1065,7 @@ fn control_plane_rejects_oidc_client_without_openid_scope() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: clients,
         secrets: default_secrets(),
@@ -1043,6 +1092,7 @@ fn control_plane_rejects_public_client_credentials() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: clients,
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1069,6 +1119,7 @@ fn control_plane_rejects_private_key_jwt_without_jwks() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: clients,
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1101,6 +1152,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: clients,
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1126,6 +1178,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: clients,
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1154,6 +1207,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: clients,
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1182,6 +1236,7 @@ fn control_plane_rejects_oauth_client_missing_required_scope() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: clients,
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1208,6 +1263,7 @@ fn control_plane_rejects_duplicate_resource_schemes() {
         servers: vec![media_manifest(), second_server],
         profiles: vec![default_profile()],
         policies: vec![default_policy()],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1234,6 +1290,7 @@ fn control_plane_rejects_duplicate_policy_rule_ids() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1260,6 +1317,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1283,6 +1341,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1306,6 +1365,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1329,6 +1389,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1352,6 +1413,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1367,6 +1429,31 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         GatewayControlPlaneError::UnknownPolicyRulePrompt { .. }
     ));
 
+    let mut policy = default_policy();
+    policy.rules[0].required_data_labels =
+        BTreeSet::from([DataLabelId::new("unknown_label").unwrap()]);
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest()],
+        profiles: vec![default_profile()],
+        policies: vec![policy],
+        data_labels: default_data_labels(),
+        oauth_clients: default_oauth_clients(),
+        oidc_clients: default_oidc_clients(),
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+
+    let err = config
+        .validate()
+        .expect_err("unknown policy data label must fail");
+
+    assert!(matches!(
+        err,
+        GatewayControlPlaneError::UnknownPolicyRuleDataLabel { .. }
+    ));
+
     let mut simulation_server = media_manifest();
     simulation_server.slug = ServerSlug::new("simulation").unwrap();
     simulation_server.uri_scheme = ResourceScheme::new("simulation").unwrap();
@@ -1378,6 +1465,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         servers: vec![media_manifest(), simulation_server],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),
@@ -1408,6 +1496,7 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
         servers: vec![manifest],
         profiles: vec![default_profile()],
         policies: vec![policy],
+        data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
         oidc_clients: default_oidc_clients(),
         secrets: default_secrets(),

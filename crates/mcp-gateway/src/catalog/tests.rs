@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use rmcp::handler::server::ServerHandler;
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    AuthMode, AuthorizationServerId, CompletionExposure, DataLabelId, Exposure,
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayControlPlaneError,
+    AuthMode, AuthorizationServerId, CompletionExposure, DataLabelDefinition, DataLabelId,
+    Exposure, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayControlPlaneError,
     GatewayInternalTokenIssuer, GatewayTaskId, GroupId, HttpsUrl, IdentityProvider,
     IdentityProviderId, IdentityProviderOidcClientRegistration, InternalTokenSecret, JwksSource,
     JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
@@ -145,6 +145,32 @@ fn policy() -> PolicySet {
     }
 }
 
+fn data_labels() -> Vec<DataLabelDefinition> {
+    vec![
+        DataLabelDefinition {
+            id: DataLabelId::new("cui").unwrap(),
+            title: Some("Controlled Unclassified Information".to_string()),
+            description: None,
+            regulated: true,
+            metadata: Value::Null,
+        },
+        DataLabelDefinition {
+            id: DataLabelId::new("itar").unwrap(),
+            title: Some("ITAR-controlled data".to_string()),
+            description: None,
+            regulated: true,
+            metadata: Value::Null,
+        },
+        DataLabelDefinition {
+            id: DataLabelId::new("pii").unwrap(),
+            title: Some("Personally Identifiable Information".to_string()),
+            description: None,
+            regulated: true,
+            metadata: Value::Null,
+        },
+    ]
+}
+
 fn profile() -> GatewayProfile {
     GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
@@ -255,6 +281,7 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
         servers: vec![media_manifest()],
         profiles: vec![profile],
         policies: vec![policy],
+        data_labels: data_labels(),
         oauth_clients: oauth_clients(),
         oidc_clients: oidc_clients(),
         secrets: vec![
@@ -479,6 +506,26 @@ fn policy_denies_missing_required_data_label_with_specific_reason() {
 
     assert_eq!(decision.effect, PolicyEffect::Allow);
     assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
+}
+
+#[test]
+fn policy_denies_principal_with_unknown_data_label() {
+    let catalog = catalog();
+    let mut principal = principal(&["media:use"]);
+    principal.data_labels = BTreeSet::from([DataLabelId::new("unknown_label").unwrap()]);
+    let decision = catalog.decide(PolicyRequest {
+        principal: &principal,
+        profile: &GatewayProfileId::new("default").unwrap(),
+        action: GatewayAction::ToolsCall,
+        target: &PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: LocalToolName::new("run").unwrap(),
+        },
+        trace_id: &TraceId::new("trace-unknown-label").unwrap(),
+    });
+
+    assert_eq!(decision.effect, PolicyEffect::Deny);
+    assert_eq!(decision.reason, PolicyReasonCode::UnknownDataLabel);
 }
 
 #[test]
@@ -892,6 +939,7 @@ fn keeps_contract_validation_errors_visible() {
             profile
         }],
         policies: vec![policy()],
+        data_labels: data_labels(),
         oauth_clients: oauth_clients(),
         oidc_clients: oidc_clients(),
         secrets: vec![signing_secret(), oidc_client_secret()],

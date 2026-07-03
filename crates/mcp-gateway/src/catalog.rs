@@ -3,10 +3,10 @@ use std::{collections::BTreeMap, fs, path::Path, sync::Arc};
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use veoveo_mcp_contract::{
-    AuthorizationServerId, GatewayControlPlane, GatewayProfile, GatewayProfileId, IdentityProvider,
-    IdentityProviderId, OAuthClientId, OAuthClientRegistration, OidcClientRegistrationId,
-    PolicySet, PolicyVersion, ResourceAuthorizationServer, SecretReference, SecretReferenceId,
-    ServerManifest, ServerSlug,
+    AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
+    GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
+    OidcClientRegistrationId, PolicySet, PolicyVersion, ResourceAuthorizationServer,
+    SecretReference, SecretReferenceId, ServerManifest, ServerSlug,
 };
 
 use crate::policy::{exposure_contains, resource_scheme};
@@ -75,6 +75,7 @@ pub struct GatewayCatalog {
     servers: BTreeMap<ServerSlug, usize>,
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
+    data_labels: BTreeMap<DataLabelId, usize>,
     oauth_clients: BTreeMap<OAuthClientId, usize>,
     oidc_clients: BTreeMap<OidcClientRegistrationId, usize>,
     secrets: BTreeMap<SecretReferenceId, usize>,
@@ -114,6 +115,12 @@ impl GatewayCatalog {
             .enumerate()
             .map(|(index, policy)| (policy.version.clone(), index))
             .collect();
+        let data_labels = control_plane
+            .data_labels
+            .iter()
+            .enumerate()
+            .map(|(index, data_label)| (data_label.id.clone(), index))
+            .collect();
         let oauth_clients = control_plane
             .oauth_clients
             .iter()
@@ -140,6 +147,7 @@ impl GatewayCatalog {
             servers,
             profiles,
             policies,
+            data_labels,
             oauth_clients,
             oidc_clients,
             secrets,
@@ -312,6 +320,12 @@ impl GatewayCatalog {
         self.policies
             .get(version)
             .map(|index| &self.control_plane.policies[*index])
+    }
+
+    pub fn data_label(&self, label: &DataLabelId) -> Option<&DataLabelDefinition> {
+        self.data_labels
+            .get(label)
+            .map(|index| &self.control_plane.data_labels[*index])
     }
 }
 

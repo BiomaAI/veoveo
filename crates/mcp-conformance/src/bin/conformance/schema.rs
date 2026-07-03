@@ -53,6 +53,11 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(schemas, "policy-set.schema.json", PolicySet);
     add_schema!(schemas, "policy-rule.schema.json", PolicyRule);
+    add_schema!(
+        schemas,
+        "data-label-definition.schema.json",
+        DataLabelDefinition
+    );
     add_schema!(schemas, "principal.schema.json", Principal);
     add_schema!(
         schemas,
