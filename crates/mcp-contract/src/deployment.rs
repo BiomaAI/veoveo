@@ -564,17 +564,33 @@ impl SelfHostedDeploymentProfile {
             );
         }
 
-        let has_server = self.state_stores.iter().any(|store| {
-            store
-                .owners
-                .iter()
-                .any(|owner| matches!(owner, StateStoreOwner::Server { .. }))
-        });
-        if !has_server {
+        let deployed_servers = self
+            .object_stores
+            .iter()
+            .flat_map(|store| store.servers.iter().cloned())
+            .collect::<BTreeSet<_>>();
+        let state_store_servers = self
+            .state_stores
+            .iter()
+            .flat_map(|store| store.owners.iter())
+            .filter_map(|owner| match owner {
+                StateStoreOwner::Gateway => None,
+                StateStoreOwner::Server { server } => Some(server.clone()),
+            })
+            .collect::<BTreeSet<_>>();
+        if state_store_servers.is_empty() {
             bail!(
                 "deployment profile `{}` must declare at least one hosted-server state store",
                 self.id
             );
+        }
+        for server in deployed_servers {
+            if !state_store_servers.contains(&server) {
+                bail!(
+                    "deployment profile `{}` must declare a state store for hosted server `{server}`",
+                    self.id
+                );
+            }
         }
 
         Ok(())
@@ -945,6 +961,39 @@ mod tests {
             .expect_err("hosted server state store must be explicit");
 
         assert!(err.to_string().contains("hosted-server state store"));
+    }
+
+    #[test]
+    fn deployment_requires_state_store_for_every_deployed_server() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].object_stores[0]
+            .servers
+            .insert(ServerSlug::new("simulation").unwrap());
+
+        let err = plan
+            .validate()
+            .expect_err("each deployed server must have explicit state");
+
+        assert!(
+            err.to_string()
+                .contains("must declare a state store for hosted server `simulation`")
+        );
+
+        plan.profiles[0].state_stores.push(StateStoreDeployment {
+            id: DeploymentRequirementId::new("simulation-duckdb").unwrap(),
+            kind: StateStoreKind::DuckDb,
+            owners: BTreeSet::from([StateStoreOwner::Server {
+                server: ServerSlug::new("simulation").unwrap(),
+            }]),
+            endpoint: None,
+            durable_volume_required: true,
+            encrypted_at_rest_required: false,
+            customer_managed_keys_required: false,
+        });
+
+        plan.validate()
+            .expect("server state-store coverage should validate");
     }
 
     #[test]
