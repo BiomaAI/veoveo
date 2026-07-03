@@ -6,7 +6,7 @@ use veoveo_mcp_contract::{
     AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
     OidcClientRegistrationId, PolicySet, PolicyVersion, ResourceAuthorizationServer,
-    SecretReference, SecretReferenceId, ServerManifest, ServerSlug,
+    SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TenantDefinition, TenantId,
 };
 
 use crate::policy::{exposure_contains, resource_scheme};
@@ -76,6 +76,7 @@ pub struct GatewayCatalog {
     profiles: BTreeMap<GatewayProfileId, usize>,
     policies: BTreeMap<PolicyVersion, usize>,
     data_labels: BTreeMap<DataLabelId, usize>,
+    tenants: BTreeMap<TenantId, usize>,
     oauth_clients: BTreeMap<OAuthClientId, usize>,
     oidc_clients: BTreeMap<OidcClientRegistrationId, usize>,
     secrets: BTreeMap<SecretReferenceId, usize>,
@@ -121,6 +122,12 @@ impl GatewayCatalog {
             .enumerate()
             .map(|(index, data_label)| (data_label.id.clone(), index))
             .collect();
+        let tenants = control_plane
+            .tenants
+            .iter()
+            .enumerate()
+            .map(|(index, tenant)| (tenant.id.clone(), index))
+            .collect();
         let oauth_clients = control_plane
             .oauth_clients
             .iter()
@@ -148,6 +155,7 @@ impl GatewayCatalog {
             profiles,
             policies,
             data_labels,
+            tenants,
             oauth_clients,
             oidc_clients,
             secrets,
@@ -326,6 +334,12 @@ impl GatewayCatalog {
         self.data_labels
             .get(label)
             .map(|index| &self.control_plane.data_labels[*index])
+    }
+
+    pub fn tenant(&self, tenant: &TenantId) -> Option<&TenantDefinition> {
+        self.tenants
+            .get(tenant)
+            .map(|index| &self.control_plane.tenants[*index])
     }
 }
 

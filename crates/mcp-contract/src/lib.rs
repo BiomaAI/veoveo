@@ -56,8 +56,8 @@ pub use gateway::{
     ResourceAuthorizationServer, ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix,
     ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
     SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug, TaskExposure,
-    TaskIdProjection, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
-    UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+    TaskIdProjection, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId,
+    UpstreamEndpoint, UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{

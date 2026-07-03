@@ -79,6 +79,17 @@ impl GatewayCatalog {
             );
         }
 
+        if let Some(tenant) = &request.principal.tenant
+            && self.tenant(tenant).is_none()
+        {
+            return deny(
+                &request,
+                PolicyReasonCode::UnknownTenant,
+                request.target.clone(),
+                Some(policy.version.clone()),
+            );
+        }
+
         if let Err(reason) = self.profile_allows_target(profile, request.action, request.target) {
             return deny(
                 &request,

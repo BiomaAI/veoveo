@@ -72,8 +72,8 @@ use veoveo_mcp_contract::{
     PrincipalKind, ProfileServerExposure, RegulatedDataControls, ResourceAuthorizationServer,
     ScopeName, SecretReference, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile,
     ServerManifest, ServerResourceUris, ServerSlug, ServiceToServiceSecurity,
-    TelemetrySinkDeployment, TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord,
-    UsageReport,
+    TelemetrySinkDeployment, TenantDefinition, TenantId, TokenIssuer, TokenSubject,
+    UpstreamEndpoint, UsageRecord, UsageReport,
 };
 
 #[path = "conformance/auth_discovery.rs"]

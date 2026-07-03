@@ -404,6 +404,7 @@ pub(super) fn validate_policy_set(
     servers: &BTreeMap<ServerSlug, &ServerManifest>,
     resource_schemes: &BTreeSet<ResourceScheme>,
     data_labels: &BTreeSet<DataLabelId>,
+    tenants: &BTreeSet<TenantId>,
 ) -> Result<(), GatewayControlPlaneError> {
     let mut rules = BTreeSet::new();
     for rule in &policy.rules {
@@ -483,6 +484,15 @@ pub(super) fn validate_policy_set(
                     policy: policy.version.clone(),
                     rule: rule.id.clone(),
                     label: label.clone(),
+                });
+            }
+        }
+        for tenant in &rule.tenant_ids {
+            if !tenants.contains(tenant) {
+                return Err(GatewayControlPlaneError::UnknownPolicyRuleTenant {
+                    policy: policy.version.clone(),
+                    rule: rule.id.clone(),
+                    tenant: tenant.clone(),
                 });
             }
         }

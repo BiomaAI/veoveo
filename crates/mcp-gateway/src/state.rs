@@ -134,6 +134,7 @@ mod tests {
             authorization_servers: Vec::new(),
             servers: Vec::new(),
             profiles: Vec::new(),
+            tenants: Vec::new(),
             policies: Vec::new(),
             data_labels: Vec::new(),
             oauth_clients: Vec::new(),

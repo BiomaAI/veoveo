@@ -58,6 +58,7 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         "data-label-definition.schema.json",
         DataLabelDefinition
     );
+    add_schema!(schemas, "tenant-definition.schema.json", TenantDefinition);
     add_schema!(schemas, "principal.schema.json", Principal);
     add_schema!(
         schemas,

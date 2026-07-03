@@ -134,6 +134,7 @@ fn control_plane_with_server_and_secrets(
         authorization_servers: vec![authorization_server()],
         servers: vec![server],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -192,6 +193,15 @@ fn default_data_labels() -> Vec<DataLabelDefinition> {
             metadata: Value::Null,
         },
     ]
+}
+
+fn default_tenants() -> Vec<TenantDefinition> {
+    vec![TenantDefinition {
+        id: TenantId::new("tenant-a").unwrap(),
+        title: Some("Tenant A".to_string()),
+        description: None,
+        metadata: Value::Null,
+    }]
 }
 
 fn default_profile() -> GatewayProfile {
@@ -352,6 +362,7 @@ fn control_plane_validates_upstream_transport_security() {
         authorization_servers: vec![authorization_server()],
         servers: vec![loopback_manifest],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -371,6 +382,7 @@ fn control_plane_validates_upstream_transport_security() {
         authorization_servers: vec![authorization_server()],
         servers: vec![mesh_manifest],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -392,6 +404,7 @@ fn control_plane_validates_upstream_transport_security() {
         authorization_servers: vec![authorization_server()],
         servers: vec![public_plaintext_manifest],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -541,6 +554,7 @@ fn control_plane_validates_cross_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -575,6 +589,7 @@ fn control_plane_rejects_unknown_server_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -600,6 +615,7 @@ fn control_plane_rejects_duplicate_profile_server_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -627,6 +643,7 @@ fn control_plane_rejects_unknown_profile_tool() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -654,6 +671,7 @@ fn control_plane_rejects_unknown_profile_prompt() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -683,6 +701,7 @@ fn control_plane_rejects_profile_resource_scheme_mismatch() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -710,6 +729,7 @@ fn control_plane_rejects_disabled_profile_capability() {
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -740,6 +760,7 @@ fn control_plane_rejects_unknown_identity_provider_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -767,6 +788,7 @@ fn control_plane_rejects_unknown_authorization_server_reference() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -794,6 +816,7 @@ fn control_plane_rejects_authorization_server_unknown_identity_provider() {
         authorization_servers: vec![authorization_server],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -821,6 +844,7 @@ fn control_plane_rejects_profile_without_auth_modes() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -848,6 +872,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
         authorization_servers: vec![auth_server],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -877,6 +902,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -909,6 +935,7 @@ fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -937,6 +964,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -972,6 +1000,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1001,6 +1030,42 @@ fn control_plane_rejects_unknown_secret_owner_references() {
         err,
         GatewayControlPlaneError::UnknownSecretOwnerServer { .. }
     ));
+
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest()],
+        profiles: vec![default_profile()],
+        tenants: default_tenants(),
+        policies: vec![default_policy()],
+        data_labels: default_data_labels(),
+        oauth_clients: default_oauth_clients(),
+        oidc_clients: default_oidc_clients(),
+        secrets: vec![
+            signing_secret(),
+            SecretReference {
+                id: SecretReferenceId::new("tenant_secret").unwrap(),
+                source: SecretSource::Env,
+                purpose: SecretPurpose::TokenExchangeCredential,
+                locator: SecretLocator::new("TENANT_SECRET").unwrap(),
+                owner: SecretOwner::Tenant {
+                    tenant: TenantId::new("missing").unwrap(),
+                },
+                rotation_hint: None,
+                metadata: Value::Null,
+            },
+        ],
+        metadata: Value::Null,
+    };
+
+    let err = config
+        .validate()
+        .expect_err("unknown tenant secret owner must fail");
+
+    assert!(matches!(
+        err,
+        GatewayControlPlaneError::UnknownSecretOwnerTenant { .. }
+    ));
 }
 
 #[test]
@@ -1010,6 +1075,7 @@ fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: vec![],
@@ -1037,6 +1103,7 @@ fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1064,6 +1131,7 @@ fn control_plane_rejects_oidc_client_without_openid_scope() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1091,6 +1159,7 @@ fn control_plane_rejects_public_client_credentials() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: clients,
@@ -1118,6 +1187,7 @@ fn control_plane_rejects_private_key_jwt_without_jwks() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: clients,
@@ -1151,6 +1221,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: clients,
@@ -1177,6 +1248,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: clients,
@@ -1206,6 +1278,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: clients,
@@ -1235,6 +1308,7 @@ fn control_plane_rejects_oauth_client_missing_required_scope() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: clients,
@@ -1262,6 +1336,7 @@ fn control_plane_rejects_duplicate_resource_schemes() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), second_server],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![default_policy()],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1281,6 +1356,40 @@ fn control_plane_rejects_duplicate_resource_schemes() {
 }
 
 #[test]
+fn control_plane_rejects_duplicate_tenants() {
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest()],
+        profiles: vec![default_profile()],
+        tenants: vec![
+            TenantDefinition {
+                id: TenantId::new("tenant-a").unwrap(),
+                title: Some("Tenant A".to_string()),
+                description: None,
+                metadata: Value::Null,
+            },
+            TenantDefinition {
+                id: TenantId::new("tenant-a").unwrap(),
+                title: Some("Tenant A duplicate".to_string()),
+                description: None,
+                metadata: Value::Null,
+            },
+        ],
+        policies: vec![default_policy()],
+        data_labels: default_data_labels(),
+        oauth_clients: default_oauth_clients(),
+        oidc_clients: default_oidc_clients(),
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+
+    let err = config.validate().expect_err("duplicate tenants must fail");
+
+    assert!(matches!(err, GatewayControlPlaneError::DuplicateTenant(_)));
+}
+
+#[test]
 fn control_plane_rejects_duplicate_policy_rule_ids() {
     let mut policy = default_policy();
     policy.rules.push(policy.rules[0].clone());
@@ -1289,6 +1398,7 @@ fn control_plane_rejects_duplicate_policy_rule_ids() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1316,6 +1426,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1340,6 +1451,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1364,6 +1476,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1388,6 +1501,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1412,6 +1526,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1437,6 +1552,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1454,6 +1570,31 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         GatewayControlPlaneError::UnknownPolicyRuleDataLabel { .. }
     ));
 
+    let mut policy = default_policy();
+    policy.rules[0].tenant_ids = BTreeSet::from([TenantId::new("missing").unwrap()]);
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest()],
+        profiles: vec![default_profile()],
+        tenants: default_tenants(),
+        policies: vec![policy],
+        data_labels: default_data_labels(),
+        oauth_clients: default_oauth_clients(),
+        oidc_clients: default_oidc_clients(),
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+
+    let err = config
+        .validate()
+        .expect_err("unknown policy tenant must fail");
+
+    assert!(matches!(
+        err,
+        GatewayControlPlaneError::UnknownPolicyRuleTenant { .. }
+    ));
+
     let mut simulation_server = media_manifest();
     simulation_server.slug = ServerSlug::new("simulation").unwrap();
     simulation_server.uri_scheme = ResourceScheme::new("simulation").unwrap();
@@ -1464,6 +1605,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), simulation_server],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),
@@ -1495,6 +1637,7 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],
         profiles: vec![default_profile()],
+        tenants: default_tenants(),
         policies: vec![policy],
         data_labels: default_data_labels(),
         oauth_clients: default_oauth_clients(),

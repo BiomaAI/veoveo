@@ -184,6 +184,13 @@
       "metadata": {}
     }
   ],
+  "tenants": [
+    {
+      "id": "tenant-a",
+      "title": "Smoke tenant",
+      "metadata": {}
+    }
+  ],
   "oauth_clients": [
     {
       "id": "veoveo-browser",

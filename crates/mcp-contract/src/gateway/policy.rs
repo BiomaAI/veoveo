@@ -247,6 +247,7 @@ pub enum PolicyReasonCode {
     UnknownPrincipal,
     UnknownScope,
     UnknownDataLabel,
+    UnknownTenant,
     UnknownTokenIssuer,
     MissingPrincipal,
     MissingTenant,

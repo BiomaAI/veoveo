@@ -16,7 +16,7 @@ use veoveo_mcp_contract::{
     PrincipalKind, ProfileServerExposure, ProtectedResourceId, ResourceAuthorizationServer,
     ResourceScheme, ResourceSelector, ResourceUri, ResourceUriTemplate, RoleId, ScopeName,
     SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
-    TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
     UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 
@@ -171,6 +171,15 @@ fn data_labels() -> Vec<DataLabelDefinition> {
     ]
 }
 
+fn tenants() -> Vec<TenantDefinition> {
+    vec![TenantDefinition {
+        id: TenantId::new("tenant-a").unwrap(),
+        title: Some("Tenant A".to_string()),
+        description: None,
+        metadata: Value::Null,
+    }]
+}
+
 fn profile() -> GatewayProfile {
     GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
@@ -280,6 +289,7 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        tenants: tenants(),
         policies: vec![policy],
         data_labels: data_labels(),
         oauth_clients: oauth_clients(),
@@ -571,7 +581,7 @@ fn policy_denies_missing_required_assurance_with_specific_reason() {
 fn policy_denies_missing_tenant_with_specific_reason() {
     let catalog = catalog();
     let mut principal = principal(&["media:use"]);
-    principal.tenant = Some(TenantId::new("tenant-b").unwrap());
+    principal.tenant = None;
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -670,6 +680,26 @@ fn policy_denies_missing_principal_allowlist_with_specific_reason() {
         decision.rule_id,
         Some(PolicyRuleId::new("allow_media_run").unwrap())
     );
+}
+
+#[test]
+fn policy_denies_principal_with_unknown_tenant() {
+    let catalog = catalog();
+    let mut principal = principal(&["media:use"]);
+    principal.tenant = Some(TenantId::new("tenant-b").unwrap());
+    let decision = catalog.decide(PolicyRequest {
+        principal: &principal,
+        profile: &GatewayProfileId::new("default").unwrap(),
+        action: GatewayAction::ToolsCall,
+        target: &PolicyTarget::Tool {
+            server: ServerSlug::new("media").unwrap(),
+            tool: LocalToolName::new("run").unwrap(),
+        },
+        trace_id: &TraceId::new("trace-unknown-tenant").unwrap(),
+    });
+
+    assert_eq!(decision.effect, PolicyEffect::Deny);
+    assert_eq!(decision.reason, PolicyReasonCode::UnknownTenant);
 }
 
 #[test]
@@ -938,6 +968,7 @@ fn keeps_contract_validation_errors_visible() {
             profile.servers[0].server = ServerSlug::new("simulation").unwrap();
             profile
         }],
+        tenants: tenants(),
         policies: vec![policy()],
         data_labels: data_labels(),
         oauth_clients: oauth_clients(),

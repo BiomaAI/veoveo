@@ -111,6 +111,10 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("data-label-definition.schema.json"),
         "DataLabelDefinition",
     )?;
+    assert_schema_title(
+        &schemas.join("tenant-definition.schema.json"),
+        "TenantDefinition",
+    )?;
     let artifact = assert_schema_title(
         &schemas.join("artifact-metadata.schema.json"),
         "ArtifactMetadata",

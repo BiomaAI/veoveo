@@ -39,6 +39,8 @@ mod ids;
 pub use ids::*;
 mod data_label;
 pub use data_label::*;
+mod tenant;
+pub use tenant::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayControlPlane {
@@ -46,6 +48,7 @@ pub struct GatewayControlPlane {
     pub authorization_servers: Vec<ResourceAuthorizationServer>,
     pub servers: Vec<ServerManifest>,
     pub profiles: Vec<GatewayProfile>,
+    pub tenants: Vec<TenantDefinition>,
     pub policies: Vec<PolicySet>,
     pub data_labels: Vec<DataLabelDefinition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -150,6 +153,13 @@ impl GatewayControlPlane {
             }
         }
 
+        let mut tenants = BTreeSet::new();
+        for tenant in &self.tenants {
+            if !tenants.insert(tenant.id.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateTenant(tenant.id.clone()));
+            }
+        }
+
         let mut profiles = BTreeSet::new();
         let mut profile_by_id = BTreeMap::new();
         for profile in &self.profiles {
@@ -199,7 +209,14 @@ impl GatewayControlPlane {
         }
 
         for policy in &self.policies {
-            validate_policy_set(policy, &profiles, &servers, &resource_schemes, &data_labels)?;
+            validate_policy_set(
+                policy,
+                &profiles,
+                &servers,
+                &resource_schemes,
+                &data_labels,
+                &tenants,
+            )?;
         }
 
         let mut secrets = BTreeSet::new();
@@ -210,7 +227,15 @@ impl GatewayControlPlane {
             }
             secret_refs.insert(secret.id.clone(), secret);
             match &secret.owner {
-                SecretOwner::Gateway | SecretOwner::Tenant { .. } => {}
+                SecretOwner::Gateway => {}
+                SecretOwner::Tenant { tenant } => {
+                    if !tenants.contains(tenant) {
+                        return Err(GatewayControlPlaneError::UnknownSecretOwnerTenant {
+                            secret: secret.id.clone(),
+                            tenant: tenant.clone(),
+                        });
+                    }
+                }
                 SecretOwner::Profile { profile } => {
                     if !profiles.contains(profile) {
                         return Err(GatewayControlPlaneError::UnknownSecretOwnerProfile {
@@ -330,6 +355,7 @@ pub enum GatewayControlPlaneError {
     DuplicateProfile(GatewayProfileId),
     DuplicatePolicy(PolicyVersion),
     DuplicateDataLabel(DataLabelId),
+    DuplicateTenant(TenantId),
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
@@ -375,6 +401,11 @@ pub enum GatewayControlPlaneError {
         policy: PolicyVersion,
         rule: PolicyRuleId,
         label: DataLabelId,
+    },
+    UnknownPolicyRuleTenant {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        tenant: TenantId,
     },
     PolicyRuleActionUnsupportedByServerScope {
         policy: PolicyVersion,
@@ -474,6 +505,10 @@ pub enum GatewayControlPlaneError {
     UnknownSecretOwnerServer {
         secret: SecretReferenceId,
         server: ServerSlug,
+    },
+    UnknownSecretOwnerTenant {
+        secret: SecretReferenceId,
+        tenant: TenantId,
     },
     UnknownOAuthClientAuthorizationServer {
         client: OAuthClientId,
@@ -631,6 +666,7 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateDataLabel(label) => write!(f, "duplicate data label `{label}`"),
+            Self::DuplicateTenant(tenant) => write!(f, "duplicate tenant `{tenant}`"),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
             Self::DuplicateOAuthClient(client) => {
                 write!(f, "duplicate OAuth client registration `{client}`")
@@ -696,6 +732,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "policy `{policy}` rule `{rule}` references unknown data label `{label}`"
+            ),
+            Self::UnknownPolicyRuleTenant {
+                policy,
+                rule,
+                tenant,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown tenant `{tenant}`"
             ),
             Self::PolicyRuleActionUnsupportedByServerScope {
                 policy,
@@ -844,6 +888,10 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::UnknownSecretOwnerServer { secret, server } => write!(
                 f,
                 "secret reference `{secret}` is owned by unknown server `{server}`"
+            ),
+            Self::UnknownSecretOwnerTenant { secret, tenant } => write!(
+                f,
+                "secret reference `{secret}` is owned by unknown tenant `{tenant}`"
             ),
             Self::UnknownOAuthClientAuthorizationServer {
                 client,
