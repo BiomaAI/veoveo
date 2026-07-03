@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap, fmt::Write as _, net::SocketAddr, num::NonZeroU32, path::PathBuf,
-    sync::Arc,
-};
+use std::{fmt::Write as _, num::NonZeroU32, path::PathBuf};
 
 #[path = "gateway/admin.rs"]
 mod admin;
@@ -21,50 +18,20 @@ mod oauth_client_credentials;
 mod oauth_grants;
 #[path = "gateway/runtime.rs"]
 mod runtime;
+#[path = "gateway/server.rs"]
+mod server;
 #[path = "gateway/tokens.rs"]
 mod tokens;
 
-use axum::{
-    Json, Router,
-    extract::{Request, State},
-    http::StatusCode,
-    middleware,
-    response::IntoResponse,
-    routing::{any, get, post},
-};
 use clap::{Parser, Subcommand};
-use parking_lot::RwLock;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
-    InternalTokenSecret, PublicDeployment, SecretPurpose, SecretReferenceId, SecretSource,
-    TelemetryGuard, TokenIssuer, init_server_telemetry,
+    SecretPurpose, SecretReferenceId, SecretSource, TelemetryGuard, init_server_telemetry,
 };
-use veoveo_mcp_gateway::{
-    GatewayCatalog, GatewayCatalogHandle, GatewayMcp, GatewaySecretResolver, GatewayState,
-};
+use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver, GatewayState};
 
-use admin::{
-    prune_jwt_revocations, read_control_plane, reload_control_plane, revoke_jwt,
-    update_control_plane,
-};
-use auth::{
-    authenticate_mcp, authorization_server_jwks, authorization_server_metadata,
-    protected_resource_metadata,
-};
-use host::validate_host;
-use oauth::{authorization_callback, authorize_endpoint, token_endpoint};
-use runtime::{
-    AdminState, AppState, DynamicMcpState, GatewayRetentionPolicy, ProfileAuthState,
-    ProfileMcpService, Readiness, build_http_client, current_catalog, profile_id_from_gateway_path,
-    run_gateway_retention_gc, spawn_gateway_retention_gc_loop,
-};
+use runtime::GatewayRetentionPolicy;
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -225,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
             let retention = GatewayRetentionPolicy {
                 audit_event_days: audit_event_retention_days,
             };
-            serve(
+            server::serve(
                 port,
                 public_base_url,
                 control_plane,
@@ -259,201 +226,4 @@ fn sha256_hex(bytes: &[u8]) -> String {
         write!(&mut output, "{byte:02x}").expect("write to string");
     }
     output
-}
-
-async fn serve(
-    port: u16,
-    public_base_url: String,
-    control_plane: PathBuf,
-    state_db: PathBuf,
-    internal_token_secret: String,
-    retention: GatewayRetentionPolicy,
-) -> anyhow::Result<()> {
-    let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
-    run_gateway_retention_gc(&gateway_state, retention)?;
-    spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
-    let file_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
-    let latest_revision = gateway_state.latest_control_plane_revision()?;
-    let initial_catalog = if let Some(revision) = latest_revision {
-        let persisted_catalog =
-            Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
-        tracing::info!(
-            revision_id = %revision.revision_id,
-            sha256 = %revision.sha256,
-            "loaded persisted gateway control-plane revision"
-        );
-        persisted_catalog
-    } else {
-        file_catalog
-    };
-    let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
-    let internal_token_issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        InternalTokenSecret::new(internal_token_secret)?,
-    );
-    let deployment = PublicDeployment::new(public_base_url)?;
-    let ct = CancellationToken::new();
-    let allowed_hosts = vec![
-        "localhost".to_string(),
-        "127.0.0.1".to_string(),
-        "::1".to_string(),
-        deployment.host_authority().to_string(),
-    ];
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let http = Arc::new(RwLock::new(build_http_client(&initial_catalog)?));
-    let state = AppState {
-        catalog: catalog.clone(),
-        gateway_state: gateway_state.clone(),
-        http: http.clone(),
-        public_base_url: deployment.base_url().to_string(),
-    };
-
-    let mut router = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
-        .route("/readyz", get(readyz))
-        .route("/oauth/{profile}/authorize", get(authorize_endpoint))
-        .route("/oauth/{profile}/callback", get(authorization_callback))
-        .route("/oauth/{profile}/token", post(token_endpoint))
-        .route(
-            "/.well-known/oauth-protected-resource/mcp/{profile}",
-            get(protected_resource_metadata),
-        )
-        .route(
-            "/.well-known/oauth-authorization-server/oauth/{profile}",
-            get(authorization_server_metadata),
-        )
-        .route("/oauth/{profile}/jwks.json", get(authorization_server_jwks))
-        .with_state(state);
-
-    let auth_state = ProfileAuthState {
-        catalog: catalog.clone(),
-        gateway_state: gateway_state.clone(),
-        public_base_url: deployment.base_url().to_string(),
-        http: http.clone(),
-    };
-    let mcp_state = DynamicMcpState {
-        catalog: catalog.clone(),
-        gateway_state: gateway_state.clone(),
-        internal_token_issuer: internal_token_issuer.clone(),
-        allowed_hosts: allowed_hosts.clone(),
-        cancellation_token: ct.child_token(),
-        services: Arc::new(RwLock::new(BTreeMap::new())),
-    };
-    let mcp_router = Router::new()
-        .route("/mcp/{profile}", any(dynamic_mcp_profile))
-        .route("/mcp/{profile}/{*path}", any(dynamic_mcp_profile))
-        .with_state(mcp_state)
-        .layer(middleware::from_fn_with_state(
-            auth_state.clone(),
-            authenticate_mcp,
-        ));
-    router = router.merge(mcp_router);
-
-    let admin_state = AdminState {
-        catalog: catalog.clone(),
-        http: http.clone(),
-        control_plane: control_plane.clone(),
-        gateway_state: gateway_state.clone(),
-    };
-    let admin_router = Router::new()
-        .route(
-            "/admin/{profile}/control-plane",
-            get(read_control_plane).put(update_control_plane),
-        )
-        .route(
-            "/admin/{profile}/reload-control-plane",
-            post(reload_control_plane),
-        )
-        .route("/admin/{profile}/jwt-revocations", post(revoke_jwt))
-        .route(
-            "/admin/{profile}/jwt-revocations/prune",
-            post(prune_jwt_revocations),
-        )
-        .with_state(admin_state)
-        .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
-    router = router.merge(admin_router);
-    let router = router
-        .layer(middleware::from_fn_with_state(
-            allowed_hosts.clone(),
-            validate_host,
-        ))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    tracing::info!(
-        service = "veoveo-mcp-gateway",
-        address = %addr,
-        server_count = initial_catalog.server_count(),
-        profile_count = initial_catalog.profile_count(),
-        "listening"
-    );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            ct.cancel();
-        })
-        .await?;
-    Ok(())
-}
-
-async fn dynamic_mcp_profile(
-    State(state): State<DynamicMcpState>,
-    request: Request,
-) -> axum::response::Response {
-    let Some(profile_id) = profile_id_from_gateway_path(request.uri().path()) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let catalog = current_catalog(&state.catalog);
-    if catalog.profile(&profile_id).is_none() {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    drop(catalog);
-
-    let service = {
-        let mut services = state.services.write();
-        services
-            .entry(profile_id.clone())
-            .or_insert_with(|| build_profile_mcp_service(&state, profile_id))
-            .clone()
-    };
-    service.handle(request).await.into_response()
-}
-
-fn build_profile_mcp_service(
-    state: &DynamicMcpState,
-    profile_id: GatewayProfileId,
-) -> ProfileMcpService {
-    let internal_token_issuer = state.internal_token_issuer.clone();
-    StreamableHttpService::new(
-        {
-            let catalog = state.catalog.clone();
-            let gateway_state = state.gateway_state.clone();
-            let profile_id = profile_id.clone();
-            move || {
-                Ok(GatewayMcp::new(
-                    catalog.clone(),
-                    profile_id.clone(),
-                    gateway_state.clone(),
-                    internal_token_issuer.clone(),
-                ))
-            }
-        },
-        LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
-            .with_allowed_hosts(state.allowed_hosts.iter().cloned())
-            .with_cancellation_token(state.cancellation_token.child_token()),
-    )
-}
-
-async fn readyz(State(state): State<AppState>) -> Json<Readiness> {
-    let catalog = current_catalog(&state.catalog);
-    Json(Readiness {
-        status: "ready",
-        servers: catalog.server_count(),
-        profiles: catalog.profile_count(),
-    })
 }
