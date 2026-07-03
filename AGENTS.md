@@ -49,6 +49,10 @@ routes/services, and delegate real behavior to modules. New gateway work should 
 into modules such as auth routes, admin routes, OAuth flows, metadata, application state,
 HTTP wiring, and command handlers instead of continuing to expand one file.
 
+Gateway code is not exempt from this rule while it is moving fast. When a gateway file
+starts mixing unrelated concerns, split the concern into a module in the same change
+instead of deferring cleanup until after the feature lands.
+
 ## Justfile Discipline
 
 Do not abuse the Justfile as a smoke-test framework or scripting language. Keep recipes as
