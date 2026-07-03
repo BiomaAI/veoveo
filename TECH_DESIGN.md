@@ -305,8 +305,9 @@ Gateway data must be split by sensitivity and lifecycle:
 - **Secret data**: provider API keys, webhook secrets, OAuth client secrets, gateway
   signing keys, JWKS private keys, and token-exchange credentials. Store secret references
   in control data, never secret values. Local development may use `.env`; enterprise
-  deployments should use Vault, HCP Vault, cloud secret managers, KMS-backed stores, or
-  their approved secret infrastructure.
+  deployments should use Vault or HCP Vault today. Cloud secret managers, KMS-backed
+  stores, and enterprise-managed secret infrastructure should be added as explicit resolver
+  implementations before deployment profiles are allowed to declare them.
   The gateway has a typed secret resolver boundary. `env` secrets resolve from the named
   variable, and `vault`/`hcp_vault` secrets resolve from HashiCorp Vault KV v2 locators in
   the form `kv2://{mount}/{path}#field` with optional `?version={n}`. Vault-backed

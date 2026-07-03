@@ -88,7 +88,7 @@
         "gateway_identity": "gateway_signed_jwt",
         "transport": "service_mesh_mtls"
       },
-      "secret_sources": ["vault", "cloud_secret_manager", "enterprise_managed"],
+      "secret_sources": ["vault", "hcp_vault"],
       "object_stores": [
         {
           "id": "enterprise-object-store",
@@ -165,7 +165,7 @@
         "gateway_identity": "gateway_signed_jwt",
         "transport": "mutual_tls"
       },
-      "secret_sources": ["vault", "kms_backed_store", "enterprise_managed"],
+      "secret_sources": ["vault", "hcp_vault"],
       "object_stores": [
         {
           "id": "regulated-object-store",

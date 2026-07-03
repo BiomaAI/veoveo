@@ -351,6 +351,7 @@ impl SelfHostedDeploymentProfile {
             "required_services",
         )?;
         require_nonempty(!self.secret_sources.is_empty(), &self.id, "secret_sources")?;
+        self.validate_secret_sources()?;
         require_nonempty(!self.object_stores.is_empty(), &self.id, "object_stores")?;
         require_nonempty(
             !self.telemetry_sinks.is_empty(),
@@ -431,6 +432,18 @@ impl SelfHostedDeploymentProfile {
             }
         }
 
+        Ok(())
+    }
+
+    fn validate_secret_sources(&self) -> Result<()> {
+        for source in &self.secret_sources {
+            if !implemented_secret_source(source) {
+                bail!(
+                    "deployment profile `{}` uses secret source `{source:?}` that is not implemented by the gateway resolver",
+                    self.id
+                );
+            }
+        }
         Ok(())
     }
 
@@ -596,13 +609,13 @@ fn require_nonempty(condition: bool, profile: &DeploymentProfileId, field: &str)
 }
 
 fn enterprise_secret_source(source: &SecretSource) -> bool {
+    matches!(source, SecretSource::Vault | SecretSource::HcpVault)
+}
+
+fn implemented_secret_source(source: &SecretSource) -> bool {
     matches!(
         source,
-        SecretSource::Vault
-            | SecretSource::HcpVault
-            | SecretSource::CloudSecretManager
-            | SecretSource::KmsBackedStore
-            | SecretSource::EnterpriseManaged
+        SecretSource::Env | SecretSource::Vault | SecretSource::HcpVault
     )
 }
 
@@ -784,6 +797,22 @@ mod tests {
         let err = plan.validate().expect_err("env secret source must fail");
 
         assert!(err.to_string().contains("cannot use env secrets"));
+    }
+
+    #[test]
+    fn deployment_rejects_unimplemented_secret_source() {
+        let mut plan: SelfHostedDeploymentPlan =
+            serde_json::from_str(valid_deployment_plan_json()).expect("valid json");
+        plan.profiles[0].secret_sources = BTreeSet::from([SecretSource::CloudSecretManager]);
+
+        let err = plan
+            .validate()
+            .expect_err("unimplemented secret source must fail");
+
+        assert!(
+            err.to_string()
+                .contains("not implemented by the gateway resolver")
+        );
     }
 
     #[test]
