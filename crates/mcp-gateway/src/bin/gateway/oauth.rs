@@ -398,6 +398,21 @@ pub(super) async fn authorize_endpoint(
         .record_authorization_request(&authorization_request)
     {
         tracing::error!("failed to record gateway authorization request: {err}");
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: None,
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::AuthStateUnavailable,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if let Err(err) = record_oidc_auth_audit(
@@ -502,6 +517,21 @@ pub(super) async fn authorization_callback(
         }
         Err(err) => {
             tracing::error!("failed to consume gateway authorization state: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                &profile,
+                AuthAuditRecord {
+                    authorization_server: Some(&authorization_server),
+                    client_id: None,
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::AuthStateUnavailable,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -718,6 +748,21 @@ pub(super) async fn authorization_callback(
     };
     if let Err(err) = state.gateway_state.record_authorization_code(&code_record) {
         tracing::error!("failed to record gateway authorization code: {err}");
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            &profile,
+            AuthAuditRecord {
+                authorization_server: Some(&authorization_server),
+                client_id: Some(&authorization_request.oauth_client_id),
+                principal: Some(&verified_identity.principal),
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::AuthStateUnavailable,
+                started_at,
+            },
+        ) {
+            return auth_audit_error_response(err);
+        }
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if let Err(err) = record_oidc_auth_audit(

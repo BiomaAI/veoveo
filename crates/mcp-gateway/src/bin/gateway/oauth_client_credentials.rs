@@ -324,6 +324,21 @@ pub(super) async fn token_endpoint_client_credentials(
         }
         Err(err) => {
             tracing::error!("failed to record OAuth client assertion replay state: {err}");
+            if let Err(err) = record_token_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: Some(&verified_assertion.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::AuthStateUnavailable,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }

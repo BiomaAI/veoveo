@@ -291,6 +291,21 @@ pub(super) async fn token_endpoint_authorization_code(
         }
         Err(err) => {
             tracing::error!("failed to consume gateway authorization code: {err}");
+            if let Err(err) = record_oidc_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: None,
+                    jwt_id: None,
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::AuthStateUnavailable,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -710,6 +725,21 @@ pub(super) async fn token_endpoint_id_jag(
         }
         Err(err) => {
             tracing::error!("failed to record ID-JAG replay state: {err}");
+            if let Err(err) = record_id_jag_auth_audit(
+                &state.gateway_state,
+                profile,
+                AuthAuditRecord {
+                    authorization_server: Some(authorization_server),
+                    client_id: Some(&client_id),
+                    principal: Some(&verified_id_jag.principal),
+                    jwt_id: Some(&verified_id_jag.jwt_id),
+                    outcome: AuthOutcome::Deny,
+                    reason: AuthReasonCode::AuthStateUnavailable,
+                    started_at,
+                },
+            ) {
+                return auth_audit_error_response(err);
+            }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }

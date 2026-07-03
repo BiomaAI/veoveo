@@ -247,6 +247,16 @@ pub(super) async fn authenticate_mcp(
             Ok(None) => {}
             Err(err) => {
                 tracing::error!("failed to check gateway token revocation state: {err}");
+                if let Err(err) = record_auth_audit(
+                    &state,
+                    profile,
+                    AuthOutcome::Deny,
+                    AuthReasonCode::AuthStateUnavailable,
+                    Some(&subject),
+                    started_at,
+                ) {
+                    return auth_audit_error_response(err);
+                }
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
         }

@@ -362,6 +362,7 @@ pub enum AuthReasonCode {
     InvalidScope,
     TokenSigningKeyUnavailable,
     TokenRevoked,
+    AuthStateUnavailable,
 }
 
 impl AuthReasonCode {
@@ -389,6 +390,7 @@ impl AuthReasonCode {
             Self::InvalidScope => "invalid_scope",
             Self::TokenSigningKeyUnavailable => "token_signing_key_unavailable",
             Self::TokenRevoked => "token_revoked",
+            Self::AuthStateUnavailable => "auth_state_unavailable",
         }
     }
 }
