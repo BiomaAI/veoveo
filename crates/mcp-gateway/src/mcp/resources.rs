@@ -1,0 +1,221 @@
+use chrono::Utc;
+use rmcp::{
+    model::{
+        ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
+        SubscribeRequestParams, UnsubscribeRequestParams,
+    },
+    service::{RequestContext, RoleServer},
+};
+use veoveo_mcp_contract::{GatewayAction, GatewayResourceSubscription, PolicyReasonCode, paginate};
+
+use crate::mcp_support::{
+    mcp_internal, mcp_invalid_params, project_listed_resource, project_read_resource_result,
+    resource_policy_target, resource_read_action, upstream_error,
+};
+
+use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
+
+impl GatewayMcp {
+    pub(super) async fn handle_list_resources(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        let subject = self.authenticated(&context)?;
+        let mut resources = Vec::new();
+        for server_slug in self.profile_servers() {
+            let upstream = self
+                .upstream(&server_slug, context.peer.clone(), &subject)
+                .await?;
+            for mut resource in upstream
+                .list_all_resources()
+                .await
+                .map_err(upstream_error)?
+            {
+                let Some(projection) = self.project_upstream_resource_for_owner(
+                    &server_slug,
+                    &subject.principal.id,
+                    &resource.uri,
+                )?
+                else {
+                    continue;
+                };
+                project_listed_resource(&mut resource, &projection);
+                if !self.allows_resource(
+                    &context,
+                    GatewayAction::ResourcesList,
+                    projection.server.clone(),
+                    &resource.uri,
+                )? {
+                    continue;
+                }
+                resources.push(resource);
+            }
+        }
+        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
+        let page = paginate(resources, request.as_ref(), GATEWAY_PAGE_SIZE)
+            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        Ok(ListResourcesResult {
+            resources: page.items,
+            next_cursor: page.next_cursor,
+            meta: None,
+        })
+    }
+
+    pub(super) async fn handle_list_resource_templates(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, McpError> {
+        let subject = self.authenticated(&context)?;
+        let mut templates = Vec::new();
+        for server_slug in self.profile_servers() {
+            let upstream = self
+                .upstream(&server_slug, context.peer.clone(), &subject)
+                .await?;
+            for template in upstream
+                .list_all_resource_templates()
+                .await
+                .map_err(upstream_error)?
+            {
+                if !self.allows_resource(
+                    &context,
+                    GatewayAction::ResourcesTemplatesList,
+                    server_slug.clone(),
+                    &template.uri_template,
+                )? {
+                    continue;
+                }
+                templates.push(template);
+            }
+        }
+        templates.sort_by(|left, right| left.uri_template.cmp(&right.uri_template));
+        let page = paginate(templates, request.as_ref(), GATEWAY_PAGE_SIZE)
+            .map_err(|err| mcp_invalid_params(err.to_string()))?;
+        Ok(ListResourceTemplatesResult {
+            resource_templates: page.items,
+            next_cursor: page.next_cursor,
+            meta: None,
+        })
+    }
+
+    pub(super) async fn handle_read_resource(
+        &self,
+        mut request: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let projection = self.project_resource_for_upstream(&request.uri)?;
+        let subject = self.authorize_projected_resource(
+            &context,
+            resource_read_action(&request.uri),
+            &projection,
+        )?;
+        request.uri = projection.upstream_uri.to_string();
+        let upstream = self
+            .upstream(&projection.server, context.peer.clone(), &subject)
+            .await?;
+        let mut result = upstream
+            .read_resource(request)
+            .await
+            .map_err(upstream_error)?;
+        project_read_resource_result(&mut result, &projection)?;
+        Ok(result)
+    }
+
+    pub(super) async fn handle_subscribe(
+        &self,
+        mut request: SubscribeRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let uri = request.uri.clone();
+        let projection = self.project_resource_for_upstream(&uri)?;
+        let resource_uri = projection.gateway_uri.clone();
+        let subject = self.authorize_projected_resource(
+            &context,
+            GatewayAction::ResourcesSubscribe,
+            &projection,
+        )?;
+        request.uri = projection.upstream_uri.to_string();
+        let upstream = self
+            .upstream(&projection.server, context.peer.clone(), &subject)
+            .await?;
+        upstream.subscribe(request).await.map_err(upstream_error)?;
+        let now = Utc::now();
+        self.state
+            .record_resource_subscription(&GatewayResourceSubscription {
+                profile: self.profile_id.clone(),
+                owner: subject.principal.id,
+                upstream_server: projection.server,
+                resource_uri,
+                created_at: now,
+                updated_at: now,
+            })
+            .map_err(|err| {
+                mcp_internal(format!(
+                    "failed to persist gateway resource subscription: {err}"
+                ))
+            })?;
+        Ok(())
+    }
+
+    pub(super) async fn handle_unsubscribe(
+        &self,
+        mut request: UnsubscribeRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let uri = request.uri.clone();
+        let projection = self.project_resource_for_upstream(&uri)?;
+        let resource_uri = projection.gateway_uri.clone();
+        let server = projection.server.clone();
+        let subject = self.authenticated(&context)?;
+        let subscription = self
+            .state
+            .resource_subscription(
+                &self.profile_id,
+                &subject.principal.id,
+                &server,
+                &resource_uri,
+            )
+            .map_err(|err| {
+                mcp_internal(format!(
+                    "failed to read gateway resource subscription: {err}"
+                ))
+            })?;
+        if subscription.is_none() {
+            self.record_policy_denial(
+                &subject,
+                GatewayAction::ResourcesUnsubscribe,
+                resource_policy_target(server.clone(), resource_uri.as_str())?,
+                PolicyReasonCode::UnknownResource,
+            )?;
+            return Err(mcp_invalid_params("unknown gateway resource subscription"));
+        }
+        let subject = self.authorize_projected_resource(
+            &context,
+            GatewayAction::ResourcesUnsubscribe,
+            &projection,
+        )?;
+        request.uri = projection.upstream_uri.to_string();
+        let upstream = self
+            .upstream(&server, context.peer.clone(), &subject)
+            .await?;
+        upstream
+            .unsubscribe(request)
+            .await
+            .map_err(upstream_error)?;
+        self.state
+            .delete_resource_subscription(
+                &self.profile_id,
+                &subject.principal.id,
+                &server,
+                &resource_uri,
+            )
+            .map_err(|err| {
+                mcp_internal(format!(
+                    "failed to delete gateway resource subscription: {err}"
+                ))
+            })?;
+        Ok(())
+    }
+}
