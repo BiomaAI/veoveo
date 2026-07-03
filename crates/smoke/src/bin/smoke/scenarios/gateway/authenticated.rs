@@ -384,6 +384,23 @@ pub(crate) async fn gateway_authenticated(
         token,
         ["resource".into(), "media://usage".into()],
     )?;
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        token,
+        [
+            "prompt".into(),
+            "media-model-select".into(),
+            "--arguments".into(),
+            r#"{"goal":"choose an image generation model for protected data","media_type":"image","budget":"low"}"#.into(),
+        ],
+    )?;
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        token,
+        ["complete".into(), "fake".into()],
+    )?;
     assert_mcp_session_resource_denied(&live_policy_session, "media://usage").await?;
     live_policy_session.cancel().await?;
     let missing_group_token = gateway_id_jag_token(
@@ -488,7 +505,8 @@ pub(crate) async fn gateway_authenticated(
     assert_audit_method(&audit_summary, "resources/templates/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/read", 3, 5)?;
     assert_audit_method(&audit_summary, "prompts/list", 2, 0)?;
-    assert_audit_method(&audit_summary, "prompts/get", 1, 0)?;
+    assert_audit_method(&audit_summary, "prompts/get", 1, 1)?;
+    assert_audit_method(&audit_summary, "completion/complete", 0, 1)?;
     assert_audit_method(&audit_summary, "tasks/list", 1, 0)?;
     assert_audit_method(&audit_summary, "admin/control-plane", 1, 1)?;
     assert_audit_method(&audit_summary, "admin/reload-control-plane", 1, 1)?;
