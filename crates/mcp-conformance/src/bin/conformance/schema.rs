@@ -22,6 +22,37 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         GatewayControlPlane
     );
     add_schema!(schemas, "server-manifest.schema.json", ServerManifest);
+    add_schema!(schemas, "gateway-profile.schema.json", GatewayProfile);
+    add_schema!(
+        schemas,
+        "profile-server-exposure.schema.json",
+        ProfileServerExposure
+    );
+    add_schema!(
+        schemas,
+        "mcp-surface-capabilities.schema.json",
+        McpSurfaceCapabilities
+    );
+    add_schema!(schemas, "upstream-endpoint.schema.json", UpstreamEndpoint);
+    add_schema!(schemas, "secret-reference.schema.json", SecretReference);
+    add_schema!(schemas, "identity-provider.schema.json", IdentityProvider);
+    add_schema!(
+        schemas,
+        "resource-authorization-server.schema.json",
+        ResourceAuthorizationServer
+    );
+    add_schema!(
+        schemas,
+        "oauth-client-registration.schema.json",
+        OAuthClientRegistration
+    );
+    add_schema!(
+        schemas,
+        "identity-provider-oidc-client-registration.schema.json",
+        IdentityProviderOidcClientRegistration
+    );
+    add_schema!(schemas, "policy-set.schema.json", PolicySet);
+    add_schema!(schemas, "policy-rule.schema.json", PolicyRule);
     add_schema!(schemas, "principal.schema.json", Principal);
     add_schema!(
         schemas,
@@ -40,6 +71,11 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         schemas,
         "gateway-jwt-revocation-request.schema.json",
         GatewayJwtRevocationRequest
+    );
+    add_schema!(
+        schemas,
+        "gateway-jwt-revocation.schema.json",
+        GatewayJwtRevocation
     );
     add_schema!(
         schemas,
@@ -73,8 +109,48 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
+        "gateway-authorization-request.schema.json",
+        GatewayAuthorizationRequest
+    );
+    add_schema!(
+        schemas,
+        "gateway-authorization-code-record.schema.json",
+        GatewayAuthorizationCodeRecord
+    );
+    add_schema!(
+        schemas,
         "self-hosted-deployment-plan.schema.json",
         SelfHostedDeploymentPlan
+    );
+    add_schema!(
+        schemas,
+        "self-hosted-deployment-profile.schema.json",
+        SelfHostedDeploymentProfile
+    );
+    add_schema!(
+        schemas,
+        "service-to-service-security.schema.json",
+        ServiceToServiceSecurity
+    );
+    add_schema!(
+        schemas,
+        "object-store-deployment.schema.json",
+        ObjectStoreDeployment
+    );
+    add_schema!(
+        schemas,
+        "telemetry-sink-deployment.schema.json",
+        TelemetrySinkDeployment
+    );
+    add_schema!(
+        schemas,
+        "data-retention-policy.schema.json",
+        DataRetentionPolicy
+    );
+    add_schema!(
+        schemas,
+        "regulated-data-controls.schema.json",
+        RegulatedDataControls
     );
     add_schema!(
         schemas,
