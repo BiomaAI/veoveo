@@ -84,7 +84,7 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
         provider_port,
         &provider_ready,
         &provider_log,
-        None,
+        Some(4000),
     )?;
     wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
 
@@ -105,6 +105,46 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
     contains(&health, "ok")?;
 
     let mcp_url = format!("{media_base}/media/mcp");
+    let resources_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        ["resources".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&resources_output, "media://models")?;
+    contains(&resources_output, "media://usage")?;
+
+    let prompts_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        ["prompts".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&prompts_output, "media-model-select")?;
+    contains(&prompts_output, "media-task-review")?;
+
+    let prompt_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "prompt".into(),
+            "media-model-select".into(),
+            "--arguments".into(),
+            r#"{"goal":"generate a compact smoke test image","media_type":"image","budget":"low"}"#
+                .into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&prompt_output, "media://models")?;
+
+    let tasks_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        ["tasks".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(&tasks_output, "0 task(s)")?;
+
     let cancel_output = run_direct_mcp(
         conformance,
         &mcp_url,
@@ -145,6 +185,16 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
         [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
     )?;
     let task_id = task_id_from_output(&run_output)?;
+    for expected in [
+        "  [resource list changed]".to_string(),
+        format!("  [task {task_id}] Working: submitted; prediction"),
+        "  [resource updated] media://prediction/".to_string(),
+        format!("  [task {task_id}] Completed: completed;"),
+        "subscribed to media://prediction/".to_string(),
+        "unsubscribed from media://prediction/".to_string(),
+    ] {
+        contains(&run_output, &expected)?;
+    }
     let structured: SmokeGenerationRunOutput = structured_from_output(&run_output)?;
     if structured.artifacts.is_empty() {
         bail!("run output had no artifacts: {run_output}");
@@ -154,10 +204,46 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
     }) {
         bail!("not all artifact metadata rows used task id `{task_id}`: {structured:?}");
     }
+    if structured
+        .artifacts
+        .iter()
+        .any(|artifact| artifact.artifact_uri != format!("media://artifact/{}", artifact.sha256))
+    {
+        bail!("not all artifact metadata rows used canonical media artifact URIs: {structured:?}");
+    }
+    let artifact_uri = structured.artifacts[0].artifact_uri.clone();
     assert_output_file(&output_dir, "png")?;
 
     let usage = wait_for_actual_usage(conformance, &mcp_url, &task_id, None)?;
     assert_usage_report(&usage, "media", &task_id)?;
+
+    let task_review_output = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "prompt".into(),
+            "media-task-review".into(),
+            "--arguments".into(),
+            format!(r#"{{"task_id":"{task_id}"}}"#).into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(
+        &task_review_output,
+        &format!("media://usage/task/{task_id}"),
+    )?;
+
+    let post_run_resources = run_direct_mcp(
+        conformance,
+        &mcp_url,
+        ["resources".into()],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+    contains(
+        &post_run_resources,
+        &format!("media://usage/task/{task_id}"),
+    )?;
+    contains(&post_run_resources, &artifact_uri)?;
 
     media_child.stop();
     provider.stop();
