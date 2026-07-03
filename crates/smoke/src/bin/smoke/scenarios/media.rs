@@ -45,6 +45,17 @@ pub(crate) async fn media_mcp_auth(conformance: &Path, media: &Path) -> Result<(
     )
     .await?;
 
+    assert_direct_mcp_denied(
+        conformance,
+        &format!("{base}/media/mcp"),
+        [
+            "--internal-server".into(),
+            "simulation".into(),
+            "info".into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+
     run_checked(
         conformance,
         [
