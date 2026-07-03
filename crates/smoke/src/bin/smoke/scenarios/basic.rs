@@ -113,6 +113,19 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("gateway-control-plane.schema.json"),
         "GatewayControlPlane",
     )?;
+    let control_plane_revision = assert_schema_title(
+        &schemas.join("gateway-control-plane-revision.schema.json"),
+        "GatewayControlPlaneRevision",
+    )?;
+    for property in ["revision_id", "sha256", "source", "control_plane"] {
+        if !control_plane_revision
+            .get("properties")
+            .and_then(|properties| properties.get(property))
+            .is_some_and(Value::is_object)
+        {
+            bail!("control-plane revision schema has no object `{property}` property");
+        }
+    }
     assert_schema_title(
         &schemas.join("resource-authorization-server.schema.json"),
         "ResourceAuthorizationServer",
