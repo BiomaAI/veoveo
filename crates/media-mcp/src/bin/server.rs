@@ -25,12 +25,12 @@ use std::{
 
 use axum::{
     Router,
-    extract::{Path as AxumPath, Request, State},
+    extract::{Path as AxumPath, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE},
+        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
     },
-    middleware::{self, Next},
+    middleware,
     response::IntoResponse,
     routing::{get, post},
 };
@@ -62,18 +62,32 @@ use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock, oneshot};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity,
-    GatewayInternalTokenVerifier, GenerationPredictionSummary, GenerationRunOutput,
-    InternalTokenSecret, Page, PublicDeployment, ServerPublicEndpoint, ServerResourceUris,
-    ServerSlug, SubscriptionHub, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer,
-    UsageKind, UsageRecord, UsageReport, init_server_telemetry, is_sha256, notify_progress,
-    notify_task_status, now_iso, now_utc, paginate,
+    ArtifactMetadata, ArtifactPut, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
+    GenerationPredictionSummary, GenerationRunOutput, InternalTokenSecret, Page, PublicDeployment,
+    ServerPublicEndpoint, ServerResourceUris, ServerSlug, SubscriptionHub, TaskPayloadState,
+    TaskStore, TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
+    init_server_telemetry, is_sha256, notify_progress, notify_task_status, now_iso, now_utc,
+    paginate,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
     provider::{BillingRecord, DEFAULT_BASE_URL, ModelEntry, Prediction, ProviderClient},
-    state::{ArtifactOwner, DuckdbState, TaskOwner},
+    state::{DuckdbState, TaskOwner},
     uris, webhook,
+};
+
+#[path = "server/internal_auth.rs"]
+mod internal_auth;
+#[path = "server/ownership.rs"]
+mod ownership;
+
+use internal_auth::{
+    InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
+};
+use ownership::{
+    artifact_owned_by, artifact_owner_allows, artifact_owner_from_task, internal_identity,
+    optional_prediction_owner, optional_task_owner, prediction_owner, require_task_owner,
+    task_owner, task_owner_allows, task_owner_from_identity,
 };
 
 const REGISTRY_TTL: Duration = Duration::from_secs(3600);
@@ -228,11 +242,6 @@ struct AppState {
     task_owners: RwLock<HashMap<String, TaskOwner>>,
     retention: MediaRetentionPolicy,
     subscribers: SubscriptionHub,
-}
-
-#[derive(Clone)]
-struct InternalMcpAuthState {
-    verifier: GatewayInternalTokenVerifier,
 }
 
 impl AppState {
@@ -1039,152 +1048,6 @@ fn retention_expires_at(now: DateTime<Utc>, days: NonZeroU32) -> anyhow::Result<
         .ok_or_else(|| anyhow::anyhow!("retention expiration overflow for {days} day window"))
 }
 
-fn internal_identity(
-    context: &RequestContext<RoleServer>,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let parts = context
-        .extensions
-        .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
-    parts
-        .extensions
-        .get::<GatewayInternalIdentity>()
-        .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
-}
-
-fn task_owner_from_identity(task_id: &str, identity: &GatewayInternalIdentity) -> TaskOwner {
-    TaskOwner {
-        task_id: task_id.to_string(),
-        principal_id: identity.principal.id.clone(),
-        profile: identity.profile.clone(),
-        tenant: identity.principal.tenant.clone(),
-        data_labels: identity.principal.data_labels.clone(),
-    }
-}
-
-async fn optional_task_owner(
-    state: &AppState,
-    task_id: &str,
-) -> Result<Option<TaskOwner>, McpError> {
-    if let Some(owner) = state.task_owners.read().await.get(task_id).cloned() {
-        return Ok(Some(owner));
-    }
-    let Some(owner) = state
-        .durable
-        .task_owner(task_id)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?
-    else {
-        return Ok(None);
-    };
-    state
-        .task_owners
-        .write()
-        .await
-        .insert(task_id.to_string(), owner.clone());
-    Ok(Some(owner))
-}
-
-async fn task_owner(state: &AppState, task_id: &str) -> Result<TaskOwner, McpError> {
-    optional_task_owner(state, task_id)
-        .await?
-        .ok_or_else(|| McpError::invalid_request("task ownership record missing", None))
-}
-
-async fn require_task_owner(
-    state: &AppState,
-    context: &RequestContext<RoleServer>,
-    task_id: &str,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
-    let owner = task_owner(state, task_id).await?;
-    if task_owner_allows(&owner, &identity) {
-        Ok(identity)
-    } else {
-        Err(McpError::invalid_request(
-            "media task policy denied request",
-            None,
-        ))
-    }
-}
-
-async fn optional_prediction_owner(
-    state: &AppState,
-    prediction_id: &str,
-) -> Result<Option<TaskOwner>, McpError> {
-    let Some(task_id) = state
-        .durable
-        .task_id_for_provider_job_id(prediction_id)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?
-    else {
-        return Ok(None);
-    };
-    optional_task_owner(state, &task_id).await
-}
-
-async fn prediction_owner(state: &AppState, prediction_id: &str) -> Result<TaskOwner, McpError> {
-    optional_prediction_owner(state, prediction_id)
-        .await?
-        .ok_or_else(|| McpError::invalid_request("prediction ownership record missing", None))
-}
-
-fn artifact_owner_from_task(sha256: &str, owner: &TaskOwner) -> ArtifactOwner {
-    ArtifactOwner {
-        sha256: sha256.to_string(),
-        task_id: owner.task_id.clone(),
-        principal_id: owner.principal_id.clone(),
-        profile: owner.profile.clone(),
-        tenant: owner.tenant.clone(),
-        data_labels: owner.data_labels.clone(),
-    }
-}
-
-fn artifact_owner_allows(
-    state: &AppState,
-    sha256: &str,
-    identity: &GatewayInternalIdentity,
-) -> Result<bool, McpError> {
-    let owners = state
-        .durable
-        .artifact_owners(sha256)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-    Ok(owners
-        .iter()
-        .any(|owner| artifact_owner_allows_identity(owner, identity)))
-}
-
-fn artifact_owned_by(
-    state: &AppState,
-    sha256: &str,
-    identity: &GatewayInternalIdentity,
-) -> Result<(), McpError> {
-    if artifact_owner_allows(state, sha256, identity)? {
-        Ok(())
-    } else {
-        Err(McpError::invalid_request(
-            "media artifact policy denied request",
-            None,
-        ))
-    }
-}
-
-fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.principal.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.principal.tenant
-        && owner.data_labels.is_subset(&identity.principal.data_labels)
-}
-
-fn artifact_owner_allows_identity(
-    owner: &ArtifactOwner,
-    identity: &GatewayInternalIdentity,
-) -> bool {
-    owner.principal_id == identity.principal.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.principal.tenant
-        && owner.data_labels.is_subset(&identity.principal.data_labels)
-}
-
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct ModelSelectPromptArgs {
     goal: String,
@@ -1952,49 +1815,6 @@ impl ServerHandler for MediaMcp {
 // Webhook + HTTP plumbing
 // ---------------------------------------------------------------------------
 
-async fn authenticate_internal_mcp(
-    State(state): State<InternalMcpAuthState>,
-    mut request: Request,
-    next: Next,
-) -> axum::response::Response {
-    let identity = match verify_internal_authorization(&state.verifier, request.headers()) {
-        Ok(identity) => identity,
-        Err(message) => {
-            tracing::warn!("rejected media MCP request: {message}");
-            return (StatusCode::UNAUTHORIZED, "invalid gateway authorization").into_response();
-        }
-    };
-    request
-        .extensions_mut()
-        .insert::<GatewayInternalIdentity>(identity);
-    next.run(request).await
-}
-
-fn verify_internal_authorization(
-    verifier: &GatewayInternalTokenVerifier,
-    headers: &HeaderMap,
-) -> Result<GatewayInternalIdentity, String> {
-    let header = headers
-        .get(AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| "missing internal authorization".to_string())?;
-    let token = internal_bearer_token(header).map_err(str::to_string)?;
-    verifier.verify(token).map_err(|err| err.to_string())
-}
-
-fn internal_bearer_token(header: &str) -> Result<&str, &'static str> {
-    let Some((scheme, token)) = header.split_once(' ') else {
-        return Err("missing bearer token");
-    };
-    if !scheme.eq_ignore_ascii_case("bearer") {
-        return Err("authorization scheme must be Bearer");
-    }
-    if token.is_empty() || token.chars().any(char::is_whitespace) {
-        return Err("bearer token contains invalid whitespace");
-    }
-    Ok(token)
-}
-
 async fn media_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -2239,138 +2059,4 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use chrono::Utc;
-    use veoveo_mcp_contract::{
-        DataLabelId, GatewayInternalIdentity, GatewayProfileId, GroupId, JwtId, Principal,
-        PrincipalId, PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer,
-        TokenSubject,
-    };
-
-    use super::{
-        ArtifactOwner, TaskOwner, artifact_owner_allows_identity, internal_bearer_token,
-        task_owner_allows,
-    };
-
-    #[test]
-    fn internal_bearer_parser_is_strict() {
-        assert_eq!(
-            internal_bearer_token("Bearer abc.def.ghi"),
-            Ok("abc.def.ghi")
-        );
-        assert!(internal_bearer_token("Basic abc.def.ghi").is_err());
-        assert!(internal_bearer_token("Bearer").is_err());
-        assert!(internal_bearer_token("Bearer abc def").is_err());
-    }
-
-    #[test]
-    fn task_owner_requires_principal_profile_and_tenant() {
-        let identity = internal_identity_for("default", Some("tenant-a"), &["cui", "pii"]);
-        let owner = TaskOwner {
-            task_id: "task-1".to_string(),
-            principal_id: identity.principal.id.clone(),
-            profile: identity.profile.clone(),
-            tenant: identity.principal.tenant.clone(),
-            data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
-        };
-
-        assert!(task_owner_allows(&owner, &identity));
-        assert!(!task_owner_allows(
-            &TaskOwner {
-                profile: GatewayProfileId::new("research").unwrap(),
-                ..owner.clone()
-            },
-            &identity
-        ));
-        assert!(!task_owner_allows(
-            &TaskOwner {
-                tenant: Some(TenantId::new("tenant-b").unwrap()),
-                ..owner.clone()
-            },
-            &identity
-        ));
-        assert!(!task_owner_allows(
-            &TaskOwner {
-                data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
-                ..owner
-            },
-            &identity
-        ));
-    }
-
-    #[test]
-    fn artifact_owner_requires_principal_profile_and_tenant() {
-        let identity = internal_identity_for("default", None, &["itar"]);
-        let owner = ArtifactOwner {
-            sha256: "a".repeat(64),
-            task_id: "task-1".to_string(),
-            principal_id: identity.principal.id.clone(),
-            profile: identity.profile.clone(),
-            tenant: identity.principal.tenant.clone(),
-            data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
-        };
-
-        assert!(artifact_owner_allows_identity(&owner, &identity));
-        assert!(!artifact_owner_allows_identity(
-            &ArtifactOwner {
-                profile: GatewayProfileId::new("ops").unwrap(),
-                ..owner.clone()
-            },
-            &identity
-        ));
-        assert!(!artifact_owner_allows_identity(
-            &ArtifactOwner {
-                tenant: Some(TenantId::new("tenant-a").unwrap()),
-                ..owner.clone()
-            },
-            &identity
-        ));
-        assert!(!artifact_owner_allows_identity(
-            &ArtifactOwner {
-                data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
-                ..owner
-            },
-            &identity
-        ));
-    }
-
-    fn internal_identity_for(
-        profile: &str,
-        tenant: Option<&str>,
-        data_labels: &[&str],
-    ) -> GatewayInternalIdentity {
-        let issuer = TokenIssuer::new("https://idp.example.com").unwrap();
-        let subject = TokenSubject::new("user-1").unwrap();
-        let principal = Principal {
-            id: PrincipalId::new(format!("{issuer}#{subject}")).unwrap(),
-            kind: PrincipalKind::User,
-            issuer,
-            subject,
-            tenant: tenant.map(TenantId::new).transpose().unwrap(),
-            groups: BTreeSet::<GroupId>::new(),
-            roles: BTreeSet::<RoleId>::new(),
-            scopes: BTreeSet::<ScopeName>::new(),
-            data_labels: data_labels
-                .iter()
-                .map(|label| DataLabelId::new(*label).unwrap())
-                .collect(),
-            authenticated_at: Some(Utc::now()),
-        };
-        let now = Utc::now();
-        GatewayInternalIdentity {
-            issuer: TokenIssuer::new("veoveo-gateway").unwrap(),
-            profile: GatewayProfileId::new(profile).unwrap(),
-            server: ServerSlug::new("media").unwrap(),
-            principal,
-            jwt_id: JwtId::new("test-jwt").unwrap(),
-            issued_at: now,
-            not_before: now,
-            expires_at: now + chrono::TimeDelta::minutes(5),
-        }
-    }
 }
