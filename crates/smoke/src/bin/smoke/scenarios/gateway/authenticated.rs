@@ -276,6 +276,35 @@ pub(crate) async fn gateway_authenticated(
         ["info".into()],
     )?;
 
+    gateway_child.stop();
+    gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.trim().into(),
+            ),
+        ],
+        &gateway_log,
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, 2).await?;
+    let restarted_ops_status = get_json(
+        &http,
+        &format!("{gateway_base}/admin/ops/control-plane"),
+        Some(ops_admin_token.trim()),
+    )
+    .await?;
+    assert_control_plane_status_with_profiles(&restarted_ops_status, &ops_revision_id, 2)?;
+    run_direct_mcp(
+        conformance,
+        &format!("{gateway_base}/mcp/ops"),
+        ["info".into()],
+        [("MCP_BEARER_TOKEN", ops_headless_token.trim().into())],
+    )?;
+
     let reverted = put_json_file(
         &http,
         &format!("{gateway_base}/admin/default/control-plane"),
