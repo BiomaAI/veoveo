@@ -56,6 +56,7 @@ struct FakeOidcIdTokenClaims {
     roles: Vec<String>,
     tenant: String,
     data_labels: Vec<String>,
+    principal_assurances: Vec<String>,
     email: String,
 }
 
@@ -763,6 +764,7 @@ fn fake_oidc_id_token(state: &FakeOidcState, code: &FakeOidcCode) -> Result<Stri
         roles: vec!["operator".to_string()],
         tenant: "tenant-a".to_string(),
         data_labels: vec!["cui".to_string()],
+        principal_assurances: vec!["us_person".to_string()],
         email: "browser-smoke@example.com".to_string(),
     };
     let mut header = Header::new(Algorithm::RS256);

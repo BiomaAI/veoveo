@@ -831,6 +831,7 @@ pub(crate) fn write_cui_control_plane(input: &Path, output: &Path) -> Result<()>
         .find(|rule| rule.get("id").and_then(Value::as_str) == Some("allow_media_profile_use"))
         .ok_or_else(|| anyhow!("policy has no allow_media_profile_use rule"))?;
     rule["required_data_labels"] = serde_json::json!(["cui"]);
+    rule["required_assurances"] = serde_json::json!(["us_person"]);
     rule["groups"] = serde_json::json!(["engineering"]);
     rule["roles"] = serde_json::json!(["operator"]);
     fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;

@@ -566,6 +566,8 @@ pub(crate) async fn gateway_authenticated(
             "operator",
             "--data-label",
             "cui",
+            "--principal-assurance",
+            "us_person",
         ],
     )?;
     run_direct_mcp(
@@ -680,6 +682,8 @@ pub(crate) async fn gateway_authenticated(
             "operator",
             "--data-label",
             "cui",
+            "--principal-assurance",
+            "us_person",
         ],
     )?;
     let ema_token = ema_token.trim();
@@ -721,6 +725,8 @@ pub(crate) async fn gateway_authenticated(
             "operator",
             "--data-label",
             "cui",
+            "--principal-assurance",
+            "us_person",
         ],
     )?;
     assert_mcp_denied(
@@ -739,12 +745,34 @@ pub(crate) async fn gateway_authenticated(
             "engineering",
             "--data-label",
             "cui",
+            "--principal-assurance",
+            "us_person",
         ],
     )?;
     assert_mcp_denied(
         conformance,
         &gateway_mcp_url,
         missing_role_token.trim(),
+        ["resource".into(), "media://usage".into()],
+    )?;
+    let missing_assurance_token = gateway_id_jag_token(
+        conformance,
+        &gateway_base,
+        &[
+            "--id-jag-scope",
+            "media:use",
+            "--group",
+            "engineering",
+            "--role",
+            "operator",
+            "--data-label",
+            "cui",
+        ],
+    )?;
+    assert_mcp_denied(
+        conformance,
+        &gateway_mcp_url,
+        missing_assurance_token.trim(),
         ["resource".into(), "media://usage".into()],
     )?;
     run_direct_mcp(
@@ -787,12 +815,13 @@ pub(crate) async fn gateway_authenticated(
     assert_audit_method(&audit_summary, "tools/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/list", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/templates/list", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/read", 3, 3)?;
+    assert_audit_method(&audit_summary, "resources/read", 3, 5)?;
     assert_audit_method(&audit_summary, "prompts/list", 2, 0)?;
     assert_audit_method(&audit_summary, "prompts/get", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/list", 1, 0)?;
     let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &gateway_state_db)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
+    assert_reason_summary_at_least(&audit_reasons, "missing_principal_assurance", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_role", 1)?;
 

@@ -344,6 +344,9 @@ enum Cmd {
         /// Data-label claim. Repeat for multiple labels.
         #[arg(long = "data-label")]
         data_labels: Vec<String>,
+        /// Principal assurance claim. Repeat for multiple assurances, e.g. us_person.
+        #[arg(long = "principal-assurance")]
+        principal_assurances: Vec<String>,
         /// JWT id claim.
         #[arg(long)]
         jwt_id: Option<String>,
@@ -389,6 +392,9 @@ enum Cmd {
         /// Data-label claim. Repeat for multiple labels.
         #[arg(long = "data-label")]
         data_labels: Vec<String>,
+        /// Principal assurance claim. Repeat for multiple assurances, e.g. us_person.
+        #[arg(long = "principal-assurance")]
+        principal_assurances: Vec<String>,
         /// ID-JAG JWT id claim.
         #[arg(long)]
         jwt_id: Option<String>,
@@ -640,6 +646,7 @@ async fn main() -> Result<()> {
             groups,
             roles,
             data_labels,
+            principal_assurances,
             jwt_id,
             ttl_minutes,
         } => {
@@ -654,6 +661,7 @@ async fn main() -> Result<()> {
                 groups: groups.clone(),
                 roles: roles.clone(),
                 data_labels: data_labels.clone(),
+                principal_assurances: principal_assurances.clone(),
                 jwt_id: jwt_id.clone(),
                 ttl_minutes: *ttl_minutes,
             });
@@ -671,6 +679,7 @@ async fn main() -> Result<()> {
             groups,
             roles,
             data_labels,
+            principal_assurances,
             jwt_id,
             ttl_minutes,
         } => {
@@ -687,6 +696,7 @@ async fn main() -> Result<()> {
                     groups: groups.clone(),
                     roles: roles.clone(),
                     data_labels: data_labels.clone(),
+                    principal_assurances: principal_assurances.clone(),
                     jwt_id: jwt_id.clone(),
                     ttl_minutes: *ttl_minutes,
                 },

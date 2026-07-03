@@ -55,6 +55,7 @@ struct IdJagClaims {
     roles: Vec<String>,
     tenant: String,
     data_labels: Vec<String>,
+    principal_assurances: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,6 +90,7 @@ pub(super) struct IdJagInput {
     pub(super) groups: Vec<String>,
     pub(super) roles: Vec<String>,
     pub(super) data_labels: Vec<String>,
+    pub(super) principal_assurances: Vec<String>,
     pub(super) jwt_id: Option<String>,
     pub(super) ttl_minutes: i64,
 }
@@ -222,6 +224,7 @@ fn build_id_jag(input: &IdJagInput) -> Result<String> {
         roles: input.roles.clone(),
         tenant: input.tenant.clone(),
         data_labels: input.data_labels.clone(),
+        principal_assurances: input.principal_assurances.clone(),
     };
     let mut header = Header::new(Algorithm::RS256);
     header.kid = Some(CONFORMANCE_KEY_ID.to_string());
