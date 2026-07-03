@@ -1,0 +1,541 @@
+use super::client::Client;
+use super::*;
+
+pub(super) async fn read_resource_json(client: &Client, uri: &str) -> Result<Value> {
+    let result = client
+        .read_resource(ReadResourceRequestParams::new(uri))
+        .await?;
+    let text = result
+        .contents
+        .iter()
+        .find_map(|c| match c {
+            rmcp::model::ResourceContents::TextResourceContents { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow!("resource {uri} returned no text contents"))?;
+    Ok(serde_json::from_str(&text)?)
+}
+
+async fn read_resource_blob(client: &Client, uri: &str) -> Result<(Vec<u8>, Option<String>)> {
+    let result = client
+        .read_resource(ReadResourceRequestParams::new(uri))
+        .await?;
+    let (blob, mime_type) = result
+        .contents
+        .iter()
+        .find_map(|c| match c {
+            rmcp::model::ResourceContents::BlobResourceContents {
+                blob, mime_type, ..
+            } => Some((blob.clone(), mime_type.clone())),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow!("resource {uri} returned no blob contents"))?;
+    Ok((BASE64_STANDARD.decode(blob)?, mime_type))
+}
+
+pub(super) async fn cmd_info(client: &Client) -> Result<()> {
+    let info = client
+        .peer_info()
+        .ok_or_else(|| anyhow!("no server info"))?;
+    println!(
+        "server: {} v{}",
+        info.server_info.name, info.server_info.version
+    );
+    println!("protocol: {}", info.protocol_version);
+    println!(
+        "capabilities: {}",
+        serde_json::to_string_pretty(&info.capabilities)?
+    );
+    if let Some(instructions) = &info.instructions {
+        println!("instructions:\n{instructions}");
+    }
+    let tools = client.list_tools(Default::default()).await?;
+    for tool in tools.tools {
+        println!(
+            "\ntool `{}` (task support: {:?})",
+            tool.name,
+            tool.execution.as_ref().map(|e| &e.task_support)
+        );
+        println!("  {}", tool.description.as_deref().unwrap_or(""));
+        println!(
+            "  input schema: {}",
+            serde_json::to_string(&tool.input_schema)?
+        );
+        if let Some(schema) = &tool.output_schema {
+            println!("  output schema: {}", serde_json::to_string(schema)?);
+        }
+    }
+    let prompts = client.list_prompts(Default::default()).await?;
+    for prompt in prompts.prompts {
+        println!(
+            "prompt `{}` — {}",
+            prompt.name,
+            prompt.description.unwrap_or_default()
+        );
+    }
+    let templates = client.list_resource_templates(Default::default()).await?;
+    for t in templates.resource_templates {
+        println!(
+            "template: {} — {}",
+            t.uri_template,
+            t.description.unwrap_or_default()
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn cmd_models_from_catalog(
+    catalog: Value,
+    query: Option<String>,
+    ty: Option<String>,
+) -> Result<()> {
+    let models = catalog.as_array().ok_or_else(|| anyhow!("bad catalog"))?;
+    let needle = query.map(|q| q.to_lowercase());
+    let mut shown = 0usize;
+    for m in models {
+        let id = m["model_id"].as_str().unwrap_or_default();
+        let mtype = m["type"].as_str().unwrap_or_default();
+        let desc = m["description"].as_str().unwrap_or_default();
+        if let Some(t) = &ty
+            && mtype != t
+        {
+            continue;
+        }
+        if let Some(n) = &needle
+            && !id.to_lowercase().contains(n)
+            && !desc.to_lowercase().contains(n)
+        {
+            continue;
+        }
+        let price = m["base_price"]
+            .as_f64()
+            .map(|p| format!("${p}"))
+            .unwrap_or_default();
+        println!("{id}  [{mtype}] {price}");
+        let short: String = desc.chars().take(110).collect();
+        println!("    {short}");
+        shown += 1;
+    }
+    println!("\n{shown} / {} models", models.len());
+    Ok(())
+}
+
+pub(super) async fn cmd_complete(
+    client: &Client,
+    uris: &ServerResourceUris,
+    prefix: String,
+) -> Result<()> {
+    let result = client
+        .complete(CompleteRequestParams::new(
+            Reference::for_resource(uris.model_template()),
+            ArgumentInfo::new("model_id", prefix),
+        ))
+        .await?;
+    for v in &result.completion.values {
+        println!("{v}");
+    }
+    println!(
+        "\n{} shown, total {:?}, has_more {:?}",
+        result.completion.values.len(),
+        result.completion.total,
+        result.completion.has_more
+    );
+    Ok(())
+}
+
+pub(super) async fn cmd_prompts(client: &Client) -> Result<()> {
+    let prompts = client.list_prompts(Default::default()).await?;
+    for prompt in prompts.prompts {
+        println!(
+            "{} — {}",
+            prompt.name,
+            prompt.description.unwrap_or_default()
+        );
+        for argument in prompt.arguments.unwrap_or_default() {
+            println!(
+                "    {}{} — {}",
+                argument.name,
+                if argument.required == Some(true) {
+                    " *"
+                } else {
+                    ""
+                },
+                argument.description.unwrap_or_default()
+            );
+        }
+    }
+    if let Some(cursor) = prompts.next_cursor {
+        println!("\nnext cursor: {cursor}");
+    }
+    Ok(())
+}
+
+pub(super) async fn cmd_resources(client: &Client) -> Result<()> {
+    let resources = client.list_resources(Default::default()).await?;
+    for resource in resources.resources {
+        println!(
+            "{} — {}",
+            resource.uri,
+            resource.description.unwrap_or_default()
+        );
+    }
+    if let Some(cursor) = resources.next_cursor {
+        println!("\nnext cursor: {cursor}");
+    }
+    Ok(())
+}
+
+pub(super) async fn cmd_resource(client: &Client, uri: String) -> Result<()> {
+    let value = read_resource_json(client, &uri).await?;
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    Ok(())
+}
+
+pub(super) async fn cmd_prompt(
+    client: &Client,
+    name: String,
+    arguments: Option<String>,
+) -> Result<()> {
+    let arguments = arguments
+        .map(|raw| serde_json::from_str::<Value>(&raw))
+        .transpose()?
+        .map(|value| {
+            value
+                .as_object()
+                .cloned()
+                .ok_or_else(|| anyhow!("prompt arguments must be a JSON object"))
+        })
+        .transpose()?;
+    let mut params = GetPromptRequestParams::new(name);
+    if let Some(arguments) = arguments {
+        params = params.with_arguments(arguments);
+    }
+    let result = client.get_prompt(params).await?;
+    if let Some(description) = result.description {
+        println!("{description}");
+    }
+    for message in result.messages {
+        match message.content {
+            ContentBlock::Text(text) => println!("\n{:?}:\n{}", message.role, text.text),
+            other => println!("\n{:?}:\n{other:?}", message.role),
+        }
+    }
+    Ok(())
+}
+
+pub(super) async fn cmd_call(client: &Client, tool_name: String, arguments: String) -> Result<()> {
+    let arguments = serde_json::from_str::<Value>(&arguments)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| anyhow!("tool arguments must be a JSON object"))?;
+    let result = client
+        .call_tool(CallToolRequestParams::new(tool_name).with_arguments(arguments))
+        .await?;
+    print_call_tool_result(&result);
+    Ok(())
+}
+
+pub(super) async fn cmd_complete_resource(
+    client: &Client,
+    uri: String,
+    argument: String,
+    prefix: String,
+) -> Result<()> {
+    let result = client
+        .complete(CompleteRequestParams::new(
+            Reference::for_resource(uri),
+            ArgumentInfo::new(argument, prefix),
+        ))
+        .await?;
+    for value in &result.completion.values {
+        println!("{value}");
+    }
+    println!(
+        "\n{} shown, total {:?}, has_more {:?}",
+        result.completion.values.len(),
+        result.completion.total,
+        result.completion.has_more
+    );
+    Ok(())
+}
+
+pub(super) async fn cmd_tasks(client: &Client) -> Result<()> {
+    let result = client
+        .send_request(ClientRequest::ListTasksRequest(ListTasksRequest::default()))
+        .await?;
+    let ServerResult::ListTasksResult(result) = result else {
+        return Err(anyhow!("expected ListTasksResult, got {result:?}"));
+    };
+    for task in &result.tasks {
+        println!(
+            "{} {:?} {}",
+            task.task_id,
+            task.status,
+            task.status_message.as_deref().unwrap_or_default()
+        );
+    }
+    println!("{} task(s)", result.tasks.len());
+    if let Some(cursor) = result.next_cursor {
+        println!("next cursor: {cursor}");
+    }
+    Ok(())
+}
+
+fn print_call_tool_result(result: &CallToolResult) -> Vec<String> {
+    let mut outputs = Vec::new();
+    for block in result.content.iter() {
+        match block {
+            ContentBlock::Text(t) => println!("{}", t.text),
+            ContentBlock::ResourceLink(link) => {
+                println!(
+                    "output: {} ({})",
+                    link.uri,
+                    link.mime_type.as_deref().unwrap_or("unknown")
+                );
+                outputs.push(link.uri.clone());
+            }
+            other => println!("{other:?}"),
+        }
+    }
+    if let Some(structured) = &result.structured_content {
+        println!("structured: {structured}");
+    }
+    outputs
+}
+
+fn extension_for_mime(mime_type: Option<&str>) -> &'static str {
+    match mime_type.and_then(|m| m.split(';').next()) {
+        Some("image/png") => "png",
+        Some("image/jpeg") => "jpg",
+        Some("image/webp") => "webp",
+        Some("image/gif") => "gif",
+        Some("video/mp4") => "mp4",
+        Some("video/webm") => "webm",
+        Some("audio/mpeg") => "mp3",
+        Some("audio/wav") => "wav",
+        _ => "bin",
+    }
+}
+
+pub(super) async fn save_output_uri(
+    client: &Client,
+    uris: &ServerResourceUris,
+    http: &reqwest::Client,
+    output_dir: &std::path::Path,
+    uri: &str,
+) -> Result<()> {
+    let (name, bytes) = if let Some(sha256) = uris.parse_artifact_uri(uri) {
+        let (bytes, mime_type) = read_resource_blob(client, uri).await?;
+        let ext = extension_for_mime(mime_type.as_deref());
+        (format!("{sha256}.{ext}"), bytes)
+    } else if uri.starts_with("http://") || uri.starts_with("https://") {
+        let name = uri
+            .split('?')
+            .next()
+            .and_then(|p| p.rsplit('/').next())
+            .filter(|n| !n.is_empty())
+            .unwrap_or("output.bin")
+            .to_string();
+        let bytes = http
+            .get(uri)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?
+            .to_vec();
+        (name, bytes)
+    } else {
+        return Err(anyhow!("unsupported output resource uri: {uri}"));
+    };
+
+    let path = output_dir.join(name);
+    std::fs::write(&path, &bytes)?;
+    println!("saved {} ({} bytes)", path.display(), bytes.len());
+    Ok(())
+}
+
+fn task_from_cancel_result(result: ServerResult) -> Result<rmcp::model::Task> {
+    match result {
+        ServerResult::CancelTaskResult(result) => Ok(result.task),
+        ServerResult::GetTaskResult(result) => Ok(result.task),
+        other => Err(anyhow!("expected task-shaped cancel result, got {other:?}")),
+    }
+}
+
+pub(super) async fn cmd_run(
+    client: &Client,
+    uris: &ServerResourceUris,
+    tool_name: String,
+    model_id: String,
+    input: String,
+    output_dir: PathBuf,
+    cancel: bool,
+) -> Result<()> {
+    let input: Value = serde_json::from_str(&input)?;
+
+    // tools/call augmented with SEP-1319 task metadata + a progress token.
+    let mut params = CallToolRequestParams::new(tool_name)
+        .with_arguments(
+            serde_json::json!({ "model": model_id, "input": input })
+                .as_object()
+                .cloned()
+                .unwrap(),
+        )
+        .with_task(TaskMetadata::new().with_ttl(3_600_000));
+    params.set_progress_token(ProgressToken(NumberOrString::String(Arc::from("run"))));
+
+    let created = client
+        .send_request(ClientRequest::CallToolRequest(Request::new(params)))
+        .await?;
+    let ServerResult::CreateTaskResult(created) = created else {
+        return Err(anyhow!("expected CreateTaskResult, got {created:?}"));
+    };
+    let task_id = created.task.task_id.clone();
+    println!(
+        "task {task_id} created (status {:?}, poll {}ms)",
+        created.task.status,
+        created.task.poll_interval.unwrap_or(3000)
+    );
+
+    if cancel {
+        let result = client
+            .send_request(ClientRequest::CancelTaskRequest(Request::new(
+                CancelTaskParams::new(task_id.clone()),
+            )))
+            .await?;
+        let cancelled = task_from_cancel_result(result)?;
+        if cancelled.task_id != task_id {
+            return Err(anyhow!(
+                "tasks/cancel returned task id `{}`, expected `{task_id}`",
+                cancelled.task_id
+            ));
+        }
+        if cancelled.status != TaskStatus::Cancelled {
+            return Err(anyhow!(
+                "tasks/cancel returned status {:?}, expected Cancelled",
+                cancelled.status
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let info = client
+            .send_request(ClientRequest::GetTaskRequest(Request::new(
+                GetTaskParams::new(task_id.clone()),
+            )))
+            .await?;
+        let ServerResult::GetTaskResult(info) = info else {
+            return Err(anyhow!("expected GetTaskResult after cancel, got {info:?}"));
+        };
+        if info.task.task_id != task_id {
+            return Err(anyhow!(
+                "tasks/get returned task id `{}`, expected `{task_id}`",
+                info.task.task_id
+            ));
+        }
+        if info.task.status != TaskStatus::Cancelled {
+            return Err(anyhow!(
+                "tasks/get returned status {:?}, expected Cancelled",
+                info.task.status
+            ));
+        }
+        if client
+            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
+                GetTaskPayloadParams::new(task_id.clone()),
+            )))
+            .await
+            .is_ok()
+        {
+            return Err(anyhow!("tasks/result unexpectedly succeeded after cancel"));
+        }
+        println!("cancelled task {task_id} (status Cancelled)");
+        return Ok(());
+    }
+
+    // Poll tasks/get, honoring the server's suggested interval. Subscribe to
+    // the prediction resource as soon as the statusMessage names it.
+    let poll_ms = created.task.poll_interval.unwrap_or(3000);
+    let mut subscribed_uri = None::<String>;
+    let final_task = loop {
+        tokio::time::sleep(Duration::from_millis(poll_ms)).await;
+        let info = client
+            .send_request(ClientRequest::GetTaskRequest(Request::new(
+                GetTaskParams::new(task_id.clone()),
+            )))
+            .await?;
+        let ServerResult::GetTaskResult(info) = info else {
+            return Err(anyhow!("expected GetTaskResult, got {info:?}"));
+        };
+        let message = info.task.status_message.clone().unwrap_or_default();
+        println!("poll: {:?} — {message}", info.task.status);
+
+        let prediction_prefix = format!("{}://prediction/", uris.scheme());
+        if subscribed_uri.is_none()
+            && let Some(idx) = message.find(&prediction_prefix)
+        {
+            let uri: String = message[idx..]
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .trim_end_matches([';', ','])
+                .to_string();
+            client
+                .subscribe(SubscribeRequestParams::new(uri.clone()))
+                .await?;
+            println!("subscribed to {uri}");
+            subscribed_uri = Some(uri);
+        }
+
+        match info.task.status {
+            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => {
+                break info.task;
+            }
+            _ => {}
+        }
+    };
+
+    if final_task.status != TaskStatus::Completed {
+        // tasks/result surfaces the failure detail as a JSON-RPC error.
+        let err = client
+            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
+                GetTaskPayloadParams::new(task_id.clone()),
+            )))
+            .await
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "unknown error".into());
+        if let Some(uri) = subscribed_uri {
+            client
+                .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+                .await?;
+            println!("unsubscribed from {uri}");
+        }
+        return Err(anyhow!("task ended {:?}: {err}", final_task.status));
+    }
+
+    let payload = client
+        .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
+            GetTaskPayloadParams::new(task_id.clone()),
+        )))
+        .await?;
+    let result: CallToolResult = match payload {
+        ServerResult::CallToolResult(r) => r,
+        ServerResult::CustomResult(c) => serde_json::from_value(c.0)?,
+        other => return Err(anyhow!("unexpected tasks/result payload: {other:?}")),
+    };
+    let outputs = print_call_tool_result(&result);
+
+    if !outputs.is_empty() {
+        std::fs::create_dir_all(&output_dir)?;
+        let http = reqwest::Client::new();
+        for uri in outputs {
+            save_output_uri(client, uris, &http, &output_dir, &uri).await?;
+        }
+    }
+    if let Some(uri) = subscribed_uri {
+        client
+            .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+            .await?;
+        println!("unsubscribed from {uri}");
+    }
+    Ok(())
+}
