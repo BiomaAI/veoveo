@@ -160,6 +160,7 @@ fn default_policy() -> PolicySet {
             roles: BTreeSet::new(),
             required_scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
             required_data_labels: BTreeSet::new(),
+            required_assurances: BTreeSet::new(),
             metadata: Value::Null,
         }],
         metadata: Value::Null,

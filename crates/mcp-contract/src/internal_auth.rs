@@ -287,6 +287,7 @@ mod tests {
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
             scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
             data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
             authenticated_at: Some(Utc::now()),
         }
     }

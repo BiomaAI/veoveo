@@ -43,6 +43,8 @@ pub struct PolicyRule {
     #[serde(default)]
     pub required_data_labels: BTreeSet<DataLabelId>,
     #[serde(default)]
+    pub required_assurances: BTreeSet<PrincipalAssurance>,
+    #[serde(default)]
     pub metadata: Value,
 }
 
@@ -118,6 +120,8 @@ pub struct Principal {
     pub scopes: BTreeSet<ScopeName>,
     #[serde(default)]
     pub data_labels: BTreeSet<DataLabelId>,
+    #[serde(default)]
+    pub assurances: BTreeSet<PrincipalAssurance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authenticated_at: Option<DateTime<Utc>>,
 }
@@ -127,6 +131,14 @@ pub struct Principal {
 pub enum PrincipalKind {
     User,
     Service,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum PrincipalAssurance {
+    UsPerson,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -211,6 +223,7 @@ pub enum PolicyReasonCode {
     MissingRole,
     MissingScope,
     MissingDataLabel,
+    MissingPrincipalAssurance,
     TokenAudienceMismatch,
     TokenExpired,
     TokenNotYetValid,

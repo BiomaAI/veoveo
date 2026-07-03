@@ -261,6 +261,7 @@ mod tests {
                 .iter()
                 .map(|label| DataLabelId::new(*label).unwrap())
                 .collect(),
+            assurances: BTreeSet::new(),
             authenticated_at: Some(Utc::now()),
         };
         let now = Utc::now();

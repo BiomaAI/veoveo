@@ -7,8 +7,8 @@ mod support;
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalId,
-    PrincipalKind, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
+    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalAssurance,
+    PrincipalId, PrincipalKind, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
 };
 
 use claims::{ClientAssertionClaims, IdJagClaims, JwtClaims, OidcIdTokenClaims, StringListClaim};
@@ -112,6 +112,7 @@ impl JwtVerifier {
                 .map(DataLabelId::new)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
+            assurances: principal_assurances(claims.principal_assurances)?,
             authenticated_at: Some(Utc::now()),
         };
 
@@ -265,6 +266,7 @@ impl IdJagVerifier {
                 .map(DataLabelId::new)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
+            assurances: principal_assurances(claims.principal_assurances)?,
             authenticated_at: Some(Utc::now()),
         };
 
@@ -357,6 +359,7 @@ impl OidcIdTokenVerifier {
                 .map(DataLabelId::new)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
+            assurances: principal_assurances(claims.principal_assurances)?,
             authenticated_at: Some(Utc::now()),
         };
 
@@ -365,6 +368,20 @@ impl OidcIdTokenVerifier {
             expires_at: unix_timestamp(claims.exp, "exp")?,
         })
     }
+}
+
+fn principal_assurances(
+    claim: Option<StringListClaim>,
+) -> Result<BTreeSet<PrincipalAssurance>, AuthError> {
+    claim
+        .map(StringListClaim::into_values)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|value| match value.as_str() {
+            "us_person" => Ok(PrincipalAssurance::UsPerson),
+            _ => Err(AuthError::InvalidPrincipalAssurance(value)),
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -447,6 +464,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         roles: Vec<&'a str>,
         tenant: &'a str,
         data_labels: Vec<&'a str>,
+        principal_assurances: Vec<&'a str>,
     }
 
     #[derive(Debug, Serialize)]
@@ -476,6 +494,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         roles: Vec<&'a str>,
         tenant: &'a str,
         data_labels: Vec<&'a str>,
+        principal_assurances: Vec<&'a str>,
     }
 
     #[derive(Debug, Serialize)]
@@ -491,6 +510,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         roles: Vec<&'a str>,
         tenant: &'a str,
         data_labels: Vec<&'a str>,
+        principal_assurances: Vec<&'a str>,
     }
 
     fn verifier(required_scopes: &[&str]) -> JwtVerifier {
@@ -521,6 +541,10 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     }
 
     fn token(scope: &str) -> BearerToken {
+        token_with_assurances(scope, vec!["us_person"])
+    }
+
+    fn token_with_assurances(scope: &str, principal_assurances: Vec<&str>) -> BearerToken {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-key".to_string());
         let encoding_key = rsa_encoding_key();
@@ -539,6 +563,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 roles: vec!["operator"],
                 tenant: "tenant-a",
                 data_labels: vec!["pii", "cui"],
+                principal_assurances,
             },
             &encoding_key,
         )
@@ -587,6 +612,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 roles: vec!["operator"],
                 tenant: "tenant-a",
                 data_labels: vec!["cui"],
+                principal_assurances: vec!["us_person"],
             },
             &encoding_key,
         )
@@ -611,6 +637,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 roles: vec!["operator"],
                 tenant: "tenant-a",
                 data_labels: vec!["cui"],
+                principal_assurances: vec!["us_person"],
             },
             &encoding_key,
         )
@@ -682,6 +709,12 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .data_labels
                 .contains(&DataLabelId::new("cui").unwrap())
         );
+        assert!(
+            subject
+                .principal
+                .assurances
+                .contains(&PrincipalAssurance::UsPerson)
+        );
     }
 
     #[test]
@@ -713,6 +746,17 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .expect_err("scope should be required");
 
         assert!(matches!(err, AuthError::MissingRequiredScope));
+    }
+
+    #[test]
+    fn rejects_unknown_principal_assurance_claim() {
+        let err = verifier(&["media:use"])
+            .verify(&token_with_assurances("media:use", vec!["contractor"]))
+            .expect_err("unknown assurance should fail closed");
+
+        assert!(
+            matches!(err, AuthError::InvalidPrincipalAssurance(value) if value == "contractor")
+        );
     }
 
     #[test]
@@ -792,6 +836,12 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .data_labels
                 .contains(&DataLabelId::new("cui").unwrap())
         );
+        assert!(
+            verified
+                .principal
+                .assurances
+                .contains(&PrincipalAssurance::UsPerson)
+        );
     }
 
     #[test]
@@ -841,6 +891,12 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .principal
                 .data_labels
                 .contains(&DataLabelId::new("cui").unwrap())
+        );
+        assert!(
+            verified
+                .principal
+                .assurances
+                .contains(&PrincipalAssurance::UsPerson)
         );
     }
 

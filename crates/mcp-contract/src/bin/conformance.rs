@@ -2184,6 +2184,7 @@ fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String>
         roles: Default::default(),
         scopes: [ScopeName::new("media:use")?].into_iter().collect(),
         data_labels: Default::default(),
+        assurances: Default::default(),
         authenticated_at: Some(Utc::now()),
     };
     let token = issuer.issue(

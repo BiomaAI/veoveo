@@ -21,6 +21,7 @@ pub enum AuthError {
     InvalidIdentityAssertion,
     InvalidOidcIdToken,
     InvalidOidcNonce,
+    InvalidPrincipalAssurance(String),
     MissingIdentityAssertionResource,
     InvalidIdentityAssertionResource,
     MissingIdentityAssertionScope,
@@ -59,6 +60,9 @@ impl fmt::Display for AuthError {
             Self::InvalidIdentityAssertion => write!(f, "invalid identity assertion"),
             Self::InvalidOidcIdToken => write!(f, "invalid OIDC ID token"),
             Self::InvalidOidcNonce => write!(f, "OIDC ID token nonce does not match request"),
+            Self::InvalidPrincipalAssurance(value) => {
+                write!(f, "invalid principal assurance `{value}`")
+            }
             Self::MissingIdentityAssertionResource => {
                 write!(f, "identity assertion is missing resource")
             }

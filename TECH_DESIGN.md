@@ -271,7 +271,8 @@ announces the stable MCP Enterprise-Managed Authorization extension and frames t
 the centralized policy and audit authority for enterprise MCP access.
 
 The gateway maps authenticated claims to strongly typed Veoveo principals, tenants,
-groups, roles, scopes, and data labels. Hosted servers should receive a short-lived
+groups, roles, scopes, data labels, and principal assurances such as `us_person`.
+Hosted servers should receive a short-lived
 gateway-issued internal token or signed identity assertion, not raw external IdP tokens by
 default. Servers remain responsible for enforcing the Veoveo contract on task ownership,
 artifact reads, usage reads, and regulated-data labels; gateway policy reduces exposure but
@@ -327,13 +328,13 @@ Gateway data must be split by sensitivity and lifecycle:
 
 Regulated-data support is a design requirement. Policy must be able to express and enforce
 access for CUI, ITAR, PII, customer-confidential data, export-control labels, tenant
-boundaries, project boundaries, user/service principals, group membership, citizenship or
-US-person requirements when provided by the IdP, environment, model/provider allowlists,
-artifact ownership, usage visibility, and retention state. Classified deployments require
-an accredited deployment environment, approved identity provider, approved cryptography,
-approved storage, approved network boundary, and approved operations process; the Veoveo
-software must provide the hooks and enforcement model, while the deployment proves the
-classification boundary.
+boundaries, project boundaries, user/service principals, group membership, and typed
+principal assurances. US-person gating is expressed as the canonical
+`principal_assurances: ["us_person"]` claim and `required_assurances: ["us_person"]`
+policy rule field. Classified deployments require an accredited deployment environment,
+approved identity provider, approved cryptography, approved storage, approved network
+boundary, and approved operations process; the Veoveo software must provide the hooks and
+enforcement model, while the deployment proves the classification boundary.
 
 The shipped gateway must enforce these hard requirements:
 

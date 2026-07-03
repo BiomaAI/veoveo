@@ -12,12 +12,12 @@ use veoveo_mcp_contract::{
     MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
     OAuthClientRegistration, OAuthGrantType, OAuthRedirectUri, OidcClientAuthMethod, OidcClientId,
     OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PolicyEffect, PolicyReasonCode,
-    PolicyRule, PolicyRuleId, PolicyTarget, Principal, PrincipalId, PrincipalKind,
-    ProfileServerExposure, ProtectedResourceId, ResourceAuthorizationServer, ResourceScheme,
-    ResourceSelector, ResourceUri, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
-    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
-    TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport,
-    UpstreamTransportSecurity, UpstreamUrl,
+    PolicyRule, PolicyRuleId, PolicyTarget, Principal, PrincipalAssurance, PrincipalId,
+    PrincipalKind, ProfileServerExposure, ProtectedResourceId, ResourceAuthorizationServer,
+    ResourceScheme, ResourceSelector, ResourceUri, ResourceUriTemplate, RoleId, ScopeName,
+    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
+    TaskExposure, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 
 use super::*;
@@ -138,6 +138,7 @@ fn policy() -> PolicySet {
             roles: BTreeSet::new(),
             required_scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
             required_data_labels: BTreeSet::new(),
+            required_assurances: BTreeSet::new(),
             metadata: Value::Null,
         }],
         metadata: Value::Null,
@@ -295,6 +296,7 @@ fn principal(scopes: &[&str]) -> Principal {
             .map(|scope| ScopeName::new(*scope).unwrap())
             .collect(),
         data_labels: BTreeSet::<DataLabelId>::new(),
+        assurances: BTreeSet::new(),
         authenticated_at: Some(
             DateTime::parse_from_rfc3339("2026-07-02T00:00:00Z")
                 .unwrap()
@@ -477,6 +479,45 @@ fn policy_denies_missing_required_data_label_with_specific_reason() {
 
     assert_eq!(decision.effect, PolicyEffect::Allow);
     assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
+}
+
+#[test]
+fn policy_denies_missing_required_assurance_with_specific_reason() {
+    let mut policy = policy();
+    policy.rules[0].required_assurances = BTreeSet::from([PrincipalAssurance::UsPerson]);
+    let catalog = catalog_with_policy(policy);
+    let target = PolicyTarget::Tool {
+        server: ServerSlug::new("media").unwrap(),
+        tool: LocalToolName::new("run").unwrap(),
+    };
+
+    let denied = catalog.decide(PolicyRequest {
+        principal: &principal(&["media:use"]),
+        profile: &GatewayProfileId::new("default").unwrap(),
+        action: GatewayAction::ToolsCall,
+        target: &target,
+        trace_id: &TraceId::new("trace-assurance-deny").unwrap(),
+    });
+
+    assert_eq!(denied.effect, PolicyEffect::Deny);
+    assert_eq!(denied.reason, PolicyReasonCode::MissingPrincipalAssurance);
+    assert_eq!(
+        denied.rule_id,
+        Some(PolicyRuleId::new("allow_media_run").unwrap())
+    );
+
+    let mut allowed_principal = principal(&["media:use"]);
+    allowed_principal.assurances = BTreeSet::from([PrincipalAssurance::UsPerson]);
+    let allowed = catalog.decide(PolicyRequest {
+        principal: &allowed_principal,
+        profile: &GatewayProfileId::new("default").unwrap(),
+        action: GatewayAction::ToolsCall,
+        target: &target,
+        trace_id: &TraceId::new("trace-assurance-allow").unwrap(),
+    });
+
+    assert_eq!(allowed.effect, PolicyEffect::Allow);
+    assert_eq!(allowed.reason, PolicyReasonCode::PolicyAllow);
 }
 
 #[test]
@@ -786,6 +827,7 @@ fn protected_resource_metadata_includes_policy_required_scopes() {
         roles: BTreeSet::new(),
         required_scopes: BTreeSet::from([ScopeName::new("gateway:admin").unwrap()]),
         required_data_labels: BTreeSet::new(),
+        required_assurances: BTreeSet::new(),
         metadata: Value::Null,
     });
     let catalog = catalog_with_policy(policy);

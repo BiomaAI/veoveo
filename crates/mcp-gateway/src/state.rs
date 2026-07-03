@@ -492,6 +492,7 @@ mod tests {
             roles: BTreeSet::new(),
             scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
             data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
             authenticated_at: Some(now),
         };
         let code = GatewayAuthorizationCodeRecord {

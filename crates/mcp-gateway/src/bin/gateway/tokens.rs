@@ -36,6 +36,8 @@ struct AccessTokenClaims {
     tenant: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     data_labels: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    principal_assurances: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -128,6 +130,19 @@ pub(super) async fn issue_access_token(
                     .data_labels
                     .iter()
                     .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        principal_assurances: principal
+            .map(|principal| {
+                principal
+                    .assurances
+                    .iter()
+                    .map(|assurance| match assurance {
+                        veoveo_mcp_contract::PrincipalAssurance::UsPerson => {
+                            "us_person".to_string()
+                        }
+                    })
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default(),

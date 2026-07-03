@@ -50,12 +50,13 @@ pub use gateway::{
     OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OidcNonce, OwnedRoute,
     OwnedRoutePurpose, PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier,
     PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
-    PolicyTarget, PolicyVersion, Principal, PrincipalId, PrincipalKind, ProfileServerExposure,
-    PromptName, ProtectedResourceId, ResourceAuthorizationServer, ResourceScheme, ResourceSelector,
-    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
-    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
-    ServerSlug, TaskExposure, TaskIdProjection, TenantId, TokenIssuer, TokenSubject, TraceId,
-    UpstreamEndpoint, UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+    PolicyTarget, PolicyVersion, Principal, PrincipalAssurance, PrincipalId, PrincipalKind,
+    ProfileServerExposure, PromptName, ProtectedResourceId, ResourceAuthorizationServer,
+    ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId,
+    ScopeName, SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId,
+    SecretSource, ServerManifest, ServerSlug, TaskExposure, TaskIdProjection, TenantId,
+    TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTaskId, UpstreamTransport,
+    UpstreamTransportSecurity, UpstreamUrl,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use internal_auth::{

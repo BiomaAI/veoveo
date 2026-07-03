@@ -125,6 +125,13 @@ impl GatewayCatalog {
                         rule.id.clone(),
                     );
                 }
+                RuleMatchDetail::MissingPrincipalAssurance => {
+                    remember_strongest_missing_requirement(
+                        &mut strongest_missing_requirement,
+                        PolicyReasonCode::MissingPrincipalAssurance,
+                        rule.id.clone(),
+                    );
+                }
                 RuleMatchDetail::MissingRole => {
                     remember_strongest_missing_requirement(
                         &mut strongest_missing_requirement,
@@ -318,6 +325,7 @@ enum RuleMatchDetail {
     MissingRole,
     MissingScope,
     MissingDataLabel,
+    MissingPrincipalAssurance,
     NoMatch,
 }
 
@@ -422,6 +430,16 @@ fn rule_match_detail(
             RuleMatchDetail::MissingDataLabel,
         );
     }
+    if !rule.required_assurances.is_empty()
+        && !rule
+            .required_assurances
+            .is_subset(&request.principal.assurances)
+    {
+        strongest_missing_requirement = strongest_missing_rule_detail(
+            strongest_missing_requirement,
+            RuleMatchDetail::MissingPrincipalAssurance,
+        );
+    }
     strongest_missing_requirement
 }
 
@@ -435,7 +453,8 @@ fn strongest_missing_rule_detail(left: RuleMatchDetail, right: RuleMatchDetail) 
 
 fn rule_detail_rank(detail: RuleMatchDetail) -> u8 {
     match detail {
-        RuleMatchDetail::MissingDataLabel => 60,
+        RuleMatchDetail::MissingDataLabel => 70,
+        RuleMatchDetail::MissingPrincipalAssurance => 60,
         RuleMatchDetail::MissingRole => 50,
         RuleMatchDetail::MissingGroup => 40,
         RuleMatchDetail::MissingTenant => 30,
@@ -463,7 +482,8 @@ fn remember_strongest_missing_requirement(
 
 fn missing_requirement_rank(reason: PolicyReasonCode) -> u8 {
     match reason {
-        PolicyReasonCode::MissingDataLabel => 60,
+        PolicyReasonCode::MissingDataLabel => 70,
+        PolicyReasonCode::MissingPrincipalAssurance => 60,
         PolicyReasonCode::MissingRole => 50,
         PolicyReasonCode::MissingGroup => 40,
         PolicyReasonCode::MissingTenant => 30,

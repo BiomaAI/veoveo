@@ -30,6 +30,8 @@ pub(super) struct JwtClaims {
     #[serde(default)]
     pub(super) data_labels: Option<StringListClaim>,
     #[serde(default)]
+    pub(super) principal_assurances: Option<StringListClaim>,
+    #[serde(default)]
     pub(super) principal_kind: Option<PrincipalKind>,
 }
 
@@ -73,6 +75,8 @@ pub(super) struct IdJagClaims {
     #[serde(default)]
     pub(super) data_labels: Option<StringListClaim>,
     #[serde(default)]
+    pub(super) principal_assurances: Option<StringListClaim>,
+    #[serde(default)]
     pub(super) email: Option<String>,
 }
 
@@ -95,6 +99,8 @@ pub(super) struct OidcIdTokenClaims {
     pub(super) tenant: Option<String>,
     #[serde(default)]
     pub(super) data_labels: Option<StringListClaim>,
+    #[serde(default)]
+    pub(super) principal_assurances: Option<StringListClaim>,
     #[serde(default)]
     pub(super) email: Option<String>,
 }
