@@ -30,10 +30,19 @@ pub(crate) fn gateway_token(
     gateway_base: &str,
     args: &[&str],
 ) -> Result<String> {
+    gateway_token_for_profile(conformance, gateway_base, "default", args)
+}
+
+pub(crate) fn gateway_token_for_profile(
+    conformance: &Path,
+    gateway_base: &str,
+    profile: &str,
+    args: &[&str],
+) -> Result<String> {
     let mut all_args = vec![
         "gateway-token-exchange".into(),
         "--token-url".into(),
-        format!("{gateway_base}/oauth/default/token").into(),
+        format!("{gateway_base}/oauth/{profile}/token").into(),
     ];
     all_args.extend(args.iter().map(|arg| OsString::from(*arg)));
     run_checked(conformance, all_args, [])

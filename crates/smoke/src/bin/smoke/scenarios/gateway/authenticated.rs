@@ -247,6 +247,34 @@ pub(crate) async fn gateway_authenticated(
         ["info".into()],
         [("MCP_BEARER_TOKEN", ops_token.trim().into())],
     )?;
+    let default_profile_token =
+        gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    assert_mcp_denied(
+        conformance,
+        &format!("{gateway_base}/mcp/ops"),
+        default_profile_token.trim(),
+        ["info".into()],
+    )?;
+    let ops_headless_token =
+        gateway_token_for_profile(conformance, &gateway_base, "ops", &["--scope", "media:use"])?;
+    run_direct_mcp(
+        conformance,
+        &format!("{gateway_base}/mcp/ops"),
+        ["info".into()],
+        [("MCP_BEARER_TOKEN", ops_headless_token.trim().into())],
+    )?;
+    assert_mcp_denied(
+        conformance,
+        &format!("{gateway_base}/mcp/default"),
+        ops_headless_token.trim(),
+        ["info".into()],
+    )?;
+    assert_mcp_denied(
+        conformance,
+        &format!("{gateway_base}/mcp/default"),
+        ops_token.trim(),
+        ["info".into()],
+    )?;
 
     let reverted = put_json_file(
         &http,
