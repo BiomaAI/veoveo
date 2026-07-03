@@ -77,7 +77,7 @@ use veoveo_media_mcp::{
 };
 
 const REGISTRY_TTL: Duration = Duration::from_secs(3600);
-const TASK_POLL_INTERVAL_MS: u64 = 3000;
+const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
@@ -1502,7 +1502,7 @@ impl ServerHandler for MediaMcp {
         let now = now_iso();
         let mut task = Task::new(task_id.clone(), TaskStatus::Working, now.clone(), now)
             .with_status_message("accepted; validating input")
-            .with_poll_interval(TASK_POLL_INTERVAL_MS);
+            .with_poll_interval(MCP_TASK_POLL_INTERVAL_MS);
         task.ttl = ttl;
 
         self.state.tasks.insert(task.clone(), None).await;
