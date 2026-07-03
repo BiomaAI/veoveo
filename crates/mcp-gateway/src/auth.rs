@@ -1,180 +1,22 @@
 use std::collections::BTreeSet;
 
 mod claims;
+mod config;
 mod support;
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, OidcClientId, OidcNonce,
-    Principal, PrincipalId, PrincipalKind, ProtectedResourceId, RoleId, ScopeName, TenantId,
-    TokenIssuer, TokenSubject,
+    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalId,
+    PrincipalKind, RoleId, ScopeName, TenantId, TokenIssuer, TokenSubject,
 };
 
 use claims::{ClientAssertionClaims, IdJagClaims, JwtClaims, OidcIdTokenClaims, StringListClaim};
-pub use support::AuthError;
-use support::{
-    allowed_algorithms_for_header, is_symmetric_algorithm, unix_timestamp, validate_jwk_algorithm,
+pub use config::{
+    BearerToken, ClientAssertionConfig, IdJagConfig, JwtAuthConfig, OidcIdTokenConfig,
 };
-
-#[derive(Debug, Clone)]
-pub struct JwtAuthConfig {
-    pub issuer: TokenIssuer,
-    pub audience: ProtectedResourceId,
-    pub required_scopes: BTreeSet<ScopeName>,
-    pub algorithms: Vec<Algorithm>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ClientAssertionConfig {
-    pub client_id: OAuthClientId,
-    pub audience: String,
-    pub algorithms: Vec<Algorithm>,
-}
-
-#[derive(Debug, Clone)]
-pub struct IdJagConfig {
-    pub issuer: TokenIssuer,
-    pub audience: TokenIssuer,
-    pub resource: ProtectedResourceId,
-    pub algorithms: Vec<Algorithm>,
-}
-
-#[derive(Debug, Clone)]
-pub struct OidcIdTokenConfig {
-    pub issuer: TokenIssuer,
-    pub client_id: OidcClientId,
-    pub nonce: OidcNonce,
-    pub algorithms: Vec<Algorithm>,
-}
-
-impl ClientAssertionConfig {
-    pub fn new(
-        client_id: OAuthClientId,
-        audience: impl Into<String>,
-        algorithms: Vec<Algorithm>,
-    ) -> Result<Self, AuthError> {
-        if algorithms.is_empty() {
-            return Err(AuthError::MissingAllowedAlgorithms);
-        }
-        if let Some(algorithm) = algorithms
-            .iter()
-            .copied()
-            .find(|algorithm| is_symmetric_algorithm(*algorithm))
-        {
-            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
-        }
-        let audience = audience.into();
-        if audience.is_empty() {
-            return Err(AuthError::InvalidClientAssertionAudience);
-        }
-        Ok(Self {
-            client_id,
-            audience,
-            algorithms,
-        })
-    }
-}
-
-impl JwtAuthConfig {
-    pub fn new(
-        issuer: TokenIssuer,
-        audience: ProtectedResourceId,
-        required_scopes: BTreeSet<ScopeName>,
-        algorithms: Vec<Algorithm>,
-    ) -> Result<Self, AuthError> {
-        if algorithms.is_empty() {
-            return Err(AuthError::MissingAllowedAlgorithms);
-        }
-        if let Some(algorithm) = algorithms
-            .iter()
-            .copied()
-            .find(|algorithm| is_symmetric_algorithm(*algorithm))
-        {
-            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
-        }
-        Ok(Self {
-            issuer,
-            audience,
-            required_scopes,
-            algorithms,
-        })
-    }
-}
-
-impl IdJagConfig {
-    pub fn new(
-        issuer: TokenIssuer,
-        audience: TokenIssuer,
-        resource: ProtectedResourceId,
-        algorithms: Vec<Algorithm>,
-    ) -> Result<Self, AuthError> {
-        if algorithms.is_empty() {
-            return Err(AuthError::MissingAllowedAlgorithms);
-        }
-        if let Some(algorithm) = algorithms
-            .iter()
-            .copied()
-            .find(|algorithm| is_symmetric_algorithm(*algorithm))
-        {
-            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
-        }
-        Ok(Self {
-            issuer,
-            audience,
-            resource,
-            algorithms,
-        })
-    }
-}
-
-impl OidcIdTokenConfig {
-    pub fn new(
-        issuer: TokenIssuer,
-        client_id: OidcClientId,
-        nonce: OidcNonce,
-        algorithms: Vec<Algorithm>,
-    ) -> Result<Self, AuthError> {
-        if algorithms.is_empty() {
-            return Err(AuthError::MissingAllowedAlgorithms);
-        }
-        if let Some(algorithm) = algorithms
-            .iter()
-            .copied()
-            .find(|algorithm| is_symmetric_algorithm(*algorithm))
-        {
-            return Err(AuthError::SymmetricAlgorithmNotAllowed(algorithm));
-        }
-        Ok(Self {
-            issuer,
-            client_id,
-            nonce,
-            algorithms,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BearerToken(String);
-
-impl BearerToken {
-    pub fn from_authorization_header(value: &str) -> Result<Self, AuthError> {
-        let Some((scheme, token)) = value.split_once(' ') else {
-            return Err(AuthError::InvalidAuthorizationHeader);
-        };
-        if !scheme.eq_ignore_ascii_case("bearer") {
-            return Err(AuthError::InvalidAuthorizationScheme);
-        }
-        if token.is_empty() || token.chars().any(char::is_whitespace) {
-            return Err(AuthError::InvalidBearerToken);
-        }
-        Ok(Self(token.to_string()))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
+pub use support::AuthError;
+use support::{allowed_algorithms_for_header, unix_timestamp, validate_jwk_algorithm};
 
 #[derive(Debug, Clone)]
 pub struct JwtVerifier {
@@ -561,6 +403,7 @@ mod tests {
         jwk::{Jwk, JwkSet},
     };
     use serde::Serialize;
+    use veoveo_mcp_contract::{OidcClientId, OidcNonce, ProtectedResourceId};
 
     use super::*;
 
@@ -700,7 +543,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &encoding_key,
         )
         .expect("token encodes");
-        BearerToken(token)
+        BearerToken::from_authorization_header(&format!("Bearer {token}")).expect("token parses")
     }
 
     fn client_assertion(subject: &str, audience: &str, jwt_id: &str) -> String {
