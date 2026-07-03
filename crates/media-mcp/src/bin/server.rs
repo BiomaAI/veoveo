@@ -14,12 +14,7 @@
 //!   completion/complete over {model_id}
 //!   notifications: tasks/status, progress, resources/updated, resources/list_changed
 
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
     Router,
@@ -60,10 +55,9 @@ use tokio::sync::{Mutex, RwLock, oneshot};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GenerationRunOutput,
-    InternalTokenSecret, Page, ServerPublicEndpoint, ServerResourceUris, ServerSlug,
-    SubscriptionHub, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
-    init_server_telemetry, is_sha256, notify_progress, notify_task_status, now_iso, paginate,
-    public_allowed_hosts,
+    InternalTokenSecret, Page, ServerResourceUris, ServerSlug, SubscriptionHub, TaskPayloadState,
+    TaskStore, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, is_sha256,
+    notify_progress, now_iso, paginate, public_allowed_hosts,
 };
 use veoveo_media_mcp::{
     artifacts::{ArtifactRepository, S3ArtifactConfig},
@@ -72,6 +66,8 @@ use veoveo_media_mcp::{
     uris, webhook,
 };
 
+#[path = "server/app_state.rs"]
+mod app_state;
 #[path = "server/config.rs"]
 mod config;
 #[path = "server/host.rs"]
@@ -89,7 +85,8 @@ mod retention;
 #[path = "server/usage.rs"]
 mod usage;
 
-use config::{Args, ArtifactStoreBackend, MediaRetentionPolicy};
+use app_state::{AppState, update_task};
+use config::{Args, ArtifactStoreBackend};
 use host::validate_host;
 use internal_auth::{
     InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
@@ -97,7 +94,7 @@ use internal_auth::{
 use outputs::{prediction_result, public_prediction};
 use ownership::{
     artifact_owned_by, artifact_owner_allows, internal_identity, optional_prediction_owner,
-    optional_task_owner, prediction_owner, require_task_owner, task_owner, task_owner_allows,
+    optional_task_owner, prediction_owner, require_task_owner, task_owner_allows,
     task_owner_from_identity,
 };
 use prompts::MediaPrompt;
@@ -107,165 +104,12 @@ use usage::{
     spawn_missing_actual_usage_reconciliations,
 };
 
-const REGISTRY_TTL: Duration = Duration::from_secs(3600);
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 const SERVER_SLUG: &str = "media";
 const LIST_PAGE_SIZE: usize = 100;
-
-struct RegistryCache {
-    fetched_at: Instant,
-    models: Arc<Vec<ModelEntry>>,
-    by_id: HashMap<String, usize>,
-}
-
-struct AppState {
-    provider: ProviderClient,
-    http: reqwest::Client,
-    public_endpoint: ServerPublicEndpoint,
-    webhook_secret: Option<String>,
-    registry: RwLock<Option<RegistryCache>>,
-    tasks: TaskStore,
-    durable: DuckdbState,
-    artifacts: ArtifactRepository,
-    internal_token_verifier: GatewayInternalTokenVerifier,
-    /// prediction id -> waiter for its webhook callback
-    pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
-    predictions: RwLock<HashMap<String, Prediction>>,
-    task_owners: RwLock<HashMap<String, TaskOwner>>,
-    retention: MediaRetentionPolicy,
-    subscribers: SubscriptionHub,
-}
-
-impl AppState {
-    async fn registry(&self) -> Result<Arc<Vec<ModelEntry>>, String> {
-        {
-            let guard = self.registry.read().await;
-            if let Some(cache) = guard.as_ref()
-                && cache.fetched_at.elapsed() < REGISTRY_TTL
-            {
-                return Ok(cache.models.clone());
-            }
-        }
-        let models = self
-            .provider
-            .list_models()
-            .await
-            .map_err(|e| format!("failed to fetch media model registry: {e}"))?;
-        let models = Arc::new(models);
-        let by_id = models
-            .iter()
-            .enumerate()
-            .map(|(i, m)| (m.model_id.clone(), i))
-            .collect();
-        *self.registry.write().await = Some(RegistryCache {
-            fetched_at: Instant::now(),
-            models: models.clone(),
-            by_id,
-        });
-        Ok(models)
-    }
-
-    async fn find_model(&self, model_id: &str) -> Result<Option<ModelEntry>, String> {
-        let models = self.registry().await?;
-        let guard = self.registry.read().await;
-        let Some(cache) = guard.as_ref() else {
-            return Ok(None);
-        };
-        Ok(cache.by_id.get(model_id).map(|&i| models[i].clone()))
-    }
-
-    /// Record a prediction, resolve any waiter, and push resources/updated to subscribers.
-    async fn ingest_prediction(self: &Arc<Self>, prediction: Prediction) {
-        let id = prediction.id.clone();
-        let terminal = prediction.is_terminal();
-        if let Err(e) = self.durable.record_prediction(&prediction) {
-            tracing::warn!(prediction_id = id, "failed to persist prediction: {e}");
-        }
-        self.predictions
-            .write()
-            .await
-            .insert(id.clone(), prediction.clone());
-
-        if terminal {
-            if let Some(tx) = self.pending.lock().await.remove(&id) {
-                let _ = tx.send(prediction.clone());
-            } else if let Err(e) = self.complete_task_without_peer(&prediction).await {
-                tracing::warn!(
-                    prediction_id = id,
-                    "failed to persist webhook task completion: {e}"
-                );
-            }
-        }
-
-        self.subscribers
-            .notify_resource_updated(uris::prediction_uri(&id))
-            .await;
-    }
-
-    async fn complete_task_without_peer(
-        self: &Arc<Self>,
-        prediction: &Prediction,
-    ) -> anyhow::Result<()> {
-        let Some(task_id) = self.durable.task_id_for_provider_job_id(&prediction.id)? else {
-            return Ok(());
-        };
-        if self.tasks.is_terminal(&task_id).await {
-            return Ok(());
-        }
-        let owner = task_owner(self, &task_id)
-            .await
-            .map_err(|err| anyhow::anyhow!("task ownership lookup failed: {err}"))?;
-        let (status, message, payload, error) = if prediction.status == "failed" {
-            let message = prediction
-                .error
-                .clone()
-                .filter(|e| !e.is_empty())
-                .unwrap_or_else(|| "prediction failed".to_string());
-            (
-                TaskStatus::Failed,
-                format!("prediction {} failed: {message}", prediction.id),
-                None,
-                Some(message),
-            )
-        } else {
-            let prediction_uri = uris::prediction_uri(&prediction.id);
-            match prediction_result(self, prediction, &task_id, &owner).await {
-                Ok(result) => (
-                    TaskStatus::Completed,
-                    format!(
-                        "completed; {} artifact(s); resource {prediction_uri}",
-                        prediction.outputs.len()
-                    ),
-                    serde_json::to_value(&result).ok(),
-                    None,
-                ),
-                Err(e) => {
-                    let message = format!("artifact ingestion failed for {}: {e}", prediction.id);
-                    (TaskStatus::Failed, message.clone(), None, Some(message))
-                }
-            }
-        };
-        if let Some(snapshot) = self
-            .tasks
-            .update(&task_id, status, message, payload.clone(), error.clone())
-            .await
-        {
-            self.durable.record_task(
-                &snapshot,
-                payload.as_ref(),
-                error.as_deref(),
-                Some(&prediction.id),
-            )?;
-        }
-        if prediction.status == "completed" {
-            spawn_actual_usage_reconciliation(self.clone(), task_id.clone(), prediction.clone());
-        }
-        Ok(())
-    }
-}
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct RunArgs {
@@ -311,35 +155,6 @@ impl MediaMcp {
             "run requires task-based invocation",
             None,
         ))
-    }
-}
-
-/// Update a task entry and push a notifications/tasks/status to the creating peer.
-async fn update_task(
-    state: &AppState,
-    peer: &Peer<RoleServer>,
-    task_id: &str,
-    status: TaskStatus,
-    message: impl Into<String>,
-    payload: Option<Value>,
-    error: Option<String>,
-) {
-    let payload_for_store = payload.clone();
-    let error_for_store = error.clone();
-    if let Some(snapshot) = state
-        .tasks
-        .update(task_id, status, message, payload, error)
-        .await
-    {
-        if let Err(e) = state.durable.record_task(
-            &snapshot,
-            payload_for_store.as_ref(),
-            error_for_store.as_deref(),
-            None,
-        ) {
-            tracing::warn!(task_id, "failed to persist task update: {e}");
-        }
-        notify_task_status(peer, snapshot).await;
     }
 }
 
