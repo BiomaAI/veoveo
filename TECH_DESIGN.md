@@ -350,7 +350,9 @@ The shipped gateway must enforce these hard requirements:
 - issue short-lived internal gateway-to-server tokens or signed assertions; do not pass raw
   external IdP tokens to hosted servers by default,
 - support internal mTLS or equivalent authenticated service-to-service transport in
-  enterprise deployments,
+  enterprise deployments; gateway-managed `mutual_tls` upstreams must declare typed client
+  certificate and private-key secret references and the runtime must inject them into
+  RMCP's streamable HTTP client rather than treating mTLS as documentation,
 - export audit and telemetry to platform logs/OpenTelemetry/SIEM without leaking protected
   content,
 - support secret rotation by reference, not by redeploying code,

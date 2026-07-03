@@ -450,6 +450,9 @@ impl GatewayControlPlane {
                 }
             }
         }
+        for server in &self.servers {
+            validate_server_upstream_tls_material(server, &secret_refs)?;
+        }
 
         for authorization_server in &self.authorization_servers {
             let Some(secret) = secret_refs.get(&authorization_server.access_token_signing_key)
@@ -597,6 +600,24 @@ pub enum GatewayControlPlaneError {
         server: ServerSlug,
         security: UpstreamTransportSecurity,
         url: UpstreamUrl,
+    },
+    ServerUpstreamTlsClientMaterialNotAllowed {
+        server: ServerSlug,
+        security: UpstreamTransportSecurity,
+    },
+    ServerUpstreamTlsSecretRequired {
+        server: ServerSlug,
+        purpose: SecretPurpose,
+    },
+    UnknownServerUpstreamTlsSecret {
+        server: ServerSlug,
+        secret: SecretReferenceId,
+    },
+    ServerUpstreamTlsSecretPurposeMismatch {
+        server: ServerSlug,
+        secret: SecretReferenceId,
+        actual: SecretPurpose,
+        expected: SecretPurpose,
     },
     UnknownServer {
         profile: GatewayProfileId,
@@ -897,6 +918,27 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "server `{server}` upstream URL `{url}` does not satisfy declared transport security `{security:?}`"
+            ),
+            Self::ServerUpstreamTlsClientMaterialNotAllowed { server, security } => write!(
+                f,
+                "server `{server}` declares upstream TLS client material but transport security `{security:?}` does not use gateway-managed mutual TLS"
+            ),
+            Self::ServerUpstreamTlsSecretRequired { server, purpose } => write!(
+                f,
+                "server `{server}` upstream mutual TLS requires a secret with purpose `{purpose:?}`"
+            ),
+            Self::UnknownServerUpstreamTlsSecret { server, secret } => write!(
+                f,
+                "server `{server}` upstream TLS references unknown secret `{secret}`"
+            ),
+            Self::ServerUpstreamTlsSecretPurposeMismatch {
+                server,
+                secret,
+                actual,
+                expected,
+            } => write!(
+                f,
+                "server `{server}` upstream TLS references secret `{secret}` with invalid purpose `{actual:?}`, expected `{expected:?}`"
             ),
             Self::UnknownServer { profile, server } => write!(
                 f,
@@ -1381,6 +1423,89 @@ fn validate_server_upstream(server: &ServerManifest) -> Result<(), GatewayContro
             server: server.slug.clone(),
             security: server.upstream.security,
             url: server.upstream.url.clone(),
+        })
+    }
+}
+
+fn validate_server_upstream_tls_material(
+    server: &ServerManifest,
+    secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
+) -> Result<(), GatewayControlPlaneError> {
+    let has_client_material = server.upstream.client_certificate.is_some()
+        || server.upstream.client_private_key.is_some();
+    if server.upstream.security != UpstreamTransportSecurity::MutualTls {
+        if has_client_material {
+            return Err(
+                GatewayControlPlaneError::ServerUpstreamTlsClientMaterialNotAllowed {
+                    server: server.slug.clone(),
+                    security: server.upstream.security,
+                },
+            );
+        }
+        return Ok(());
+    }
+
+    validate_server_upstream_tls_secret(
+        server,
+        server.upstream.client_certificate.as_ref(),
+        SecretPurpose::TlsClientCertificate,
+    )?;
+    validate_server_upstream_tls_secret(
+        server,
+        server.upstream.client_private_key.as_ref(),
+        SecretPurpose::TlsClientPrivateKey,
+    )?;
+
+    for (secret_id, expected) in [
+        (
+            server
+                .upstream
+                .client_certificate
+                .as_ref()
+                .expect("client certificate required by prior validation"),
+            SecretPurpose::TlsClientCertificate,
+        ),
+        (
+            server
+                .upstream
+                .client_private_key
+                .as_ref()
+                .expect("client private key required by prior validation"),
+            SecretPurpose::TlsClientPrivateKey,
+        ),
+    ] {
+        let Some(secret) = secrets.get(secret_id) else {
+            return Err(GatewayControlPlaneError::UnknownServerUpstreamTlsSecret {
+                server: server.slug.clone(),
+                secret: secret_id.clone(),
+            });
+        };
+        if secret.purpose != expected {
+            return Err(
+                GatewayControlPlaneError::ServerUpstreamTlsSecretPurposeMismatch {
+                    server: server.slug.clone(),
+                    secret: secret_id.clone(),
+                    actual: secret.purpose,
+                    expected,
+                },
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_server_upstream_tls_secret(
+    server: &ServerManifest,
+    secret: Option<&SecretReferenceId>,
+    purpose: SecretPurpose,
+) -> Result<(), GatewayControlPlaneError> {
+    if secret.is_some() {
+        Ok(())
+    } else {
+        Err(GatewayControlPlaneError::ServerUpstreamTlsSecretRequired {
+            server: server.slug.clone(),
+            purpose,
         })
     }
 }
@@ -2691,6 +2816,8 @@ pub enum SecretPurpose {
     JwksPrivateKey,
     TokenExchangeCredential,
     ObjectStoreCredential,
+    TlsClientCertificate,
+    TlsClientPrivateKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -3117,6 +3244,12 @@ pub struct UpstreamEndpoint {
     pub transport: UpstreamTransport,
     pub url: UpstreamUrl,
     pub security: UpstreamTransportSecurity,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trusted_certificate_authorities: Vec<CertificateAuthoritySource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_certificate: Option<SecretReferenceId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_private_key: Option<SecretReferenceId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -3658,6 +3791,30 @@ mod tests {
         }
     }
 
+    fn tls_client_certificate_secret() -> SecretReference {
+        SecretReference {
+            id: SecretReferenceId::new("media_upstream_tls_client_certificate").unwrap(),
+            source: SecretSource::Env,
+            purpose: SecretPurpose::TlsClientCertificate,
+            locator: SecretLocator::new("MEDIA_UPSTREAM_TLS_CLIENT_CERTIFICATE_PEM").unwrap(),
+            owner: SecretOwner::Gateway,
+            rotation_hint: None,
+            metadata: Value::Null,
+        }
+    }
+
+    fn tls_client_private_key_secret() -> SecretReference {
+        SecretReference {
+            id: SecretReferenceId::new("media_upstream_tls_client_private_key").unwrap(),
+            source: SecretSource::Env,
+            purpose: SecretPurpose::TlsClientPrivateKey,
+            locator: SecretLocator::new("MEDIA_UPSTREAM_TLS_CLIENT_PRIVATE_KEY_PEM").unwrap(),
+            owner: SecretOwner::Gateway,
+            rotation_hint: None,
+            metadata: Value::Null,
+        }
+    }
+
     fn default_secrets() -> Vec<SecretReference> {
         vec![signing_secret(), oidc_client_secret()]
     }
@@ -3672,6 +3829,9 @@ mod tests {
                 transport: UpstreamTransport::StreamableHttp,
                 url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
                 security: UpstreamTransportSecurity::ComposeInternalHttp,
+                trusted_certificate_authorities: Vec::new(),
+                client_certificate: None,
+                client_private_key: None,
             },
             capabilities: McpSurfaceCapabilities {
                 tools: true,
@@ -3690,6 +3850,23 @@ mod tests {
                 path: MountPath::new("/media/webhooks").unwrap(),
                 purpose: OwnedRoutePurpose::Webhook,
             }],
+            metadata: Value::Null,
+        }
+    }
+
+    fn control_plane_with_server_and_secrets(
+        server: ServerManifest,
+        secrets: Vec<SecretReference>,
+    ) -> GatewayControlPlane {
+        GatewayControlPlane {
+            identity_providers: vec![identity_provider()],
+            authorization_servers: vec![authorization_server()],
+            servers: vec![server],
+            profiles: vec![default_profile()],
+            policies: vec![default_policy()],
+            oauth_clients: default_oauth_clients(),
+            oidc_clients: default_oidc_clients(),
+            secrets,
             metadata: Value::Null,
         }
     }
@@ -3933,6 +4110,105 @@ mod tests {
         assert!(matches!(
             err,
             GatewayControlPlaneError::ServerUpstreamSecurityMismatch { .. }
+        ));
+    }
+
+    #[test]
+    fn mutual_tls_upstream_requires_typed_client_material() {
+        let mut manifest = media_manifest();
+        manifest.upstream.url = UpstreamUrl::new("https://media.example.com/media/mcp").unwrap();
+        manifest.upstream.security = UpstreamTransportSecurity::MutualTls;
+
+        let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())
+            .validate()
+            .expect_err("mutual TLS requires client certificate and private key references");
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ServerUpstreamTlsSecretRequired {
+                purpose: SecretPurpose::TlsClientCertificate,
+                ..
+            }
+        ));
+
+        manifest.upstream.client_certificate =
+            Some(SecretReferenceId::new("media_upstream_tls_client_certificate").unwrap());
+        let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())
+            .validate()
+            .expect_err("mutual TLS also requires a client private key reference");
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ServerUpstreamTlsSecretRequired {
+                purpose: SecretPurpose::TlsClientPrivateKey,
+                ..
+            }
+        ));
+
+        manifest.upstream.client_private_key =
+            Some(SecretReferenceId::new("media_upstream_tls_client_private_key").unwrap());
+        let err = control_plane_with_server_and_secrets(manifest.clone(), default_secrets())
+            .validate()
+            .expect_err("mutual TLS references must exist in the secret catalog");
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::UnknownServerUpstreamTlsSecret { .. }
+        ));
+
+        let mut wrong_purpose = tls_client_private_key_secret();
+        wrong_purpose.purpose = SecretPurpose::OAuthClientSecret;
+        let err = control_plane_with_server_and_secrets(
+            manifest.clone(),
+            vec![
+                signing_secret(),
+                oidc_client_secret(),
+                tls_client_certificate_secret(),
+                wrong_purpose,
+            ],
+        )
+        .validate()
+        .expect_err("mutual TLS secrets must have TLS-specific purposes");
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ServerUpstreamTlsSecretPurposeMismatch {
+                expected: SecretPurpose::TlsClientPrivateKey,
+                ..
+            }
+        ));
+
+        control_plane_with_server_and_secrets(
+            manifest,
+            vec![
+                signing_secret(),
+                oidc_client_secret(),
+                tls_client_certificate_secret(),
+                tls_client_private_key_secret(),
+            ],
+        )
+        .validate()
+        .expect("mutual TLS validates with typed certificate and private key secrets");
+    }
+
+    #[test]
+    fn non_mutual_tls_upstream_rejects_client_material() {
+        let mut manifest = media_manifest();
+        manifest.upstream.client_certificate =
+            Some(SecretReferenceId::new("media_upstream_tls_client_certificate").unwrap());
+        manifest.upstream.client_private_key =
+            Some(SecretReferenceId::new("media_upstream_tls_client_private_key").unwrap());
+
+        let err = control_plane_with_server_and_secrets(
+            manifest,
+            vec![
+                signing_secret(),
+                oidc_client_secret(),
+                tls_client_certificate_secret(),
+                tls_client_private_key_secret(),
+            ],
+        )
+        .validate()
+        .expect_err("client TLS material is only meaningful for mutual TLS upstreams");
+        assert!(matches!(
+            err,
+            GatewayControlPlaneError::ServerUpstreamTlsClientMaterialNotAllowed { .. }
         ));
     }
 

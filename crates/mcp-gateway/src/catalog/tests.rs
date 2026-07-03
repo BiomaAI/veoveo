@@ -95,6 +95,9 @@ fn media_manifest() -> ServerManifest {
             transport: UpstreamTransport::StreamableHttp,
             url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
             security: UpstreamTransportSecurity::ComposeInternalHttp,
+            trusted_certificate_authorities: Vec::new(),
+            client_certificate: None,
+            client_private_key: None,
         },
         capabilities: veoveo_mcp_contract::McpSurfaceCapabilities {
             tools: true,

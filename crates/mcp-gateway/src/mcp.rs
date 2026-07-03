@@ -5,6 +5,7 @@ use std::{
 
 mod authorization;
 mod upstream;
+mod upstream_http;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
@@ -45,6 +46,7 @@ use crate::{
     },
 };
 use upstream::GatewayUpstreamHandler;
+use upstream_http::build_upstream_http_client;
 
 const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
@@ -167,7 +169,9 @@ impl GatewayMcp {
             )
             .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
 
-        let transport = StreamableHttpClientTransport::from_config(
+        let http_client = build_upstream_http_client(snapshot.catalog(), &server).await?;
+        let transport = StreamableHttpClientTransport::<reqwest::Client>::with_client(
+            http_client,
             StreamableHttpClientTransportConfig::with_uri(server.upstream.url.as_str().to_string())
                 .auth_header(internal_token.bearer_token)
                 .reinit_on_expired_session(false),
