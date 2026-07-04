@@ -122,6 +122,7 @@ pub(super) enum AdminOperationFailure {
     PersistJwtRevocation,
     PruneJwtRevocations,
     RevisionId,
+    UnsupportedControlPlaneSource,
 }
 
 impl AdminOperationFailure {
@@ -137,6 +138,7 @@ impl AdminOperationFailure {
             Self::PersistJwtRevocation => "persist_jwt_revocation",
             Self::PruneJwtRevocations => "prune_jwt_revocations",
             Self::RevisionId => "revision_id",
+            Self::UnsupportedControlPlaneSource => "unsupported_control_plane_source",
         }
     }
 }

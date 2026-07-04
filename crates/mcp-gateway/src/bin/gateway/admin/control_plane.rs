@@ -21,7 +21,10 @@ use crate::{
         authorize_admin_request, control_plane_sha256, internal_error_response,
         record_admin_operation_audit,
     },
-    runtime::{AdminState, build_http_client, replace_catalog, replace_http_client},
+    runtime::{
+        AdminState, RuntimeControlPlaneSource, build_http_client, replace_catalog,
+        replace_http_client,
+    },
 };
 
 const ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD: &str = "admin/reload-control-plane/result";
@@ -77,7 +80,36 @@ pub(crate) async fn reload_control_plane(
         Err(response) => return *response,
     };
 
-    let new_catalog = match GatewayCatalog::load_json(&state.control_plane) {
+    let control_plane_path = match &state.control_plane {
+        RuntimeControlPlaneSource::File { path } => path,
+        RuntimeControlPlaneSource::Postgres { .. } => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Rejected,
+                    failure: Some(AdminOperationFailure::UnsupportedControlPlaneSource),
+                    metadata: BTreeMap::from([(
+                        "control_plane_source".to_string(),
+                        "postgres".to_string(),
+                    )]),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
+            return (
+                StatusCode::CONFLICT,
+                "reload-control-plane is only available for file-backed control planes",
+            )
+                .into_response();
+        }
+    };
+
+    let new_catalog = match GatewayCatalog::load_json(control_plane_path) {
         Ok(catalog) => Arc::new(catalog),
         Err(err) => {
             tracing::error!("failed to reload gateway control plane: {err}");
@@ -129,8 +161,7 @@ pub(crate) async fn reload_control_plane(
                 .into_response();
         }
     };
-    let control_plane = new_catalog.control_plane().clone();
-    let sha256 = match control_plane_sha256(&control_plane) {
+    let sha256 = match control_plane_sha256(new_catalog.control_plane()) {
         Ok(sha256) => sha256,
         Err(err) => {
             if let Err(audit_err) = record_admin_operation_audit(
@@ -173,38 +204,6 @@ pub(crate) async fn reload_control_plane(
                 return internal_error_response(err);
             }
         };
-    let revision = GatewayControlPlaneRevision {
-        revision_id: revision_id.clone(),
-        sha256: sha256.clone(),
-        source: GatewayControlPlaneRevisionSource::MountedFileReload,
-        applied_at: Utc::now(),
-        applied_by: subject.principal.id.clone(),
-        tenant: subject.principal.tenant.clone(),
-        control_plane,
-    };
-    if let Err(err) = state.gateway_state.record_control_plane_revision(&revision) {
-        tracing::error!("failed to persist gateway control-plane reload revision: {err}");
-        if let Err(audit_err) = record_admin_operation_audit(
-            &state,
-            &profile,
-            &subject,
-            AdminOperationAuditRecord {
-                action: GatewayAction::AdminWrite,
-                method: ADMIN_RELOAD_CONTROL_PLANE_RESULT_METHOD,
-                started_at,
-                status: AdminOperationStatus::Failed,
-                failure: Some(AdminOperationFailure::PersistControlPlaneRevision),
-                metadata: BTreeMap::from([
-                    ("revision_id".to_string(), revision_id.to_string()),
-                    ("sha256".to_string(), sha256.clone()),
-                ]),
-            },
-        ) {
-            return internal_error_response(audit_err);
-        }
-        return internal_error_response(err);
-    }
-
     let servers = new_catalog.server_count();
     let profiles = new_catalog.profile_count();
     if let Err(err) = record_admin_operation_audit(
@@ -291,27 +290,30 @@ pub(crate) async fn read_control_plane(
             return internal_error_response(err);
         }
     };
-    let revision_id = match state.gateway_state.latest_control_plane_revision() {
-        Ok(Some(revision)) if revision.sha256 == sha256 => Some(revision.revision_id),
-        Ok(_) => None,
-        Err(err) => {
-            if let Err(audit_err) = record_admin_operation_audit(
-                &state,
-                &profile,
-                &subject,
-                AdminOperationAuditRecord {
-                    action: GatewayAction::AdminRead,
-                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
-                    started_at,
-                    status: AdminOperationStatus::Failed,
-                    failure: Some(AdminOperationFailure::LatestRevisionRead),
-                    metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
-                },
-            ) {
-                return internal_error_response(audit_err);
+    let revision_id = match &state.control_plane {
+        RuntimeControlPlaneSource::File { .. } => None,
+        RuntimeControlPlaneSource::Postgres { db } => match db.load_active_revision().await {
+            Ok(Some(revision)) if revision.sha256 == sha256 => Some(revision.revision_id),
+            Ok(_) => None,
+            Err(err) => {
+                if let Err(audit_err) = record_admin_operation_audit(
+                    &state,
+                    &profile,
+                    &subject,
+                    AdminOperationAuditRecord {
+                        action: GatewayAction::AdminRead,
+                        method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                        started_at,
+                        status: AdminOperationStatus::Failed,
+                        failure: Some(AdminOperationFailure::LatestRevisionRead),
+                        metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
+                    },
+                ) {
+                    return internal_error_response(audit_err);
+                }
+                return internal_error_response(err);
             }
-            return internal_error_response(err);
-        }
+        },
     };
     let mut metadata = BTreeMap::from([
         ("sha256".to_string(), sha256.clone()),
@@ -471,27 +473,57 @@ pub(crate) async fn update_control_plane(
         tenant: subject.principal.tenant.clone(),
         control_plane,
     };
-    if let Err(err) = state.gateway_state.record_control_plane_revision(&revision) {
-        tracing::error!("failed to persist gateway control-plane revision: {err}");
-        if let Err(audit_err) = record_admin_operation_audit(
-            &state,
-            &profile,
-            &subject,
-            AdminOperationAuditRecord {
-                action: GatewayAction::AdminWrite,
-                method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
-                started_at,
-                status: AdminOperationStatus::Failed,
-                failure: Some(AdminOperationFailure::PersistControlPlaneRevision),
-                metadata: BTreeMap::from([
-                    ("revision_id".to_string(), revision_id.to_string()),
-                    ("sha256".to_string(), sha256.clone()),
-                ]),
-            },
-        ) {
-            return internal_error_response(audit_err);
+    match &state.control_plane {
+        RuntimeControlPlaneSource::File { .. } => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Rejected,
+                    failure: Some(AdminOperationFailure::UnsupportedControlPlaneSource),
+                    metadata: BTreeMap::from([
+                        ("revision_id".to_string(), revision_id.to_string()),
+                        ("sha256".to_string(), sha256.clone()),
+                        ("control_plane_source".to_string(), "file".to_string()),
+                    ]),
+                },
+            ) {
+                return internal_error_response(audit_err);
+            }
+            return (
+                StatusCode::CONFLICT,
+                "control-plane updates require postgres control-plane source",
+            )
+                .into_response();
         }
-        return internal_error_response(err);
+        RuntimeControlPlaneSource::Postgres { db } => {
+            if let Err(err) = db.record_revision(&revision).await {
+                tracing::error!("failed to persist gateway control-plane revision: {err}");
+                if let Err(audit_err) = record_admin_operation_audit(
+                    &state,
+                    &profile,
+                    &subject,
+                    AdminOperationAuditRecord {
+                        action: GatewayAction::AdminWrite,
+                        method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                        started_at,
+                        status: AdminOperationStatus::Failed,
+                        failure: Some(AdminOperationFailure::PersistControlPlaneRevision),
+                        metadata: BTreeMap::from([
+                            ("revision_id".to_string(), revision_id.to_string()),
+                            ("sha256".to_string(), sha256.clone()),
+                        ]),
+                    },
+                ) {
+                    return internal_error_response(audit_err);
+                }
+                return internal_error_response(err);
+            }
+        }
     }
 
     let servers = new_catalog.server_count();

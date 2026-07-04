@@ -55,6 +55,15 @@ enum Cmd {
     },
     /// Smoke-test Compose edge routing and published-port shape.
     ComposeConfig,
+    /// Smoke-test gateway Postgres control-plane seed and active revision validation.
+    GatewayControlDb {
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+    },
     /// Smoke-test contract schema export for external implementations.
     ContractSchemas {
         /// Built conformance binary path.
@@ -165,6 +174,10 @@ async fn main() -> Result<()> {
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::ComposeConfig => compose_config().await,
+        Cmd::GatewayControlDb {
+            gateway_bin,
+            control_plane,
+        } => gateway_control_db(&gateway_bin, &control_plane).await,
         Cmd::ContractSchemas { conformance_bin } => contract_schemas(&conformance_bin),
         Cmd::Otel {
             conformance_bin,

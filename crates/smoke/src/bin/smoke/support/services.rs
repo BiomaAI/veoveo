@@ -172,6 +172,8 @@ pub(crate) fn gateway_serve_args(
         port.to_string().into(),
         "--public-base-url".into(),
         PUBLIC_BASE_URL.into(),
+        "--control-plane-source".into(),
+        "file".into(),
         "--control-plane".into(),
         control_plane.as_os_str().to_os_string(),
         "--state-db".into(),

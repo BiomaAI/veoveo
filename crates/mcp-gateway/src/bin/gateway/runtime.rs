@@ -11,7 +11,9 @@ use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     CertificateAuthoritySource, GatewayInternalTokenIssuer, GatewayProfileId,
 };
-use veoveo_mcp_gateway::{GatewayCatalog, GatewayCatalogHandle, GatewayMcp, GatewayState};
+use veoveo_mcp_gateway::{
+    GatewayCatalog, GatewayCatalogHandle, GatewayControlDb, GatewayMcp, GatewayState,
+};
 
 const GATEWAY_AUTH_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -46,8 +48,14 @@ pub(super) struct ProfileAuthState {
 pub(super) struct AdminState {
     pub(super) catalog: SharedCatalog,
     pub(super) http: SharedHttpClient,
-    pub(super) control_plane: PathBuf,
+    pub(super) control_plane: RuntimeControlPlaneSource,
     pub(super) gateway_state: GatewayState,
+}
+
+#[derive(Clone)]
+pub(super) enum RuntimeControlPlaneSource {
+    File { path: PathBuf },
+    Postgres { db: GatewayControlDb },
 }
 
 #[derive(Clone)]

@@ -99,9 +99,10 @@ PUBLIC_BASE_URL=https://veoveo.bioma.ai
 
 ### Docker Compose
 
-The default development stack runs the edge proxy, `mcp-gateway`, `media-mcp`, RustFS, an
-OpenTelemetry collector, and the managed Cloudflare tunnel. RustFS image/version, edge
-routing, and local S3-compatible wiring are defined in `compose.yaml`.
+The default development stack runs the edge proxy, `mcp-gateway`, `media-mcp`, RustFS,
+Postgres for gateway control data, an OpenTelemetry collector, and the managed
+Cloudflare tunnel. RustFS image/version, Postgres image/version, edge routing, and local
+S3-compatible wiring are defined in `compose.yaml`.
 The Cloudflare named tunnel should route the public hostname to `http://edge:8080`;
 individual MCP server containers are not public tunnel targets.
 Published development ports bind to `127.0.0.1` only. The local edge is available at
@@ -129,9 +130,11 @@ are for the local stack only.
 
 Task, prediction, artifact metadata, and usage metadata are persisted in DuckDB. The
 shared contract crate owns the DuckDB usage analytics schema so every MCP server can
-record estimates and actual billing rows the same way. Deployment profiles declare
-typed DuckDB state stores for the gateway and each hosted MCP server. Local runs default
-to `state.duckdb`; Compose stores the media server's state at
+record estimates and actual billing rows the same way. Gateway profiles, tenants,
+clients, policies, and hosted-server manifests are seeded into Postgres as immutable
+control-plane revisions; `mcp-gateway` loads the active Postgres revision in Compose.
+Deployment profiles declare typed DuckDB state stores for the gateway and each hosted MCP
+server. Local runs default to `state.duckdb`; Compose stores the media server's state at
 `/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. Gateway runtime state
 and audit evidence live at `/var/lib/veoveo/gateway/state.duckdb` on the `gateway_state`
 volume. RustFS stores artifact bytes only.
@@ -241,6 +244,7 @@ cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
 export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-private-key-der-b64)"
 cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
     --public-base-url https://veoveo.bioma.ai \
+    --control-plane-source file \
     --control-plane configs/gateway.local.json \
     --state-db data/gateway/state.duckdb
 

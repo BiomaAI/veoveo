@@ -1,5 +1,6 @@
 pub mod auth;
 mod catalog;
+mod control_db;
 pub mod mcp;
 mod mcp_support;
 mod metadata;
@@ -15,6 +16,7 @@ pub use auth::{
     VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
 pub use catalog::{GatewayCatalog, GatewayCatalogHandle, GatewayCatalogSnapshot};
+pub use control_db::GatewayControlDb;
 pub use mcp::GatewayMcp;
 pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,

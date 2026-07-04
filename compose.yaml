@@ -112,20 +112,61 @@ services:
     profiles:
       - dev
 
+  gateway-control-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: veoveo_gateway
+      POSTGRES_USER: veoveo_gateway
+      POSTGRES_PASSWORD: veoveo_gateway
+    volumes:
+      - gateway_control:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veoveo_gateway -d veoveo_gateway"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    profiles:
+      - dev
+
+  mcp-gateway-seed:
+    build:
+      context: .
+      dockerfile: crates/mcp-gateway/Dockerfile
+    depends_on:
+      gateway-control-db:
+        condition: service_healthy
+    command:
+      - "control-plane-seed"
+      - "--control-db-url"
+      - "postgresql://veoveo_gateway:veoveo_gateway@gateway-control-db:5432/veoveo_gateway"
+      - "--control-plane"
+      - "/etc/veoveo/gateway.local.json"
+      - "--applied-by"
+      - "compose#seed"
+    volumes:
+      - ./configs/gateway.local.json:/etc/veoveo/gateway.local.json:ro
+    profiles:
+      - dev
+
   mcp-gateway:
     build:
       context: .
       dockerfile: crates/mcp-gateway/Dockerfile
     depends_on:
-      - media-mcp
+      media-mcp:
+        condition: service_started
+      mcp-gateway-seed:
+        condition: service_completed_successfully
     command:
       - "serve"
       - "--port"
       - "8788"
       - "--public-base-url"
       - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
-      - "--control-plane"
-      - "/etc/veoveo/gateway.local.json"
+      - "--control-plane-source"
+      - "postgres"
+      - "--control-db-url"
+      - "postgresql://veoveo_gateway:veoveo_gateway@gateway-control-db:5432/veoveo_gateway"
       - "--state-db"
       - "/var/lib/veoveo/gateway/state.duckdb"
       - "--allow-loopback-hosts"
@@ -162,4 +203,5 @@ services:
 volumes:
   rustfs_data:
   media_state:
+  gateway_control:
   gateway_state:

@@ -63,6 +63,11 @@ smoke-gateway:
     cargo build -p veoveo-smoke --bin smoke
     target/debug/smoke gateway-suite --control-plane {{gateway-control-plane}} --smoke-control-plane {{gateway-smoke-control-plane}}
 
+# Smoke-test gateway control-plane seeding against real Postgres.
+smoke-gateway-control-db:
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    target/debug/smoke gateway-control-db --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
+
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
@@ -105,9 +110,9 @@ smoke-gateway-task-run:
 
 # Build MCP images.
 compose-build:
-    {{compose}} build media-mcp mcp-gateway
+    {{compose}} build media-mcp mcp-gateway mcp-gateway-seed
 
-# Build and start RustFS, media-mcp, mcp-gateway, and the managed Cloudflare tunnel.
+# Build and start RustFS, Postgres, media-mcp, mcp-gateway, and the managed Cloudflare tunnel.
 compose-up:
     {{compose}} up --build -d
 

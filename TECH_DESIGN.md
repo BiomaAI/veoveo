@@ -283,10 +283,11 @@ Gateway data must be split by sensitivity and lifecycle:
 - **Control data**: hosted server manifests, gateway profiles, profile assignments,
   policy sets, environment definitions, tenant records, identity-provider metadata,
   resource authorization server metadata, OAuth client registrations, data-label
-  definitions, and secret references. This data is dynamic and durable. It should start as
-  typed files plus hot reload or an explicit admin API, then move to a control-plane store
-  without changing the MCP contract.
-  The file-backed gateway exposes authenticated admin reload and apply paths. Profile
+  definitions, and secret references. This data is dynamic and durable. Postgres is the
+  authoritative control-plane store for self-hosted gateway deployments; typed JSON files
+  are seed/import artifacts and local validation fixtures, not production authority.
+  The file-backed gateway mode is local-only and exposes authenticated reload, not
+  durable admin updates. Profile
   routes are data-driven under `/mcp/{profile}`, so adding or removing a profile is an
   authenticated control-plane change, not a new public domain or edge-route change.
   Server manifests declare typed upstream transport security next to each upstream URL:
@@ -316,7 +317,8 @@ Gateway data must be split by sensitivity and lifecycle:
 - **Runtime state**: gateway task id to upstream task id mapping, subscription ownership,
   request correlation ids, token revocation entries, replay-protection ids, OAuth state,
   ID-JAG exchange state, and short-lived session metadata. This state is operationally
-  durable and must survive process restarts.
+  durable and must survive process restarts. DuckDB owns this gateway runtime/audit state;
+  it is not a control-plane source.
 - **Audit and evidence**: authentication outcomes, policy decisions, tool calls,
   resource reads, task reads/results/cancels, artifact reads, usage reads, admin changes,
   credential resolution outcomes, and security-relevant failures. Audit records must carry
@@ -373,9 +375,9 @@ The implementation plan is production-gateway-first:
 2. Create a `mcp-gateway` crate that loads dynamic typed control data and connects to the
    hosted upstreams enabled for a profile, starting with `media-mcp` but not hard-coding
    media into the architecture.
-3. Add gateway durability for runtime state and audit/analytics. Use DuckDB where it fits
-   analytics and local durability, but keep secret values in `.env` for local development
-   and secret-manager references for enterprise deployments.
+3. Add gateway durability with Postgres for dynamic control-plane revisions and DuckDB for
+   runtime state, audit evidence, and analytics. Keep secret values in `.env` for local
+   development and secret-manager references for enterprise deployments.
 4. Route the single public origin through an explicit edge proxy in Compose. The edge
    routes `/mcp/{profile}`, `/oauth/*`, `.well-known` auth metadata, and `/admin/*` to the
    gateway, while routing provider plumbing such as `/media/webhooks`, `/media/files`, and

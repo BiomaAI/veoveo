@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, sync::Arc};
 
+use anyhow::Context;
 use axum::{
     Json, Router,
     extract::{Request, State},
@@ -33,15 +34,16 @@ use super::{
     oauth::{authorization_callback, authorize_endpoint, token_endpoint},
     runtime::{
         AdminState, AppState, DynamicMcpState, GatewayRetentionPolicy, ProfileAuthState,
-        ProfileMcpService, Readiness, build_http_client, current_catalog,
-        profile_id_from_gateway_path, run_gateway_retention_gc, spawn_gateway_retention_gc_loop,
+        ProfileMcpService, Readiness, RuntimeControlPlaneSource, build_http_client,
+        current_catalog, profile_id_from_gateway_path, run_gateway_retention_gc,
+        spawn_gateway_retention_gc_loop,
     },
 };
 
 pub(super) async fn serve(
     port: u16,
     public_base_url: String,
-    control_plane: PathBuf,
+    control_plane: RuntimeControlPlaneSource,
     state_db: PathBuf,
     internal_token_secret: String,
     allow_loopback_hosts: bool,
@@ -50,20 +52,7 @@ pub(super) async fn serve(
     let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
     run_gateway_retention_gc(&gateway_state, retention)?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
-    let file_catalog = Arc::new(GatewayCatalog::load_json(&control_plane)?);
-    let latest_revision = gateway_state.latest_control_plane_revision()?;
-    let initial_catalog = if let Some(revision) = latest_revision {
-        let persisted_catalog =
-            Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
-        tracing::info!(
-            revision_id = %revision.revision_id,
-            sha256 = %revision.sha256,
-            "loaded persisted gateway control-plane revision"
-        );
-        persisted_catalog
-    } else {
-        file_catalog
-    };
+    let initial_catalog = load_initial_catalog(&control_plane).await?;
     let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
@@ -124,7 +113,7 @@ pub(super) async fn serve(
     let admin_state = AdminState {
         catalog: catalog.clone(),
         http: http.clone(),
-        control_plane: control_plane.clone(),
+        control_plane,
         gateway_state: gateway_state.clone(),
     };
     let admin_router = Router::new()
@@ -170,6 +159,40 @@ pub(super) async fn serve(
         })
         .await?;
     Ok(())
+}
+
+async fn load_initial_catalog(
+    source: &RuntimeControlPlaneSource,
+) -> anyhow::Result<Arc<GatewayCatalog>> {
+    match source {
+        RuntimeControlPlaneSource::File { path } => {
+            let catalog = Arc::new(GatewayCatalog::load_json(path)?);
+            tracing::info!(
+                path = %path.display(),
+                server_count = catalog.server_count(),
+                profile_count = catalog.profile_count(),
+                "loaded mounted gateway control plane"
+            );
+            Ok(catalog)
+        }
+        RuntimeControlPlaneSource::Postgres { db } => {
+            db.migrate().await?;
+            let revision = db
+                .load_active_revision()
+                .await?
+                .context("gateway control-plane Postgres has no active revision; seed it first")?;
+            let catalog = Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
+            tracing::info!(
+                revision_id = %revision.revision_id,
+                sha256 = %revision.sha256,
+                source = ?revision.source,
+                server_count = catalog.server_count(),
+                profile_count = catalog.profile_count(),
+                "loaded active gateway control-plane revision from Postgres"
+            );
+            Ok(catalog)
+        }
+    }
 }
 
 async fn dynamic_mcp_profile(

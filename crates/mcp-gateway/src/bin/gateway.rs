@@ -23,15 +23,19 @@ mod server;
 #[path = "gateway/tokens.rs"]
 mod tokens;
 
-use clap::{Parser, Subcommand};
+use anyhow::{Context, anyhow};
+use chrono::Utc;
+use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    SecretPurpose, SecretReferenceId, SecretSource, TelemetryGuard, init_server_telemetry,
+    GatewayControlPlaneRevision, GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource,
+    PrincipalId, SecretPurpose, SecretReferenceId, SecretSource, TelemetryGuard,
+    init_server_telemetry,
 };
-use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver, GatewayState};
+use veoveo_mcp_gateway::{GatewayCatalog, GatewayControlDb, GatewaySecretResolver, GatewayState};
 
-use runtime::GatewayRetentionPolicy;
+use runtime::{GatewayRetentionPolicy, RuntimeControlPlaneSource};
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -47,6 +51,24 @@ enum Command {
         /// JSON control plane file.
         #[arg(long)]
         control_plane: PathBuf,
+    },
+    /// Seed Postgres with a validated gateway control-plane revision and make it active.
+    ControlPlaneSeed {
+        /// Gateway control-plane Postgres URL.
+        #[arg(long, env = "VEOVEO_GATEWAY_CONTROL_DB_URL", hide_env_values = true)]
+        control_db_url: String,
+        /// JSON control plane file.
+        #[arg(long)]
+        control_plane: PathBuf,
+        /// Principal id recorded as the seeding actor.
+        #[arg(long)]
+        applied_by: String,
+    },
+    /// Validate the active gateway control-plane revision stored in Postgres.
+    ValidateDb {
+        /// Gateway control-plane Postgres URL.
+        #[arg(long, env = "VEOVEO_GATEWAY_CONTROL_DB_URL", hide_env_values = true)]
+        control_db_url: String,
     },
     /// Resolve one configured secret and print redacted evidence as JSON.
     ResolveSecret {
@@ -116,9 +138,15 @@ enum Command {
         /// Public base URL for metadata and authorization challenges.
         #[arg(long)]
         public_base_url: String,
-        /// JSON control plane file.
+        /// Authoritative source for gateway control data.
+        #[arg(long, value_enum)]
+        control_plane_source: ControlPlaneSourceArg,
+        /// JSON control plane file. Required when --control-plane-source=file.
         #[arg(long)]
-        control_plane: PathBuf,
+        control_plane: Option<PathBuf>,
+        /// Gateway control-plane Postgres URL. Required when --control-plane-source=postgres.
+        #[arg(long, env = "VEOVEO_GATEWAY_CONTROL_DB_URL", hide_env_values = true)]
+        control_db_url: Option<String>,
         /// DuckDB file for gateway runtime state and audit evidence.
         #[arg(long)]
         state_db: PathBuf,
@@ -134,6 +162,12 @@ enum Command {
     },
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ControlPlaneSourceArg {
+    File,
+    Postgres,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
@@ -145,6 +179,58 @@ async fn main() -> anyhow::Result<()> {
             let catalog = GatewayCatalog::load_json(&control_plane)?;
             println!(
                 "ok: {} server(s), {} profile(s)",
+                catalog.server_count(),
+                catalog.profile_count()
+            );
+            Ok(())
+        }
+        Command::ControlPlaneSeed {
+            control_db_url,
+            control_plane,
+            applied_by,
+        } => {
+            let catalog = GatewayCatalog::load_json(&control_plane)?;
+            let control_plane = catalog.control_plane().clone();
+            let sha256 = control_plane_sha256(&control_plane)?;
+            let revision_id =
+                GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::new_v4()))?;
+            let revision = GatewayControlPlaneRevision {
+                revision_id: revision_id.clone(),
+                sha256: sha256.clone(),
+                source: GatewayControlPlaneRevisionSource::SeedFile,
+                applied_at: Utc::now(),
+                applied_by: PrincipalId::new(applied_by)?,
+                tenant: None,
+                control_plane,
+            };
+            let db = GatewayControlDb::connect(control_db_url).await?;
+            db.migrate().await?;
+            db.record_revision(&revision).await?;
+            println!(
+                "{}",
+                serde_json::to_string(&ControlPlaneSeedResult {
+                    status: "seeded",
+                    revision_id: revision_id.to_string(),
+                    sha256,
+                    servers: catalog.server_count(),
+                    profiles: catalog.profile_count(),
+                    revisions: db.revision_count().await?,
+                    active_objects: db.object_count_for_active_revision().await?,
+                })?
+            );
+            Ok(())
+        }
+        Command::ValidateDb { control_db_url } => {
+            let db = GatewayControlDb::connect(control_db_url).await?;
+            db.migrate().await?;
+            let revision = db
+                .load_active_revision()
+                .await?
+                .context("gateway control-plane Postgres has no active revision")?;
+            let catalog = GatewayCatalog::from_control_plane(revision.control_plane)?;
+            println!(
+                "ok: revision {}, {} server(s), {} profile(s)",
+                revision.revision_id,
                 catalog.server_count(),
                 catalog.profile_count()
             );
@@ -235,12 +321,17 @@ async fn main() -> anyhow::Result<()> {
         Command::Serve {
             port,
             public_base_url,
+            control_plane_source,
             control_plane,
+            control_db_url,
             state_db,
             internal_token_secret,
             allow_loopback_hosts,
             audit_event_retention_days,
         } => {
+            let control_plane =
+                runtime_control_plane_source(control_plane_source, control_plane, control_db_url)
+                    .await?;
             let retention = GatewayRetentionPolicy {
                 audit_event_days: audit_event_retention_days,
             };
@@ -256,6 +347,49 @@ async fn main() -> anyhow::Result<()> {
             .await
         }
     }
+}
+
+async fn runtime_control_plane_source(
+    source: ControlPlaneSourceArg,
+    control_plane: Option<PathBuf>,
+    control_db_url: Option<String>,
+) -> anyhow::Result<RuntimeControlPlaneSource> {
+    match source {
+        ControlPlaneSourceArg::File => Ok(RuntimeControlPlaneSource::File {
+            path: control_plane.context("--control-plane is required for file control source")?,
+        }),
+        ControlPlaneSourceArg::Postgres => {
+            if control_plane.is_some() {
+                return Err(anyhow!(
+                    "--control-plane is not accepted when --control-plane-source=postgres"
+                ));
+            }
+            Ok(RuntimeControlPlaneSource::Postgres {
+                db: GatewayControlDb::connect(control_db_url.context(
+                    "--control-db-url or VEOVEO_GATEWAY_CONTROL_DB_URL is required for postgres control source",
+                )?)
+                .await?,
+            })
+        }
+    }
+}
+
+fn control_plane_sha256(
+    control_plane: &veoveo_mcp_contract::GatewayControlPlane,
+) -> anyhow::Result<String> {
+    let bytes = serde_json::to_vec(control_plane)?;
+    Ok(sha256_hex(&bytes))
+}
+
+#[derive(Debug, Serialize)]
+struct ControlPlaneSeedResult {
+    status: &'static str,
+    revision_id: String,
+    sha256: String,
+    servers: usize,
+    profiles: usize,
+    revisions: u64,
+    active_objects: u64,
 }
 
 #[derive(Debug, Serialize)]

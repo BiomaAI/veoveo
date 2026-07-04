@@ -73,6 +73,7 @@ pub struct GatewayControlPlaneRevision {
 pub enum GatewayControlPlaneRevisionSource {
     AdminApi,
     MountedFileReload,
+    SeedFile,
 }
 
 impl GatewayControlPlane {

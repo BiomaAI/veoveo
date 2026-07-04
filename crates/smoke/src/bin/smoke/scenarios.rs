@@ -77,6 +77,9 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
         [],
     )?;
 
+    suite_step("gateway Postgres control-plane seed");
+    gateway_control_db(gateway, smoke_control_plane).await?;
+
     suite_step("self-hosted deployment validation");
     run_checked(
         conformance,

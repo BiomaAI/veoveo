@@ -5,7 +5,6 @@ use veoveo_mcp_contract::{SharedDuckDbConnection, open_duckdb};
 
 mod audit;
 mod auth_state;
-mod control_plane;
 mod schema;
 mod subscriptions;
 mod tasks;
@@ -45,15 +44,13 @@ mod tests {
     use veoveo_mcp_contract::{
         AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, AuthorizationServerId,
         DataLabelId, GatewayAction, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
-        GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
-        GatewayControlPlaneRevisionSource, GatewayJwtRevocation, GatewayProfileId,
-        GatewayResourceSubscription, GatewayTaskId, GatewayTaskMapping, GroupId, JwtId,
-        McpMethodName, OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
-        OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
-        PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-        PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
-        ProtectedResourceId, ResourceUri, RoleId, ScopeName, ServerSlug, TokenIssuer, TokenSubject,
-        TraceId, UpstreamTaskId,
+        GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, GatewayTaskId,
+        GatewayTaskMapping, GroupId, JwtId, McpMethodName, OAuthAuthorizationCode, OAuthClientId,
+        OAuthRedirectUri, OAuthStateValue, OidcClientRegistrationId, OidcNonce, PkceCodeChallenge,
+        PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode,
+        PolicyTarget, Principal, PrincipalAssurance, PrincipalAuditAttributes, PrincipalId,
+        PrincipalKind, ProtectedResourceId, ResourceUri, RoleId, ScopeName, ServerSlug,
+        TokenIssuer, TokenSubject, TraceId, UpstreamTaskId,
     };
 
     use super::*;
@@ -135,64 +132,6 @@ mod tests {
                 metadata,
             })
             .unwrap();
-    }
-
-    fn empty_control_plane() -> GatewayControlPlane {
-        GatewayControlPlane {
-            identity_providers: Vec::new(),
-            authorization_servers: Vec::new(),
-            servers: Vec::new(),
-            profiles: Vec::new(),
-            tenants: Vec::new(),
-            policies: Vec::new(),
-            data_labels: Vec::new(),
-            oauth_clients: Vec::new(),
-            oidc_clients: Vec::new(),
-            secrets: Vec::new(),
-            metadata: serde_json::json!({}),
-        }
-    }
-
-    #[test]
-    fn control_plane_revision_round_trips_latest_across_restart() {
-        let path = temp_path("control-plane-revision");
-        let applied_at = Utc::now();
-        let admin_revision = GatewayControlPlaneRevision {
-            revision_id: GatewayControlPlaneRevisionId::new("revision-1").unwrap(),
-            sha256: "abc123".to_string(),
-            source: GatewayControlPlaneRevisionSource::AdminApi,
-            applied_at,
-            applied_by: PrincipalId::new("issuer#admin").unwrap(),
-            tenant: None,
-            control_plane: empty_control_plane(),
-        };
-        let reload_revision = GatewayControlPlaneRevision {
-            revision_id: GatewayControlPlaneRevisionId::new("revision-2").unwrap(),
-            sha256: "def456".to_string(),
-            source: GatewayControlPlaneRevisionSource::MountedFileReload,
-            applied_at: applied_at + TimeDelta::seconds(1),
-            applied_by: PrincipalId::new("issuer#admin").unwrap(),
-            tenant: None,
-            control_plane: empty_control_plane(),
-        };
-
-        let state = GatewayState::open(&path).unwrap();
-        state
-            .record_control_plane_revision(&admin_revision)
-            .unwrap();
-        state
-            .record_control_plane_revision(&reload_revision)
-            .unwrap();
-        assert_eq!(state.control_plane_revision_count().unwrap(), 2);
-        let state = GatewayState::open(&path).unwrap();
-
-        assert_eq!(
-            state.latest_control_plane_revision().unwrap(),
-            Some(reload_revision)
-        );
-        assert_eq!(state.control_plane_revision_count().unwrap(), 2);
-
-        let _ = std::fs::remove_file(path);
     }
 
     #[test]

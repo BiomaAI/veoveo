@@ -111,22 +111,6 @@ impl GatewayState {
             CREATE INDEX IF NOT EXISTS idx_gateway_authorization_codes_client
             ON gateway_authorization_codes(profile, oauth_client_id, principal);
 
-            CREATE TABLE IF NOT EXISTS gateway_control_plane_revisions (
-                revision_id TEXT PRIMARY KEY,
-                sha256 TEXT NOT NULL,
-                source TEXT NOT NULL,
-                applied_at TIMESTAMP NOT NULL,
-                applied_by TEXT NOT NULL,
-                tenant TEXT,
-                revision_json TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_gateway_control_plane_revisions_applied
-            ON gateway_control_plane_revisions(applied_at);
-
-            CREATE INDEX IF NOT EXISTS idx_gateway_control_plane_revisions_sha256
-            ON gateway_control_plane_revisions(sha256);
-
             CREATE TABLE IF NOT EXISTS gateway_audit_events (
                 event_id TEXT PRIMARY KEY,
                 trace_id TEXT NOT NULL,
