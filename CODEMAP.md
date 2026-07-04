@@ -303,8 +303,8 @@ Largest individual files:
 4. Python/TypeScript contract support is schema-first, not SDK-first.
    JSON Schema export exists, but there are no generated Python/TypeScript packages yet.
 
-5. Dynamic control-plane UX is API/file-backed, not a product console.
-   Admin reload/apply exists, but server/profile/policy management is still config-centric.
+5. Dynamic control-plane UX is API/Postgres-backed, not a product console.
+   Admin apply exists, but server/profile/policy management still needs a product-grade UI/API.
 
 6. Authorization policy is strongly typed but still basic ABAC/RBAC.
    It checks principals, scopes, profiles, tools/resources/tasks/artifacts, tenants, and data

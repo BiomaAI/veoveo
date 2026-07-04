@@ -163,8 +163,6 @@ services:
       - "8788"
       - "--public-base-url"
       - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
-      - "--control-plane-source"
-      - "postgres"
       - "--control-db-url"
       - "postgresql://veoveo_gateway:veoveo_gateway@gateway-control-db:5432/veoveo_gateway"
       - "--state-db"

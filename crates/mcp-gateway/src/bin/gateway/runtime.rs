@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, num::NonZeroU32, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::{Context, anyhow};
 use chrono::{DateTime, TimeDelta, Utc};
@@ -48,14 +48,8 @@ pub(super) struct ProfileAuthState {
 pub(super) struct AdminState {
     pub(super) catalog: SharedCatalog,
     pub(super) http: SharedHttpClient,
-    pub(super) control_plane: RuntimeControlPlaneSource,
+    pub(super) control_db: GatewayControlDb,
     pub(super) gateway_state: GatewayState,
-}
-
-#[derive(Clone)]
-pub(super) enum RuntimeControlPlaneSource {
-    File { path: PathBuf },
-    Postgres { db: GatewayControlDb },
 }
 
 #[derive(Clone)]

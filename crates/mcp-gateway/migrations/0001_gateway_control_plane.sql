@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS gateway_control_plane_revisions (
     revision_id TEXT PRIMARY KEY CHECK (revision_id <> ''),
     sha256 TEXT NOT NULL CHECK (sha256 <> ''),
     source TEXT NOT NULL CHECK (
-        source IN ('admin_api', 'mounted_file_reload', 'seed_file')
+        source IN ('admin_api', 'seed_file')
     ),
     applied_at TIMESTAMPTZ NOT NULL,
     applied_by TEXT NOT NULL CHECK (applied_by <> ''),

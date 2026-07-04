@@ -187,7 +187,6 @@ fn revision_from_row(row: sqlx::postgres::PgRow) -> Result<GatewayControlPlaneRe
 fn revision_source_to_str(source: GatewayControlPlaneRevisionSource) -> &'static str {
     match source {
         GatewayControlPlaneRevisionSource::AdminApi => "admin_api",
-        GatewayControlPlaneRevisionSource::MountedFileReload => "mounted_file_reload",
         GatewayControlPlaneRevisionSource::SeedFile => "seed_file",
     }
 }
@@ -195,7 +194,6 @@ fn revision_source_to_str(source: GatewayControlPlaneRevisionSource) -> &'static
 fn revision_source_from_str(value: &str) -> Result<GatewayControlPlaneRevisionSource> {
     match value {
         "admin_api" => Ok(GatewayControlPlaneRevisionSource::AdminApi),
-        "mounted_file_reload" => Ok(GatewayControlPlaneRevisionSource::MountedFileReload),
         "seed_file" => Ok(GatewayControlPlaneRevisionSource::SeedFile),
         _ => Err(anyhow!(
             "unknown gateway control-plane revision source `{value}`"

@@ -102,6 +102,10 @@ use prompts::MediaPrompt;
 use retention::{run_retention_gc, spawn_retention_gc_loop};
 use usage::spawn_missing_actual_usage_reconciliations;
 
+fn install_rustls_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
@@ -809,6 +813,7 @@ async fn artifact_download(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    install_rustls_provider();
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-media-mcp", "info,veoveo_media_mcp=debug")?;
@@ -897,10 +902,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let ct = tokio_util::sync::CancellationToken::new();
-    let mut allowed_hosts = public_allowed_hosts(
-        &public_deployment,
-        args.allow_loopback_hosts,
-    );
+    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);
     let internal_auth_state = InternalMcpAuthState {

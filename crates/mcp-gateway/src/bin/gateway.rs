@@ -23,9 +23,9 @@ mod server;
 #[path = "gateway/tokens.rs"]
 mod tokens;
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use chrono::Utc;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
@@ -35,7 +35,11 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayControlDb, GatewaySecretResolver, GatewayState};
 
-use runtime::{GatewayRetentionPolicy, RuntimeControlPlaneSource};
+use runtime::GatewayRetentionPolicy;
+
+fn install_rustls_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "gateway", about = "Veoveo MCP gateway")]
@@ -138,15 +142,9 @@ enum Command {
         /// Public base URL for metadata and authorization challenges.
         #[arg(long)]
         public_base_url: String,
-        /// Authoritative source for gateway control data.
-        #[arg(long, value_enum)]
-        control_plane_source: ControlPlaneSourceArg,
-        /// JSON control plane file. Required when --control-plane-source=file.
-        #[arg(long)]
-        control_plane: Option<PathBuf>,
-        /// Gateway control-plane Postgres URL. Required when --control-plane-source=postgres.
+        /// Gateway control-plane Postgres URL.
         #[arg(long, env = "VEOVEO_GATEWAY_CONTROL_DB_URL", hide_env_values = true)]
-        control_db_url: Option<String>,
+        control_db_url: String,
         /// DuckDB file for gateway runtime state and audit evidence.
         #[arg(long)]
         state_db: PathBuf,
@@ -162,14 +160,9 @@ enum Command {
     },
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
-enum ControlPlaneSourceArg {
-    File,
-    Postgres,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    install_rustls_provider();
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-mcp-gateway", "info,veoveo_mcp_gateway=debug")?;
@@ -321,55 +314,26 @@ async fn main() -> anyhow::Result<()> {
         Command::Serve {
             port,
             public_base_url,
-            control_plane_source,
-            control_plane,
             control_db_url,
             state_db,
             internal_token_secret,
             allow_loopback_hosts,
             audit_event_retention_days,
         } => {
-            let control_plane =
-                runtime_control_plane_source(control_plane_source, control_plane, control_db_url)
-                    .await?;
+            let control_db = GatewayControlDb::connect(control_db_url).await?;
             let retention = GatewayRetentionPolicy {
                 audit_event_days: audit_event_retention_days,
             };
             server::serve(
                 port,
                 public_base_url,
-                control_plane,
+                control_db,
                 state_db,
                 internal_token_secret,
                 allow_loopback_hosts,
                 retention,
             )
             .await
-        }
-    }
-}
-
-async fn runtime_control_plane_source(
-    source: ControlPlaneSourceArg,
-    control_plane: Option<PathBuf>,
-    control_db_url: Option<String>,
-) -> anyhow::Result<RuntimeControlPlaneSource> {
-    match source {
-        ControlPlaneSourceArg::File => Ok(RuntimeControlPlaneSource::File {
-            path: control_plane.context("--control-plane is required for file control source")?,
-        }),
-        ControlPlaneSourceArg::Postgres => {
-            if control_plane.is_some() {
-                return Err(anyhow!(
-                    "--control-plane is not accepted when --control-plane-source=postgres"
-                ));
-            }
-            Ok(RuntimeControlPlaneSource::Postgres {
-                db: GatewayControlDb::connect(control_db_url.context(
-                    "--control-db-url or VEOVEO_GATEWAY_CONTROL_DB_URL is required for postgres control source",
-                )?)
-                .await?,
-            })
         }
     }
 }

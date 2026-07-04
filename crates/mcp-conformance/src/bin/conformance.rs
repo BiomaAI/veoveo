@@ -112,8 +112,14 @@ use tokens::{
     cmd_gateway_client_assertion, cmd_gateway_id_jag, cmd_gateway_id_jag_token_exchange,
     cmd_gateway_jwks, cmd_gateway_private_key_der_b64, cmd_gateway_token_exchange,
 };
+
+fn install_rustls_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    install_rustls_provider();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),

@@ -285,9 +285,8 @@ Gateway data must be split by sensitivity and lifecycle:
   resource authorization server metadata, OAuth client registrations, data-label
   definitions, and secret references. This data is dynamic and durable. Postgres is the
   authoritative control-plane store for self-hosted gateway deployments; typed JSON files
-  are seed/import artifacts and local validation fixtures, not production authority.
-  The file-backed gateway mode is local-only and exposes authenticated reload, not
-  durable admin updates. Profile
+  are seed/import artifacts and local validation fixtures, not runtime authority. The
+  gateway process always loads the active Postgres revision. Profile
   routes are data-driven under `/mcp/{profile}`, so adding or removing a profile is an
   authenticated control-plane change, not a new public domain or edge-route change.
   Server manifests declare typed upstream transport security next to each upstream URL:

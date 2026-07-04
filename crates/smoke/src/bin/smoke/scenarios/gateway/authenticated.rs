@@ -52,9 +52,10 @@ pub(crate) async fn gateway_authenticated(
     assert_json_log(&media_log, &[("message", "media retention gc completed")])?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
         [
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             (
@@ -147,32 +148,20 @@ pub(crate) async fn gateway_authenticated(
         StatusCode::FORBIDDEN,
     )
     .await?;
-    assert_http_post_status(
-        &format!("{gateway_base}/admin/default/reload-control-plane"),
-        Some(media_only_admin_token.trim()),
-        StatusCode::FORBIDDEN,
-    )
-    .await?;
-    let reload = post_json(
-        &http,
-        &format!("{gateway_base}/admin/default/reload-control-plane"),
-        Some(admin_token.trim()),
-        Value::Null,
-    )
-    .await?;
-    let reload_revision_id = assert_control_plane_admin_result(&reload, "reloaded")?;
-    if !reload_revision_id.starts_with("gcp-")
-        || reload.get("sha256").and_then(Value::as_str).map(str::len) != Some(64)
-    {
-        bail!("unexpected reload result: {reload}");
-    }
-    let control_status = get_json(
+    let seeded_control_status = get_json(
         &http,
         &format!("{gateway_base}/admin/default/control-plane"),
         Some(admin_token.trim()),
     )
     .await?;
-    assert_control_plane_status(&control_status, &reload_revision_id)?;
+    let seeded_revision_id = seeded_control_status
+        .get("revision_id")
+        .and_then(Value::as_str)
+        .filter(|revision_id| revision_id.starts_with("gcp-"))
+        .ok_or_else(|| {
+            anyhow!("seeded control-plane status had no revision: {seeded_control_status}")
+        })?;
+    assert_control_plane_status(&seeded_control_status, seeded_revision_id)?;
 
     let applied = put_json_file(
         &http,
@@ -279,7 +268,7 @@ pub(crate) async fn gateway_authenticated(
     gateway_child.stop();
     gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
         [
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             (
@@ -324,7 +313,7 @@ pub(crate) async fn gateway_authenticated(
     gateway_child.stop();
     gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
         [
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             (
@@ -592,9 +581,7 @@ pub(crate) async fn gateway_authenticated(
     assert_audit_method(&audit_summary, "completion/complete", 0, 1)?;
     assert_audit_method(&audit_summary, "tasks/list", 1, 0)?;
     assert_audit_method(&audit_summary, "admin/control-plane", 1, 1)?;
-    assert_audit_method(&audit_summary, "admin/reload-control-plane", 1, 1)?;
     assert_audit_method(&audit_summary, "admin/control-plane/result", 1, 0)?;
-    assert_audit_method(&audit_summary, "admin/reload-control-plane/result", 1, 0)?;
     let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &gateway_state_db)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_scope", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;

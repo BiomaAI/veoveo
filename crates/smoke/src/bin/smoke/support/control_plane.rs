@@ -121,6 +121,14 @@ pub(crate) fn write_ops_profile_control_plane(input: &Path, output: &Path) -> Re
         append_unique_string(client, "allowed_profiles", "ops")?;
     }
 
+    let oidc_clients = control_plane
+        .get_mut("oidc_clients")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("control plane has no oidc_clients array"))?;
+    for client in oidc_clients {
+        append_unique_string(client, "allowed_profiles", "ops")?;
+    }
+
     fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
     Ok(())
 }

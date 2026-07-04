@@ -72,7 +72,6 @@ pub struct GatewayControlPlaneRevision {
 #[serde(rename_all = "snake_case")]
 pub enum GatewayControlPlaneRevisionSource {
     AdminApi,
-    MountedFileReload,
     SeedFile,
 }
 

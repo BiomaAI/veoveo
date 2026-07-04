@@ -117,12 +117,10 @@ pub(super) enum AdminOperationFailure {
     ExpiredRevocation,
     InvalidControlPlane,
     LatestRevisionRead,
-    LoadControlPlane,
     PersistControlPlaneRevision,
     PersistJwtRevocation,
     PruneJwtRevocations,
     RevisionId,
-    UnsupportedControlPlaneSource,
 }
 
 impl AdminOperationFailure {
@@ -133,12 +131,10 @@ impl AdminOperationFailure {
             Self::ExpiredRevocation => "expired_revocation",
             Self::InvalidControlPlane => "invalid_control_plane",
             Self::LatestRevisionRead => "latest_revision_read",
-            Self::LoadControlPlane => "load_control_plane",
             Self::PersistControlPlaneRevision => "persist_control_plane_revision",
             Self::PersistJwtRevocation => "persist_jwt_revocation",
             Self::PruneJwtRevocations => "prune_jwt_revocations",
             Self::RevisionId => "revision_id",
-            Self::UnsupportedControlPlaneSource => "unsupported_control_plane_source",
         }
     }
 }

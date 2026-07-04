@@ -242,10 +242,14 @@ cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
 
 # 3. gateway
 export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-private-key-der-b64)"
+export VEOVEO_GATEWAY_CONTROL_DB_URL=postgresql://veoveo_gateway:veoveo_gateway@localhost:5432/veoveo_gateway
+cargo run -p veoveo-mcp-gateway --bin gateway -- control-plane-seed \
+    --control-db-url "$VEOVEO_GATEWAY_CONTROL_DB_URL" \
+    --control-plane configs/gateway.local.json \
+    --applied-by local#operator
 cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
     --public-base-url https://veoveo.bioma.ai \
-    --control-plane-source file \
-    --control-plane configs/gateway.local.json \
+    --control-db-url "$VEOVEO_GATEWAY_CONTROL_DB_URL" \
     --state-db data/gateway/state.duckdb
 
 # 4. conformance CLI through the gateway

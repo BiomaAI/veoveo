@@ -84,9 +84,10 @@ pub(crate) async fn gateway_http(
     )?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let control_db = spawn_gateway_control_db(gateway, &control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(port, &control_plane, &state_db),
+        gateway_serve_args(port, &control_db.url, &state_db),
         [
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             ("VEOVEO_IDP_OIDC_CLIENT_SECRET", oidc_secret.into()),
@@ -277,12 +278,6 @@ pub(crate) async fn gateway_http(
     assert_http_status(
         &format!("{base}/oauth/default/callback?{callback_query}"),
         StatusCode::BAD_REQUEST,
-    )
-    .await?;
-    assert_http_post_status(
-        &format!("{base}/admin/default/reload-control-plane"),
-        None,
-        StatusCode::UNAUTHORIZED,
     )
     .await?;
 

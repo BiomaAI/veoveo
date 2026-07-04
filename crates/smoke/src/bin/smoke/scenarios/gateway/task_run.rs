@@ -48,9 +48,10 @@ pub(crate) async fn gateway_task_run(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, control_plane, &gateway_state_db),
+        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
         [
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             (

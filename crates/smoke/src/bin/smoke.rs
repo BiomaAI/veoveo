@@ -35,6 +35,10 @@ mod support;
 
 use scenarios::*;
 
+fn install_rustls_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "smoke", about = "Veoveo smoke-test harness")]
 struct Args {
@@ -167,6 +171,7 @@ enum Cmd {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    install_rustls_provider();
     let args = Args::parse();
     match args.cmd {
         Cmd::GatewaySuite {

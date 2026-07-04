@@ -114,6 +114,70 @@ pub(crate) fn spawn_media_memory_smoke(
     )
 }
 
+pub(crate) struct GatewayControlDbSmoke {
+    pub(crate) url: String,
+    _container: ContainerGuard,
+}
+
+pub(crate) async fn spawn_gateway_control_db(
+    gateway: &Path,
+    control_plane: &Path,
+) -> Result<GatewayControlDbSmoke> {
+    let host_port = reserve_local_port()?;
+    let container_name = format!("veoveo-smoke-postgres-{}", uuid::Uuid::new_v4());
+    let container = ContainerGuard::new(container_name.clone());
+    run_checked(
+        Path::new("docker"),
+        [
+            "run".into(),
+            "-d".into(),
+            "--name".into(),
+            container_name.clone().into(),
+            "-e".into(),
+            "POSTGRES_DB=veoveo_gateway".into(),
+            "-e".into(),
+            "POSTGRES_USER=veoveo_gateway".into(),
+            "-e".into(),
+            "POSTGRES_PASSWORD=veoveo_gateway".into(),
+            "-p".into(),
+            format!("127.0.0.1:{host_port}:5432").into(),
+            "postgres:18-alpine".into(),
+        ],
+        [],
+    )?;
+    wait_for_postgres_container(&container_name).await?;
+
+    let url =
+        format!("postgresql://veoveo_gateway:veoveo_gateway@127.0.0.1:{host_port}/veoveo_gateway");
+    run_checked(
+        gateway,
+        [
+            "control-plane-seed".into(),
+            "--control-db-url".into(),
+            url.clone().into(),
+            "--control-plane".into(),
+            control_plane.as_os_str().to_os_string(),
+            "--applied-by".into(),
+            "smoke#control-db".into(),
+        ],
+        [],
+    )?;
+    run_checked(
+        gateway,
+        [
+            "validate-db".into(),
+            "--control-db-url".into(),
+            url.clone().into(),
+        ],
+        [],
+    )?;
+
+    Ok(GatewayControlDbSmoke {
+        url,
+        _container: container,
+    })
+}
+
 pub(crate) fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u16) -> Result<()> {
     let caddyfile = format!(
         r#"{{
@@ -163,7 +227,7 @@ pub(crate) fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u
 
 pub(crate) fn gateway_serve_args(
     port: u16,
-    control_plane: &Path,
+    control_db_url: &str,
     state_db: &Path,
 ) -> Vec<OsString> {
     vec![
@@ -172,12 +236,38 @@ pub(crate) fn gateway_serve_args(
         port.to_string().into(),
         "--public-base-url".into(),
         PUBLIC_BASE_URL.into(),
-        "--control-plane-source".into(),
-        "file".into(),
-        "--control-plane".into(),
-        control_plane.as_os_str().to_os_string(),
+        "--control-db-url".into(),
+        control_db_url.into(),
         "--state-db".into(),
         state_db.as_os_str().to_os_string(),
         "--allow-loopback-hosts".into(),
     ]
+}
+
+pub(crate) fn reserve_local_port() -> Result<u16> {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
+    Ok(listener.local_addr()?.port())
+}
+
+async fn wait_for_postgres_container(container_name: &str) -> Result<()> {
+    for _ in 0..150 {
+        let output = run_raw(
+            Path::new("docker"),
+            [
+                "exec".into(),
+                container_name.into(),
+                "pg_isready".into(),
+                "-U".into(),
+                "veoveo_gateway".into(),
+                "-d".into(),
+                "veoveo_gateway".into(),
+            ],
+            [],
+        )?;
+        if output.status.success() {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    bail!("timed out waiting for Postgres container {container_name}");
 }

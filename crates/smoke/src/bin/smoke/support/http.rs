@@ -99,24 +99,6 @@ pub(crate) async fn assert_http_get_status(
     }
 }
 
-pub(crate) async fn assert_http_post_status(
-    url: &str,
-    bearer_token: Option<&str>,
-    expected: StatusCode,
-) -> Result<()> {
-    let client = reqwest::Client::new();
-    let mut request = client.post(url);
-    if let Some(token) = bearer_token {
-        request = request.bearer_auth(token);
-    }
-    let status = request.send().await?.status();
-    if status == expected {
-        Ok(())
-    } else {
-        bail!("expected POST {url} to return {expected}, got {status}");
-    }
-}
-
 pub(crate) async fn assert_ready_profiles(gateway_base: &str, expected: u64) -> Result<()> {
     let ready: Value = reqwest::get(format!("{gateway_base}/readyz"))
         .await?
