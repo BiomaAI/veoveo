@@ -21,7 +21,7 @@ use crate::mcp_support::{
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
 
 impl GatewayMcp {
-    fn profile_task_servers(&self) -> Vec<ServerSlug> {
+    pub(super) fn profile_task_servers(&self) -> Vec<ServerSlug> {
         self.catalog
             .current()
             .profile_servers(&self.profile_id)

@@ -171,6 +171,62 @@ pub(crate) async fn gateway_task_run(
     )?;
     assert_usage_report(&usage, "media", &task_id)?;
 
+    let session = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token).await?;
+    let listed_tools = session.list_tools(Default::default()).await?;
+    let media_tool = listed_tools
+        .tools
+        .iter()
+        .find(|tool| tool.name.as_ref() == "media__run")
+        .ok_or_else(|| anyhow!("gateway did not list media__run: {listed_tools:?}"))?;
+    if media_tool.task_support() != rmcp::model::TaskSupport::Optional {
+        bail!(
+            "gateway media__run task support was {:?}, expected Optional",
+            media_tool.task_support()
+        );
+    }
+    let direct_result = session
+        .call_tool(
+            CallToolRequestParams::new("media__run").with_arguments(
+                serde_json::json!({
+                    "model": "fake/image",
+                    "input": { "prompt": "direct-call smoke" }
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?;
+    if direct_result.is_error == Some(true) {
+        bail!("direct gateway tools/call returned an error: {direct_result:?}");
+    }
+    let direct_task_id = direct_result
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.0.get(RELATED_TASK_META_KEY))
+        .and_then(|value| value.get("taskId"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("direct tools/call returned no gateway task id: {direct_result:?}"))?
+        .to_string();
+    let direct_structured: SmokeGenerationRunOutput = serde_json::from_value(
+        direct_result
+            .structured_content
+            .clone()
+            .ok_or_else(|| anyhow!("direct tools/call returned no structured output"))?,
+    )?;
+    if direct_structured.artifacts.is_empty() {
+        bail!("direct tools/call returned no artifacts: {direct_result:?}");
+    }
+    let direct_status: GatewayTaskStatusDocument = serde_json::from_value(
+        read_mcp_resource_json(&session, &format!("veoveo://task/{direct_task_id}")).await?,
+    )?;
+    if direct_status.task.status != GatewayTaskStatusKind::Completed {
+        bail!("direct gateway task status was not completed: {direct_status:?}");
+    }
+    if direct_status.result.is_none() {
+        bail!("completed gateway task status resource did not include result");
+    }
+
     let media_mcp_url = format!("{media_base}/media/mcp");
     let other_profile_tasks = run_direct_mcp(
         conformance,
@@ -222,13 +278,13 @@ pub(crate) async fn gateway_task_run(
     let audit_summary: Value = serde_json::from_str(&audit_summary)?;
     assert_no_audit_denies(&audit_summary)?;
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
-    assert_audit_method(&audit_summary, "tools/call", 2, 0)?;
+    assert_audit_method(&audit_summary, "tools/call", 3, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/get", 2, 0)?;
-    assert_audit_method(&audit_summary, "tasks/result", 2, 0)?;
+    assert_audit_method(&audit_summary, "tasks/result", 3, 0)?;
     assert_audit_method(&audit_summary, "resources/subscribe", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/unsubscribe", 1, 0)?;
-    assert_audit_method(&audit_summary, "resources/read", 2, 0)?;
+    assert_audit_method(&audit_summary, "resources/read", 3, 0)?;
 
     media_child.stop();
     provider.stop();

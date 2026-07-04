@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use rmcp::{
     RoleServer,
@@ -9,14 +10,102 @@ use rmcp::{
     },
     service::Peer,
 };
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::{sync::RwLock, task::JoinHandle};
+
+use crate::gateway::{GatewayTaskId, ResourceUri};
 
 fn is_terminal(status: &TaskStatus) -> bool {
     matches!(
         status,
         TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
     )
+}
+
+pub const GATEWAY_TASK_RESOURCE_TEMPLATE: &str = "veoveo://task/{task_id}";
+
+pub fn gateway_task_resource_uri(task_id: &GatewayTaskId) -> ResourceUri {
+    ResourceUri::new(format!("veoveo://task/{task_id}"))
+        .expect("gateway task resource URI is valid")
+}
+
+pub fn parse_gateway_task_resource_uri(uri: &str) -> Option<&str> {
+    uri.strip_prefix("veoveo://task/")
+        .filter(|task_id| !task_id.is_empty() && !task_id.contains('/'))
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayTaskStatusKind {
+    Working,
+    InputRequired,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl TryFrom<&TaskStatus> for GatewayTaskStatusKind {
+    type Error = anyhow::Error;
+
+    fn try_from(status: &TaskStatus) -> Result<Self, Self::Error> {
+        Ok(match status {
+            TaskStatus::Working => Self::Working,
+            TaskStatus::InputRequired => Self::InputRequired,
+            TaskStatus::Completed => Self::Completed,
+            TaskStatus::Failed => Self::Failed,
+            TaskStatus::Cancelled => Self::Cancelled,
+            _ => anyhow::bail!("unsupported MCP task status: {status:?}"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayTaskStatus {
+    pub task_id: GatewayTaskId,
+    pub status: GatewayTaskStatusKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub last_updated_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub poll_after_ms: Option<u64>,
+    pub status_resource: ResourceUri,
+    pub result_available: bool,
+}
+
+impl GatewayTaskStatus {
+    pub fn from_task(task: &Task) -> anyhow::Result<Self> {
+        let task_id =
+            GatewayTaskId::new(task.task_id.clone()).context("invalid gateway task id")?;
+        let created_at = DateTime::parse_from_rfc3339(&task.created_at)
+            .context("invalid gateway task created_at timestamp")?
+            .with_timezone(&Utc);
+        let last_updated_at = DateTime::parse_from_rfc3339(&task.last_updated_at)
+            .context("invalid gateway task last_updated_at timestamp")?
+            .with_timezone(&Utc);
+        Ok(Self {
+            status: GatewayTaskStatusKind::try_from(&task.status)?,
+            status_message: task.status_message.clone(),
+            created_at,
+            last_updated_at,
+            ttl: task.ttl,
+            poll_after_ms: task.poll_interval,
+            status_resource: gateway_task_resource_uri(&task_id),
+            result_available: is_terminal(&task.status),
+            task_id,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayTaskStatusDocument {
+    pub task: GatewayTaskStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
 }
 
 pub fn now_utc() -> chrono::DateTime<chrono::Utc> {
@@ -297,6 +386,29 @@ mod tests {
                 .and_then(Value::as_str),
             Some("task-1")
         );
+    }
+
+    #[test]
+    fn gateway_task_status_uses_typed_task_resource_uri() {
+        let task = task("gateway-task-1", TaskStatus::Working, Utc::now())
+            .with_status_message("accepted")
+            .with_poll_interval(5000);
+
+        let status = GatewayTaskStatus::from_task(&task).unwrap();
+
+        assert_eq!(status.task_id.as_str(), "gateway-task-1");
+        assert_eq!(status.status, GatewayTaskStatusKind::Working);
+        assert_eq!(status.status_message.as_deref(), Some("accepted"));
+        assert_eq!(status.poll_after_ms, Some(5000));
+        assert_eq!(
+            status.status_resource.as_str(),
+            "veoveo://task/gateway-task-1"
+        );
+        assert_eq!(
+            parse_gateway_task_resource_uri(status.status_resource.as_str()),
+            Some("gateway-task-1")
+        );
+        assert!(!status.result_available);
     }
 
     #[tokio::test]

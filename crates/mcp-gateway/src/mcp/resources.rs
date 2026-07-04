@@ -2,18 +2,22 @@ use chrono::Utc;
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        SubscribeRequestParams, UnsubscribeRequestParams,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
+        ResourceTemplate, SubscribeRequestParams, TaskStatus, UnsubscribeRequestParams,
     },
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::{GatewayAction, GatewayResourceSubscription, PolicyReasonCode, paginate};
+use veoveo_mcp_contract::{
+    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayResourceSubscription, PolicyReasonCode,
+    paginate, parse_gateway_task_resource_uri,
+};
 
 use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, project_listed_resource, project_read_resource_result,
     resource_policy_target, resource_read_action, upstream_error,
 };
 
+use super::tools::direct_task_status_document;
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
 
 impl GatewayMcp {
@@ -70,6 +74,16 @@ impl GatewayMcp {
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let subject = self.authenticated(&context)?;
         let mut templates = Vec::new();
+        if !self.profile_task_servers().is_empty() {
+            templates.push(
+                ResourceTemplate::new(GATEWAY_TASK_RESOURCE_TEMPLATE, "gateway-task-status")
+                    .with_title("Gateway task status")
+                    .with_description(
+                        "Gateway-owned task status and result document addressed by gateway task id.",
+                    )
+                    .with_mime_type("application/json"),
+            );
+        }
         for server_slug in self.profile_servers() {
             let upstream = self
                 .upstream(&server_slug, context.peer.clone(), &subject)
@@ -105,6 +119,11 @@ impl GatewayMcp {
         mut request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
+        if let Some(task_id) = parse_gateway_task_resource_uri(&request.uri) {
+            return self
+                .handle_read_gateway_task_resource(task_id, context)
+                .await;
+        }
         let projection = self.project_resource_for_upstream(&request.uri)?;
         let subject = self.authorize_projected_resource(
             &context,
@@ -121,6 +140,40 @@ impl GatewayMcp {
             .map_err(upstream_error)?;
         project_read_resource_result(&mut result, &projection)?;
         Ok(result)
+    }
+
+    async fn handle_read_gateway_task_resource(
+        &self,
+        task_id: &str,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let mapping = self.task_mapping(task_id)?;
+        self.authorize_mapped_task(&context, GatewayAction::ResourcesRead, &mapping)?;
+        let task = self.direct_task_status(task_id, &context).await?;
+        let result = if task.status == TaskStatus::Completed {
+            self.authorize_mapped_task(&context, GatewayAction::TasksResult, &mapping)?;
+            Some(
+                serde_json::to_value(self.direct_task_payload_result(task_id, &context).await?)
+                    .map_err(|err| mcp_internal(format!("failed to encode task result: {err}")))?,
+            )
+        } else {
+            None
+        };
+        let document = direct_task_status_document(&task, result)?;
+        let uri = document.task.status_resource.to_string();
+        let text = serde_json::to_string(&document).map_err(|err| {
+            mcp_internal(format!(
+                "failed to encode gateway task status resource: {err}"
+            ))
+        })?;
+        Ok(ReadResourceResult::new(vec![
+            ResourceContents::TextResourceContents {
+                uri,
+                mime_type: Some("application/json".to_string()),
+                text,
+                meta: None,
+            },
+        ]))
     }
 
     pub(super) async fn handle_subscribe(

@@ -176,7 +176,7 @@ pub(crate) fn project_task_payload_result(
     Ok(())
 }
 
-fn project_call_tool_result(
+pub(crate) fn project_call_tool_result(
     result: &mut CallToolResult,
     mapping: &GatewayTaskMapping,
 ) -> Result<(), McpError> {

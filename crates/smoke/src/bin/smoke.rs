@@ -18,7 +18,8 @@ use reqwest::{
 use rmcp::{
     ClientHandler, ServiceExt,
     model::{
-        ClientCapabilities, ClientInfo, Implementation, ReadResourceRequestParams, ResourceContents,
+        CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation,
+        ReadResourceRequestParams, ResourceContents,
     },
     service::RunningService,
     transport::{
@@ -27,6 +28,9 @@ use rmcp::{
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
+use veoveo_mcp_contract::{
+    GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
+};
 
 #[path = "smoke/scenarios.rs"]
 mod scenarios;

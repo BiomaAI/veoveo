@@ -20,3 +20,4 @@ sha2.workspace = true
 tokio = { workspace = true, features = ["full"] }
 url.workspace = true
 uuid.workspace = true
+veoveo-mcp-contract = { path = "../mcp-contract" }
