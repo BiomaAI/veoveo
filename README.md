@@ -84,6 +84,23 @@ same origin:
 debugging, use the direct service endpoint with a gateway-signed internal token, such as
 `http://localhost:8787/media/mcp` in the development Compose stack.
 
+### Claude Code Demo
+
+The Bioma reference deployment pre-registers the public OAuth client `claude-demo` for
+the operator profile. Claude Code should use a fixed callback port that matches that
+registration:
+
+```sh
+claude mcp add --transport http \
+    --client-id claude-demo \
+    --callback-port 8789 \
+    veoveo https://veoveo.bioma.ai/mcp/operator
+
+claude mcp login veoveo
+```
+
+Do not point Claude at `/media/mcp`; that route is intentionally not public.
+
 ## Setup
 
 `.env`:
