@@ -188,7 +188,10 @@ pub(crate) async fn gateway_http(
     let local_client_id = "operator-local-public";
     let local_redirect_uri = "http://127.0.0.1:8789/oauth/callback";
     let hosted_client_id = "operator-hosted-public";
-    let hosted_redirect_uri = "https://chatgpt.com/connector_platform_oauth_redirect";
+    let hosted_redirect_uris = [
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+    ];
     let code_verifier = "smoke-browser-pkce-verifier-0123456789abcdef0123456789abcdef";
     let code_challenge = "X9AgXux1PHu8RKlqHF9FuDYoLL6yjPFGS5je8BbaBF8";
     let (gateway_code, callback_query) = gateway_browser_authorization_code(
@@ -289,38 +292,42 @@ pub(crate) async fn gateway_http(
     )
     .await?;
 
-    let (hosted_gateway_code, _) = gateway_browser_authorization_code(
-        &http,
-        &idp_client,
-        &base,
-        &idp_base,
-        hosted_client_id,
-        hosted_redirect_uri,
-        code_challenge,
-        "smoke-hosted-state",
-    )
-    .await?;
-    let hosted_token_response: Value = http
-        .post(format!("{base}/oauth/token"))
-        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .body(form_urlencoded(&[
-            ("grant_type", "authorization_code"),
-            ("client_id", hosted_client_id),
-            ("code", hosted_gateway_code.as_str()),
-            ("redirect_uri", hosted_redirect_uri),
-            ("code_verifier", code_verifier),
-        ]))
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
+    for (hosted_redirect_index, &hosted_redirect_uri) in hosted_redirect_uris.iter().enumerate() {
+        let (hosted_gateway_code, _) = gateway_browser_authorization_code(
+            &http,
+            &idp_client,
+            &base,
+            &idp_base,
+            hosted_client_id,
+            hosted_redirect_uri,
+            code_challenge,
+            &format!("smoke-hosted-state-{hosted_redirect_index}"),
+        )
         .await?;
-    if hosted_token_response
-        .get("token_type")
-        .and_then(Value::as_str)
-        != Some("Bearer")
-    {
-        bail!("hosted authorization-code token response was not bearer: {hosted_token_response}");
+        let hosted_token_response: Value = http
+            .post(format!("{base}/oauth/token"))
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(form_urlencoded(&[
+                ("grant_type", "authorization_code"),
+                ("client_id", hosted_client_id),
+                ("code", hosted_gateway_code.as_str()),
+                ("redirect_uri", hosted_redirect_uri),
+                ("code_verifier", code_verifier),
+            ]))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        if hosted_token_response
+            .get("token_type")
+            .and_then(Value::as_str)
+            != Some("Bearer")
+        {
+            bail!(
+                "hosted authorization-code token response was not bearer for {hosted_redirect_uri}: {hosted_token_response}"
+            );
+        }
     }
 
     let admin_token = gateway_token_for_profile(
