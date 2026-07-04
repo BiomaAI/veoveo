@@ -27,7 +27,7 @@ const DIRECT_TASK_WAIT_TIMEOUT: Duration = Duration::from_secs(20);
 const DIRECT_TASK_DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const DIRECT_TASK_MIN_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const DIRECT_TASK_MAX_POLL_INTERVAL: Duration = Duration::from_secs(5);
-const DIRECT_TASK_DESCRIPTION: &str = "Direct gateway calls return final output when ready quickly, otherwise they return a gateway task id and veoveo://task/{task_id} status resource.";
+const DIRECT_TASK_DESCRIPTION: &str = "At this gateway profile, direct tool calls are supported: the gateway creates the upstream MCP task, returns final output when ready quickly, or returns a gateway task id and veoveo://task/{task_id} status resource when still running.";
 
 impl GatewayMcp {
     pub(super) async fn handle_list_tools(
@@ -379,8 +379,8 @@ fn adapt_gateway_tool_execution(tool: &mut Tool) {
         Some(description) if description.contains(DIRECT_TASK_DESCRIPTION) => {}
         Some(description) => {
             tool.description = Some(Cow::Owned(format!(
-                "{} {}",
-                description, DIRECT_TASK_DESCRIPTION
+                "{} Upstream contract: {}",
+                DIRECT_TASK_DESCRIPTION, description
             )));
         }
         None => {

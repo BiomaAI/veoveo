@@ -330,7 +330,7 @@ pub(super) enum Cmd {
         #[arg(long)]
         arguments: Option<String>,
     },
-    /// Call one non-task tool directly.
+    /// Call one tool directly.
     Call {
         /// Tool name to invoke.
         #[arg(long)]
