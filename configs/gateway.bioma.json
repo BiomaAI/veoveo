@@ -1,0 +1,426 @@
+{
+  "identity_providers": [
+    {
+      "id": "enterprise",
+      "issuer": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/v2.0",
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/discovery/v2.0/keys"
+      },
+      "claim_mapping": {
+        "subject": "oid",
+        "tenant": {
+          "claim": "tid",
+          "values": {
+            "e0ee3c6a-4f58-4f66-8de4-253226eeed5f": "bioma"
+          }
+        }
+      },
+      "authorization_endpoint": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/oauth2/v2.0/authorize",
+      "token_endpoint": "https://login.microsoftonline.com/e0ee3c6a-4f58-4f66-8de4-253226eeed5f/oauth2/v2.0/token",
+      "metadata": {
+        "provider": "microsoft_entra",
+        "external_tenant_id": "e0ee3c6a-4f58-4f66-8de4-253226eeed5f"
+      }
+    }
+  ],
+  "authorization_servers": [
+    {
+      "id": "veoveo-media",
+      "issuer": "https://veoveo.bioma.ai/oauth/media",
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://veoveo.bioma.ai/oauth/media/jwks.json"
+      },
+      "access_token_key_id": "veoveo-bioma-2026-07",
+      "access_token_signing_key": "veoveo_access_token_private_key",
+      "identity_provider": "enterprise",
+      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/media/authorize",
+      "token_endpoint": "https://veoveo.bioma.ai/oauth/media/token",
+      "metadata": {
+        "deployment": "bioma"
+      }
+    },
+    {
+      "id": "veoveo-ops",
+      "issuer": "https://veoveo.bioma.ai/oauth/ops",
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://veoveo.bioma.ai/oauth/ops/jwks.json"
+      },
+      "access_token_key_id": "veoveo-bioma-2026-07",
+      "access_token_signing_key": "veoveo_access_token_private_key",
+      "identity_provider": "enterprise",
+      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/ops/authorize",
+      "token_endpoint": "https://veoveo.bioma.ai/oauth/ops/token",
+      "metadata": {
+        "deployment": "bioma"
+      }
+    }
+  ],
+  "servers": [
+    {
+      "slug": "media",
+      "uri_scheme": "media",
+      "mount_path": "/media",
+      "mcp_path": "/media/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://media-mcp:8787/media/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": ["run"],
+      "prompts": [
+        "media-model-select",
+        "media-image-edit",
+        "media-video-generate",
+        "media-task-review"
+      ],
+      "required_scopes": ["media:use"],
+      "owned_routes": [
+        {
+          "path": "/media/webhooks",
+          "purpose": "webhook"
+        },
+        {
+          "path": "/media/files",
+          "purpose": "provider_fetchable_files"
+        },
+        {
+          "path": "/media/artifacts",
+          "purpose": "artifact_bytes"
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "profiles": [
+    {
+      "id": "media",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo-media",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/media",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": ["media:use"],
+      "servers": [
+        {
+          "server": "media",
+          "tools": {
+            "mode": "listed",
+            "items": ["run"]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "media"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        }
+      ],
+      "metadata": {
+        "tenant": "bioma"
+      }
+    },
+    {
+      "id": "ops",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo-ops",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/ops",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": ["gateway:admin"],
+      "servers": [],
+      "metadata": {
+        "tenant": "bioma"
+      }
+    }
+  ],
+  "policies": [
+    {
+      "version": "2026-07-02",
+      "rules": [
+        {
+          "id": "allow_media_profile_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": ["media"],
+          "servers": ["media"],
+          "tools": ["run"],
+          "resource_schemes": ["media"],
+          "prompts": [
+            "media-model-select",
+            "media-image-edit",
+            "media-video-generate",
+            "media-task-review"
+          ],
+          "tenant_ids": ["bioma"],
+          "required_scopes": ["media:use"],
+          "roles": ["veoveo_media_user"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_gateway_admin_write",
+          "effect": "allow",
+          "actions": ["admin_read", "admin_write"],
+          "profiles": ["ops"],
+          "tenant_ids": ["bioma"],
+          "required_scopes": ["gateway:admin"],
+          "roles": ["veoveo_gateway_admin"],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "data_labels": [
+    {
+      "id": "cui",
+      "title": "Controlled Unclassified Information",
+      "regulated": true,
+      "metadata": {}
+    },
+    {
+      "id": "itar",
+      "title": "ITAR-controlled data",
+      "regulated": true,
+      "metadata": {}
+    },
+    {
+      "id": "pii",
+      "title": "Personally Identifiable Information",
+      "regulated": true,
+      "metadata": {}
+    }
+  ],
+  "tenants": [
+    {
+      "id": "bioma",
+      "title": "Bioma",
+      "metadata": {
+        "reference_deployment": true
+      }
+    }
+  ],
+  "oauth_clients": [
+    {
+      "id": "mcp-inspector",
+      "authorization_server": "veoveo-media",
+      "display_name": "MCP Inspector",
+      "allowed_profiles": ["media"],
+      "grant_types": ["authorization_code_pkce"],
+      "auth_methods": ["none"],
+      "redirect_uris": [
+        "http://localhost:6274/oauth/callback",
+        "http://localhost:6274/oauth/callback/debug",
+        "http://127.0.0.1:6274/oauth/callback",
+        "http://127.0.0.1:6274/oauth/callback/debug",
+        "http://127.0.0.1:8789/oauth/callback"
+      ],
+      "allowed_scopes": ["media:use"],
+      "metadata": {}
+    },
+    {
+      "id": "claude-demo",
+      "authorization_server": "veoveo-media",
+      "display_name": "Claude Demo Connector",
+      "allowed_profiles": ["media"],
+      "grant_types": ["authorization_code_pkce"],
+      "auth_methods": ["none"],
+      "redirect_uris": [
+        "http://localhost:8789/callback"
+      ],
+      "allowed_scopes": ["media:use"],
+      "metadata": {
+        "provisional_redirect_uri": true
+      }
+    },
+    {
+      "id": "chatgpt-demo",
+      "authorization_server": "veoveo-media",
+      "display_name": "ChatGPT Demo Connector",
+      "allowed_profiles": ["media"],
+      "grant_types": ["authorization_code_pkce"],
+      "auth_methods": ["none"],
+      "redirect_uris": [
+        "https://chatgpt.com/connector_platform_oauth_redirect"
+      ],
+      "allowed_scopes": ["media:use"],
+      "metadata": {
+        "provisional_redirect_uri": true
+      }
+    },
+    {
+      "id": "veoveo-admin-console",
+      "authorization_server": "veoveo-ops",
+      "display_name": "Veoveo Admin Console",
+      "allowed_profiles": ["ops"],
+      "grant_types": ["authorization_code_pkce"],
+      "auth_methods": ["none"],
+      "redirect_uris": [
+        "https://bioma.ai/veoveo/admin/callback"
+      ],
+      "allowed_scopes": ["gateway:admin"],
+      "metadata": {
+        "portal": "bioma"
+      }
+    },
+    {
+      "id": "veoveo-headless",
+      "authorization_server": "veoveo-media",
+      "display_name": "Veoveo media headless client",
+      "allowed_profiles": ["media"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
+      "allowed_scopes": ["media:use"],
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://bioma.ai/.well-known/veoveo-headless-jwks.json"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "veoveo-ops-headless",
+      "authorization_server": "veoveo-ops",
+      "display_name": "Veoveo ops headless client",
+      "allowed_profiles": ["ops"],
+      "grant_types": ["client_credentials"],
+      "auth_methods": ["private_key_jwt"],
+      "allowed_scopes": ["gateway:admin"],
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://bioma.ai/.well-known/veoveo-headless-jwks.json"
+      },
+      "metadata": {}
+    }
+  ],
+  "oidc_clients": [
+    {
+      "id": "enterprise-media",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo-media",
+      "allowed_profiles": ["media"],
+      "client_id": "853550a7-5fd4-421c-abd2-bea0216fa579",
+      "redirect_uri": "https://veoveo.bioma.ai/oauth/media/callback",
+      "auth_method": "client_secret_post",
+      "credential_secret": "enterprise_oidc_client_secret",
+      "scopes": ["openid", "profile", "email"],
+      "metadata": {
+        "provider": "microsoft_entra"
+      }
+    },
+    {
+      "id": "enterprise-ops",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo-ops",
+      "allowed_profiles": ["ops"],
+      "client_id": "853550a7-5fd4-421c-abd2-bea0216fa579",
+      "redirect_uri": "https://veoveo.bioma.ai/oauth/ops/callback",
+      "auth_method": "client_secret_post",
+      "credential_secret": "enterprise_oidc_client_secret",
+      "scopes": ["openid", "profile", "email"],
+      "metadata": {
+        "provider": "microsoft_entra"
+      }
+    }
+  ],
+  "secrets": [
+    {
+      "id": "enterprise_oidc_client_secret",
+      "source": "env",
+      "purpose": "oauth_client_secret",
+      "locator": "VEOVEO_IDP_OIDC_CLIENT_SECRET",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "veoveo_access_token_private_key",
+      "source": "env",
+      "purpose": "jwks_private_key",
+      "locator": "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "gateway_internal_token_secret",
+      "source": "env",
+      "purpose": "gateway_signing_key",
+      "locator": "VEOVEO_INTERNAL_TOKEN_SECRET",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "media_provider_api_key",
+      "source": "env",
+      "purpose": "provider_api_key",
+      "locator": "MEDIA_PROVIDER_API_KEY",
+      "owner": {
+        "kind": "server",
+        "server": "media"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "media_provider_webhook_secret",
+      "source": "env",
+      "purpose": "webhook_secret",
+      "locator": "MEDIA_PROVIDER_WEBHOOK_SECRET",
+      "owner": {
+        "kind": "server",
+        "server": "media"
+      },
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "deployment": "bioma",
+    "environment": "live_demo"
+  }
+}

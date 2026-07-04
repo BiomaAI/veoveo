@@ -133,6 +133,10 @@ pub enum GatewayControlPlaneError {
         authorization_server: AuthorizationServerId,
         identity_provider: IdentityProviderId,
     },
+    UnknownIdentityProviderMappedTenant {
+        identity_provider: IdentityProviderId,
+        tenant: TenantId,
+    },
     UnknownAuthorizationServerSigningKey {
         authorization_server: AuthorizationServerId,
         secret: SecretReferenceId,
@@ -233,6 +237,23 @@ pub enum GatewayControlPlaneError {
         identity_provider: IdentityProviderId,
         authorization_server: AuthorizationServerId,
         authorization_server_identity_provider: Option<IdentityProviderId>,
+    },
+    OidcClientWithoutAllowedProfiles(OidcClientRegistrationId),
+    UnknownOidcClientProfile {
+        client: OidcClientRegistrationId,
+        profile: GatewayProfileId,
+    },
+    OidcClientProfileAuthorizationServerMismatch {
+        client: OidcClientRegistrationId,
+        profile: GatewayProfileId,
+        client_authorization_server: AuthorizationServerId,
+        profile_authorization_server: AuthorizationServerId,
+    },
+    OidcClientProfileIdentityProviderMismatch {
+        client: OidcClientRegistrationId,
+        profile: GatewayProfileId,
+        client_identity_provider: IdentityProviderId,
+        profile_identity_provider: IdentityProviderId,
     },
     UnknownOidcClientSecret {
         client: OidcClientRegistrationId,
@@ -502,6 +523,13 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "resource authorization server `{authorization_server}` references unknown identity provider `{identity_provider}`"
             ),
+            Self::UnknownIdentityProviderMappedTenant {
+                identity_provider,
+                tenant,
+            } => write!(
+                f,
+                "identity provider `{identity_provider}` claim mapping references unknown tenant `{tenant}`"
+            ),
             Self::UnknownAuthorizationServerSigningKey {
                 authorization_server,
                 secret,
@@ -661,6 +689,34 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "OIDC client `{client}` uses identity provider `{identity_provider}` but resource authorization server `{authorization_server}` is bound to `{authorization_server_identity_provider:?}`"
+            ),
+            Self::OidcClientWithoutAllowedProfiles(client) => {
+                write!(
+                    f,
+                    "OIDC client `{client}` does not allow any gateway profile"
+                )
+            }
+            Self::UnknownOidcClientProfile { client, profile } => write!(
+                f,
+                "OIDC client `{client}` references unknown gateway profile `{profile}`"
+            ),
+            Self::OidcClientProfileAuthorizationServerMismatch {
+                client,
+                profile,
+                client_authorization_server,
+                profile_authorization_server,
+            } => write!(
+                f,
+                "OIDC client `{client}` uses resource authorization server `{client_authorization_server}` but profile `{profile}` uses `{profile_authorization_server}`"
+            ),
+            Self::OidcClientProfileIdentityProviderMismatch {
+                client,
+                profile,
+                client_identity_provider,
+                profile_identity_provider,
+            } => write!(
+                f,
+                "OIDC client `{client}` uses identity provider `{client_identity_provider}` but profile `{profile}` uses `{profile_identity_provider}`"
             ),
             Self::UnknownOidcClientSecret { client, secret } => write!(
                 f,

@@ -842,6 +842,7 @@ pub(super) fn validate_oidc_client_registration(
     client: &IdentityProviderOidcClientRegistration,
     identity_providers: &BTreeMap<IdentityProviderId, &IdentityProvider>,
     authorization_servers: &BTreeMap<AuthorizationServerId, &ResourceAuthorizationServer>,
+    profiles: &BTreeMap<GatewayProfileId, &GatewayProfile>,
     secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
 ) -> Result<(), GatewayControlPlaneError> {
     if !identity_providers.contains_key(&client.identity_provider) {
@@ -871,6 +872,39 @@ pub(super) fn validate_oidc_client_registration(
                     .clone(),
             },
         );
+    }
+    if client.allowed_profiles.is_empty() {
+        return Err(GatewayControlPlaneError::OidcClientWithoutAllowedProfiles(
+            client.id.clone(),
+        ));
+    }
+    for profile_id in &client.allowed_profiles {
+        let Some(profile) = profiles.get(profile_id) else {
+            return Err(GatewayControlPlaneError::UnknownOidcClientProfile {
+                client: client.id.clone(),
+                profile: profile_id.clone(),
+            });
+        };
+        if profile.authorization_server != client.authorization_server {
+            return Err(
+                GatewayControlPlaneError::OidcClientProfileAuthorizationServerMismatch {
+                    client: client.id.clone(),
+                    profile: profile_id.clone(),
+                    client_authorization_server: client.authorization_server.clone(),
+                    profile_authorization_server: profile.authorization_server.clone(),
+                },
+            );
+        }
+        if profile.identity_provider != client.identity_provider {
+            return Err(
+                GatewayControlPlaneError::OidcClientProfileIdentityProviderMismatch {
+                    client: client.id.clone(),
+                    profile: profile_id.clone(),
+                    client_identity_provider: client.identity_provider.clone(),
+                    profile_identity_provider: profile.identity_provider.clone(),
+                },
+            );
+        }
     }
     let Some(secret) = secrets.get(&client.credential_secret) else {
         return Err(GatewayControlPlaneError::UnknownOidcClientSecret {

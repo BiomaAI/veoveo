@@ -21,6 +21,8 @@ pub enum AuthError {
     InvalidIdentityAssertion,
     InvalidOidcIdToken,
     InvalidOidcNonce,
+    MissingMappedClaim(&'static str),
+    UnmappedTenantClaim(String),
     InvalidPrincipalAssurance(String),
     MissingIdentityAssertionResource,
     InvalidIdentityAssertionResource,
@@ -60,6 +62,15 @@ impl fmt::Display for AuthError {
             Self::InvalidIdentityAssertion => write!(f, "invalid identity assertion"),
             Self::InvalidOidcIdToken => write!(f, "invalid OIDC ID token"),
             Self::InvalidOidcNonce => write!(f, "OIDC ID token nonce does not match request"),
+            Self::MissingMappedClaim(claim) => {
+                write!(f, "OIDC ID token is missing mapped claim `{claim}`")
+            }
+            Self::UnmappedTenantClaim(value) => {
+                write!(
+                    f,
+                    "OIDC ID token tenant claim value `{value}` is not mapped"
+                )
+            }
             Self::InvalidPrincipalAssurance(value) => {
                 write!(f, "invalid principal assurance `{value}`")
             }

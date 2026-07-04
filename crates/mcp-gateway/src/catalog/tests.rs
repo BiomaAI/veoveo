@@ -30,6 +30,7 @@ fn identity_provider() -> IdentityProvider {
         jwks: JwksSource::Remote {
             jwks_uri: HttpsUrl::new("https://idp.example.com/.well-known/jwks.json").unwrap(),
         },
+        claim_mapping: veoveo_mcp_contract::IdentityProviderClaimMapping::default(),
         trusted_certificate_authorities: Vec::new(),
         authorization_endpoint: Some(
             HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
@@ -261,6 +262,7 @@ fn oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         id: OidcClientRegistrationId::new("enterprise").unwrap(),
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
+        allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
         client_id: OidcClientId::new("veoveo-gateway").unwrap(),
         redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/default/callback")
             .unwrap(),

@@ -98,11 +98,17 @@ pub(super) struct OidcIdTokenClaims {
     #[serde(default)]
     pub(super) tenant: Option<String>,
     #[serde(default)]
+    pub(super) tid: Option<String>,
+    #[serde(default)]
+    pub(super) oid: Option<String>,
+    #[serde(default)]
+    pub(super) email: Option<String>,
+    #[serde(default)]
+    pub(super) preferred_username: Option<String>,
+    #[serde(default)]
     pub(super) data_labels: Option<StringListClaim>,
     #[serde(default)]
     pub(super) principal_assurances: Option<StringListClaim>,
-    #[serde(default)]
-    pub(super) email: Option<String>,
 }
 
 impl JwtClaims {

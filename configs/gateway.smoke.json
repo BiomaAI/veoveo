@@ -229,6 +229,7 @@
       "id": "enterprise",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
+      "allowed_profiles": ["default"],
       "client_id": "veoveo-gateway",
       "redirect_uri": "https://veoveo.bioma.ai/oauth/default/callback",
       "auth_method": "client_secret_post",

@@ -2,7 +2,8 @@ use std::collections::BTreeSet;
 
 use jsonwebtoken::Algorithm;
 use veoveo_mcp_contract::{
-    OAuthClientId, OidcClientId, OidcNonce, ProtectedResourceId, ScopeName, TokenIssuer,
+    IdentityProviderClaimMapping, OAuthClientId, OidcClientId, OidcNonce, ProtectedResourceId,
+    ScopeName, TokenIssuer,
 };
 
 use super::support::{AuthError, is_symmetric_algorithm};
@@ -36,6 +37,7 @@ pub struct OidcIdTokenConfig {
     pub client_id: OidcClientId,
     pub nonce: OidcNonce,
     pub algorithms: Vec<Algorithm>,
+    pub claim_mapping: IdentityProviderClaimMapping,
 }
 
 impl ClientAssertionConfig {
@@ -125,6 +127,22 @@ impl OidcIdTokenConfig {
         nonce: OidcNonce,
         algorithms: Vec<Algorithm>,
     ) -> Result<Self, AuthError> {
+        Self::new_with_claim_mapping(
+            issuer,
+            client_id,
+            nonce,
+            algorithms,
+            IdentityProviderClaimMapping::default(),
+        )
+    }
+
+    pub fn new_with_claim_mapping(
+        issuer: TokenIssuer,
+        client_id: OidcClientId,
+        nonce: OidcNonce,
+        algorithms: Vec<Algorithm>,
+        claim_mapping: IdentityProviderClaimMapping,
+    ) -> Result<Self, AuthError> {
         if algorithms.is_empty() {
             return Err(AuthError::MissingAllowedAlgorithms);
         }
@@ -140,6 +158,7 @@ impl OidcIdTokenConfig {
             client_id,
             nonce,
             algorithms,
+            claim_mapping,
         })
     }
 }

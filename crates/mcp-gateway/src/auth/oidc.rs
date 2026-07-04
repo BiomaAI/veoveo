@@ -3,8 +3,9 @@ use std::collections::BTreeSet;
 use chrono::Utc;
 use jsonwebtoken::{DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    DataLabelId, GroupId, Principal, PrincipalId, PrincipalKind, RoleId, TenantId, TokenIssuer,
-    TokenSubject,
+    DataLabelId, GroupId, IdentityProviderSubjectClaim, IdentityProviderTenantClaim,
+    IdentityProviderTenantClaimMapping, Principal, PrincipalId, PrincipalKind, RoleId, TenantId,
+    TokenIssuer, TokenSubject,
 };
 
 use super::{
@@ -58,14 +59,16 @@ impl OidcIdTokenVerifier {
         }
 
         let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
-        let subject = TokenSubject::new(claims.sub.clone()).map_err(AuthError::Claim)?;
+        let subject = TokenSubject::new(
+            subject_claim(&claims, self.config.claim_mapping.subject)?.to_owned(),
+        )
+        .map_err(AuthError::Claim)?;
         let principal = Principal {
             id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
             kind: PrincipalKind::User,
             issuer,
             subject,
-            tenant: claims
-                .tenant
+            tenant: tenant_claim(&claims, self.config.claim_mapping.tenant.as_ref())?
                 .map(TenantId::new)
                 .transpose()
                 .map_err(AuthError::Claim)?,
@@ -103,4 +106,54 @@ impl OidcIdTokenVerifier {
             expires_at: unix_timestamp(claims.exp, "exp")?,
         })
     }
+}
+
+fn subject_claim(
+    claims: &OidcIdTokenClaims,
+    mapping: IdentityProviderSubjectClaim,
+) -> Result<&str, AuthError> {
+    let value = match mapping {
+        IdentityProviderSubjectClaim::Sub => Some(claims.sub.as_str()),
+        IdentityProviderSubjectClaim::Oid => claims.oid.as_deref(),
+        IdentityProviderSubjectClaim::Email => claims.email.as_deref(),
+        IdentityProviderSubjectClaim::PreferredUsername => claims.preferred_username.as_deref(),
+    }
+    .map(str::trim)
+    .filter(|value| !value.is_empty());
+
+    value.ok_or(match mapping {
+        IdentityProviderSubjectClaim::Sub => AuthError::MissingMappedClaim("sub"),
+        IdentityProviderSubjectClaim::Oid => AuthError::MissingMappedClaim("oid"),
+        IdentityProviderSubjectClaim::Email => AuthError::MissingMappedClaim("email"),
+        IdentityProviderSubjectClaim::PreferredUsername => {
+            AuthError::MissingMappedClaim("preferred_username")
+        }
+    })
+}
+
+fn tenant_claim(
+    claims: &OidcIdTokenClaims,
+    mapping: Option<&IdentityProviderTenantClaimMapping>,
+) -> Result<Option<String>, AuthError> {
+    let Some(mapping) = mapping else {
+        return Ok(None);
+    };
+    let raw = match mapping.claim {
+        IdentityProviderTenantClaim::Tenant => claims.tenant.as_deref(),
+        IdentityProviderTenantClaim::Tid => claims.tid.as_deref(),
+    }
+    .map(str::trim)
+    .filter(|value| !value.is_empty());
+
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    if mapping.values.is_empty() {
+        return Ok(Some(raw.to_owned()));
+    }
+    mapping
+        .values
+        .get(raw)
+        .map(|tenant| Some(tenant.to_string()))
+        .ok_or_else(|| AuthError::UnmappedTenantClaim(raw.to_owned()))
 }

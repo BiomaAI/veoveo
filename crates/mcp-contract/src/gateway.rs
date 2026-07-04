@@ -155,6 +155,20 @@ impl GatewayControlPlane {
                 return Err(GatewayControlPlaneError::DuplicateTenant(tenant.id.clone()));
             }
         }
+        for identity_provider in &self.identity_providers {
+            if let Some(mapping) = &identity_provider.claim_mapping.tenant {
+                for tenant in mapping.values.values() {
+                    if !tenants.contains(tenant) {
+                        return Err(
+                            GatewayControlPlaneError::UnknownIdentityProviderMappedTenant {
+                                identity_provider: identity_provider.id.clone(),
+                                tenant: tenant.clone(),
+                            },
+                        );
+                    }
+                }
+            }
+        }
 
         let mut profiles = BTreeSet::new();
         let mut profile_by_id = BTreeMap::new();
@@ -286,6 +300,7 @@ impl GatewayControlPlane {
                 client,
                 &identity_providers,
                 &authorization_servers,
+                &profile_by_id,
                 &secret_refs,
             )?;
         }
@@ -327,6 +342,7 @@ impl GatewayControlPlane {
                 let has_oidc_client = self.oidc_clients.iter().any(|client| {
                     client.identity_provider == profile.identity_provider
                         && client.authorization_server == profile.authorization_server
+                        && client.allowed_profiles.contains(&profile.id)
                 });
                 if !has_oidc_client {
                     return Err(GatewayControlPlaneError::MissingOidcClientForProfile {

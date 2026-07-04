@@ -11,6 +11,8 @@ pub struct IdentityProvider {
     pub id: IdentityProviderId,
     pub issuer: TokenIssuer,
     pub jwks: JwksSource,
+    #[serde(default)]
+    pub claim_mapping: IdentityProviderClaimMapping,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trusted_certificate_authorities: Vec<CertificateAuthoritySource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -21,6 +23,61 @@ pub struct IdentityProvider {
     pub enterprise_managed_authorization_endpoint: Option<HttpsUrl>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct IdentityProviderClaimMapping {
+    #[serde(default)]
+    pub subject: IdentityProviderSubjectClaim,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<IdentityProviderTenantClaimMapping>,
+}
+
+impl Default for IdentityProviderClaimMapping {
+    fn default() -> Self {
+        Self {
+            subject: IdentityProviderSubjectClaim::Sub,
+            tenant: Some(IdentityProviderTenantClaimMapping::default()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentityProviderSubjectClaim {
+    Sub,
+    Oid,
+    Email,
+    PreferredUsername,
+}
+
+impl Default for IdentityProviderSubjectClaim {
+    fn default() -> Self {
+        Self::Sub
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct IdentityProviderTenantClaimMapping {
+    pub claim: IdentityProviderTenantClaim,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub values: BTreeMap<String, TenantId>,
+}
+
+impl Default for IdentityProviderTenantClaimMapping {
+    fn default() -> Self {
+        Self {
+            claim: IdentityProviderTenantClaim::Tenant,
+            values: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentityProviderTenantClaim {
+    Tenant,
+    Tid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -78,6 +135,7 @@ pub struct IdentityProviderOidcClientRegistration {
     pub id: OidcClientRegistrationId,
     pub identity_provider: IdentityProviderId,
     pub authorization_server: AuthorizationServerId,
+    pub allowed_profiles: BTreeSet<GatewayProfileId>,
     pub client_id: OidcClientId,
     pub redirect_uri: OAuthRedirectUri,
     pub auth_method: OidcClientAuthMethod,

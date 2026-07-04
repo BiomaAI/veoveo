@@ -222,6 +222,7 @@ pub(crate) async fn authorization_callback(
     };
     let idp_jwks_source = identity_provider.jwks.clone();
     let idp_issuer = identity_provider.issuer.clone();
+    let idp_claim_mapping = identity_provider.claim_mapping.clone();
     let oidc_client_id = oidc_client.client_id.clone();
     let oidc_client_record_id = oidc_client.id.clone();
     let token_exchange = OidcTokenExchangeRequest {
@@ -276,11 +277,12 @@ pub(crate) async fn authorization_callback(
             );
         }
     };
-    let verifier = match OidcIdTokenConfig::new(
+    let verifier = match OidcIdTokenConfig::new_with_claim_mapping(
         idp_issuer,
         oidc_client_id,
         authorization_request.nonce.clone(),
         allowed_gateway_jwt_algorithms(),
+        idp_claim_mapping,
     ) {
         Ok(config) => OidcIdTokenVerifier::new(config, idp_jwks),
         Err(err) => return internal_error_response(err),

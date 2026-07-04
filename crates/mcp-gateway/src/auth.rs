@@ -119,7 +119,16 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         nonce: &'a str,
         groups: Vec<&'a str>,
         roles: Vec<&'a str>,
-        tenant: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tenant: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tid: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        oid: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        email: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        preferred_username: Option<&'a str>,
         data_labels: Vec<&'a str>,
         principal_assurances: Vec<&'a str>,
     }
@@ -246,13 +255,46 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 nonce,
                 groups: vec!["engineering"],
                 roles: vec!["operator"],
-                tenant: "tenant-a",
+                tenant: Some("tenant-a"),
+                tid: None,
+                oid: None,
+                email: None,
+                preferred_username: None,
                 data_labels: vec!["cui"],
                 principal_assurances: vec!["us_person"],
             },
             &encoding_key,
         )
         .expect("OIDC ID token encodes")
+    }
+
+    fn oidc_entra_id_token(nonce: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("test-key".to_string());
+        let encoding_key = rsa_encoding_key();
+        encode(
+            &header,
+            &TestOidcIdTokenClaims {
+                iss: ISSUER,
+                sub: "pairwise-subject",
+                aud: "veoveo-gateway",
+                exp: 4_102_444_800,
+                nbf: 1_700_000_000,
+                iat: 1_700_000_000,
+                nonce,
+                groups: vec![],
+                roles: vec!["veoveo_media_user"],
+                tenant: None,
+                tid: Some("tenant-a"),
+                oid: Some("entra-object-id"),
+                email: None,
+                preferred_username: None,
+                data_labels: vec![],
+                principal_assurances: vec![],
+            },
+            &encoding_key,
+        )
+        .expect("Entra OIDC ID token encodes")
     }
 
     fn rsa_encoding_key() -> EncodingKey {
@@ -508,6 +550,44 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 .principal
                 .assurances
                 .contains(&PrincipalAssurance::UsPerson)
+        );
+    }
+
+    #[test]
+    fn verifies_entra_oidc_aliases() {
+        let claim_mapping = veoveo_mcp_contract::IdentityProviderClaimMapping {
+            subject: veoveo_mcp_contract::IdentityProviderSubjectClaim::Oid,
+            tenant: Some(veoveo_mcp_contract::IdentityProviderTenantClaimMapping {
+                claim: veoveo_mcp_contract::IdentityProviderTenantClaim::Tid,
+                values: std::collections::BTreeMap::from([(
+                    "tenant-a".to_string(),
+                    veoveo_mcp_contract::TenantId::new("tenant-a").unwrap(),
+                )]),
+            }),
+        };
+        let verifier = OidcIdTokenVerifier::new(
+            OidcIdTokenConfig::new_with_claim_mapping(
+                TokenIssuer::new(ISSUER).unwrap(),
+                OidcClientId::new("veoveo-gateway").unwrap(),
+                OidcNonce::new("nonce-1").unwrap(),
+                vec![Algorithm::RS256],
+                claim_mapping,
+            )
+            .unwrap(),
+            jwks(),
+        );
+
+        let verified = verifier
+            .verify(&oidc_entra_id_token("nonce-1"))
+            .expect("valid Entra OIDC ID token");
+
+        assert_eq!(verified.principal.subject.as_str(), "entra-object-id");
+        assert_eq!(verified.principal.tenant.unwrap().as_str(), "tenant-a");
+        assert!(
+            verified
+                .principal
+                .roles
+                .contains(&veoveo_mcp_contract::RoleId::new("veoveo_media_user").unwrap())
         );
     }
 

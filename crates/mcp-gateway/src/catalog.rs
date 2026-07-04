@@ -249,6 +249,7 @@ impl GatewayCatalog {
         self.control_plane.oidc_clients.iter().find(|client| {
             client.identity_provider == profile.identity_provider
                 && client.authorization_server == profile.authorization_server
+                && client.allowed_profiles.contains(&profile.id)
         })
     }
 
