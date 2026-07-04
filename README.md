@@ -106,6 +106,9 @@ client registration is intentionally changed to a confidential-client registrati
 Bioma reference registration currently allows hosted redirects for Claude web
 (`https://claude.ai/api/mcp/auth_callback`) and ChatGPT
 (`https://chatgpt.com/connector/oauth/gJtUJETZMrHO`).
+The enterprise user must be assigned the `veoveo_operator` app role in Entra; otherwise
+OAuth login can succeed but `tools/list` will return no operator tools. Reconnect the MCP
+client after role changes so the next token carries the updated `roles` claim.
 
 Local loopback clients should use OAuth client ID `operator-local-public`. Claude Code can
 use a fixed callback port that matches the registered local redirect URIs:
