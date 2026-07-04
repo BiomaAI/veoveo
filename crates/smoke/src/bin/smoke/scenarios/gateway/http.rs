@@ -190,7 +190,7 @@ pub(crate) async fn gateway_http(
     let hosted_client_id = "operator-hosted-public";
     let hosted_redirect_uris = [
         "https://claude.ai/api/mcp/auth_callback",
-        "https://chatgpt.com/connector_platform_oauth_redirect",
+        "https://chatgpt.com/connector/oauth/gJtUJETZMrHO",
     ];
     let code_verifier = "smoke-browser-pkce-verifier-0123456789abcdef0123456789abcdef";
     let code_challenge = "X9AgXux1PHu8RKlqHF9FuDYoLL6yjPFGS5je8BbaBF8";

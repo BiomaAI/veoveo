@@ -105,7 +105,7 @@ Use OAuth client ID `operator-hosted-public`. Leave the client secret blank unle
 client registration is intentionally changed to a confidential-client registration. The
 Bioma reference registration currently allows hosted redirects for Claude web
 (`https://claude.ai/api/mcp/auth_callback`) and ChatGPT
-(`https://chatgpt.com/connector_platform_oauth_redirect`).
+(`https://chatgpt.com/connector/oauth/gJtUJETZMrHO`).
 
 Local loopback clients should use OAuth client ID `operator-local-public`. Claude Code can
 use a fixed callback port that matches the registered local redirect URIs:
