@@ -153,6 +153,7 @@ pub(super) fn admin_revocation_metadata(
 ) -> BTreeMap<String, String> {
     let mut metadata = BTreeMap::new();
     metadata.insert("operation".to_string(), "revoke_jwt".to_string());
+    metadata.insert("target_profile".to_string(), request.profile.to_string());
     metadata.insert("issuer".to_string(), request.issuer.to_string());
     metadata.insert("jwt_id".to_string(), request.jwt_id.to_string());
     metadata.insert("expires_at".to_string(), request.expires_at.to_rfc3339());

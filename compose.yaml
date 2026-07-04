@@ -140,11 +140,11 @@ services:
       - "--control-db-url"
       - "postgresql://veoveo_gateway:veoveo_gateway@gateway-control-db:5432/veoveo_gateway"
       - "--control-plane"
-      - "/etc/veoveo/gateway.local.json"
+      - "/etc/veoveo/gateway.bioma.json"
       - "--applied-by"
-      - "compose#seed"
+      - "compose#bioma-seed"
     volumes:
-      - ./configs/gateway.local.json:/etc/veoveo/gateway.local.json:ro
+      - ./configs/gateway.bioma.json:/etc/veoveo/gateway.bioma.json:ro
     profiles:
       - dev
 
@@ -171,8 +171,6 @@ services:
       - "--audit-event-retention-days"
       - "365"
     volumes:
-      - ./configs/gateway.local.json:/etc/veoveo/gateway.local.json:ro
-      - ./configs/jwks.smoke.json:/etc/veoveo/jwks.smoke.json:ro
       - gateway_state:/var/lib/veoveo/gateway
     environment:
       VEOVEO_IDP_OIDC_CLIENT_SECRET: "${VEOVEO_IDP_OIDC_CLIENT_SECRET:?set VEOVEO_IDP_OIDC_CLIENT_SECRET}"

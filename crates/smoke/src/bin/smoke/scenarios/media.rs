@@ -234,7 +234,7 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
     let other_profile_tasks = run_direct_mcp(
         conformance,
         &mcp_url,
-        ["--internal-profile".into(), "ops".into(), "tasks".into()],
+        ["--internal-profile".into(), "admin".into(), "tasks".into()],
         [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
     )?;
     contains(&other_profile_tasks, "0 task(s)")?;
@@ -244,7 +244,7 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
         &mcp_url,
         [
             "--internal-profile".into(),
-            "ops".into(),
+            "admin".into(),
             "usage".into(),
             task_id.clone().into(),
         ],
@@ -256,7 +256,7 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
         &mcp_url,
         [
             "--internal-profile".into(),
-            "ops".into(),
+            "admin".into(),
             "artifact".into(),
             structured.artifacts[0].sha256.clone().into(),
             "--output-dir".into(),

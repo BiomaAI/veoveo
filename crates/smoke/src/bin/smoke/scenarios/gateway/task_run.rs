@@ -62,14 +62,14 @@ pub(crate) async fn gateway_task_run(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 1).await?;
+    assert_ready_profiles(&gateway_base, 2).await?;
 
     let token = gateway_id_jag_token(
         conformance,
         &gateway_base,
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
             "--group",
             "engineering",
             "--role",
@@ -165,7 +165,7 @@ pub(crate) async fn gateway_task_run(
 
     let usage = wait_for_actual_usage(
         conformance,
-        &format!("{gateway_base}/mcp/default"),
+        &format!("{gateway_base}/mcp/operator"),
         &task_id,
         Some(token),
     )?;
@@ -175,7 +175,7 @@ pub(crate) async fn gateway_task_run(
     let other_profile_tasks = run_direct_mcp(
         conformance,
         &media_mcp_url,
-        ["--internal-profile".into(), "ops".into(), "tasks".into()],
+        ["--internal-profile".into(), "admin".into(), "tasks".into()],
         [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
     )?;
     contains(&other_profile_tasks, "0 task(s)")?;
@@ -185,7 +185,7 @@ pub(crate) async fn gateway_task_run(
         &media_mcp_url,
         [
             "--internal-profile".into(),
-            "ops".into(),
+            "admin".into(),
             "usage".into(),
             task_id.clone().into(),
         ],
@@ -197,7 +197,7 @@ pub(crate) async fn gateway_task_run(
         &media_mcp_url,
         [
             "--internal-profile".into(),
-            "ops".into(),
+            "admin".into(),
             "artifact".into(),
             structured.artifacts[0].sha256.clone().into(),
             "--output-dir".into(),

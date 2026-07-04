@@ -37,7 +37,7 @@ pub(crate) async fn revoke_jwt(
         return StatusCode::NOT_FOUND.into_response();
     };
     let metadata = admin_revocation_metadata(&request);
-    let (_catalog, profile, subject) = match authorize_admin_request(
+    let (catalog, profile, subject) = match authorize_admin_request(
         &state,
         &profile_id,
         subject,
@@ -49,6 +49,9 @@ pub(crate) async fn revoke_jwt(
         Ok(authorized) => authorized,
         Err(response) => return *response,
     };
+    if catalog.profile(&request.profile).is_none() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
 
     let revoked_at = Utc::now();
     if request.expires_at <= revoked_at {
@@ -74,7 +77,7 @@ pub(crate) async fn revoke_jwt(
             .into_response();
     }
     let revocation = GatewayJwtRevocation {
-        profile: profile.id.clone(),
+        profile: request.profile,
         issuer: request.issuer,
         jwt_id: request.jwt_id,
         revoked_at,
@@ -116,7 +119,8 @@ pub(crate) async fn revoke_jwt(
         return internal_error_response(err);
     }
     tracing::info!(
-        profile = %profile.id,
+        admin_profile = %profile.id,
+        target_profile = %revocation.profile,
         principal = %subject.principal.id,
         issuer = %revocation.issuer,
         jwt_id = %revocation.jwt_id,

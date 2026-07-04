@@ -23,18 +23,18 @@ fn identity_provider() -> IdentityProvider {
 fn authorization_server() -> ResourceAuthorizationServer {
     ResourceAuthorizationServer {
         id: AuthorizationServerId::new("veoveo").unwrap(),
-        issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+        issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
         jwks: JwksSource::Remote {
-            jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/jwks.json").unwrap(),
+            jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/jwks.json").unwrap(),
         },
         access_token_key_id: JwtId::new("test-key").unwrap(),
         access_token_signing_key: SecretReferenceId::new("veoveo_access_token_private_key")
             .unwrap(),
         identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/authorize").unwrap(),
+            HttpsUrl::new("https://veoveo.bioma.ai/oauth/authorize").unwrap(),
         ),
-        token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/token").unwrap(),
+        token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/token").unwrap(),
         metadata: Value::Null,
     }
 }
@@ -117,7 +117,7 @@ fn media_manifest() -> ServerManifest {
         },
         tools: vec![LocalToolName::new("run").unwrap()],
         prompts: vec![PromptName::new("model_help").unwrap()],
-        required_scopes: vec![ScopeName::new("media:use").unwrap()],
+        required_scopes: vec![ScopeName::new("operator:use").unwrap()],
         owned_routes: vec![OwnedRoute {
             path: MountPath::new("/media/webhooks").unwrap(),
             purpose: OwnedRoutePurpose::Webhook,
@@ -161,7 +161,7 @@ fn default_policy() -> PolicySet {
             tenant_ids: BTreeSet::new(),
             groups: BTreeSet::new(),
             roles: BTreeSet::new(),
-            required_scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            required_scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             required_data_labels: BTreeSet::new(),
             required_assurances: BTreeSet::new(),
             metadata: Value::Null,
@@ -210,7 +210,7 @@ fn default_profile() -> GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-        protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
+        protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/operator")
             .unwrap(),
         policy_version: PolicyVersion::new("2026-07-02").unwrap(),
         auth_modes: BTreeSet::from([
@@ -218,7 +218,7 @@ fn default_profile() -> GatewayProfile {
             AuthMode::OAuthClientCredentials,
             AuthMode::OidcAuthorizationCodePkce,
         ]),
-        required_scopes: vec![ScopeName::new("media:use").unwrap()],
+        required_scopes: vec![ScopeName::new("operator:use").unwrap()],
         servers: vec![ProfileServerExposure {
             server: ServerSlug::new("media").unwrap(),
             tools: Exposure::Listed(vec![LocalToolName::new("run").unwrap()]),
@@ -250,8 +250,8 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
                 OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").unwrap(),
             ],
             allowed_scopes: BTreeSet::from([
-                ScopeName::new("media:use").unwrap(),
-                ScopeName::new("gateway:admin").unwrap(),
+                ScopeName::new("operator:use").unwrap(),
+                ScopeName::new("admin:manage").unwrap(),
             ]),
             credential_secret: None,
             jwks: None,
@@ -266,8 +266,8 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
             redirect_uris: vec![],
             allowed_scopes: BTreeSet::from([
-                ScopeName::new("media:use").unwrap(),
-                ScopeName::new("gateway:admin").unwrap(),
+                ScopeName::new("operator:use").unwrap(),
+                ScopeName::new("admin:manage").unwrap(),
             ]),
             credential_secret: None,
             jwks: Some(JwksSource::Remote {
@@ -286,8 +286,7 @@ fn default_oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
         allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
         client_id: OidcClientId::new("veoveo-gateway").unwrap(),
-        redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/default/callback")
-            .unwrap(),
+        redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
         credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
         scopes: BTreeSet::from([
@@ -1304,7 +1303,7 @@ fn control_plane_rejects_oauth_client_missing_required_scope() {
     let mut clients = default_oauth_clients();
     clients[0]
         .allowed_scopes
-        .remove(&ScopeName::new("media:use").unwrap());
+        .remove(&ScopeName::new("operator:use").unwrap());
     let config = GatewayControlPlane {
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],

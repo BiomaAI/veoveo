@@ -149,15 +149,14 @@ pub(crate) async fn gateway_browser_authorization_code(
         ("response_type", "code"),
         ("client_id", "veoveo-browser"),
         ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
-        ("scope", "media:use"),
+        ("scope", "operator:use"),
+        ("resource", "https://veoveo.bioma.ai/mcp/operator"),
         ("code_challenge", code_challenge),
         ("code_challenge_method", "S256"),
         ("state", client_state),
     ]);
     let authorize = http
-        .get(format!(
-            "{gateway_base}/oauth/default/authorize?{authorize_query}"
-        ))
+        .get(format!("{gateway_base}/oauth/authorize?{authorize_query}"))
         .send()
         .await?;
     let authorize_location = redirect_location(authorize, StatusCode::FOUND)?;
@@ -167,7 +166,7 @@ pub(crate) async fn gateway_browser_authorization_code(
 
     let idp_authorize = idp_client.get(&authorize_location).send().await?;
     let idp_callback = redirect_location(idp_authorize, StatusCode::FOUND)?;
-    if !idp_callback.starts_with("https://veoveo.bioma.ai/oauth/default/callback") {
+    if !idp_callback.starts_with("https://veoveo.bioma.ai/oauth/callback") {
         bail!("unexpected IdP callback redirect: {idp_callback}");
     }
     let callback_query = idp_callback
@@ -175,9 +174,7 @@ pub(crate) async fn gateway_browser_authorization_code(
         .map(|(_, query)| query.to_string())
         .ok_or_else(|| anyhow!("IdP callback had no query string: {idp_callback}"))?;
     let gateway_callback = http
-        .get(format!(
-            "{gateway_base}/oauth/default/callback?{callback_query}"
-        ))
+        .get(format!("{gateway_base}/oauth/callback?{callback_query}"))
         .send()
         .await?;
     let client_redirect = redirect_location(gateway_callback, StatusCode::FOUND)?;

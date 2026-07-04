@@ -5,7 +5,7 @@ pub(crate) fn gateway_id_jag_token(
     gateway_base: &str,
     args: &[&str],
 ) -> Result<String> {
-    gateway_id_jag_token_for_profile(conformance, gateway_base, "default", args)
+    gateway_id_jag_token_for_profile(conformance, gateway_base, "operator", args)
 }
 
 pub(crate) fn gateway_id_jag_token_for_profile(
@@ -14,12 +14,21 @@ pub(crate) fn gateway_id_jag_token_for_profile(
     profile: &str,
     args: &[&str],
 ) -> Result<String> {
+    let client_id = if profile == "admin" {
+        "veoveo-admin-browser"
+    } else {
+        "veoveo-browser"
+    };
     let mut all_args = vec![
         "gateway-id-jag-token-exchange".into(),
         "--token-url".into(),
-        format!("{gateway_base}/oauth/{profile}/token").into(),
+        format!("{gateway_base}/oauth/token").into(),
+        "--audience".into(),
+        format!("{PUBLIC_BASE_URL}/oauth").into(),
         "--resource".into(),
         format!("{PUBLIC_BASE_URL}/mcp/{profile}").into(),
+        "--client-id".into(),
+        client_id.into(),
     ];
     all_args.extend(args.iter().map(|arg| OsString::from(*arg)));
     run_checked(conformance, all_args, [])
@@ -30,7 +39,7 @@ pub(crate) fn gateway_token(
     gateway_base: &str,
     args: &[&str],
 ) -> Result<String> {
-    gateway_token_for_profile(conformance, gateway_base, "default", args)
+    gateway_token_for_profile(conformance, gateway_base, "operator", args)
 }
 
 pub(crate) fn gateway_token_for_profile(
@@ -39,10 +48,21 @@ pub(crate) fn gateway_token_for_profile(
     profile: &str,
     args: &[&str],
 ) -> Result<String> {
+    let client_id = if profile == "admin" {
+        "veoveo-admin-headless"
+    } else {
+        "veoveo-headless"
+    };
     let mut all_args = vec![
         "gateway-token-exchange".into(),
         "--token-url".into(),
-        format!("{gateway_base}/oauth/{profile}/token").into(),
+        format!("{gateway_base}/oauth/token").into(),
+        "--client-id".into(),
+        client_id.into(),
+        "--audience".into(),
+        format!("{PUBLIC_BASE_URL}/oauth/token").into(),
+        "--resource".into(),
+        format!("{PUBLIC_BASE_URL}/mcp/{profile}").into(),
     ];
     all_args.extend(args.iter().map(|arg| OsString::from(*arg)));
     run_checked(conformance, all_args, [])

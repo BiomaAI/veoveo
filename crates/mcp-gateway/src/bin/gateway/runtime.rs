@@ -10,6 +10,7 @@ use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     CertificateAuthoritySource, GatewayInternalTokenIssuer, GatewayProfileId,
+    ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlDb, GatewayMcp, GatewayState,
@@ -75,6 +76,17 @@ pub(super) fn current_catalog(catalog: &SharedCatalog) -> Arc<GatewayCatalog> {
 
 pub(super) fn current_http_client(http: &SharedHttpClient) -> reqwest::Client {
     http.read().clone()
+}
+
+pub(super) fn public_oauth_issuer(public_base_url: &str) -> String {
+    format!("{}/oauth", public_base_url.trim_end_matches('/'))
+}
+
+pub(super) fn public_authorization_server<'a>(
+    catalog: &'a GatewayCatalog,
+    public_base_url: &str,
+) -> Option<&'a ResourceAuthorizationServer> {
+    catalog.authorization_server_by_issuer(&public_oauth_issuer(public_base_url))
 }
 
 pub(super) fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileId> {

@@ -1,15 +1,14 @@
 use std::time::Instant;
 
 use axum::{
-    extract::{Path as AxumPath, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
 use chrono::{TimeDelta, Utc};
 use serde::Deserialize;
 use veoveo_mcp_contract::{
-    AuthOutcome, AuthReasonCode, GatewayAuthorizationCodeRecord, GatewayProfileId, OAuthStateValue,
-    SecretPurpose,
+    AuthOutcome, AuthReasonCode, GatewayAuthorizationCodeRecord, OAuthStateValue, SecretPurpose,
 };
 use veoveo_mcp_gateway::{GatewaySecretResolver, OidcIdTokenConfig, OidcIdTokenVerifier};
 
@@ -41,27 +40,9 @@ pub(crate) struct AuthorizationCallback {
 
 pub(crate) async fn authorization_callback(
     State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
     Query(callback): Query<AuthorizationCallback>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&profile_id).cloned() else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let Some(authorization_server) = catalog
-        .authorization_server(&profile.authorization_server)
-        .cloned()
-    else {
-        return oauth_error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "server_error",
-            "authorization server is unavailable",
-        );
-    };
     let Some(raw_state) = callback.state.as_deref() else {
         return oauth_error_response(
             StatusCode::BAD_REQUEST,
@@ -83,23 +64,8 @@ pub(crate) async fn authorization_callback(
         .gateway_state
         .consume_authorization_request(&idp_state, Utc::now())
     {
-        Ok(Some(request)) if request.profile == profile.id => request,
+        Ok(Some(request)) => request,
         Ok(_) => {
-            if let Err(err) = record_oidc_auth_audit(
-                &state.gateway_state,
-                &profile,
-                AuthAuditRecord {
-                    authorization_server: Some(&authorization_server),
-                    client_id: None,
-                    principal: None,
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::InvalidAuthorizationRequest,
-                    started_at,
-                },
-            ) {
-                return auth_audit_error_response(err);
-            }
             return oauth_error_response(
                 StatusCode::BAD_REQUEST,
                 "invalid_request",
@@ -108,23 +74,26 @@ pub(crate) async fn authorization_callback(
         }
         Err(err) => {
             tracing::error!("failed to consume gateway authorization state: {err}");
-            if let Err(err) = record_oidc_auth_audit(
-                &state.gateway_state,
-                &profile,
-                AuthAuditRecord {
-                    authorization_server: Some(&authorization_server),
-                    client_id: None,
-                    principal: None,
-                    jwt_id: None,
-                    outcome: AuthOutcome::Deny,
-                    reason: AuthReasonCode::AuthStateUnavailable,
-                    started_at,
-                },
-            ) {
-                return auth_audit_error_response(err);
-            }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
+    };
+    let catalog = current_catalog(&state.catalog);
+    let Some(profile) = catalog.profile(&authorization_request.profile).cloned() else {
+        return oauth_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "authorization state references an unknown gateway profile",
+        );
+    };
+    let Some(authorization_server) = catalog
+        .authorization_server(&profile.authorization_server)
+        .cloned()
+    else {
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "authorization server is unavailable",
+        );
     };
     if let Some(error) = callback.error.as_deref() {
         let description = callback.error_description.as_deref();

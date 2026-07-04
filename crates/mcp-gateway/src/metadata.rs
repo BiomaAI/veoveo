@@ -53,6 +53,7 @@ pub struct AuthorizationExtensionMetadata {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayMetadataError {
     UnknownProfile(GatewayProfileId),
+    UnknownAuthorizationServerId(AuthorizationServerId),
     UnknownAuthorizationServer {
         profile: GatewayProfileId,
         authorization_server: AuthorizationServerId,
@@ -63,6 +64,12 @@ impl fmt::Display for GatewayMetadataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnknownProfile(profile) => write!(f, "unknown gateway profile `{profile}`"),
+            Self::UnknownAuthorizationServerId(authorization_server) => {
+                write!(
+                    f,
+                    "unknown resource authorization server `{authorization_server}`"
+                )
+            }
             Self::UnknownAuthorizationServer {
                 profile,
                 authorization_server,
@@ -187,6 +194,95 @@ impl GatewayCatalog {
             },
             authorization_grant_profiles_supported: if profile
                 .auth_modes
+                .contains(&AuthMode::EnterpriseManagedAuthorization)
+            {
+                vec![ID_JAG_GRANT_PROFILE.to_string()]
+            } else {
+                Vec::new()
+            },
+        })
+    }
+
+    pub fn authorization_server_metadata_for_server(
+        &self,
+        authorization_server_id: &AuthorizationServerId,
+    ) -> Result<AuthorizationServerMetadata, GatewayMetadataError> {
+        let authorization_server = self
+            .authorization_server(authorization_server_id)
+            .ok_or_else(|| {
+                GatewayMetadataError::UnknownAuthorizationServerId(authorization_server_id.clone())
+            })?;
+        let clients = self.authorization_server_oauth_clients(authorization_server_id);
+        let profiles = self.authorization_server_profiles(authorization_server_id);
+        let token_auth_methods = clients
+            .iter()
+            .flat_map(|client| client.auth_methods.iter().copied())
+            .map(oauth_client_auth_method_name)
+            .collect::<BTreeSet<_>>();
+        let auth_modes = profiles
+            .iter()
+            .flat_map(|profile| profile.auth_modes.iter().copied())
+            .collect::<BTreeSet<_>>();
+        let grant_types = auth_modes
+            .iter()
+            .copied()
+            .map(OAuthGrantType::from)
+            .map(oauth_grant_type_name)
+            .collect::<BTreeSet<_>>();
+        let scopes = profiles
+            .iter()
+            .flat_map(|profile| self.profile_supported_scopes(profile).into_iter())
+            .collect::<BTreeSet<_>>();
+        let supports_authorization_code = auth_modes.contains(&AuthMode::OidcAuthorizationCodePkce);
+        let supports_private_key_jwt = clients.iter().any(|client| {
+            client
+                .auth_methods
+                .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
+        });
+
+        Ok(AuthorizationServerMetadata {
+            issuer: authorization_server.issuer.to_string(),
+            authorization_endpoint: authorization_server
+                .authorization_endpoint
+                .as_ref()
+                .map(ToString::to_string),
+            token_endpoint: authorization_server.token_endpoint.to_string(),
+            jwks_uri: match &authorization_server.jwks {
+                JwksSource::Remote { jwks_uri } => Some(jwks_uri.to_string()),
+                JwksSource::File { .. } => None,
+            },
+            scopes_supported: scopes.into_iter().map(|scope| scope.to_string()).collect(),
+            response_types_supported: if supports_authorization_code {
+                vec!["code".to_string()]
+            } else {
+                Vec::new()
+            },
+            grant_types_supported: grant_types.into_iter().map(str::to_string).collect(),
+            code_challenge_methods_supported: if supports_authorization_code {
+                vec!["S256".to_string()]
+            } else {
+                Vec::new()
+            },
+            token_endpoint_auth_methods_supported: token_auth_methods
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            token_endpoint_auth_signing_alg_values_supported: if supports_private_key_jwt {
+                vec![
+                    "RS256".to_string(),
+                    "RS384".to_string(),
+                    "RS512".to_string(),
+                    "PS256".to_string(),
+                    "PS384".to_string(),
+                    "PS512".to_string(),
+                    "ES256".to_string(),
+                    "ES384".to_string(),
+                    "EdDSA".to_string(),
+                ]
+            } else {
+                Vec::new()
+            },
+            authorization_grant_profiles_supported: if auth_modes
                 .contains(&AuthMode::EnterpriseManagedAuthorization)
             {
                 vec![ID_JAG_GRANT_PROFILE.to_string()]

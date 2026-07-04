@@ -46,7 +46,7 @@ fn record_auth_audit_with_metadata(
             timestamp: Utc::now(),
             trace_id: TraceId::new(format!("trace-{event_id}")).unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
-            protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
+            protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/operator")
                 .unwrap(),
             outcome,
             reason,

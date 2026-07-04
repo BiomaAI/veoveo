@@ -68,18 +68,18 @@ pub(super) async fn serve(
     let mut router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(readyz))
-        .route("/oauth/{profile}/authorize", get(authorize_endpoint))
-        .route("/oauth/{profile}/callback", get(authorization_callback))
-        .route("/oauth/{profile}/token", post(token_endpoint))
+        .route("/oauth/authorize", get(authorize_endpoint))
+        .route("/oauth/callback", get(authorization_callback))
+        .route("/oauth/token", post(token_endpoint))
         .route(
             "/.well-known/oauth-protected-resource/mcp/{profile}",
             get(protected_resource_metadata),
         )
         .route(
-            "/.well-known/oauth-authorization-server/oauth/{profile}",
+            "/.well-known/oauth-authorization-server/oauth",
             get(authorization_server_metadata),
         )
-        .route("/oauth/{profile}/jwks.json", get(authorization_server_jwks))
+        .route("/oauth/jwks.json", get(authorization_server_jwks))
         .with_state(state);
 
     let auth_state = ProfileAuthState {

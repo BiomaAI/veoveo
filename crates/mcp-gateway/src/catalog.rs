@@ -180,6 +180,10 @@ impl GatewayCatalog {
         self.control_plane.profiles.iter()
     }
 
+    pub fn authorization_servers(&self) -> impl Iterator<Item = &ResourceAuthorizationServer> {
+        self.control_plane.authorization_servers.iter()
+    }
+
     pub fn identity_providers(&self) -> impl Iterator<Item = &IdentityProvider> {
         self.control_plane.identity_providers.iter()
     }
@@ -216,6 +220,16 @@ impl GatewayCatalog {
             .map(|index| &self.control_plane.authorization_servers[*index])
     }
 
+    pub fn authorization_server_by_issuer(
+        &self,
+        issuer: &str,
+    ) -> Option<&ResourceAuthorizationServer> {
+        self.control_plane
+            .authorization_servers
+            .iter()
+            .find(|authorization_server| authorization_server.issuer.as_str() == issuer)
+    }
+
     pub fn oauth_client(&self, client_id: &OAuthClientId) -> Option<&OAuthClientRegistration> {
         self.oauth_clients
             .get(client_id)
@@ -230,6 +244,17 @@ impl GatewayCatalog {
                 client.authorization_server == profile.authorization_server
                     && client.allowed_profiles.contains(&profile.id)
             })
+            .collect()
+    }
+
+    pub fn authorization_server_oauth_clients(
+        &self,
+        authorization_server_id: &AuthorizationServerId,
+    ) -> Vec<&OAuthClientRegistration> {
+        self.control_plane
+            .oauth_clients
+            .iter()
+            .filter(|client| &client.authorization_server == authorization_server_id)
             .collect()
     }
 
@@ -251,6 +276,38 @@ impl GatewayCatalog {
                 && client.authorization_server == profile.authorization_server
                 && client.allowed_profiles.contains(&profile.id)
         })
+    }
+
+    pub fn profile_by_protected_resource(&self, resource: &str) -> Option<&GatewayProfile> {
+        self.control_plane
+            .profiles
+            .iter()
+            .find(|profile| profile.protected_resource.as_str() == resource)
+    }
+
+    pub fn client_single_profile(
+        &self,
+        client: &OAuthClientRegistration,
+    ) -> Option<&GatewayProfile> {
+        if client.allowed_profiles.len() != 1 {
+            return None;
+        }
+        client
+            .allowed_profiles
+            .iter()
+            .next()
+            .and_then(|profile_id| self.profile(profile_id))
+    }
+
+    pub fn authorization_server_profiles(
+        &self,
+        authorization_server_id: &AuthorizationServerId,
+    ) -> Vec<&GatewayProfile> {
+        self.control_plane
+            .profiles
+            .iter()
+            .filter(|profile| &profile.authorization_server == authorization_server_id)
+            .collect()
     }
 
     pub fn secret_reference(&self, secret_id: &SecretReferenceId) -> Option<&SecretReference> {

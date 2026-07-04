@@ -18,7 +18,7 @@ generic full-protocol conformance CLI lives in its own conformance crate.
                                                                                                 │
                                         ┌─────────────────────────┐   internal MCP              │
                                         │ gateway (axum, :8788)  │ ◀────────────────────────────┤
-                                        │ /mcp/default           │ ────────────────────────────▶ │
+                                        │ /mcp/operator          │ ────────────────────────────▶ │
                                         └───────────┬─────────────┘                              │
                                                     │ internal MCP                               │ provider/content paths
                                                     ▼                                            ▼
@@ -28,7 +28,7 @@ generic full-protocol conformance CLI lives in its own conformance crate.
                                            └─────────────────────────┘
 ```
 
-- `/mcp/default` — gateway MCP profile over streamable HTTP (rmcp 2.0), routed by the edge proxy to `mcp-gateway`
+- `/mcp/operator` — operator gateway MCP profile over streamable HTTP (rmcp 2.0), routed by the edge proxy to `mcp-gateway`
 - `/media/mcp` — internal media MCP endpoint for conformance and service composition; not routed by the public edge and requires a gateway-signed internal token
 - `/media/webhooks` — provider callback receiver routed by the edge proxy to `media-mcp`
 - `/media/files/*` — optional static dir so the provider can fetch input media by URL
@@ -74,7 +74,8 @@ same origin:
 
 | Surface | Endpoint |
 |---|---|
-| gateway profile | `{PUBLIC_BASE_URL}/mcp/default` |
+| operator gateway profile | `{PUBLIC_BASE_URL}/mcp/operator` |
+| admin gateway profile | `{PUBLIC_BASE_URL}/mcp/admin` |
 | media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
@@ -245,7 +246,7 @@ export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo
 export VEOVEO_GATEWAY_CONTROL_DB_URL=postgresql://veoveo_gateway:veoveo_gateway@localhost:5432/veoveo_gateway
 cargo run -p veoveo-mcp-gateway --bin gateway -- control-plane-seed \
     --control-db-url "$VEOVEO_GATEWAY_CONTROL_DB_URL" \
-    --control-plane configs/gateway.local.json \
+    --control-plane configs/gateway.bioma.json \
     --applied-by local#operator
 cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
     --public-base-url https://veoveo.bioma.ai \
@@ -255,19 +256,19 @@ cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
 # 4. conformance CLI through the gateway
 unset VEOVEO_INTERNAL_TOKEN_SECRET
 export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-token-exchange \
-    --token-url http://localhost:8788/oauth/default/token --scope media:use)"
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default info
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default prompts
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default prompt media-image-edit \
+    --token-url http://localhost:8788/oauth/token --scope operator:use)"
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator info
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator prompts
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator prompt media-image-edit \
     --arguments '{"image_url":"https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg","edit_goal":"add a red wizard hat"}'
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default models kling --type image-to-video
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default complete gpt-image
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default schema openai/gpt-image-2/edit
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default run openai/gpt-image-2/edit \
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator models kling --type image-to-video
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator complete gpt-image
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator schema openai/gpt-image-2/edit
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator run openai/gpt-image-2/edit \
     --tool-name media__run \
     --input '{"prompt":"add a red wizard hat","images":["https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg"]}'
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default usage <task-id>
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/default artifact <sha256>
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator usage <task-id>
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator artifact <sha256>
 ```
 
 `--public-base-url` is required for generation because providers must be able to deliver
@@ -287,7 +288,8 @@ crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CL
 crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
 crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler
 crates/mcp-gateway/src/state.rs                gateway DuckDB runtime/audit state
-configs/gateway.local.json                     typed local gateway control plane
+configs/gateway.bioma.json                     typed Bioma demo gateway control plane
+configs/gateway.local.json                     typed local placeholder gateway control plane
 crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
 crates/media-mcp/src/artifacts.rs              S3-compatible artifact store implementation
 crates/media-mcp/src/provider.rs               internal provider API client + types

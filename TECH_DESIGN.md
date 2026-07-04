@@ -241,11 +241,17 @@ forward or aggregate the protocol surfaces our servers rely on:
   and list-changed notifications.
 
 Profiles and policies serve different jobs. A gateway profile is a curated static MCP
-surface such as `default`, `media`, `research`, or `ops`; it decides which hosted servers,
-tools, resources, prompts, and schemes are even exposed. Policy is the runtime decision
-layer; it decides whether a specific principal may perform a specific action on a specific
-tool, task, resource, artifact, or data label at request time. Unknown servers, tools,
-resources, prompts, profiles, principals, or data labels are denied.
+access surface such as `operator` or `admin`; it is not named after a hosted server. The
+profile decides which hosted servers, tools, resources, prompts, and schemes are even
+exposed. Policy is the runtime decision layer; it decides whether a specific principal may
+perform a specific action on a specific tool, task, resource, artifact, or data label at
+request time. Unknown servers, tools, resources, prompts, profiles, principals, or data
+labels are denied.
+
+The first shipped public profiles are `operator` and `admin`. Both may expose hosted MCP
+servers such as `media`; `admin` additionally exposes gateway administration operations.
+Server slugs such as `media`, `simulation`, or `rl` stay internal server identities and
+resource namespaces, not public profile names.
 
 Because the gateway collapses multiple MCP servers into one outward MCP server, gateway
 tool names must be namespaced at the gateway boundary. Direct servers should keep concise
@@ -259,12 +265,20 @@ The gateway must implement MCP-compatible HTTP authorization:
 - OAuth 2.0 Protected Resource Metadata for each gateway profile.
 - `WWW-Authenticate` challenges that point clients at the profile's protected-resource
   metadata and requested scopes.
+- A deployment-level Veoveo authorization server by default: `/oauth/authorize`,
+  `/oauth/token`, `/oauth/callback`, and `/oauth/jwks.json`. Enterprise IdPs should see a
+  stable callback such as `https://veoveo.bioma.ai/oauth/callback`, not one callback per
+  gateway profile.
 - OAuth 2.1/OIDC authorization-code + PKCE for browser-based enterprise SSO.
 - MCP Enterprise-Managed Authorization using the
   `io.modelcontextprotocol/enterprise-managed-authorization` extension and ID-JAG exchange.
 - MCP OAuth Client Credentials for headless/service principals, preferably with
   private-key JWT client authentication.
 - Audience/resource-bound access tokens scoped to one gateway profile.
+
+Provider callbacks are separate from OAuth callbacks. Routes such as `/media/webhooks`
+remain owned by the media MCP server for provider job completion and must not be folded
+into the gateway OAuth callback design.
 
 Reference: [Enterprise-Managed Authorization: Zero-touch OAuth for MCP](https://blog.modelcontextprotocol.io/posts/enterprise-managed-auth/)
 announces the stable MCP Enterprise-Managed Authorization extension and frames the IdP as

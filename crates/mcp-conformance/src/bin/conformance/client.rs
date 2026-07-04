@@ -81,7 +81,7 @@ fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String>
         tenant: Some(TenantId::new("local")?),
         groups: Default::default(),
         roles: Default::default(),
-        scopes: [ScopeName::new("media:use")?].into_iter().collect(),
+        scopes: [ScopeName::new("operator:use")?].into_iter().collect(),
         data_labels: Default::default(),
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),

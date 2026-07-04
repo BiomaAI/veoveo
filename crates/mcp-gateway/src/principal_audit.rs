@@ -86,7 +86,7 @@ mod tests {
             tenant: None,
             groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-            scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
             assurances: BTreeSet::from([PrincipalAssurance::UsPerson]),
             authenticated_at: Some(Utc::now()),
@@ -97,7 +97,7 @@ mod tests {
         assert_eq!(metadata.get("principal_kind").unwrap(), "user");
         assert_eq!(metadata.get("principal_groups").unwrap(), "engineering");
         assert_eq!(metadata.get("principal_roles").unwrap(), "operator");
-        assert_eq!(metadata.get("principal_scopes").unwrap(), "media:use");
+        assert_eq!(metadata.get("principal_scopes").unwrap(), "operator:use");
         assert_eq!(metadata.get("principal_data_labels").unwrap(), "cui");
         assert_eq!(metadata.get("principal_assurances").unwrap(), "us_person");
     }

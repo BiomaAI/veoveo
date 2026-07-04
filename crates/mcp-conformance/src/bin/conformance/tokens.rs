@@ -76,6 +76,7 @@ pub(super) struct ClientAssertionInput {
 pub(super) struct TokenExchangeInput {
     pub(super) token_url: String,
     pub(super) client_assertion: ClientAssertionInput,
+    pub(super) resource: Option<String>,
     pub(super) scopes: Vec<String>,
 }
 
@@ -153,13 +154,17 @@ pub(super) async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Res
     let assertion = build_client_assertion(&input.client_assertion)?;
     let scope = input.scopes.join(" ");
     let client_id = input.client_assertion.client_id.clone();
-    let form_body = url::form_urlencoded::Serializer::new(String::new())
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer
         .append_pair("grant_type", "client_credentials")
         .append_pair("client_id", &client_id)
         .append_pair("scope", &scope)
         .append_pair("client_assertion_type", CLIENT_ASSERTION_TYPE_JWT_BEARER)
-        .append_pair("client_assertion", &assertion)
-        .finish();
+        .append_pair("client_assertion", &assertion);
+    if let Some(resource) = &input.resource {
+        serializer.append_pair("resource", resource);
+    }
+    let form_body = serializer.finish();
     let response = reqwest::Client::new()
         .post(&input.token_url)
         .header(
@@ -244,7 +249,8 @@ pub(super) async fn cmd_gateway_id_jag_token_exchange(
     serializer
         .append_pair("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
         .append_pair("client_id", &input.id_jag.client_id)
-        .append_pair("assertion", &assertion);
+        .append_pair("assertion", &assertion)
+        .append_pair("resource", &input.id_jag.resource);
     if !input.requested_scopes.is_empty() {
         serializer.append_pair("scope", &input.requested_scopes.join(" "));
     }

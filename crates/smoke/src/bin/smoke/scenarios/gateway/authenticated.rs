@@ -66,7 +66,7 @@ pub(crate) async fn gateway_authenticated(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 1).await?;
+    assert_ready_profiles(&gateway_base, 2).await?;
     assert_json_log(
         &gateway_log,
         &[("message", "listening"), ("service", "veoveo-mcp-gateway")],
@@ -120,37 +120,38 @@ pub(crate) async fn gateway_authenticated(
         "ok",
     )?;
     assert_http_status(&format!("{edge_base}/media/mcp"), StatusCode::NOT_FOUND).await?;
-    let edge_token = gateway_token(conformance, &edge_base, &["--scope", "media:use"])?;
+    let edge_token = gateway_token(conformance, &edge_base, &["--scope", "operator:use"])?;
     run_direct_mcp(
         conformance,
-        &format!("{edge_base}/mcp/default"),
+        &format!("{edge_base}/mcp/operator"),
         ["info".into()],
         [("MCP_BEARER_TOKEN", edge_token.trim().into())],
     )?;
 
-    let admin_token = gateway_token(
+    let admin_token = gateway_token_for_profile(
         conformance,
         &gateway_base,
-        &["--scope", "media:use", "--scope", "gateway:admin"],
+        "admin",
+        &["--scope", "operator:use", "--scope", "admin:manage"],
     )?;
     let http = reqwest::Client::new();
     assert_http_get_status(
-        &format!("{gateway_base}/admin/default/control-plane"),
+        &format!("{gateway_base}/admin/admin/control-plane"),
         None,
         StatusCode::UNAUTHORIZED,
     )
     .await?;
-    let media_only_admin_token =
-        gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    let operator_control_plane_token =
+        gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;
     assert_http_get_status(
-        &format!("{gateway_base}/admin/default/control-plane"),
-        Some(media_only_admin_token.trim()),
-        StatusCode::FORBIDDEN,
+        &format!("{gateway_base}/admin/admin/control-plane"),
+        Some(operator_control_plane_token.trim()),
+        StatusCode::UNAUTHORIZED,
     )
     .await?;
     let seeded_control_status = get_json(
         &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
+        &format!("{gateway_base}/admin/admin/control-plane"),
         Some(admin_token.trim()),
     )
     .await?;
@@ -165,7 +166,7 @@ pub(crate) async fn gateway_authenticated(
 
     let applied = put_json_file(
         &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
+        &format!("{gateway_base}/admin/admin/control-plane"),
         Some(admin_token.trim()),
         control_plane,
     )
@@ -173,53 +174,48 @@ pub(crate) async fn gateway_authenticated(
     let revision_id = assert_control_plane_admin_result(&applied, "applied")?;
     let control_status = get_json(
         &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
+        &format!("{gateway_base}/admin/admin/control-plane"),
         Some(admin_token.trim()),
     )
     .await?;
     assert_control_plane_status(&control_status, &revision_id)?;
 
-    let ops_control_plane = tmpdir.join("gateway.ops.json");
-    write_ops_profile_control_plane(control_plane, &ops_control_plane)?;
-    let ops_applied = put_json_file(
-        &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
-        Some(admin_token.trim()),
-        &ops_control_plane,
-    )
-    .await?;
-    let ops_revision_id =
-        assert_control_plane_admin_result_with_profiles(&ops_applied, "applied", 2)?;
     assert_ready_profiles(&gateway_base, 2).await?;
-    let ops_admin_token = gateway_id_jag_token_for_profile(
+    let admin_id_jag_token = gateway_id_jag_token_for_profile(
         conformance,
         &gateway_base,
-        "ops",
+        "admin",
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
             "--id-jag-scope",
-            "gateway:admin",
+            "admin:manage",
             "--scope",
-            "media:use",
+            "operator:use",
             "--scope",
-            "gateway:admin",
+            "admin:manage",
         ],
     )?;
-    let ops_status = get_json(
+    let admin_status = get_json(
         &http,
-        &format!("{gateway_base}/admin/ops/control-plane"),
-        Some(ops_admin_token.trim()),
+        &format!("{gateway_base}/admin/admin/control-plane"),
+        Some(admin_id_jag_token.trim()),
     )
     .await?;
-    assert_control_plane_status_with_profiles(&ops_status, &ops_revision_id, 2)?;
-    let ops_token = gateway_id_jag_token_for_profile(
+    assert_control_plane_status_with_profiles(&admin_status, &revision_id, 2)?;
+    let admin_id_jag_mcp_token = gateway_id_jag_token_for_profile(
         conformance,
         &gateway_base,
-        "ops",
+        "admin",
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
+            "--id-jag-scope",
+            "admin:manage",
+            "--scope",
+            "operator:use",
+            "--scope",
+            "admin:manage",
             "--group",
             "engineering",
             "--role",
@@ -232,36 +228,40 @@ pub(crate) async fn gateway_authenticated(
     )?;
     run_direct_mcp(
         conformance,
-        &format!("{gateway_base}/mcp/ops"),
+        &format!("{gateway_base}/mcp/admin"),
         ["info".into()],
-        [("MCP_BEARER_TOKEN", ops_token.trim().into())],
+        [("MCP_BEARER_TOKEN", admin_id_jag_mcp_token.trim().into())],
     )?;
-    let default_profile_token =
-        gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    let operator_profile_token =
+        gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;
     assert_mcp_denied(
         conformance,
-        &format!("{gateway_base}/mcp/ops"),
-        default_profile_token.trim(),
+        &format!("{gateway_base}/mcp/admin"),
+        operator_profile_token.trim(),
         ["info".into()],
     )?;
-    let ops_headless_token =
-        gateway_token_for_profile(conformance, &gateway_base, "ops", &["--scope", "media:use"])?;
+    let admin_headless_token = gateway_token_for_profile(
+        conformance,
+        &gateway_base,
+        "admin",
+        &["--scope", "operator:use", "--scope", "admin:manage"],
+    )?;
     run_direct_mcp(
         conformance,
-        &format!("{gateway_base}/mcp/ops"),
+        &format!("{gateway_base}/mcp/admin"),
         ["info".into()],
-        [("MCP_BEARER_TOKEN", ops_headless_token.trim().into())],
+        [("MCP_BEARER_TOKEN", admin_headless_token.trim().into())],
     )?;
     assert_mcp_denied(
         conformance,
-        &format!("{gateway_base}/mcp/default"),
-        ops_headless_token.trim(),
+        &format!("{gateway_base}/mcp/operator"),
+        admin_headless_token.trim(),
         ["info".into()],
     )?;
     assert_mcp_denied(
         conformance,
-        &format!("{gateway_base}/mcp/default"),
-        ops_token.trim(),
+        &format!("{gateway_base}/mcp/operator"),
+        admin_id_jag_mcp_token.trim(),
         ["info".into()],
     )?;
 
@@ -280,62 +280,23 @@ pub(crate) async fn gateway_authenticated(
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
     assert_ready_profiles(&gateway_base, 2).await?;
-    let restarted_ops_status = get_json(
+    let restarted_admin_status = get_json(
         &http,
-        &format!("{gateway_base}/admin/ops/control-plane"),
-        Some(ops_admin_token.trim()),
+        &format!("{gateway_base}/admin/admin/control-plane"),
+        Some(admin_id_jag_token.trim()),
     )
     .await?;
-    assert_control_plane_status_with_profiles(&restarted_ops_status, &ops_revision_id, 2)?;
+    assert_control_plane_status_with_profiles(&restarted_admin_status, &revision_id, 2)?;
     run_direct_mcp(
         conformance,
-        &format!("{gateway_base}/mcp/ops"),
+        &format!("{gateway_base}/mcp/admin"),
         ["info".into()],
-        [("MCP_BEARER_TOKEN", ops_headless_token.trim().into())],
+        [("MCP_BEARER_TOKEN", admin_headless_token.trim().into())],
     )?;
 
-    let reverted = put_json_file(
-        &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
-        Some(admin_token.trim()),
-        control_plane,
-    )
-    .await?;
-    let reverted_revision_id = assert_control_plane_admin_result(&reverted, "applied")?;
-    assert_ready_profiles(&gateway_base, 1).await?;
-    assert_mcp_denied(
-        conformance,
-        &format!("{gateway_base}/mcp/ops"),
-        ops_token.trim(),
-        ["info".into()],
-    )?;
-
-    gateway_child.stop();
-    gateway_child = ChildGuard::spawn(
-        gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
-        [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
-            (
-                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
-                auth_private_key.trim().into(),
-            ),
-        ],
-        &gateway_log,
-    )?;
-    wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 1).await?;
-    let control_status = get_json(
-        &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
-        Some(admin_token.trim()),
-    )
-    .await?;
-    assert_control_plane_status(&control_status, &reverted_revision_id)?;
-
-    let token = gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    let token = gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;
     let token = token.trim();
-    let gateway_mcp_url = format!("{gateway_base}/mcp/default");
+    let gateway_mcp_url = format!("{gateway_base}/mcp/operator");
     for args in [
         vec!["info".into()],
         vec!["resources".into()],
@@ -357,14 +318,15 @@ pub(crate) async fn gateway_authenticated(
         )?;
     }
 
-    let revoked_token = gateway_token(conformance, &gateway_base, &["--scope", "media:use"])?;
+    let revoked_token = gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;
     let revoked_jti = jwt_id(revoked_token.trim())?;
     let revocation = post_json(
         &http,
-        &format!("{gateway_base}/admin/default/jwt-revocations"),
+        &format!("{gateway_base}/admin/admin/jwt-revocations"),
         Some(admin_token.trim()),
         serde_json::json!({
-            "issuer": "https://veoveo.bioma.ai/oauth/default",
+            "profile": "operator",
+            "issuer": "https://veoveo.bioma.ai/oauth",
             "jwt_id": revoked_jti,
             "expires_at": "2999-01-01T00:00:00Z",
             "reason": "smoke"
@@ -392,7 +354,7 @@ pub(crate) async fn gateway_authenticated(
         &gateway_base,
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
             "--group",
             "engineering",
             "--role",
@@ -417,7 +379,7 @@ pub(crate) async fn gateway_authenticated(
     write_cui_control_plane(control_plane, &cui_control_plane)?;
     let cui_apply = put_json_file(
         &http,
-        &format!("{gateway_base}/admin/default/control-plane"),
+        &format!("{gateway_base}/admin/admin/control-plane"),
         Some(admin_token.trim()),
         &cui_control_plane,
     )
@@ -454,7 +416,7 @@ pub(crate) async fn gateway_authenticated(
         &gateway_base,
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
             "--role",
             "operator",
             "--data-label",
@@ -474,7 +436,7 @@ pub(crate) async fn gateway_authenticated(
         &gateway_base,
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
             "--group",
             "engineering",
             "--data-label",
@@ -494,7 +456,7 @@ pub(crate) async fn gateway_authenticated(
         &gateway_base,
         &[
             "--id-jag-scope",
-            "media:use",
+            "operator:use",
             "--group",
             "engineering",
             "--role",
@@ -520,25 +482,21 @@ pub(crate) async fn gateway_authenticated(
     gateway_id_jag_token(
         conformance,
         &gateway_base,
-        &["--id-jag-scope", "media:use", "--jwt-id", replay_jti],
+        &["--id-jag-scope", "operator:use", "--jwt-id", replay_jti],
     )?;
     if gateway_id_jag_token(
         conformance,
         &gateway_base,
-        &["--id-jag-scope", "media:use", "--jwt-id", replay_jti],
+        &["--id-jag-scope", "operator:use", "--jwt-id", replay_jti],
     )
     .is_ok()
     {
         bail!("replayed ID-JAG was unexpectedly accepted");
     }
 
-    let denied_token = gateway_token(conformance, &gateway_base, &["--scope", "gateway:admin"])?;
-    assert_mcp_denied(
-        conformance,
-        &gateway_mcp_url,
-        denied_token.trim(),
-        ["info".into()],
-    )?;
+    if gateway_token(conformance, &gateway_base, &["--scope", "admin:manage"]).is_ok() {
+        bail!("operator OAuth client unexpectedly accepted admin:manage scope");
+    }
 
     edge.stop();
     gateway_child.stop();
@@ -552,7 +510,7 @@ pub(crate) async fn gateway_authenticated(
         &auth_method_summary,
         "client_credentials_private_key_jwt",
         4,
-        0,
+        1,
     )?;
     assert_audit_method(&auth_method_summary, "enterprise_managed_id_jag", 5, 1)?;
     let auth_reason_summary =
@@ -560,6 +518,7 @@ pub(crate) async fn gateway_authenticated(
     assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 10)?;
     assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "invalid_bearer_token", 3)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "invalid_scope", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "identity_assertion_replay", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "token_revoked", 1)?;
     let auth_principal_kind_summary =
@@ -580,10 +539,9 @@ pub(crate) async fn gateway_authenticated(
     assert_audit_method(&audit_summary, "prompts/get", 1, 1)?;
     assert_audit_method(&audit_summary, "completion/complete", 0, 1)?;
     assert_audit_method(&audit_summary, "tasks/list", 1, 0)?;
-    assert_audit_method(&audit_summary, "admin/control-plane", 1, 1)?;
+    assert_audit_method(&audit_summary, "admin/control-plane", 1, 0)?;
     assert_audit_method(&audit_summary, "admin/control-plane/result", 1, 0)?;
     let audit_reasons = run_gateway_json(gateway, "audit-reason-summary", &gateway_state_db)?;
-    assert_reason_summary_at_least(&audit_reasons, "missing_scope", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_data_label", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_principal_assurance", 1)?;
     assert_reason_summary_at_least(&audit_reasons, "missing_group", 1)?;

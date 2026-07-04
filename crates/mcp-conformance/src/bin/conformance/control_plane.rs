@@ -79,7 +79,7 @@ pub(super) fn cmd_gateway_two_server_smoke_control_plane(
             "metadata": {}
         }),
     )?;
-    configure_default_profile_for_fake_servers(&mut control_plane)?;
+    configure_operator_profile_for_fake_servers(&mut control_plane)?;
     configure_policy_for_fake_servers(&mut control_plane)?;
     add_scope_to_oauth_clients(&mut control_plane, "simulation:use")?;
 
@@ -165,12 +165,12 @@ fn fake_hosted_capabilities() -> Value {
     })
 }
 
-fn configure_default_profile_for_fake_servers(control_plane: &mut Value) -> Result<()> {
+fn configure_operator_profile_for_fake_servers(control_plane: &mut Value) -> Result<()> {
     let profiles = control_plane_array_mut(control_plane, "profiles")?;
     let profile = profiles
         .iter_mut()
-        .find(|profile| profile.get("id").and_then(Value::as_str) == Some("default"))
-        .ok_or_else(|| anyhow!("control plane has no `default` profile"))?;
+        .find(|profile| profile.get("id").and_then(Value::as_str) == Some("operator"))
+        .ok_or_else(|| anyhow!("control plane has no `operator` profile"))?;
     profile["servers"] = json!([
         fake_profile_server_exposure("media", "media"),
         fake_profile_server_exposure("simulation", "simulation"),
@@ -214,14 +214,14 @@ fn configure_policy_for_fake_servers(control_plane: &mut Value) -> Result<()> {
         .ok_or_else(|| anyhow!("policy has no rules array"))?;
     let media_rule = rules
         .iter_mut()
-        .find(|rule| rule.get("id").and_then(Value::as_str) == Some("allow_media_profile_use"))
-        .ok_or_else(|| anyhow!("policy has no `allow_media_profile_use` rule"))?;
+        .find(|rule| rule.get("id").and_then(Value::as_str) == Some("allow_operator_mcp_use"))
+        .ok_or_else(|| anyhow!("policy has no `allow_operator_mcp_use` rule"))?;
     *media_rule = fake_policy_rule(
-        "allow_media_profile_use",
+        "allow_operator_mcp_use",
         "media",
         "media",
         "media-plan",
-        "media:use",
+        "operator:use",
     );
     rules.push(fake_policy_rule(
         "allow_simulation_profile_use",
@@ -247,7 +247,7 @@ fn fake_policy_rule(id: &str, server: &str, scheme: &str, prompt: &str, scope: &
             "prompts_get",
             "completion_complete"
         ],
-        "profiles": ["default"],
+        "profiles": ["operator"],
         "servers": [server],
         "tools": ["run"],
         "resource_schemes": [scheme],

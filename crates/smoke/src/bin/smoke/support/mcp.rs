@@ -19,7 +19,10 @@ pub(crate) fn run_mcp(
     token: &str,
     args: impl IntoIterator<Item = OsString>,
 ) -> Result<String> {
-    let mut all_args = vec!["--url".into(), format!("{gateway_base}/mcp/default").into()];
+    let mut all_args = vec![
+        "--url".into(),
+        format!("{gateway_base}/mcp/operator").into(),
+    ];
     all_args.extend(args);
     run_checked(conformance, all_args, [("MCP_BEARER_TOKEN", token.into())])
 }

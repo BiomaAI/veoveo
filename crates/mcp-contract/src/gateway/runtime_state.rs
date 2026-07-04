@@ -19,6 +19,7 @@ pub struct GatewayJwtRevocation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayJwtRevocationRequest {
+    pub profile: GatewayProfileId,
     pub issuer: TokenIssuer,
     pub jwt_id: JwtId,
     pub expires_at: DateTime<Utc>,

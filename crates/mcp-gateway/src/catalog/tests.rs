@@ -46,18 +46,18 @@ fn identity_provider() -> IdentityProvider {
 fn authorization_server() -> ResourceAuthorizationServer {
     ResourceAuthorizationServer {
         id: AuthorizationServerId::new("veoveo").unwrap(),
-        issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+        issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
         jwks: JwksSource::Remote {
-            jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/jwks.json").unwrap(),
+            jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/jwks.json").unwrap(),
         },
         access_token_key_id: JwtId::new("test-key").unwrap(),
         access_token_signing_key: SecretReferenceId::new("veoveo_access_token_private_key")
             .unwrap(),
         identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/authorize").unwrap(),
+            HttpsUrl::new("https://veoveo.bioma.ai/oauth/authorize").unwrap(),
         ),
-        token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/default/token").unwrap(),
+        token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/token").unwrap(),
         metadata: Value::Null,
     }
 }
@@ -112,7 +112,7 @@ fn media_manifest() -> ServerManifest {
         },
         tools: vec![LocalToolName::new("run").unwrap()],
         prompts: vec![],
-        required_scopes: vec![ScopeName::new("media:use").unwrap()],
+        required_scopes: vec![ScopeName::new("operator:use").unwrap()],
         owned_routes: vec![OwnedRoute {
             path: MountPath::new("/media/webhooks").unwrap(),
             purpose: OwnedRoutePurpose::Webhook,
@@ -137,7 +137,7 @@ fn policy() -> PolicySet {
             tenant_ids: BTreeSet::from([TenantId::new("tenant-a").unwrap()]),
             groups: BTreeSet::new(),
             roles: BTreeSet::new(),
-            required_scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            required_scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             required_data_labels: BTreeSet::new(),
             required_assurances: BTreeSet::new(),
             metadata: Value::Null,
@@ -186,7 +186,7 @@ fn profile() -> GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-        protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/default")
+        protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/operator")
             .unwrap(),
         policy_version: PolicyVersion::new("2026-07-02").unwrap(),
         auth_modes: BTreeSet::from([
@@ -194,7 +194,7 @@ fn profile() -> GatewayProfile {
             AuthMode::OAuthClientCredentials,
             AuthMode::OidcAuthorizationCodePkce,
         ]),
-        required_scopes: vec![ScopeName::new("media:use").unwrap()],
+        required_scopes: vec![ScopeName::new("operator:use").unwrap()],
         servers: vec![ProfileServerExposure {
             server: ServerSlug::new("media").unwrap(),
             tools: Exposure::Listed(vec![LocalToolName::new("run").unwrap()]),
@@ -226,9 +226,9 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
                 OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").unwrap(),
             ],
             allowed_scopes: BTreeSet::from([
-                ScopeName::new("media:use").unwrap(),
+                ScopeName::new("operator:use").unwrap(),
                 ScopeName::new("media:admin").unwrap(),
-                ScopeName::new("gateway:admin").unwrap(),
+                ScopeName::new("admin:manage").unwrap(),
             ]),
             credential_secret: None,
             jwks: None,
@@ -243,9 +243,9 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
             redirect_uris: vec![],
             allowed_scopes: BTreeSet::from([
-                ScopeName::new("media:use").unwrap(),
+                ScopeName::new("operator:use").unwrap(),
                 ScopeName::new("media:admin").unwrap(),
-                ScopeName::new("gateway:admin").unwrap(),
+                ScopeName::new("admin:manage").unwrap(),
             ]),
             credential_secret: None,
             jwks: Some(JwksSource::Remote {
@@ -264,8 +264,7 @@ fn oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
         allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
         client_id: OidcClientId::new("veoveo-gateway").unwrap(),
-        redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/default/callback")
-            .unwrap(),
+        redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
         credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
         scopes: BTreeSet::from([
@@ -361,7 +360,7 @@ fn projects_and_parses_gateway_tool_names() {
 #[test]
 fn policy_allows_exposed_tool_with_required_scope() {
     let catalog = catalog();
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -388,7 +387,7 @@ fn policy_allows_template_exposed_resource_uri() {
     policy.rules[0].tools.clear();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
     let catalog = catalog_with_profile_and_policy(profile, policy);
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
 
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
@@ -423,7 +422,7 @@ fn policy_allows_task_list_without_fake_task_id() {
     policy.rules[0].actions = BTreeSet::from([GatewayAction::TasksList]);
     policy.rules[0].tools = BTreeSet::new();
     let catalog = catalog_with_policy(policy);
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -462,7 +461,7 @@ fn policy_denies_missing_rule_required_scope_with_specific_reason() {
     let mut policy = policy();
     policy.rules[0].required_scopes = BTreeSet::from([ScopeName::new("media:admin").unwrap()]);
     let catalog = catalog_with_policy(policy);
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -487,7 +486,7 @@ fn policy_denies_missing_required_data_label_with_specific_reason() {
     let mut policy = policy();
     policy.rules[0].required_data_labels = BTreeSet::from([DataLabelId::new("cui").unwrap()]);
     let catalog = catalog_with_policy(policy);
-    let mut principal = principal(&["media:use"]);
+    let mut principal = principal(&["operator:use"]);
     let target = PolicyTarget::Tool {
         server: ServerSlug::new("media").unwrap(),
         tool: LocalToolName::new("run").unwrap(),
@@ -523,7 +522,7 @@ fn policy_denies_missing_required_data_label_with_specific_reason() {
 #[test]
 fn policy_denies_principal_with_unknown_data_label() {
     let catalog = catalog();
-    let mut principal = principal(&["media:use"]);
+    let mut principal = principal(&["operator:use"]);
     principal.data_labels = BTreeSet::from([DataLabelId::new("unknown_label").unwrap()]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
@@ -551,7 +550,7 @@ fn policy_denies_missing_required_assurance_with_specific_reason() {
     };
 
     let denied = catalog.decide(PolicyRequest {
-        principal: &principal(&["media:use"]),
+        principal: &principal(&["operator:use"]),
         profile: &GatewayProfileId::new("default").unwrap(),
         action: GatewayAction::ToolsCall,
         target: &target,
@@ -565,7 +564,7 @@ fn policy_denies_missing_required_assurance_with_specific_reason() {
         Some(PolicyRuleId::new("allow_media_run").unwrap())
     );
 
-    let mut allowed_principal = principal(&["media:use"]);
+    let mut allowed_principal = principal(&["operator:use"]);
     allowed_principal.assurances = BTreeSet::from([PrincipalAssurance::UsPerson]);
     let allowed = catalog.decide(PolicyRequest {
         principal: &allowed_principal,
@@ -582,7 +581,7 @@ fn policy_denies_missing_required_assurance_with_specific_reason() {
 #[test]
 fn policy_denies_missing_tenant_with_specific_reason() {
     let catalog = catalog();
-    let mut principal = principal(&["media:use"]);
+    let mut principal = principal(&["operator:use"]);
     principal.tenant = None;
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
@@ -613,7 +612,7 @@ fn policy_denies_missing_group_and_role_with_specific_reasons() {
     let mut group_policy = policy();
     group_policy.rules[0].groups = BTreeSet::from([GroupId::new("engineering").unwrap()]);
     let group_catalog = catalog_with_policy(group_policy);
-    let mut principal = principal(&["media:use"]);
+    let mut principal = principal(&["operator:use"]);
     let decision = group_catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -664,7 +663,7 @@ fn policy_denies_missing_principal_allowlist_with_specific_reason() {
     policy.rules[0].principal_ids =
         BTreeSet::from([PrincipalId::new("allowed@example.com").unwrap()]);
     let catalog = catalog_with_policy(policy);
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -687,7 +686,7 @@ fn policy_denies_missing_principal_allowlist_with_specific_reason() {
 #[test]
 fn policy_denies_principal_with_unknown_tenant() {
     let catalog = catalog();
-    let mut principal = principal(&["media:use"]);
+    let mut principal = principal(&["operator:use"]);
     principal.tenant = Some(TenantId::new("tenant-b").unwrap());
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
@@ -707,7 +706,7 @@ fn policy_denies_principal_with_unknown_tenant() {
 #[test]
 fn policy_denies_unknown_profile() {
     let catalog = catalog();
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("unknown").unwrap(),
@@ -736,7 +735,7 @@ fn json_config_round_trips_through_contract_validation() {
 #[test]
 fn catalog_handle_reads_replaced_catalog_with_new_generation() {
     let handle = GatewayCatalogHandle::new(Arc::new(catalog()));
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let target = PolicyTarget::Tool {
         server: ServerSlug::new("media").unwrap(),
         tool: LocalToolName::new("run").unwrap(),
@@ -804,12 +803,12 @@ fn builds_protected_resource_metadata_for_profile() {
         .protected_resource_metadata(&GatewayProfileId::new("default").unwrap())
         .unwrap();
 
-    assert_eq!(metadata.resource, "https://veoveo.bioma.ai/mcp/default");
+    assert_eq!(metadata.resource, "https://veoveo.bioma.ai/mcp/operator");
     assert_eq!(
         metadata.authorization_servers,
-        vec!["https://veoveo.bioma.ai/oauth/default".to_string()]
+        vec!["https://veoveo.bioma.ai/oauth".to_string()]
     );
-    assert_eq!(metadata.scopes_supported, vec!["media:use".to_string()]);
+    assert_eq!(metadata.scopes_supported, vec!["operator:use".to_string()]);
     assert_eq!(
         metadata.bearer_methods_supported,
         vec!["header".to_string()]
@@ -833,20 +832,20 @@ fn builds_authorization_server_metadata_for_profile() {
         .authorization_server_metadata(&GatewayProfileId::new("default").unwrap())
         .unwrap();
 
-    assert_eq!(metadata.issuer, "https://veoveo.bioma.ai/oauth/default");
+    assert_eq!(metadata.issuer, "https://veoveo.bioma.ai/oauth");
     assert_eq!(
         metadata.authorization_endpoint.as_deref(),
-        Some("https://veoveo.bioma.ai/oauth/default/authorize")
+        Some("https://veoveo.bioma.ai/oauth/authorize")
     );
     assert_eq!(
         metadata.token_endpoint,
-        "https://veoveo.bioma.ai/oauth/default/token"
+        "https://veoveo.bioma.ai/oauth/token"
     );
     assert_eq!(
         metadata.jwks_uri.as_deref(),
-        Some("https://veoveo.bioma.ai/oauth/default/jwks.json")
+        Some("https://veoveo.bioma.ai/oauth/jwks.json")
     );
-    assert_eq!(metadata.scopes_supported, vec!["media:use".to_string()]);
+    assert_eq!(metadata.scopes_supported, vec!["operator:use".to_string()]);
     assert_eq!(metadata.response_types_supported, vec!["code".to_string()]);
     assert!(
         metadata
@@ -904,7 +903,7 @@ fn protected_resource_metadata_includes_policy_required_scopes() {
         tenant_ids: BTreeSet::new(),
         groups: BTreeSet::new(),
         roles: BTreeSet::new(),
-        required_scopes: BTreeSet::from([ScopeName::new("gateway:admin").unwrap()]),
+        required_scopes: BTreeSet::from([ScopeName::new("admin:manage").unwrap()]),
         required_data_labels: BTreeSet::new(),
         required_assurances: BTreeSet::new(),
         metadata: Value::Null,
@@ -918,13 +917,13 @@ fn protected_resource_metadata_includes_policy_required_scopes() {
         metadata
             .scopes_supported
             .iter()
-            .any(|scope| scope == "media:use")
+            .any(|scope| scope == "operator:use")
     );
     assert!(
         metadata
             .scopes_supported
             .iter()
-            .any(|scope| scope == "gateway:admin")
+            .any(|scope| scope == "admin:manage")
     );
 }
 
@@ -933,7 +932,7 @@ fn gateway_policy_target_ignores_filtered_admin_rules() {
     let mut policy = policy();
     policy.rules[0].actions = BTreeSet::from([GatewayAction::AdminWrite]);
     let catalog = catalog_with_policy(policy);
-    let principal = principal(&["media:use"]);
+    let principal = principal(&["operator:use"]);
     let decision = catalog.decide(PolicyRequest {
         principal: &principal,
         profile: &GatewayProfileId::new("default").unwrap(),
@@ -949,13 +948,13 @@ fn gateway_policy_target_ignores_filtered_admin_rules() {
 #[test]
 fn builds_www_authenticate_challenge_with_scope() {
     let challenge = www_authenticate_challenge(
-        "https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default",
-        &[ScopeName::new("media:use").unwrap()],
+        "https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator",
+        &[ScopeName::new("operator:use").unwrap()],
     );
 
     assert_eq!(
         challenge,
-        "Bearer resource_metadata=\"https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/default\", scope=\"media:use\""
+        "Bearer resource_metadata=\"https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use\""
     );
 }
 

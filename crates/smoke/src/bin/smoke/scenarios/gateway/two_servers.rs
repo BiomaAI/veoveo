@@ -105,9 +105,9 @@ pub(crate) async fn gateway_two_servers(
         [
             "gateway-token-exchange".into(),
             "--token-url".into(),
-            format!("{gateway_base}/oauth/default/token").into(),
+            format!("{gateway_base}/oauth/token").into(),
             "--scope".into(),
-            "media:use".into(),
+            "operator:use".into(),
             "--scope".into(),
             "simulation:use".into(),
         ],
@@ -215,9 +215,9 @@ pub(crate) async fn gateway_two_servers(
         [
             "gateway-token-exchange".into(),
             "--token-url".into(),
-            format!("{gateway_base}/oauth/default/token").into(),
+            format!("{gateway_base}/oauth/token").into(),
             "--scope".into(),
-            "media:use".into(),
+            "operator:use".into(),
         ],
         [],
     )?;
@@ -225,7 +225,7 @@ pub(crate) async fn gateway_two_servers(
         conformance,
         [
             "--url".into(),
-            format!("{gateway_base}/mcp/default").into(),
+            format!("{gateway_base}/mcp/operator").into(),
             "call".into(),
             "--tool-name".into(),
             "simulation__run".into(),

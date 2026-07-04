@@ -36,7 +36,7 @@ mod tests {
     use super::*;
 
     const ISSUER: &str = "https://idp.example.com";
-    const AUDIENCE: &str = "https://veoveo.bioma.ai/mcp/default";
+    const AUDIENCE: &str = "https://veoveo.bioma.ai/mcp/operator";
     const RSA_PRIVATE_KEY_DER_B64: &str = r#"
 MIIEpAIBAAKCAQEAvCUS6tGS9/VE3pGzncb1rDsZt/V/LkPHl2QO9jDlaO/jAEdfPOtCSsSyv7dY
 +nmY61GpXedIpqg6U7gcU/TcOVar0APPbKZ3OERrvrX9w5/oTJyqK42Lwybl9vmFApcRDIexmSQ8
@@ -220,14 +220,14 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &TestIdJagClaims {
                 iss: ISSUER,
                 sub: "00u123",
-                aud: "https://veoveo.bioma.ai/oauth/default",
+                aud: "https://veoveo.bioma.ai/oauth",
                 resource,
                 client_id: "veoveo-browser",
                 exp: 4_102_444_800,
                 nbf: 1_700_000_000,
                 iat: 1_700_000_000,
                 jti: jwt_id,
-                scope: "media:use",
+                scope: "operator:use",
                 groups: vec!["engineering"],
                 roles: vec!["operator"],
                 tenant: "tenant-a",
@@ -283,7 +283,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 iat: 1_700_000_000,
                 nonce,
                 groups: vec![],
-                roles: vec!["veoveo_media_user"],
+                roles: vec!["veoveo_operator"],
                 tenant: None,
                 tid: Some("tenant-a"),
                 oid: Some("entra-object-id"),
@@ -339,8 +339,8 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
     #[test]
     fn verifies_signed_jwt_and_maps_principal() {
-        let subject = verifier(&["media:use"])
-            .verify(&token("media:use media:read"))
+        let subject = verifier(&["operator:use"])
+            .verify(&token("operator:use media:read"))
             .expect("valid token");
 
         assert_eq!(subject.access_token.subject.as_str(), "00u123");
@@ -354,7 +354,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             subject
                 .principal
                 .scopes
-                .contains(&ScopeName::new("media:use").unwrap())
+                .contains(&ScopeName::new("operator:use").unwrap())
         );
         assert!(
             subject
@@ -373,7 +373,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     #[test]
     fn verifies_signed_jwt_with_mixed_public_algorithm_policy() {
         let subject = verifier_with_algorithms(
-            &["media:use"],
+            &["operator:use"],
             vec![
                 Algorithm::RS256,
                 Algorithm::RS384,
@@ -386,7 +386,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 Algorithm::EdDSA,
             ],
         )
-        .verify(&token("media:use"))
+        .verify(&token("operator:use"))
         .expect("valid token");
 
         assert_eq!(subject.access_token.subject.as_str(), "00u123");
@@ -395,7 +395,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     #[test]
     fn rejects_missing_required_scope() {
         let err = verifier(&["media:admin"])
-            .verify(&token("media:use"))
+            .verify(&token("operator:use"))
             .expect_err("scope should be required");
 
         assert!(matches!(err, AuthError::MissingRequiredScope));
@@ -403,8 +403,8 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
     #[test]
     fn rejects_unknown_principal_assurance_claim() {
-        let err = verifier(&["media:use"])
-            .verify(&token_with_assurances("media:use", vec!["contractor"]))
+        let err = verifier(&["operator:use"])
+            .verify(&token_with_assurances("operator:use", vec!["contractor"]))
             .expect_err("unknown assurance should fail closed");
 
         assert!(
@@ -417,7 +417,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
                 OAuthClientId::new("veoveo-headless").unwrap(),
-                "https://veoveo.bioma.ai/oauth/default/token",
+                "https://veoveo.bioma.ai/oauth/token",
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -426,7 +426,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
         let assertion = client_assertion(
             "veoveo-headless",
-            "https://veoveo.bioma.ai/oauth/default/token",
+            "https://veoveo.bioma.ai/oauth/token",
             "client-jti-1",
         );
         let verified = verifier.verify(&assertion).expect("valid assertion");
@@ -440,7 +440,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
                 OAuthClientId::new("veoveo-headless").unwrap(),
-                "https://veoveo.bioma.ai/oauth/default/token",
+                "https://veoveo.bioma.ai/oauth/token",
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -449,7 +449,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
         let assertion = client_assertion(
             "other-client",
-            "https://veoveo.bioma.ai/oauth/default/token",
+            "https://veoveo.bioma.ai/oauth/token",
             "client-jti-2",
         );
         let err = verifier
@@ -464,7 +464,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = IdJagVerifier::new(
             IdJagConfig::new(
                 TokenIssuer::new(ISSUER).unwrap(),
-                TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+                TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
                 ProtectedResourceId::new(AUDIENCE).unwrap(),
                 vec![Algorithm::RS256],
             )
@@ -481,7 +481,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         assert!(
             verified
                 .scopes
-                .contains(&ScopeName::new("media:use").unwrap())
+                .contains(&ScopeName::new("operator:use").unwrap())
         );
         assert!(
             verified
@@ -502,7 +502,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = IdJagVerifier::new(
             IdJagConfig::new(
                 TokenIssuer::new(ISSUER).unwrap(),
-                TokenIssuer::new("https://veoveo.bioma.ai/oauth/default").unwrap(),
+                TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
                 ProtectedResourceId::new(AUDIENCE).unwrap(),
                 vec![Algorithm::RS256],
             )
@@ -587,7 +587,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             verified
                 .principal
                 .roles
-                .contains(&veoveo_mcp_contract::RoleId::new("veoveo_media_user").unwrap())
+                .contains(&veoveo_mcp_contract::RoleId::new("veoveo_operator").unwrap())
         );
     }
 

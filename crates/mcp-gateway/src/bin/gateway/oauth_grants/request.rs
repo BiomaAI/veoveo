@@ -7,6 +7,8 @@ pub(crate) struct TokenRequest {
     #[serde(default)]
     pub(crate) scope: Option<String>,
     #[serde(default)]
+    pub(crate) resource: Option<String>,
+    #[serde(default)]
     pub(crate) code: Option<String>,
     #[serde(default)]
     pub(crate) redirect_uri: Option<String>,

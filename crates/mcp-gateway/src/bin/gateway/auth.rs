@@ -20,7 +20,7 @@ use crate::{
     http_util::{allowed_gateway_jwt_algorithms, load_jwks},
     runtime::{
         AppState, ProfileAuthState, current_catalog, current_http_client,
-        profile_id_from_gateway_path,
+        profile_id_from_gateway_path, public_authorization_server,
     },
     tokens::authorization_server_jwks_from_signing_key,
 };
@@ -45,18 +45,17 @@ pub(super) async fn protected_resource_metadata(
 
 pub(super) async fn authorization_server_metadata(
     State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
 ) -> impl IntoResponse {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
+    let catalog = current_catalog(&state.catalog);
+    let Some(authorization_server) = public_authorization_server(&catalog, &state.public_base_url)
+    else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let catalog = current_catalog(&state.catalog);
-    match catalog.authorization_server_metadata(&profile_id) {
+    match catalog.authorization_server_metadata_for_server(&authorization_server.id) {
         Ok(mut metadata) => {
             metadata.jwks_uri = Some(format!(
-                "{}/oauth/{}/jwks.json",
-                state.public_base_url.trim_end_matches('/'),
-                profile_id
+                "{}/oauth/jwks.json",
+                state.public_base_url.trim_end_matches('/')
             ));
             let mut headers = HeaderMap::new();
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -68,16 +67,9 @@ pub(super) async fn authorization_server_metadata(
 
 pub(super) async fn authorization_server_jwks(
     State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
 ) -> axum::response::Response {
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
     let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&profile_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
+    let Some(authorization_server) = public_authorization_server(&catalog, &state.public_base_url)
     else {
         return StatusCode::NOT_FOUND.into_response();
     };

@@ -285,7 +285,7 @@ mod tests {
             tenant: Some(TenantId::new("tenant-a").unwrap()),
             groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
-            scopes: BTreeSet::from([ScopeName::new("media:use").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             data_labels: BTreeSet::new(),
             assurances: BTreeSet::new(),
             authenticated_at: Some(Utc::now()),

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use axum::{
-    extract::{Path as AxumPath, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -9,8 +9,8 @@ use chrono::{TimeDelta, Utc};
 use serde::Deserialize;
 use url::Url;
 use veoveo_mcp_contract::{
-    AuthMode, AuthOutcome, AuthReasonCode, GatewayAuthorizationRequest, GatewayProfileId,
-    OAuthClientId, OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod,
+    AuthMode, AuthOutcome, AuthReasonCode, GatewayAuthorizationRequest, OAuthClientId,
+    OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod,
 };
 
 use crate::{
@@ -24,6 +24,8 @@ use crate::{
     oauth_grants::{authorization_code_client_allowed, requested_token_scopes},
     runtime::{AppState, current_catalog},
 };
+
+use super::resolve_oauth_profile;
 
 const AUTHORIZATION_REQUEST_TTL_SECONDS: i64 = 10 * 60;
 
@@ -44,16 +46,17 @@ pub(crate) struct AuthorizationRequest {
 
 pub(crate) async fn authorize_endpoint(
     State(state): State<AppState>,
-    AxumPath(profile): AxumPath<String>,
     Query(request): Query<AuthorizationRequest>,
 ) -> axum::response::Response {
     let started_at = Instant::now();
-    let Ok(profile_id) = GatewayProfileId::new(profile) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
     let catalog = current_catalog(&state.catalog);
-    let Some(profile) = catalog.profile(&profile_id) else {
-        return StatusCode::NOT_FOUND.into_response();
+    let profile = match resolve_oauth_profile(
+        &catalog,
+        request.client_id.as_str(),
+        request.resource.as_deref(),
+    ) {
+        Ok(profile) => profile,
+        Err(response) => return response,
     };
     let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
     else {
@@ -103,12 +106,7 @@ pub(crate) async fn authorize_endpoint(
             "authorization code flow is not enabled for this gateway profile",
         );
     }
-    if request.response_type != "code"
-        || request
-            .resource
-            .as_deref()
-            .is_some_and(|resource| resource != profile.protected_resource.as_str())
-    {
+    if request.response_type != "code" {
         if let Err(err) = record_oidc_auth_audit(
             &state.gateway_state,
             profile,

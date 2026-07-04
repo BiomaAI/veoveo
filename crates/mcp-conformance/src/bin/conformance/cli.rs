@@ -27,7 +27,7 @@ pub(super) struct Args {
     #[arg(long, default_value = "media", global = true)]
     pub(super) internal_server: String,
     /// Gateway profile id embedded in direct hosted-server conformance assertions.
-    #[arg(long, default_value = "default", global = true)]
+    #[arg(long, default_value = "operator", global = true)]
     pub(super) internal_profile: String,
     #[command(subcommand)]
     pub(super) cmd: Cmd,
@@ -183,7 +183,7 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "veoveo-headless")]
         client_id: String,
         /// Token endpoint audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default/token")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/token")]
         audience: String,
         /// JWT id claim.
         #[arg(long)]
@@ -201,8 +201,11 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "veoveo-headless")]
         client_id: String,
         /// Client assertion audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default/token")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/token")]
         audience: String,
+        /// MCP protected resource for the requested profile.
+        #[arg(long)]
+        resource: Option<String>,
         /// OAuth scope. Repeat for multiple scopes.
         #[arg(long = "scope")]
         scopes: Vec<String>,
@@ -219,10 +222,10 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "https://idp.example.com")]
         issuer: String,
         /// Resource Authorization Server issuer audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth")]
         audience: String,
         /// MCP protected resource claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/operator")]
         resource: String,
         /// Registered MCP client id.
         #[arg(long, default_value = "veoveo-browser")]
@@ -264,10 +267,10 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "https://idp.example.com")]
         issuer: String,
         /// Resource Authorization Server issuer audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/default")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth")]
         audience: String,
         /// MCP protected resource claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/default")]
+        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/operator")]
         resource: String,
         /// Registered MCP client id.
         #[arg(long, default_value = "veoveo-browser")]

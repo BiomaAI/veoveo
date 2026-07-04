@@ -16,16 +16,16 @@
   "authorization_servers": [
     {
       "id": "veoveo",
-      "issuer": "https://veoveo.bioma.ai/oauth/default",
+      "issuer": "https://veoveo.bioma.ai/oauth",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://veoveo.bioma.ai/oauth/default/jwks.json"
+        "jwks_uri": "https://veoveo.bioma.ai/oauth/jwks.json"
       },
       "access_token_key_id": "test-key",
       "access_token_signing_key": "veoveo_access_token_private_key",
       "identity_provider": "enterprise",
-      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/default/authorize",
-      "token_endpoint": "https://veoveo.bioma.ai/oauth/default/token",
+      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/authorize",
+      "token_endpoint": "https://veoveo.bioma.ai/oauth/token",
       "metadata": {}
     }
   ],
@@ -50,14 +50,18 @@
         "tasks": true,
         "notifications": true
       },
-      "tools": ["run"],
+      "tools": [
+        "run"
+      ],
       "prompts": [
         "media-model-select",
         "media-image-edit",
         "media-video-generate",
         "media-task-review"
       ],
-      "required_scopes": ["media:use"],
+      "required_scopes": [
+        "operator:use"
+      ],
       "owned_routes": [
         {
           "path": "/media/webhooks",
@@ -77,23 +81,69 @@
   ],
   "profiles": [
     {
-      "id": "default",
+      "id": "operator",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/default",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/operator",
       "policy_version": "2026-07-02",
       "auth_modes": [
         "enterprise_managed_authorization",
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
-      "required_scopes": ["media:use"],
+      "required_scopes": [
+        "operator:use"
+      ],
       "servers": [
         {
           "server": "media",
           "tools": {
             "mode": "listed",
-            "items": ["run"]
+            "items": [
+              "run"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "media"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "admin",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/admin",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "enterprise_managed_authorization",
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": [
+        "operator:use",
+        "admin:manage"
+      ],
+      "servers": [
+        {
+          "server": "media",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "run"
+            ]
           },
           "resources": {
             "mode": "listed",
@@ -119,7 +169,7 @@
       "version": "2026-07-02",
       "rules": [
         {
-          "id": "allow_media_profile_use",
+          "id": "allow_operator_mcp_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -139,25 +189,86 @@
             "artifact_read",
             "usage_read"
           ],
-          "profiles": ["default"],
-          "servers": ["media"],
-          "tools": ["run"],
-          "resource_schemes": ["media"],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "media"
+          ],
+          "tools": [
+            "run"
+          ],
+          "resource_schemes": [
+            "media"
+          ],
           "prompts": [
             "media-model-select",
             "media-image-edit",
             "media-video-generate",
             "media-task-review"
           ],
-          "required_scopes": ["media:use"],
+          "required_scopes": [
+            "operator:use"
+          ],
           "metadata": {}
         },
         {
-          "id": "allow_gateway_admin_write",
+          "id": "allow_admin_mcp_use",
           "effect": "allow",
-          "actions": ["admin_read", "admin_write"],
-          "profiles": ["default"],
-          "required_scopes": ["gateway:admin"],
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "media"
+          ],
+          "tools": [
+            "run"
+          ],
+          "resource_schemes": [
+            "media"
+          ],
+          "prompts": [
+            "media-model-select",
+            "media-image-edit",
+            "media-video-generate",
+            "media-task-review"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_control_plane",
+          "effect": "allow",
+          "actions": [
+            "admin_read",
+            "admin_write"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "required_scopes": [
+            "admin:manage"
+          ],
           "metadata": {}
         }
       ],
@@ -196,32 +307,93 @@
       "id": "veoveo-browser",
       "authorization_server": "veoveo",
       "display_name": "Veoveo browser client",
-      "allowed_profiles": ["default"],
+      "allowed_profiles": [
+        "operator"
+      ],
       "grant_types": [
         "authorization_code_pkce",
         "enterprise_managed_authorization"
       ],
-      "auth_methods": ["none"],
+      "auth_methods": [
+        "none"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {},
+      "redirect_uris": [
+        "https://veoveo.bioma.ai/oauth/callback",
+        "http://127.0.0.1:8789/oauth/callback"
+      ]
+    },
+    {
+      "id": "veoveo-admin-browser",
+      "authorization_server": "veoveo",
+      "display_name": "Veoveo admin browser client",
+      "allowed_profiles": [
+        "admin"
+      ],
+      "grant_types": [
+        "authorization_code_pkce",
+        "enterprise_managed_authorization"
+      ],
+      "auth_methods": [
+        "none"
+      ],
       "redirect_uris": [
         "https://veoveo.bioma.ai/oauth/callback",
         "http://127.0.0.1:8789/oauth/callback"
       ],
-      "allowed_scopes": ["media:use", "gateway:admin"],
+      "allowed_scopes": [
+        "operator:use",
+        "admin:manage"
+      ],
       "metadata": {}
     },
     {
       "id": "veoveo-headless",
       "authorization_server": "veoveo",
-      "display_name": "Veoveo headless client",
-      "allowed_profiles": ["default"],
-      "grant_types": ["client_credentials"],
-      "auth_methods": ["private_key_jwt"],
-      "allowed_scopes": ["media:use", "gateway:admin"],
+      "display_name": "Veoveo operator headless client",
+      "allowed_profiles": [
+        "operator"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {},
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/jwks.smoke.json"
-      },
-      "metadata": {}
+      }
+    },
+    {
+      "id": "veoveo-admin-headless",
+      "authorization_server": "veoveo",
+      "display_name": "Veoveo admin headless client",
+      "allowed_profiles": [
+        "admin"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use",
+        "admin:manage"
+      ],
+      "metadata": {},
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/jwks.smoke.json"
+      }
     }
   ],
   "oidc_clients": [
@@ -229,12 +401,19 @@
       "id": "enterprise",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "allowed_profiles": ["default"],
+      "allowed_profiles": [
+        "operator",
+        "admin"
+      ],
       "client_id": "veoveo-gateway",
-      "redirect_uri": "https://veoveo.bioma.ai/oauth/default/callback",
+      "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",
       "auth_method": "client_secret_post",
       "credential_secret": "enterprise_oidc_client_secret",
-      "scopes": ["openid", "profile", "email"],
+      "scopes": [
+        "openid",
+        "profile",
+        "email"
+      ],
       "metadata": {}
     }
   ],

@@ -258,6 +258,7 @@ async fn main() -> Result<()> {
             token_url,
             client_id,
             audience,
+            resource,
             scopes,
             jwt_id,
             ttl_minutes,
@@ -270,6 +271,7 @@ async fn main() -> Result<()> {
                     jwt_id: jwt_id.clone(),
                     ttl_minutes: *ttl_minutes,
                 },
+                resource: resource.clone(),
                 scopes: scopes.clone(),
             })
             .await;

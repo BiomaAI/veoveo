@@ -46,6 +46,7 @@ pub(crate) async fn compose_config() -> Result<()> {
         "image: caddy:2.11.2",
         "image: postgres:18-alpine",
         "image: rustfs/rustfs:1.0.0-beta.8",
+        "gateway.bioma.json",
         "target: /etc/caddy/Caddyfile",
         "target: /var/lib/postgresql",
         "postgresql://veoveo_gateway:veoveo_gateway@gateway-control-db:5432/veoveo_gateway",

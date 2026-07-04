@@ -99,10 +99,10 @@ pub(crate) async fn gateway_http(
         &gateway_log,
     )?;
     wait_for_http(&format!("{base}/healthz")).await?;
-    assert_ready_profiles(&base, 1).await?;
+    assert_ready_profiles(&base, 2).await?;
     let untrusted_host_status = reqwest::Client::new()
         .get(format!(
-            "{base}/.well-known/oauth-protected-resource/mcp/default"
+            "{base}/.well-known/oauth-protected-resource/mcp/operator"
         ))
         .header(HOST, "evil.example.com")
         .send()
@@ -124,16 +124,16 @@ pub(crate) async fn gateway_http(
         conformance,
         [
             "--url".into(),
-            format!("{base}/mcp/default").into(),
+            format!("{base}/mcp/operator").into(),
             "auth-discovery".into(),
             "--metadata-url".into(),
-            format!("{base}/.well-known/oauth-protected-resource/mcp/default").into(),
+            format!("{base}/.well-known/oauth-protected-resource/mcp/operator").into(),
             "--authorization-server-metadata-url".into(),
-            format!("{base}/.well-known/oauth-authorization-server/oauth/default").into(),
+            format!("{base}/.well-known/oauth-authorization-server/oauth").into(),
             "--authorization-server-jwks-url".into(),
-            format!("{base}/oauth/default/jwks.json").into(),
+            format!("{base}/oauth/jwks.json").into(),
             "--required-scope".into(),
-            "media:use".into(),
+            "operator:use".into(),
             "--required-extension".into(),
             "io.modelcontextprotocol/enterprise-managed-authorization".into(),
             "--required-extension".into(),
@@ -162,7 +162,7 @@ pub(crate) async fn gateway_http(
         &base,
         &[
             "--scope",
-            "media:use",
+            "operator:use",
             "--jwt-id",
             client_assertion_replay_jti,
         ],
@@ -172,7 +172,7 @@ pub(crate) async fn gateway_http(
         &base,
         &[
             "--scope",
-            "media:use",
+            "operator:use",
             "--jwt-id",
             client_assertion_replay_jti,
         ],
@@ -198,7 +198,7 @@ pub(crate) async fn gateway_http(
     .await?;
 
     let token_response: Value = http
-        .post(format!("{base}/oauth/default/token"))
+        .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(form_urlencoded(&[
             ("grant_type", "authorization_code"),
@@ -216,7 +216,7 @@ pub(crate) async fn gateway_http(
         bail!("authorization-code token response was not bearer: {token_response}");
     }
     let replay_status = http
-        .post(format!("{base}/oauth/default/token"))
+        .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(form_urlencoded(&[
             ("grant_type", "authorization_code"),
@@ -242,7 +242,7 @@ pub(crate) async fn gateway_http(
     )
     .await?;
     let wrong_pkce_status = http
-        .post(format!("{base}/oauth/default/token"))
+        .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(form_urlencoded(&[
             ("grant_type", "authorization_code"),
@@ -258,7 +258,7 @@ pub(crate) async fn gateway_http(
         bail!("wrong PKCE verifier status was {wrong_pkce_status}, expected 400");
     }
     let wrong_pkce_redeem_status = http
-        .post(format!("{base}/oauth/default/token"))
+        .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(form_urlencoded(&[
             ("grant_type", "authorization_code"),
@@ -276,22 +276,24 @@ pub(crate) async fn gateway_http(
         );
     }
     assert_http_status(
-        &format!("{base}/oauth/default/callback?{callback_query}"),
+        &format!("{base}/oauth/callback?{callback_query}"),
         StatusCode::BAD_REQUEST,
     )
     .await?;
 
-    let admin_token = gateway_token(
+    let admin_token = gateway_token_for_profile(
         conformance,
         &base,
-        &["--scope", "media:use", "--scope", "gateway:admin"],
+        "admin",
+        &["--scope", "operator:use", "--scope", "admin:manage"],
     )?;
     let revocation = post_json(
         &http,
-        &format!("{base}/admin/default/jwt-revocations"),
+        &format!("{base}/admin/admin/jwt-revocations"),
         Some(admin_token.trim()),
         serde_json::json!({
-            "issuer": "https://veoveo.bioma.ai/oauth/default",
+            "profile": "operator",
+            "issuer": "https://veoveo.bioma.ai/oauth",
             "jwt_id": "smoke-jwt",
             "expires_at": "2999-01-01T00:00:00Z",
             "reason": "smoke"
@@ -309,7 +311,7 @@ pub(crate) async fn gateway_http(
     }
     let prune = post_json(
         &http,
-        &format!("{base}/admin/default/jwt-revocations/prune"),
+        &format!("{base}/admin/admin/jwt-revocations/prune"),
         Some(admin_token.trim()),
         Value::Null,
     )
@@ -320,10 +322,11 @@ pub(crate) async fn gateway_http(
         bail!("unexpected prune result: {prune}");
     }
     let expired_status = http
-        .post(format!("{base}/admin/default/jwt-revocations"))
+        .post(format!("{base}/admin/admin/jwt-revocations"))
         .bearer_auth(admin_token.trim())
         .json(&serde_json::json!({
-            "issuer": "https://veoveo.bioma.ai/oauth/default",
+            "profile": "operator",
+            "issuer": "https://veoveo.bioma.ai/oauth",
             "jwt_id": "expired-smoke-jwt",
             "expires_at": "2000-01-01T00:00:00Z",
             "reason": "smoke-expired"
