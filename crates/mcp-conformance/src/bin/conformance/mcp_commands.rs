@@ -56,6 +56,9 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
             tool.name,
             tool.execution.as_ref().map(|e| &e.task_support)
         );
+        if let Some(annotations) = &tool.annotations {
+            println!("  annotations: {}", serde_json::to_string(annotations)?);
+        }
         println!("  {}", tool.description.as_deref().unwrap_or(""));
         println!(
             "  input schema: {}",

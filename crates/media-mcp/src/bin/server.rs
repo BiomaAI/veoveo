@@ -132,8 +132,15 @@ impl MediaMcp {
     /// invocations through `enqueue_task`. This body only exists so the
     /// router publishes the tool with its schema.
     #[tool(
+        title = "Run media model",
         description = "Run any media model asynchronously. Must be invoked as an MCP task; read tasks/get and fetch media://artifact/{sha256} outputs via tasks/result. Discover models via media://models, input schemas via media://model/{model_id}, and usage via media://usage/task/{task_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        ),
         execution(task_support = "required")
     )]
     async fn run(
@@ -809,6 +816,29 @@ async fn artifact_download(
         }
     }
     (StatusCode::OK, headers, artifact.bytes).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_tool_annotations_match_additive_open_world_behavior() {
+        let tools = MediaMcp::tool_router().list_all();
+        let run = tools
+            .iter()
+            .find(|tool| tool.name.as_ref() == "run")
+            .expect("run tool should be registered");
+        assert_eq!(run.title.as_deref(), Some("Run media model"));
+        let annotations = run
+            .annotations
+            .as_ref()
+            .expect("run tool should publish MCP safety annotations");
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.destructive_hint, Some(false));
+        assert_eq!(annotations.idempotent_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
+    }
 }
 
 #[tokio::main]
