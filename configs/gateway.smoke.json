@@ -304,9 +304,9 @@
   ],
   "oauth_clients": [
     {
-      "id": "veoveo-browser",
+      "id": "operator-local-public",
       "authorization_server": "veoveo",
-      "display_name": "Veoveo browser client",
+      "display_name": "Veoveo Operator Local Client",
       "allowed_profiles": [
         "operator"
       ],
@@ -320,16 +320,47 @@
       "allowed_scopes": [
         "operator:use"
       ],
-      "metadata": {},
+      "metadata": {
+        "client_boundary": "local_public"
+      },
       "redirect_uris": [
-        "https://veoveo.bioma.ai/oauth/callback",
+        "http://localhost:6274/oauth/callback",
+        "http://localhost:6274/oauth/callback/debug",
+        "http://127.0.0.1:6274/oauth/callback",
+        "http://127.0.0.1:6274/oauth/callback/debug",
+        "http://localhost:8789/callback",
+        "http://127.0.0.1:8789/callback",
+        "http://localhost:8789/oauth/callback",
         "http://127.0.0.1:8789/oauth/callback"
       ]
     },
     {
-      "id": "veoveo-admin-browser",
+      "id": "operator-hosted-public",
       "authorization_server": "veoveo",
-      "display_name": "Veoveo admin browser client",
+      "display_name": "Veoveo Operator Hosted Client",
+      "allowed_profiles": [
+        "operator"
+      ],
+      "grant_types": [
+        "authorization_code_pkce"
+      ],
+      "auth_methods": [
+        "none"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "hosted_public"
+      },
+      "redirect_uris": [
+        "https://chatgpt.com/connector_platform_oauth_redirect"
+      ]
+    },
+    {
+      "id": "admin-console",
+      "authorization_server": "veoveo",
+      "display_name": "Veoveo Admin Console",
       "allowed_profiles": [
         "admin"
       ],
@@ -340,20 +371,21 @@
       "auth_methods": [
         "none"
       ],
-      "redirect_uris": [
-        "https://veoveo.bioma.ai/oauth/callback",
-        "http://127.0.0.1:8789/oauth/callback"
-      ],
       "allowed_scopes": [
         "operator:use",
         "admin:manage"
       ],
-      "metadata": {}
+      "metadata": {
+        "client_boundary": "admin_console"
+      },
+      "redirect_uris": [
+        "https://bioma.ai/veoveo/admin/callback"
+      ]
     },
     {
-      "id": "veoveo-headless",
+      "id": "operator-service",
       "authorization_server": "veoveo",
-      "display_name": "Veoveo operator headless client",
+      "display_name": "Veoveo Operator Service",
       "allowed_profiles": [
         "operator"
       ],
@@ -366,16 +398,18 @@
       "allowed_scopes": [
         "operator:use"
       ],
-      "metadata": {},
+      "metadata": {
+        "client_boundary": "operator_service"
+      },
       "jwks": {
         "source": "file",
         "path": "configs/jwks.smoke.json"
       }
     },
     {
-      "id": "veoveo-admin-headless",
+      "id": "admin-service",
       "authorization_server": "veoveo",
-      "display_name": "Veoveo admin headless client",
+      "display_name": "Veoveo Admin Service",
       "allowed_profiles": [
         "admin"
       ],
@@ -389,7 +423,9 @@
         "operator:use",
         "admin:manage"
       ],
-      "metadata": {},
+      "metadata": {
+        "client_boundary": "admin_service"
+      },
       "jwks": {
         "source": "file",
         "path": "configs/jwks.smoke.json"
@@ -405,7 +441,7 @@
         "operator",
         "admin"
       ],
-      "client_id": "veoveo-gateway",
+      "client_id": "veoveo",
       "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",
       "auth_method": "client_secret_post",
       "credential_secret": "enterprise_oidc_client_secret",

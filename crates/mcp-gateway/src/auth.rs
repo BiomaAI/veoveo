@@ -198,7 +198,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         encode(
             &header,
             &TestClientAssertionClaims {
-                iss: "veoveo-headless",
+                iss: "operator-service",
                 sub: subject,
                 aud: audience,
                 exp: 4_102_444_800,
@@ -222,7 +222,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 sub: "00u123",
                 aud: "https://veoveo.bioma.ai/oauth",
                 resource,
-                client_id: "veoveo-browser",
+                client_id: "operator-local-public",
                 exp: 4_102_444_800,
                 nbf: 1_700_000_000,
                 iat: 1_700_000_000,
@@ -248,7 +248,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &TestOidcIdTokenClaims {
                 iss: ISSUER,
                 sub: "00u123",
-                aud: "veoveo-gateway",
+                aud: "veoveo",
                 exp: 4_102_444_800,
                 nbf: 1_700_000_000,
                 iat: 1_700_000_000,
@@ -277,7 +277,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &TestOidcIdTokenClaims {
                 iss: ISSUER,
                 sub: "pairwise-subject",
-                aud: "veoveo-gateway",
+                aud: "veoveo",
                 exp: 4_102_444_800,
                 nbf: 1_700_000_000,
                 iat: 1_700_000_000,
@@ -416,7 +416,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn verifies_private_key_jwt_client_assertion() {
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
-                OAuthClientId::new("veoveo-headless").unwrap(),
+                OAuthClientId::new("operator-service").unwrap(),
                 "https://veoveo.bioma.ai/oauth/token",
                 vec![Algorithm::RS256],
             )
@@ -425,13 +425,13 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         );
 
         let assertion = client_assertion(
-            "veoveo-headless",
+            "operator-service",
             "https://veoveo.bioma.ai/oauth/token",
             "client-jti-1",
         );
         let verified = verifier.verify(&assertion).expect("valid assertion");
 
-        assert_eq!(verified.client_id.as_str(), "veoveo-headless");
+        assert_eq!(verified.client_id.as_str(), "operator-service");
         assert_eq!(verified.jwt_id.as_str(), "client-jti-1");
     }
 
@@ -439,7 +439,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     fn rejects_private_key_jwt_subject_mismatch() {
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
-                OAuthClientId::new("veoveo-headless").unwrap(),
+                OAuthClientId::new("operator-service").unwrap(),
                 "https://veoveo.bioma.ai/oauth/token",
                 vec![Algorithm::RS256],
             )
@@ -476,7 +476,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             .verify(&id_jag(AUDIENCE, "id-jag-1"))
             .expect("valid ID-JAG");
 
-        assert_eq!(verified.client_id.as_str(), "veoveo-browser");
+        assert_eq!(verified.client_id.as_str(), "operator-local-public");
         assert_eq!(verified.principal.subject.as_str(), "00u123");
         assert!(
             verified
@@ -522,7 +522,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new(
                 TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo-gateway").unwrap(),
+                OidcClientId::new("veoveo").unwrap(),
                 OidcNonce::new("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
             )
@@ -568,7 +568,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new_with_claim_mapping(
                 TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo-gateway").unwrap(),
+                OidcClientId::new("veoveo").unwrap(),
                 OidcNonce::new("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
                 claim_mapping,
@@ -596,7 +596,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = OidcIdTokenVerifier::new(
             OidcIdTokenConfig::new(
                 TokenIssuer::new(ISSUER).unwrap(),
-                OidcClientId::new("veoveo-gateway").unwrap(),
+                OidcClientId::new("veoveo").unwrap(),
                 OidcNonce::new("nonce-1").unwrap(),
                 vec![Algorithm::RS256],
             )

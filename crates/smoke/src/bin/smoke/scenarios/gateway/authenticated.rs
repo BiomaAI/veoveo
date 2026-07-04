@@ -240,7 +240,7 @@ pub(crate) async fn gateway_authenticated(
         operator_profile_token.trim(),
         ["info".into()],
     )?;
-    let admin_headless_token = gateway_token_for_profile(
+    let admin_service_token = gateway_token_for_profile(
         conformance,
         &gateway_base,
         "admin",
@@ -250,12 +250,12 @@ pub(crate) async fn gateway_authenticated(
         conformance,
         &format!("{gateway_base}/mcp/admin"),
         ["info".into()],
-        [("MCP_BEARER_TOKEN", admin_headless_token.trim().into())],
+        [("MCP_BEARER_TOKEN", admin_service_token.trim().into())],
     )?;
     assert_mcp_denied(
         conformance,
         &format!("{gateway_base}/mcp/operator"),
-        admin_headless_token.trim(),
+        admin_service_token.trim(),
         ["info".into()],
     )?;
     assert_mcp_denied(
@@ -291,7 +291,7 @@ pub(crate) async fn gateway_authenticated(
         conformance,
         &format!("{gateway_base}/mcp/admin"),
         ["info".into()],
-        [("MCP_BEARER_TOKEN", admin_headless_token.trim().into())],
+        [("MCP_BEARER_TOKEN", admin_service_token.trim().into())],
     )?;
 
     let token = gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;

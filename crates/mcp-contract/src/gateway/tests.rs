@@ -236,9 +236,9 @@ fn default_profile() -> GatewayProfile {
 fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
     vec![
         OAuthClientRegistration {
-            id: OAuthClientId::new("veoveo-browser").unwrap(),
+            id: OAuthClientId::new("operator-local-public").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-            display_name: Some("Veoveo browser client".to_string()),
+            display_name: Some("Veoveo Operator Local Client".to_string()),
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([
                 OAuthGrantType::AuthorizationCodePkce,
@@ -258,9 +258,9 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
             metadata: Value::Null,
         },
         OAuthClientRegistration {
-            id: OAuthClientId::new("veoveo-headless").unwrap(),
+            id: OAuthClientId::new("operator-service").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-            display_name: Some("Veoveo headless client".to_string()),
+            display_name: Some("Veoveo Operator Service".to_string()),
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
@@ -285,7 +285,7 @@ fn default_oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
         allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
-        client_id: OidcClientId::new("veoveo-gateway").unwrap(),
+        client_id: OidcClientId::new("veoveo").unwrap(),
         redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
         credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),

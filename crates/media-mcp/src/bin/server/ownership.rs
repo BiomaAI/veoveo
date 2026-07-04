@@ -266,7 +266,7 @@ mod tests {
         };
         let now = Utc::now();
         GatewayInternalIdentity {
-            issuer: TokenIssuer::new("veoveo-gateway").unwrap(),
+            issuer: TokenIssuer::new("veoveo-internal").unwrap(),
             profile: GatewayProfileId::new(profile).unwrap(),
             server: ServerSlug::new("media").unwrap(),
             principal,

@@ -315,7 +315,7 @@ mod tests {
 
     fn temp_path(name: &str) -> std::path::PathBuf {
         let unique = uuid::Uuid::new_v4();
-        std::env::temp_dir().join(format!("veoveo-gateway-mcp-{name}-{unique}.duckdb"))
+        std::env::temp_dir().join(format!("veoveo-mcp-{name}-{unique}.duckdb"))
     }
 
     fn mapping(profile: &str, owner: &str) -> GatewayTaskMapping {

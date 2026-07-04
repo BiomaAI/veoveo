@@ -15,9 +15,9 @@ pub(crate) fn gateway_id_jag_token_for_profile(
     args: &[&str],
 ) -> Result<String> {
     let client_id = if profile == "admin" {
-        "veoveo-admin-browser"
+        "admin-console"
     } else {
-        "veoveo-browser"
+        "operator-local-public"
     };
     let mut all_args = vec![
         "gateway-id-jag-token-exchange".into(),
@@ -49,9 +49,9 @@ pub(crate) fn gateway_token_for_profile(
     args: &[&str],
 ) -> Result<String> {
     let client_id = if profile == "admin" {
-        "veoveo-admin-headless"
+        "admin-service"
     } else {
-        "veoveo-headless"
+        "operator-service"
     };
     let mut all_args = vec![
         "gateway-token-exchange".into(),

@@ -12,7 +12,7 @@ use crate::{
     GatewayProfileId, IdentifierError, JwtId, Principal, PrincipalId, ServerSlug, TokenIssuer,
 };
 
-pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-gateway";
+pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
 pub const MIN_INTERNAL_TOKEN_SECRET_BYTES: usize = 32;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn internal_token_round_trips_typed_identity() {
         let issuer =
-            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-gateway").unwrap(), secret());
+            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), secret());
         let issued = issuer
             .issue(
                 GatewayProfileId::new("default").unwrap(),
@@ -314,7 +314,7 @@ mod tests {
             .unwrap();
 
         let verified = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-gateway").unwrap(),
+            TokenIssuer::new("veoveo-internal").unwrap(),
             ServerSlug::new("media").unwrap(),
             secret(),
         )
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn internal_token_rejects_wrong_server_audience() {
         let issuer =
-            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-gateway").unwrap(), secret());
+            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), secret());
         let issued = issuer
             .issue(
                 GatewayProfileId::new("default").unwrap(),
@@ -343,7 +343,7 @@ mod tests {
             .unwrap();
 
         let err = GatewayInternalTokenVerifier::new(
-            TokenIssuer::new("veoveo-gateway").unwrap(),
+            TokenIssuer::new("veoveo-internal").unwrap(),
             ServerSlug::new("simulation").unwrap(),
             secret(),
         )

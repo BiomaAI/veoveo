@@ -68,9 +68,9 @@ impl GatewayMcp {
 
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
-        info.server_info = Implementation::new("veoveo-gateway", env!("CARGO_PKG_VERSION"));
+        info.server_info = Implementation::new("veoveo", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Gateway profile for hosted Veoveo MCP servers. Tool names are gateway namespaced; resource URIs remain server-owned."
+            "Veoveo MCP profile for hosted servers. Tool names are namespaced at this MCP surface; resource URIs remain server-owned."
                 .to_string(),
         );
         info

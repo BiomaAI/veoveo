@@ -97,7 +97,7 @@ typed_id!(
 typed_id!(
     GatewayProfileId,
     validate_path_id,
-    "Gateway profile id exposed under `/mcp/{profile}`."
+    "Veoveo profile id exposed under `/mcp/{profile}`."
 );
 typed_id!(
     IdentityProviderId,

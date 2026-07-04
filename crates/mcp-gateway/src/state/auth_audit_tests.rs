@@ -17,9 +17,7 @@ fn temp_path(name: &str) -> std::path::PathBuf {
         .unwrap()
         .as_nanos();
     let process_id = std::process::id();
-    std::env::temp_dir().join(format!(
-        "veoveo-gateway-{name}-{process_id}-{unique}.duckdb"
-    ))
+    std::env::temp_dir().join(format!("veoveo-{name}-{process_id}-{unique}.duckdb"))
 }
 
 fn record_auth_audit(

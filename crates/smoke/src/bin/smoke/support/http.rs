@@ -142,13 +142,15 @@ pub(crate) async fn gateway_browser_authorization_code(
     idp_client: &reqwest::Client,
     gateway_base: &str,
     idp_base: &str,
+    client_id: &str,
+    redirect_uri: &str,
     code_challenge: &str,
     client_state: &str,
 ) -> Result<(String, String)> {
     let authorize_query = form_urlencoded(&[
         ("response_type", "code"),
-        ("client_id", "veoveo-browser"),
-        ("redirect_uri", "https://veoveo.bioma.ai/oauth/callback"),
+        ("client_id", client_id),
+        ("redirect_uri", redirect_uri),
         ("scope", "operator:use"),
         ("resource", "https://veoveo.bioma.ai/mcp/operator"),
         ("code_challenge", code_challenge),
@@ -178,7 +180,7 @@ pub(crate) async fn gateway_browser_authorization_code(
         .send()
         .await?;
     let client_redirect = redirect_location(gateway_callback, StatusCode::FOUND)?;
-    if !client_redirect.starts_with("https://veoveo.bioma.ai/oauth/callback") {
+    if !client_redirect.starts_with(redirect_uri) {
         bail!("unexpected browser client redirect: {client_redirect}");
     }
     let gateway_code = url_query_value(&client_redirect, "code")?;

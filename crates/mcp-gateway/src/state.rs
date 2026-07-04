@@ -61,9 +61,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let process_id = std::process::id();
-        std::env::temp_dir().join(format!(
-            "veoveo-gateway-{name}-{process_id}-{unique}.duckdb"
-        ))
+        std::env::temp_dir().join(format!("veoveo-{name}-{process_id}-{unique}.duckdb"))
     }
 
     fn record_policy_audit(
@@ -290,7 +288,7 @@ mod tests {
         let path = temp_path("client-assertion-jti");
         let state = GatewayState::open(&path).unwrap();
         let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-        let client_id = OAuthClientId::new("veoveo-headless").unwrap();
+        let client_id = OAuthClientId::new("operator-service").unwrap();
         let jwt_id = JwtId::new("assertion-1").unwrap();
         let now = Utc::now();
         let expires_at = now + TimeDelta::minutes(5);
@@ -337,7 +335,7 @@ mod tests {
         let path = temp_path("id-jag-jti");
         let state = GatewayState::open(&path).unwrap();
         let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-        let client_id = OAuthClientId::new("veoveo-browser").unwrap();
+        let client_id = OAuthClientId::new("operator-local-public").unwrap();
         let jwt_id = JwtId::new("id-jag-1").unwrap();
         let now = Utc::now();
         let expires_at = now + TimeDelta::minutes(5);
@@ -378,7 +376,7 @@ mod tests {
         let path = temp_path("replay-id-retention");
         let state = GatewayState::open(&path).unwrap();
         let authorization_server = AuthorizationServerId::new("veoveo").unwrap();
-        let client_id = OAuthClientId::new("veoveo-headless").unwrap();
+        let client_id = OAuthClientId::new("operator-service").unwrap();
         let old_seen_at = Utc::now() - TimeDelta::minutes(10);
         let now = Utc::now();
         let old_expires_at = now - TimeDelta::minutes(5);
@@ -495,7 +493,7 @@ mod tests {
         let request = GatewayAuthorizationRequest {
             idp_state: OAuthStateValue::new("state-1").unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
-            oauth_client_id: OAuthClientId::new("veoveo-browser").unwrap(),
+            oauth_client_id: OAuthClientId::new("operator-local-public").unwrap(),
             oidc_client: OidcClientRegistrationId::new("enterprise").unwrap(),
             redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
             client_state: Some(OAuthStateValue::new("client-state-1").unwrap()),
@@ -565,7 +563,7 @@ mod tests {
         let code = GatewayAuthorizationCodeRecord {
             code: OAuthAuthorizationCode::new("B".repeat(43)).unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
-            oauth_client_id: OAuthClientId::new("veoveo-browser").unwrap(),
+            oauth_client_id: OAuthClientId::new("operator-local-public").unwrap(),
             oidc_client: OidcClientRegistrationId::new("enterprise").unwrap(),
             redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
             client_state: Some(OAuthStateValue::new("client-state-1").unwrap()),

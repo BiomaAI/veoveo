@@ -212,9 +212,9 @@ fn profile() -> GatewayProfile {
 fn oauth_clients() -> Vec<OAuthClientRegistration> {
     vec![
         OAuthClientRegistration {
-            id: OAuthClientId::new("veoveo-browser").unwrap(),
+            id: OAuthClientId::new("operator-local-public").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-            display_name: Some("Veoveo browser client".to_string()),
+            display_name: Some("Veoveo Operator Local Client".to_string()),
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([
                 OAuthGrantType::AuthorizationCodePkce,
@@ -235,9 +235,9 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
             metadata: Value::Null,
         },
         OAuthClientRegistration {
-            id: OAuthClientId::new("veoveo-headless").unwrap(),
+            id: OAuthClientId::new("operator-service").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-            display_name: Some("Veoveo headless client".to_string()),
+            display_name: Some("Veoveo Operator Service".to_string()),
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
@@ -263,7 +263,7 @@ fn oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
         allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
-        client_id: OidcClientId::new("veoveo-gateway").unwrap(),
+        client_id: OidcClientId::new("veoveo").unwrap(),
         redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
         credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
@@ -317,7 +317,7 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
 
 fn temp_path(name: &str) -> std::path::PathBuf {
     let unique = uuid::Uuid::new_v4();
-    std::env::temp_dir().join(format!("veoveo-gateway-lib-{name}-{unique}.duckdb"))
+    std::env::temp_dir().join(format!("veoveo-lib-{name}-{unique}.duckdb"))
 }
 
 fn principal(scopes: &[&str]) -> Principal {
@@ -891,7 +891,7 @@ fn builds_authorization_server_metadata_for_profile() {
 fn protected_resource_metadata_includes_policy_required_scopes() {
     let mut policy = policy();
     policy.rules.push(PolicyRule {
-        id: PolicyRuleId::new("allow_gateway_admin_write").unwrap(),
+        id: PolicyRuleId::new("allow_admin_write").unwrap(),
         effect: PolicyEffect::Allow,
         actions: BTreeSet::from([GatewayAction::AdminWrite]),
         profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),

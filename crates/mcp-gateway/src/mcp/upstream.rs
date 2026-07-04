@@ -47,8 +47,7 @@ impl GatewayUpstreamHandler {
 impl ClientHandler for GatewayUpstreamHandler {
     fn get_info(&self) -> ClientInfo {
         let mut info = ClientInfo::default();
-        info.client_info =
-            Implementation::new("veoveo-gateway-upstream", env!("CARGO_PKG_VERSION"));
+        info.client_info = Implementation::new("veoveo-internal", env!("CARGO_PKG_VERSION"));
         info
     }
 

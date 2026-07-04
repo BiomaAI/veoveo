@@ -52,11 +52,11 @@ smoke-contract-schemas:
 
 # Revoke one gateway JWT id for a target profile until its original token expiration.
 gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.bioma.ai/oauth' admin_profile='admin' target_profile='operator' reason='operator_request':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --client-id veoveo-admin-headless --scope operator:use --scope admin:manage)"; payload="$(jq -n --arg profile '{{target_profile}}' --arg issuer '{{issuer}}' --arg jwt_id '{{jwt_id}}' --arg expires_at '{{expires_at}}' --arg reason '{{reason}}' '{profile: $profile, issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"; curl -fsS -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data "${payload}" "{{gateway-admin-url}}/{{admin_profile}}/jwt-revocations"
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --client-id admin-service --scope operator:use --scope admin:manage)"; payload="$(jq -n --arg profile '{{target_profile}}' --arg issuer '{{issuer}}' --arg jwt_id '{{jwt_id}}' --arg expires_at '{{expires_at}}' --arg reason '{{reason}}' '{profile: $profile, issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"; curl -fsS -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data "${payload}" "{{gateway-admin-url}}/{{admin_profile}}/jwt-revocations"
 
 # Remove expired gateway JWT revocation entries.
 gateway-prune-revoked-jwts profile='admin':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --client-id veoveo-admin-headless --scope operator:use --scope admin:manage)"; curl -fsS -X POST -H "Authorization: Bearer ${token}" "{{gateway-admin-url}}/{{profile}}/jwt-revocations/prune"
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --client-id admin-service --scope operator:use --scope admin:manage)"; curl -fsS -X POST -H "Authorization: Bearer ${token}" "{{gateway-admin-url}}/{{profile}}/jwt-revocations/prune"
 
 # Smoke-test gateway contract/control-plane behavior without external services.
 smoke-gateway:
@@ -225,7 +225,7 @@ health public_base_url='':
     @echo
     if [ -n '{{public_base_url}}' ]; then curl -fsS '{{public_base_url}}/healthz'; echo; fi
 
-# Mint a configured headless gateway access token for the operator profile.
+# Mint a configured service access token for the operator profile.
 gateway-token scope='operator:use':
     {{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope '{{scope}}'
 

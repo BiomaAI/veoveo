@@ -68,38 +68,55 @@ opaque to the contract; `https://veoveo.bioma.ai`,
 `https://staging.veoveo.bioma.ai`, and an enterprise-owned hostname are all equivalent
 as long as they route to the deployment.
 
-External MCP clients use the gateway profile endpoint. The edge proxy is the public
-boundary for the single origin. Hosted servers still own provider plumbing paths below the
-same origin:
+External MCP clients use Veoveo profile endpoints. The edge proxy is the public boundary
+for the single origin. Hosted servers still own provider plumbing paths below the same
+origin:
 
 | Surface | Endpoint |
 |---|---|
-| operator gateway profile | `{PUBLIC_BASE_URL}/mcp/operator` |
-| admin gateway profile | `{PUBLIC_BASE_URL}/mcp/admin` |
+| operator profile | `{PUBLIC_BASE_URL}/mcp/operator` |
+| admin profile | `{PUBLIC_BASE_URL}/mcp/admin` |
 | media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
 
 `/media/mcp` is intentionally not a public client route. For local conformance or service
-debugging, use the direct service endpoint with a gateway-signed internal token, such as
+debugging, use the direct service endpoint with a Veoveo-signed internal token, such as
 `http://localhost:8787/media/mcp` in the development Compose stack.
 
-### Claude Code Demo
+### MCP Clients
 
-The Bioma reference deployment pre-registers the public OAuth client `claude-demo` for
-the operator profile. Claude Code should use a fixed callback port that matches that
-registration:
+The Bioma reference deployment uses client IDs by trust boundary:
+
+| Client boundary | OAuth client id | Use |
+|---|---|---|
+| hosted public connector | `operator-hosted-public` | Browser-hosted MCP clients such as Claude web or ChatGPT. |
+| local public connector | `operator-local-public` | Loopback clients such as Claude Code, local inspectors, or desktop tools. |
+| operator service | `operator-service` | Headless automation using private-key JWT client credentials. |
+| admin service | `admin-service` | Admin automation using private-key JWT client credentials. |
+
+Hosted public clients connect to:
+
+```text
+https://veoveo.bioma.ai/mcp/operator
+```
+
+Use OAuth client ID `operator-hosted-public`. Leave the client secret blank unless that
+client registration is intentionally changed to a confidential-client registration.
+
+Local loopback clients should use OAuth client ID `operator-local-public`. Claude Code can
+use a fixed callback port that matches the registered local redirect URIs:
 
 ```sh
 claude mcp add --transport http \
-    --client-id claude-demo \
+    --client-id operator-local-public \
     --callback-port 8789 \
     veoveo https://veoveo.bioma.ai/mcp/operator
 
 claude mcp login veoveo
 ```
 
-Do not point Claude at `/media/mcp`; that route is intentionally not public.
+Do not point external clients at `/media/mcp`; that route is intentionally not public.
 
 ## Setup
 
@@ -148,7 +165,7 @@ are for the local stack only.
 
 Task, prediction, artifact metadata, and usage metadata are persisted in DuckDB. The
 shared contract crate owns the DuckDB usage analytics schema so every MCP server can
-record estimates and actual billing rows the same way. Gateway profiles, tenants,
+record estimates and actual billing rows the same way. Veoveo profiles, tenants,
 clients, policies, and hosted-server manifests are seeded into Postgres as immutable
 control-plane revisions; `mcp-gateway` loads the active Postgres revision in Compose.
 Deployment profiles declare typed DuckDB state stores for the gateway and each hosted MCP

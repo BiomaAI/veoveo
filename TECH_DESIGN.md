@@ -276,6 +276,15 @@ The gateway must implement MCP-compatible HTTP authorization:
   private-key JWT client authentication.
 - Audience/resource-bound access tokens scoped to one gateway profile.
 
+OAuth client registrations are named by trust boundary, not by vendor, demo, or internal
+architecture. For the operator profile, the reference deployment should register:
+`operator-hosted-public` for browser-hosted MCP connectors, `operator-local-public` for
+loopback clients such as desktop tools and CLI inspectors, and `operator-service` for
+headless automation with private-key JWT client credentials. Admin automation uses
+`admin-service`; the admin browser surface uses `admin-console`. Add a vendor-specific
+client only when that vendor needs a distinct redirect, client-auth method, approval,
+secret, revocation, or audit boundary. Otherwise, reuse the boundary-level registration.
+
 Provider callbacks are separate from OAuth callbacks. Routes such as `/media/webhooks`
 remain owned by the media MCP server for provider job completion and must not be folded
 into the gateway OAuth callback design.
