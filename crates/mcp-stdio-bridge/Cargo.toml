@@ -1,0 +1,19 @@
+[package]
+name = "veoveo-mcp-stdio-bridge"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "bridge"
+path = "src/bin/bridge.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+rmcp = { workspace = true, features = ["server", "client", "transport-child-process", "transport-streamable-http-server"] }
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+tracing.workspace = true
+veoveo-mcp-contract.workspace = true

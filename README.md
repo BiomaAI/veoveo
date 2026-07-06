@@ -330,6 +330,23 @@ cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:
 webhook callbacks. `/media/files` URLs also need that public base URL to be reachable by the
 provider.
 
+### Stdio Bridge
+
+Some MCP servers only speak stdio, for example `rerun viewer-mcp` (Rerun >= 0.34). The
+gateway registers upstreams as `streamable_http` only, so `crates/mcp-stdio-bridge` spawns
+the stdio server as a child process and re-exposes its tool surface over MCP streamable
+HTTP. The bridge forwards tools only and adds no auth of its own: keep it on loopback or an
+internal network, and register it like any other upstream server in the gateway control
+plane. If the child process exits, the bridge exits with an error instead of restarting it.
+
+```sh
+# bridge a local Rerun viewer (requires rerun >= 0.34 and a running viewer)
+just stdio-bridge
+
+# inspect the bridged tool surface directly
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://127.0.0.1:8790/mcp info
+```
+
 ## Layout
 
 ```
@@ -341,6 +358,7 @@ crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
 crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
 crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
+crates/mcp-stdio-bridge/src/bin/bridge.rs      stdio-to-streamable-HTTP MCP bridge
 crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler
 crates/mcp-gateway/src/state.rs                gateway DuckDB runtime/audit state
 configs/gateway.bioma.json                     typed Bioma demo gateway control plane
