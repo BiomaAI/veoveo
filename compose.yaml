@@ -112,6 +112,26 @@ services:
     profiles:
       - dev
 
+  rerun-bridge:
+    build:
+      context: .
+      dockerfile: crates/mcp-stdio-bridge/Dockerfile
+    command:
+      - "--listen"
+      - "0.0.0.0:8790"
+      - "--allowed-host"
+      - "rerun-bridge:8790,localhost:8790,127.0.0.1:8790"
+      - "--"
+      - "rerun"
+      - "viewer-mcp"
+    environment:
+      RUST_LOG: "info"
+    ports:
+      # Host SDKs log recordings into the containerized headless viewer.
+      - "127.0.0.1:9876:9876"
+    profiles:
+      - dev
+
   gateway-control-db:
     image: postgres:18-alpine
     environment:
@@ -172,11 +192,6 @@ services:
       - "365"
     volumes:
       - gateway_state:/var/lib/veoveo/gateway
-    extra_hosts:
-      # The rerun stdio bridge runs on the host next to the Rerun viewer,
-      # because `rerun viewer-mcp` only dials a local viewer. The single-label
-      # alias satisfies compose_internal_http upstream validation.
-      - "rerun-bridge:host-gateway"
     environment:
       VEOVEO_IDP_OIDC_CLIENT_SECRET: "${VEOVEO_IDP_OIDC_CLIENT_SECRET:?set VEOVEO_IDP_OIDC_CLIENT_SECRET}"
       VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
