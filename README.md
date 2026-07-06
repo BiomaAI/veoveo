@@ -330,21 +330,37 @@ cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:
 webhook callbacks. `/media/files` URLs also need that public base URL to be reachable by the
 provider.
 
-### Stdio Bridge
+### Stdio Bridge and the Rerun Server
 
 Some MCP servers only speak stdio, for example `rerun viewer-mcp` (Rerun >= 0.34). The
 gateway registers upstreams as `streamable_http` only, so `crates/mcp-stdio-bridge` spawns
 the stdio server as a child process and re-exposes its tool surface over MCP streamable
-HTTP. The bridge forwards tools only and adds no auth of its own: keep it on loopback or an
-internal network, and register it like any other upstream server in the gateway control
-plane. If the child process exits, the bridge exits with an error instead of restarting it.
+HTTP. The bridge forwards tools only and adds no auth of its own: keep it on loopback, and
+register it like any other upstream server in the gateway control plane. If the child
+process exits, the bridge exits with an error instead of restarting it.
+
+The `rerun` server in `configs/gateway.bioma.json` is wired this way. `rerun viewer-mcp`
+can only dial a viewer on its own host, so the viewer, `viewer-mcp`, and the bridge all run
+on the host, and the Compose gateway reaches the bridge through the `rerun-bridge`
+`extra_hosts` alias (`host-gateway`). The `rerun` profile is separate from `operator` so an
+absent bridge never breaks media tool listing.
 
 ```sh
-# bridge a local Rerun viewer (requires rerun >= 0.34 and a running viewer)
+# 1. viewer on the host: `rerun` for a window, `rerun --headless` for background use
+rerun --headless
+
+# 2. bridge + viewer-mcp on the host
 just stdio-bridge
 
-# inspect the bridged tool surface directly
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://127.0.0.1:8790/mcp info
+# 3. rerun tools through the gateway (note the rerun profile resource)
+export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-token-exchange \
+    --token-url http://localhost:8780/oauth/token --client-id operator-service --scope operator:use \
+    --resource https://veoveo.bioma.ai/mcp/rerun)"
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun info
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun call \
+    --tool-name rerun__connect --arguments '{}'
+cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun call \
+    --tool-name rerun__screenshot --arguments '{}'
 ```
 
 ## Layout

@@ -31,7 +31,8 @@ check:
 
 # Bridge a stdio MCP server (default: Rerun viewer MCP) to streamable HTTP.
 stdio-bridge listen='127.0.0.1:8790' +child='rerun viewer-mcp':
-    cargo run -p veoveo-mcp-stdio-bridge --bin bridge -- --listen {{listen}} -- {{child}}
+    cargo run -p veoveo-mcp-stdio-bridge --bin bridge -- --listen {{listen}} \
+        --allowed-host rerun-bridge:8790,localhost:8790,127.0.0.1:8790 -- {{child}}
 
 # Validate the typed gateway control plane.
 gateway-validate:

@@ -98,6 +98,34 @@
         }
       ],
       "metadata": {}
+    },
+    {
+      "slug": "rerun",
+      "uri_scheme": "rerun",
+      "mount_path": "/rerun",
+      "mcp_path": "/rerun/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://rerun-bridge:8790/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": false,
+        "resource_templates": false,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": false,
+        "notifications": false
+      },
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "upstream_kind": "stdio_bridge",
+        "child": "rerun viewer-mcp"
+      }
     }
   ],
   "profiles": [
@@ -186,6 +214,39 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        }
+      ],
+      "metadata": {
+        "tenant": "bioma"
+      }
+    },
+    {
+      "id": "rerun",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.bioma.ai/mcp/rerun",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "servers": [
+        {
+          "server": "rerun",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "none"
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -441,6 +502,51 @@
             "admin:manage"
           ],
           "metadata": {}
+        },
+        {
+          "id": "allow_rerun_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call"
+          ],
+          "profiles": [
+            "rerun"
+          ],
+          "servers": [
+            "rerun"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_rerun_service_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call"
+          ],
+          "profiles": [
+            "rerun"
+          ],
+          "servers": [
+            "rerun"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
         }
       ],
       "metadata": {}
@@ -482,7 +588,8 @@
       "display_name": "Veoveo Operator Local Client",
       "client_surface": "full_mcp",
       "allowed_profiles": [
-        "operator"
+        "operator",
+        "rerun"
       ],
       "grant_types": [
         "authorization_code_pkce"
@@ -570,7 +677,8 @@
       "display_name": "Veoveo Operator Service",
       "client_surface": "full_mcp",
       "allowed_profiles": [
-        "operator"
+        "operator",
+        "rerun"
       ],
       "grant_types": [
         "client_credentials"
@@ -623,7 +731,8 @@
       "authorization_server": "veoveo",
       "allowed_profiles": [
         "operator",
-        "admin"
+        "admin",
+        "rerun"
       ],
       "client_id": "853550a7-5fd4-421c-abd2-bea0216fa579",
       "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",
