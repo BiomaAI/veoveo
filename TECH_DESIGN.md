@@ -1,7 +1,9 @@
-# Technical Design: an all-in MCP architecture
+# Technical Design: Veoveo's all-in MCP architecture
 
-This document explains the design strategy behind `veoveo-media-mcp` — and
-specifically why it looks different from most MCP servers you'll find in the wild.
+This document explains Veoveo's MCP architecture: the shared contract crate, the
+production gateway, and hosted domain servers such as `veoveo-media-mcp`. Media is the
+first reference server, so many examples use `media://` resources, but the design applies
+to future simulation, RL, optimization, and other Veoveo MCP servers.
 
 ## The premise: protocol-first, not lowest-common-denominator
 
@@ -14,9 +16,10 @@ subscriptions, tasks, notifications — sit unused because "clients don't suppor
 We reject that premise. **We define the required MCP capability profile and test it.**
 That inverts the design pressure: instead of dumbing the server down to weak clients, we
 push every concern to the protocol feature that was designed for it. Veoveo-compatible
-clients should consume the full protocol surface. The client CLI in this repo is not a
-product client - it is the conformance test. If a protocol surface exists on the server,
-the CLI exercises it end to end against real traffic.
+clients should consume the full protocol surface. The conformance CLI and Rust smoke
+harness in this repo are not product clients; they are contract enforcement. If a
+protocol surface exists on the server or gateway, tests exercise it end to end against
+real process boundaries.
 
 The payoff is a server whose canonical generation action is one tool, yet loses nothing:
 
@@ -29,7 +32,7 @@ The payoff is a server whose canonical generation action is one tool, yet loses 
 | "tell me when it's done" | impossible; poll | `resources/subscribe` → `notifications/resources/updated` |
 | "show progress" | log lines in tool output | `notifications/progress` + task `statusMessage` |
 | "abort it" | `cancel_job` tool | `tasks/cancel` |
-| namespacing | `media_run`, `media_search`... | server identity (`serverInfo.name = media`) + `media://` URI scheme; tool is just `run` |
+| namespacing | `media_run`, `media_search`... | direct server identity (`serverInfo.name = media`) + `media://` URI scheme; local tool is `run`, while the gateway projects it to `media__run` only when aggregating servers |
 
 Nothing above is exotic. It's all in the spec. Being "all in" simply means using it.
 
@@ -115,21 +118,31 @@ A completed `run` returns a `CallToolResult` carrying:
 - a human-readable text block (model, output count, timing),
 - one `ResourceLink` per output (`media://artifact/{sha256}` + mime type) — outputs are
   addressable without exposing provider CDN URLs,
-- `structuredContent`: the provider prediction JSON plus artifact metadata for
+- `structuredContent`: the provider prediction summary plus redacted artifact metadata for
   programmatic consumers.
 
 Provider output URLs are copied once into the server-owned artifact store, then redacted
-from the client-facing result. Inputs the provider must fetch are served from the server's
-own `/files/*` static route through the public tunnel URL — the same single process
-handles MCP, webhooks, artifacts, and media.
+from every client-facing result. Artifact metadata keeps `media://artifact/{sha256}` as
+the canonical identity; `download_url` is omitted unless a future deployment deliberately
+issues a short-lived, user-authorized content URL. Inputs the provider must fetch are
+served from the media server's `/files/*` route through the public origin. That route,
+provider webhooks, and artifact byte plumbing are provider/content infrastructure, not
+client discovery APIs.
 
 ## The client surface is MCP, only MCP
 
-The server binds one HTTP listener, but its routes serve three different parties — and
-only one of them is a contract:
+The deployed client entrypoint is the Veoveo gateway profile path,
+`/mcp/{profile}`. Hosted domain servers such as media still have direct MCP endpoints for
+internal testing and service composition, but external clients should normally connect to
+the gateway. One public origin can serve multiple routes, but only MCP is a client
+contract:
 
-- `/mcp` — the protocol's transport. This is the *entire* client surface.
-- `/webhooks/{provider}`, `/files/*` — internal necessities for parties that cannot speak
+- `/mcp/{profile}` — the protocol transport exposed by the gateway. This is the client
+  surface.
+- hosted-server MCP routes such as `/media/mcp` — internal/test contract targets, blocked
+  at the public edge in the reference deployment.
+- `/media/webhooks/{provider}`, `/media/files/*`, `/media/artifacts/*` — internal
+  necessities for parties that cannot speak
   MCP: providers must POST callbacks somewhere and GET input media from somewhere. These
   routes are plumbing, undocumented for clients, and never carry anything client-facing.
 - `/healthz` — ops.
@@ -212,14 +225,27 @@ A fully compliant client should see and use the richer MCP surfaces. A tools-onl
 may receive helper tools, but that does not lower conformance requirements for Veoveo
 servers or the gateway.
 
-The next improvements are:
+Implemented compatibility behavior:
 
-1. Add paged/searchable catalog helper semantics (`limit`, cursor/offset, query, type,
-   provider, price/capability filters) while keeping `media://models` and
-   `completion/complete` canonical.
-2. Add conformance/smoke coverage for both paths: full-protocol clients and compatibility
-   helper clients.
-3. Add short-lived, user-authorized browser download URLs only when a deployment needs
+- Full-MCP clients such as `operator-local-public` see canonical tools and no helper
+  clutter; `media__run` remains task-required.
+- Tools-compatible hosted clients such as `operator-hosted-public` see only explicitly
+  allowed helpers: media model discovery, media schema lookup, authorized artifact read,
+  and the Veoveo `task_result` helper.
+- The direct task-call adapter creates a real upstream MCP task, records a gateway task
+  mapping, waits briefly, returns final output when ready, or returns
+  `veoveo://task/{task_id}` plus structured task state when still running.
+- Small authorized image artifacts can be returned as MCP image content blocks for weak
+  clients; large artifacts stay resource-addressed.
+- Rust smoke tests exercise both paths: full-protocol clients and tools-compatible helper
+  clients.
+
+Remaining improvements:
+
+1. Extend paged/searchable catalog helper semantics beyond the current `query`, `type`,
+   and `limit` support with cursor/offset, provider, price, and capability filters while
+   keeping `media://models` and `completion/complete` canonical.
+2. Add short-lived, user-authorized browser download URLs only when a deployment needs
    browser-style downloads, without replacing MCP resource reads or helper-mediated blob
    results.
 
@@ -256,7 +282,8 @@ resilient provider-backed generation servers. That layer should standardize the 
 - durable task recovery across restarts,
 - consistent task lifecycle for long-running provider jobs,
 - artifact ingestion into a server-owned store,
-- `{scheme}://artifact/{sha256}` plus `/artifacts/{sha256}` download URLs,
+- `{scheme}://artifact/{sha256}` plus optional content plumbing for authorized byte
+  transfer,
 - usage estimates, actuals, and usage resources,
 - URI conventions across providers,
 - TTL/GC policy,
@@ -460,38 +487,39 @@ The shipped gateway must enforce these hard requirements:
 - support secret rotation by reference, not by redeploying code,
 - keep provider completion webhook-only for long-running provider jobs.
 
-The implementation plan is production-gateway-first:
+The current production-gateway foundation is:
 
-1. Add typed server manifest, gateway profile, principal, tenant, scope, data-label,
-   secret-reference, policy, policy-decision, audit-event, token-subject, and runtime-state
-   models to `veoveo-mcp-contract`.
-2. Create a `mcp-gateway` crate that loads dynamic typed control data and connects to the
-   hosted upstreams enabled for a profile, starting with `media-mcp` but not hard-coding
-   media into the architecture.
-3. Add gateway durability with Postgres for dynamic control-plane revisions and DuckDB for
-   runtime state, audit evidence, and analytics. Keep secret values in `.env` for local
-   development and secret-manager references for enterprise deployments.
-4. Route the single public origin through an explicit edge proxy in Compose. The edge
-   routes `/mcp/{profile}`, `/oauth/*`, `.well-known` auth metadata, and `/admin/*` to the
-   gateway, while routing provider plumbing such as `/media/webhooks`, `/media/files`, and
-   `/media/artifacts` to the owning media server. Direct hosted-server MCP routes such as
-   `/media/mcp` remain internal/testing targets and are not public client routes. Published
-   local development ports bind to loopback only; public ingress goes through the tunnel or
-   enterprise edge.
-5. Implement protected-resource metadata, `WWW-Authenticate` challenges, JWT/JWKS
-   validation, audience/resource binding, profile-scoped policy, and structured audit
-   events before exposing the gateway as the default client entrypoint.
-6. Add OAuth/OIDC authorization-code + PKCE, MCP Enterprise-Managed Authorization / ID-JAG,
-   and MCP OAuth Client Credentials. These are required auth modes, not optional demos.
-7. Add gateway-to-server internal tokens or signed assertions, server-side verification,
-   and policy enforcement inside `media-mcp`.
-8. Add conformance modes for direct servers and gateway profiles. Both paths must exercise
-   tools, resources, prompts, completions, tasks, usage, artifacts, notifications, auth
-   failures, policy denials, and audit emission.
-9. Add self-hosted deployment profiles for local, enterprise, and regulated environments.
-   Each profile must declare required external services, secret sources, object stores,
-   DuckDB state stores, telemetry sinks, typed ingress/egress target kinds, and
-   data-retention behavior.
+1. `veoveo-mcp-contract` owns typed server manifests, gateway profiles, principals,
+   tenants, scopes, data labels, secret references, policies, policy decisions, audit
+   events, token subjects, runtime state, and compatibility client-surface controls.
+2. `veoveo-mcp-gateway` loads dynamic typed control data from Postgres revisions and
+   connects to the hosted upstreams enabled for a profile. Media is the first upstream,
+   but server identity is manifest-driven and not hard-coded into profile naming.
+3. Postgres is authoritative for dynamic control-plane revisions. DuckDB owns gateway
+   runtime task mappings, subscription ownership, audit evidence, auth state, revocation
+   state, and analytics. Secret values stay out of both stores.
+4. The reference Compose edge routes `/mcp/{profile}`, `/oauth/*`, `.well-known` auth
+   metadata, and `/admin/*` to the gateway, while routing provider plumbing such as
+   `/media/webhooks`, `/media/files`, and `/media/artifacts` to the owning media server.
+   Direct hosted-server MCP routes such as `/media/mcp` remain internal/testing targets
+   and are not public client routes. Published local development ports bind to loopback
+   only; public ingress goes through the managed tunnel or enterprise edge.
+5. The gateway implements protected-resource metadata, `WWW-Authenticate` challenges,
+   JWT/JWKS validation, audience/resource binding, profile-scoped policy, OAuth/OIDC
+   authorization-code + PKCE, MCP Enterprise-Managed Authorization / ID-JAG, MCP OAuth
+   Client Credentials, and structured auth/policy audit events.
+6. Access tokens are bound to one OAuth client id and one gateway profile resource. Old
+   token shapes without `client_id` are invalid by design.
+7. Hosted servers receive short-lived gateway-to-server signed assertions. Media verifies
+   those assertions and enforces server-side task ownership, artifact ownership, usage
+   access, and regulated labels.
+8. Conformance and Rust smoke modes cover direct servers and gateway profiles. They
+   exercise tools, resources, prompts, completions, tasks, usage, artifacts,
+   notifications, auth failures, policy denials, helper-client surfaces, and audit
+   emission.
+9. Self-hosted deployment profiles must declare required external services, secret
+   sources, object stores, DuckDB state stores, telemetry sinks, typed ingress/egress
+   target kinds, service-to-service transport, and data-retention behavior.
 
 ## Enterprise deployment and pluggable infrastructure
 
@@ -620,7 +648,7 @@ in-repo Rust harness remains the right solution.
 
 ## Verified behavior
 
-Both paths were proven against a production media provider, through a real cloudflared tunnel:
+The production media path has been proven through a real cloudflared tunnel:
 
 1. `openai/gpt-image-2/edit` — input image served via `/files`, 122.9s inference,
    completed by provider webhook.
@@ -629,10 +657,23 @@ Both paths were proven against a production media provider, through a real cloud
    notifications live, then downloaded outputs from the resource links.
 
 Plus: schema validation rejects bad input before submission, `tasks/cancel` aborts
-in-flight work, and completions rank prefix matches across the full 988-model registry.
+in-flight work, and completions rank prefix matches across the full provider registry.
+
+The Rust smoke suite now verifies the gateway contract under realistic local process
+boundaries:
+
+- full-MCP clients see canonical protocol surfaces and no compatibility helper clutter,
+- tools-compatible hosted clients see only explicitly allowed helpers,
+- direct task adaptation creates real upstream tasks and returns `veoveo://task/{task_id}`,
+- `task_result` retrieves final task output through the same task mapping and policy path,
+- `media__artifact` reads authorized small image artifacts as MCP image content blocks,
+- artifact `download_url` is redacted from client-facing structured content,
+- auth, policy, task, resource, artifact, usage, notification, and audit paths are checked.
+
 The local workspace tests cover the current artifact/usage URI contract, DuckDB-backed
-state and analytics helpers, webhook signature verification, schema extraction, and the
-separate conformance CLI crate build.
+state and analytics helpers, webhook signature verification, schema extraction, control
+plane validation, OAuth client surfaces, gateway auth/token binding, and the separate
+conformance CLI crate build.
 
 Media server retention is enforced locally: terminal task metadata, provider prediction
 rows, usage analytics rows, artifact metadata, artifact owners, and artifact bytes are
