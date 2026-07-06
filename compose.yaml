@@ -172,6 +172,11 @@ services:
       - "365"
     volumes:
       - gateway_state:/var/lib/veoveo/gateway
+    extra_hosts:
+      # The rerun stdio bridge runs on the host next to the Rerun viewer,
+      # because `rerun viewer-mcp` only dials a local viewer. The single-label
+      # alias satisfies compose_internal_http upstream validation.
+      - "rerun-bridge:host-gateway"
     environment:
       VEOVEO_IDP_OIDC_CLIENT_SECRET: "${VEOVEO_IDP_OIDC_CLIENT_SECRET:?set VEOVEO_IDP_OIDC_CLIENT_SECRET}"
       VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
