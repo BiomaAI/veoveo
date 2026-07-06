@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     TimeseriesDuckDbFormat, TimeseriesDuckDbReadOptions, TimeseriesDuckDbSource,
-    TimeseriesForecastMethod, TimeseriesForecastRequest, TimeseriesForecastSummary,
-    TimeseriesSeriesSummary,
+    TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
+    TimeseriesForecastSummary, TimeseriesRowFilter, TimeseriesSeriesSummary,
 };
 
 const DEFAULT_SERIES_ID: &str = "series";
@@ -57,6 +57,7 @@ struct RrdProvenance<'a> {
     source_digest: String,
     source: SourceProvenance,
     mapping: &'a veoveo_mcp_contract::TimeseriesTableMapping,
+    training_filter: Option<&'a TimeseriesRowFilter>,
     method: &'a TimeseriesForecastMethod,
     horizon: u32,
 }
@@ -124,6 +125,7 @@ pub fn run_forecast(
         source_digest,
         source: source_provenance(&request.source),
         mapping: &request.mapping,
+        training_filter: request.training_filter.as_ref(),
         method: &request.method,
         horizon: request.horizon,
     };
@@ -161,6 +163,9 @@ fn validate_request(request: &TimeseriesForecastRequest) -> Result<()> {
     {
         bail!("source.uris must not be empty");
     }
+    if let Some(filter) = &request.training_filter {
+        validate_row_filter(filter)?;
+    }
     Ok(())
 }
 
@@ -170,6 +175,47 @@ fn validate_identifier(label: &str, value: &str) -> Result<()> {
     }
     if value.contains('\0') {
         bail!("{label} must not contain NUL bytes");
+    }
+    Ok(())
+}
+
+fn validate_row_filter(filter: &TimeseriesRowFilter) -> Result<()> {
+    match filter {
+        TimeseriesRowFilter::Eq { column, value } | TimeseriesRowFilter::Ne { column, value } => {
+            validate_identifier("filter column", column)?;
+            validate_filter_value(value)
+        }
+        TimeseriesRowFilter::IsNotNull { column } => validate_identifier("filter column", column),
+        TimeseriesRowFilter::In { column, values } => {
+            validate_identifier("filter column", column)?;
+            if values.is_empty() {
+                bail!("filter `in` values must not be empty");
+            }
+            for value in values {
+                validate_filter_value(value)?;
+            }
+            Ok(())
+        }
+        TimeseriesRowFilter::And { filters } => validate_filter_group("and", filters),
+        TimeseriesRowFilter::Or { filters } => validate_filter_group("or", filters),
+    }
+}
+
+fn validate_filter_value(value: &TimeseriesFilterValue) -> Result<()> {
+    if let TimeseriesFilterValue::F64(value) = value
+        && !value.is_finite()
+    {
+        bail!("filter f64 values must be finite");
+    }
+    Ok(())
+}
+
+fn validate_filter_group(op: &str, filters: &[TimeseriesRowFilter]) -> Result<()> {
+    if filters.is_empty() {
+        bail!("filter `{op}` must contain at least one child filter");
+    }
+    for filter in filters {
+        validate_row_filter(filter)?;
     }
     Ok(())
 }
@@ -233,6 +279,13 @@ fn read_observations(
         .map(|column| format!("CAST({} AS VARCHAR)", quote_ident(column)))
         .unwrap_or_else(|| "NULL".to_string());
     let value_expr = quote_ident(&request.mapping.value_column);
+    let filter_clause = request
+        .training_filter
+        .as_ref()
+        .map(row_filter_sql)
+        .transpose()?
+        .map(|sql| format!(" AND ({sql})"))
+        .unwrap_or_default();
     let sql = format!(
         r#"
         SELECT
@@ -244,6 +297,7 @@ fn read_observations(
             SELECT row_number() OVER () - 1 AS source_row, * FROM veoveo_source
         )
         WHERE {value_expr} IS NOT NULL
+            {filter_clause}
         ORDER BY series_id, source_row
         "#
     );
@@ -276,6 +330,52 @@ fn read_observations(
             });
     }
     Ok(grouped)
+}
+
+fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
+    Ok(match filter {
+        TimeseriesRowFilter::Eq { column, value } => {
+            format!("{} = {}", quote_ident(column), filter_value_sql(value))
+        }
+        TimeseriesRowFilter::Ne { column, value } => {
+            format!("{} <> {}", quote_ident(column), filter_value_sql(value))
+        }
+        TimeseriesRowFilter::In { column, values } => {
+            let values = values
+                .iter()
+                .map(filter_value_sql)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{} IN ({values})", quote_ident(column))
+        }
+        TimeseriesRowFilter::IsNotNull { column } => format!("{} IS NOT NULL", quote_ident(column)),
+        TimeseriesRowFilter::And { filters } => filters
+            .iter()
+            .map(|filter| row_filter_sql(filter).map(|sql| format!("({sql})")))
+            .collect::<Result<Vec<_>>>()?
+            .join(" AND "),
+        TimeseriesRowFilter::Or { filters } => filters
+            .iter()
+            .map(|filter| row_filter_sql(filter).map(|sql| format!("({sql})")))
+            .collect::<Result<Vec<_>>>()?
+            .join(" OR "),
+    })
+}
+
+fn filter_value_sql(value: &TimeseriesFilterValue) -> String {
+    match value {
+        TimeseriesFilterValue::String(value) => quote_literal(value),
+        TimeseriesFilterValue::Bool(value) => {
+            if *value {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            }
+        }
+        TimeseriesFilterValue::I64(value) => value.to_string(),
+        TimeseriesFilterValue::U64(value) => value.to_string(),
+        TimeseriesFilterValue::F64(value) => value.to_string(),
+    }
 }
 
 fn forecast_series(rows: &[Observation], horizon: u32) -> Vec<ForecastPoint> {
@@ -546,8 +646,8 @@ fn entity_segment(value: &str) -> String {
 mod tests {
     use serde::Deserialize;
     use veoveo_mcp_contract::{
-        TimeseriesDuckDbFormat, TimeseriesDuckDbSource, TimeseriesForecastMethod,
-        TimeseriesForecastRequest, TimeseriesTableMapping,
+        TimeseriesDuckDbFormat, TimeseriesDuckDbSource, TimeseriesFilterValue,
+        TimeseriesForecastMethod, TimeseriesForecastRequest, TimeseriesTableMapping,
     };
 
     use super::*;
@@ -555,6 +655,7 @@ mod tests {
     #[derive(Debug, Deserialize)]
     struct FixtureManifest {
         schema: FixtureSchema,
+        training_filter: TimeseriesRowFilter,
         examples: Vec<FixtureExample>,
     }
 
@@ -569,6 +670,7 @@ mod tests {
         id: String,
         file: String,
         rows: u64,
+        training_rows: u64,
         smoke_horizon: u32,
     }
 
@@ -597,6 +699,7 @@ mod tests {
                     value_column: "value".into(),
                     series_column: None,
                 },
+                training_filter: None,
                 horizon: 3,
                 method: TimeseriesForecastMethod::NaiveTrend,
             },
@@ -635,6 +738,7 @@ mod tests {
                     value_column: manifest.schema.value_column.clone(),
                     series_column: None,
                 },
+                training_filter: Some(manifest.training_filter.clone()),
                 horizon: example.smoke_horizon,
                 method: TimeseriesForecastMethod::NaiveTrend,
             },
@@ -642,10 +746,36 @@ mod tests {
         .unwrap();
 
         assert!(!artifact.rrd_bytes.is_empty());
-        assert_eq!(artifact.summary.source_rows, example.rows);
+        assert!(example.training_rows < example.rows);
+        assert_eq!(artifact.summary.source_rows, example.training_rows);
         assert_eq!(
             artifact.summary.series[0].forecast_rows,
             u64::from(example.smoke_horizon)
+        );
+    }
+
+    #[test]
+    fn training_filter_sql_is_typed_and_quoted() {
+        let filter = TimeseriesRowFilter::And {
+            filters: vec![
+                TimeseriesRowFilter::Eq {
+                    column: "split".into(),
+                    value: TimeseriesFilterValue::String("context".into()),
+                },
+                TimeseriesRowFilter::In {
+                    column: "series id".into(),
+                    values: vec![
+                        TimeseriesFilterValue::String("a'b".into()),
+                        TimeseriesFilterValue::String("b".into()),
+                    ],
+                },
+            ],
+        };
+
+        validate_row_filter(&filter).unwrap();
+        assert_eq!(
+            row_filter_sql(&filter).unwrap(),
+            "(\"split\" = 'context') AND (\"series id\" IN ('a''b', 'b'))"
         );
     }
 
