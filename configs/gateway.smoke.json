@@ -371,7 +371,8 @@
         "operator"
       ],
       "grant_types": [
-        "authorization_code_pkce"
+        "authorization_code_pkce",
+        "enterprise_managed_authorization"
       ],
       "auth_methods": [
         "none"
