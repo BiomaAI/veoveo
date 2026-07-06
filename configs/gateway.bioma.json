@@ -100,6 +100,40 @@
       "metadata": {}
     },
     {
+      "slug": "timeseries",
+      "uri_scheme": "timeseries",
+      "mount_path": "/timeseries",
+      "mcp_path": "/timeseries/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://timeseries-mcp:8789/timeseries/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "forecast"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "owned_routes": [
+        {
+          "path": "/timeseries/artifacts",
+          "purpose": "artifact_bytes"
+        }
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "rerun",
       "uri_scheme": "rerun",
       "mount_path": "/rerun",
@@ -168,6 +202,29 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "timeseries",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "forecast"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "timeseries"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -213,6 +270,29 @@
             "mode": "all"
           },
           "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "timeseries",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "forecast"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "timeseries"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
           "tasks": "enabled"
         }
       ],
@@ -547,6 +627,156 @@
             "operator:use"
           ],
           "metadata": {}
+        },
+        {
+          "id": "allow_operator_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_admin_service_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ]
         }
       ],
       "metadata": {}

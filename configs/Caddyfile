@@ -49,6 +49,15 @@
 		reverse_proxy media-mcp:8787
 	}
 
+	handle /timeseries/artifacts* {
+		reverse_proxy timeseries-mcp:8789
+	}
+
+	handle /timeseries/healthz {
+		reverse_proxy timeseries-mcp:8789
+	}
+
 	respond /media/mcp* 404
+	respond /timeseries/mcp* 404
 	respond 404
 }

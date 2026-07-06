@@ -34,9 +34,11 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket media-artifacts 2>/dev/null \
-          || aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket media-artifacts; do
-          sleep 2
+        for bucket in media-artifacts timeseries-artifacts; do
+          until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$bucket" 2>/dev/null \
+            || aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$bucket"; do
+            sleep 2
+          done
         done
     environment:
       AWS_ACCESS_KEY_ID: rustfsadmin
@@ -112,6 +114,47 @@ services:
     profiles:
       - dev
 
+  timeseries-mcp:
+    build:
+      context: .
+      dockerfile: crates/timeseries-mcp/Dockerfile
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+    command:
+      - "--port"
+      - "8789"
+      - "--public-base-url"
+      - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+      - "--allow-loopback-hosts"
+      - "--allowed-host"
+      - "timeseries-mcp:8789"
+      - "--state-db"
+      - "/var/lib/veoveo/timeseries/state.duckdb"
+      - "--artifact-store"
+      - "s3-compatible"
+      - "--artifact-endpoint"
+      - "http://rustfs:9000"
+      - "--artifact-allow-http"
+      - "--artifact-bucket"
+      - "timeseries-artifacts"
+      - "--artifact-region"
+      - "us-east-1"
+    environment:
+      VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
+      OTEL_SERVICE_NAME: veoveo-timeseries-mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      RUST_LOG: "info,veoveo_timeseries_mcp=debug"
+      AWS_ACCESS_KEY_ID: rustfsadmin
+      AWS_SECRET_ACCESS_KEY: rustfsadmin
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - timeseries_state:/var/lib/veoveo/timeseries
+    ports:
+      - "127.0.0.1:8789:8789"
+    profiles:
+      - dev
+
   rerun-bridge:
     build:
       context: .
@@ -175,6 +218,8 @@ services:
     depends_on:
       media-mcp:
         condition: service_started
+      timeseries-mcp:
+        condition: service_started
       mcp-gateway-seed:
         condition: service_completed_successfully
     command:
@@ -219,5 +264,6 @@ services:
 volumes:
   rustfs_data:
   media_state:
+  timeseries_state:
   gateway_control:
   gateway_state:

@@ -226,14 +226,79 @@ pub(super) async fn cmd_prompt(
     Ok(())
 }
 
-pub(super) async fn cmd_call(client: &Client, tool_name: String, arguments: String) -> Result<()> {
+pub(super) async fn cmd_call(
+    client: &Client,
+    tool_name: String,
+    arguments: String,
+    task: bool,
+) -> Result<()> {
     let arguments = serde_json::from_str::<Value>(&arguments)?
         .as_object()
         .cloned()
         .ok_or_else(|| anyhow!("tool arguments must be a JSON object"))?;
-    let result = client
-        .call_tool(CallToolRequestParams::new(tool_name).with_arguments(arguments))
+    if !task {
+        let result = client
+            .call_tool(CallToolRequestParams::new(tool_name).with_arguments(arguments))
+            .await?;
+        print_call_tool_result(&result);
+        return Ok(());
+    }
+
+    let params = CallToolRequestParams::new(tool_name)
+        .with_arguments(arguments)
+        .with_task(TaskMetadata::new().with_ttl(3_600_000));
+    let created = client
+        .send_request(ClientRequest::CallToolRequest(Request::new(params)))
         .await?;
+    let ServerResult::CreateTaskResult(created) = created else {
+        return Err(anyhow!("expected CreateTaskResult, got {created:?}"));
+    };
+    let task_id = created.task.task_id.clone();
+    println!("task {task_id} created (status {:?})", created.task.status);
+
+    let poll_ms = created.task.poll_interval.unwrap_or(3000);
+    let final_task = loop {
+        tokio::time::sleep(Duration::from_millis(poll_ms)).await;
+        let info = client
+            .send_request(ClientRequest::GetTaskRequest(Request::new(
+                GetTaskParams::new(task_id.clone()),
+            )))
+            .await?;
+        let ServerResult::GetTaskResult(info) = info else {
+            return Err(anyhow!("expected GetTaskResult, got {info:?}"));
+        };
+        println!(
+            "poll: {:?} — {}",
+            info.task.status,
+            info.task.status_message.as_deref().unwrap_or_default()
+        );
+        match info.task.status {
+            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => {
+                break info.task;
+            }
+            _ => {}
+        }
+    };
+    if final_task.status != TaskStatus::Completed {
+        let err = client
+            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
+                GetTaskPayloadParams::new(task_id.clone()),
+            )))
+            .await
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "unknown error".into());
+        return Err(anyhow!("task ended {:?}: {err}", final_task.status));
+    }
+
+    let payload = client
+        .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
+            GetTaskPayloadParams::new(task_id.clone()),
+        )))
+        .await?;
+    let ServerResult::CallToolResult(result) = payload else {
+        return Err(anyhow!("expected CallToolResult payload, got {payload:?}"));
+    };
     print_call_tool_result(&result);
     Ok(())
 }

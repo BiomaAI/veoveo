@@ -382,7 +382,8 @@ async fn main() -> Result<()> {
         Cmd::Call {
             tool_name,
             arguments,
-        } => cmd_call(&client, tool_name, arguments).await,
+            task,
+        } => cmd_call(&client, tool_name, arguments, task).await,
         Cmd::CompleteResource {
             uri,
             argument,

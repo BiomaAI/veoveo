@@ -338,6 +338,9 @@ pub(super) enum Cmd {
         /// Tool arguments as a JSON object.
         #[arg(long)]
         arguments: String,
+        /// Invoke as an MCP task (SEP-1319) and poll to completion.
+        #[arg(long)]
+        task: bool,
     },
     /// Autocomplete any resource-template argument via completion/complete.
     CompleteResource {
