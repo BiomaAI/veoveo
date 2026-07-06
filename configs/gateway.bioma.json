@@ -64,6 +64,8 @@
         "notifications": true
       },
       "tools": [
+        "model_schema",
+        "models",
         "run"
       ],
       "prompts": [
@@ -112,6 +114,8 @@
           "tools": {
             "mode": "listed",
             "items": [
+              "model_schema",
+              "models",
               "run"
             ]
           },
@@ -155,6 +159,8 @@
           "tools": {
             "mode": "listed",
             "items": [
+              "model_schema",
+              "models",
               "run"
             ]
           },
@@ -211,6 +217,8 @@
             "media"
           ],
           "tools": [
+            "model_schema",
+            "models",
             "run"
           ],
           "resource_schemes": [
@@ -261,6 +269,8 @@
             "media"
           ],
           "tools": [
+            "model_schema",
+            "models",
             "run"
           ],
           "resource_schemes": [
@@ -308,6 +318,8 @@
             "media"
           ],
           "tools": [
+            "model_schema",
+            "models",
             "run"
           ],
           "resource_schemes": [
@@ -358,6 +370,8 @@
             "media"
           ],
           "tools": [
+            "model_schema",
+            "models",
             "run"
           ],
           "resource_schemes": [

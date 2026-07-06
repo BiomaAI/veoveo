@@ -6,8 +6,10 @@
 //!   /media/files/*         — optional static media dir so providers can fetch inputs by URL
 //!   /media/artifacts/*     — immutable artifact bytes already surfaced by MCP
 //!
-//! MCP surface (protocol-maximal, single tool):
+//! MCP surface (protocol-maximal):
 //!   tool `run(model, input)`         — task-required (SEP-1319)
+//!   tool `models(query?, type?, limit?)` — catalog search for tools-only clients
+//!   tool `model_schema(model)`       — exact input schema for tools-only clients
 //!   resource `media://models`        — compact catalog of all models
 //!   template `media://model/{model_id}`       — full input schema + pricing
 //!   template `media://prediction/{id}`        — live prediction state, subscribable
@@ -74,6 +76,8 @@ mod generation_task;
 mod host;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
+#[path = "server/model_tools.rs"]
+mod model_tools;
 #[path = "server/outputs.rs"]
 mod outputs;
 #[path = "server/ownership.rs"]
@@ -92,6 +96,7 @@ use host::validate_host;
 use internal_auth::{
     InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
 };
+use model_tools::{ModelSchemaArgs, ModelsArgs};
 use outputs::public_prediction;
 use ownership::{
     artifact_owned_by, artifact_owner_allows, internal_identity, optional_prediction_owner,
@@ -151,6 +156,61 @@ impl MediaMcp {
             "run requires task-based invocation",
             None,
         ))
+    }
+
+    #[tool(
+        title = "List media models",
+        description = "Search the media model catalog and return exact model ids for media__run. Use this when the MCP client cannot browse media://models resources.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<model_tools::ModelCatalogOutput>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn models(
+        &self,
+        Parameters(args): Parameters<ModelsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let models = self
+            .state
+            .registry()
+            .await
+            .map_err(|err| McpError::internal_error(err, None))?;
+        model_tools::models_result(&models, args)
+    }
+
+    #[tool(
+        title = "Get media model schema",
+        description = "Return the exact input JSON Schema and pricing metadata for one media model id.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<model_tools::ModelSchemaOutput>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn model_schema(
+        &self,
+        Parameters(args): Parameters<ModelSchemaArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let model = self
+            .state
+            .find_model(&args.model)
+            .await
+            .map_err(|err| McpError::internal_error(err, None))?
+            .ok_or_else(|| {
+                McpError::invalid_params(
+                    format!(
+                        "unknown model '{}'; call models with a query or browse media://models",
+                        args.model
+                    ),
+                    None,
+                )
+            })?;
+        model_tools::model_schema_result(model)
     }
 }
 

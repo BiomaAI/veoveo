@@ -173,6 +173,74 @@ pub(crate) async fn gateway_task_run(
 
     let session = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token).await?;
     let listed_tools = session.list_tools(Default::default()).await?;
+    for expected_tool in ["media__models", "media__model_schema", "media__run"] {
+        if !listed_tools
+            .tools
+            .iter()
+            .any(|tool| tool.name.as_ref() == expected_tool)
+        {
+            bail!("gateway did not list {expected_tool}: {listed_tools:?}");
+        }
+    }
+    let models_result = session
+        .call_tool(
+            CallToolRequestParams::new("media__models").with_arguments(
+                serde_json::json!({
+                    "query": "fake",
+                    "type": "image-to-image",
+                    "limit": 5
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?;
+    if models_result.is_error == Some(true) {
+        bail!("gateway media__models returned an error: {models_result:?}");
+    }
+    let models_structured = models_result
+        .structured_content
+        .clone()
+        .ok_or_else(|| anyhow!("media__models returned no structured content"))?;
+    let models = models_structured
+        .get("models")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("media__models returned no models array: {models_structured}"))?;
+    if !models.iter().any(|model| {
+        model
+            .get("model_id")
+            .and_then(Value::as_str)
+            .is_some_and(|model_id| model_id == "fake/image")
+    }) {
+        bail!("media__models did not return fake/image: {models_structured}");
+    }
+    let schema_result = session
+        .call_tool(
+            CallToolRequestParams::new("media__model_schema").with_arguments(
+                serde_json::json!({ "model": "fake/image" })
+                    .as_object()
+                    .cloned()
+                    .unwrap(),
+            ),
+        )
+        .await?;
+    if schema_result.is_error == Some(true) {
+        bail!("gateway media__model_schema returned an error: {schema_result:?}");
+    }
+    let schema_structured = schema_result
+        .structured_content
+        .clone()
+        .ok_or_else(|| anyhow!("media__model_schema returned no structured content"))?;
+    if schema_structured.get("model_id").and_then(Value::as_str) != Some("fake/image")
+        || !schema_structured
+            .get("request_schema")
+            .and_then(|schema| schema.get("required"))
+            .and_then(Value::as_array)
+            .is_some_and(|required| required.iter().any(|field| field == "prompt"))
+    {
+        bail!("media__model_schema did not return fake/image prompt schema: {schema_structured}");
+    }
     let media_tool = listed_tools
         .tools
         .iter()
@@ -278,7 +346,7 @@ pub(crate) async fn gateway_task_run(
     let audit_summary: Value = serde_json::from_str(&audit_summary)?;
     assert_no_audit_denies(&audit_summary)?;
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
-    assert_audit_method(&audit_summary, "tools/call", 3, 0)?;
+    assert_audit_method(&audit_summary, "tools/call", 5, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/get", 2, 0)?;
     assert_audit_method(&audit_summary, "tasks/result", 3, 0)?;
