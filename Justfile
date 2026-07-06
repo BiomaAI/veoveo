@@ -29,6 +29,10 @@ check:
     cargo fmt --all --check
     cargo test --workspace
 
+# Bridge a stdio MCP server (default: Rerun viewer MCP) to streamable HTTP.
+stdio-bridge listen='127.0.0.1:8790' +child='rerun viewer-mcp':
+    cargo run -p veoveo-mcp-stdio-bridge --bin bridge -- --listen {{listen}} -- {{child}}
+
 # Validate the typed gateway control plane.
 gateway-validate:
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-control-plane}}

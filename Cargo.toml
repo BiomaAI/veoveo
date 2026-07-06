@@ -3,6 +3,7 @@ members = [
     "crates/mcp-gateway",
     "crates/mcp-conformance",
     "crates/mcp-contract",
+    "crates/mcp-stdio-bridge",
     "crates/media-mcp",
     "crates/smoke",
     "crates/timeseries-mcp",
