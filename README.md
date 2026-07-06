@@ -36,13 +36,22 @@ generic full-protocol conformance CLI lives in its own conformance crate.
 
 ## MCP surface
 
-One media tool, everything else is protocol. Direct media exposes `run`; the gateway exposes
-that tool as `media__run` because it collapses all hosted servers into one outward MCP
-surface.
+The canonical media action is `run`; discovery, state, artifacts, usage, prompts, and
+completion live on their proper MCP protocol surfaces. Direct media exposes `run`; the
+gateway exposes that tool as `media__run` because it collapses all hosted servers into one
+outward MCP surface.
+
+Veoveo does not reduce servers to tools-only MCP. The gateway and hosted servers may expose
+compatibility helper tools for clients that can authenticate and call tools but do not
+surface resources, tasks, prompts, completions, or artifact reads well in their UI. Those
+helpers are additive projections over the canonical protocol data, not separate APIs or
+second sources of truth.
 
 | Surface | What |
 |---|---|
 | tool `run(model, input)` | task-**required** (SEP-1319); input validated against the model's JSON Schema before submit; advertises a typed structured output schema |
+| helper tool `models(query, type, limit)` | read-only catalog search for tools-only clients; backed by `media://models` |
+| helper tool `model_schema(model)` | read-only exact schema lookup for tools-only clients; backed by `media://model/{model_id}` |
 | prompts | `media-model-select`, `media-image-edit`, `media-video-generate`, `media-task-review` |
 | resource `media://models` | compact catalog of all models (id, type, description, price) |
 | template `media://model/{model_id}` | full input JSON Schema + pricing for one model |
@@ -57,6 +66,12 @@ Task lifecycle: `tools/call` (+`task` metadata) → `CreateTaskResult` → poll 
 (statusMessage carries the prediction id) → `tasks/result` returns `media://artifact/{sha256}`
 resource links + structured content. `tasks/cancel` aborts. Provider webhook delivery is
 the only server-side completion path.
+
+Gateway profiles expose MCP tasks directly (`tasks/list`, `tasks/get`, `tasks/result`,
+`tasks/cancel`) and also adapt direct calls to task-required tools for clients that do not
+support task invocation. In that compatibility path, the gateway creates the upstream task,
+waits briefly, and either returns the completed result or a gateway-owned
+`veoveo://task/{task_id}` status resource.
 
 List surfaces owned by Veoveo servers (`tools/list`, `prompts/list`, `resources/list`,
 `resources/templates/list`, and `tasks/list`) honor MCP pagination cursors.

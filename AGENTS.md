@@ -26,6 +26,20 @@ Provider job completion is webhook-only. Do not add provider status polling, pol
 fallbacks, backup status checks, or timeout recovery paths that query the provider.
 Missing webhook delivery is an operational failure.
 
+## MCP Capability Bar
+
+Do not reduce Veoveo MCP servers to the lowest common denominator of tool-only clients.
+Servers and the gateway should use the full MCP protocol surface when it fits the domain:
+resources, resource templates, prompts, completions, tasks, subscriptions,
+notifications, typed structured content, and URI-based identities.
+
+Compatibility helpers are allowed only when they are explicit product features requested
+or accepted for clients that cannot use the richer MCP surfaces well. They must be
+additive projections over the canonical protocol behavior, not replacements for it.
+Helpers must reuse the same typed models, policy checks, audit paths, task state,
+artifact identities, and resource URIs. Do not add hidden fallbacks, alternate provider
+completion paths, unaudited content URLs, or a second source of truth.
+
 ## Strong Types
 
 Strong types are extremely important in this repository. Prefer typed structs, enums,

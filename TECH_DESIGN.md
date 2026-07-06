@@ -3,7 +3,7 @@
 This document explains the design strategy behind `veoveo-media-mcp` — and
 specifically why it looks different from most MCP servers you'll find in the wild.
 
-## The premise: we own both ends
+## The premise: protocol-first, not lowest-common-denominator
 
 Most MCP servers are written defensively, for the lowest common denominator of clients.
 Because typical hosts only reliably surface *tools*, servers compensate by flattening
@@ -11,14 +11,14 @@ everything into tools: `search_models`, `get_schema`, `check_status`, `get_resul
 `list_jobs`... The protocol's richer surfaces — resources, templates, completions,
 subscriptions, tasks, notifications — sit unused because "clients don't support them."
 
-We reject that premise. **We define the required MCP capability profile and test it.** That inverts the
-design pressure: instead of dumbing the server down to weak clients, we push every concern
-to the protocol feature that was designed for it, and require compatible MCP clients to
-consume it. The client CLI in this repo is not a product client — it is the conformance
-test. If a protocol surface exists on the server, the CLI exercises it end to end against
-real traffic.
+We reject that premise. **We define the required MCP capability profile and test it.**
+That inverts the design pressure: instead of dumbing the server down to weak clients, we
+push every concern to the protocol feature that was designed for it. Veoveo-compatible
+clients should consume the full protocol surface. The client CLI in this repo is not a
+product client - it is the conformance test. If a protocol surface exists on the server,
+the CLI exercises it end to end against real traffic.
 
-The payoff is a server whose *entire* API is one tool, yet loses nothing:
+The payoff is a server whose canonical generation action is one tool, yet loses nothing:
 
 | Concern | Weak-client answer | Our answer |
 |---|---|---|
@@ -147,19 +147,80 @@ cap messages around 4MB, embedded/blob resources are guided to ~1MB, base64 adds
 the core protocol has no ranged reads, chunking, or resume (SEP-1597/1708/2356 are open
 precisely because of this). The spec's own idiom for large content is link-not-blob:
 `ResourceLink` blocks may carry any URI, including custom schemes. Artifact results carry
-both identities: `media://artifact/{sha256}` as the canonical, protocol-readable one
-(blob via `resources/read`), and a `https://…/artifacts/{sha256}` content URL in artifact
-metadata for bulk retrieval. That route is GET-only, immutable, content-addressed —
-functionally a private CDN. Clients never discover anything there; every URL they touch
-was handed to them by the protocol. The moment it grows a second verb, a listing, or any
-fact not already in the protocol, it has become an API and broken the rule.
+`media://artifact/{sha256}` as the canonical, protocol-readable identity (blob via
+`resources/read`). Deployments may also issue short-lived, user-authorized gateway content
+URLs for bulk retrieval when a client needs browser-style download behavior. Raw
+server-owned artifact plumbing such as `/media/artifacts/{sha256}` is not itself a public
+client contract. Any user-facing content URL must be immutable, content-addressed, scoped
+to the authenticated principal, audited, and derived from an MCP result or resource read.
+The moment it grows a second verb, a listing, or any fact not already in the protocol, it
+has become an API and broken the rule.
+
+## Compatibility helpers must not dilute the contract
+
+Some real MCP hosts can authenticate and call tools, but still do not expose resources,
+tasks, prompts, completions, subscriptions, or binary/resource handling well enough for
+users to operate a rich server. Veoveo should make those clients useful without reducing
+the server contract to common mediocrity.
+
+The rule is: canonical behavior stays on the correct MCP surface, and compatibility
+helpers are additive projections of that same behavior.
+
+- Resources remain authoritative for catalogs, schemas, artifacts, usage, and live state.
+- Tasks remain authoritative for long-running work, task ownership, result retrieval, and
+  cancellation.
+- Prompts, completions, subscriptions, and notifications remain first-class protocol
+  features and must be covered by conformance.
+- Helper tools may expose narrow, read-only or action-oriented projections for clients
+  that cannot browse resources or manage tasks correctly.
+- Helpers must be backed by the same typed models, policy checks, audit path, state, and
+  URI identities as the canonical protocol surface.
+- Helpers must not introduce a second source of truth, second naming scheme, provider
+  polling path, unaudited download path, or unauthenticated content URL.
+
+Generic compatibility belongs at the gateway boundary. The gateway may expose a direct
+tool-call adapter for task-required tools: it creates the upstream MCP task, waits briefly,
+returns the final payload if the task completes quickly, or returns a gateway task handle
+and `veoveo://task/{task_id}` status resource when the task is still running. The gateway
+also forwards `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel` for clients
+that do support tasks.
+
+Domain-specific compatibility can live with the server that owns the domain knowledge,
+then be projected through the gateway by policy. Media currently exposes `models` and
+`model_schema` helper tools so tools-only clients can discover exact model ids and input
+schemas even if their host does not surface `media://models`, `media://model/{model_id}`,
+or `completion/complete`. Those helpers are not separate APIs; they are tool-shaped views
+over the same cached provider registry and schemas used by the resource and completion
+surfaces.
+
+Compatibility helpers should be selectable per gateway profile and, later, per client
+capability. A fully compliant client should see and use the richer MCP surfaces. A
+tools-only client may receive helper tools, but that does not lower conformance
+requirements for Veoveo servers or the gateway.
+
+The next improvements are:
+
+1. Add a generic gateway artifact helper for clients that cannot read artifact resources,
+   returning image/audio/video content through MCP tool result content blocks when the
+   payload is small enough and authorized.
+2. Stop surfacing unusable protected `/media/artifacts/{sha256}` URLs to end users unless
+   they are replaced by short-lived, user-authorized gateway download URLs.
+3. Add paged/searchable catalog helper semantics (`limit`, cursor/offset, query, type,
+   provider, price/capability filters) while keeping `media://models` and
+   `completion/complete` canonical.
+4. Add conformance/smoke coverage for both paths: full-protocol clients and compatibility
+   helper clients.
+5. Let gateway profiles advertise helpers intentionally instead of exposing every helper
+   everywhere by accident.
 
 ## What "all in" costs, and why it's worth it
 
-The honest trade-off: this server is a poor citizen in a lowest-common-denominator host.
-A client that only does `tools/list` + `tools/call` cannot even invoke `run` (task-required
-returns `-32601` on plain calls — per spec). We consider that a feature: it makes protocol
-support non-optional for our clients, so the capabilities we rely on can never silently rot.
+The honest trade-off: a direct hosted server remains a poor citizen in a
+lowest-common-denominator host. A client that only does `tools/list` + `tools/call`
+cannot directly invoke media `run` without task metadata; task-required direct calls
+return an MCP error. The gateway may adapt that call for weak clients, but the direct
+server contract still makes protocol support non-optional for Veoveo-compatible clients,
+so the capabilities we rely on can never silently rot.
 
 What we get in return:
 
