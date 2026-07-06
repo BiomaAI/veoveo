@@ -18,6 +18,7 @@ pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
 pub mod telemetry;
+pub mod timeseries;
 pub mod uri;
 pub mod usage;
 pub mod waiters;
@@ -85,6 +86,11 @@ pub use tasks::{
     parse_gateway_task_resource_uri, related_task_meta, set_related_task_meta,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
+pub use timeseries::{
+    TimeseriesDuckDbFormat, TimeseriesDuckDbReadOptions, TimeseriesDuckDbSource,
+    TimeseriesForecastMethod, TimeseriesForecastOutput, TimeseriesForecastRequest,
+    TimeseriesForecastSummary, TimeseriesSeriesSummary, TimeseriesTableMapping,
+};
 pub use uri::{
     ServerResourceUri, ServerResourceUriError, ServerResourceUris, artifact_object_key, is_sha256,
 };

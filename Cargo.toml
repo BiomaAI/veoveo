@@ -5,6 +5,7 @@ members = [
     "crates/mcp-contract",
     "crates/media-mcp",
     "crates/smoke",
+    "crates/timeseries-mcp",
 ]
 resolver = "3"
 
@@ -23,7 +24,7 @@ base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
-duckdb = { version = "1.10504.0", features = ["chrono"] }
+duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "722adf347f198aaa531ca903d1d8c646c28c9e34", features = ["chrono"] }
 futures = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"
@@ -37,6 +38,8 @@ opentelemetry_sdk = "0.32.1"
 parking_lot = "0.12.5"
 reqwest = { version = "0.13.4", default-features = false }
 rcgen = "0.14.8"
+re_sdk = "0.34.0"
+re_sdk_types = "0.34.0"
 rmcp = "2.1.0"
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12"] }
 schemars = "1.2.1"
