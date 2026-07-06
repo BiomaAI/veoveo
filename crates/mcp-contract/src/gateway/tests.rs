@@ -116,6 +116,7 @@ fn media_manifest() -> ServerManifest {
             notifications: true,
         },
         tools: vec![LocalToolName::new("run").unwrap()],
+        compatibility_helpers: Vec::new(),
         prompts: vec![PromptName::new("model_help").unwrap()],
         required_scopes: vec![ScopeName::new("operator:use").unwrap()],
         owned_routes: vec![OwnedRoute {
@@ -239,6 +240,9 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
             id: OAuthClientId::new("operator-local-public").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
             display_name: Some("Veoveo Operator Local Client".to_string()),
+            client_surface: OAuthClientSurface::FullMcp,
+            allowed_compatibility_helpers: BTreeSet::new(),
+            direct_task_call_adapter: false,
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([
                 OAuthGrantType::AuthorizationCodePkce,
@@ -261,6 +265,9 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
             id: OAuthClientId::new("operator-service").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
             display_name: Some("Veoveo Operator Service".to_string()),
+            client_surface: OAuthClientSurface::FullMcp,
+            allowed_compatibility_helpers: BTreeSet::new(),
+            direct_task_call_adapter: false,
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),

@@ -176,6 +176,7 @@ impl From<&Principal> for PrincipalAuditAttributes {
 pub struct AccessTokenSubject {
     pub issuer: TokenIssuer,
     pub subject: TokenSubject,
+    pub oauth_client_id: OAuthClientId,
     pub audience: ProtectedResourceId,
     #[serde(default)]
     pub scopes: BTreeSet<ScopeName>,

@@ -322,6 +322,19 @@ impl GatewayCatalog {
             .map(|index| &self.control_plane.servers[*index])
     }
 
+    pub fn is_compatibility_helper(
+        &self,
+        server_slug: &ServerSlug,
+        tool: &veoveo_mcp_contract::LocalToolName,
+    ) -> bool {
+        self.server(server_slug).is_some_and(|server| {
+            server
+                .compatibility_helpers
+                .iter()
+                .any(|helper| helper == tool)
+        })
+    }
+
     pub fn profile_server(
         &self,
         profile_id: &GatewayProfileId,

@@ -188,6 +188,7 @@ pub(crate) fn project_call_tool_result(
         return Ok(());
     };
     for artifact in &mut output.artifacts {
+        artifact.download_url = None;
         if let Some(metadata) = artifact.metadata.as_object_mut()
             && metadata.get("task_id").and_then(|value| value.as_str())
                 == Some(mapping.upstream_task_id.as_str())

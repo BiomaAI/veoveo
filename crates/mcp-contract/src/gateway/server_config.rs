@@ -18,6 +18,8 @@ pub struct ServerManifest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<LocalToolName>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compatibility_helpers: Vec<LocalToolName>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prompts: Vec<PromptName>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_scopes: Vec<ScopeName>,

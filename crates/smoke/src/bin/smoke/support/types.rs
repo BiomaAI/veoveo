@@ -13,6 +13,8 @@ pub(crate) struct SmokeArtifactMetadata {
     pub(crate) sha256: String,
     pub(crate) artifact_uri: String,
     #[serde(default)]
+    pub(crate) download_url: Option<String>,
+    #[serde(default)]
     pub(crate) metadata: Value,
     #[serde(default)]
     pub(crate) compliance: SmokeCompliance,

@@ -4,10 +4,10 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    AuditEvent, GatewayAction, GatewayResourceProjection, GatewayTaskId, GatewayTaskMapping,
-    LocalToolName, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
-    PrincipalAuditAttributes, PrincipalId, PromptName, ServerResourceUri, ServerSlug,
-    TaskIdProjection, TraceId,
+    AuditEvent, CompatibilityHelperId, GatewayAction, GatewayResourceProjection, GatewayTaskId,
+    GatewayTaskMapping, LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision,
+    PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalAuditAttributes, PrincipalId,
+    PromptName, ServerResourceUri, ServerSlug, TaskIdProjection, TraceId,
 };
 
 use crate::{
@@ -36,6 +36,53 @@ impl GatewayMcp {
             .get::<AuthenticatedSubject>()
             .cloned()
             .ok_or_else(|| mcp_invalid_request("authenticated subject missing"))
+    }
+
+    pub(super) fn authenticated_oauth_client(
+        &self,
+        subject: &AuthenticatedSubject,
+    ) -> Result<OAuthClientRegistration, McpError> {
+        self.catalog
+            .current()
+            .oauth_client(&subject.access_token.oauth_client_id)
+            .cloned()
+            .ok_or_else(|| mcp_invalid_request("authenticated OAuth client is not registered"))
+    }
+
+    pub(super) fn is_compatibility_helper(
+        &self,
+        server: &ServerSlug,
+        tool: &LocalToolName,
+    ) -> bool {
+        self.catalog.current().is_compatibility_helper(server, tool)
+    }
+
+    pub(super) fn client_allows_compatibility_helper(
+        &self,
+        subject: &AuthenticatedSubject,
+        server: &ServerSlug,
+        tool: &LocalToolName,
+    ) -> Result<bool, McpError> {
+        if !self.is_compatibility_helper(server, tool) {
+            return Ok(true);
+        }
+        let client = self.authenticated_oauth_client(subject)?;
+        if client.client_surface != OAuthClientSurface::ToolsCompat {
+            return Ok(false);
+        }
+        let helper = CompatibilityHelperId::new(format!("{server}.{tool}")).map_err(|err| {
+            mcp_internal(format!("failed to build compatibility helper id: {err}"))
+        })?;
+        Ok(client.allowed_compatibility_helpers.contains(&helper))
+    }
+
+    pub(super) fn client_allows_direct_task_adapter(
+        &self,
+        subject: &AuthenticatedSubject,
+    ) -> Result<bool, McpError> {
+        let client = self.authenticated_oauth_client(subject)?;
+        Ok(client.client_surface == OAuthClientSurface::ToolsCompat
+            && client.direct_task_call_adapter)
     }
 
     pub(super) fn authorize(

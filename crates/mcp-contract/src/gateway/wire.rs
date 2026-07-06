@@ -37,6 +37,24 @@ pub(super) fn validate_gateway_name(value: &str) -> Result<(), IdentifierError> 
     Ok(())
 }
 
+pub(super) fn validate_compatibility_helper_id(value: &str) -> Result<(), IdentifierError> {
+    let Some((namespace, helper)) = value.split_once('.') else {
+        return Err(IdentifierError::new(
+            value,
+            "must be `{namespace}.{helper}` using gateway-safe identifiers",
+        ));
+    };
+    if namespace.contains('.') || helper.contains('.') {
+        return Err(IdentifierError::new(
+            value,
+            "must contain exactly one dot separator",
+        ));
+    }
+    validate_gateway_name(namespace)?;
+    validate_gateway_name(helper)?;
+    Ok(())
+}
+
 pub(super) fn validate_uri_scheme(value: &str) -> Result<(), IdentifierError> {
     let mut bytes = value.bytes();
     let Some(first) = bytes.next() else {

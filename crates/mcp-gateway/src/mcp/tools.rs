@@ -4,10 +4,11 @@ use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParams, CallToolResult, ClientRequest, ContentBlock,
         CreateTaskResult, ErrorData as McpError, GetTaskParams, GetTaskPayloadParams,
-        GetTaskPayloadRequest, GetTaskRequest, ListToolsResult, PaginatedRequestParams, Resource,
-        ServerResult, Task, TaskStatus, TaskSupport, Tool,
+        GetTaskPayloadRequest, GetTaskRequest, ListToolsResult, PaginatedRequestParams,
+        ReadResourceRequestParams, Resource, ResourceContents, ServerResult, Task, TaskStatus,
+        TaskSupport, Tool,
     },
-    service::{PeerRequestOptions, RequestContext, RoleServer},
+    service::{Peer, PeerRequestOptions, RequestContext, RoleClient, RoleServer},
 };
 use serde_json::Value;
 use tokio::time::{Instant, sleep};
@@ -17,8 +18,9 @@ use veoveo_mcp_contract::{
 };
 
 use crate::mcp_support::{
-    mcp_internal, mcp_invalid_params, parse_gateway_tool, project_call_tool_result,
-    task_mapping_allows_principal, unexpected_upstream_response, upstream_error,
+    mcp_internal, mcp_invalid_params, mcp_invalid_request, parse_gateway_tool,
+    project_call_tool_result, task_mapping_allows_principal, unexpected_upstream_response,
+    upstream_error,
 };
 
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
@@ -27,6 +29,7 @@ const DIRECT_TASK_WAIT_TIMEOUT: Duration = Duration::from_secs(20);
 const DIRECT_TASK_DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const DIRECT_TASK_MIN_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const DIRECT_TASK_MAX_POLL_INTERVAL: Duration = Duration::from_secs(5);
+const DIRECT_TASK_INLINE_IMAGE_MAX_BYTES: u64 = 3 * 1024 * 1024;
 const DIRECT_TASK_DESCRIPTION: &str = "At this gateway profile, direct tool calls are supported: the gateway creates the upstream MCP task, returns final output when ready quickly, or returns a gateway task id and veoveo://task/{task_id} status resource when still running.";
 
 impl GatewayMcp {
@@ -46,6 +49,9 @@ impl GatewayMcp {
                     LocalToolName::new(tool.name.as_ref().to_string()).map_err(|err| {
                         mcp_internal(format!("upstream exposed invalid tool name: {err}"))
                     })?;
+                if !self.client_allows_compatibility_helper(&subject, &server_slug, &local_tool)? {
+                    continue;
+                }
                 if !self.allows_tool(
                     &context,
                     GatewayAction::ToolsList,
@@ -60,7 +66,9 @@ impl GatewayMcp {
                     .project_tool_name(&server_slug, &local_tool)
                     .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
                 tool.name = Cow::Owned(gateway_name.to_string());
-                adapt_gateway_tool_execution(&mut tool);
+                if self.client_allows_direct_task_adapter(&subject)? {
+                    adapt_gateway_tool_execution(&mut tool);
+                }
                 tools.push(tool);
             }
         }
@@ -81,6 +89,23 @@ impl GatewayMcp {
     ) -> Result<CallToolResult, McpError> {
         let catalog = self.catalog.current();
         let projection = parse_gateway_tool(&catalog, &request.name)?;
+        let subject = self.authenticated(&context)?;
+        if !self.client_allows_compatibility_helper(
+            &subject,
+            &projection.server,
+            &projection.tool,
+        )? {
+            self.record_policy_denial(
+                &subject,
+                GatewayAction::ToolsCall,
+                veoveo_mcp_contract::PolicyTarget::Tool {
+                    server: projection.server.clone(),
+                    tool: projection.tool.clone(),
+                },
+                veoveo_mcp_contract::PolicyReasonCode::UnknownTool,
+            )?;
+            return Err(mcp_invalid_params("unknown gateway tool"));
+        }
         let subject = self.authorize_tool(
             &context,
             GatewayAction::ToolsCall,
@@ -106,6 +131,9 @@ impl GatewayMcp {
             })?
             .task_support();
         if task_support == TaskSupport::Required {
+            if !self.client_allows_direct_task_adapter(&subject)? {
+                return Err(mcp_invalid_request("tool requires task-based invocation"));
+            }
             request.task = Some(request.task.unwrap_or_default());
             request.name = Cow::Owned(projection.tool.to_string());
             let created = self
@@ -361,8 +389,60 @@ impl GatewayMcp {
             other => return Err(unexpected_upstream_response("tasks/result", other)),
         };
         project_call_tool_result(&mut result, &mapping)?;
+        if self.client_allows_direct_task_adapter(&subject)? {
+            inline_generation_images(&mut result, &upstream).await?;
+        }
         Ok(result)
     }
+}
+
+async fn inline_generation_images(
+    result: &mut CallToolResult,
+    upstream: &Peer<RoleClient>,
+) -> Result<(), McpError> {
+    let Some(structured) = &result.structured_content else {
+        return Ok(());
+    };
+    let Ok(output) =
+        serde_json::from_value::<veoveo_mcp_contract::GenerationRunOutput>(structured.clone())
+    else {
+        return Ok(());
+    };
+    if result
+        .content
+        .iter()
+        .any(|block| block.as_image().is_some())
+    {
+        return Ok(());
+    }
+    for artifact in output.artifacts {
+        let Some(mime_type) = artifact.mime_type.as_deref() else {
+            continue;
+        };
+        if !mime_type.starts_with("image/")
+            || artifact.byte_len > DIRECT_TASK_INLINE_IMAGE_MAX_BYTES
+        {
+            continue;
+        }
+        let resource = upstream
+            .read_resource(ReadResourceRequestParams::new(
+                artifact.artifact_uri.clone(),
+            ))
+            .await
+            .map_err(upstream_error)?;
+        for content in resource.contents {
+            if let ResourceContents::BlobResourceContents {
+                blob,
+                mime_type: Some(mime),
+                ..
+            } = content
+                && mime.starts_with("image/")
+            {
+                result.content.push(ContentBlock::image(blob, mime));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn adapt_gateway_tool_execution(tool: &mut Tool) {

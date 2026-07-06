@@ -7,7 +7,8 @@ use serde_json::Value;
 
 use validation::{
     validate_oauth_client_registration, validate_oidc_client_registration, validate_policy_set,
-    validate_profile_auth_modes, validate_profile_server_exposure, validate_server_upstream,
+    validate_profile_auth_modes, validate_profile_server_exposure,
+    validate_server_compatibility_helpers, validate_server_upstream,
     validate_server_upstream_tls_material,
 };
 use wire::{
@@ -126,6 +127,7 @@ impl GatewayControlPlane {
                     server.uri_scheme.clone(),
                 ));
             }
+            validate_server_compatibility_helpers(server)?;
             validate_server_upstream(server)?;
         }
 
@@ -317,6 +319,7 @@ impl GatewayControlPlane {
                 &authorization_servers,
                 &profile_by_id,
                 &policy_by_id,
+                &servers,
                 &secret_refs,
             )?;
         }

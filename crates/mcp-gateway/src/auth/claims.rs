@@ -9,6 +9,7 @@ use super::AuthError;
 pub(super) struct JwtClaims {
     pub(super) iss: String,
     pub(super) sub: String,
+    pub(super) client_id: String,
     pub(super) aud: StringListClaim,
     pub(super) exp: u64,
     #[serde(default)]

@@ -4,9 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::wire::{
-    validate_claim_text, validate_gateway_name, validate_oauth_authorization_code,
-    validate_oauth_state_value, validate_path_id, validate_pkce_code_token, validate_token_text,
-    validate_uri_scheme,
+    validate_claim_text, validate_compatibility_helper_id, validate_gateway_name,
+    validate_oauth_authorization_code, validate_oauth_state_value, validate_path_id,
+    validate_pkce_code_token, validate_token_text, validate_uri_scheme,
 };
 
 macro_rules! typed_id {
@@ -183,6 +183,11 @@ typed_id!(
     OAuthClientId,
     validate_claim_text,
     "Registered OAuth client id allowed to request gateway-profile tokens."
+);
+typed_id!(
+    CompatibilityHelperId,
+    validate_compatibility_helper_id,
+    "Explicit compatibility helper id exposed to limited MCP clients, for example `media.models`."
 );
 typed_id!(
     OidcClientRegistrationId,

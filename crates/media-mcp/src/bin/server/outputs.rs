@@ -108,6 +108,10 @@ pub(super) async fn prediction_result(
     for (i, url) in prediction.outputs.iter().enumerate() {
         artifacts.push(ingest_output_artifact(state, prediction, task_id, owner, url, i).await?);
     }
+    let artifacts = artifacts
+        .into_iter()
+        .map(ArtifactMetadata::without_download_url)
+        .collect::<Vec<_>>();
 
     let mut blocks = vec![ContentBlock::text(format!(
         "prediction {} ({}) completed with {} artifact(s) in {:.1}s",

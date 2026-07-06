@@ -401,6 +401,7 @@ pub(crate) async fn token_endpoint_id_jag(
         authorization_server,
         profile,
         &verified_id_jag.principal.subject,
+        &client_id,
         PrincipalKind::User,
         Some(&verified_id_jag.principal),
         &scopes,

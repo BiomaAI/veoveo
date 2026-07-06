@@ -64,9 +64,15 @@
         "notifications": true
       },
       "tools": [
+        "artifact",
         "model_schema",
         "models",
         "run"
+      ],
+      "compatibility_helpers": [
+        "artifact",
+        "model_schema",
+        "models"
       ],
       "prompts": [
         "media-model-select",
@@ -114,6 +120,7 @@
           "tools": {
             "mode": "listed",
             "items": [
+              "artifact",
               "model_schema",
               "models",
               "run"
@@ -159,6 +166,7 @@
           "tools": {
             "mode": "listed",
             "items": [
+              "artifact",
               "model_schema",
               "models",
               "run"
@@ -217,6 +225,7 @@
             "media"
           ],
           "tools": [
+            "artifact",
             "model_schema",
             "models",
             "run"
@@ -269,6 +278,7 @@
             "media"
           ],
           "tools": [
+            "artifact",
             "model_schema",
             "models",
             "run"
@@ -318,6 +328,7 @@
             "media"
           ],
           "tools": [
+            "artifact",
             "model_schema",
             "models",
             "run"
@@ -370,6 +381,7 @@
             "media"
           ],
           "tools": [
+            "artifact",
             "model_schema",
             "models",
             "run"
@@ -468,6 +480,7 @@
       "id": "operator-local-public",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Local Client",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
         "operator"
       ],
@@ -498,6 +511,13 @@
       "id": "operator-hosted-public",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Hosted Client",
+      "client_surface": "tools_compat",
+      "allowed_compatibility_helpers": [
+        "media.artifact",
+        "media.model_schema",
+        "media.models"
+      ],
+      "direct_task_call_adapter": true,
       "allowed_profiles": [
         "operator"
       ],
@@ -522,6 +542,7 @@
       "id": "admin-console",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Admin Console",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
         "admin"
       ],
@@ -546,6 +567,7 @@
       "id": "operator-service",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Service",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
         "operator"
       ],
@@ -570,6 +592,7 @@
       "id": "admin-service",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Admin Service",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
         "admin"
       ],

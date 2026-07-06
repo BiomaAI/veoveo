@@ -171,9 +171,52 @@ pub(crate) async fn gateway_task_run(
     )?;
     assert_usage_report(&usage, "media", &task_id)?;
 
-    let session = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token).await?;
+    let full_session = connect_mcp_session(&format!("{gateway_base}/mcp/operator"), token).await?;
+    let full_tools = full_session.list_tools(Default::default()).await?;
+    if full_tools.tools.iter().any(|tool| {
+        matches!(
+            tool.name.as_ref(),
+            "media__artifact" | "media__models" | "media__model_schema"
+        )
+    }) {
+        bail!("full-MCP client unexpectedly saw compatibility helpers: {full_tools:?}");
+    }
+    let full_run_tool = full_tools
+        .tools
+        .iter()
+        .find(|tool| tool.name.as_ref() == "media__run")
+        .ok_or_else(|| anyhow!("full-MCP client did not see media__run: {full_tools:?}"))?;
+    if full_run_tool.task_support() != rmcp::model::TaskSupport::Required {
+        bail!(
+            "full-MCP media__run task support was {:?}, expected Required",
+            full_run_tool.task_support()
+        );
+    }
+
+    let compat_token = gateway_hosted_public_id_jag_token(
+        conformance,
+        &gateway_base,
+        &[
+            "--id-jag-scope",
+            "operator:use",
+            "--group",
+            "engineering",
+            "--role",
+            "operator",
+            "--data-label",
+            "cui",
+        ],
+    )?;
+    let compat_token = compat_token.trim();
+    let session =
+        connect_mcp_session(&format!("{gateway_base}/mcp/operator"), compat_token).await?;
     let listed_tools = session.list_tools(Default::default()).await?;
-    for expected_tool in ["media__models", "media__model_schema", "media__run"] {
+    for expected_tool in [
+        "media__artifact",
+        "media__models",
+        "media__model_schema",
+        "media__run",
+    ] {
         if !listed_tools
             .tools
             .iter()
@@ -285,6 +328,53 @@ pub(crate) async fn gateway_task_run(
     if direct_structured.artifacts.is_empty() {
         bail!("direct tools/call returned no artifacts: {direct_result:?}");
     }
+    if direct_structured
+        .artifacts
+        .iter()
+        .any(|artifact| artifact.download_url.is_some())
+    {
+        bail!("direct tools/call leaked artifact download_url: {direct_structured:?}");
+    }
+    if !direct_result
+        .content
+        .iter()
+        .any(|block| block.as_image().is_some())
+    {
+        bail!("direct tools/call did not inline image content for tools-compatible client");
+    }
+    let artifact_result = session
+        .call_tool(
+            CallToolRequestParams::new("media__artifact").with_arguments(
+                serde_json::json!({
+                    "artifact_uri": direct_structured.artifacts[0].artifact_uri
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?;
+    if artifact_result.is_error == Some(true) {
+        bail!("media__artifact returned an error: {artifact_result:?}");
+    }
+    if !artifact_result
+        .content
+        .iter()
+        .any(|block| block.as_image().is_some())
+    {
+        bail!("media__artifact did not return image content: {artifact_result:?}");
+    }
+    let artifact_structured = artifact_result
+        .structured_content
+        .clone()
+        .ok_or_else(|| anyhow!("media__artifact returned no structured content"))?;
+    if artifact_structured
+        .get("artifact")
+        .and_then(|artifact| artifact.get("download_url"))
+        .is_some()
+    {
+        bail!("media__artifact leaked artifact download_url: {artifact_structured}");
+    }
     let direct_status: GatewayTaskStatusDocument = serde_json::from_value(
         read_mcp_resource_json(&session, &format!("veoveo://task/{direct_task_id}")).await?,
     )?;
@@ -346,7 +436,7 @@ pub(crate) async fn gateway_task_run(
     let audit_summary: Value = serde_json::from_str(&audit_summary)?;
     assert_no_audit_denies(&audit_summary)?;
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
-    assert_audit_method(&audit_summary, "tools/call", 5, 0)?;
+    assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
     assert_audit_method(&audit_summary, "tasks/get", 2, 0)?;
     assert_audit_method(&audit_summary, "tasks/result", 3, 0)?;

@@ -20,6 +20,7 @@ pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 struct AccessTokenClaims {
     iss: String,
     sub: String,
+    client_id: String,
     aud: String,
     exp: u64,
     nbf: u64,
@@ -59,6 +60,7 @@ pub(super) async fn issue_client_credentials_access_token(
         authorization_server,
         profile,
         &subject,
+        client_id,
         PrincipalKind::Service,
         None,
         scopes,
@@ -71,6 +73,7 @@ pub(super) async fn issue_access_token(
     authorization_server: &ResourceAuthorizationServer,
     profile: &GatewayProfile,
     subject: &TokenSubject,
+    client_id: &OAuthClientId,
     principal_kind: PrincipalKind,
     principal: Option<&Principal>,
     scopes: &BTreeSet<ScopeName>,
@@ -96,6 +99,7 @@ pub(super) async fn issue_access_token(
     let claims = AccessTokenClaims {
         iss: authorization_server.issuer.to_string(),
         sub: subject.to_string(),
+        client_id: client_id.to_string(),
         aud: profile.protected_resource.to_string(),
         exp: unix_seconds(expires_at.timestamp())?,
         nbf: unix_seconds(now.timestamp())?,

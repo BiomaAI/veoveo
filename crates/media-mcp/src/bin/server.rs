@@ -10,6 +10,7 @@
 //!   tool `run(model, input)`         — task-required (SEP-1319)
 //!   tool `models(query?, type?, limit?)` — catalog search for tools-only clients
 //!   tool `model_schema(model)`       — exact input schema for tools-only clients
+//!   tool `artifact(artifact_uri)`     — artifact image blocks for tools-only clients
 //!   resource `media://models`        — compact catalog of all models
 //!   template `media://model/{model_id}`       — full input schema + pricing
 //!   template `media://prediction/{id}`        — live prediction state, subscribable
@@ -68,6 +69,8 @@ use veoveo_media_mcp::{
 
 #[path = "server/app_state.rs"]
 mod app_state;
+#[path = "server/artifact_tools.rs"]
+mod artifact_tools;
 #[path = "server/config.rs"]
 mod config;
 #[path = "server/generation_task.rs"]
@@ -90,6 +93,7 @@ mod retention;
 mod usage;
 
 use app_state::AppState;
+use artifact_tools::ArtifactArgs;
 use config::{Args, ArtifactStoreBackend};
 use generation_task::{RunArgs, run_task};
 use host::validate_host;
@@ -211,6 +215,25 @@ impl MediaMcp {
                 )
             })?;
         model_tools::model_schema_result(model)
+    }
+
+    #[tool(
+        title = "Get media artifact",
+        description = "Return an authorized media artifact as MCP image content when possible. Use this when the MCP client cannot read media://artifact/{sha256} resources.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<artifact_tools::ArtifactOutput>(),
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn artifact(
+        &self,
+        Parameters(args): Parameters<ArtifactArgs>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        artifact_tools::artifact_result(&self.state, args, &context).await
     }
 }
 

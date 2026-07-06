@@ -115,6 +115,12 @@ pub struct OAuthClientRegistration {
     pub authorization_server: AuthorizationServerId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    #[serde(default)]
+    pub client_surface: OAuthClientSurface,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub allowed_compatibility_helpers: BTreeSet<CompatibilityHelperId>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub direct_task_call_adapter: bool,
     pub allowed_profiles: BTreeSet<GatewayProfileId>,
     pub grant_types: BTreeSet<OAuthGrantType>,
     pub auth_methods: BTreeSet<OAuthClientAuthMethod>,
@@ -128,6 +134,18 @@ pub struct OAuthClientRegistration {
     pub jwks: Option<JwksSource>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthClientSurface {
+    #[default]
+    FullMcp,
+    ToolsCompat,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

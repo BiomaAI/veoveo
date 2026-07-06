@@ -40,13 +40,20 @@ pub struct ArtifactMetadata {
     #[serde(default)]
     pub filename: Option<String>,
     pub artifact_uri: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub download_url: Option<String>,
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub compliance: ComplianceMetadata,
     #[serde(default)]
     pub metadata: Value,
+}
+
+impl ArtifactMetadata {
+    pub fn without_download_url(mut self) -> Self {
+        self.download_url = None;
+        self
+    }
 }
 
 /// Bytes and optional presentation metadata for a new artifact.

@@ -8,6 +8,20 @@ pub(crate) fn gateway_id_jag_token(
     gateway_id_jag_token_for_profile(conformance, gateway_base, "operator", args)
 }
 
+pub(crate) fn gateway_hosted_public_id_jag_token(
+    conformance: &Path,
+    gateway_base: &str,
+    args: &[&str],
+) -> Result<String> {
+    gateway_id_jag_token_for_client(
+        conformance,
+        gateway_base,
+        "operator",
+        "operator-hosted-public",
+        args,
+    )
+}
+
 pub(crate) fn gateway_id_jag_token_for_profile(
     conformance: &Path,
     gateway_base: &str,
@@ -19,6 +33,16 @@ pub(crate) fn gateway_id_jag_token_for_profile(
     } else {
         "operator-local-public"
     };
+    gateway_id_jag_token_for_client(conformance, gateway_base, profile, client_id, args)
+}
+
+fn gateway_id_jag_token_for_client(
+    conformance: &Path,
+    gateway_base: &str,
+    profile: &str,
+    client_id: &str,
+    args: &[&str],
+) -> Result<String> {
     let mut all_args = vec![
         "gateway-id-jag-token-exchange".into(),
         "--token-url".into(),

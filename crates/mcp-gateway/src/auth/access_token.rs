@@ -1,8 +1,8 @@
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, GroupId, JwtId, Principal, PrincipalId, PrincipalKind, RoleId,
-    TenantId, TokenIssuer, TokenSubject,
+    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalId,
+    PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject,
 };
 
 use super::{
@@ -43,7 +43,7 @@ impl JwtVerifier {
         validation.validate_nbf = true;
         validation.set_issuer(&[self.config.issuer.as_str()]);
         validation.set_audience(&[self.config.audience.as_str()]);
-        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "client_id"]);
 
         let data =
             decode::<JwtClaims>(token.as_str(), &key, &validation).map_err(AuthError::Jwt)?;
@@ -55,9 +55,12 @@ impl JwtVerifier {
 
         let issuer = TokenIssuer::new(claims.iss.clone()).map_err(AuthError::Claim)?;
         let subject = TokenSubject::new(claims.sub.clone()).map_err(AuthError::Claim)?;
+        let oauth_client_id =
+            OAuthClientId::new(claims.client_id.clone()).map_err(AuthError::Claim)?;
         let token_subject = AccessTokenSubject {
             issuer: issuer.clone(),
             subject: subject.clone(),
+            oauth_client_id,
             audience: self.config.audience.clone(),
             scopes: scopes.clone(),
             jwt_id: claims

@@ -92,6 +92,10 @@ pub enum GatewayControlPlaneError {
         actual: SecretPurpose,
         expected: SecretPurpose,
     },
+    UnknownServerCompatibilityHelper {
+        server: ServerSlug,
+        tool: LocalToolName,
+    },
     UnknownServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -214,6 +218,13 @@ pub enum GatewayControlPlaneError {
         client: OAuthClientId,
         profile: GatewayProfileId,
         scope: ScopeName,
+    },
+    OAuthClientFullMcpWithCompatibility {
+        client: OAuthClientId,
+    },
+    UnknownOAuthClientCompatibilityHelper {
+        client: OAuthClientId,
+        helper: CompatibilityHelperId,
     },
     OAuthClientUnsupportedAuthConfiguration {
         client: OAuthClientId,
@@ -456,6 +467,10 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "server `{server}` upstream TLS references secret `{secret}` with invalid purpose `{actual:?}`, expected `{expected:?}`"
             ),
+            Self::UnknownServerCompatibilityHelper { server, tool } => write!(
+                f,
+                "server `{server}` marks unknown tool `{tool}` as a compatibility helper"
+            ),
             Self::UnknownServer { profile, server } => write!(
                 f,
                 "gateway profile `{profile}` references unknown server `{server}`"
@@ -654,6 +669,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "OAuth client `{client}` allows profile `{profile}` but does not allow required scope `{scope}`"
+            ),
+            Self::OAuthClientFullMcpWithCompatibility { client } => write!(
+                f,
+                "OAuth client `{client}` uses full_mcp surface but declares compatibility helpers or direct task adaptation"
+            ),
+            Self::UnknownOAuthClientCompatibilityHelper { client, helper } => write!(
+                f,
+                "OAuth client `{client}` references unknown compatibility helper `{helper}`"
             ),
             Self::OAuthClientUnsupportedAuthConfiguration {
                 client,

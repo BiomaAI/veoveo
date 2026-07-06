@@ -31,6 +31,20 @@ pub(super) fn validate_profile_server_exposure(
     Ok(())
 }
 
+pub(super) fn validate_server_compatibility_helpers(
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    for helper in &server.compatibility_helpers {
+        if !server.tools.iter().any(|tool| tool == helper) {
+            return Err(GatewayControlPlaneError::UnknownServerCompatibilityHelper {
+                server: server.slug.clone(),
+                tool: helper.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn validate_tool_exposure(
     profile: &GatewayProfile,
     exposure: &ProfileServerExposure,
@@ -646,6 +660,7 @@ pub(super) fn validate_oauth_client_registration(
     authorization_servers: &BTreeMap<AuthorizationServerId, &ResourceAuthorizationServer>,
     profiles: &BTreeMap<GatewayProfileId, &GatewayProfile>,
     policies: &BTreeMap<PolicyVersion, &PolicySet>,
+    servers: &BTreeMap<ServerSlug, &ServerManifest>,
     secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
 ) -> Result<(), GatewayControlPlaneError> {
     if !authorization_servers.contains_key(&client.authorization_server) {
@@ -671,6 +686,7 @@ pub(super) fn validate_oauth_client_registration(
             client.id.clone(),
         ));
     }
+    validate_oauth_client_surface(client, servers)?;
 
     for profile_id in &client.allowed_profiles {
         let Some(profile) = profiles.get(profile_id) else {
@@ -797,6 +813,68 @@ pub(super) fn validate_oauth_client_registration(
         });
     }
 
+    Ok(())
+}
+
+fn validate_oauth_client_surface(
+    client: &OAuthClientRegistration,
+    servers: &BTreeMap<ServerSlug, &ServerManifest>,
+) -> Result<(), GatewayControlPlaneError> {
+    if client.client_surface == OAuthClientSurface::FullMcp
+        && (!client.allowed_compatibility_helpers.is_empty() || client.direct_task_call_adapter)
+    {
+        return Err(
+            GatewayControlPlaneError::OAuthClientFullMcpWithCompatibility {
+                client: client.id.clone(),
+            },
+        );
+    }
+    for helper in &client.allowed_compatibility_helpers {
+        let Some((server_slug, tool_name)) = helper.as_str().split_once('.') else {
+            return Err(
+                GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
+                    client: client.id.clone(),
+                    helper: helper.clone(),
+                },
+            );
+        };
+        let Ok(server_slug) = ServerSlug::new(server_slug.to_string()) else {
+            return Err(
+                GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
+                    client: client.id.clone(),
+                    helper: helper.clone(),
+                },
+            );
+        };
+        let Ok(tool_name) = LocalToolName::new(tool_name.to_string()) else {
+            return Err(
+                GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
+                    client: client.id.clone(),
+                    helper: helper.clone(),
+                },
+            );
+        };
+        let Some(server) = servers.get(&server_slug) else {
+            return Err(
+                GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
+                    client: client.id.clone(),
+                    helper: helper.clone(),
+                },
+            );
+        };
+        if !server
+            .compatibility_helpers
+            .iter()
+            .any(|declared| declared == &tool_name)
+        {
+            return Err(
+                GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
+                    client: client.id.clone(),
+                    helper: helper.clone(),
+                },
+            );
+        }
+    }
     Ok(())
 }
 
