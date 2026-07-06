@@ -25,7 +25,7 @@ base64 = "0.22.1"
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
-duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "722adf347f198aaa531ca903d1d8c646c28c9e34", features = ["chrono"] }
+duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "e2f3d156223250827567d154035e670432d97ac9", features = ["chrono"] }
 futures = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"

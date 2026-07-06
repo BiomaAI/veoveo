@@ -88,8 +88,9 @@ pub use tasks::{
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use timeseries::{
     TimeseriesDuckDbFormat, TimeseriesDuckDbReadOptions, TimeseriesDuckDbSource,
-    TimeseriesForecastMethod, TimeseriesForecastOutput, TimeseriesForecastRequest,
-    TimeseriesForecastSummary, TimeseriesSeriesSummary, TimeseriesTableMapping,
+    TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastOutput,
+    TimeseriesForecastRequest, TimeseriesForecastSummary, TimeseriesRowFilter,
+    TimeseriesSeriesSummary, TimeseriesTableMapping,
 };
 pub use uri::{
     ServerResourceUri, ServerResourceUriError, ServerResourceUris, artifact_object_key, is_sha256,

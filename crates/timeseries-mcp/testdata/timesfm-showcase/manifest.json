@@ -5,12 +5,18 @@
     "value_column": "value",
     "split_column": "split"
   },
+  "training_filter": {
+    "op": "eq",
+    "column": "split",
+    "value": "context"
+  },
   "examples": [
     {
       "id": "temperature_daily",
       "file": "temperature_daily.csv",
       "frequency": "daily",
       "rows": 1114,
+      "training_rows": 1024,
       "smoke_horizon": 14
     },
     {
@@ -18,6 +24,7 @@
       "file": "energy_load_hourly.csv",
       "frequency": "hourly",
       "rows": 1176,
+      "training_rows": 1008,
       "smoke_horizon": 24
     },
     {
@@ -25,6 +32,7 @@
       "file": "saas_revenue_daily.csv",
       "frequency": "daily",
       "rows": 972,
+      "training_rows": 912,
       "smoke_horizon": 14
     },
     {
@@ -32,6 +40,7 @@
       "file": "parts_demand_daily.csv",
       "frequency": "daily",
       "rows": 577,
+      "training_rows": 547,
       "smoke_horizon": 14
     },
     {
@@ -39,6 +48,7 @@
       "file": "server_cpu_5min.csv",
       "frequency": "5min",
       "rows": 1248,
+      "training_rows": 1008,
       "smoke_horizon": 12
     },
     {
@@ -46,6 +56,7 @@
       "file": "web_traffic_hourly.csv",
       "frequency": "hourly",
       "rows": 1176,
+      "training_rows": 1008,
       "smoke_horizon": 24
     },
     {
@@ -53,6 +64,7 @@
       "file": "stock_returns_daily.csv",
       "frequency": "daily",
       "rows": 730,
+      "training_rows": 700,
       "smoke_horizon": 14
     }
   ]
