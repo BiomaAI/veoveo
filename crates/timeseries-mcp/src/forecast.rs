@@ -544,12 +544,40 @@ fn entity_segment(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use serde::Deserialize;
     use veoveo_mcp_contract::{
         TimeseriesDuckDbFormat, TimeseriesDuckDbSource, TimeseriesForecastMethod,
         TimeseriesForecastRequest, TimeseriesTableMapping,
     };
 
     use super::*;
+
+    #[derive(Debug, Deserialize)]
+    struct FixtureManifest {
+        schema: FixtureSchema,
+        examples: Vec<FixtureExample>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FixtureSchema {
+        time_column: String,
+        value_column: String,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FixtureExample {
+        id: String,
+        file: String,
+        rows: u64,
+        smoke_horizon: u32,
+    }
+
+    fn timesfm_manifest() -> FixtureManifest {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/timesfm-showcase/manifest.json");
+        let text = std::fs::read_to_string(path).unwrap();
+        serde_json::from_str(&text).unwrap()
+    }
 
     #[test]
     fn inline_csv_materializes_and_forecasts() {
@@ -578,6 +606,47 @@ mod tests {
         assert!(!artifact.rrd_bytes.is_empty());
         assert_eq!(artifact.summary.source_rows, 3);
         assert_eq!(artifact.summary.series[0].forecast_rows, 3);
+    }
+
+    #[test]
+    fn timesfm_showcase_fixture_writes_rrd() {
+        let manifest = timesfm_manifest();
+        let example = manifest
+            .examples
+            .iter()
+            .find(|example| example.id == "parts_demand_daily")
+            .unwrap();
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/timesfm-showcase")
+            .join(&example.file);
+        let artifact = run_forecast(
+            "timesfm-fixture-task",
+            &TimeseriesForecastRequest {
+                source: TimeseriesDuckDbSource::Uri {
+                    uri: fixture.to_string_lossy().into_owned(),
+                    format: TimeseriesDuckDbFormat::Csv,
+                    options: TimeseriesDuckDbReadOptions {
+                        header: Some(true),
+                        ..Default::default()
+                    },
+                },
+                mapping: TimeseriesTableMapping {
+                    time_column: Some(manifest.schema.time_column.clone()),
+                    value_column: manifest.schema.value_column.clone(),
+                    series_column: None,
+                },
+                horizon: example.smoke_horizon,
+                method: TimeseriesForecastMethod::NaiveTrend,
+            },
+        )
+        .unwrap();
+
+        assert!(!artifact.rrd_bytes.is_empty());
+        assert_eq!(artifact.summary.source_rows, example.rows);
+        assert_eq!(
+            artifact.summary.series[0].forecast_rows,
+            u64::from(example.smoke_horizon)
+        );
     }
 
     #[test]

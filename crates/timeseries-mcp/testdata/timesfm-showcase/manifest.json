@@ -1,0 +1,59 @@
+{
+  "source": "TimesFM serving showcase examples",
+  "schema": {
+    "time_column": "timestamp",
+    "value_column": "value",
+    "split_column": "split"
+  },
+  "examples": [
+    {
+      "id": "temperature_daily",
+      "file": "temperature_daily.csv",
+      "frequency": "daily",
+      "rows": 1114,
+      "smoke_horizon": 14
+    },
+    {
+      "id": "energy_load_hourly",
+      "file": "energy_load_hourly.csv",
+      "frequency": "hourly",
+      "rows": 1176,
+      "smoke_horizon": 24
+    },
+    {
+      "id": "saas_revenue_daily",
+      "file": "saas_revenue_daily.csv",
+      "frequency": "daily",
+      "rows": 972,
+      "smoke_horizon": 14
+    },
+    {
+      "id": "parts_demand_daily",
+      "file": "parts_demand_daily.csv",
+      "frequency": "daily",
+      "rows": 577,
+      "smoke_horizon": 14
+    },
+    {
+      "id": "server_cpu_5min",
+      "file": "server_cpu_5min.csv",
+      "frequency": "5min",
+      "rows": 1248,
+      "smoke_horizon": 12
+    },
+    {
+      "id": "web_traffic_hourly",
+      "file": "web_traffic_hourly.csv",
+      "frequency": "hourly",
+      "rows": 1176,
+      "smoke_horizon": 24
+    },
+    {
+      "id": "stock_returns_daily",
+      "file": "stock_returns_daily.csv",
+      "frequency": "daily",
+      "rows": 730,
+      "smoke_horizon": 14
+    }
+  ]
+}
