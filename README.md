@@ -94,8 +94,9 @@ origin:
 | media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
+| timeseries artifact bytes | `{PUBLIC_BASE_URL}/timeseries/artifacts/*` |
 
-`/media/mcp` is intentionally not a public client route. For local conformance or service
+`/media/mcp` and `/timeseries/mcp` are intentionally not public client routes. For local conformance or service
 debugging, use the direct service endpoint with a Veoveo-signed internal token, such as
 `http://localhost:8787/media/mcp` in the development Compose stack.
 
