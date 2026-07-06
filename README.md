@@ -339,20 +339,15 @@ HTTP. The bridge forwards tools only and adds no auth of its own: keep it on loo
 register it like any other upstream server in the gateway control plane. If the child
 process exits, the bridge exits with an error instead of restarting it.
 
-The `rerun` server in `configs/gateway.bioma.json` is wired this way. `rerun viewer-mcp`
-can only dial a viewer on its own host, so the viewer, `viewer-mcp`, and the bridge all run
-on the host, and the Compose gateway reaches the bridge through the `rerun-bridge`
-`extra_hosts` alias (`host-gateway`). The `rerun` profile is separate from `operator` so an
-absent bridge never breaks media tool listing.
+The `rerun` server in `configs/gateway.bioma.json` is wired this way. The `rerun-bridge`
+Compose service runs the whole unit in one container — headless Rerun viewer,
+`rerun viewer-mcp`, and the bridge — because `viewer-mcp` can only dial a viewer on its own
+host. If any of the three exits, the container exits. Host SDKs log recordings into the
+containerized viewer at `127.0.0.1:9876`. The `rerun` profile is separate from `operator`
+so a stopped bridge never breaks media tool listing.
 
 ```sh
-# 1. viewer on the host: `rerun` for a window, `rerun --headless` for background use
-rerun --headless
-
-# 2. bridge + viewer-mcp on the host
-just stdio-bridge
-
-# 3. rerun tools through the gateway (note the rerun profile resource)
+# rerun tools through the gateway (note the rerun profile resource)
 export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-token-exchange \
     --token-url http://localhost:8780/oauth/token --client-id operator-service --scope operator:use \
     --resource https://veoveo.bioma.ai/mcp/rerun)"
@@ -362,6 +357,9 @@ cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:
 cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun call \
     --tool-name rerun__screenshot --arguments '{}'
 ```
+
+For bridging an arbitrary local stdio MCP server during development, `just stdio-bridge`
+runs the bridge directly on the host against a viewer you started yourself.
 
 ## Layout
 
