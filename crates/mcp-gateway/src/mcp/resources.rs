@@ -76,10 +76,10 @@ impl GatewayMcp {
         let mut templates = Vec::new();
         if !self.profile_task_servers().is_empty() {
             templates.push(
-                ResourceTemplate::new(GATEWAY_TASK_RESOURCE_TEMPLATE, "gateway-task-status")
-                    .with_title("Gateway task status")
+                ResourceTemplate::new(GATEWAY_TASK_RESOURCE_TEMPLATE, "veoveo-task-status")
+                    .with_title("Veoveo task status")
                     .with_description(
-                        "Gateway-owned task status and result document addressed by gateway task id.",
+                        "Veoveo task status and result document addressed by Veoveo task id.",
                     )
                     .with_mime_type("application/json"),
             );

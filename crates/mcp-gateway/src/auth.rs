@@ -65,6 +65,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     struct TestClaims<'a> {
         iss: &'a str,
         sub: &'a str,
+        client_id: &'a str,
         aud: &'a str,
         exp: u64,
         nbf: u64,
@@ -173,6 +174,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &TestClaims {
                 iss: ISSUER,
                 sub: "00u123",
+                client_id: "operator-local-public",
                 aud: AUDIENCE,
                 exp: 4_102_444_800,
                 nbf: 1_700_000_000,
@@ -345,6 +347,10 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
         assert_eq!(subject.access_token.subject.as_str(), "00u123");
         assert_eq!(subject.access_token.audience.as_str(), AUDIENCE);
+        assert_eq!(
+            subject.access_token.oauth_client_id.as_str(),
+            "operator-local-public"
+        );
         assert_eq!(
             subject.principal.id.as_str(),
             "https://idp.example.com#00u123"

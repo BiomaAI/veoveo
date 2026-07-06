@@ -6,15 +6,18 @@ use rmcp::{
         CreateTaskResult, ErrorData as McpError, GetTaskParams, GetTaskPayloadParams,
         GetTaskPayloadRequest, GetTaskRequest, ListToolsResult, PaginatedRequestParams,
         ReadResourceRequestParams, Resource, ResourceContents, ServerResult, Task, TaskStatus,
-        TaskSupport, Tool,
+        TaskSupport, Tool, ToolAnnotations,
     },
+    schemars,
     service::{Peer, PeerRequestOptions, RequestContext, RoleClient, RoleServer},
 };
 use serde_json::Value;
 use tokio::time::{Instant, sleep};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayTaskId, GatewayTaskMapping, GatewayTaskStatus, GatewayTaskStatusDocument,
-    LocalToolName, UpstreamTaskId, paginate, related_task_meta,
+    LocalToolName, UpstreamTaskId, VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID,
+    VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME, paginate, parse_gateway_task_resource_uri,
+    related_task_meta,
 };
 
 use crate::mcp_support::{
@@ -30,7 +33,14 @@ const DIRECT_TASK_DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const DIRECT_TASK_MIN_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const DIRECT_TASK_MAX_POLL_INTERVAL: Duration = Duration::from_secs(5);
 const DIRECT_TASK_INLINE_IMAGE_MAX_BYTES: u64 = 3 * 1024 * 1024;
-const DIRECT_TASK_DESCRIPTION: &str = "At this gateway profile, direct tool calls are supported: the gateway creates the upstream MCP task, returns final output when ready quickly, or returns a gateway task id and veoveo://task/{task_id} status resource when still running.";
+const DIRECT_TASK_DESCRIPTION: &str = "At this Veoveo profile, direct tool calls are supported: Veoveo creates the upstream MCP task, returns final output when ready quickly, or returns a Veoveo task id and veoveo://task/{task_id} status resource when still running.";
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct TaskResultArgs {
+    /// Canonical Veoveo task resource URI, e.g. veoveo://task/{task_id}.
+    task_uri: String,
+}
 
 impl GatewayMcp {
     pub(super) async fn handle_list_tools(
@@ -40,6 +50,12 @@ impl GatewayMcp {
     ) -> Result<ListToolsResult, McpError> {
         let subject = self.authenticated(&context)?;
         let mut tools = Vec::new();
+        if self.client_allows_gateway_compatibility_helper(
+            &subject,
+            &task_result_compatibility_helper_id()?,
+        )? {
+            tools.push(task_result_tool());
+        }
         for server_slug in self.profile_servers() {
             let upstream = self
                 .upstream(&server_slug, context.peer.clone(), &subject)
@@ -87,6 +103,9 @@ impl GatewayMcp {
         mut request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        if request.name.as_ref() == VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME {
+            return self.handle_task_result_tool(request, context).await;
+        }
         let catalog = self.catalog.current();
         let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authenticated(&context)?;
@@ -104,7 +123,7 @@ impl GatewayMcp {
                 },
                 veoveo_mcp_contract::PolicyReasonCode::UnknownTool,
             )?;
-            return Err(mcp_invalid_params("unknown gateway tool"));
+            return Err(mcp_invalid_params("unknown tool"));
         }
         let subject = self.authorize_tool(
             &context,
@@ -172,6 +191,45 @@ impl GatewayMcp {
         match result? {
             ServerResult::CallToolResult(result) => Ok(result),
             other => Err(unexpected_upstream_response("tools/call", other)),
+        }
+    }
+
+    async fn handle_task_result_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let subject = self.authenticated(&context)?;
+        if !self.client_allows_gateway_compatibility_helper(
+            &subject,
+            &task_result_compatibility_helper_id()?,
+        )? {
+            return Err(mcp_invalid_params("unknown tool"));
+        }
+        let args: TaskResultArgs = serde_json::from_value(Value::Object(
+            request.arguments.unwrap_or_default(),
+        ))
+        .map_err(|err| mcp_invalid_params(format!("invalid task_result arguments: {err}")))?;
+        let task_id = parse_gateway_task_resource_uri(&args.task_uri)
+            .ok_or_else(|| mcp_invalid_params("task_uri must be veoveo://task/{task_id}"))?;
+        let mapping = self.task_mapping(task_id)?;
+        self.authorize_mapped_task(&context, GatewayAction::TasksGet, &mapping)?;
+        let task = self.direct_task_status(task_id, &context).await?;
+        match task.status {
+            TaskStatus::Completed => {
+                self.authorize_mapped_task(&context, GatewayAction::TasksResult, &mapping)?;
+                self.direct_task_payload_result(task_id, &context).await
+            }
+            TaskStatus::Failed | TaskStatus::Cancelled => {
+                direct_task_status_result(&task, None, true)
+            }
+            TaskStatus::Working | TaskStatus::InputRequired => {
+                direct_task_status_result(&task, None, false)
+            }
+            _ => Err(mcp_internal(format!(
+                "unsupported MCP task status: {:?}",
+                task.status
+            ))),
         }
     }
 
@@ -445,6 +503,30 @@ async fn inline_generation_images(
     Ok(())
 }
 
+fn task_result_compatibility_helper_id()
+-> Result<veoveo_mcp_contract::CompatibilityHelperId, McpError> {
+    veoveo_mcp_contract::CompatibilityHelperId::new(
+        VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID.to_string(),
+    )
+    .map_err(|err| mcp_internal(format!("invalid Veoveo compatibility helper id: {err}")))
+}
+
+fn task_result_tool() -> Tool {
+    Tool::new(
+        VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME,
+        "Read a Veoveo task status or final result by passing the veoveo://task/{task_id} URI returned from a previous tool call.",
+        rmcp::handler::server::tool::schema_for_type::<TaskResultArgs>(),
+    )
+    .with_title("Get task result")
+    .with_annotations(
+        ToolAnnotations::new()
+            .read_only(true)
+            .destructive(false)
+            .idempotent(true)
+            .open_world(false),
+    )
+}
+
 fn adapt_gateway_tool_execution(tool: &mut Tool) {
     if tool.task_support() != TaskSupport::Required {
         return;
@@ -496,8 +578,8 @@ fn direct_task_status_result(
     )?)];
     blocks.push(ContentBlock::resource_link(
         Resource::new(status_resource.clone(), format!("task {}", task.task_id))
-            .with_title("Gateway task status")
-            .with_description("Gateway-owned task status and result document.")
+            .with_title("Veoveo task status")
+            .with_description("Veoveo task status and result document.")
             .with_mime_type("application/json"),
     ));
     let value = serde_json::to_value(document)
@@ -532,13 +614,13 @@ fn direct_task_status_text(task: &Task, status_resource: &str) -> Result<String,
                 .as_deref()
                 .unwrap_or("no status message");
             format!(
-                "Gateway task {} is {status}: {message}. Read {status_resource} for details.",
+                "Veoveo task {} is {status}: {message}. Read {status_resource} for details.",
                 task.task_id
             )
         }
         TaskStatus::Completed => {
             format!(
-                "Gateway task {} completed. Read {status_resource} for details.",
+                "Veoveo task {} completed. Read {status_resource} for details.",
                 task.task_id
             )
         }
@@ -547,7 +629,7 @@ fn direct_task_status_text(task: &Task, status_resource: &str) -> Result<String,
                 u64::try_from(DIRECT_TASK_DEFAULT_POLL_INTERVAL.as_millis()).unwrap_or(1000),
             );
             format!(
-                "Gateway task {} is {status}. Read {status_resource} for status and result. Suggested check interval: {poll} ms.",
+                "Veoveo task {} is {status}. Read {status_resource} for status and result. Suggested check interval: {poll} ms.",
                 task.task_id
             )
         }

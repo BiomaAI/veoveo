@@ -305,6 +305,30 @@ fn default_oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
     }]
 }
 
+fn hosted_compat_oauth_client(
+    helpers: BTreeSet<CompatibilityHelperId>,
+    direct_task_call_adapter: bool,
+) -> OAuthClientRegistration {
+    OAuthClientRegistration {
+        id: OAuthClientId::new("operator-hosted-public").unwrap(),
+        authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
+        display_name: Some("Veoveo Operator Hosted Client".to_string()),
+        client_surface: OAuthClientSurface::ToolsCompat,
+        allowed_compatibility_helpers: helpers,
+        direct_task_call_adapter,
+        allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+        grant_types: BTreeSet::from([OAuthGrantType::AuthorizationCodePkce]),
+        auth_methods: BTreeSet::from([OAuthClientAuthMethod::None]),
+        redirect_uris: vec![
+            OAuthRedirectUri::new("https://claude.ai/api/mcp/auth_callback").unwrap(),
+        ],
+        allowed_scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
+        credential_secret: None,
+        jwks: None,
+        metadata: Value::Null,
+    }
+}
+
 #[test]
 fn identifiers_reject_invalid_wire_values() {
     assert!(ServerSlug::new("Media").is_err());
@@ -1682,4 +1706,36 @@ fn policy_decision_defaults_to_explicit_deny() {
 
     assert_eq!(decision.effect, PolicyEffect::Deny);
     assert_eq!(decision.reason, PolicyReasonCode::MissingScope);
+}
+
+#[test]
+fn tools_compat_client_accepts_gateway_task_result_helper() {
+    let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
+    config.oauth_clients.push(hosted_compat_oauth_client(
+        BTreeSet::from([
+            CompatibilityHelperId::new(VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID).unwrap(),
+        ]),
+        true,
+    ));
+
+    config
+        .validate()
+        .expect("gateway-owned task result helper should be valid");
+}
+
+#[test]
+fn direct_task_adapter_requires_task_result_helper() {
+    let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
+    config
+        .oauth_clients
+        .push(hosted_compat_oauth_client(BTreeSet::new(), true));
+
+    let err = config
+        .validate()
+        .expect_err("direct task adapter without task_result helper must fail");
+
+    assert!(matches!(
+        err,
+        GatewayControlPlaneError::OAuthClientDirectTaskAdapterMissingTaskResultHelper { .. }
+    ));
 }

@@ -61,6 +61,8 @@ pub use gateway::{
     SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug, TaskExposure,
     TaskIdProjection, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId,
     UpstreamEndpoint, UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+    VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID, VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME,
+    is_gateway_compatibility_helper_id,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{

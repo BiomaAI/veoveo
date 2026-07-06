@@ -76,6 +76,16 @@ impl GatewayMcp {
         Ok(client.allowed_compatibility_helpers.contains(&helper))
     }
 
+    pub(super) fn client_allows_gateway_compatibility_helper(
+        &self,
+        subject: &AuthenticatedSubject,
+        helper: &CompatibilityHelperId,
+    ) -> Result<bool, McpError> {
+        let client = self.authenticated_oauth_client(subject)?;
+        Ok(client.client_surface == OAuthClientSurface::ToolsCompat
+            && client.allowed_compatibility_helpers.contains(helper))
+    }
+
     pub(super) fn client_allows_direct_task_adapter(
         &self,
         subject: &AuthenticatedSubject,

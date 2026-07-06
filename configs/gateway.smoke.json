@@ -363,7 +363,8 @@
       "allowed_compatibility_helpers": [
         "media.artifact",
         "media.model_schema",
-        "media.models"
+        "media.models",
+        "veoveo.task_result"
       ],
       "direct_task_call_adapter": true,
       "allowed_profiles": [

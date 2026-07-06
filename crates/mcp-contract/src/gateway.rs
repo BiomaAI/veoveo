@@ -21,6 +21,12 @@ pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
     "io.modelcontextprotocol/enterprise-managed-authorization";
 pub const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION: &str =
     "io.modelcontextprotocol/oauth-client-credentials";
+pub const VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID: &str = "veoveo.task_result";
+pub const VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME: &str = "task_result";
+
+pub fn is_gateway_compatibility_helper_id(helper: &CompatibilityHelperId) -> bool {
+    helper.as_str() == VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID
+}
 
 mod policy;
 mod validation;

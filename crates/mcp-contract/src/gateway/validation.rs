@@ -829,7 +829,22 @@ fn validate_oauth_client_surface(
             },
         );
     }
+    if client.direct_task_call_adapter
+        && !client
+            .allowed_compatibility_helpers
+            .iter()
+            .any(is_gateway_compatibility_helper_id)
+    {
+        return Err(
+            GatewayControlPlaneError::OAuthClientDirectTaskAdapterMissingTaskResultHelper {
+                client: client.id.clone(),
+            },
+        );
+    }
     for helper in &client.allowed_compatibility_helpers {
+        if is_gateway_compatibility_helper_id(helper) {
+            continue;
+        }
         let Some((server_slug, tool_name)) = helper.as_str().split_once('.') else {
             return Err(
                 GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {

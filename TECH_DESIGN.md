@@ -180,38 +180,48 @@ helpers are additive projections of that same behavior.
 
 Generic compatibility belongs at the gateway boundary. The gateway may expose a direct
 tool-call adapter for task-required tools: it creates the upstream MCP task, waits briefly,
-returns the final payload if the task completes quickly, or returns a gateway task handle
+returns the final payload if the task completes quickly, or returns a Veoveo task handle
 and `veoveo://task/{task_id}` status resource when the task is still running. The gateway
 also forwards `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel` for clients
-that do support tasks.
+that do support tasks. Tools-only clients can be granted the product-owned
+`veoveo.task_result` helper, exposed as `task_result`, so they can retrieve task status or
+final output through the same task mapping, policy checks, and audit path.
 
 Domain-specific compatibility can live with the server that owns the domain knowledge,
 then be projected through the gateway by policy. Media currently exposes `models` and
 `model_schema` helper tools so tools-only clients can discover exact model ids and input
 schemas even if their host does not surface `media://models`, `media://model/{model_id}`,
-or `completion/complete`. Those helpers are not separate APIs; they are tool-shaped views
-over the same cached provider registry and schemas used by the resource and completion
-surfaces.
+or `completion/complete`. Media also exposes an `artifact` helper for authorized small
+artifact reads when a host cannot consume `resources/read` blob content. Those helpers are
+not separate APIs; they are tool-shaped views over the same cached provider registry,
+schemas, artifact store, URI identities, and authorization checks used by the canonical
+resource and completion surfaces.
 
-Compatibility helpers should be selectable per gateway profile and, later, per client
-capability. A fully compliant client should see and use the richer MCP surfaces. A
-tools-only client may receive helper tools, but that does not lower conformance
-requirements for Veoveo servers or the gateway.
+Compatibility helpers are selected per OAuth client registration through a typed client
+surface:
+
+- `full_mcp` clients see the canonical MCP surface and no compatibility helper clutter.
+- `tools_compat` clients may receive only the helper ids explicitly listed in
+  `allowed_compatibility_helpers`, such as `media.models`, `media.model_schema`,
+  `media.artifact`, or `veoveo.task_result`.
+- `direct_task_call_adapter` is valid only for `tools_compat` clients and requires
+  `veoveo.task_result`, so a client that can submit adapted long-running work also has a
+  tool-shaped way to retrieve the result.
+
+A fully compliant client should see and use the richer MCP surfaces. A tools-only client
+may receive helper tools, but that does not lower conformance requirements for Veoveo
+servers or the gateway.
 
 The next improvements are:
 
-1. Add a generic gateway artifact helper for clients that cannot read artifact resources,
-   returning image/audio/video content through MCP tool result content blocks when the
-   payload is small enough and authorized.
-2. Stop surfacing unusable protected `/media/artifacts/{sha256}` URLs to end users unless
-   they are replaced by short-lived, user-authorized gateway download URLs.
-3. Add paged/searchable catalog helper semantics (`limit`, cursor/offset, query, type,
+1. Add paged/searchable catalog helper semantics (`limit`, cursor/offset, query, type,
    provider, price/capability filters) while keeping `media://models` and
    `completion/complete` canonical.
-4. Add conformance/smoke coverage for both paths: full-protocol clients and compatibility
+2. Add conformance/smoke coverage for both paths: full-protocol clients and compatibility
    helper clients.
-5. Let gateway profiles advertise helpers intentionally instead of exposing every helper
-   everywhere by accident.
+3. Add short-lived, user-authorized browser download URLs only when a deployment needs
+   browser-style downloads, without replacing MCP resource reads or helper-mediated blob
+   results.
 
 ## What "all in" costs, and why it's worth it
 

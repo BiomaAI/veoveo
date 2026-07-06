@@ -176,7 +176,7 @@ pub(crate) async fn gateway_task_run(
     if full_tools.tools.iter().any(|tool| {
         matches!(
             tool.name.as_ref(),
-            "media__artifact" | "media__models" | "media__model_schema"
+            "media__artifact" | "media__models" | "media__model_schema" | "task_result"
         )
     }) {
         bail!("full-MCP client unexpectedly saw compatibility helpers: {full_tools:?}");
@@ -216,6 +216,7 @@ pub(crate) async fn gateway_task_run(
         "media__models",
         "media__model_schema",
         "media__run",
+        "task_result",
     ] {
         if !listed_tools
             .tools
@@ -342,6 +343,41 @@ pub(crate) async fn gateway_task_run(
     {
         bail!("direct tools/call did not inline image content for tools-compatible client");
     }
+    let task_result = session
+        .call_tool(
+            CallToolRequestParams::new("task_result").with_arguments(
+                serde_json::json!({
+                    "task_uri": format!("veoveo://task/{direct_task_id}")
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?;
+    if task_result.is_error == Some(true) {
+        bail!("task_result returned an error: {task_result:?}");
+    }
+    if !task_result
+        .content
+        .iter()
+        .any(|block| block.as_image().is_some())
+    {
+        bail!("task_result did not inline image content for tools-compatible client");
+    }
+    let task_result_structured: SmokeGenerationRunOutput = serde_json::from_value(
+        task_result
+            .structured_content
+            .clone()
+            .ok_or_else(|| anyhow!("task_result returned no structured output"))?,
+    )?;
+    if task_result_structured
+        .artifacts
+        .iter()
+        .any(|artifact| artifact.download_url.is_some())
+    {
+        bail!("task_result leaked artifact download_url: {task_result_structured:?}");
+    }
     let artifact_result = session
         .call_tool(
             CallToolRequestParams::new("media__artifact").with_arguments(
@@ -438,8 +474,8 @@ pub(crate) async fn gateway_task_run(
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
     assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
-    assert_audit_method(&audit_summary, "tasks/get", 2, 0)?;
-    assert_audit_method(&audit_summary, "tasks/result", 3, 0)?;
+    assert_audit_method(&audit_summary, "tasks/get", 3, 0)?;
+    assert_audit_method(&audit_summary, "tasks/result", 4, 0)?;
     assert_audit_method(&audit_summary, "resources/subscribe", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/unsubscribe", 1, 0)?;
     assert_audit_method(&audit_summary, "resources/read", 3, 0)?;
