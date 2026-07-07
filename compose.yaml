@@ -34,7 +34,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        for bucket in media-artifacts timeseries-artifacts optimization-artifacts duckdb-artifacts; do
+        for bucket in media-artifacts timeseries-artifacts optimization-artifacts duckdb-artifacts artifact-plane; do
           until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$bucket" 2>/dev/null \
             || aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$bucket"; do
             sleep 2
@@ -274,6 +274,64 @@ services:
     profiles:
       - dev
 
+  artifact-plane-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: veoveo_artifact
+      POSTGRES_USER: veoveo_artifact
+      POSTGRES_PASSWORD: veoveo_artifact
+    volumes:
+      - artifact_plane_control:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veoveo_artifact -d veoveo_artifact"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    profiles:
+      - dev
+
+  # The shared artifact plane: single byte-level PEP over an encrypted,
+  # tenant-scoped store and a Postgres grant ledger. Domain servers call it
+  # with the gateway-signed identity they already hold.
+  artifact-service:
+    build:
+      context: .
+      dockerfile: crates/artifact-service/Dockerfile
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+      artifact-plane-db:
+        condition: service_healthy
+    environment:
+      ARTIFACT_SERVICE_BIND: "0.0.0.0:8790"
+      DATABASE_URL: "postgresql://veoveo_artifact:veoveo_artifact@artifact-plane-db:5432/veoveo_artifact"
+      INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
+      ARTIFACT_MASTER_KEY: "${VEOVEO_ARTIFACT_MASTER_KEY:?set VEOVEO_ARTIFACT_MASTER_KEY (64 hex chars)}"
+      ARTIFACT_ALLOWED_AUDIENCES: "media,timeseries,optimization,duckdb"
+      ARTIFACT_STORE: "s3"
+      ARTIFACT_S3_ENDPOINT: "http://rustfs:9000"
+      ARTIFACT_S3_BUCKET: "artifact-plane"
+      ARTIFACT_S3_REGION: "us-east-1"
+      ARTIFACT_S3_ACCESS_KEY_ID: rustfsadmin
+      ARTIFACT_S3_SECRET_ACCESS_KEY: rustfsadmin
+      ARTIFACT_S3_ALLOW_HTTP: "true"
+      OTEL_SERVICE_NAME: veoveo-artifact-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      RUST_LOG: "info,veoveo_artifact_service=debug"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 1g
+    tmpfs:
+      - /tmp
+    ports:
+      - "127.0.0.1:8790:8790"
+    profiles:
+      - dev
+
   gateway-control-db:
     image: postgres:18-alpine
     environment:
@@ -370,3 +428,4 @@ volumes:
   duckdb_state:
   gateway_control:
   gateway_state:
+  artifact_plane_control:
