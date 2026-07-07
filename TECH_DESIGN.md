@@ -521,6 +521,79 @@ The current production-gateway foundation is:
    sources, object stores, DuckDB state stores, telemetry sinks, typed ingress/egress
    target kinds, service-to-service transport, and data-retention behavior.
 
+## Access control model: layered, not a single ACL
+
+Veoveo access control is **several distinct models composed**, not one access control
+list. Each layer does the job it is actually good at, and each is already backed by a
+typed field on `Principal`, `PolicyRule`, or artifact `ComplianceMetadata`:
+
+- **Discretionary access (DAC / ACL).** The artifact grant ledger — `(artifact, subject,
+  level)`, where `subject` is a user or a group and `level` is read/write/admin — is a
+  per-object access control list. It is owner-managed and discretionary; this is the layer
+  that expresses "share this with those people." An ACL is exactly the right tool here, and
+  the grant ledger is one. What we build is *not* "an ACL" only because an ACL is one of its
+  layers, not the whole.
+- **Groups as subject aggregation.** A group is a named set of principals (the "who"), not
+  a set of permissions and not a container of resources. `Principal.groups` already travels
+  inside the gateway-signed identity. The only new modeling the sharing feature needs is to
+  pair membership with a role — `(GroupId, GroupRole)` — so "write in Eng, read in Ops" is
+  expressible and admin of one group never leaks into another.
+- **Mandatory access (MAC).** Data labels / classification and principal clearance form a
+  lattice that is checked independently of any grant and **cannot be widened by a
+  discretionary share**. This is the non-negotiable backstop that makes DAC safe for
+  regulated data: a group admin who adds an uncleared member to a group holding a CUI
+  artifact still cannot leak it, because `artifact.data_labels ⊆ caller.data_labels` is
+  enforced separately. `required_data_labels` and principal `data_labels` already carry this.
+- **Role- and attribute-based policy (RBAC / ABAC).** Gateway `PolicyRule` decides which
+  *actions, tools, resources, and profiles* a principal may reach, keyed on roles, groups,
+  tenants, assurances, and labels. This governs "may you invoke this at all," which is
+  orthogonal to "which bytes may you read"; an ACL is the wrong shape for it.
+- **Tenancy as isolation.** Tenant separation is a hard partition with per-tenant
+  encryption, not a permission expressed as absent ACL entries. Cross-tenant sharing, if
+  ever needed, is a separate explicit audited construct, never an emergent side effect of
+  adding a member.
+- **Capabilities between services.** Hosted servers hold a short-lived gateway-signed
+  identity (a capability), never raw store credentials, so a compromised server can reach
+  only what its identity is granted.
+
+Because clearance (MAC) and need-to-know (DAC/ACL) are both present, this is, in classical
+terms, a multi-level security model with an ACL as its discretionary layer — the correct
+shape for regulated multi-tenant data, and strictly more expressive than a flat ACL. A
+decision composes the discretionary and mandatory layers and never lets the first override
+the second:
+
+```
+dac   = min( member_role_in(group), grant_level_for(group) )   // need-to-know (DAC)
+mac   = artifact.data_labels ⊆ caller.data_labels              // clearance   (MAC)
+allow = dac ≥ requested_level  &&  mac
+```
+
+Two invariants keep the composition honest: a **group lives inside exactly one tenant**
+(`group ⊆ tenant`), and **group admin is not resource admin** — managing a group's
+membership and grants is a distinct capability from administering the resources those
+grants reach. Conflating them turns every group admin into an admin of everything the
+group can touch.
+
+### Naming: groups, not "shared spaces"
+
+"Group" is the correct security term for what this primitive is — an aggregation of
+subjects — and it is what the identity token already carries, so we keep it. A *shared
+space* is the **effect** of granting an artifact to a group, not a separate object: this
+iteration deliberately does not introduce a resource-owning container. Two neighboring
+nouns are reserved so the vocabulary stays precise if we ever need them:
+
+- a **project / workspace** would be a DAC container that resources *belong to* (owned-by-
+  space, membership-scoped) — heavier, and a step toward relationship-based access control
+  (ReBAC). The regulated-data requirements above already reserve "project boundaries" for
+  this.
+- a **compartment** would be a MAC need-to-know category expressed as a data-label facet,
+  paired with clearance level — non-discretionary, unlike a group.
+
+Group-as-grant-subject is sufficient today and is the simpler, auditable choice. If groups
+later grow nesting, inheritance, or resource ownership, that is the deliberate moment to
+adopt a relation-tuple (ReBAC / Zanzibar-style) model rather than bolting recursion onto
+the ACL — a conscious fork, not a drift.
+
 ## Enterprise deployment and pluggable infrastructure
 
 Enterprise deployments should be able to bring their own object store, state store, and
