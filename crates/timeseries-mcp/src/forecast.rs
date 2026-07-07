@@ -12,9 +12,9 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    TimeseriesDuckDbFormat, TimeseriesDuckDbReadOptions, TimeseriesDuckDbSource,
-    TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
-    TimeseriesForecastSummary, TimeseriesRowFilter, TimeseriesSeriesSummary,
+    DuckDbFormat, DuckDbReadOptions, DuckDbSource, TimeseriesFilterValue, TimeseriesForecastMethod,
+    TimeseriesForecastRequest, TimeseriesForecastSummary, TimeseriesRowFilter,
+    TimeseriesSeriesSummary,
 };
 
 const DEFAULT_SERIES_ID: &str = "series";
@@ -68,17 +68,17 @@ enum SourceProvenance {
     InlineCsv {
         filename: Option<String>,
         byte_len: usize,
-        options: TimeseriesDuckDbReadOptions,
+        options: DuckDbReadOptions,
     },
     Uri {
         uri: String,
-        format: TimeseriesDuckDbFormat,
-        options: TimeseriesDuckDbReadOptions,
+        format: DuckDbFormat,
+        options: DuckDbReadOptions,
     },
     Uris {
         uris: Vec<String>,
-        format: TimeseriesDuckDbFormat,
-        options: TimeseriesDuckDbReadOptions,
+        format: DuckDbFormat,
+        options: DuckDbReadOptions,
     },
 }
 
@@ -158,7 +158,7 @@ fn validate_request(request: &TimeseriesForecastRequest) -> Result<()> {
     if let Some(column) = &request.mapping.series_column {
         validate_identifier("series_column", column)?;
     }
-    if let TimeseriesDuckDbSource::Uris { uris, .. } = &request.source
+    if let DuckDbSource::Uris { uris, .. } = &request.source
         && uris.is_empty()
     {
         bail!("source.uris must not be empty");
@@ -226,7 +226,7 @@ fn materialize_source_table(
 ) -> Result<Option<PathBuf>> {
     let mut inline_file = None;
     let expression = match &request.source {
-        TimeseriesDuckDbSource::InlineCsv { csv, options, .. } => {
+        DuckDbSource::InlineCsv { csv, options, .. } => {
             let path = std::env::temp_dir().join(format!(
                 "veoveo-timeseries-{}-{}.csv",
                 std::process::id(),
@@ -237,12 +237,12 @@ fn materialize_source_table(
             inline_file = Some(path);
             format!("read_csv({path_literal}{})", read_options_sql(options)?)
         }
-        TimeseriesDuckDbSource::Uri {
+        DuckDbSource::Uri {
             uri,
             format,
             options,
         } => read_function_sql(&quote_literal(uri), format, options)?,
-        TimeseriesDuckDbSource::Uris {
+        DuckDbSource::Uris {
             uris,
             format,
             options,
@@ -505,20 +505,20 @@ fn write_rrd(
 
 fn read_function_sql(
     source: &str,
-    format: &TimeseriesDuckDbFormat,
-    options: &TimeseriesDuckDbReadOptions,
+    format: &DuckDbFormat,
+    options: &DuckDbReadOptions,
 ) -> Result<String> {
     let options = read_options_sql(options)?;
     Ok(match format {
-        TimeseriesDuckDbFormat::Auto => format!("read_csv_auto({source}{options})"),
-        TimeseriesDuckDbFormat::Csv => format!("read_csv({source}{options})"),
-        TimeseriesDuckDbFormat::Parquet => format!("read_parquet({source}{options})"),
-        TimeseriesDuckDbFormat::Json => format!("read_json({source}{options})"),
-        TimeseriesDuckDbFormat::Ndjson => format!("read_ndjson({source}{options})"),
+        DuckDbFormat::Auto => format!("read_csv_auto({source}{options})"),
+        DuckDbFormat::Csv => format!("read_csv({source}{options})"),
+        DuckDbFormat::Parquet => format!("read_parquet({source}{options})"),
+        DuckDbFormat::Json => format!("read_json({source}{options})"),
+        DuckDbFormat::Ndjson => format!("read_ndjson({source}{options})"),
     })
 }
 
-fn read_options_sql(options: &TimeseriesDuckDbReadOptions) -> Result<String> {
+fn read_options_sql(options: &DuckDbReadOptions) -> Result<String> {
     let mut fields = Vec::new();
     if let Some(header) = options.header {
         fields.push(format!(
@@ -592,14 +592,14 @@ fn quote_ident(value: &str) -> String {
     format!("\"{}\"", value.replace('"', "\"\""))
 }
 
-fn source_digest(source: &TimeseriesDuckDbSource) -> Result<String> {
+fn source_digest(source: &DuckDbSource) -> Result<String> {
     let json = serde_json::to_vec(source)?;
     Ok(hex::encode(Sha256::digest(json)))
 }
 
-fn source_provenance(source: &TimeseriesDuckDbSource) -> SourceProvenance {
+fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
     match source {
-        TimeseriesDuckDbSource::InlineCsv {
+        DuckDbSource::InlineCsv {
             csv,
             filename,
             options,
@@ -608,7 +608,7 @@ fn source_provenance(source: &TimeseriesDuckDbSource) -> SourceProvenance {
             byte_len: csv.len(),
             options: options.clone(),
         },
-        TimeseriesDuckDbSource::Uri {
+        DuckDbSource::Uri {
             uri,
             format,
             options,
@@ -617,7 +617,7 @@ fn source_provenance(source: &TimeseriesDuckDbSource) -> SourceProvenance {
             format: format.clone(),
             options: options.clone(),
         },
-        TimeseriesDuckDbSource::Uris {
+        DuckDbSource::Uris {
             uris,
             format,
             options,
@@ -646,8 +646,8 @@ fn entity_segment(value: &str) -> String {
 mod tests {
     use serde::Deserialize;
     use veoveo_mcp_contract::{
-        TimeseriesDuckDbFormat, TimeseriesDuckDbSource, TimeseriesFilterValue,
-        TimeseriesForecastMethod, TimeseriesForecastRequest, TimeseriesTableMapping,
+        DuckDbFormat, DuckDbSource, TimeseriesFilterValue, TimeseriesForecastMethod,
+        TimeseriesForecastRequest, TimeseriesTableMapping,
     };
 
     use super::*;
@@ -686,10 +686,10 @@ mod tests {
         let artifact = run_forecast(
             "task-1",
             &TimeseriesForecastRequest {
-                source: TimeseriesDuckDbSource::InlineCsv {
+                source: DuckDbSource::InlineCsv {
                     csv: "ts,value\n2026-01-01,10\n2026-01-02,12\n2026-01-03,15\n".into(),
                     filename: Some("input.csv".into()),
-                    options: TimeseriesDuckDbReadOptions {
+                    options: DuckDbReadOptions {
                         header: Some(true),
                         ..Default::default()
                     },
@@ -725,10 +725,10 @@ mod tests {
         let artifact = run_forecast(
             "timesfm-fixture-task",
             &TimeseriesForecastRequest {
-                source: TimeseriesDuckDbSource::Uri {
+                source: DuckDbSource::Uri {
                     uri: fixture.to_string_lossy().into_owned(),
-                    format: TimeseriesDuckDbFormat::Csv,
-                    options: TimeseriesDuckDbReadOptions {
+                    format: DuckDbFormat::Csv,
+                    options: DuckDbReadOptions {
                         header: Some(true),
                         ..Default::default()
                     },
@@ -781,10 +781,10 @@ mod tests {
 
     #[test]
     fn source_digest_is_stable() {
-        let source = TimeseriesDuckDbSource::InlineCsv {
+        let source = DuckDbSource::InlineCsv {
             csv: "ts,value\n2026-01-01,10\n".into(),
             filename: Some("input.csv".into()),
-            options: TimeseriesDuckDbReadOptions {
+            options: DuckDbReadOptions {
                 header: Some(true),
                 ..Default::default()
             },
@@ -801,8 +801,8 @@ mod tests {
         assert_eq!(
             read_function_sql(
                 "'s3://bucket/file.parquet'",
-                &TimeseriesDuckDbFormat::Parquet,
-                &TimeseriesDuckDbReadOptions::default()
+                &DuckDbFormat::Parquet,
+                &DuckDbReadOptions::default()
             )
             .unwrap(),
             "read_parquet('s3://bucket/file.parquet')"
