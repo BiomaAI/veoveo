@@ -8,6 +8,7 @@
 pub mod access;
 #[cfg(feature = "analytics")]
 pub mod analytics;
+pub mod artifact_service;
 pub mod deployment;
 pub mod duckdb;
 pub mod gateway;
@@ -33,6 +34,10 @@ pub use access::{
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
+pub use artifact_service::{
+    ArtifactPlane, ArtifactPlaneError, GrantList, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    tenant_scoped_object_key,
+};
 pub use deployment::{
     DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,
     DeploymentRequirementId, DeploymentServiceKind, GatewayToServerIdentity, NetworkBoundaryRule,
