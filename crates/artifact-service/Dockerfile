@@ -11,8 +11,8 @@ COPY crates ./crates
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-artifact-service --bin server \
-    && cp /app/target/release/server /out-artifact-service
+    cargo build --release --jobs 4 -p veoveo-artifact-service --bin artifact-service \
+    && cp /app/target/release/artifact-service /out-artifact-service
 
 FROM debian:trixie-slim
 
