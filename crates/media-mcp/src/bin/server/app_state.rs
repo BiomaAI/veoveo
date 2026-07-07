@@ -8,7 +8,8 @@ use rmcp::{RoleServer, model::TaskStatus, service::Peer};
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    GatewayInternalTokenVerifier, ServerPublicEndpoint, SubscriptionHub, TaskStore,
+    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, ServerPublicEndpoint, SubscriptionHub,
+    TaskStore, TokenIssuer,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
@@ -40,6 +41,12 @@ pub(super) struct AppState {
     pub(super) durable: DuckdbState,
     pub(super) artifacts: ArtifactRepository,
     pub(super) internal_token_verifier: GatewayInternalTokenVerifier,
+    /// Mints short-lived internal tokens for async artifact writes that complete
+    /// under a persisted TaskOwner (the provider webhook path), where no live
+    /// gateway bearer exists. See `ownership::plane_caller_for_owner`.
+    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+    /// Issuer name stamped into those minted tokens.
+    pub(super) internal_token_issuer_name: TokenIssuer,
     /// prediction id -> waiter for its webhook callback
     pub(super) pending: Mutex<HashMap<String, oneshot::Sender<Prediction>>>,
     pub(super) predictions: RwLock<HashMap<String, Prediction>>,

@@ -7,10 +7,7 @@ use rmcp::{
 };
 use veoveo_mcp_contract::ArtifactMetadata;
 
-use super::{
-    AppState,
-    ownership::{artifact_owned_by, internal_identity},
-};
+use super::{AppState, ownership::internal_caller};
 use veoveo_media_mcp::uris;
 
 const MAX_INLINE_ARTIFACT_BYTES: u64 = 3 * 1024 * 1024;
@@ -35,16 +32,16 @@ pub(super) async fn artifact_result(
     let sha256 = uris::parse_artifact_uri(&args.artifact_uri).ok_or_else(|| {
         McpError::invalid_params("artifact_uri must be media://artifact/{sha256}", None)
     })?;
+    // The plane enforces access with the caller's identity.
+    let caller = internal_caller(context)?;
     let artifact = state
         .artifacts
-        .get(sha256)
+        .get(&caller, sha256)
         .await
         .map_err(|err| McpError::internal_error(err.to_string(), None))?
         .ok_or_else(|| {
             McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
         })?;
-    let identity = internal_identity(context)?;
-    artifact_owned_by(state, &artifact.metadata.sha256, &identity)?;
 
     let metadata = artifact.metadata.without_download_url();
     let mime = metadata

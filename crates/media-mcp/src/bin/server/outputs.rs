@@ -6,7 +6,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_media_mcp::{provider::Prediction, state::TaskOwner};
 
-use super::{AppState, ownership::artifact_owner_from_task};
+use super::{AppState, ownership::plane_caller_for_owner};
 
 fn guess_mime(url: &str) -> Option<&'static str> {
     let path = url.split('?').next()?;
@@ -78,8 +78,8 @@ async fn ingest_output_artifact(
     let mut artifact = ArtifactPut::new(bytes);
     artifact.mime_type = header_mime.or_else(|| guess_mime(url).map(str::to_string));
     artifact.filename = Some(filename_from_url(url, index));
-    artifact.compliance.owner_id = Some(owner.principal_id.clone());
-    artifact.compliance.tenant_id = owner.tenant.clone();
+    // The plane stamps tenant + owner from the minted owner token and records
+    // the owner grant; carry the caller's labels + retention as put fields.
     artifact.compliance.data_labels = owner.data_labels.clone();
     artifact.compliance.retention_expires_at =
         Some(state.retention.artifact_expires_at(now_utc())?);
@@ -89,12 +89,10 @@ async fn ingest_output_artifact(
         model_id: prediction.model.as_str(),
         output_index: index,
     })?;
-    let mut metadata = state.artifacts.put(artifact).await?;
-    let artifact_owner = artifact_owner_from_task(&metadata.sha256, owner);
-    state.durable.record_artifact_owner(&artifact_owner)?;
-    metadata.compliance.owner_id = Some(owner.principal_id.clone());
-    metadata.compliance.tenant_id = owner.tenant.clone();
-    metadata.compliance.data_labels = owner.data_labels.clone();
+    // Async completion: no live bearer, so act on behalf of the persisted owner.
+    let caller = plane_caller_for_owner(state, owner)
+        .map_err(|e| anyhow::anyhow!("building owner artifact caller: {e}"))?;
+    let metadata = state.artifacts.put(&caller, artifact).await?;
     Ok(metadata)
 }
 
