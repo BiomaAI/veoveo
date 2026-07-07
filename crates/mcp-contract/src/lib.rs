@@ -13,6 +13,7 @@ pub mod gateway;
 pub mod generation;
 pub mod host;
 pub mod internal_auth;
+pub mod optimization;
 pub mod pagination;
 pub mod provider;
 pub mod storage;
@@ -83,6 +84,11 @@ pub use internal_auth::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenIssuer,
     GatewayInternalTokenVerifier, InternalTokenError, InternalTokenSecret,
     IssuedGatewayInternalToken, MIN_INTERNAL_TOKEN_SECRET_BYTES,
+};
+pub use optimization::{
+    AgentPlanResult, PlanArtifactOptions, PlanInput, PlanOutput, PlanRequest, PlanSolverSummary,
+    PlanStatus, PlanSummary, PlanningAgent, PlanningConstraint, PlanningObjective, PlanningOption,
+    PlanningTableMapping, PlanningTask, SelectedOption, TaskPlanResult,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
