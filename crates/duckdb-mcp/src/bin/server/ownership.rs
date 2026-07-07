@@ -117,19 +117,13 @@ pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIde
         && owner.data_labels.is_subset(&identity.principal.data_labels)
 }
 
-/// Writers must be the owning principal. Readers may also be tenant peers:
-/// same tenant, and the database's data labels covered by the reader's.
+/// Mutable hosted databases are owner-private: only the owning principal reads
+/// or writes one. Coarse tenant-wide read of another principal's database (the
+/// former "tenant peer" rule) is retired — to share database *data*, export a
+/// snapshot to the artifact plane and grant it (to a user or a group), which
+/// carries proper per-artifact access control across servers.
 pub(super) fn database_readable(owner: &DatabaseOwner, identity: &GatewayInternalIdentity) -> bool {
-    if database_writable(owner, identity) {
-        return true;
-    }
-    match (&owner.tenant, &identity.principal.tenant) {
-        (Some(db_tenant), Some(reader_tenant)) => {
-            db_tenant == reader_tenant
-                && owner.data_labels.is_subset(&identity.principal.data_labels)
-        }
-        _ => false,
-    }
+    database_writable(owner, identity)
 }
 
 pub(super) fn database_writable(owner: &DatabaseOwner, identity: &GatewayInternalIdentity) -> bool {
@@ -153,8 +147,9 @@ pub(super) fn database_file_path(
         .join(format!("{db_id}.duckdb"))
 }
 
-/// Resolve a database for reading: prefer the caller's own database, then a
-/// single tenant-visible one. Ambiguity is an error rather than a guess.
+/// Resolve a database for reading. Databases are owner-private, so this is the
+/// caller's own database or nothing — to read someone else's data, they export
+/// a snapshot to the artifact plane and grant it.
 pub(super) fn resolve_readable_database(
     state: &AppState,
     identity: &GatewayInternalIdentity,
@@ -164,29 +159,11 @@ pub(super) fn resolve_readable_database(
         .durable
         .database_owners(db_id)
         .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    if let Some(own) = owners
+    owners
         .iter()
         .find(|owner| database_writable(owner, identity))
-    {
-        return Ok(own.clone());
-    }
-    let visible: Vec<&DatabaseOwner> = owners
-        .iter()
-        .filter(|owner| database_readable(owner, identity))
-        .collect();
-    match visible.as_slice() {
-        [] => Err(McpError::invalid_params(
-            format!("unknown database `{db_id}`"),
-            None,
-        )),
-        [only] => Ok((*only).clone()),
-        _ => Err(McpError::invalid_params(
-            format!(
-                "database id `{db_id}` is ambiguous within the tenant; ask the owner to export a snapshot instead"
-            ),
-            None,
-        )),
-    }
+        .map(|own| own.clone())
+        .ok_or_else(|| McpError::invalid_params(format!("unknown database `{db_id}`"), None))
 }
 
 /// Resolve a database for writing, optionally creating the caller-owned
