@@ -1,0 +1,39 @@
+[package]
+name = "veoveo-artifact-service"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_artifact_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+chacha20poly1305.workspace = true
+chrono.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+hmac.workspace = true
+object_store.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
