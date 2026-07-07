@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
@@ -93,6 +95,9 @@ impl JwtVerifier {
                 .map(GroupId::new)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
+            // Per-group roles are not asserted by the OAuth access token today;
+            // bare membership resolves to Read via Principal::group_memberships().
+            group_roles: BTreeSet::new(),
             roles: claims
                 .roles
                 .map(StringListClaim::into_values)

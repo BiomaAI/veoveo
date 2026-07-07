@@ -1,173 +1,112 @@
-use std::sync::Arc;
+//! Artifact access for timeseries-mcp, backed by the shared artifact plane.
+//!
+//! timeseries no longer owns a private bucket or artifact metadata tables. It calls
+//! the central artifact service with the caller's forwarded gateway identity;
+//! the plane stamps tenant/owner, records the grant ledger, encrypts per tenant,
+//! and enforces every read/write. See `TECH_DESIGN.md`, "shared artifact plane".
 
-use anyhow::{Context, Result, bail};
-use object_store::{
-    Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, aws::AmazonS3Builder,
-    memory::InMemory, path::Path,
-};
-use serde_json::Value;
-use sha2::{Digest, Sha256};
+use anyhow::{Result, anyhow};
+use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactObject, ArtifactPut, ServerResourceUris, artifact_object_key, now_utc,
+    AccessLevel, ArtifactMetadata, ArtifactObject, ArtifactPlane, ArtifactPlaneError, ArtifactPut,
+    ArtifactSha256, PlaneCaller, PutArtifactRequest,
 };
 
-use crate::state::DuckdbState;
+/// The scheme this server presents artifacts under to clients
+/// (`timeseries://artifact/{sha}`). The plane stores the neutral `artifact://`
+/// identity; we re-stamp on the way out so a returned URI resolves here.
+const SCHEME: &str = "timeseries";
 
-#[derive(Debug, Clone)]
-pub struct S3ArtifactConfig {
-    pub endpoint: String,
-    pub bucket: String,
-    pub region: String,
-    pub allow_http: bool,
-}
-
+/// Thin handle to the shared artifact plane. Cloneable; wraps a pooled client.
 #[derive(Clone)]
 pub struct ArtifactRepository {
-    inner: Arc<dyn ObjectStore>,
-    state: DuckdbState,
-    uris: ServerResourceUris,
-    download_base_url: String,
+    plane: HttpArtifactPlane,
 }
 
 impl ArtifactRepository {
-    pub fn new(
-        inner: Arc<dyn ObjectStore>,
-        state: DuckdbState,
-        uris: ServerResourceUris,
-        download_base_url: impl Into<String>,
-    ) -> Self {
+    /// Connect to the artifact service at `service_url` (e.g.
+    /// `http://artifact-service:8790`).
+    pub fn new(service_url: impl Into<String>) -> Self {
         Self {
-            inner,
-            state,
-            uris,
-            download_base_url: download_base_url.into(),
+            plane: HttpArtifactPlane::new(service_url),
         }
     }
 
-    pub fn new_s3_compatible(
-        config: S3ArtifactConfig,
-        state: DuckdbState,
-        uris: ServerResourceUris,
-        download_base_url: impl Into<String>,
-    ) -> Result<Self> {
-        config.validate()?;
-        let inner = AmazonS3Builder::from_env()
-            .with_endpoint(config.endpoint)
-            .with_bucket_name(config.bucket)
-            .with_region(config.region)
-            .with_allow_http(config.allow_http)
-            .with_virtual_hosted_style_request(false)
-            .build()
-            .context("building S3-compatible artifact store")?;
-
-        Ok(Self::new(Arc::new(inner), state, uris, download_base_url))
-    }
-
-    pub fn new_in_memory(
-        state: DuckdbState,
-        uris: ServerResourceUris,
-        download_base_url: impl Into<String>,
-    ) -> Self {
-        Self::new(Arc::new(InMemory::new()), state, uris, download_base_url)
-    }
-
-    fn object_path(sha256: &str) -> Result<Path> {
-        Path::parse(artifact_object_key(sha256)).context("building artifact object key")
-    }
-
-    fn download_url(&self, sha256: &str) -> String {
-        format!(
-            "{}/artifacts/{sha256}",
-            self.download_base_url.trim_end_matches('/')
-        )
-    }
-
-    pub async fn put(&self, artifact: ArtifactPut) -> Result<ArtifactMetadata> {
-        let sha256 = hex::encode(Sha256::digest(&artifact.bytes));
-        let path = Self::object_path(&sha256)?;
-
-        if let Some(existing) = self.state.artifact(&sha256)?
-            && self.inner.head(&path).await.is_ok()
-        {
-            return Ok(existing);
+    pub fn with_client(service_url: impl Into<String>, http: reqwest::Client) -> Self {
+        Self {
+            plane: HttpArtifactPlane::with_client(service_url, http),
         }
+    }
 
-        let mut put_options = PutOptions::default();
-        if let Some(mime_type) = &artifact.mime_type {
-            put_options.attributes =
-                Attributes::from_iter([(Attribute::ContentType, mime_type.clone())]);
-        }
-        self.inner
-            .put_opts(&path, artifact.bytes.clone().into(), put_options)
-            .await
-            .with_context(|| format!("writing artifact object {sha256}"))?;
-
-        let metadata = ArtifactMetadata {
-            sha256: sha256.clone(),
-            byte_len: artifact.bytes.len() as u64,
+    /// Store bytes on the plane on the caller's behalf. Tenant and owner are
+    /// stamped by the service from the verified identity, so any client-supplied
+    /// `compliance.tenant_id` / `owner_id` are intentionally ignored here.
+    pub async fn put(
+        &self,
+        caller: &PlaneCaller,
+        artifact: ArtifactPut,
+    ) -> Result<ArtifactMetadata> {
+        let request = PutArtifactRequest {
             mime_type: artifact.mime_type,
             filename: artifact.filename,
-            artifact_uri: self.uris.artifact_uri(&sha256),
-            download_url: Some(self.download_url(&sha256)),
-            created_at: now_utc(),
-            compliance: artifact.compliance,
-            metadata: match artifact.metadata {
-                Value::Null => Value::Object(Default::default()),
-                other => other,
-            },
+            classification: artifact.compliance.classification,
+            data_labels: artifact.compliance.data_labels,
+            retention_expires_at: artifact.compliance.retention_expires_at,
+            metadata: artifact.metadata,
         };
-        self.state.record_artifact(&metadata)?;
-        Ok(metadata)
-    }
-
-    pub async fn get(&self, sha256: &str) -> Result<Option<ArtifactObject>> {
-        let Some(metadata) = self.state.artifact(sha256)? else {
-            return Ok(None);
-        };
-        let path = Self::object_path(sha256)?;
-        let result = match self.inner.get(&path).await {
-            Ok(result) => result,
-            Err(object_store::Error::NotFound { .. }) => return Ok(None),
-            Err(err) => {
-                return Err(err).with_context(|| format!("reading artifact object {sha256}"));
-            }
-        };
-        let bytes = result
-            .bytes()
+        self.plane
+            .put(caller, request, artifact.bytes)
             .await
-            .with_context(|| format!("reading artifact bytes {sha256}"))?
-            .to_vec();
-        Ok(Some(ArtifactObject { metadata, bytes }))
+            .map(|m| m.presented_under_scheme(SCHEME))
+            .map_err(plane_err)
     }
 
-    pub async fn head(&self, sha256: &str) -> Result<Option<ArtifactMetadata>> {
-        let Some(metadata) = self.state.artifact(sha256)? else {
-            return Ok(None);
-        };
-        let path = Self::object_path(sha256)?;
-        match self.inner.head(&path).await {
-            Ok(_) => Ok(Some(metadata)),
-            Err(object_store::Error::NotFound { .. }) => Ok(None),
-            Err(err) => Err(err).with_context(|| format!("reading artifact metadata {sha256}")),
+    /// Fetch bytes + metadata if the caller may read them. `Ok(None)` for a
+    /// missing artifact; a denial surfaces as an error so it is never silently
+    /// treated as absent.
+    pub async fn get(
+        &self,
+        caller: &PlaneCaller,
+        sha256: &str,
+    ) -> Result<Option<ArtifactObject>> {
+        let sha = parse_sha(sha256)?;
+        match self.plane.get(caller, &sha, AccessLevel::Read).await {
+            Ok(mut object) => {
+                object.metadata = object.metadata.presented_under_scheme(SCHEME);
+                Ok(Some(object))
+            }
+            Err(ArtifactPlaneError::NotFound) => Ok(None),
+            Err(other) => Err(plane_err(other)),
         }
+    }
+
+    /// Metadata only, gated at read.
+    pub async fn head(
+        &self,
+        caller: &PlaneCaller,
+        sha256: &str,
+    ) -> Result<Option<ArtifactMetadata>> {
+        let sha = parse_sha(sha256)?;
+        match self.plane.head(caller, &sha).await {
+            Ok(metadata) => Ok(Some(metadata.presented_under_scheme(SCHEME))),
+            Err(ArtifactPlaneError::NotFound) => Ok(None),
+            Err(other) => Err(plane_err(other)),
+        }
+    }
+
+    /// Resolve a neutral `artifact://{sha}` plane URI to bytes on the caller's
+    /// behalf — the cross-server input path (P3).
+    pub async fn resolve(&self, caller: &PlaneCaller, uri: &str) -> Result<ArtifactObject> {
+        let mut object = self.plane.resolve(caller, uri).await.map_err(plane_err)?;
+        object.metadata = object.metadata.presented_under_scheme(SCHEME);
+        Ok(object)
     }
 }
 
-impl S3ArtifactConfig {
-    fn validate(&self) -> Result<()> {
-        let url = reqwest::Url::parse(&self.endpoint)
-            .with_context(|| format!("parsing artifact endpoint `{}`", self.endpoint))?;
-        match url.scheme() {
-            "https" => Ok(()),
-            "http" if self.allow_http => Ok(()),
-            "http" => bail!(
-                "artifact endpoint `{}` uses HTTP; pass --artifact-allow-http only for local development",
-                self.endpoint
-            ),
-            scheme => bail!(
-                "artifact endpoint `{}` uses unsupported scheme `{scheme}`",
-                self.endpoint
-            ),
-        }
-    }
+fn parse_sha(sha256: &str) -> Result<ArtifactSha256> {
+    ArtifactSha256::new(sha256).map_err(|e| anyhow!("invalid artifact sha: {e}"))
+}
+
+fn plane_err(err: ArtifactPlaneError) -> anyhow::Error {
+    anyhow!("artifact plane error: {err}")
 }

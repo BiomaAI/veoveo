@@ -42,12 +42,12 @@ use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
-    ServerResourceUris, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard,
+    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard,
     TimeseriesForecastOutput, TimeseriesForecastRequest, TokenIssuer, UsageReport,
     init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
 };
 use veoveo_timeseries_mcp::{
-    artifacts::{ArtifactRepository, S3ArtifactConfig},
+    artifacts::ArtifactRepository,
     forecast::{RRD_MIME_TYPE, run_forecast},
     state::DuckdbState,
     uris,
@@ -67,14 +67,14 @@ mod outputs;
 mod ownership;
 
 use app_state::{AppState, update_task};
-use config::{Args, ArtifactStoreBackend};
+use config::Args;
 use host::validate_host;
 use internal_auth::{
     InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
 };
 use outputs::forecast_result;
 use ownership::{
-    artifact_owned_by, internal_identity, optional_task_owner, require_task_owner,
+    internal_caller, internal_identity, optional_task_owner, require_task_owner,
     task_owner_allows, task_owner_from_identity,
 };
 
@@ -174,6 +174,7 @@ impl ServerHandler for TimeseriesMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CreateTaskResult, McpError> {
+        let caller = internal_caller(&context)?;
         let identity = internal_identity(&context)?;
         if request.name != "forecast" {
             return Err(McpError::method_not_found::<
@@ -213,6 +214,7 @@ impl ServerHandler for TimeseriesMcp {
             self.state.clone(),
             context.peer.clone(),
             task_id.clone(),
+            caller,
             owner,
             args,
             progress_token,
@@ -315,27 +317,9 @@ impl ServerHandler for TimeseriesMcp {
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
-        for artifact in self
-            .state
-            .durable
-            .list_artifacts()
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?
-        {
-            if artifact_owned_by(&self.state, &artifact.sha256, &identity).is_err() {
-                continue;
-            }
-            resources.push(
-                Resource::new(artifact.artifact_uri.clone(), artifact.sha256.clone())
-                    .with_title("Timeseries forecast RRD")
-                    .with_description("Rerun recording artifact.")
-                    .with_mime_type(
-                        artifact
-                            .mime_type
-                            .clone()
-                            .unwrap_or_else(|| RRD_MIME_TYPE.to_string()),
-                    ),
-            );
-        }
+        // Artifacts live on the shared plane now; this server keeps no local
+        // artifact index to enumerate. They remain readable by their
+        // artifact URI through resources/read, which resolves against the plane.
         for task_id in self
             .state
             .durable
@@ -439,16 +423,17 @@ impl ServerHandler for TimeseriesMcp {
             ]));
         }
         if let Some(sha256) = uris::parse_artifact_uri(uri) {
+            // The plane enforces access with the caller's identity.
+            let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(sha256)
+                .get(&caller, sha256)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
                 .ok_or_else(|| {
                     McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
                 })?;
-            artifact_owned_by(&self.state, sha256, &identity)?;
             let blob = BASE64_STANDARD.encode(&artifact.bytes);
             let mut content = ResourceContents::blob(blob, uri);
             content = content.with_mime_type(
@@ -466,10 +451,12 @@ impl ServerHandler for TimeseriesMcp {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_task(
     state: Arc<AppState>,
     peer: rmcp::service::Peer<RoleServer>,
     task_id: String,
+    caller: veoveo_mcp_contract::PlaneCaller,
     owner: veoveo_timeseries_mcp::state::TaskOwner,
     args: TimeseriesForecastRequest,
     progress_token: Option<rmcp::model::ProgressToken>,
@@ -504,7 +491,7 @@ async fn run_task(
         Err(err) => fail!(format!("forecast worker failed: {err}")),
     };
     veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.8, "writing artifact").await;
-    let result = match forecast_result(&state, &task_id, &owner, artifact).await {
+    let result = match forecast_result(&state, &caller, &task_id, &owner, artifact).await {
         Ok(result) => result,
         Err(err) => fail!(format!("artifact write failed: {err}")),
     };
@@ -539,19 +526,17 @@ async fn artifact_download(
             return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
         }
     };
-    if let Err(err) = artifact_owned_by(&state, &sha256, &identity) {
-        tracing::warn!(
-            artifact_sha256 = sha256,
-            "rejected timeseries artifact download: {err}"
-        );
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let artifact = match state.artifacts.get(&sha256).await {
+    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
+        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
+    };
+    let caller = ownership::caller_from(identity, bearer);
+    // The plane enforces access; a denial reads as not-found here.
+    let artifact = match state.artifacts.get(&caller, &sha256).await {
         Ok(Some(artifact)) => artifact,
         Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
         Err(err) => {
             tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {err}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "artifact unavailable").into_response();
+            return (StatusCode::NOT_FOUND, "not found").into_response();
         }
     };
 
@@ -591,24 +576,7 @@ async fn main() -> anyhow::Result<()> {
         ServerSlug::new(SERVER_SLUG)?,
         InternalTokenSecret::new(args.internal_token_secret.clone())?,
     );
-    let artifacts = match args.artifact_store {
-        ArtifactStoreBackend::S3Compatible => ArtifactRepository::new_s3_compatible(
-            S3ArtifactConfig {
-                endpoint: args.artifact_endpoint.clone(),
-                bucket: args.artifact_bucket.clone(),
-                region: args.artifact_region.clone(),
-                allow_http: args.artifact_allow_http,
-            },
-            durable.clone(),
-            ServerResourceUris::new(SERVER_SLUG),
-            public_endpoint.public_url().to_string(),
-        )?,
-        ArtifactStoreBackend::Memory => ArtifactRepository::new_in_memory(
-            durable.clone(),
-            ServerResourceUris::new(SERVER_SLUG),
-            public_endpoint.public_url().to_string(),
-        ),
-    };
+    let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
         tasks

@@ -8,6 +8,13 @@ pub(crate) fn contains(haystack: &str, needle: &str) -> Result<()> {
     }
 }
 
+pub(crate) fn not_contains(haystack: &str, needle: &str) -> Result<()> {
+    if haystack.contains(needle) {
+        bail!("expected output NOT to contain `{needle}`\noutput:\n{haystack}");
+    }
+    Ok(())
+}
+
 pub(crate) fn assert_schema_title(path: &Path, expected_title: &str) -> Result<Value> {
     let value: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
     if value.get("$schema").is_none() {

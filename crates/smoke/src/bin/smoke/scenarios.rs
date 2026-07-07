@@ -19,6 +19,7 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
     let conformance = Path::new("target/debug/conformance");
     let gateway = Path::new("target/debug/gateway");
     let media = Path::new("target/debug/server");
+    let artifact_service = Path::new("target/debug/artifact-service");
 
     suite_step("workspace contract and gateway tests");
     run_checked(
@@ -104,19 +105,20 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
     gateway_vault_secrets(gateway, smoke_control_plane).await?;
 
     suite_step("media MCP auth boundary");
-    media_mcp_auth(conformance, media).await?;
+    media_mcp_auth(conformance, media, artifact_service).await?;
 
     suite_step("direct media task run");
-    media_task_run(conformance, media).await?;
+    media_task_run(conformance, media, artifact_service).await?;
 
     suite_step("authenticated gateway forwarding and policy");
-    gateway_authenticated(conformance, media, gateway, smoke_control_plane).await?;
+    gateway_authenticated(conformance, media, gateway, smoke_control_plane, artifact_service)
+        .await?;
 
     suite_step("gateway with two hosted servers");
     gateway_two_servers(conformance, gateway, smoke_control_plane).await?;
 
     suite_step("gateway task run with artifacts and usage");
-    gateway_task_run(conformance, media, gateway, smoke_control_plane).await?;
+    gateway_task_run(conformance, media, gateway, smoke_control_plane, artifact_service).await?;
 
     println!("gateway smoke suite ok");
     Ok(())

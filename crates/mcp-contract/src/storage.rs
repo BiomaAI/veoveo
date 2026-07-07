@@ -54,6 +54,18 @@ impl ArtifactMetadata {
         self.download_url = None;
         self
     }
+
+    /// Rewrite `artifact_uri` into the given server's scheme
+    /// (`{scheme}://artifact/{sha256}`) for client-facing presentation.
+    ///
+    /// The artifact service stamps the neutral plane identity `artifact://{sha}`;
+    /// each domain server presents artifacts under its own scheme (matching its
+    /// resource templates and read paths), so callers get a URI the same server
+    /// can resolve back. The neutral form remains valid cross-server input.
+    pub fn presented_under_scheme(mut self, scheme: &str) -> Self {
+        self.artifact_uri = format!("{scheme}://artifact/{}", self.sha256);
+        self
+    }
 }
 
 /// Bytes and optional presentation metadata for a new artifact.
@@ -79,8 +91,40 @@ impl ArtifactPut {
 }
 
 /// Stored artifact payload plus its canonical metadata.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArtifactObject {
     pub metadata: ArtifactMetadata,
     pub bytes: Vec<u8>,
+}
+
+#[cfg(test)]
+mod presentation_tests {
+    use super::*;
+
+    #[test]
+    fn presented_under_scheme_rewrites_uri_to_server_scheme() {
+        let sha = "b".repeat(64);
+        let meta = ArtifactMetadata {
+            sha256: sha.clone(),
+            byte_len: 3,
+            mime_type: None,
+            filename: None,
+            // Plane stamps the neutral identity...
+            artifact_uri: format!("artifact://{sha}"),
+            download_url: None,
+            created_at: Utc::now(),
+            compliance: ComplianceMetadata::default(),
+            metadata: Value::Null,
+        };
+        // ...and each server re-presents it under its own scheme.
+        let presented = meta.presented_under_scheme("media");
+        assert_eq!(presented.artifact_uri, format!("media://artifact/{sha}"));
+        // The neutral form is still recoverable from the sha for cross-server use.
+        assert_eq!(
+            crate::access::parse_artifact_plane_uri(&presented.artifact_uri)
+                .unwrap()
+                .as_str(),
+            sha
+        );
+    }
 }

@@ -2,6 +2,10 @@ use super::*;
 
 pub(crate) const INTERNAL_SECRET: &str = "local-smoke-internal-token-secret-32-bytes-minimum";
 pub(crate) const PUBLIC_BASE_URL: &str = "https://veoveo.bioma.ai";
+/// 64 hex chars = 32 bytes; the artifact plane's per-tenant envelope master key.
+/// Test-only value; the real key is provisioned per deployment.
+pub(crate) const ARTIFACT_MASTER_KEY: &str =
+    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SmokeGenerationRunOutput {
