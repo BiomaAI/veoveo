@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 
 #[derive(Parser, Debug)]
@@ -21,16 +21,10 @@ pub(super) struct Args {
     /// DuckDB spill directory; must stay separate from the exchange root.
     #[arg(long, default_value = "spill")]
     pub(super) spill_dir: PathBuf,
-    #[arg(long, default_value = "s3-compatible")]
-    pub(super) artifact_store: ArtifactStoreBackend,
-    #[arg(long, default_value = "http://localhost:9000")]
-    pub(super) artifact_endpoint: String,
-    #[arg(long, default_value = "duckdb-artifacts")]
-    pub(super) artifact_bucket: String,
-    #[arg(long, default_value = "us-east-1")]
-    pub(super) artifact_region: String,
-    #[arg(long, default_value_t = false)]
-    pub(super) artifact_allow_http: bool,
+    /// Base URL of the shared artifact-plane service (e.g.
+    /// http://artifact-service:8790). All artifact reads/writes go here.
+    #[arg(long, default_value = "http://artifact-service:8790")]
+    pub(super) artifact_service_url: String,
     #[arg(long, default_value_t = false)]
     pub(super) allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]
@@ -70,11 +64,4 @@ impl Args {
     pub(super) fn public_deployment(&self) -> anyhow::Result<PublicDeployment> {
         PublicDeployment::new(&self.public_base_url)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-#[value(rename_all = "kebab-case")]
-pub(super) enum ArtifactStoreBackend {
-    S3Compatible,
-    Memory,
 }
