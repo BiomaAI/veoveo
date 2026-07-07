@@ -354,6 +354,48 @@ Controlled request shapes should be modeled with Rust structs and enums. Raw
 JSON is only acceptable at genuinely open-ended extension points, such as an
 opaque solver debug export or externally defined scenario metadata.
 
+### Coordinates Contract Integration
+
+Optimization should not define its own coordinate, frame, pose, trajectory, or
+geofence schema. Those are shared platform concerns owned by the coordinates
+contract:
+
+```text
+veoveo_mcp_contract::coordinates
+```
+
+The coordinates contract is the official source for all Veoveo MCP servers and
+services that accept, persist, transform, or return controlled spatial data.
+Optimization should import and reuse shared types such as:
+
+- `FrameId`
+- `CrsId`
+- `Pose3`
+- `Trajectory3`
+- `GeofenceGeometry`
+- `CoordinateOperationId`
+- `CoordinateOperationRef`
+- `CoordinateOperationProvenance`
+
+`coordinates-mcp` owns execution of frame conversion, CRS transforms,
+geodesics, and geofence validation. `optimization-mcp` should consume the
+resulting typed facts, operation refs, resource URIs, costs, distances,
+durations, risk scores, and validation evidence. The solver should not perform
+CRS projection or datum/frame conversion internally.
+
+The first integration should be additive over the existing option planner:
+
+- optional spatial fields on agents, tasks, and options
+- optional coordinate operation refs on selected options and plan outputs
+- validation refs linking a plan to `coordinates://operation/{operation_id}` or
+  future coordinates validation artifacts
+- RRD worldline entries that use the same shared frame ids and pose types as
+  every other Veoveo server
+
+Spatial constraints and objectives should come later, after the coordinates
+server can produce validated distances, travel times, geofence intersections,
+and transformed trajectories.
+
 ### Geometry and Registry
 
 ```text
@@ -390,10 +432,15 @@ RegistrySnapshotView
   consistency: ConsistencyScore
 ```
 
+The concrete Rust definitions for `Pose3`, frame definitions, geofences, and
+operation provenance should come from `veoveo_mcp_contract::coordinates`. The
+sketch above describes how optimization uses them in the worldline registry.
+
 Transforms are logged into the RRD worldline first. A snapshot is an immutable
 materialized view over a recording id plus time cursor or time range. A session
 may have a mutable current snapshot pointer, but plan results must reference the
-source recording id and snapshot id for reproducibility.
+source recording id, snapshot id, and coordinate operation refs for
+reproducibility.
 
 ### Assignment Planning
 
@@ -750,6 +797,9 @@ operator or system approval path outside this server.
 
 ### Phase 3: Transform Fusion
 
+- Depend on shared coordinate contract types from
+  `veoveo_mcp_contract::coordinates` instead of local optimization-only frame
+  shapes.
 - Add typed registry snapshots, observation deltas, and consistency scoring.
 - Implement `fuse_transforms`.
 - Append fused transforms to the RRD worldline.
