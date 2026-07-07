@@ -336,6 +336,7 @@ fn principal(scopes: &[&str]) -> Principal {
         subject: TokenSubject::new("00u123").unwrap(),
         tenant: Some(TenantId::new("tenant-a").unwrap()),
         groups: BTreeSet::new(),
+        group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
         scopes: scopes
             .iter()

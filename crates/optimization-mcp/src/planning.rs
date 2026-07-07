@@ -763,6 +763,15 @@ fn source_table_sql(source: &DuckDbSource, temp_dir: &Path) -> Result<String> {
                 .join(", ");
             duckdb_read_function_sql(&format!("[{list}]"), format, options).map_err(Into::into)
         }
+        DuckDbSource::Artifact { .. } => {
+            // Cross-server artifact:// input is served by the duckdb server, which
+            // holds the artifact-plane client. Materialize the options table there
+            // (e.g. via export) and pass it as inline or allowlisted rows.
+            bail!(
+                "artifact:// sources are not supported by optimization plan; \
+                 read the artifact with the duckdb server instead"
+            )
+        }
     }
 }
 

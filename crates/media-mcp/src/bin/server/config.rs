@@ -1,7 +1,7 @@
 use std::{num::NonZeroU32, path::PathBuf};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_media_mcp::provider::DEFAULT_BASE_URL;
 
@@ -21,21 +21,10 @@ pub(super) struct Args {
     /// DuckDB state database path for task, prediction, artifact, and usage metadata.
     #[arg(long, default_value = "state.duckdb")]
     pub(super) state_db: PathBuf,
-    /// Object store backend for server-owned artifacts.
-    #[arg(long, default_value = "s3-compatible")]
-    pub(super) artifact_store: ArtifactStoreBackend,
-    /// S3-compatible endpoint used for server-owned artifacts.
-    #[arg(long, default_value = "http://localhost:9000")]
-    pub(super) artifact_endpoint: String,
-    /// S3-compatible bucket used for server-owned artifacts.
-    #[arg(long, default_value = "media-artifacts")]
-    pub(super) artifact_bucket: String,
-    /// S3 signing region for the artifact store.
-    #[arg(long, default_value = "us-east-1")]
-    pub(super) artifact_region: String,
-    /// Allow plain HTTP for local S3-compatible artifact stores.
-    #[arg(long, default_value_t = false)]
-    pub(super) artifact_allow_http: bool,
+    /// Base URL of the shared artifact-plane service. All artifact reads/writes
+    /// go here; media no longer owns a private bucket.
+    #[arg(long, default_value = "http://artifact-service:8790")]
+    pub(super) artifact_service_url: String,
     /// Allow loopback Host headers for local development and smoke tests.
     #[arg(long, default_value_t = false)]
     pub(super) allow_loopback_hosts: bool,
@@ -101,13 +90,6 @@ impl Args {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-#[value(rename_all = "kebab-case")]
-pub(super) enum ArtifactStoreBackend {
-    S3Compatible,
-    Memory,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(super) struct MediaRetentionPolicy {
     task_metadata_days: NonZeroU32,
@@ -119,13 +101,6 @@ pub(super) struct MediaRetentionPolicy {
 impl MediaRetentionPolicy {
     pub(super) fn task_cutoff(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {
         retention_cutoff(now, self.task_metadata_days)
-    }
-
-    pub(super) fn artifact_cutoff(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {
-        retention_cutoff(
-            now,
-            std::cmp::min(self.artifact_metadata_days, self.artifact_bytes_days),
-        )
     }
 
     pub(super) fn artifact_expires_at(self, now: DateTime<Utc>) -> anyhow::Result<DateTime<Utc>> {

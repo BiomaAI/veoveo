@@ -1,8 +1,13 @@
 use super::*;
 
-pub(crate) async fn media_mcp_auth(conformance: &Path, media: &Path) -> Result<()> {
+pub(crate) async fn media_mcp_auth(
+    conformance: &Path,
+    media: &Path,
+    artifact_service: &Path,
+) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(media)?;
+    assert_executable(artifact_service)?;
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -12,7 +17,10 @@ pub(crate) async fn media_mcp_auth(conformance: &Path, media: &Path) -> Result<(
     let base = format!("http://127.0.0.1:{port}");
     let log = tmpdir.join("media.log");
     let state_db = tmpdir.join("state.duckdb");
-    let mut media_child = spawn_media_s3_smoke(media, port, PUBLIC_BASE_URL, &state_db, &log)?;
+    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+        .await?;
+    let mut media_child =
+        spawn_media_s3_smoke(media, port, PUBLIC_BASE_URL, &state_db, &plane.url, &log)?;
     wait_for_http(&format!("{base}/media/healthz")).await?;
     let health = reqwest::get(format!("{base}/media/healthz"))
         .await?
@@ -72,9 +80,14 @@ pub(crate) async fn media_mcp_auth(conformance: &Path, media: &Path) -> Result<(
     Ok(())
 }
 
-pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<()> {
+pub(crate) async fn media_task_run(
+    conformance: &Path,
+    media: &Path,
+    artifact_service: &Path,
+) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(media)?;
+    assert_executable(artifact_service)?;
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -99,12 +112,15 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
     )?;
     wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
 
+    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+        .await?;
     let mut media_child = spawn_media_memory_smoke(
         media,
         media_port,
         &media_base,
         &media_state_db,
         &provider_base,
+        &plane.url,
         &media_log,
     )?;
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
@@ -251,16 +267,35 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
         [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
     )?;
 
+    // Artifact access on the shared plane is principal + tenant + label + grant
+    // scoped, not gateway-profile scoped. A different principal in the same
+    // tenant holds no grant, so the plane denies the read (need-to-know).
     assert_direct_mcp_denied(
         conformance,
         &mcp_url,
         [
-            "--internal-profile".into(),
-            "admin".into(),
+            "--internal-principal-subject".into(),
+            "intruder".into(),
             "artifact".into(),
             structured.artifacts[0].sha256.clone().into(),
             "--output-dir".into(),
             tmpdir.join("denied-artifacts").as_os_str().to_os_string(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+    )?;
+
+    // And the plane's hard tenant partition: a caller in another tenant is
+    // denied even though it shares the (fixed) conformance principal id.
+    assert_direct_mcp_denied(
+        conformance,
+        &mcp_url,
+        [
+            "--internal-tenant".into(),
+            "other-tenant".into(),
+            "artifact".into(),
+            structured.artifacts[0].sha256.clone().into(),
+            "--output-dir".into(),
+            tmpdir.join("denied-cross-tenant").as_os_str().to_os_string(),
         ],
         [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
     )?;
@@ -291,7 +326,11 @@ pub(crate) async fn media_task_run(conformance: &Path, media: &Path) -> Result<(
         &post_run_resources,
         &format!("media://usage/task/{task_id}"),
     )?;
-    contains(&post_run_resources, &artifact_uri)?;
+    // Artifacts on the shared plane are addressable by URI but deliberately not
+    // enumerated in the resource listing — listing them would be a cross-tenant
+    // existence oracle. The artifact stays readable by its URI (asserted above);
+    // it must not appear in the enumerable resource set.
+    not_contains(&post_run_resources, &artifact_uri)?;
 
     media_child.stop();
     provider.stop();

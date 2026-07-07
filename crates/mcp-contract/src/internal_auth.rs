@@ -115,15 +115,35 @@ impl GatewayInternalTokenIssuer {
 #[derive(Debug, Clone)]
 pub struct GatewayInternalTokenVerifier {
     issuer: TokenIssuer,
-    audience: ServerSlug,
+    audiences: Vec<ServerSlug>,
     secret: InternalTokenSecret,
 }
 
 impl GatewayInternalTokenVerifier {
+    /// Verify tokens audienced to exactly one server (the common upstream case).
     pub fn new(issuer: TokenIssuer, audience: ServerSlug, secret: InternalTokenSecret) -> Self {
         Self {
             issuer,
-            audience,
+            audiences: vec![audience],
+            secret,
+        }
+    }
+
+    /// Verify tokens audienced to any of `audiences`.
+    ///
+    /// The shared artifact plane uses this: a domain server forwards the
+    /// gateway token it received (audienced to *that* server) on the principal's
+    /// behalf, so the plane must accept the set of known upstream slugs rather
+    /// than a single audience. The gateway remains the only minter, so trust is
+    /// unchanged; only which forwarded audiences are honored widens.
+    pub fn new_for_audiences(
+        issuer: TokenIssuer,
+        audiences: Vec<ServerSlug>,
+        secret: InternalTokenSecret,
+    ) -> Self {
+        Self {
+            issuer,
+            audiences,
             secret,
         }
     }
@@ -137,7 +157,8 @@ impl GatewayInternalTokenVerifier {
         validation.validate_nbf = true;
         validation.leeway = 0;
         validation.set_issuer(&[self.issuer.as_str()]);
-        validation.set_audience(&[self.audience.as_str()]);
+        let audience_strs: Vec<&str> = self.audiences.iter().map(ServerSlug::as_str).collect();
+        validation.set_audience(&audience_strs);
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "iat", "nbf", "jti"]);
         let token = decode::<GatewayInternalJwtClaims>(
             bearer_token,
@@ -146,9 +167,13 @@ impl GatewayInternalTokenVerifier {
         )
         .map_err(InternalTokenError::Jwt)?;
         let claims = token.claims;
-        if claims.server != self.audience {
+        if !self.audiences.contains(&claims.server) {
             return Err(InternalTokenError::AudienceMismatch {
-                expected: self.audience.clone(),
+                expected: self
+                    .audiences
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| claims.server.clone()),
                 actual: claims.server,
             });
         }
@@ -284,6 +309,7 @@ mod tests {
             subject: TokenSubject::new("user-1").unwrap(),
             tenant: Some(TenantId::new("tenant-a").unwrap()),
             groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
+            group_roles: BTreeSet::new(),
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
             scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             data_labels: BTreeSet::new(),

@@ -52,6 +52,7 @@ pub(crate) fn spawn_media_s3_smoke(
     port: u16,
     public_base_url: &str,
     state_db: &Path,
+    artifact_service_url: &str,
     log: &Path,
 ) -> Result<ChildGuard> {
     ChildGuard::spawn(
@@ -64,18 +65,11 @@ pub(crate) fn spawn_media_s3_smoke(
             "--allow-loopback-hosts".into(),
             "--state-db".into(),
             state_db.as_os_str().to_os_string(),
-            "--artifact-endpoint".into(),
-            "http://127.0.0.1:9".into(),
-            "--artifact-allow-http".into(),
-            "--artifact-bucket".into(),
-            "smoke-artifacts".into(),
-            "--artifact-region".into(),
-            "us-east-1".into(),
+            "--artifact-service-url".into(),
+            artifact_service_url.into(),
         ],
         [
             ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
-            ("AWS_ACCESS_KEY_ID", "smoke".into()),
-            ("AWS_SECRET_ACCESS_KEY", "smoke".into()),
             ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
         ],
         log,
@@ -88,6 +82,7 @@ pub(crate) fn spawn_media_memory_smoke(
     public_base_url: &str,
     state_db: &Path,
     provider_base_url: &str,
+    artifact_service_url: &str,
     log: &Path,
 ) -> Result<ChildGuard> {
     ChildGuard::spawn(
@@ -100,8 +95,8 @@ pub(crate) fn spawn_media_memory_smoke(
             "--allow-loopback-hosts".into(),
             "--state-db".into(),
             state_db.as_os_str().to_os_string(),
-            "--artifact-store".into(),
-            "memory".into(),
+            "--artifact-service-url".into(),
+            artifact_service_url.into(),
             "--provider-base-url".into(),
             provider_base_url.into(),
         ],
@@ -145,7 +140,7 @@ pub(crate) async fn spawn_gateway_control_db(
         ],
         [],
     )?;
-    wait_for_postgres_container(&container_name).await?;
+    wait_for_postgres_container(&container_name, "veoveo_gateway", "veoveo_gateway").await?;
 
     let url =
         format!("postgresql://veoveo_gateway:veoveo_gateway@127.0.0.1:{host_port}/veoveo_gateway");
@@ -249,7 +244,7 @@ pub(crate) fn reserve_local_port() -> Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-async fn wait_for_postgres_container(container_name: &str) -> Result<()> {
+async fn wait_for_postgres_container(container_name: &str, user: &str, db: &str) -> Result<()> {
     for _ in 0..150 {
         let output = run_raw(
             Path::new("docker"),
@@ -258,9 +253,9 @@ async fn wait_for_postgres_container(container_name: &str) -> Result<()> {
                 container_name.into(),
                 "pg_isready".into(),
                 "-U".into(),
-                "veoveo_gateway".into(),
+                user.into(),
                 "-d".into(),
-                "veoveo_gateway".into(),
+                db.into(),
             ],
             [],
         )?;
@@ -270,4 +265,70 @@ async fn wait_for_postgres_container(container_name: &str) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
     bail!("timed out waiting for Postgres container {container_name}");
+}
+
+/// A running artifact-service backed by a throwaway Postgres (grant ledger) and
+/// an in-memory object store. Domain servers spawned in smoke point their
+/// `--artifact-service-url` here. Guards tear both down on drop.
+pub(crate) struct ArtifactServiceSmoke {
+    pub(crate) url: String,
+    _container: ContainerGuard,
+    _child: ChildGuard,
+}
+
+pub(crate) async fn spawn_artifact_service_smoke(
+    artifact_service: &Path,
+    log: &Path,
+) -> Result<ArtifactServiceSmoke> {
+    // Postgres grant ledger (the service auto-migrates it on boot).
+    let db_port = reserve_local_port()?;
+    let container_name = format!("veoveo-smoke-artifact-db-{}", uuid::Uuid::new_v4());
+    let container = ContainerGuard::new(container_name.clone());
+    run_checked(
+        Path::new("docker"),
+        [
+            "run".into(),
+            "-d".into(),
+            "--name".into(),
+            container_name.clone().into(),
+            "-e".into(),
+            "POSTGRES_DB=veoveo_artifact".into(),
+            "-e".into(),
+            "POSTGRES_USER=veoveo_artifact".into(),
+            "-e".into(),
+            "POSTGRES_PASSWORD=veoveo_artifact".into(),
+            "-p".into(),
+            format!("127.0.0.1:{db_port}:5432").into(),
+            "postgres:18-alpine".into(),
+        ],
+        [],
+    )?;
+    wait_for_postgres_container(&container_name, "veoveo_artifact", "veoveo_artifact").await?;
+
+    let database_url =
+        format!("postgresql://veoveo_artifact:veoveo_artifact@127.0.0.1:{db_port}/veoveo_artifact");
+    let bind_port = reserve_local_port()?;
+    let url = format!("http://127.0.0.1:{bind_port}");
+    let child = ChildGuard::spawn(
+        artifact_service,
+        Vec::<OsString>::new(),
+        [
+            ("ARTIFACT_SERVICE_BIND", format!("127.0.0.1:{bind_port}").into()),
+            ("DATABASE_URL", database_url.into()),
+            ("INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            ("ARTIFACT_MASTER_KEY", ARTIFACT_MASTER_KEY.into()),
+            ("ARTIFACT_STORE", "memory".into()),
+            (
+                "ARTIFACT_ALLOWED_AUDIENCES",
+                "media,timeseries,optimization,duckdb".into(),
+            ),
+        ],
+        log,
+    )?;
+    wait_for_http(&format!("{url}/healthz")).await?;
+    Ok(ArtifactServiceSmoke {
+        url,
+        _container: container,
+        _child: child,
+    })
 }

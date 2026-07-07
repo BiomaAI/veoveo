@@ -45,7 +45,7 @@ use rmcp::{
 use serde_json::{Value, json};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_mcp::{
-    artifacts::{ArtifactRepository, S3ArtifactConfig},
+    artifacts::ArtifactRepository,
     engine::{self, EngineSettings, FileExchange},
     state::{DuckdbState, TaskOwner},
     uris,
@@ -54,9 +54,8 @@ use veoveo_mcp_contract::{
     DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput, DuckDbExportRequest,
     DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryRequest,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
-    ServerResourceUris, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer,
-    UsageReport, init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts,
-    related_task_meta,
+    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
+    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
 };
 
 #[path = "server/app_state.rs"]
@@ -75,14 +74,14 @@ mod ownership;
 mod sql_ops;
 
 use app_state::{AppState, Caps, ServerDirs, update_task};
-use config::{Args, ArtifactStoreBackend};
+use config::Args;
 use host::validate_host;
 use internal_auth::{
     InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
 };
 use ownership::{
-    artifact_owned_by, database_readable, internal_identity, optional_task_owner,
-    require_task_owner, resolve_readable_database, task_owner_allows, task_owner_from_identity,
+    database_readable, internal_caller, internal_identity, optional_task_owner, require_task_owner,
+    resolve_readable_database, task_owner_allows, task_owner_from_identity,
 };
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
@@ -115,7 +114,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Query a DuckDB database",
-        description = "Run one read-only SQL statement against an owned or tenant-visible database. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{sha256} link.",
+        description = "Run one read-only SQL statement against a database you own. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{sha256} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbQueryOutput>(),
         annotations(
             read_only_hint = true,
@@ -130,9 +129,10 @@ impl DuckdbMcp {
         Parameters(args): Parameters<DuckDbQueryRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let caller = internal_caller(&context)?;
         let identity = internal_identity(&context)?;
         let owner = direct_call_owner(&identity);
-        let output = sql_ops::query_op(&self.state, &identity, &owner, args).await?;
+        let output = sql_ops::query_op(&self.state, &caller, &identity, &owner, args).await?;
         outputs::query_result(&output, None)
     }
 
@@ -160,7 +160,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Ingest data into a DuckDB table",
-        description = "Load a typed source (inline CSV, or allowlisted HTTPS URIs as csv/parquet/json/ndjson) into one table. The server fetches sources itself; SQL never reaches the network. Must be invoked as an MCP task; read tasks/result for the final row count.",
+        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an artifact:// reference to any hosted server's artifact (media output, timeseries RRD, optimization snapshot), resolved through the shared artifact plane under your identity and gated by its grant + label checks. The server fetches and resolves sources itself; SQL never reaches the network. Must be invoked as an MCP task; read tasks/result for the final row count.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbIngestOutput>(),
         annotations(
             read_only_hint = false,
@@ -285,6 +285,7 @@ impl ServerHandler for DuckdbMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CreateTaskResult, McpError> {
+        let caller = internal_caller(&context)?;
         let identity = internal_identity(&context)?;
         let args = parse_task_args(&request)?;
         let progress_token = context.meta.get_progress_token();
@@ -315,6 +316,7 @@ impl ServerHandler for DuckdbMcp {
             self.state.clone(),
             context.peer.clone(),
             task_id.clone(),
+            caller,
             identity,
             owner,
             args,
@@ -441,24 +443,9 @@ impl ServerHandler for DuckdbMcp {
                 .with_mime_type("application/json"),
             );
         }
-        for artifact in self
-            .state
-            .durable
-            .list_artifacts()
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?
-        {
-            if artifact_owned_by(&self.state, &artifact.sha256, &identity).is_err() {
-                continue;
-            }
-            let mut resource =
-                Resource::new(artifact.artifact_uri.clone(), artifact.sha256.clone())
-                    .with_title("DuckDB export artifact")
-                    .with_description("Immutable exported data artifact.");
-            if let Some(mime_type) = artifact.mime_type.clone() {
-                resource = resource.with_mime_type(mime_type);
-            }
-            resources.push(resource);
-        }
+        // Artifacts live on the shared plane now; duckdb keeps no local artifact
+        // index to enumerate here. They remain readable by their duckdb://artifact
+        // URI through resources/read, which resolves against the plane.
         for task_id in self
             .state
             .durable
@@ -594,16 +581,18 @@ impl ServerHandler for DuckdbMcp {
             ]));
         }
         if let Some(sha256) = uris::parse_artifact_uri(uri) {
+            // The plane enforces access with the caller's identity; a denial
+            // surfaces as an error rather than None.
+            let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(sha256)
+                .get(&caller, sha256)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
                 .ok_or_else(|| {
                     McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
                 })?;
-            artifact_owned_by(&self.state, sha256, &identity)?;
             let blob = BASE64_STANDARD.encode(&artifact.bytes);
             let mut content = ResourceContents::blob(blob, uri);
             if let Some(mime_type) = artifact.metadata.mime_type {
@@ -671,10 +660,12 @@ async fn database_schema_document(
     Ok(json!({ "db_id": db_id.as_str(), "tables": tables }))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_task(
     state: Arc<AppState>,
     peer: rmcp::service::Peer<RoleServer>,
     task_id: String,
+    caller: veoveo_mcp_contract::PlaneCaller,
     identity: veoveo_mcp_contract::GatewayInternalIdentity,
     owner: TaskOwner,
     args: TaskArgs,
@@ -700,7 +691,7 @@ async fn run_task(
     veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.1, "running").await;
     let result = match args {
         TaskArgs::Query(request) => {
-            match sql_ops::query_op(&state, &identity, &owner, request).await {
+            match sql_ops::query_op(&state, &caller, &identity, &owner, request).await {
                 Ok(output) => {
                     outputs::record_op_usage(
                         &state,
@@ -727,7 +718,7 @@ async fn run_task(
             }
             Err(err) => fail!(format!("execute failed: {}", err.message)),
         },
-        TaskArgs::Ingest(request) => match sql_ops::ingest_op(&state, &identity, request).await {
+        TaskArgs::Ingest(request) => match sql_ops::ingest_op(&state, &caller, &identity, request).await {
             Ok(output) => {
                 outputs::record_op_usage(
                     &state,
@@ -741,7 +732,7 @@ async fn run_task(
             Err(err) => fail!(format!("ingest failed: {}", err.message)),
         },
         TaskArgs::Export(request) => {
-            match sql_ops::export_op(&state, &identity, &owner, request).await {
+            match sql_ops::export_op(&state, &caller, &identity, &owner, request).await {
                 Ok(output) => {
                     outputs::record_op_usage(
                         &state,
@@ -799,19 +790,17 @@ async fn artifact_download(
             return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
         }
     };
-    if let Err(err) = artifact_owned_by(&state, &sha256, &identity) {
-        tracing::warn!(
-            artifact_sha256 = sha256,
-            "rejected duckdb artifact download: {err}"
-        );
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let artifact = match state.artifacts.get(&sha256).await {
+    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
+        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
+    };
+    let caller = ownership::caller_from(identity, bearer);
+    // The plane enforces access; a denial reads as None (not found) here.
+    let artifact = match state.artifacts.get(&caller, &sha256).await {
         Ok(Some(artifact)) => artifact,
         Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
         Err(err) => {
             tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {err}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "artifact unavailable").into_response();
+            return (StatusCode::NOT_FOUND, "not found").into_response();
         }
     };
 
@@ -851,24 +840,7 @@ async fn main() -> anyhow::Result<()> {
         ServerSlug::new(SERVER_SLUG)?,
         InternalTokenSecret::new(args.internal_token_secret.clone())?,
     );
-    let artifacts = match args.artifact_store {
-        ArtifactStoreBackend::S3Compatible => ArtifactRepository::new_s3_compatible(
-            S3ArtifactConfig {
-                endpoint: args.artifact_endpoint.clone(),
-                bucket: args.artifact_bucket.clone(),
-                region: args.artifact_region.clone(),
-                allow_http: args.artifact_allow_http,
-            },
-            durable.clone(),
-            ServerResourceUris::new(SERVER_SLUG),
-            public_endpoint.public_url().to_string(),
-        )?,
-        ArtifactStoreBackend::Memory => ArtifactRepository::new_in_memory(
-            durable.clone(),
-            ServerResourceUris::new(SERVER_SLUG),
-            public_endpoint.public_url().to_string(),
-        ),
-    };
+    let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
         tasks

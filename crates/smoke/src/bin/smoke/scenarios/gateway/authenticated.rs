@@ -5,10 +5,12 @@ pub(crate) async fn gateway_authenticated(
     media: &Path,
     gateway: &Path,
     control_plane: &Path,
+    artifact_service: &Path,
 ) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(media)?;
     assert_executable(gateway)?;
+    assert_executable(artifact_service)?;
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -27,11 +29,14 @@ pub(crate) async fn gateway_authenticated(
     let media_state_db = tmpdir.join("media-state.duckdb");
     let gateway_state_db = tmpdir.join("gateway-state.duckdb");
 
+    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+        .await?;
     let mut media_child = spawn_media_s3_smoke(
         media,
         media_port,
         PUBLIC_BASE_URL,
         &media_state_db,
+        &plane.url,
         &media_log,
     )?;
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
