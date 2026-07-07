@@ -137,9 +137,19 @@ impl From<ArtifactSha256> for String {
 /// The neutral scheme every server uses to name any artifact on the shared plane.
 pub const ARTIFACT_PLANE_SCHEME: &str = "artifact";
 
-/// Parse an `artifact://{sha}` plane URI into its sha, validating the sha.
+/// Parse an artifact reference into its sha, validating the sha. Accepts both
+/// the neutral plane form `artifact://{sha}` and any server-presented form
+/// `{scheme}://artifact/{sha}` (e.g. `media://artifact/{sha}`,
+/// `duckdb://artifact/{sha}`), so a URI a client received from any server can be
+/// pasted back as cross-server input without translation.
 pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactSha256> {
-    let rest = uri.strip_prefix(&format!("{ARTIFACT_PLANE_SCHEME}://"))?;
+    if let Some(rest) = uri.strip_prefix(&format!("{ARTIFACT_PLANE_SCHEME}://"))
+        && !rest.contains('/')
+    {
+        return ArtifactSha256::new(rest).ok();
+    }
+    // `{scheme}://artifact/{sha}` — take the segment after the last `/artifact/`.
+    let rest = uri.rsplit_once("://artifact/").map(|(_, sha)| sha)?;
     ArtifactSha256::new(rest).ok()
 }
 
@@ -335,6 +345,29 @@ mod tests {
         assert!(AccessLevel::Read < AccessLevel::Write);
         assert!(AccessLevel::Write < AccessLevel::Admin);
         assert_eq!(AccessLevel::Read.min(AccessLevel::Admin), AccessLevel::Read);
+    }
+
+    #[test]
+    fn parse_plane_uri_accepts_neutral_and_server_forms() {
+        let sha = "a".repeat(64);
+        let expected = ArtifactSha256::new(sha.clone()).unwrap();
+        // Neutral plane form.
+        assert_eq!(
+            parse_artifact_plane_uri(&format!("artifact://{sha}")),
+            Some(expected.clone())
+        );
+        // Any server-presented `{scheme}://artifact/{sha}` form round-trips.
+        for scheme in ["media", "duckdb", "timeseries", "optimization"] {
+            assert_eq!(
+                parse_artifact_plane_uri(&format!("{scheme}://artifact/{sha}")),
+                Some(expected.clone()),
+                "scheme {scheme}"
+            );
+        }
+        // Junk and bad shas are rejected.
+        assert_eq!(parse_artifact_plane_uri("artifact://not-a-sha"), None);
+        assert_eq!(parse_artifact_plane_uri("media://artifact/xyz"), None);
+        assert_eq!(parse_artifact_plane_uri("media://models"), None);
     }
 
     fn no_labels() -> BTreeSet<DataLabelId> {

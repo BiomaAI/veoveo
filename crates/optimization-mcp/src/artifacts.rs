@@ -12,6 +12,11 @@ use veoveo_mcp_contract::{
     ArtifactSha256, PlaneCaller, PutArtifactRequest,
 };
 
+/// The scheme this server presents artifacts under to clients
+/// (`optimization://artifact/{sha}`). The plane stores the neutral `artifact://`
+/// identity; we re-stamp on the way out so a returned URI resolves here.
+const SCHEME: &str = "optimization";
+
 /// Thin handle to the shared artifact plane. Cloneable; wraps a pooled client.
 #[derive(Clone)]
 pub struct ArtifactRepository {
@@ -52,6 +57,7 @@ impl ArtifactRepository {
         self.plane
             .put(caller, request, artifact.bytes)
             .await
+            .map(|m| m.presented_under_scheme(SCHEME))
             .map_err(plane_err)
     }
 
@@ -65,7 +71,10 @@ impl ArtifactRepository {
     ) -> Result<Option<ArtifactObject>> {
         let sha = parse_sha(sha256)?;
         match self.plane.get(caller, &sha, AccessLevel::Read).await {
-            Ok(object) => Ok(Some(object)),
+            Ok(mut object) => {
+                object.metadata = object.metadata.presented_under_scheme(SCHEME);
+                Ok(Some(object))
+            }
             Err(ArtifactPlaneError::NotFound) => Ok(None),
             Err(other) => Err(plane_err(other)),
         }
@@ -79,7 +88,7 @@ impl ArtifactRepository {
     ) -> Result<Option<ArtifactMetadata>> {
         let sha = parse_sha(sha256)?;
         match self.plane.head(caller, &sha).await {
-            Ok(metadata) => Ok(Some(metadata)),
+            Ok(metadata) => Ok(Some(metadata.presented_under_scheme(SCHEME))),
             Err(ArtifactPlaneError::NotFound) => Ok(None),
             Err(other) => Err(plane_err(other)),
         }
@@ -88,7 +97,9 @@ impl ArtifactRepository {
     /// Resolve a neutral `artifact://{sha}` plane URI to bytes on the caller's
     /// behalf — the cross-server input path (P3).
     pub async fn resolve(&self, caller: &PlaneCaller, uri: &str) -> Result<ArtifactObject> {
-        self.plane.resolve(caller, uri).await.map_err(plane_err)
+        let mut object = self.plane.resolve(caller, uri).await.map_err(plane_err)?;
+        object.metadata = object.metadata.presented_under_scheme(SCHEME);
+        Ok(object)
     }
 }
 
