@@ -166,6 +166,18 @@ pub enum DuckDbSource {
         #[serde(default)]
         options: DuckDbReadOptions,
     },
+    /// A neutral `artifact://{sha}` reference resolved through the shared
+    /// artifact plane under the caller's identity — the cross-server input path.
+    /// Any artifact produced by any hosted server (a media output, a timeseries
+    /// RRD, an optimization DuckDB snapshot) can be read here, gated by the same
+    /// grant + label checks as any other plane read. The server resolves and
+    /// materializes the bytes; the SQL engine never touches the network.
+    Artifact {
+        uri: String,
+        format: DuckDbFormat,
+        #[serde(default)]
+        options: DuckDbReadOptions,
+    },
 }
 
 /// Owner-scoped name of a mutable hosted database file.
@@ -409,5 +421,22 @@ mod tests {
         };
         assert_eq!(csv, "a,b\n1,2\n");
         assert_eq!(options.header, Some(true));
+    }
+
+    #[test]
+    fn artifact_source_wire_shape() {
+        let sha = "a".repeat(64);
+        let json = format!(
+            r#"{{"kind":"artifact","uri":"artifact://{sha}","format":"parquet"}}"#
+        );
+        let source: DuckDbSource = serde_json::from_str(&json).unwrap();
+        let DuckDbSource::Artifact { uri, format, .. } = &source else {
+            panic!("expected artifact source");
+        };
+        assert_eq!(uri, &format!("artifact://{sha}"));
+        assert_eq!(format, &DuckDbFormat::Parquet);
+        // round-trips
+        let back: DuckDbSource = serde_json::from_str(&serde_json::to_string(&source).unwrap()).unwrap();
+        assert_eq!(back, source);
     }
 }
