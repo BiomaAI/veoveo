@@ -98,6 +98,9 @@ enum Cmd {
         /// Built media MCP server binary path.
         #[arg(long, default_value = "target/debug/server")]
         media_bin: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
     },
     /// Smoke-test direct hosted media task behavior without gateway projection.
     MediaTaskRun {
@@ -107,6 +110,9 @@ enum Cmd {
         /// Built media MCP server binary path.
         #[arg(long, default_value = "target/debug/server")]
         media_bin: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
     },
     /// Smoke-test the gateway HTTP boundary, auth discovery, and browser OAuth flow.
     GatewayHttp {
@@ -134,6 +140,9 @@ enum Cmd {
         /// Gateway control-plane JSON.
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
     },
     /// Run one gateway profile against two hosted MCP upstreams.
     GatewayTwoServers {
@@ -161,6 +170,9 @@ enum Cmd {
         /// Gateway control-plane JSON.
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
     },
     /// Smoke-test gateway secret resolution against a real Vault KV v2 service.
     GatewayVaultSecrets {
@@ -196,11 +208,13 @@ async fn main() -> Result<()> {
         Cmd::MediaMcpAuth {
             conformance_bin,
             media_bin,
-        } => media_mcp_auth(&conformance_bin, &media_bin).await,
+            artifact_service_bin,
+        } => media_mcp_auth(&conformance_bin, &media_bin, &artifact_service_bin).await,
         Cmd::MediaTaskRun {
             conformance_bin,
             media_bin,
-        } => media_task_run(&conformance_bin, &media_bin).await,
+            artifact_service_bin,
+        } => media_task_run(&conformance_bin, &media_bin, &artifact_service_bin).await,
         Cmd::GatewayHttp {
             conformance_bin,
             gateway_bin,
@@ -211,8 +225,16 @@ async fn main() -> Result<()> {
             media_bin,
             gateway_bin,
             control_plane,
+            artifact_service_bin,
         } => {
-            gateway_authenticated(&conformance_bin, &media_bin, &gateway_bin, &control_plane).await
+            gateway_authenticated(
+                &conformance_bin,
+                &media_bin,
+                &gateway_bin,
+                &control_plane,
+                &artifact_service_bin,
+            )
+            .await
         }
         Cmd::GatewayTwoServers {
             conformance_bin,
@@ -224,7 +246,17 @@ async fn main() -> Result<()> {
             media_bin,
             gateway_bin,
             control_plane,
-        } => gateway_task_run(&conformance_bin, &media_bin, &gateway_bin, &control_plane).await,
+            artifact_service_bin,
+        } => {
+            gateway_task_run(
+                &conformance_bin,
+                &media_bin,
+                &gateway_bin,
+                &control_plane,
+                &artifact_service_bin,
+            )
+            .await
+        }
         Cmd::GatewayVaultSecrets {
             gateway_bin,
             control_plane,

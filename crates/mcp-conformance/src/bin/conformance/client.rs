@@ -72,13 +72,13 @@ fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String>
         InternalTokenSecret::new(secret.to_string())?,
     );
     let principal_issuer = TokenIssuer::new("https://conformance.veoveo.local")?;
-    let principal_subject = TokenSubject::new("conformance")?;
+    let principal_subject = TokenSubject::new(args.internal_principal_subject.clone())?;
     let principal = Principal {
         id: PrincipalId::new(format!("{principal_issuer}#{principal_subject}"))?,
         kind: PrincipalKind::Service,
         issuer: principal_issuer,
         subject: principal_subject,
-        tenant: Some(TenantId::new("local")?),
+        tenant: Some(TenantId::new(args.internal_tenant.clone())?),
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),

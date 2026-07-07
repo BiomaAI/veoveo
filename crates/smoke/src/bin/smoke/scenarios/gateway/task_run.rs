@@ -5,10 +5,12 @@ pub(crate) async fn gateway_task_run(
     media: &Path,
     gateway: &Path,
     control_plane: &Path,
+    artifact_service: &Path,
 ) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(media)?;
     assert_executable(gateway)?;
+    assert_executable(artifact_service)?;
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -37,12 +39,15 @@ pub(crate) async fn gateway_task_run(
     )?;
     wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
 
+    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+        .await?;
     let mut media_child = spawn_media_memory_smoke(
         media,
         media_port,
         &media_base,
         &media_state_db,
         &provider_base,
+        &plane.url,
         &media_log,
     )?;
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
