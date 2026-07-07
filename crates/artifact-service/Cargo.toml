@@ -8,7 +8,9 @@ name = "veoveo_artifact_service"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+# Distinct from the domain servers' `server` bin so both can coexist in one
+# `target/debug` (e.g. the smoke harness runs media + artifact-service together).
+name = "artifact-service"
 path = "src/bin/server.rs"
 
 [dependencies]
