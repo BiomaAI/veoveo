@@ -1,8 +1,15 @@
+use std::collections::BTreeSet;
+
+use chrono::{TimeDelta, Utc};
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
-use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_media_mcp::state::{ArtifactOwner, TaskOwner};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, PlaneCaller, Principal, PrincipalKind, ServerSlug, TokenSubject,
+};
+use veoveo_media_mcp::state::TaskOwner;
 
 use super::AppState;
+
+const SERVER_SLUG: &str = "media";
 
 pub(super) fn internal_identity(
     context: &RequestContext<RoleServer>,
@@ -16,6 +23,88 @@ pub(super) fn internal_identity(
         .get::<GatewayInternalIdentity>()
         .cloned()
         .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+}
+
+/// Build a [`PlaneCaller`] for a live, synchronous request: the verified identity
+/// plus the raw bearer to forward. Memberships are empty until group `(id, role)`
+/// pairs ride in the signed identity (P3).
+pub(super) fn internal_caller(
+    context: &RequestContext<RoleServer>,
+) -> Result<PlaneCaller, McpError> {
+    let parts = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+    let identity = parts
+        .extensions
+        .get::<GatewayInternalIdentity>()
+        .cloned()
+        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+    let bearer = parts
+        .extensions
+        .get::<super::internal_auth::ForwardedBearer>()
+        .map(|b| b.0.clone())
+        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+    Ok(caller_from(identity, bearer))
+}
+
+/// Assemble a [`PlaneCaller`] from a verified identity and its raw bearer.
+pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
+    PlaneCaller {
+        bearer_token: bearer,
+        identity,
+        memberships: BTreeSet::new(),
+    }
+}
+
+/// Build a [`PlaneCaller`] for an **asynchronous** artifact write that completes
+/// under a persisted [`TaskOwner`] rather than a live request — media's provider
+/// webhook path, where no live gateway bearer exists.
+///
+/// Media re-mints a short-lived internal token from the stored owner using the
+/// shared internal secret it already holds, audienced to `media`. The owner's
+/// `principal_id`, `tenant`, and `data_labels` are exactly what the plane's
+/// access decision reads; the remaining `Principal` fields are placeholders the
+/// plane does not consult. This is media acting on behalf of a principal it
+/// already authenticated at task-submit time, for async completion — not a
+/// privilege escalation, since the write is attributed to that same owner.
+pub(super) fn plane_caller_for_owner(
+    state: &AppState,
+    owner: &TaskOwner,
+) -> Result<PlaneCaller, McpError> {
+    let now = Utc::now();
+    let principal = Principal {
+        id: owner.principal_id.clone(),
+        kind: PrincipalKind::Service,
+        issuer: state.internal_token_issuer_name.clone(),
+        subject: TokenSubject::new("artifact-plane-writer")
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?,
+        tenant: owner.tenant.clone(),
+        groups: BTreeSet::new(),
+        roles: BTreeSet::new(),
+        scopes: BTreeSet::new(),
+        data_labels: owner.data_labels.clone(),
+        assurances: BTreeSet::new(),
+        authenticated_at: Some(now),
+    };
+    let server = ServerSlug::new(SERVER_SLUG)
+        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+    let issued = state
+        .internal_token_issuer
+        .issue(
+            owner.profile.clone(),
+            server,
+            principal,
+            now + TimeDelta::minutes(5),
+        )
+        .map_err(|e| {
+            McpError::internal_error(format!("minting owner artifact token: {e}"), None)
+        })?;
+    Ok(PlaneCaller {
+        bearer_token: issued.bearer_token,
+        identity: issued.identity,
+        memberships: BTreeSet::new(),
+    })
 }
 
 pub(super) fn task_owner_from_identity(
@@ -99,57 +188,7 @@ pub(super) async fn prediction_owner(
         .ok_or_else(|| McpError::invalid_request("prediction ownership record missing", None))
 }
 
-pub(super) fn artifact_owner_from_task(sha256: &str, owner: &TaskOwner) -> ArtifactOwner {
-    ArtifactOwner {
-        sha256: sha256.to_string(),
-        task_id: owner.task_id.clone(),
-        principal_id: owner.principal_id.clone(),
-        profile: owner.profile.clone(),
-        tenant: owner.tenant.clone(),
-        data_labels: owner.data_labels.clone(),
-    }
-}
-
-pub(super) fn artifact_owner_allows(
-    state: &AppState,
-    sha256: &str,
-    identity: &GatewayInternalIdentity,
-) -> Result<bool, McpError> {
-    let owners = state
-        .durable
-        .artifact_owners(sha256)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-    Ok(owners
-        .iter()
-        .any(|owner| artifact_owner_allows_identity(owner, identity)))
-}
-
-pub(super) fn artifact_owned_by(
-    state: &AppState,
-    sha256: &str,
-    identity: &GatewayInternalIdentity,
-) -> Result<(), McpError> {
-    if artifact_owner_allows(state, sha256, identity)? {
-        Ok(())
-    } else {
-        Err(McpError::invalid_request(
-            "media artifact policy denied request",
-            None,
-        ))
-    }
-}
-
 pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.principal.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.principal.tenant
-        && owner.data_labels.is_subset(&identity.principal.data_labels)
-}
-
-fn artifact_owner_allows_identity(
-    owner: &ArtifactOwner,
-    identity: &GatewayInternalIdentity,
-) -> bool {
     owner.principal_id == identity.principal.id
         && owner.profile == identity.profile
         && owner.tenant == identity.principal.tenant
@@ -166,9 +205,9 @@ mod tests {
         PrincipalId, PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer,
         TokenSubject,
     };
-    use veoveo_media_mcp::state::{ArtifactOwner, TaskOwner};
+    use veoveo_media_mcp::state::TaskOwner;
 
-    use super::{artifact_owner_allows_identity, task_owner_allows};
+    use super::task_owner_allows;
 
     #[test]
     fn task_owner_requires_principal_profile_and_tenant() {
@@ -199,42 +238,6 @@ mod tests {
         assert!(!task_owner_allows(
             &TaskOwner {
                 data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
-                ..owner
-            },
-            &identity
-        ));
-    }
-
-    #[test]
-    fn artifact_owner_requires_principal_profile_and_tenant() {
-        let identity = internal_identity_for("default", None, &["itar"]);
-        let owner = ArtifactOwner {
-            sha256: "a".repeat(64),
-            task_id: "task-1".to_string(),
-            principal_id: identity.principal.id.clone(),
-            profile: identity.profile.clone(),
-            tenant: identity.principal.tenant.clone(),
-            data_labels: BTreeSet::from([DataLabelId::new("itar").unwrap()]),
-        };
-
-        assert!(artifact_owner_allows_identity(&owner, &identity));
-        assert!(!artifact_owner_allows_identity(
-            &ArtifactOwner {
-                profile: GatewayProfileId::new("ops").unwrap(),
-                ..owner.clone()
-            },
-            &identity
-        ));
-        assert!(!artifact_owner_allows_identity(
-            &ArtifactOwner {
-                tenant: Some(TenantId::new("tenant-a").unwrap()),
-                ..owner.clone()
-            },
-            &identity
-        ));
-        assert!(!artifact_owner_allows_identity(
-            &ArtifactOwner {
-                data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),
                 ..owner
             },
             &identity

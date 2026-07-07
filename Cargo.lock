@@ -6175,6 +6175,7 @@ dependencies = [
  "tower-http 0.7.0",
  "tracing",
  "uuid",
+ "veoveo-artifact-client",
  "veoveo-mcp-contract",
 ]
 

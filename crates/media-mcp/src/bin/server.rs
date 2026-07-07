@@ -55,13 +55,13 @@ use serde_json::{Value, json};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GenerationRunOutput,
-    InternalTokenSecret, Page, ServerResourceUris, ServerSlug, SubscriptionHub, TaskPayloadState,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    GenerationRunOutput, InternalTokenSecret, Page, ServerSlug, SubscriptionHub, TaskPayloadState,
     TaskStore, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, is_sha256, now_iso,
     paginate, public_allowed_hosts, related_task_meta,
 };
 use veoveo_media_mcp::{
-    artifacts::{ArtifactRepository, S3ArtifactConfig},
+    artifacts::ArtifactRepository,
     provider::{ModelEntry, Prediction, ProviderClient},
     state::DuckdbState,
     uris, webhook,
@@ -94,7 +94,7 @@ mod usage;
 
 use app_state::AppState;
 use artifact_tools::ArtifactArgs;
-use config::{Args, ArtifactStoreBackend};
+use config::Args;
 use generation_task::{RunArgs, run_task};
 use host::validate_host;
 use internal_auth::{
@@ -103,9 +103,8 @@ use internal_auth::{
 use model_tools::{ModelSchemaArgs, ModelsArgs};
 use outputs::public_prediction;
 use ownership::{
-    artifact_owned_by, artifact_owner_allows, internal_identity, optional_prediction_owner,
-    optional_task_owner, prediction_owner, require_task_owner, task_owner_allows,
-    task_owner_from_identity,
+    internal_caller, internal_identity, optional_prediction_owner, optional_task_owner,
+    prediction_owner, require_task_owner, task_owner_allows, task_owner_from_identity,
 };
 use prompts::MediaPrompt;
 use retention::{run_retention_gc, spawn_retention_gc_loop};
@@ -513,23 +512,9 @@ impl ServerHandler for MediaMcp {
                     .with_mime_type("application/json"),
             );
         }
-        let artifacts = self
-            .state
-            .durable
-            .list_artifacts()
-            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-        for artifact in artifacts {
-            if !artifact_owner_allows(&self.state, &artifact.sha256, &identity)? {
-                continue;
-            }
-            let mut resource =
-                Resource::new(artifact.artifact_uri.clone(), artifact.sha256.clone())
-                    .with_description(format!("artifact {}", artifact.sha256));
-            if let Some(mime) = artifact.mime_type {
-                resource = resource.with_mime_type(mime);
-            }
-            resources.push(resource);
-        }
+        // Artifacts live on the shared plane now; media keeps no local artifact
+        // index to enumerate. They remain readable by their media://artifact URI
+        // through resources/read, which resolves against the plane.
         let usage_task_ids = self
             .state
             .durable
@@ -682,20 +667,12 @@ impl ServerHandler for MediaMcp {
             serde_json::to_string(&report)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
         } else if let Some(sha256) = uris::parse_artifact_uri(uri) {
-            let metadata = self
-                .state
-                .artifacts
-                .head(sha256)
-                .await
-                .map_err(|e| McpError::internal_error(e.to_string(), None))?
-                .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
-                })?;
-            artifact_owned_by(&self.state, &metadata.sha256, &identity)?;
+            // The plane enforces access with the caller's identity.
+            let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(sha256)
+                .get(&caller, sha256)
                 .await
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
                 .ok_or_else(|| {
@@ -870,19 +847,17 @@ async fn artifact_download(
             return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
         }
     };
-    if let Err(err) = artifact_owned_by(&state, &sha256, &identity) {
-        tracing::warn!(
-            artifact_sha256 = sha256,
-            "rejected artifact download: {err}"
-        );
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let artifact = match state.artifacts.get(&sha256).await {
+    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
+        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
+    };
+    let caller = ownership::caller_from(identity, bearer);
+    // The plane enforces access; a denial reads as not-found here.
+    let artifact = match state.artifacts.get(&caller, &sha256).await {
         Ok(Some(artifact)) => artifact,
         Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
         Err(e) => {
             tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "artifact unavailable").into_response();
+            return (StatusCode::NOT_FOUND, "not found").into_response();
         }
     };
 
@@ -935,29 +910,19 @@ async fn main() -> anyhow::Result<()> {
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let durable = DuckdbState::open(&args.state_db)?;
+    let internal_token_issuer_name = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?;
+    let internal_token_secret = InternalTokenSecret::new(args.internal_token_secret.clone())?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
+        internal_token_issuer_name.clone(),
         ServerSlug::new(SERVER_SLUG)?,
-        InternalTokenSecret::new(args.internal_token_secret.clone())?,
+        internal_token_secret.clone(),
     );
-    let artifacts = match args.artifact_store {
-        ArtifactStoreBackend::S3Compatible => ArtifactRepository::new_s3_compatible(
-            S3ArtifactConfig {
-                endpoint: args.artifact_endpoint.clone(),
-                bucket: args.artifact_bucket.clone(),
-                region: args.artifact_region.clone(),
-                allow_http: args.artifact_allow_http,
-            },
-            durable.clone(),
-            ServerResourceUris::new(SERVER_SLUG),
-            public_endpoint.public_url().to_string(),
-        )?,
-        ArtifactStoreBackend::Memory => ArtifactRepository::new_in_memory(
-            durable.clone(),
-            ServerResourceUris::new(SERVER_SLUG),
-            public_endpoint.public_url().to_string(),
-        ),
-    };
+    // Media mints owner-scoped tokens for async (webhook) artifact writes.
+    let internal_token_issuer = GatewayInternalTokenIssuer::new(
+        internal_token_issuer_name.clone(),
+        internal_token_secret,
+    );
+    let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {
         tasks
@@ -992,6 +957,8 @@ async fn main() -> anyhow::Result<()> {
         durable,
         artifacts,
         internal_token_verifier: internal_token_verifier.clone(),
+        internal_token_issuer,
+        internal_token_issuer_name,
         pending: Mutex::new(HashMap::new()),
         predictions: RwLock::new(predictions),
         task_owners: RwLock::new(task_owners),
