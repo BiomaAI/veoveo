@@ -307,6 +307,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn request<'a>(
         caller: &'a PrincipalId,
         tenant: Option<&'a TenantId>,

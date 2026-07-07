@@ -84,10 +84,10 @@ impl IntoResponse for ApiError {
         };
         // On a denial, carry the precise decision so the client keeps the reason
         // chain (tenant / clearance / need-to-know) rather than a coarse 403.
-        if let ArtifactPlaneError::Denied(decision) = &self.0 {
-            if let Ok(encoded) = serde_json::to_string(decision) {
-                return (status, [("x-artifact-decision", encoded)], message).into_response();
-            }
+        if let ArtifactPlaneError::Denied(decision) = &self.0
+            && let Ok(encoded) = serde_json::to_string(decision)
+        {
+            return (status, [("x-artifact-decision", encoded)], message).into_response();
         }
         (status, message).into_response()
     }
@@ -273,8 +273,7 @@ mod tests {
         GatewayInternalTokenIssuer, InternalTokenSecret,
     };
     use veoveo_mcp_contract::{
-        ArtifactPlane, ArtifactPlaneError, JwtId, PlaneCaller, Principal, PutArtifactRequest,
-        TenantId,
+        ArtifactPlane, ArtifactPlaneError, PlaneCaller, Principal, PutArtifactRequest, TenantId,
     };
 
     use super::*;

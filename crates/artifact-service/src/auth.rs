@@ -5,7 +5,6 @@
 //! (audienced to that server); the plane verifies it against the set of known
 //! upstream slugs and reads the embedded principal.
 
-use std::collections::BTreeSet;
 
 use veoveo_mcp_contract::gateway::ServerSlug;
 use veoveo_mcp_contract::internal_auth::{
