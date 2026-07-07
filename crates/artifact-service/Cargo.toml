@@ -33,7 +33,7 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
-veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+veoveo-mcp-contract = { workspace = true, default-features = false }
 zeroize.workspace = true
 
 [dev-dependencies]
