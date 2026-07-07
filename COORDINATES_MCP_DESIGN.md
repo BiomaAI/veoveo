@@ -2,13 +2,22 @@
 
 This document describes the first hosted Veoveo MCP server for coordinate
 systems, robot frames, CRS projection, geodesics, and basic geofence
-validation. The intended users are AI agents controlling autonomous robots,
-UAVs, simulated actors, and other digital entities.
+validation. It also defines the shared coordinate contract that other Veoveo MCP
+servers and services should use when they accept, persist, transform, or return
+locations, frames, poses, trajectories, geofences, or transform provenance.
+
+The intended users are AI agents controlling autonomous robots, UAVs, simulated
+actors, and other digital entities.
 
 The first implementation should be small in surface area, not small in
 capability. It should give agents one authoritative place to ask "what frame is
 this in?", "how do I transform it?", "is this mission geometry valid?", and
 "what assumptions did that transform use?"
+
+The platform design choice is that coordinate semantics are not local to one
+server. The types in this design become the official Veoveo coordinate and frame
+types for the whole stack. The `coordinates-mcp` server owns execution of
+coordinate operations; the shared contract owns the shapes.
 
 ## Status
 
@@ -37,6 +46,8 @@ coordinates__transform_crs
 
 ## Goals
 
+- Establish official coordinate, frame, pose, trajectory, geofence, and
+  operation-provenance types for all Veoveo MCP servers and services.
 - Provide a strongly typed MCP surface for coordinate and frame transforms used
   by autonomous agents.
 - Make frame, unit, axis order, origin, datum, operation provenance, and
@@ -73,6 +84,9 @@ coordinates__transform_crs
 - No global spatial indexing in the MVP.
 - No robust GEOS topology dependency in the MVP unless `geo` proves
   insufficient for the first geofence workflows.
+- No per-server coordinate models. Other Veoveo servers should not invent
+  ad hoc `lat`, `lon`, `x`, `y`, `z`, or frame JSON blobs when the shared
+  coordinate contract has a controlled type for the same concept.
 
 ## Runtime Stance
 
@@ -94,6 +108,51 @@ approximate fallback only where the product chooses to support one.
 Native dependencies are not a smell here. Uncontrolled dependency overlap is the
 thing to avoid. The MCP contract should stay small and typed while the runtime
 can be capable.
+
+## Shared Contract Ownership
+
+Coordinate and frame types belong in the shared contract crate:
+
+```text
+crates/mcp-contract/src/coordinates.rs
+veoveo_mcp_contract::coordinates
+```
+
+That module should contain only contract types and schema helpers:
+
+- typed ids
+- coordinate values
+- frame definitions
+- axis conventions
+- poses
+- trajectories
+- geofence geometry
+- operation provenance
+- resource-reference types
+
+It should not depend on `proj`, `sguaba`, `geo`, `geographiclib-rs`, `gdal`, or
+other execution engines. Those crates belong behind server implementations.
+This keeps all Veoveo services aligned on one public contract without forcing
+every service to compile every geospatial engine.
+
+The split is:
+
+```text
+veoveo-mcp-contract::coordinates
+  official schemas, ids, refs, typed coordinate/frame data
+
+coordinates-mcp
+  authoritative execution: frame conversion, CRS transforms, geodesics,
+  geofence validation, operation provenance resources
+
+other Veoveo servers
+  consume and emit the shared types, link to coordinates:// resources, and
+  record coordinate operation refs when they depend on transformed data
+```
+
+Hard cut rule: when a Veoveo server needs controlled coordinate data, it should
+adopt the shared coordinate type or add a new shared type. It should not add a
+parallel local coordinate shape for compatibility with older internal callers.
 
 ## MVP Dependency Stack
 
@@ -218,8 +277,28 @@ not hidden server state.
 
 ## Canonical Domain Model
 
-MCP schemas should use Veoveo-owned types. Raw JSON is not appropriate for
-controlled coordinate data.
+MCP schemas should use Veoveo-owned types from
+`veoveo_mcp_contract::coordinates`. Raw JSON is not appropriate for controlled
+coordinate data.
+
+The names below are design names for shared contract types. The Rust
+implementation may use concise names where the module context is clear, but the
+schema meaning should stay stable across servers.
+
+### Typed Ids
+
+```text
+FrameId
+CrsId
+DatumId
+EllipsoidId
+CoordinateOperationId
+TrajectoryId
+GeofenceId
+```
+
+Use typed ids instead of plain strings anywhere the value controls frame,
+coordinate, or transform semantics.
 
 ### Coordinate Kinds
 
@@ -298,6 +377,47 @@ For digital entities and simulation worlds, the frame must also declare:
 - unit scale
 - parent transform
 
+### Pose, Trajectory, and Geofence Kinds
+
+These types are included in the shared contract because optimization,
+timeseries, simulation, Rerun artifacts, and future robot servers all need the
+same semantics.
+
+```text
+Orientation3
+  representation
+  frame_id
+  quaternion?
+  yaw_pitch_roll_deg?
+
+Pose3
+  frame_id
+  position
+  orientation
+  covariance?
+
+TrajectoryPoint
+  time?
+  pose
+  velocity?
+
+Trajectory3
+  trajectory_id?
+  frame_id
+  points
+  interpolation?
+
+GeofenceGeometry
+  geofence_id?
+  frame_id
+  rule
+  geometry
+```
+
+The first MVP can keep trajectory and geofence geometry small. The important
+part is that every pose, trajectory, and geofence declares a frame, and that
+frame is a shared contract type.
+
 ### Operation Provenance
 
 Every transform result should include a compact provenance object:
@@ -316,6 +436,21 @@ warnings
 ```
 
 This object is how agents know whether a result is safe to pass onward.
+
+Servers that consume transformed coordinates should store a lightweight
+operation reference:
+
+```text
+CoordinateOperationRef
+  operation_id
+  operation_uri
+  source_frame
+  target_frame
+  created_at
+```
+
+The full provenance remains available from
+`coordinates://operation/{operation_id}`.
 
 ## Tool Model
 
@@ -483,6 +618,60 @@ coordinates://usage/task/{task_id}
 
 Usage and execution metrics for task-based bulk operations.
 
+## Cross-Server Adoption
+
+The coordinates contract is platform-level. These examples are not separate
+implementations; they are adoption points for the same shared types.
+
+### Optimization MCP
+
+`optimization-mcp` should use shared coordinate types for mission state,
+assignment inputs, selected options, plan outputs, trajectory references,
+geofence references, transform provenance, and Rerun worldline frame metadata.
+
+The first optimization benefit should be validation and provenance, not a larger
+solver:
+
+- `PlanningAgent`, `PlanningTask`, and `PlanningOption` may carry optional
+  shared `Pose3`, `FrameId`, `Trajectory3`, `GeofenceGeometry`, or
+  `CoordinateOperationRef` fields.
+- `PlanOutput` should preserve coordinate operation refs that influenced the
+  selected options.
+- Spatial costs, travel times, and geofence pass/fail facts should be produced
+  by `coordinates-mcp` or precomputed data, then consumed by optimization as
+  typed scores, resources, constraints, or validation refs.
+- The solver should not own CRS projection, datum transforms, or frame
+  conversion logic.
+
+### Timeseries MCP
+
+Timeseries artifacts that represent physical or simulated measurements should
+use shared frame ids and coordinate types in metadata, Rerun entity paths, and
+artifact summaries. A forecast that predicts position should identify the frame
+and operation provenance behind the series.
+
+### DuckDB MCP
+
+DuckDB remains a SQL engine, but table mappings and exported artifact metadata
+can reference shared coordinate schemas. When a table contains latitude,
+longitude, projected coordinates, poses, or trajectories, the metadata should
+say which shared type and frame the columns represent.
+
+### Media and 3D Assets
+
+Generated 3D assets, scene layouts, textures projected onto terrain, or visual
+annotations should use shared frame metadata when they represent real or
+simulated spatial objects. Media generation itself does not become a coordinate
+engine.
+
+### Gateway, Policy, and Audit
+
+Gateway policy and audit should treat `coordinates://...` resource identities as
+first-class evidence. Other servers should include coordinate operation refs in
+task payloads and artifact metadata so audit trails can connect planning,
+simulation, media, and timeseries outputs back to the coordinate assumptions
+they used.
+
 ## Resource Templates
 
 The MVP should publish templates for:
@@ -561,6 +750,7 @@ least one task-based batch transform.
 Keep the binary entrypoint thin:
 
 ```text
+crates/mcp-contract/src/coordinates.rs
 crates/coordinates-mcp/src/bin/server.rs
 crates/coordinates-mcp/src/lib.rs
 crates/coordinates-mcp/src/types.rs
@@ -583,6 +773,7 @@ and tests.
 
 After the MVP proves the contract, likely additions are:
 
+- Adoption of the shared coordinate contract across existing hosted servers.
 - `gdal` for DEM, GeoTIFF, COG, shapefile, and GeoPackage workflows.
 - `geos` for robust topology and repair of complex mission polygons.
 - `rstar` for obstacle and geofence indexing at scale.
