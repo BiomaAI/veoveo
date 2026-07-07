@@ -1,25 +1,26 @@
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ComplianceMetadata, PlanOutput, UsageKind, UsageRecord, now_utc,
-    set_related_task_meta,
+    ArtifactMetadata, ArtifactPut, ComplianceMetadata, PlanOutput, PlaneCaller, UsageKind,
+    UsageRecord, now_utc, set_related_task_meta,
 };
 use veoveo_optimization_mcp::{planning::PlanRun, state::TaskOwner};
 
-use super::{app_state::AppState, ownership::artifact_owner_from_task};
+use super::app_state::AppState;
 
 pub(super) async fn plan_result(
     state: &AppState,
+    caller: &PlaneCaller,
     task_id: &str,
     owner: &TaskOwner,
     mut run: PlanRun,
 ) -> anyhow::Result<CallToolResult> {
     if let Some(artifact) = run.duckdb.take() {
         run.output.duckdb_artifact =
-            Some(store_artifact(state, owner, artifact, "plan duckdb").await?);
+            Some(store_artifact(state, caller, owner, artifact, "plan duckdb").await?);
     }
     if let Some(artifact) = run.rrd.take() {
         run.output.rrd_artifact =
-            Some(store_artifact(state, owner, artifact, "plan rerun rrd").await?);
+            Some(store_artifact(state, caller, owner, artifact, "plan rerun rrd").await?);
     }
     record_usage(state, task_id, &run.output)?;
 
@@ -50,6 +51,7 @@ pub(super) async fn plan_result(
 
 async fn store_artifact(
     state: &AppState,
+    caller: &PlaneCaller,
     owner: &TaskOwner,
     artifact: veoveo_optimization_mcp::planning::PlanArtifactBytes,
     title: &str,
@@ -57,19 +59,14 @@ async fn store_artifact(
     let mut put = ArtifactPut::new(artifact.bytes);
     put.mime_type = Some(artifact.mime_type.to_string());
     put.filename = Some(artifact.filename.to_string());
+    // The plane stamps tenant + owner from the verified identity and records the
+    // owner grant; carry the caller's labels as artifact classification.
     put.compliance = ComplianceMetadata {
-        tenant_id: owner.tenant.clone(),
-        owner_id: Some(owner.principal_id.clone()),
         data_labels: owner.data_labels.clone(),
         ..Default::default()
     };
     put.metadata = artifact.metadata;
-    let mut metadata = state.artifacts.put(put).await?;
-    let artifact_owner = artifact_owner_from_task(&metadata.sha256, owner);
-    state.durable.record_artifact_owner(&artifact_owner)?;
-    metadata.compliance.owner_id = Some(owner.principal_id.clone());
-    metadata.compliance.tenant_id = owner.tenant.clone();
-    metadata.compliance.data_labels = owner.data_labels.clone();
+    let metadata = state.artifacts.put(caller, put).await?;
     tracing::debug!(
         artifact_sha256 = metadata.sha256,
         title,

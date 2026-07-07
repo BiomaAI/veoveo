@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
-use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_optimization_mcp::state::{ArtifactOwner, TaskOwner};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_optimization_mcp::state::TaskOwner;
 
 use super::app_state::AppState;
 
@@ -20,6 +20,38 @@ pub(super) fn internal_identity(
         .get::<GatewayInternalIdentity>()
         .cloned()
         .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+}
+
+/// Build the PlaneCaller for artifact-plane calls: the verified identity plus
+/// the raw bearer to forward. Memberships are empty until group (id, role)
+/// pairs ride in the signed identity (P3).
+pub(super) fn internal_caller(
+    context: &RequestContext<RoleServer>,
+) -> Result<PlaneCaller, McpError> {
+    let parts = context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+    let identity = parts
+        .extensions
+        .get::<GatewayInternalIdentity>()
+        .cloned()
+        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+    let bearer = parts
+        .extensions
+        .get::<super::internal_auth::ForwardedBearer>()
+        .map(|b| b.0.clone())
+        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+    Ok(caller_from(identity, bearer))
+}
+
+/// Assemble a PlaneCaller from a verified identity and its raw bearer.
+pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
+    PlaneCaller {
+        bearer_token: bearer,
+        identity,
+        memberships: std::collections::BTreeSet::new(),
+    }
 }
 
 pub(super) fn task_owner_from_identity(
@@ -76,50 +108,7 @@ pub(super) async fn require_task_owner(
     }
 }
 
-pub(super) fn artifact_owner_from_task(sha256: &str, owner: &TaskOwner) -> ArtifactOwner {
-    ArtifactOwner {
-        sha256: sha256.to_string(),
-        task_id: owner.task_id.clone(),
-        principal_id: owner.principal_id.clone(),
-        profile: owner.profile.clone(),
-        tenant: owner.tenant.clone(),
-        data_labels: owner.data_labels.clone(),
-    }
-}
-
-pub(super) fn artifact_owned_by(
-    state: &AppState,
-    sha256: &str,
-    identity: &GatewayInternalIdentity,
-) -> Result<(), McpError> {
-    let owners = state
-        .durable
-        .artifact_owners(sha256)
-        .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    if owners
-        .iter()
-        .any(|owner| artifact_owner_allows_identity(owner, identity))
-    {
-        Ok(())
-    } else {
-        Err(McpError::invalid_request(
-            "optimization artifact policy denied request",
-            None,
-        ))
-    }
-}
-
 pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.principal.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.principal.tenant
-        && owner.data_labels.is_subset(&identity.principal.data_labels)
-}
-
-fn artifact_owner_allows_identity(
-    owner: &ArtifactOwner,
-    identity: &GatewayInternalIdentity,
-) -> bool {
     owner.principal_id == identity.principal.id
         && owner.profile == identity.profile
         && owner.tenant == identity.principal.tenant
