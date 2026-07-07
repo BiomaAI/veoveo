@@ -5,6 +5,7 @@
 //! shared artifact and usage contract types, and the small provider trait that
 //! normalizes catalog and prediction behavior.
 
+pub mod access;
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod deployment;
@@ -25,6 +26,11 @@ pub mod uri;
 pub mod usage;
 pub mod waiters;
 
+pub use access::{
+    ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactSha256,
+    ArtifactShaError, Grant, GroupMembership, GroupRole, Subject, decide, grant_level_for_caller,
+    mac_satisfied, parse_artifact_plane_uri, role_in_group,
+};
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use deployment::{
