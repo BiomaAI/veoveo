@@ -85,6 +85,7 @@ mod tests {
             subject: TokenSubject::new("subject").unwrap(),
             tenant: None,
             groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
+            group_roles: BTreeSet::new(),
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
             scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             data_labels: BTreeSet::from([DataLabelId::new("cui").unwrap()]),

@@ -114,6 +114,12 @@ pub struct Principal {
     pub tenant: Option<TenantId>,
     #[serde(default)]
     pub groups: BTreeSet<GroupId>,
+    /// Per-group role: the `(GroupId, GroupRole)` pairing that lets a principal
+    /// hold different levels in different groups (write in Eng, read in Ops).
+    /// A member listed in `groups` without an entry here is treated as `Read`
+    /// in that group (see [`Principal::group_memberships`]).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub group_roles: BTreeSet<crate::access::GroupMembership>,
     #[serde(default)]
     pub roles: BTreeSet<RoleId>,
     #[serde(default)]
@@ -124,6 +130,30 @@ pub struct Principal {
     pub assurances: BTreeSet<PrincipalAssurance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authenticated_at: Option<DateTime<Utc>>,
+}
+
+impl Principal {
+    /// The effective `(GroupId, GroupRole)` membership set for access decisions.
+    ///
+    /// Every group in `groups` yields a membership: its explicit role from
+    /// `group_roles` when present, otherwise `Read` (bare membership grants
+    /// read-level group access). This is what a [`crate::PlaneCaller`] carries
+    /// so the artifact plane can resolve group grants.
+    pub fn group_memberships(&self) -> BTreeSet<crate::access::GroupMembership> {
+        use crate::access::{AccessLevel, GroupMembership};
+        let explicit: BTreeMap<_, _> = self
+            .group_roles
+            .iter()
+            .map(|m| (m.group.clone(), m.role))
+            .collect();
+        self.groups
+            .iter()
+            .map(|group| GroupMembership {
+                group: group.clone(),
+                role: explicit.get(group).copied().unwrap_or(AccessLevel::Read),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -446,5 +476,70 @@ impl AuthReasonCode {
             Self::TokenRevoked => "token_revoked",
             Self::AuthStateUnavailable => "auth_state_unavailable",
         }
+    }
+}
+
+#[cfg(test)]
+mod group_membership_tests {
+    use super::*;
+    use crate::access::{AccessLevel, GroupMembership};
+
+    fn principal_with(
+        groups: &[&str],
+        group_roles: &[(&str, AccessLevel)],
+    ) -> Principal {
+        Principal {
+            id: PrincipalId::new("https://idp#u1").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://idp").unwrap(),
+            subject: TokenSubject::new("u1").unwrap(),
+            tenant: None,
+            groups: groups.iter().map(|g| GroupId::new(*g).unwrap()).collect(),
+            group_roles: group_roles
+                .iter()
+                .map(|(g, r)| GroupMembership {
+                    group: GroupId::new(*g).unwrap(),
+                    role: *r,
+                })
+                .collect(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: None,
+        }
+    }
+
+    #[test]
+    fn bare_membership_defaults_to_read() {
+        let p = principal_with(&["eng", "ops"], &[]);
+        let m = p.group_memberships();
+        assert_eq!(m.len(), 2);
+        assert!(m.iter().all(|gm| gm.role == AccessLevel::Read));
+    }
+
+    #[test]
+    fn explicit_role_overrides_default_per_group() {
+        let p = principal_with(&["eng", "ops"], &[("eng", AccessLevel::Write)]);
+        let m = p.group_memberships();
+        let eng = m
+            .iter()
+            .find(|gm| gm.group == GroupId::new("eng").unwrap())
+            .unwrap();
+        let ops = m
+            .iter()
+            .find(|gm| gm.group == GroupId::new("ops").unwrap())
+            .unwrap();
+        assert_eq!(eng.role, AccessLevel::Write);
+        assert_eq!(ops.role, AccessLevel::Read);
+    }
+
+    #[test]
+    fn role_without_membership_is_ignored() {
+        // group_roles for a group the principal is not a member of yields nothing.
+        let p = principal_with(&["eng"], &[("secret", AccessLevel::Admin)]);
+        let m = p.group_memberships();
+        assert_eq!(m.len(), 1);
+        assert_eq!(m.iter().next().unwrap().group, GroupId::new("eng").unwrap());
     }
 }

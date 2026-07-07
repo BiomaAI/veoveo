@@ -26,8 +26,8 @@ pub(super) fn internal_identity(
 }
 
 /// Build a [`PlaneCaller`] for a live, synchronous request: the verified identity
-/// plus the raw bearer to forward. Memberships are empty until group `(id, role)`
-/// pairs ride in the signed identity (P3).
+/// plus the raw bearer to forward. Group memberships come from the signed
+/// identity via Principal::group_memberships() (bare membership = Read).
 pub(super) fn internal_caller(
     context: &RequestContext<RoleServer>,
 ) -> Result<PlaneCaller, McpError> {
@@ -50,10 +50,11 @@ pub(super) fn internal_caller(
 
 /// Assemble a [`PlaneCaller`] from a verified identity and its raw bearer.
 pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
+    let memberships = identity.principal.group_memberships();
     PlaneCaller {
         bearer_token: bearer,
         identity,
-        memberships: BTreeSet::new(),
+        memberships,
     }
 }
 
@@ -81,6 +82,7 @@ pub(super) fn plane_caller_for_owner(
             .map_err(|e| McpError::internal_error(e.to_string(), None))?,
         tenant: owner.tenant.clone(),
         groups: BTreeSet::new(),
+        group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
         scopes: BTreeSet::new(),
         data_labels: owner.data_labels.clone(),
@@ -258,6 +260,7 @@ mod tests {
             subject,
             tenant: tenant.map(TenantId::new).transpose().unwrap(),
             groups: BTreeSet::<GroupId>::new(),
+            group_roles: BTreeSet::new(),
             roles: BTreeSet::<RoleId>::new(),
             scopes: BTreeSet::<ScopeName>::new(),
             data_labels: data_labels

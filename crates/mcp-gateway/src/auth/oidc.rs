@@ -80,6 +80,9 @@ impl OidcIdTokenVerifier {
                 .map(GroupId::new)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
+            // OIDC group claims carry membership, not per-group roles today;
+            // bare membership resolves to Read via Principal::group_memberships().
+            group_roles: BTreeSet::new(),
             roles: claims
                 .roles
                 .map(StringListClaim::into_values)

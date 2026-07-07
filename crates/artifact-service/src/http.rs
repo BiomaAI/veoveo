@@ -294,6 +294,7 @@ mod tests {
             subject: TokenSubject::new("s").unwrap(),
             tenant: Some(TenantId::new(tenant).unwrap()),
             groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
             roles: BTreeSet::new(),
             scopes: BTreeSet::new(),
             data_labels: BTreeSet::new(),
