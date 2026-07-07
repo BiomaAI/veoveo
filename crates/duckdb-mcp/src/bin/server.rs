@@ -114,7 +114,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Query a DuckDB database",
-        description = "Run one read-only SQL statement against an owned or tenant-visible database. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{sha256} link.",
+        description = "Run one read-only SQL statement against a database you own. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{sha256} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbQueryOutput>(),
         annotations(
             read_only_hint = true,
