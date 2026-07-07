@@ -21,16 +21,13 @@ use veoveo_mcp_contract::{
     DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
     DuckDbExportSelection, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
     DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbSource,
-    GatewayInternalIdentity, duckdb_quote_identifier, duckdb_quote_literal,
+    GatewayInternalIdentity, PlaneCaller, duckdb_quote_identifier, duckdb_quote_literal,
     duckdb_read_function_sql, duckdb_read_options_sql,
 };
 
 use super::{
     app_state::AppState,
-    ownership::{
-        artifact_owner_from_task, database_writable, resolve_readable_database,
-        resolve_writable_database,
-    },
+    ownership::{database_writable, resolve_readable_database, resolve_writable_database},
 };
 
 const MAX_INGEST_FETCH_BYTES: usize = 256 * 1024 * 1024;
@@ -105,6 +102,7 @@ async fn cleanup_exchange_dir(dir: &PathBuf) {
 
 pub(super) async fn put_op_artifact(
     state: &AppState,
+    caller: &PlaneCaller,
     owner: &TaskOwner,
     bytes: Vec<u8>,
     mime_type: &str,
@@ -114,26 +112,17 @@ pub(super) async fn put_op_artifact(
     let mut put = ArtifactPut::new(bytes);
     put.mime_type = Some(mime_type.to_string());
     put.filename = Some(filename);
+    // Carry the caller's data labels as artifact classification; the plane
+    // stamps tenant + owner itself from the verified identity, and records the
+    // owner Admin grant in the ledger (no local artifact_owner row).
     put.compliance = ComplianceMetadata {
-        tenant_id: owner.tenant.clone(),
-        owner_id: Some(owner.principal_id.clone()),
         data_labels: owner.data_labels.clone(),
         ..Default::default()
     };
     put.metadata = metadata;
-    let mut metadata =
-        state.artifacts.put(put).await.map_err(|err| {
-            McpError::internal_error(format!("artifact write failed: {err:#}"), None)
-        })?;
-    let artifact_owner = artifact_owner_from_task(&metadata.sha256, owner);
-    state
-        .durable
-        .record_artifact_owner(&artifact_owner)
-        .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    metadata.compliance.owner_id = Some(owner.principal_id.clone());
-    metadata.compliance.tenant_id = owner.tenant.clone();
-    metadata.compliance.data_labels = owner.data_labels.clone();
-    Ok(metadata)
+    state.artifacts.put(caller, put).await.map_err(|err| {
+        McpError::internal_error(format!("artifact write failed: {err:#}"), None)
+    })
 }
 
 fn export_file_details(format: DuckDbExportFormat) -> (&'static str, &'static str, &'static str) {
@@ -161,6 +150,7 @@ fn single_statement_sql(label: &str, sql: &str) -> Result<String, McpError> {
 
 pub(super) async fn query_op(
     state: &Arc<AppState>,
+    caller: &PlaneCaller,
     identity: &GatewayInternalIdentity,
     owner: &TaskOwner,
     request: DuckDbQueryRequest,
@@ -259,6 +249,7 @@ pub(super) async fn query_op(
             cleanup_exchange_dir(&exchange).await;
             let artifact = put_op_artifact(
                 state,
+                caller,
                 owner,
                 bytes,
                 mime_type,
@@ -530,6 +521,7 @@ async fn fetch_ingest_uri(
 
 pub(super) async fn export_op(
     state: &Arc<AppState>,
+    caller: &PlaneCaller,
     identity: &GatewayInternalIdentity,
     owner: &TaskOwner,
     request: DuckDbExportRequest,
@@ -575,6 +567,7 @@ pub(super) async fn export_op(
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?;
             let artifact = put_op_artifact(
                 state,
+                caller,
                 owner,
                 bytes,
                 mime_type,
@@ -656,6 +649,7 @@ pub(super) async fn export_op(
             };
             let artifact = put_op_artifact(
                 state,
+                caller,
                 owner,
                 bytes,
                 mime_type,

@@ -34,7 +34,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        for bucket in media-artifacts timeseries-artifacts optimization-artifacts duckdb-artifacts artifact-plane; do
+        for bucket in media-artifacts timeseries-artifacts optimization-artifacts artifact-plane; do
           until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$bucket" 2>/dev/null \
             || aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$bucket"; do
             sleep 2
@@ -201,8 +201,8 @@ services:
       context: .
       dockerfile: crates/duckdb-mcp/Dockerfile
     depends_on:
-      rustfs-init:
-        condition: service_completed_successfully
+      artifact-service:
+        condition: service_started
     command:
       - "--port"
       - "8791"
@@ -219,23 +219,13 @@ services:
       - "/var/lib/veoveo/duckdb/exchange"
       - "--spill-dir"
       - "/var/lib/veoveo/duckdb/spill"
-      - "--artifact-store"
-      - "s3-compatible"
-      - "--artifact-endpoint"
-      - "http://rustfs:9000"
-      - "--artifact-allow-http"
-      - "--artifact-bucket"
-      - "duckdb-artifacts"
-      - "--artifact-region"
-      - "us-east-1"
+      - "--artifact-service-url"
+      - "http://artifact-service:8790"
     environment:
       VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
       OTEL_SERVICE_NAME: veoveo-duckdb-mcp
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
       RUST_LOG: "info,veoveo_duckdb_mcp=debug"
-      AWS_ACCESS_KEY_ID: rustfsadmin
-      AWS_SECRET_ACCESS_KEY: rustfsadmin
-      AWS_DEFAULT_REGION: us-east-1
     # Defense in depth around arbitrary SQL: the engine sandbox is primary, the
     # container is the backstop. Only the state volume is writable.
     read_only: true
