@@ -309,6 +309,7 @@ mod tests {
             subject: TokenSubject::new("user-1").unwrap(),
             tenant: Some(TenantId::new("tenant-a").unwrap()),
             groups: BTreeSet::from([GroupId::new("engineering").unwrap()]),
+            group_roles: BTreeSet::new(),
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
             scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
             data_labels: BTreeSet::new(),

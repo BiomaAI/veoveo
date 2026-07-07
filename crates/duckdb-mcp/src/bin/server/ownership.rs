@@ -24,8 +24,8 @@ pub(super) fn internal_identity(
 }
 
 /// Build the [`PlaneCaller`] for artifact-plane calls: the verified identity plus
-/// the raw bearer to forward. Memberships are empty until group `(id, role)`
-/// pairs ride in the signed identity (P3).
+/// the raw bearer to forward. Group memberships come from the signed identity
+/// via Principal::group_memberships() (bare membership = Read).
 pub(super) fn internal_caller(
     context: &RequestContext<RoleServer>,
 ) -> Result<PlaneCaller, McpError> {
@@ -48,10 +48,11 @@ pub(super) fn internal_caller(
 
 /// Assemble a [`PlaneCaller`] from a verified identity and its raw bearer.
 pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
+    let memberships = identity.principal.group_memberships();
     PlaneCaller {
         bearer_token: bearer,
         identity,
-        memberships: std::collections::BTreeSet::new(),
+        memberships,
     }
 }
 

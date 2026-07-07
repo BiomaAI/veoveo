@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use chrono::Utc;
 use jsonwebtoken::{DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
@@ -83,6 +85,9 @@ impl IdJagVerifier {
                 .map(GroupId::new)
                 .collect::<Result<_, _>>()
                 .map_err(AuthError::Claim)?,
+            // Per-group roles are not asserted in the ID-JAG claim set today;
+            // bare membership resolves to Read via Principal::group_memberships().
+            group_roles: BTreeSet::new(),
             roles: claims
                 .roles
                 .map(StringListClaim::into_values)

@@ -80,6 +80,7 @@ fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String>
         subject: principal_subject,
         tenant: Some(TenantId::new("local")?),
         groups: Default::default(),
+        group_roles: Default::default(),
         roles: Default::default(),
         scopes: [ScopeName::new("operator:use")?].into_iter().collect(),
         data_labels: Default::default(),

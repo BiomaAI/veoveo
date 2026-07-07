@@ -35,17 +35,19 @@ impl PlaneAuthenticator {
     }
 
     /// Verify a `Bearer` token value and produce the acting caller. Group
-    /// memberships are empty until the signed identity carries `(group, role)`
-    /// pairs (P3); until then only user and owner grants resolve.
+    /// memberships are derived from the signed identity's `(group, role)` pairs
+    /// (bare membership resolves to `Read`), so group grants resolve alongside
+    /// user and owner grants.
     pub fn authenticate(&self, bearer_token: &str) -> Result<PlaneCaller, ArtifactPlaneError> {
         let identity = self
             .verifier
             .verify(bearer_token)
             .map_err(|_| ArtifactPlaneError::Unauthenticated)?;
+        let memberships = identity.principal.group_memberships();
         Ok(PlaneCaller {
             bearer_token: bearer_token.to_string(),
             identity,
-            memberships: BTreeSet::new(),
+            memberships,
         })
     }
 }
