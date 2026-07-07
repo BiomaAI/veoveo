@@ -76,6 +76,32 @@ waits briefly, and either returns the completed result or a gateway-owned
 List surfaces owned by Veoveo servers (`tools/list`, `prompts/list`, `resources/list`,
 `resources/templates/list`, and `tasks/list`) honor MCP pagination cursors.
 
+### Timeseries and DuckDB servers
+
+`timeseries-mcp` exposes `forecast` (task-required), which reads a typed DuckDB source and
+returns a Rerun RRD artifact. `duckdb-mcp` exposes a small SQL surface over owner-scoped
+mutable database files:
+
+| Tool | Invocation | What |
+|---|---|---|
+| `query(db, sql, attach?, output?)` | direct or task | Read-only SQL. Inline rows are capped; `output = {mode: "artifact", format: "parquet"}` spills large results to a `duckdb://artifact/{sha256}` link. Read-only databases can be attached for cross-database joins. |
+| `execute(db, sql, create_if_missing?)` | direct or task | DDL/DML on a caller-owned database; writes serialize per file. |
+| `ingest(db, table, source, mode)` | task | Load an inline CSV or an allowlisted HTTPS source into a table. |
+| `export(db, selection, format)` | task | Export a table, a read-only SQL result, or a full database snapshot to an immutable artifact (parquet/csv/`duck_db`). |
+
+Databases are addressed by `duckdb://db/{db_id}` and listed at `duckdb://dbs`. Each database
+is owned by the creating principal; tenant peers get read visibility only when the tenant is
+set and the database's data labels are covered by the reader's. Only the owner writes.
+
+SQL is the input surface but never an escape hatch. Every connection is hardened before
+caller SQL runs — `enable_external_access = false` (no file paths, no httpfs), no extension
+auto-install/auto-load, memory/thread caps, and `lock_configuration` so caller SQL cannot
+undo any of it — and reads use a read-only connection. Ingest sources are fetched by the
+server under an HTTPS host allowlist, never by the SQL engine, and file exchange is confined
+to per-request directories kept separate from the DuckDB spill directory. Per-statement
+timeouts interrupt the running query. The container drops all capabilities and runs
+read-only except for the database/exchange/spill volume.
+
 ## Public Routing
 
 `PUBLIC_BASE_URL` is the public origin for the whole Veoveo deployment. Its hostname is
@@ -95,8 +121,9 @@ origin:
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
 | timeseries artifact bytes | `{PUBLIC_BASE_URL}/timeseries/artifacts/*` |
+| duckdb artifact bytes | `{PUBLIC_BASE_URL}/duckdb/artifacts/*` |
 
-`/media/mcp` and `/timeseries/mcp` are intentionally not public client routes. For local conformance or service
+`/media/mcp`, `/timeseries/mcp`, and `/duckdb/mcp` are intentionally not public client routes. For local conformance or service
 debugging, use the direct service endpoint with a Veoveo-signed internal token, such as
 `http://localhost:8787/media/mcp` in the development Compose stack.
 
@@ -372,6 +399,8 @@ crates/mcp-contract/src/deployment.rs          shared public URL/server mount co
 crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
 crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
+crates/duckdb-mcp/src/bin/server.rs            hosted DuckDB MCP server (sandboxed SQL)
+crates/duckdb-mcp/src/engine.rs                hardened DuckDB connection layer
 crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
 crates/mcp-stdio-bridge/src/bin/bridge.rs      stdio-to-streamable-HTTP MCP bridge
 crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler

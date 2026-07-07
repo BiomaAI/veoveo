@@ -57,7 +57,16 @@
 		reverse_proxy timeseries-mcp:8789
 	}
 
+	handle /duckdb/artifacts* {
+		reverse_proxy duckdb-mcp:8791
+	}
+
+	handle /duckdb/healthz {
+		reverse_proxy duckdb-mcp:8791
+	}
+
 	respond /media/mcp* 404
 	respond /timeseries/mcp* 404
+	respond /duckdb/mcp* 404
 	respond 404
 }

@@ -385,6 +385,7 @@ pub(super) async fn ingest_op(
     let settings = state.engine.clone();
     let timeout_ms = state.clamp_timeout_ms(None);
     let exchange_for_engine = exchange.clone();
+    let count_ident = table_ident.clone();
     let result = run_engine_blocking("ingest", timeout_ms, move |watch| {
         let conn = engine::open_connection(
             &db_path,
@@ -394,8 +395,18 @@ pub(super) async fn ingest_op(
             &settings,
         )?;
         watch.register(&conn);
-        let rows = conn.execute(&ingest_sql, []).context("ingesting source")?;
-        Ok(rows as u64)
+        let changed = conn.execute(&ingest_sql, []).context("ingesting source")?;
+        // `CREATE TABLE AS SELECT` reports no change count, so read the table
+        // size for create/replace; append already reports its inserted rows.
+        let rows = if matches!(request.mode, DuckDbIngestMode::Append) {
+            changed as u64
+        } else {
+            conn.query_row(&format!("SELECT count(*) FROM {count_ident}"), [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .context("counting ingested rows")? as u64
+        };
+        Ok(rows)
     })
     .await;
     cleanup_exchange_dir(&exchange).await;
