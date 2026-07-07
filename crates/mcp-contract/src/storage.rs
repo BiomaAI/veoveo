@@ -79,7 +79,7 @@ impl ArtifactPut {
 }
 
 /// Stored artifact payload plus its canonical metadata.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArtifactObject {
     pub metadata: ArtifactMetadata,
     pub bytes: Vec<u8>,
