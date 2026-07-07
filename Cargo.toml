@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/duckdb-mcp",
     "crates/mcp-gateway",
     "crates/mcp-conformance",
     "crates/mcp-contract",

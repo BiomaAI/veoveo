@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
@@ -14,7 +10,8 @@ use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     DuckDbFormat, DuckDbReadOptions, DuckDbSource, TimeseriesFilterValue, TimeseriesForecastMethod,
     TimeseriesForecastRequest, TimeseriesForecastSummary, TimeseriesRowFilter,
-    TimeseriesSeriesSummary,
+    TimeseriesSeriesSummary, duckdb_quote_identifier, duckdb_quote_literal,
+    duckdb_read_function_sql, duckdb_read_options_sql,
 };
 
 const DEFAULT_SERIES_ID: &str = "series";
@@ -233,15 +230,18 @@ fn materialize_source_table(
                 uuid::Uuid::new_v4()
             ));
             fs::write(&path, csv).with_context(|| format!("writing {}", path.display()))?;
-            let path_literal = quote_literal(path.to_string_lossy().as_ref());
+            let path_literal = duckdb_quote_literal(path.to_string_lossy().as_ref());
             inline_file = Some(path);
-            format!("read_csv({path_literal}{})", read_options_sql(options)?)
+            format!(
+                "read_csv({path_literal}{})",
+                duckdb_read_options_sql(options)?
+            )
         }
         DuckDbSource::Uri {
             uri,
             format,
             options,
-        } => read_function_sql(&quote_literal(uri), format, options)?,
+        } => duckdb_read_function_sql(&duckdb_quote_literal(uri), format, options)?,
         DuckDbSource::Uris {
             uris,
             format,
@@ -249,10 +249,10 @@ fn materialize_source_table(
         } => {
             let list = uris
                 .iter()
-                .map(|uri| quote_literal(uri))
+                .map(|uri| duckdb_quote_literal(uri))
                 .collect::<Vec<_>>()
                 .join(", ");
-            read_function_sql(&format!("[{list}]"), format, options)?
+            duckdb_read_function_sql(&format!("[{list}]"), format, options)?
         }
     };
     conn.execute_batch(&format!(
@@ -270,15 +270,15 @@ fn read_observations(
         .mapping
         .series_column
         .as_ref()
-        .map(|column| format!("CAST({} AS VARCHAR)", quote_ident(column)))
-        .unwrap_or_else(|| quote_literal(DEFAULT_SERIES_ID));
+        .map(|column| format!("CAST({} AS VARCHAR)", duckdb_quote_identifier(column)))
+        .unwrap_or_else(|| duckdb_quote_literal(DEFAULT_SERIES_ID));
     let time_expr = request
         .mapping
         .time_column
         .as_ref()
-        .map(|column| format!("CAST({} AS VARCHAR)", quote_ident(column)))
+        .map(|column| format!("CAST({} AS VARCHAR)", duckdb_quote_identifier(column)))
         .unwrap_or_else(|| "NULL".to_string());
-    let value_expr = quote_ident(&request.mapping.value_column);
+    let value_expr = duckdb_quote_identifier(&request.mapping.value_column);
     let filter_clause = request
         .training_filter
         .as_ref()
@@ -335,10 +335,18 @@ fn read_observations(
 fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
     Ok(match filter {
         TimeseriesRowFilter::Eq { column, value } => {
-            format!("{} = {}", quote_ident(column), filter_value_sql(value))
+            format!(
+                "{} = {}",
+                duckdb_quote_identifier(column),
+                filter_value_sql(value)
+            )
         }
         TimeseriesRowFilter::Ne { column, value } => {
-            format!("{} <> {}", quote_ident(column), filter_value_sql(value))
+            format!(
+                "{} <> {}",
+                duckdb_quote_identifier(column),
+                filter_value_sql(value)
+            )
         }
         TimeseriesRowFilter::In { column, values } => {
             let values = values
@@ -346,9 +354,11 @@ fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
                 .map(filter_value_sql)
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{} IN ({values})", quote_ident(column))
+            format!("{} IN ({values})", duckdb_quote_identifier(column))
         }
-        TimeseriesRowFilter::IsNotNull { column } => format!("{} IS NOT NULL", quote_ident(column)),
+        TimeseriesRowFilter::IsNotNull { column } => {
+            format!("{} IS NOT NULL", duckdb_quote_identifier(column))
+        }
         TimeseriesRowFilter::And { filters } => filters
             .iter()
             .map(|filter| row_filter_sql(filter).map(|sql| format!("({sql})")))
@@ -364,7 +374,7 @@ fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
 
 fn filter_value_sql(value: &TimeseriesFilterValue) -> String {
     match value {
-        TimeseriesFilterValue::String(value) => quote_literal(value),
+        TimeseriesFilterValue::String(value) => duckdb_quote_literal(value),
         TimeseriesFilterValue::Bool(value) => {
             if *value {
                 "true".to_string()
@@ -501,95 +511,6 @@ fn write_rrd(
     let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
     let _ = fs::remove_file(&path);
     Ok(bytes)
-}
-
-fn read_function_sql(
-    source: &str,
-    format: &DuckDbFormat,
-    options: &DuckDbReadOptions,
-) -> Result<String> {
-    let options = read_options_sql(options)?;
-    Ok(match format {
-        DuckDbFormat::Auto => format!("read_csv_auto({source}{options})"),
-        DuckDbFormat::Csv => format!("read_csv({source}{options})"),
-        DuckDbFormat::Parquet => format!("read_parquet({source}{options})"),
-        DuckDbFormat::Json => format!("read_json({source}{options})"),
-        DuckDbFormat::Ndjson => format!("read_ndjson({source}{options})"),
-    })
-}
-
-fn read_options_sql(options: &DuckDbReadOptions) -> Result<String> {
-    let mut fields = Vec::new();
-    if let Some(header) = options.header {
-        fields.push(format!(
-            "header = {}",
-            if header { "true" } else { "false" }
-        ));
-    }
-    if let Some(delimiter) = &options.delimiter {
-        fields.push(format!("delim = {}", quote_literal(delimiter)));
-    }
-    if let Some(timestamp_format) = &options.timestamp_format {
-        fields.push(format!(
-            "timestampformat = {}",
-            quote_literal(timestamp_format)
-        ));
-    }
-    let mut seen = BTreeSet::from([
-        "header".to_string(),
-        "delim".to_string(),
-        "timestampformat".to_string(),
-    ]);
-    for (key, value) in &options.extra {
-        validate_option_key(key)?;
-        if !seen.insert(key.clone()) {
-            bail!("duplicate DuckDB read option `{key}`");
-        }
-        fields.push(format!("{key} = {}", option_value_sql(value)?));
-    }
-    if fields.is_empty() {
-        Ok(String::new())
-    } else {
-        Ok(format!(", {}", fields.join(", ")))
-    }
-}
-
-fn validate_option_key(key: &str) -> Result<()> {
-    if key.is_empty()
-        || !key
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-    {
-        bail!("invalid DuckDB read option key `{key}`");
-    }
-    Ok(())
-}
-
-fn option_value_sql(value: &Value) -> Result<String> {
-    match value {
-        Value::Bool(value) => Ok(if *value { "true" } else { "false" }.to_string()),
-        Value::Number(value) => Ok(value.to_string()),
-        Value::String(value) => Ok(quote_literal(value)),
-        Value::Array(values) => {
-            let values = values
-                .iter()
-                .map(option_value_sql)
-                .collect::<Result<Vec<_>>>()?
-                .join(", ");
-            Ok(format!("[{values}]"))
-        }
-        Value::Null | Value::Object(_) => {
-            bail!("DuckDB read option values must be bool, number, string, or arrays")
-        }
-    }
-}
-
-fn quote_literal(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
-}
-
-fn quote_ident(value: &str) -> String {
-    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 fn source_digest(source: &DuckDbSource) -> Result<String> {
@@ -799,7 +720,7 @@ mod tests {
     #[test]
     fn read_function_uses_typed_format() {
         assert_eq!(
-            read_function_sql(
+            duckdb_read_function_sql(
                 "'s3://bucket/file.parquet'",
                 &DuckDbFormat::Parquet,
                 &DuckDbReadOptions::default()
