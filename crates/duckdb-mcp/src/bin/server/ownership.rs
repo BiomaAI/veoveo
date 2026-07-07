@@ -162,7 +162,7 @@ pub(super) fn resolve_readable_database(
     owners
         .iter()
         .find(|owner| database_writable(owner, identity))
-        .map(|own| own.clone())
+        .cloned()
         .ok_or_else(|| McpError::invalid_params(format!("unknown database `{db_id}`"), None))
 }
 
