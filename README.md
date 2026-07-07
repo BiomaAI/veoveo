@@ -76,14 +76,18 @@ waits briefly, and either returns the completed result or a gateway-owned
 List surfaces owned by Veoveo servers (`tools/list`, `prompts/list`, `resources/list`,
 `resources/templates/list`, and `tasks/list`) honor MCP pagination cursors.
 
-### Timeseries and DuckDB servers
+### Timeseries, Optimization, and DuckDB servers
 
 `timeseries-mcp` exposes `forecast` (task-required), which reads a typed DuckDB source and
-returns a Rerun RRD artifact. `duckdb-mcp` exposes a small SQL surface over owner-scoped
-mutable database files:
+returns a Rerun RRD artifact. `optimization-mcp` exposes `plan` (task-required), which
+solves high-level agent/task/option planning problems with `good_lp`, accepts typed inline
+options or option rows through the shared `DuckDbSource` contract, and returns structured
+plan output plus optional DuckDB and Rerun RRD artifacts. `duckdb-mcp` exposes a small SQL
+surface over owner-scoped mutable database files:
 
 | Tool | Invocation | What |
 |---|---|---|
+| `plan(input, objective?, artifacts?)` | task | Solve a binary option-selection planning model for one or many agents completing tasks under constraints. Returns `optimization://artifact/{sha256}` links for DuckDB/RRD outputs when requested. |
 | `query(db, sql, attach?, output?)` | direct or task | Read-only SQL. Inline rows are capped; `output = {mode: "artifact", format: "parquet"}` spills large results to a `duckdb://artifact/{sha256}` link. Read-only databases can be attached for cross-database joins. |
 | `execute(db, sql, create_if_missing?)` | direct or task | DDL/DML on a caller-owned database; writes serialize per file. |
 | `ingest(db, table, source, mode)` | task | Load an inline CSV or an allowlisted HTTPS source into a table. |
@@ -121,9 +125,10 @@ origin:
 | media input files | `{PUBLIC_BASE_URL}/media/files/*` |
 | media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
 | timeseries artifact bytes | `{PUBLIC_BASE_URL}/timeseries/artifacts/*` |
+| optimization artifact bytes | `{PUBLIC_BASE_URL}/optimization/artifacts/*` |
 | duckdb artifact bytes | `{PUBLIC_BASE_URL}/duckdb/artifacts/*` |
 
-`/media/mcp`, `/timeseries/mcp`, and `/duckdb/mcp` are intentionally not public client routes. For local conformance or service
+`/media/mcp`, `/timeseries/mcp`, `/optimization/mcp`, and `/duckdb/mcp` are intentionally not public client routes. For local conformance or service
 debugging, use the direct service endpoint with a Veoveo-signed internal token, such as
 `http://localhost:8787/media/mcp` in the development Compose stack.
 
@@ -401,6 +406,8 @@ crates/mcp-contract/src/usage.rs               usage contract/types
 crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
 crates/duckdb-mcp/src/bin/server.rs            hosted DuckDB MCP server (sandboxed SQL)
 crates/duckdb-mcp/src/engine.rs                hardened DuckDB connection layer
+crates/optimization-mcp/src/bin/server.rs      hosted optimization MCP server
+crates/optimization-mcp/src/planning.rs        good_lp-backed task-option planner
 crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
 crates/mcp-stdio-bridge/src/bin/bridge.rs      stdio-to-streamable-HTTP MCP bridge
 crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler

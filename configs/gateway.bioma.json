@@ -171,6 +171,40 @@
       "metadata": {}
     },
     {
+      "slug": "optimization",
+      "uri_scheme": "optimization",
+      "mount_path": "/optimization",
+      "mcp_path": "/optimization/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://optimization-mcp:8792/optimization/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "plan"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "owned_routes": [
+        {
+          "path": "/optimization/artifacts",
+          "purpose": "artifact_bytes"
+        }
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "rerun",
       "uri_scheme": "rerun",
       "mount_path": "/rerun",
@@ -288,6 +322,29 @@
           },
           "completions": "disabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "optimization",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "plan"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "optimization"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -375,6 +432,29 @@
               {
                 "kind": "scheme",
                 "scheme": "duckdb"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "optimization",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "plan"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "optimization"
               }
             ]
           },
@@ -858,6 +938,156 @@
           ],
           "resource_schemes": [
             "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ]
+        },
+        {
+          "id": "allow_operator_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_admin_service_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
           ],
           "required_scopes": [
             "operator:use"

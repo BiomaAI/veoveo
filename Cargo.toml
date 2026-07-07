@@ -6,6 +6,7 @@ members = [
     "crates/mcp-contract",
     "crates/mcp-stdio-bridge",
     "crates/media-mcp",
+    "crates/optimization-mcp",
     "crates/smoke",
     "crates/timeseries-mcp",
 ]
@@ -28,6 +29,7 @@ clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
 duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "e2f3d156223250827567d154035e670432d97ac9", features = ["chrono"] }
 futures = "0.3.32"
+good_lp = { version = "1.15.2", default-features = false, features = ["microlp"] }
 hex = "0.4.3"
 hmac = "0.13.0"
 jsonschema = "0.46.9"
