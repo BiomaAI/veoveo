@@ -40,6 +40,8 @@ pub use duckdb::{
     DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
     DuckDbExportSelection, DuckDbFormat, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
     DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbReadOptions, DuckDbSource,
+    DuckDbSqlBuildError, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
+    duckdb_read_options_sql,
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
