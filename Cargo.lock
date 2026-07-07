@@ -5982,11 +5982,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-artifact-client"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "reqwest 0.13.4",
+ "serde_json",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
 name = "veoveo-artifact-service"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "base64",
  "chacha20poly1305",
  "chrono",
  "clap",
@@ -5995,6 +6006,7 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "object_store",
+ "reqwest 0.13.4",
  "rustls",
  "serde",
  "serde_json",
@@ -6006,6 +6018,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "veoveo-artifact-client",
  "veoveo-mcp-contract",
  "zeroize",
 ]
