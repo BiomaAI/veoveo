@@ -8,6 +8,7 @@
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod deployment;
+pub mod duckdb;
 pub mod gateway;
 pub mod generation;
 pub mod host;
@@ -33,6 +34,12 @@ pub use deployment::{
     ServerPublicEndpoint, ServiceToServiceSecurity, ServiceToServiceTransport,
     StateStoreDeployment, StateStoreKind, StateStoreOwner, TelemetrySignal,
     TelemetrySinkDeployment, TelemetrySinkKind,
+};
+pub use duckdb::{
+    DuckDbColumn, DuckDbDatabaseId, DuckDbDatabaseIdError, DuckDbExecuteOutput,
+    DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
+    DuckDbExportSelection, DuckDbFormat, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
+    DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbReadOptions, DuckDbSource,
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
@@ -87,7 +94,6 @@ pub use tasks::{
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use timeseries::{
-    TimeseriesDuckDbFormat, TimeseriesDuckDbReadOptions, TimeseriesDuckDbSource,
     TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastOutput,
     TimeseriesForecastRequest, TimeseriesForecastSummary, TimeseriesRowFilter,
     TimeseriesSeriesSummary, TimeseriesTableMapping,
