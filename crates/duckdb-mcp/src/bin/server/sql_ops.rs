@@ -331,6 +331,7 @@ fn execute_sql(conn: &duckdb::Connection, sql: &str) -> Result<(u64, u64)> {
 
 pub(super) async fn ingest_op(
     state: &Arc<AppState>,
+    caller: &PlaneCaller,
     identity: &GatewayInternalIdentity,
     request: DuckDbIngestRequest,
 ) -> Result<DuckDbIngestOutput, McpError> {
@@ -351,7 +352,7 @@ pub(super) async fn ingest_op(
     tokio::fs::create_dir_all(&exchange)
         .await
         .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    let source_expr = match materialize_source(state, &request.source, &exchange).await {
+    let source_expr = match materialize_source(state, caller, &request.source, &exchange).await {
         Ok(expr) => expr,
         Err(err) => {
             cleanup_exchange_dir(&exchange).await;
@@ -418,10 +419,35 @@ pub(super) async fn ingest_op(
 
 async fn materialize_source(
     state: &AppState,
+    caller: &PlaneCaller,
     source: &DuckDbSource,
     exchange: &PathBuf,
 ) -> Result<String, McpError> {
     match source {
+        DuckDbSource::Artifact {
+            uri,
+            format,
+            options,
+        } => {
+            // Resolve the neutral artifact:// URI through the plane under the
+            // caller's identity; the plane enforces grant + label checks. Bytes
+            // are written to the sandboxed exchange dir, never fetched by SQL.
+            let object = state
+                .artifacts
+                .resolve(caller, uri)
+                .await
+                .map_err(|err| McpError::invalid_params(format!("artifact source: {err}"), None))?;
+            let path = exchange.join(format!("artifact-{}", object.metadata.sha256));
+            tokio::fs::write(&path, &object.bytes)
+                .await
+                .map_err(|err| McpError::internal_error(err.to_string(), None))?;
+            duckdb_read_function_sql(
+                &duckdb_quote_literal(path.to_string_lossy().as_ref()),
+                format,
+                options,
+            )
+            .map_err(|err| McpError::invalid_params(err.to_string(), None))
+        }
         DuckDbSource::InlineCsv { csv, options, .. } => {
             let path = exchange.join("inline.csv");
             tokio::fs::write(&path, csv)

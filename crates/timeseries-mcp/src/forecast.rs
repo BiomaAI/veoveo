@@ -254,6 +254,15 @@ fn materialize_source_table(
                 .join(", ");
             duckdb_read_function_sql(&format!("[{list}]"), format, options)?
         }
+        DuckDbSource::Artifact { .. } => {
+            // Cross-server artifact:// input is served by the duckdb server, which
+            // holds the artifact-plane client. Query the artifact there, then
+            // forecast over the result.
+            bail!(
+                "artifact:// sources are not supported by timeseries forecast; \
+                 read the artifact with the duckdb server instead"
+            );
+        }
     };
     conn.execute_batch(&format!(
         "CREATE TEMP TABLE veoveo_source AS SELECT * FROM {expression};"
@@ -544,6 +553,15 @@ fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
             options,
         } => SourceProvenance::Uris {
             uris: uris.clone(),
+            format: format.clone(),
+            options: options.clone(),
+        },
+        DuckDbSource::Artifact {
+            uri,
+            format,
+            options,
+        } => SourceProvenance::Uri {
+            uri: uri.clone(),
             format: format.clone(),
             options: options.clone(),
         },

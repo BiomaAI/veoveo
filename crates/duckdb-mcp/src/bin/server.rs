@@ -160,7 +160,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Ingest data into a DuckDB table",
-        description = "Load a typed source (inline CSV, or allowlisted HTTPS URIs as csv/parquet/json/ndjson) into one table. The server fetches sources itself; SQL never reaches the network. Must be invoked as an MCP task; read tasks/result for the final row count.",
+        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an artifact:// reference to any hosted server's artifact (media output, timeseries RRD, optimization snapshot), resolved through the shared artifact plane under your identity and gated by its grant + label checks. The server fetches and resolves sources itself; SQL never reaches the network. Must be invoked as an MCP task; read tasks/result for the final row count.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbIngestOutput>(),
         annotations(
             read_only_hint = false,
@@ -718,7 +718,7 @@ async fn run_task(
             }
             Err(err) => fail!(format!("execute failed: {}", err.message)),
         },
-        TaskArgs::Ingest(request) => match sql_ops::ingest_op(&state, &identity, request).await {
+        TaskArgs::Ingest(request) => match sql_ops::ingest_op(&state, &caller, &identity, request).await {
             Ok(output) => {
                 outputs::record_op_usage(
                     &state,
