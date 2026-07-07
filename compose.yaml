@@ -34,7 +34,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        for bucket in media-artifacts timeseries-artifacts; do
+        for bucket in media-artifacts timeseries-artifacts duckdb-artifacts; do
           until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$$bucket" 2>/dev/null \
             || aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$$bucket"; do
             sleep 2
@@ -155,6 +155,64 @@ services:
     profiles:
       - dev
 
+  duckdb-mcp:
+    build:
+      context: .
+      dockerfile: crates/duckdb-mcp/Dockerfile
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+    command:
+      - "--port"
+      - "8791"
+      - "--public-base-url"
+      - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+      - "--allow-loopback-hosts"
+      - "--allowed-host"
+      - "duckdb-mcp:8791"
+      - "--state-db"
+      - "/var/lib/veoveo/duckdb/state.duckdb"
+      - "--database-dir"
+      - "/var/lib/veoveo/duckdb/databases"
+      - "--exchange-dir"
+      - "/var/lib/veoveo/duckdb/exchange"
+      - "--spill-dir"
+      - "/var/lib/veoveo/duckdb/spill"
+      - "--artifact-store"
+      - "s3-compatible"
+      - "--artifact-endpoint"
+      - "http://rustfs:9000"
+      - "--artifact-allow-http"
+      - "--artifact-bucket"
+      - "duckdb-artifacts"
+      - "--artifact-region"
+      - "us-east-1"
+    environment:
+      VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
+      OTEL_SERVICE_NAME: veoveo-duckdb-mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      RUST_LOG: "info,veoveo_duckdb_mcp=debug"
+      AWS_ACCESS_KEY_ID: rustfsadmin
+      AWS_SECRET_ACCESS_KEY: rustfsadmin
+      AWS_DEFAULT_REGION: us-east-1
+    # Defense in depth around arbitrary SQL: the engine sandbox is primary, the
+    # container is the backstop. Only the state volume is writable.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 2g
+    tmpfs:
+      - /tmp
+    volumes:
+      - duckdb_state:/var/lib/veoveo/duckdb
+    ports:
+      - "127.0.0.1:8791:8791"
+    profiles:
+      - dev
+
   rerun-bridge:
     build:
       context: .
@@ -220,6 +278,8 @@ services:
         condition: service_started
       timeseries-mcp:
         condition: service_started
+      duckdb-mcp:
+        condition: service_started
       mcp-gateway-seed:
         condition: service_completed_successfully
     command:
@@ -265,5 +325,6 @@ volumes:
   rustfs_data:
   media_state:
   timeseries_state:
+  duckdb_state:
   gateway_control:
   gateway_state:
