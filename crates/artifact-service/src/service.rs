@@ -302,8 +302,88 @@ mod tests {
         }
     }
 
+    /// A caller in `tenant` who is a member of `group` at `role`, mirroring what
+    /// [`Principal::group_memberships`] produces from a signed identity.
+    fn group_caller(
+        principal: &str,
+        tenant: &str,
+        group: &str,
+        role: AccessLevel,
+    ) -> PlaneCaller {
+        use veoveo_mcp_contract::access::GroupMembership;
+        use veoveo_mcp_contract::gateway::GroupId;
+        let mut c = caller(principal, tenant, &[]);
+        let group = GroupId::new(group).unwrap();
+        c.identity.principal.groups = BTreeSet::from([group.clone()]);
+        if role != AccessLevel::Read {
+            c.identity.principal.group_roles =
+                BTreeSet::from([GroupMembership { group: group.clone(), role }]);
+        }
+        c.memberships = c.identity.principal.group_memberships();
+        c
+    }
+
     fn service() -> ArtifactService<InMemoryLedger, InMemoryBlobStore> {
         ArtifactService::new(InMemoryLedger::default(), InMemoryBlobStore::default())
+    }
+
+    #[tokio::test]
+    async fn group_grant_lets_a_member_read() {
+        let svc = service();
+        let alice = caller("alice", "acme", &[]);
+        let meta = svc
+            .put(&alice, PutArtifactRequest::default(), b"shared".to_vec())
+            .await
+            .unwrap();
+        let sha = ArtifactSha256::new(meta.sha256).unwrap();
+        // Share the artifact with a group at read level.
+        svc.grant(
+            &alice,
+            &sha,
+            Subject::Group(veoveo_mcp_contract::gateway::GroupId::new("eng").unwrap()),
+            AccessLevel::Read,
+        )
+        .await
+        .unwrap();
+
+        // A member of eng (bare membership => Read) in the same tenant can read.
+        let bob = group_caller("bob", "acme", "eng", AccessLevel::Read);
+        let obj = svc.get(&bob, &sha, AccessLevel::Read).await.unwrap();
+        assert_eq!(obj.bytes, b"shared");
+
+        // A non-member is still denied need-to-know.
+        let carol = caller("carol", "acme", &[]);
+        assert_eq!(
+            svc.get(&carol, &sha, AccessLevel::Read).await,
+            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
+        );
+    }
+
+    #[tokio::test]
+    async fn group_read_grant_does_not_confer_write() {
+        let svc = service();
+        let alice = caller("alice", "acme", &[]);
+        let meta = svc
+            .put(&alice, PutArtifactRequest::default(), b"data".to_vec())
+            .await
+            .unwrap();
+        let sha = ArtifactSha256::new(meta.sha256).unwrap();
+        svc.grant(
+            &alice,
+            &sha,
+            Subject::Group(veoveo_mcp_contract::gateway::GroupId::new("eng").unwrap()),
+            AccessLevel::Read,
+        )
+        .await
+        .unwrap();
+        // Even an admin-in-group member is capped by the grant level (min).
+        let bob = group_caller("bob", "acme", "eng", AccessLevel::Admin);
+        assert_eq!(
+            svc.get(&bob, &sha, AccessLevel::Admin).await,
+            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
+        );
+        // ...but read still works.
+        assert!(svc.get(&bob, &sha, AccessLevel::Read).await.is_ok());
     }
 
     #[tokio::test]
