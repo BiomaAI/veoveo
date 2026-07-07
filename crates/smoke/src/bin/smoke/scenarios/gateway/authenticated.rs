@@ -29,8 +29,9 @@ pub(crate) async fn gateway_authenticated(
     let media_state_db = tmpdir.join("media-state.duckdb");
     let gateway_state_db = tmpdir.join("gateway-state.duckdb");
 
-    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
-        .await?;
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
     let mut media_child = spawn_media_s3_smoke(
         media,
         media_port,

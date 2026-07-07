@@ -220,10 +220,11 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::access::decide;
     use crate::access::AccessRequest;
+    use crate::access::decide;
     use crate::gateway::{
-        GatewayProfileId, GroupId, PrincipalId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
+        GatewayProfileId, GroupId, PrincipalId, PrincipalKind, ServerSlug, TokenIssuer,
+        TokenSubject,
     };
     use crate::internal_auth::GatewayInternalIdentity;
     use crate::{JwtId, Principal};
@@ -357,8 +358,9 @@ mod tests {
             caller: &PlaneCaller,
             uri: &str,
         ) -> Result<ArtifactObject, ArtifactPlaneError> {
-            let sha = crate::access::parse_artifact_plane_uri(uri)
-                .ok_or_else(|| ArtifactPlaneError::InvalidRequest(format!("bad plane uri: {uri}")))?;
+            let sha = crate::access::parse_artifact_plane_uri(uri).ok_or_else(|| {
+                ArtifactPlaneError::InvalidRequest(format!("bad plane uri: {uri}"))
+            })?;
             self.get(caller, &sha, AccessLevel::Read).await
         }
 
@@ -552,7 +554,10 @@ mod tests {
             classification: Some(DataLabelId::new("cui").unwrap()),
             ..Default::default()
         };
-        let meta = plane.put(&alice, req, b"classified".to_vec()).await.unwrap();
+        let meta = plane
+            .put(&alice, req, b"classified".to_vec())
+            .await
+            .unwrap();
         let sha = ArtifactSha256::new(meta.sha256).unwrap();
 
         // Grant an uncleared same-tenant user read; MAC still denies.

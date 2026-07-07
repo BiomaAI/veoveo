@@ -52,7 +52,9 @@ pub type GroupRole = AccessLevel;
 
 /// Who a grant is made to. Groups enter the model here, as a grant subject —
 /// not as a set of permissions and not as a resource container.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
 pub enum Subject {
     User(PrincipalId),
@@ -62,7 +64,9 @@ pub enum Subject {
 /// One `(GroupId, GroupRole)` membership. A principal carries a set of these;
 /// the pairing is the only genuinely new relationship the sharing feature adds
 /// over today's flat `Principal.groups`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 pub struct GroupMembership {
     pub group: GroupId,
     pub role: GroupRole,
@@ -192,7 +196,10 @@ impl AccessDecision {
 }
 
 /// The caller's role in `group`, if they are a member.
-pub fn role_in_group(memberships: &BTreeSet<GroupMembership>, group: &GroupId) -> Option<GroupRole> {
+pub fn role_in_group(
+    memberships: &BTreeSet<GroupMembership>,
+    group: &GroupId,
+) -> Option<GroupRole> {
     memberships
         .iter()
         .find(|m| &m.group == group)
@@ -212,7 +219,9 @@ pub fn grant_level_for_caller(
     match &grant.subject {
         Subject::User(user) if user == caller_id => Some(grant.level),
         Subject::User(_) => None,
-        Subject::Group(group) => role_in_group(memberships, group).map(|role| role.min(grant.level)),
+        Subject::Group(group) => {
+            role_in_group(memberships, group).map(|role| role.min(grant.level))
+        }
     }
 }
 
@@ -530,7 +539,11 @@ mod tests {
         let caller_labels: BTreeSet<_> = [lid("cui"), lid("us_only")].into_iter().collect();
         let artifact_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
         let memberships = member("eng", AccessLevel::Write);
-        let grants = [group_grant("eng", AccessLevel::Write, artifact_labels.clone())];
+        let grants = [group_grant(
+            "eng",
+            AccessLevel::Write,
+            artifact_labels.clone(),
+        )];
         let req = request(
             &caller,
             Some(&tenant),

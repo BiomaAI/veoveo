@@ -64,11 +64,7 @@ impl ArtifactRepository {
     /// Fetch bytes + metadata if the caller may read them. `Ok(None)` for a
     /// missing artifact; a denial surfaces as an error so it is never silently
     /// treated as absent.
-    pub async fn get(
-        &self,
-        caller: &PlaneCaller,
-        sha256: &str,
-    ) -> Result<Option<ArtifactObject>> {
+    pub async fn get(&self, caller: &PlaneCaller, sha256: &str) -> Result<Option<ArtifactObject>> {
         let sha = parse_sha(sha256)?;
         match self.plane.get(caller, &sha, AccessLevel::Read).await {
             Ok(mut object) => {

@@ -13,13 +13,18 @@ use veoveo_artifact_service::{
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .json()
         .init();
 
     let config = Config::from_env().context("loading configuration")?;
 
-    let object_store = config.object_store.build().context("building object store")?;
+    let object_store = config
+        .object_store
+        .build()
+        .context("building object store")?;
     let cipher = TenantCipher::new(config.master_key.clone());
     let store = EncryptedObjectStore::new(object_store, cipher);
 

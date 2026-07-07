@@ -5,11 +5,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, anyhow};
 use object_store::ObjectStore;
-use veoveo_mcp_contract::gateway::ServerSlug;
-use veoveo_mcp_contract::internal_auth::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, InternalTokenSecret,
-};
 use veoveo_mcp_contract::TokenIssuer;
+use veoveo_mcp_contract::gateway::ServerSlug;
+use veoveo_mcp_contract::internal_auth::{GATEWAY_INTERNAL_TOKEN_ISSUER, InternalTokenSecret};
 
 use crate::crypto::MasterKey;
 
@@ -105,7 +103,9 @@ impl Config {
             .map(|s| ServerSlug::new(s).map_err(|e| anyhow!("invalid audience `{s}`: {e}")))
             .collect::<anyhow::Result<Vec<_>>>()?;
         if allowed_audiences.is_empty() {
-            return Err(anyhow!("ARTIFACT_ALLOWED_AUDIENCES must list at least one server"));
+            return Err(anyhow!(
+                "ARTIFACT_ALLOWED_AUDIENCES must list at least one server"
+            ));
         }
 
         let internal_token_secret = InternalTokenSecret::new(env("INTERNAL_TOKEN_SECRET")?)
@@ -114,8 +114,8 @@ impl Config {
         let master_key_hex = env("ARTIFACT_MASTER_KEY")?;
         let master_key_bytes =
             hex::decode(master_key_hex.trim()).context("ARTIFACT_MASTER_KEY must be hex")?;
-        let master_key =
-            MasterKey::new(master_key_bytes).map_err(|e| anyhow!("invalid ARTIFACT_MASTER_KEY: {e}"))?;
+        let master_key = MasterKey::new(master_key_bytes)
+            .map_err(|e| anyhow!("invalid ARTIFACT_MASTER_KEY: {e}"))?;
 
         let object_store = match env_or("ARTIFACT_STORE", "s3").as_str() {
             "memory" => ObjectStoreConfig::Memory,

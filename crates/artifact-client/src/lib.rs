@@ -46,7 +46,11 @@ fn transport(e: impl std::fmt::Display) -> ArtifactPlaneError {
 /// Map an HTTP status onto a plane error, recovering the precise
 /// [`AccessDecision`] from the `x-artifact-decision` header when present so the
 /// reason chain survives the hop.
-fn error_for_status(status: reqwest::StatusCode, decision_header: Option<&str>, body: String) -> ArtifactPlaneError {
+fn error_for_status(
+    status: reqwest::StatusCode,
+    decision_header: Option<&str>,
+    body: String,
+) -> ArtifactPlaneError {
     match status {
         reqwest::StatusCode::NOT_FOUND => ArtifactPlaneError::NotFound,
         reqwest::StatusCode::UNAUTHORIZED => ArtifactPlaneError::Unauthenticated,
@@ -83,7 +87,10 @@ fn metadata_header(response: &reqwest::Response) -> Result<ArtifactMetadata, Art
 }
 
 impl HttpArtifactPlane {
-    async fn read_object(&self, response: reqwest::Response) -> Result<ArtifactObject, ArtifactPlaneError> {
+    async fn read_object(
+        &self,
+        response: reqwest::Response,
+    ) -> Result<ArtifactObject, ArtifactPlaneError> {
         let metadata = metadata_header(&response)?;
         let bytes = response.bytes().await.map_err(transport)?.to_vec();
         Ok(ArtifactObject { metadata, bytes })

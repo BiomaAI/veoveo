@@ -5,11 +5,8 @@
 //! (audienced to that server); the plane verifies it against the set of known
 //! upstream slugs and reads the embedded principal.
 
-
 use veoveo_mcp_contract::gateway::ServerSlug;
-use veoveo_mcp_contract::internal_auth::{
-    GatewayInternalTokenVerifier, InternalTokenSecret,
-};
+use veoveo_mcp_contract::internal_auth::{GatewayInternalTokenVerifier, InternalTokenSecret};
 use veoveo_mcp_contract::{ArtifactPlaneError, PlaneCaller, TokenIssuer};
 
 /// Verifies forwarded gateway tokens and builds the [`PlaneCaller`].

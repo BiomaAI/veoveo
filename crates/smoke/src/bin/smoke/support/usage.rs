@@ -6,6 +6,16 @@ pub(crate) fn wait_for_actual_usage(
     task_id: &str,
     bearer_token: Option<&str>,
 ) -> Result<SmokeUsageReport> {
+    wait_for_actual_usage_for_scheme(conformance, mcp_url, "media", task_id, bearer_token)
+}
+
+pub(crate) fn wait_for_actual_usage_for_scheme(
+    conformance: &Path,
+    mcp_url: &str,
+    scheme: &str,
+    task_id: &str,
+    bearer_token: Option<&str>,
+) -> Result<SmokeUsageReport> {
     for _ in 0..90 {
         let envs = usage_envs(bearer_token);
         let output = run_raw(
@@ -13,6 +23,10 @@ pub(crate) fn wait_for_actual_usage(
             [
                 "--url".into(),
                 mcp_url.into(),
+                "--scheme".into(),
+                scheme.into(),
+                "--internal-server".into(),
+                scheme.into(),
                 "usage".into(),
                 task_id.into(),
             ],

@@ -179,6 +179,88 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         ComplianceMetadata
     );
     add_schema!(schemas, "artifact-metadata.schema.json", ArtifactMetadata);
+    add_schema!(schemas, "frame-definition.schema.json", FrameDefinition);
+    add_schema!(
+        schemas,
+        "coordinate-position.schema.json",
+        CoordinatePosition
+    );
+    add_schema!(
+        schemas,
+        "coordinate-operation-provenance.schema.json",
+        CoordinateOperationProvenance
+    );
+    add_schema!(schemas, "geofence-geometry.schema.json", GeofenceGeometry);
+    add_schema!(
+        schemas,
+        "convert-frame-request.schema.json",
+        ConvertFrameRequest
+    );
+    add_schema!(
+        schemas,
+        "convert-frame-output.schema.json",
+        ConvertFrameOutput
+    );
+    add_schema!(
+        schemas,
+        "transform-crs-request.schema.json",
+        TransformCrsRequest
+    );
+    add_schema!(
+        schemas,
+        "transform-crs-output.schema.json",
+        TransformCrsOutput
+    );
+    add_schema!(
+        schemas,
+        "derive-local-frame-request.schema.json",
+        DeriveLocalFrameRequest
+    );
+    add_schema!(
+        schemas,
+        "derive-local-frame-output.schema.json",
+        DeriveLocalFrameOutput
+    );
+    add_schema!(
+        schemas,
+        "geodesic-inverse-request.schema.json",
+        GeodesicInverseRequest
+    );
+    add_schema!(
+        schemas,
+        "geodesic-inverse-output.schema.json",
+        GeodesicInverseOutput
+    );
+    add_schema!(
+        schemas,
+        "geodesic-direct-request.schema.json",
+        GeodesicDirectRequest
+    );
+    add_schema!(
+        schemas,
+        "geodesic-direct-output.schema.json",
+        GeodesicDirectOutput
+    );
+    add_schema!(
+        schemas,
+        "validate-geofence-request.schema.json",
+        ValidateGeofenceRequest
+    );
+    add_schema!(
+        schemas,
+        "validate-geofence-output.schema.json",
+        ValidateGeofenceOutput
+    );
+    add_schema!(
+        schemas,
+        "batch-transform-request.schema.json",
+        BatchTransformRequest
+    );
+    add_schema!(
+        schemas,
+        "batch-transform-output.schema.json",
+        BatchTransformOutput
+    );
     add_schema!(
         schemas,
         "generation-prediction-summary.schema.json",

@@ -205,6 +205,52 @@
       "metadata": {}
     },
     {
+      "slug": "coordinates",
+      "uri_scheme": "coordinates",
+      "mount_path": "/coordinates",
+      "mcp_path": "/coordinates/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://coordinates-mcp:8793/coordinates/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "batch_transform",
+        "convert_frame",
+        "derive_local_frame",
+        "geodesic_direct",
+        "geodesic_inverse",
+        "transform_crs",
+        "validate_geofence"
+      ],
+      "prompts": [
+        "coordinates-frame-audit",
+        "coordinates-local-frame-select",
+        "coordinates-geofence-review",
+        "coordinates-transform-explain"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "owned_routes": [
+        {
+          "path": "/coordinates/artifacts",
+          "purpose": "artifact_bytes"
+        }
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "rerun",
       "uri_scheme": "rerun",
       "mount_path": "/rerun",
@@ -345,6 +391,35 @@
           },
           "completions": "disabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "coordinates",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "batch_transform",
+              "convert_frame",
+              "derive_local_frame",
+              "geodesic_direct",
+              "geodesic_inverse",
+              "transform_crs",
+              "validate_geofence"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "coordinates"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -462,6 +537,35 @@
             "mode": "none"
           },
           "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "coordinates",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "batch_transform",
+              "convert_frame",
+              "derive_local_frame",
+              "geodesic_direct",
+              "geodesic_inverse",
+              "transform_crs",
+              "validate_geofence"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "coordinates"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
           "tasks": "enabled"
         }
       ],
@@ -1088,6 +1192,216 @@
           ],
           "resource_schemes": [
             "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ]
+        },
+        {
+          "id": "allow_operator_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_list",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
           ],
           "required_scopes": [
             "operator:use"

@@ -105,11 +105,7 @@ impl BlobStore for EncryptedObjectStore {
             .map_err(BlobStoreError::Crypto)
     }
 
-    async fn delete(
-        &self,
-        tenant: &TenantId,
-        sha: &ArtifactSha256,
-    ) -> Result<(), BlobStoreError> {
+    async fn delete(&self, tenant: &TenantId, sha: &ArtifactSha256) -> Result<(), BlobStoreError> {
         match self.inner.delete(&Self::path(tenant, sha)).await {
             Ok(()) => Ok(()),
             Err(object_store::Error::NotFound { .. }) => Ok(()),
@@ -189,8 +185,9 @@ mod tests {
 
     #[tokio::test]
     async fn encrypted_store_round_trips_and_isolates_tenants() {
-        let cipher =
-            TenantCipher::new(MasterKey::new(b"a-32-byte-master-key-for-testing".to_vec()).unwrap());
+        let cipher = TenantCipher::new(
+            MasterKey::new(b"a-32-byte-master-key-for-testing".to_vec()).unwrap(),
+        );
         let store = EncryptedObjectStore::new(Arc::new(InMemory::new()), cipher);
         let acme = TenantId::new("acme").unwrap();
         store.put(&acme, &sha(), b"payload".to_vec()).await.unwrap();

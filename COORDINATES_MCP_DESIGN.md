@@ -21,7 +21,18 @@ coordinate operations; the shared contract owns the shapes.
 
 ## Status
 
-Design proposal only. No implementation exists in this workspace yet.
+Implemented MVP in this workspace. The current implementation adds:
+
+- shared coordinate contract types in `veoveo_mcp_contract::coordinates`
+- hosted `veoveo-coordinates-mcp` server under `crates/coordinates-mcp`
+- WGS84, ECEF, ENU, and NED frame conversion
+- CRS transforms through PROJ with normalized axis order
+- WGS84 geodesic inverse/direct tools
+- basic 2D geofence validation
+- MCP resources, resource templates, prompts, completions, and task support
+- shared artifact-plane output for task-based batch transforms
+- Compose, Caddy, gateway manifest/profile/policy integration
+- Rust unit tests and direct hosted-server smoke coverage
 
 The target crate name is `veoveo-coordinates-mcp`, with a concise folder name:
 
@@ -52,12 +63,15 @@ coordinates__transform_crs
   by autonomous agents.
 - Make frame, unit, axis order, origin, datum, operation provenance, and
   approximation status explicit in every transform result.
-- Support common robot and UAV frames: WGS84, ECEF, ENU, NED, FRD, and
-  simulation/world frames with explicit axis conventions.
+- Support common robot and UAV frame contracts: WGS84, ECEF, ENU, NED, FRD,
+  and simulation/world frames with explicit axis conventions. The MVP execution
+  engine implements WGS84, ECEF, ENU, and NED first; FRD and simulation-world
+  transforms are reserved by the shared contract for follow-on work.
 - Support real CRS projection through PROJ, including EPSG, UTM, Web Mercator,
-  datum operations, and area-of-use diagnostics.
-- Provide precise geodesic distance, bearing, direct destination, and
-  ellipsoidal area/perimeter operations.
+  and datum operations available to the packaged PROJ runtime. Rich area-of-use
+  diagnostics are follow-on work.
+- Provide precise geodesic distance, bearing, and direct destination
+  operations. Ellipsoidal area/perimeter operations are follow-on work.
 - Validate basic geofences and mission geometries before agents pass them to
   robot-specific execution systems.
 - Use MCP resources, templates, prompts, completions, tasks, and notifications
@@ -154,6 +168,46 @@ Hard cut rule: when a Veoveo server needs controlled coordinate data, it should
 adopt the shared coordinate type or add a new shared type. It should not add a
 parallel local coordinate shape for compatibility with older internal callers.
 
+## Shared Artifact Plane Integration
+
+Veoveo now has a shared artifact plane. `coordinates-mcp` should adopt that
+architecture from day one.
+
+Coordinate operation records, frame definitions, and small validation summaries
+are MCP resources owned by `coordinates-mcp`. Large bytes are not owned by a
+private coordinates bucket or local artifact table. Bulk transform outputs,
+GeoJSON/WKT exports, validation reports, Rerun RRD recordings, and other
+durable binary outputs should be stored through the shared artifact plane:
+
+```text
+artifact://{sha256}                 neutral cross-server artifact identity
+coordinates://artifact/{sha256}     coordinates-presented resource identity
+```
+
+The shared artifact plane remains the byte-level policy enforcement point. It
+stamps tenant and owner from the gateway-signed internal identity, stores bytes
+under tenant-scoped object keys, records grants, enforces data-label clearance,
+and resolves cross-server inputs. `coordinates-mcp` should pass the verified
+`PlaneCaller` to the plane and present returned metadata under the
+`coordinates` scheme, matching the pattern already used by media, timeseries,
+optimization, and DuckDB.
+
+Implementation implications:
+
+- Add `coordinates` to the artifact-service allowed audiences when the server
+  is wired into Compose and deployment profiles.
+- Reuse `veoveo_mcp_contract::{ArtifactMetadata, ArtifactPut, PlaneCaller,
+  ArtifactPlane}` for coordinate-produced artifacts.
+- Never expose provider, filesystem, S3, or local content URLs as the canonical
+  artifact identity.
+- Put coordinate-specific provenance in artifact metadata: operation ids,
+  source/target frames, source CRS, target CRS, grid package ids, tolerance, and
+  approximation status.
+- Accept neutral `artifact://{sha256}` and server-presented
+  `{scheme}://artifact/{sha256}` inputs only through the artifact-plane resolver
+  and normal authorization path.
+- Do not add a coordinates-specific grant ledger or sidecar artifact database.
+
 ## MVP Dependency Stack
 
 Use the following as the initial implementation stack, with versions kept in the
@@ -189,16 +243,18 @@ veoveo-mcp-contract
 
 ### Dependency Roles
 
-`sguaba` is the safety layer for named coordinate systems, body frames,
-orientations, and rigid transforms. It should back internal frame math, but its
-types should not be exposed directly in MCP schemas.
+`sguaba` is the reserved safety layer for named coordinate systems, body
+frames, orientations, and rigid transforms. It should back follow-on frame math
+where compile-time frame separation removes real risk, but its types should not
+be exposed directly in MCP schemas.
 
 `proj` is the primary CRS and projection engine. It is the source of truth for
 EPSG/CRS transforms, UTM, Web Mercator, datum operations, and area-of-use
 diagnostics.
 
-`geographiclib-rs` handles direct and inverse geodesic operations on ellipsoids,
-including accurate distance, bearings, and polygon area/perimeter.
+`geographiclib-rs` handles direct and inverse geodesic operations on
+ellipsoids, including accurate distance and bearings in the MVP. Polygon
+area/perimeter use is follow-on work.
 
 `geo-types` provides geometry boundary types for points, line strings,
 polygons, and collections.
@@ -458,12 +514,13 @@ The MVP should expose a small direct tool set plus task support for bulk work.
 
 | Tool | Invocation | Purpose |
 |---|---|---|
-| `convert_frame` | direct or task | Convert points/vectors between WGS84, ECEF, ENU, NED, FRD, and known simulation frames. |
-| `transform_crs` | direct or task | Transform points or geometries between CRS identifiers using PROJ. |
+| `convert_frame` | direct | Convert points between WGS84, ECEF, ENU, and NED in the MVP. FRD and simulation-world transforms use the same shared contract in follow-on work. |
+| `transform_crs` | direct | Transform points between CRS identifiers using PROJ. |
 | `derive_local_frame` | direct | Create or preview a local ENU/NED frame from a WGS84 origin and axis convention. |
 | `geodesic_inverse` | direct | Compute ellipsoidal distance and forward/reverse bearings between WGS84 points. |
 | `geodesic_direct` | direct | Compute destination point from WGS84 origin, azimuth, and distance. |
-| `validate_geofence` | direct or task | Validate point/path/polygon mission geometry against a geofence. |
+| `validate_geofence` | direct | Validate point/path mission geometry against a geofence. |
+| `batch_transform` | task | Run a batch frame conversion and optionally return an artifact-plane JSON output. |
 
 Small inputs may run synchronously. Batch inputs should be task-capable so
 clients can request progress, cancellation, and durable result retrieval. The
@@ -609,8 +666,9 @@ Recorded transform operation provenance for a reusable or task-produced result.
 coordinates://artifact/{sha256}
 ```
 
-Immutable artifact bytes for bulk transform outputs, validation reports, or
-GeoJSON/WKT exports produced by a task.
+Coordinates-presented artifact URI for immutable bytes produced by a task. The
+bytes and grants live in the shared artifact plane; the neutral cross-server
+form is `artifact://{sha256}`.
 
 ```text
 coordinates://usage/task/{task_id}
@@ -628,6 +686,10 @@ implementations; they are adoption points for the same shared types.
 `optimization-mcp` should use shared coordinate types for mission state,
 assignment inputs, selected options, plan outputs, trajectory references,
 geofence references, transform provenance, and Rerun worldline frame metadata.
+Its plan DuckDB and RRD outputs already flow through the shared artifact plane,
+so coordinate operation refs and validation evidence should be written into
+those artifact metadata payloads rather than into a second optimization-only
+provenance store.
 
 The first optimization benefit should be validation and provenance, not a larger
 solver:
@@ -648,14 +710,16 @@ solver:
 Timeseries artifacts that represent physical or simulated measurements should
 use shared frame ids and coordinate types in metadata, Rerun entity paths, and
 artifact summaries. A forecast that predicts position should identify the frame
-and operation provenance behind the series.
+and operation provenance behind the series. Those RRD outputs are artifact-plane
+artifacts, so coordinate metadata should ride in `ArtifactMetadata.metadata`.
 
 ### DuckDB MCP
 
 DuckDB remains a SQL engine, but table mappings and exported artifact metadata
 can reference shared coordinate schemas. When a table contains latitude,
 longitude, projected coordinates, poses, or trajectories, the metadata should
-say which shared type and frame the columns represent.
+say which shared type and frame the columns represent. Cross-server table inputs
+should use the shared artifact plane path instead of per-server file plumbing.
 
 ### Media and 3D Assets
 
@@ -670,7 +734,8 @@ Gateway policy and audit should treat `coordinates://...` resource identities as
 first-class evidence. Other servers should include coordinate operation refs in
 task payloads and artifact metadata so audit trails can connect planning,
 simulation, media, and timeseries outputs back to the coordinate assumptions
-they used.
+they used. Artifact reads and writes should be audited through the shared plane
+with tenant, owner, grants, and data-label decisions attached.
 
 ## Resource Templates
 
@@ -726,24 +791,36 @@ Do not coerce invalid coordinates or quietly swap axes.
 
 ## Testing Strategy
 
-Unit tests should cover:
+Implemented MVP unit tests cover:
 
 - WGS84/ECEF/local frame round trips
 - ENU/NED sign and axis conventions
-- FRD/body-frame orientation handling
-- EPSG:4326 to EPSG:3857 and back
-- UTM zone transforms
 - geodesic direct/inverse known examples
 - geofence containment and path intersection
-- typed error cases for ambiguous or invalid input
+- contract validation for invalid identifiers and WGS84 coordinate ranges
 
-Golden tests should include known coordinate fixtures and tolerances stated in
-meters or degrees.
+Implemented smoke tests cover:
+
+- hosted coordinates MCP auth boundary
+- resources, resource templates, prompts, and completions
+- `derive_local_frame`, `convert_frame`, `transform_crs`,
+  `geodesic_inverse`, `geodesic_direct`, and `validate_geofence`
+- `batch_transform` as an MCP task
+- artifact-plane write/read through `coordinates://artifact/{sha256}`
+- artifact denial for another principal and another tenant
+- usage reporting through `coordinates://usage/task/{task_id}`
 
 Smoke tests should be Rust smoke harnesses, not Justfile shell scripts. They
 should start the hosted MCP server, connect with the conformance client, list
 resources/templates/prompts/completions/tools, call the direct tools, and run at
-least one task-based batch transform.
+least one task-based batch transform. Artifact smoke coverage should prove that
+bulk outputs are written through `artifact-service`, returned as
+`coordinates://artifact/{sha256}`, and readable only by an authorized principal.
+
+Follow-on tests should add golden fixtures for UTM transforms, grid-backed datum
+operations, FRD/body-frame orientation handling, simulation-world transforms,
+and ellipsoidal area/perimeter once those features land. Golden tests should
+state tolerances in meters or degrees.
 
 ## Implementation Shape
 
@@ -753,16 +830,18 @@ Keep the binary entrypoint thin:
 crates/mcp-contract/src/coordinates.rs
 crates/coordinates-mcp/src/bin/server.rs
 crates/coordinates-mcp/src/lib.rs
-crates/coordinates-mcp/src/types.rs
-crates/coordinates-mcp/src/frames.rs
-crates/coordinates-mcp/src/crs.rs
-crates/coordinates-mcp/src/geodesic.rs
-crates/coordinates-mcp/src/geofence.rs
-crates/coordinates-mcp/src/tasks.rs
-crates/coordinates-mcp/src/resources.rs
-crates/coordinates-mcp/src/prompts.rs
-crates/coordinates-mcp/src/completions.rs
+crates/coordinates-mcp/src/artifacts.rs
+crates/coordinates-mcp/src/engine.rs
+crates/coordinates-mcp/src/state.rs
 crates/coordinates-mcp/src/uris.rs
+crates/coordinates-mcp/src/bin/server/
+  app_state.rs
+  config.rs
+  host.rs
+  internal_auth.rs
+  ownership.rs
+  outputs.rs
+  prompts.rs
 ```
 
 Split earlier if responsibilities compound. Do not grow one mixed file that

@@ -13,6 +13,12 @@ pub(crate) struct SmokeGenerationRunOutput {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct SmokeCoordinatesBatchOutput {
+    pub(crate) result: Value,
+    pub(crate) artifact: Option<SmokeArtifactMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct SmokeArtifactMetadata {
     pub(crate) sha256: String,
     pub(crate) artifact_uri: String,
@@ -42,6 +48,8 @@ pub(crate) struct SmokeUsageReport {
 pub(crate) struct SmokeUsageRecord {
     pub(crate) task_id: String,
     pub(crate) kind: SmokeUsageKind,
+    pub(crate) quantity: Option<f64>,
+    pub(crate) unit: Option<String>,
     pub(crate) amount: Option<f64>,
     pub(crate) currency: Option<String>,
 }

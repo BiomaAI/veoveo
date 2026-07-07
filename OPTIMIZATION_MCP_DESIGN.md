@@ -86,23 +86,37 @@ Resource URIs remain server-owned and are not renamed by the gateway:
 
 ```text
 optimization://artifact/{sha256}
+artifact://{sha256}
 optimization://usage/task/{task_id}
 ```
+
+`optimization://artifact/{sha256}` is the optimization server's presentation
+URI for a shared-plane artifact. The neutral `artifact://{sha256}` form is the
+cross-server identity accepted by the artifact plane and by servers that resolve
+artifact inputs.
 
 ## Server Surface
 
 The server binds one Axum listener. MCP is the client contract. HTTP routes below
-the mount path are limited to protocol, health, and artifact plumbing.
+the mount path are limited to protocol, health, and artifact byte plumbing.
 
 ```text
 /optimization/mcp                 internal MCP over streamable HTTP
 /optimization/healthz             ops health
-/optimization/artifacts/{sha256}  immutable DuckDB or Rerun RRD bytes
+/optimization/artifacts/{sha256}  authorized bulk byte transfer for shared-plane artifacts
 ```
 
 `/optimization/mcp` requires the same gateway-signed internal identity assertion
 used by `media-mcp`. External clients normally access this server only through a
 gateway profile such as `/mcp/default`, `/mcp/research`, or `/mcp/ops`.
+
+Artifact bytes are stored in `artifact-service`, not a private optimization
+bucket. The optimization server passes the caller's `PlaneCaller` to the shared
+artifact plane, presents returned metadata as `optimization://artifact/{sha256}`,
+and may serve authorized bytes from `/optimization/artifacts/{sha256}` as
+content plumbing. The MCP resource and result identity remains the
+server-presented artifact URI; the neutral plane URI remains valid for
+cross-server inputs.
 
 ## MCP Capabilities
 
@@ -131,6 +145,11 @@ inside a transport timeout.
 - `inline`: typed agents, tasks, options, and constraints.
 - `duck_db_options`: typed agents/tasks/constraints plus option rows loaded from
   the shared `DuckDbSource` contract.
+
+`DuckDbSource::Artifact` is intentionally not materialized inside the
+optimization solver path. Cross-server artifact inputs are resolved by the
+DuckDB server through the shared artifact plane; optimization should consume
+typed inline rows, allowlisted URI sources, or a DuckDB-materialized export.
 
 The v1 solver uses `good_lp` with the pure-Rust `microlp` backend. Each
 `PlanningOption` becomes a binary decision variable. Constraints cover task
@@ -383,6 +402,13 @@ resulting typed facts, operation refs, resource URIs, costs, distances,
 durations, risk scores, and validation evidence. The solver should not perform
 CRS projection or datum/frame conversion internally.
 
+The merged artifact-plane work changes where coordinate evidence should live:
+optimization outputs already store DuckDB snapshots and Rerun RRD files through
+`artifact-service`. Coordinate operation refs, validation report refs, frame
+ids, and CRS ids should be preserved in `PlanOutput` and in
+`ArtifactMetadata.metadata` for those plan artifacts. Do not add a second
+optimization-only provenance store for coordinate facts.
+
 The first integration should be additive over the existing option planner:
 
 - optional spatial fields on agents, tasks, and options
@@ -550,7 +576,8 @@ runtime state, materialized summaries, usage analytics, and audit evidence.
 
 Canonical bytes:
 
-- RRD segments are written to the artifact repository or object store.
+- RRD segments are written through the shared artifact plane and presented as
+  server-owned artifact resources.
 - Each segment is immutable and content-addressed.
 - A session's logical recording is the ordered set of visible segments sharing
   the same Rerun application id and recording id.
@@ -715,7 +742,7 @@ Binary entrypoint responsibilities:
 - parse CLI/config
 - initialize telemetry
 - open state
-- initialize artifact repositories
+- initialize the shared artifact-plane client
 - build shared `AppState`
 - wire routes
 - start graceful shutdown
@@ -737,8 +764,10 @@ First tests:
 - Gateway smoke: `optimization__plan` routes through gateway,
   task id is projected, resources read through `optimization://...`, and a
   principal without `operator:use` is denied.
-- Artifact smoke: DuckDB and RRD outputs can be read only by the owning
-  principal.
+- Artifact smoke: DuckDB and RRD outputs are written through
+  `artifact-service`, returned as `optimization://artifact/{sha256}`, readable
+  only by an authorized principal, and resolvable from the neutral
+  `artifact://{sha256}` form for cross-server workflows.
 
 The first implementation uses the pure-Rust `microlp` backend so local checks do
 not depend on native solver libraries.

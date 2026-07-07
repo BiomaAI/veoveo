@@ -70,10 +70,7 @@ fn emit_audit(
     decision: AccessDecision,
 ) {
     let principal = caller.identity.principal.id.as_str();
-    let tenant = caller
-        .tenant()
-        .map(|t| t.as_str())
-        .unwrap_or("<none>");
+    let tenant = caller.tenant().map(|t| t.as_str()).unwrap_or("<none>");
     // Single structured audit stream; reason chain is the AccessDecision variant.
     tracing::info!(
         target: "artifact_audit",
@@ -256,12 +253,12 @@ mod tests {
     use std::collections::BTreeSet;
 
     use chrono::Utc;
+    use veoveo_mcp_contract::gateway::TenantId;
     use veoveo_mcp_contract::gateway::{
         DataLabelId, GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TokenIssuer,
         TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
-    use veoveo_mcp_contract::gateway::TenantId;
     use veoveo_mcp_contract::{JwtId, Principal};
 
     use super::*;
@@ -304,20 +301,17 @@ mod tests {
 
     /// A caller in `tenant` who is a member of `group` at `role`, mirroring what
     /// [`Principal::group_memberships`] produces from a signed identity.
-    fn group_caller(
-        principal: &str,
-        tenant: &str,
-        group: &str,
-        role: AccessLevel,
-    ) -> PlaneCaller {
+    fn group_caller(principal: &str, tenant: &str, group: &str, role: AccessLevel) -> PlaneCaller {
         use veoveo_mcp_contract::access::GroupMembership;
         use veoveo_mcp_contract::gateway::GroupId;
         let mut c = caller(principal, tenant, &[]);
         let group = GroupId::new(group).unwrap();
         c.identity.principal.groups = BTreeSet::from([group.clone()]);
         if role != AccessLevel::Read {
-            c.identity.principal.group_roles =
-                BTreeSet::from([GroupMembership { group: group.clone(), role }]);
+            c.identity.principal.group_roles = BTreeSet::from([GroupMembership {
+                group: group.clone(),
+                role,
+            }]);
         }
         c.memberships = c.identity.principal.group_memberships();
         c

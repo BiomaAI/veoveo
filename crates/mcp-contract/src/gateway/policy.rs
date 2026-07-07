@@ -484,10 +484,7 @@ mod group_membership_tests {
     use super::*;
     use crate::access::{AccessLevel, GroupMembership};
 
-    fn principal_with(
-        groups: &[&str],
-        group_roles: &[(&str, AccessLevel)],
-    ) -> Principal {
+    fn principal_with(groups: &[&str], group_roles: &[(&str, AccessLevel)]) -> Principal {
         Principal {
             id: PrincipalId::new("https://idp#u1").unwrap(),
             kind: PrincipalKind::User,
