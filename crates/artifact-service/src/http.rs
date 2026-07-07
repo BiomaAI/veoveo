@@ -149,7 +149,10 @@ fn bytes_with_metadata(metadata: &ArtifactMetadata, bytes: Vec<u8>) -> Response 
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, mime),
-            ("x-artifact-sha256".parse().unwrap(), metadata.sha256.clone()),
+            (
+                "x-artifact-sha256".parse().unwrap(),
+                metadata.sha256.clone(),
+            ),
             ("x-artifact-metadata".parse().unwrap(), meta_b64),
         ],
         bytes,
@@ -167,9 +170,9 @@ async fn put_artifact<P: PlaneService>(
     let caller = caller(&state, &headers)?;
     let request: PutArtifactRequest = match headers.get("x-artifact-put") {
         Some(v) => {
-            let s = v
-                .to_str()
-                .map_err(|_| ArtifactPlaneError::InvalidRequest("x-artifact-put not utf8".into()))?;
+            let s = v.to_str().map_err(|_| {
+                ArtifactPlaneError::InvalidRequest("x-artifact-put not utf8".into())
+            })?;
             serde_json::from_str(s)
                 .map_err(|e| ArtifactPlaneError::InvalidRequest(format!("x-artifact-put: {e}")))?
         }
@@ -269,9 +272,7 @@ mod tests {
     use veoveo_mcp_contract::gateway::{
         GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
     };
-    use veoveo_mcp_contract::internal_auth::{
-        GatewayInternalTokenIssuer, InternalTokenSecret,
-    };
+    use veoveo_mcp_contract::internal_auth::{GatewayInternalTokenIssuer, InternalTokenSecret};
     use veoveo_mcp_contract::{
         ArtifactPlane, ArtifactPlaneError, PlaneCaller, Principal, PutArtifactRequest, TenantId,
     };
@@ -345,7 +346,11 @@ mod tests {
 
         let alice = signed_caller("alice", "acme");
         let meta = plane
-            .put(&alice, PutArtifactRequest::default(), b"hello plane".to_vec())
+            .put(
+                &alice,
+                PutArtifactRequest::default(),
+                b"hello plane".to_vec(),
+            )
             .await
             .unwrap();
         assert_eq!(meta.compliance.tenant_id.as_ref().unwrap().as_str(), "acme");
@@ -368,9 +373,7 @@ mod tests {
             .grant(
                 &alice,
                 &sha,
-                veoveo_mcp_contract::access::Subject::User(
-                    PrincipalId::new("mallory").unwrap(),
-                ),
+                veoveo_mcp_contract::access::Subject::User(PrincipalId::new("mallory").unwrap()),
                 AccessLevel::Read,
             )
             .await

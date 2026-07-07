@@ -42,9 +42,9 @@ use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
-    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard,
-    TimeseriesForecastOutput, TimeseriesForecastRequest, TokenIssuer, UsageReport,
-    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
+    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TimeseriesForecastOutput,
+    TimeseriesForecastRequest, TokenIssuer, UsageReport, init_server_telemetry, is_sha256, now_iso,
+    paginate, public_allowed_hosts, related_task_meta,
 };
 use veoveo_timeseries_mcp::{
     artifacts::ArtifactRepository,
@@ -74,8 +74,8 @@ use internal_auth::{
 };
 use outputs::forecast_result;
 use ownership::{
-    internal_caller, internal_identity, optional_task_owner, require_task_owner,
-    task_owner_allows, task_owner_from_identity,
+    internal_caller, internal_identity, optional_task_owner, require_task_owner, task_owner_allows,
+    task_owner_from_identity,
 };
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;

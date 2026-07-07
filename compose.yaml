@@ -166,6 +166,33 @@ services:
     profiles:
       - dev
 
+  coordinates-mcp:
+    build:
+      context: .
+      dockerfile: crates/coordinates-mcp/Dockerfile
+    depends_on:
+      artifact-service:
+        condition: service_started
+    command:
+      - "--port"
+      - "8793"
+      - "--public-base-url"
+      - "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
+      - "--allow-loopback-hosts"
+      - "--allowed-host"
+      - "coordinates-mcp:8793"
+      - "--artifact-service-url"
+      - "http://artifact-service:8790"
+    environment:
+      VEOVEO_INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
+      OTEL_SERVICE_NAME: veoveo-coordinates-mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      RUST_LOG: "info,veoveo_coordinates_mcp=debug"
+    ports:
+      - "127.0.0.1:8793:8793"
+    profiles:
+      - dev
+
   duckdb-mcp:
     build:
       context: .
@@ -267,7 +294,7 @@ services:
       DATABASE_URL: "postgresql://veoveo_artifact:veoveo_artifact@artifact-plane-db:5432/veoveo_artifact"
       INTERNAL_TOKEN_SECRET: "${VEOVEO_INTERNAL_TOKEN_SECRET:?set VEOVEO_INTERNAL_TOKEN_SECRET}"
       ARTIFACT_MASTER_KEY: "${VEOVEO_ARTIFACT_MASTER_KEY:?set VEOVEO_ARTIFACT_MASTER_KEY (64 hex chars)}"
-      ARTIFACT_ALLOWED_AUDIENCES: "media,timeseries,optimization,duckdb"
+      ARTIFACT_ALLOWED_AUDIENCES: "media,timeseries,optimization,duckdb,coordinates"
       ARTIFACT_STORE: "s3"
       ARTIFACT_S3_ENDPOINT: "http://rustfs:9000"
       ARTIFACT_S3_BUCKET: "artifact-plane"
@@ -337,6 +364,10 @@ services:
         condition: service_started
       timeseries-mcp:
         condition: service_started
+      optimization-mcp:
+        condition: service_started
+      coordinates-mcp:
+        condition: service_started
       duckdb-mcp:
         condition: service_started
       mcp-gateway-seed:
@@ -373,6 +404,7 @@ services:
     depends_on:
       - mcp-gateway
       - media-mcp
+      - coordinates-mcp
     volumes:
       - ./configs/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:

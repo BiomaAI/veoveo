@@ -62,7 +62,8 @@ impl PostgresGrantLedger {
                     artifact: sha.clone(),
                     subject: parse_subject(&kind, &id)?,
                     level: parse_level(&level)?,
-                    tenant: TenantId::new(tenant).map_err(|e| LedgerError::Corrupt(e.to_string()))?,
+                    tenant: TenantId::new(tenant)
+                        .map_err(|e| LedgerError::Corrupt(e.to_string()))?,
                     data_labels: labels_from_json(&labels_json)?,
                     retention_expires_at: retention,
                 })

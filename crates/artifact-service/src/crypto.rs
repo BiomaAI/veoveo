@@ -16,8 +16,8 @@ use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sha2::digest::KeyInit as HmacKeyInit;
-use zeroize::Zeroizing;
 use veoveo_mcp_contract::TenantId;
+use zeroize::Zeroizing;
 
 type HmacSha256 = Hmac<Sha256>;
 

@@ -17,8 +17,9 @@ pub(crate) async fn media_mcp_auth(
     let base = format!("http://127.0.0.1:{port}");
     let log = tmpdir.join("media.log");
     let state_db = tmpdir.join("state.duckdb");
-    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
-        .await?;
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
     let mut media_child =
         spawn_media_s3_smoke(media, port, PUBLIC_BASE_URL, &state_db, &plane.url, &log)?;
     wait_for_http(&format!("{base}/media/healthz")).await?;
@@ -112,8 +113,9 @@ pub(crate) async fn media_task_run(
     )?;
     wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
 
-    let plane = spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
-        .await?;
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
     let mut media_child = spawn_media_memory_smoke(
         media,
         media_port,
@@ -295,7 +297,10 @@ pub(crate) async fn media_task_run(
             "artifact".into(),
             structured.artifacts[0].sha256.clone().into(),
             "--output-dir".into(),
-            tmpdir.join("denied-cross-tenant").as_os_str().to_os_string(),
+            tmpdir
+                .join("denied-cross-tenant")
+                .as_os_str()
+                .to_os_string(),
         ],
         [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
     )?;

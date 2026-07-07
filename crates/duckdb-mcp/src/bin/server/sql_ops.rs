@@ -120,9 +120,11 @@ pub(super) async fn put_op_artifact(
         ..Default::default()
     };
     put.metadata = metadata;
-    state.artifacts.put(caller, put).await.map_err(|err| {
-        McpError::internal_error(format!("artifact write failed: {err:#}"), None)
-    })
+    state
+        .artifacts
+        .put(caller, put)
+        .await
+        .map_err(|err| McpError::internal_error(format!("artifact write failed: {err:#}"), None))
 }
 
 fn export_file_details(format: DuckDbExportFormat) -> (&'static str, &'static str, &'static str) {
@@ -432,11 +434,10 @@ async fn materialize_source(
             // Resolve the neutral artifact:// URI through the plane under the
             // caller's identity; the plane enforces grant + label checks. Bytes
             // are written to the sandboxed exchange dir, never fetched by SQL.
-            let object = state
-                .artifacts
-                .resolve(caller, uri)
-                .await
-                .map_err(|err| McpError::invalid_params(format!("artifact source: {err}"), None))?;
+            let object =
+                state.artifacts.resolve(caller, uri).await.map_err(|err| {
+                    McpError::invalid_params(format!("artifact source: {err}"), None)
+                })?;
             let path = exchange.join(format!("artifact-{}", object.metadata.sha256));
             tokio::fs::write(&path, &object.bytes)
                 .await

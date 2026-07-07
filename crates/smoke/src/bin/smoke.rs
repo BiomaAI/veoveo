@@ -114,6 +114,18 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/artifact-service")]
         artifact_service_bin: PathBuf,
     },
+    /// Smoke-test direct hosted coordinates tools, tasks, artifacts, and usage.
+    CoordinatesMcp {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built coordinates MCP server binary path.
+        #[arg(long, default_value = "target/debug/server")]
+        coordinates_bin: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
+    },
     /// Smoke-test the gateway HTTP boundary, auth discovery, and browser OAuth flow.
     GatewayHttp {
         /// Built conformance binary path.
@@ -215,6 +227,11 @@ async fn main() -> Result<()> {
             media_bin,
             artifact_service_bin,
         } => media_task_run(&conformance_bin, &media_bin, &artifact_service_bin).await,
+        Cmd::CoordinatesMcp {
+            conformance_bin,
+            coordinates_bin,
+            artifact_service_bin,
+        } => coordinates_mcp(&conformance_bin, &coordinates_bin, &artifact_service_bin).await,
         Cmd::GatewayHttp {
             conformance_bin,
             gateway_bin,

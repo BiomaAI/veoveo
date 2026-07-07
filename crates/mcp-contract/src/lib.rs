@@ -9,6 +9,7 @@ pub mod access;
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod artifact_service;
+pub mod coordinates;
 pub mod deployment;
 pub mod duckdb;
 pub mod gateway;
@@ -37,6 +38,18 @@ pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use artifact_service::{
     ArtifactPlane, ArtifactPlaneError, GrantList, PlaneCaller, PutArtifactRequest, PutGrantRequest,
     tenant_scoped_object_key,
+};
+pub use coordinates::{
+    AxisConvention, BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput,
+    ConvertFrameRequest, CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
+    CoordinateOperationProvenance, CoordinateOperationRef, CoordinatePosition, CoordinateUnit,
+    CoordinateValueError, CrsId, DatumId, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
+    EcefPosition, EllipsoidId, EnuPosition, FrameDefinition, FrameId, FrameKind,
+    GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
+    GeofenceGeometry, GeofenceId, GeofenceRule, GeofenceViolation, LinearRing2, NedPosition,
+    Orientation3, Path2, Polygon2, Pose3, ProjectedPosition, Trajectory3, TrajectoryId,
+    TrajectoryInterpolation, TrajectoryPoint, TransformCrsOutput, TransformCrsRequest,
+    ValidateGeofenceOutput, ValidateGeofenceRequest, Velocity3, Wgs84Position,
 };
 pub use deployment::{
     DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,

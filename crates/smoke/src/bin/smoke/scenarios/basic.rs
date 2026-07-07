@@ -29,6 +29,7 @@ pub(crate) async fn compose_config() -> Result<()> {
                 "VEOVEO_INTERNAL_TOKEN_SECRET",
                 "local-development-secret-at-least-32-bytes".into(),
             ),
+            ("VEOVEO_ARTIFACT_MASTER_KEY", ARTIFACT_MASTER_KEY.into()),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 "dummy".into(),
@@ -73,8 +74,10 @@ pub(crate) async fn compose_config() -> Result<()> {
     let caddyfile = env::current_dir()?.join("configs/Caddyfile");
     let caddyfile_text = fs::read_to_string(&caddyfile)?;
     contains(&caddyfile_text, "respond /media/mcp* 404")?;
+    contains(&caddyfile_text, "respond /coordinates/mcp* 404")?;
     contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
     contains(&caddyfile_text, "reverse_proxy media-mcp:8787")?;
+    contains(&caddyfile_text, "reverse_proxy coordinates-mcp:8793")?;
     run_checked(
         Path::new("docker"),
         [
@@ -248,6 +251,44 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         .is_some_and(Value::is_object)
     {
         bail!("artifact metadata schema has no object compliance property");
+    }
+    let frame = assert_schema_title(
+        &schemas.join("frame-definition.schema.json"),
+        "FrameDefinition",
+    )?;
+    for property in ["frame_id", "kind", "axis_convention"] {
+        if !frame
+            .get("properties")
+            .and_then(|properties| properties.get(property))
+            .is_some_and(Value::is_object)
+        {
+            bail!("frame definition schema has no object `{property}` property");
+        }
+    }
+    assert_schema_title(
+        &schemas.join("coordinate-position.schema.json"),
+        "CoordinatePosition",
+    )?;
+    assert_schema_title(
+        &schemas.join("coordinate-operation-provenance.schema.json"),
+        "CoordinateOperationProvenance",
+    )?;
+    assert_schema_title(
+        &schemas.join("geofence-geometry.schema.json"),
+        "GeofenceGeometry",
+    )?;
+    let batch_transform = assert_schema_title(
+        &schemas.join("batch-transform-output.schema.json"),
+        "BatchTransformOutput",
+    )?;
+    for property in ["result", "artifact"] {
+        if !batch_transform
+            .get("properties")
+            .and_then(|properties| properties.get(property))
+            .is_some_and(Value::is_object)
+        {
+            bail!("batch transform schema has no object `{property}` property");
+        }
     }
     let usage = assert_schema_title(&schemas.join("usage-report.schema.json"), "UsageReport")?;
     if !usage

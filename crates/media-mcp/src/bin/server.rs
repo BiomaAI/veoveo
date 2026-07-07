@@ -918,10 +918,8 @@ async fn main() -> anyhow::Result<()> {
         internal_token_secret.clone(),
     );
     // Media mints owner-scoped tokens for async (webhook) artifact writes.
-    let internal_token_issuer = GatewayInternalTokenIssuer::new(
-        internal_token_issuer_name.clone(),
-        internal_token_secret,
-    );
+    let internal_token_issuer =
+        GatewayInternalTokenIssuer::new(internal_token_issuer_name.clone(), internal_token_secret);
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
     let tasks = TaskStore::new();
     for persisted in durable.load_tasks()? {

@@ -426,9 +426,7 @@ mod tests {
     #[test]
     fn artifact_source_wire_shape() {
         let sha = "a".repeat(64);
-        let json = format!(
-            r#"{{"kind":"artifact","uri":"artifact://{sha}","format":"parquet"}}"#
-        );
+        let json = format!(r#"{{"kind":"artifact","uri":"artifact://{sha}","format":"parquet"}}"#);
         let source: DuckDbSource = serde_json::from_str(&json).unwrap();
         let DuckDbSource::Artifact { uri, format, .. } = &source else {
             panic!("expected artifact source");
@@ -436,7 +434,8 @@ mod tests {
         assert_eq!(uri, &format!("artifact://{sha}"));
         assert_eq!(format, &DuckDbFormat::Parquet);
         // round-trips
-        let back: DuckDbSource = serde_json::from_str(&serde_json::to_string(&source).unwrap()).unwrap();
+        let back: DuckDbSource =
+            serde_json::from_str(&serde_json::to_string(&source).unwrap()).unwrap();
         assert_eq!(back, source);
     }
 }

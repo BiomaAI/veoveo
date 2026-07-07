@@ -3,6 +3,8 @@ use super::*;
 
 #[path = "scenarios/basic.rs"]
 mod basic;
+#[path = "scenarios/coordinates.rs"]
+mod coordinates;
 #[path = "scenarios/gateway.rs"]
 mod gateway;
 #[path = "scenarios/media.rs"]
@@ -11,6 +13,7 @@ mod media;
 mod secrets;
 
 pub(crate) use basic::*;
+pub(crate) use coordinates::*;
 pub(crate) use gateway::*;
 pub(crate) use media::*;
 pub(crate) use secrets::*;
@@ -111,14 +114,27 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
     media_task_run(conformance, media, artifact_service).await?;
 
     suite_step("authenticated gateway forwarding and policy");
-    gateway_authenticated(conformance, media, gateway, smoke_control_plane, artifact_service)
-        .await?;
+    gateway_authenticated(
+        conformance,
+        media,
+        gateway,
+        smoke_control_plane,
+        artifact_service,
+    )
+    .await?;
 
     suite_step("gateway with two hosted servers");
     gateway_two_servers(conformance, gateway, smoke_control_plane).await?;
 
     suite_step("gateway task run with artifacts and usage");
-    gateway_task_run(conformance, media, gateway, smoke_control_plane, artifact_service).await?;
+    gateway_task_run(
+        conformance,
+        media,
+        gateway,
+        smoke_control_plane,
+        artifact_service,
+    )
+    .await?;
 
     println!("gateway smoke suite ok");
     Ok(())

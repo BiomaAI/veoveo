@@ -718,19 +718,21 @@ async fn run_task(
             }
             Err(err) => fail!(format!("execute failed: {}", err.message)),
         },
-        TaskArgs::Ingest(request) => match sql_ops::ingest_op(&state, &caller, &identity, request).await {
-            Ok(output) => {
-                outputs::record_op_usage(
-                    &state,
-                    &task_id,
-                    "ingest",
-                    output.rows_ingested,
-                    json!({ "db": output.db.as_str(), "table": output.table }),
-                );
-                outputs::ingest_result(&output, Some(&task_id))
+        TaskArgs::Ingest(request) => {
+            match sql_ops::ingest_op(&state, &caller, &identity, request).await {
+                Ok(output) => {
+                    outputs::record_op_usage(
+                        &state,
+                        &task_id,
+                        "ingest",
+                        output.rows_ingested,
+                        json!({ "db": output.db.as_str(), "table": output.table }),
+                    );
+                    outputs::ingest_result(&output, Some(&task_id))
+                }
+                Err(err) => fail!(format!("ingest failed: {}", err.message)),
             }
-            Err(err) => fail!(format!("ingest failed: {}", err.message)),
-        },
+        }
         TaskArgs::Export(request) => {
             match sql_ops::export_op(&state, &caller, &identity, &owner, request).await {
                 Ok(output) => {

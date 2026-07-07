@@ -8,8 +8,8 @@ use rmcp::{RoleServer, model::TaskStatus, service::Peer};
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock, oneshot};
 use veoveo_mcp_contract::{
-    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, ServerPublicEndpoint, SubscriptionHub,
-    TaskStore, TokenIssuer,
+    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, ServerPublicEndpoint,
+    SubscriptionHub, TaskStore, TokenIssuer,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,

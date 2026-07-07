@@ -1,9 +1,4 @@
-//! Artifact access for timeseries-mcp, backed by the shared artifact plane.
-//!
-//! timeseries no longer owns a private bucket or artifact metadata tables. It calls
-//! the central artifact service with the caller's forwarded gateway identity;
-//! the plane stamps tenant/owner, records the grant ledger, encrypts per tenant,
-//! and enforces every read/write. See `TECH_DESIGN.md`, "shared artifact plane".
+//! Artifact access for coordinates-mcp, backed by the shared artifact plane.
 
 use anyhow::{Result, anyhow};
 use veoveo_artifact_client::HttpArtifactPlane;
@@ -12,20 +7,14 @@ use veoveo_mcp_contract::{
     ArtifactSha256, PlaneCaller, PutArtifactRequest,
 };
 
-/// The scheme this server presents artifacts under to clients
-/// (`timeseries://artifact/{sha}`). The plane stores the neutral `artifact://`
-/// identity; we re-stamp on the way out so a returned URI resolves here.
-const SCHEME: &str = "timeseries";
+const SCHEME: &str = "coordinates";
 
-/// Thin handle to the shared artifact plane. Cloneable; wraps a pooled client.
 #[derive(Clone)]
 pub struct ArtifactRepository {
     plane: HttpArtifactPlane,
 }
 
 impl ArtifactRepository {
-    /// Connect to the artifact service at `service_url` (e.g.
-    /// `http://artifact-service:8790`).
     pub fn new(service_url: impl Into<String>) -> Self {
         Self {
             plane: HttpArtifactPlane::new(service_url),
@@ -38,9 +27,6 @@ impl ArtifactRepository {
         }
     }
 
-    /// Store bytes on the plane on the caller's behalf. Tenant and owner are
-    /// stamped by the service from the verified identity, so any client-supplied
-    /// `compliance.tenant_id` / `owner_id` are intentionally ignored here.
     pub async fn put(
         &self,
         caller: &PlaneCaller,
@@ -61,9 +47,6 @@ impl ArtifactRepository {
             .map_err(plane_err)
     }
 
-    /// Fetch bytes + metadata if the caller may read them. `Ok(None)` for a
-    /// missing artifact; a denial surfaces as an error so it is never silently
-    /// treated as absent.
     pub async fn get(&self, caller: &PlaneCaller, sha256: &str) -> Result<Option<ArtifactObject>> {
         let sha = parse_sha(sha256)?;
         match self.plane.get(caller, &sha, AccessLevel::Read).await {
@@ -76,7 +59,6 @@ impl ArtifactRepository {
         }
     }
 
-    /// Metadata only, gated at read.
     pub async fn head(
         &self,
         caller: &PlaneCaller,
@@ -90,8 +72,6 @@ impl ArtifactRepository {
         }
     }
 
-    /// Resolve a neutral `artifact://{sha}` plane URI to bytes on the caller's
-    /// behalf — the cross-server input path (P3).
     pub async fn resolve(&self, caller: &PlaneCaller, uri: &str) -> Result<ArtifactObject> {
         let mut object = self.plane.resolve(caller, uri).await.map_err(plane_err)?;
         object.metadata = object.metadata.presented_under_scheme(SCHEME);

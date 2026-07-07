@@ -92,7 +92,9 @@ pub(crate) fn parse_level(s: &str) -> Result<AccessLevel, LedgerError> {
         "read" => Ok(AccessLevel::Read),
         "write" => Ok(AccessLevel::Write),
         "admin" => Ok(AccessLevel::Admin),
-        other => Err(LedgerError::Corrupt(format!("unknown access level `{other}`"))),
+        other => Err(LedgerError::Corrupt(format!(
+            "unknown access level `{other}`"
+        ))),
     }
 }
 
@@ -111,7 +113,9 @@ pub(crate) fn parse_subject(kind: &str, id: &str) -> Result<Subject, LedgerError
         "group" => Ok(Subject::Group(
             GroupId::new(id).map_err(|e| LedgerError::Corrupt(e.to_string()))?,
         )),
-        other => Err(LedgerError::Corrupt(format!("unknown subject kind `{other}`"))),
+        other => Err(LedgerError::Corrupt(format!(
+            "unknown subject kind `{other}`"
+        ))),
     }
 }
 

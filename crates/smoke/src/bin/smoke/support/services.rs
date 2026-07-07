@@ -109,6 +109,29 @@ pub(crate) fn spawn_media_memory_smoke(
     )
 }
 
+pub(crate) fn spawn_coordinates_smoke(
+    coordinates: &Path,
+    port: u16,
+    public_base_url: &str,
+    artifact_service_url: &str,
+    log: &Path,
+) -> Result<ChildGuard> {
+    ChildGuard::spawn(
+        coordinates,
+        [
+            "--port".into(),
+            port.to_string().into(),
+            "--public-base-url".into(),
+            public_base_url.into(),
+            "--allow-loopback-hosts".into(),
+            "--artifact-service-url".into(),
+            artifact_service_url.into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        log,
+    )
+}
+
 pub(crate) struct GatewayControlDbSmoke {
     pub(crate) url: String,
     _container: ContainerGuard,
@@ -313,14 +336,17 @@ pub(crate) async fn spawn_artifact_service_smoke(
         artifact_service,
         Vec::<OsString>::new(),
         [
-            ("ARTIFACT_SERVICE_BIND", format!("127.0.0.1:{bind_port}").into()),
+            (
+                "ARTIFACT_SERVICE_BIND",
+                format!("127.0.0.1:{bind_port}").into(),
+            ),
             ("DATABASE_URL", database_url.into()),
             ("INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
             ("ARTIFACT_MASTER_KEY", ARTIFACT_MASTER_KEY.into()),
             ("ARTIFACT_STORE", "memory".into()),
             (
                 "ARTIFACT_ALLOWED_AUDIENCES",
-                "media,timeseries,optimization,duckdb".into(),
+                "media,timeseries,optimization,duckdb,coordinates".into(),
             ),
         ],
         log,

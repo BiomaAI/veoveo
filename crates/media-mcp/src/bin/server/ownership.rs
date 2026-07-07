@@ -89,8 +89,8 @@ pub(super) fn plane_caller_for_owner(
         assurances: BTreeSet::new(),
         authenticated_at: Some(now),
     };
-    let server = ServerSlug::new(SERVER_SLUG)
-        .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+    let server =
+        ServerSlug::new(SERVER_SLUG).map_err(|e| McpError::internal_error(e.to_string(), None))?;
     let issued = state
         .internal_token_issuer
         .issue(
