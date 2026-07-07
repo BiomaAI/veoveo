@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/artifact-service",
     "crates/duckdb-mcp",
     "crates/mcp-gateway",
     "crates/mcp-conformance",
@@ -24,11 +25,13 @@ anyhow = "1.0.103"
 axum = "0.8.9"
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 base64 = "0.22.1"
+chacha20poly1305 = { version = "0.11.0", features = ["alloc", "getrandom", "rand_core"] }
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
 duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "e2f3d156223250827567d154035e670432d97ac9", features = ["chrono"] }
 futures = "0.3.32"
+getrandom = "0.3.4"
 good_lp = { version = "1.15.2", default-features = false, features = ["microlp"] }
 hex = "0.4.3"
 hmac = "0.13.0"
@@ -60,5 +63,6 @@ tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 url = "2.5.8"
 uuid = { version = "1.23.4", features = ["v4"] }
+zeroize = "1.8.2"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "crates/mcp-contract", default-features = false }
