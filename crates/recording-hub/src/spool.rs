@@ -216,7 +216,13 @@ impl Spooler {
         if let Some(mut writer) = self.writers.remove(key) {
             writer.finish()?;
             self.counters.segments_frozen += 1;
+            // Compact + embed a manifest so the catalog can lazy-load the
+            // segment, then verify. Both are best-effort: a freeze that can't
+            // reach the CLI still leaves a valid footer-full file behind.
             if let Some(bin) = self.config.rerun_bin.clone() {
+                if let Err(err) = optimize_segment(&bin, &writer.path) {
+                    tracing::warn!(%err, path = %writer.path.display(), "segment optimize failed");
+                }
                 if let Err(err) = verify_segment(&bin, &writer.path) {
                     tracing::warn!(%err, path = %writer.path.display(), "segment verify failed");
                 }
@@ -346,5 +352,31 @@ fn verify_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
         "rrd verify failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    Ok(())
+}
+
+/// Compact a frozen segment in place: `rerun rrd optimize <path> -o <tmp>` then
+/// atomically rename over the original. The compacted file carries the manifest
+/// the catalog needs to lazy-load it. A crash mid-optimize leaves the original
+/// untouched and a stray `.opt` to sweep.
+fn optimize_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
+    let tmp = path.with_extension("rrd.opt");
+    let output = std::process::Command::new(rerun_bin)
+        .arg("rrd")
+        .arg("optimize")
+        .arg(path)
+        .arg("-o")
+        .arg(&tmp)
+        .output()
+        .with_context(|| format!("running {} rrd optimize", rerun_bin.display()))?;
+    if !output.status.success() {
+        let _ = std::fs::remove_file(&tmp);
+        anyhow::bail!(
+            "rrd optimize failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    std::fs::rename(&tmp, path)
+        .with_context(|| format!("publishing optimized segment {}", path.display()))?;
     Ok(())
 }
