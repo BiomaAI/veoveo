@@ -64,12 +64,16 @@ smoke-hub-catalog:
     HUB_PYTHON="$(bash crates/recording-hub/scripts/hub_python_env.sh)" \
         bash crates/recording-hub/scripts/hub_catalog_smoke.sh
 
+# Recording Hub agent+world smoke: two producers, one hub, dataset routing.
+smoke-hub-agent-world:
+    bash crates/recording-hub/scripts/hub_agent_world_smoke.sh
+
 # Recording Hub performance bench: burst fleet, assert spooler counters.
 bench-hub burst='8' duration='5':
     bash crates/recording-hub/scripts/hub_bench.sh {{burst}} {{duration}}
 
-# All Recording Hub checks: crate tests + both process smokes.
-smoke-hub: test-hub smoke-hub-spool smoke-hub-catalog
+# All Recording Hub checks: crate tests + all process smokes.
+smoke-hub: test-hub smoke-hub-spool smoke-hub-agent-world smoke-hub-catalog
 
 # Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
 contract-schemas output_dir='schemas':
