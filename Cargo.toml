@@ -11,6 +11,7 @@ members = [
     "crates/mcp-stdio-bridge",
     "crates/media-mcp",
     "crates/optimization-mcp",
+    "crates/recording-hub",
     "crates/rrd",
     "crates/smoke",
     "crates/timeseries-mcp",
@@ -59,6 +60,13 @@ re_chunk_store = "0.34.0"
 rcgen = "0.14.8"
 re_sdk = "0.34.0"
 re_sdk_types = "0.34.0"
+re_grpc_server = "0.34.0"
+re_grpc_client = "0.34.0"
+re_log_channel = "0.34.0"
+re_log_encoding = { version = "0.34.1", features = ["encoder", "decoder"] }
+re_log_types = "0.34.0"
+re_uri = "0.34.0"
+re_build_info = "0.34.0"
 rmcp = "2.2.0"
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std", "tls12"] }
 schemars = "1.2.1"

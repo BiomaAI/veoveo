@@ -1,0 +1,40 @@
+[package]
+name = "veoveo-recording-hub"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_recording_hub"
+path = "src/lib.rs"
+
+[[bin]]
+name = "spooler"
+path = "src/bin/spooler.rs"
+
+[[bin]]
+name = "sensor-sim"
+path = "src/bin/sensor_sim.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+re_sdk.workspace = true
+re_sdk_types.workspace = true
+re_build_info.workspace = true
+re_grpc_server.workspace = true
+re_grpc_client.workspace = true
+re_log_channel.workspace = true
+re_log_encoding.workspace = true
+re_log_types.workspace = true
+re_uri.workspace = true
+re_dataframe.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
