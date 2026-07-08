@@ -47,6 +47,30 @@ smoke-compose-config:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} compose-config
 
+# Unit + integration tests for the Recording Hub (spooler, sensor-sim, query).
+test-hub:
+    cargo test -p veoveo-recording-hub
+
+# Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
+smoke-hub-spool:
+    bash crates/recording-hub/scripts/hub_spool_smoke.sh
+
+# Provision the Python env for the catalog cross-check (rerun-sdk + datafusion).
+hub-python-env:
+    bash crates/recording-hub/scripts/hub_python_env.sh
+
+# Recording Hub catalog smoke: freeze+optimize, serve, real redap query cross-check.
+smoke-hub-catalog:
+    HUB_PYTHON="$(bash crates/recording-hub/scripts/hub_python_env.sh)" \
+        bash crates/recording-hub/scripts/hub_catalog_smoke.sh
+
+# Recording Hub performance bench: burst fleet, assert spooler counters.
+bench-hub burst='8' duration='5':
+    bash crates/recording-hub/scripts/hub_bench.sh {{burst}} {{duration}}
+
+# All Recording Hub checks: crate tests + both process smokes.
+smoke-hub: test-hub smoke-hub-spool smoke-hub-catalog
+
 # Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
 contract-schemas output_dir='schemas':
     {{conformance}} contract-schemas --output-dir '{{output_dir}}'

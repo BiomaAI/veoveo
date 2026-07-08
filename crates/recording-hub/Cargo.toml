@@ -15,6 +15,10 @@ path = "src/bin/spooler.rs"
 name = "sensor-sim"
 path = "src/bin/sensor_sim.rs"
 
+[[bin]]
+name = "hub-query"
+path = "src/bin/hub_query.rs"
+
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
