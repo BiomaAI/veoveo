@@ -1,0 +1,33 @@
+# Interim proof: the sumo-mcp container runtime (serve + background push) driven
+# by the deterministic fake driver — no SUMO image required. Proves runtime.py
+# end to end (HTTP serve + push loop into the real hub) while the ~1.2 GB SUMO
+# base image downloads. Layer on the main compose with the `hub` + `interim`
+# profiles:
+#
+#   docker compose -f compose.yaml -f showcase/compose.showcase.yaml \
+#       -f showcase/compose.interim.yaml --profile hub --profile interim up -d
+services:
+  sumo-mcp:
+    # Only the interim profile activates this variant, so SUMO stays down.
+    profiles: !override
+      - interim
+    # No TraCI here — drop the dependency on the SUMO container.
+    depends_on: !override
+      hub-spooler:
+        condition: service_started
+    environment:
+      # Empty SUMO_HOST => build_driver() picks the deterministic fake world.
+      SUMO_HOST: ""
+      SUMO_FAKE_VEHICLES: "12"
+      SUMO_FAKE_SEED: "7"
+    command:
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8795"
+      - "--hub-proxy"
+      - "rerun+http://hub-spooler:9876/proxy"
+      - "--recording"
+      - "sumo-live"
+      - "--push-period-s"
+      - "0.2"
