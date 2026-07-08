@@ -340,3 +340,7 @@ e2e public_base_url output_dir='output/e2e':
     just health '{{public_base_url}}'
     just info
     just run-edit '{{public_base_url}}' '{{output_dir}}'
+
+# Test the showcase SUMO MCP server (fake driver, no SUMO needed).
+test-sumo-mcp:
+    bash showcase/sumo-mcp/scripts/test.sh
