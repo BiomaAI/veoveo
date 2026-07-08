@@ -17,8 +17,12 @@ from dataclasses import dataclass
 
 from mcp import types
 from mcp.server.lowlevel import Server
+from pydantic import BaseModel
+
+from pydantic import AnyUrl
 
 from . import tasks_compat
+from .resources import CONGESTION_URI, evaluate_congestion
 from .sim_driver import FakeSimDriver, SimDriver
 from .tools import (
     OfflineOpParams,
@@ -45,7 +49,7 @@ def _schema(model: type[_Model] | None) -> dict:
     return model.model_json_schema()
 
 
-def _ok(result: _Model) -> types.CallToolResult:
+def _ok(result: BaseModel) -> types.CallToolResult:
     payload = result.model_dump()
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=json.dumps(payload))],
@@ -77,6 +81,13 @@ SYNC_TOOLS: dict[str, ToolSpec] = {
         "reroute_vehicle",
         "Reroute a vehicle onto a target edge.",
         RerouteVehicleParams,
+        tasks_compat.TASK_FORBIDDEN,
+    ),
+    "check_events": ToolSpec(
+        "check_events",
+        "Evaluate watch conditions (congestion) and push resources/updated for "
+        "any that crossed threshold, so subscribers are woken.",
+        None,
         tasks_compat.TASK_FORBIDDEN,
     ),
 }
@@ -114,6 +125,32 @@ def build_server(toolset: SumoToolset, name: str = "veoveo-sumo-mcp") -> Server:
     server: Server = Server(name)
     tasks_compat.enable_tasks(server)
 
+    # --- event plane: the congestion watch condition as a resource ----------
+    @server.list_resources()
+    async def list_resources() -> list[types.Resource]:  # type: ignore[no-untyped-def]
+        return [
+            types.Resource(
+                uri=AnyUrl(CONGESTION_URI),
+                name="congestion",
+                description="Network congestion watch condition (mean speed threshold).",
+                mimeType="application/json",
+            )
+        ]
+
+    @server.read_resource()
+    async def read_resource(uri: AnyUrl) -> str:  # type: ignore[no-untyped-def]
+        if str(uri) == CONGESTION_URI:
+            return evaluate_congestion(toolset.driver).model_dump_json()
+        raise ValueError(f"unknown resource {uri}")
+
+    @server.subscribe_resource()
+    async def subscribe_resource(uri: AnyUrl) -> None:  # type: ignore[no-untyped-def]
+        return None
+
+    @server.unsubscribe_resource()
+    async def unsubscribe_resource(uri: AnyUrl) -> None:  # type: ignore[no-untyped-def]
+        return None
+
     @server.list_tools()
     async def list_tools() -> list[types.Tool]:  # type: ignore[no-untyped-def]
         tools: list[types.Tool] = []
@@ -143,6 +180,14 @@ def build_server(toolset: SumoToolset, name: str = "veoveo-sumo-mcp") -> Server:
                 return _ok(await toolset.set_signal_phase(SetSignalPhaseParams(**arguments)))
             if name == "reroute_vehicle":
                 return _ok(await toolset.reroute_vehicle(RerouteVehicleParams(**arguments)))
+            if name == "check_events":
+                state = evaluate_congestion(toolset.driver)
+                if state.congested:
+                    # Push a wake to subscribers of the congestion resource.
+                    await server.request_context.session.send_resource_updated(
+                        AnyUrl(CONGESTION_URI)
+                    )
+                return _ok(state)
 
         # --- task-native long operations -----------------------------------
         if name in TASK_TOOLS:
