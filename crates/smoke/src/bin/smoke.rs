@@ -207,6 +207,31 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/agent")]
         agent_bin: PathBuf,
     },
+    /// Smoke-test a continuously-running agent sleeping on a long gateway task and waking from its completion push. --live swaps in the real model from CLOUDFLARE_* env.
+    AgentSleepWake {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built media MCP server binary path.
+        #[arg(long, default_value = "target/debug/server")]
+        media_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
+        /// Built agent kernel binary path.
+        #[arg(long, default_value = "target/debug/agent")]
+        agent_bin: PathBuf,
+        /// Use the real model from CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN
+        /// (model id from AGENT_LIVE_MODEL) instead of the scripted fake.
+        #[arg(long, default_value_t = false)]
+        live: bool,
+    },
     /// Smoke-test the Pilot agent's full mission loop over coordinates and optimization.
     AgentPilot {
         /// Built conformance binary path.
@@ -373,6 +398,26 @@ async fn main() -> Result<()> {
                 &control_plane,
                 &artifact_service_bin,
                 &agent_bin,
+            )
+            .await
+        }
+        Cmd::AgentSleepWake {
+            conformance_bin,
+            media_bin,
+            gateway_bin,
+            control_plane,
+            artifact_service_bin,
+            agent_bin,
+            live,
+        } => {
+            agent_sleep_wake(
+                &conformance_bin,
+                &media_bin,
+                &gateway_bin,
+                &control_plane,
+                &artifact_service_bin,
+                &agent_bin,
+                live,
             )
             .await
         }

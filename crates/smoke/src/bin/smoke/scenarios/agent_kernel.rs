@@ -844,6 +844,300 @@ pub(crate) async fn agent_pilot_mission(
     Ok(())
 }
 
+/// The real deal: one continuously-running agent process dispatches a
+/// genuinely long gateway task, goes to sleep, and is woken by the task's
+/// completion push — provably not by polling.
+///
+/// The proof is arithmetic. The task takes ~15s (webhook-delayed provider);
+/// the manifest sets the poll cadence to 60s and the heartbeat to 600s, so a
+/// wake episode starting within seconds of completion can only have come
+/// from the blocking `tasks/result` long-poll and the task-status
+/// notification the gateway forwards. The ledger's episode timestamps pin
+/// both halves: the agent really slept (gap well above zero, no episodes in
+/// between) and really woke promptly (gap bounded near the task duration).
+///
+/// With `live: true` the scripted LLM is replaced by the real model from the
+/// environment (Cloudflare Workers AI), making the run end-to-end real:
+/// real model reasoning, real gateway auth and forwarding, real hosted
+/// server, real task lifecycle, real push wake.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn agent_sleep_wake(
+    conformance: &Path,
+    media: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+    live: bool,
+) -> Result<()> {
+    for bin in [conformance, media, gateway, artifact_service, agent] {
+        assert_executable(bin)?;
+    }
+    const TASK_DELAY_MS: u64 = 15_000;
+    const SLEEP_FLOOR_S: f64 = 8.0;
+    const WAKE_CEILING_S: f64 = TASK_DELAY_MS as f64 / 1000.0 + 10.0;
+
+    let live_model = if live {
+        let account = env::var("CLOUDFLARE_ACCOUNT_ID").map_err(|_| {
+            anyhow!(
+                "live mode requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the environment"
+            )
+        })?;
+        env::var("CLOUDFLARE_API_TOKEN")
+            .map_err(|_| anyhow!("live mode requires CLOUDFLARE_API_TOKEN in the environment"))?;
+        let model =
+            env::var("AGENT_LIVE_MODEL").unwrap_or_else(|_| "@cf/moonshotai/kimi-k2.6".to_string());
+        println!("live model: {model}");
+        Some((
+            format!("https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1"),
+            "CLOUDFLARE_API_TOKEN".to_string(),
+            model,
+        ))
+    } else {
+        None
+    };
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let provider_port = 18860u16;
+    let media_port = 18801u16;
+    let gateway_port = 18862u16;
+    let llm_port = 18863u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+
+    let provider_ready = tmpdir.join("provider.ready");
+    let mut provider = spawn_fake_media_provider(
+        conformance,
+        provider_port,
+        &provider_ready,
+        &tmpdir.join("provider.log"),
+        Some(TASK_DELAY_MS),
+    )?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+
+    let mut llm = None;
+    if live_model.is_none() {
+        let llm_ready = tmpdir.join("llm.ready");
+        llm = Some(ChildGuard::spawn(
+            conformance,
+            [
+                "fake-openai-llm".into(),
+                "--port".into(),
+                llm_port.to_string().into(),
+                "--ready-file".into(),
+                llm_ready.as_os_str().to_os_string(),
+            ],
+            [],
+            &tmpdir.join("llm.log"),
+        )?);
+        wait_for_file(&llm_ready).await?;
+    }
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &tmpdir.join("media-state.duckdb"),
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(
+            gateway_port,
+            &control_db.url,
+            &tmpdir.join("gw-state.duckdb"),
+        ),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &tmpdir.join("gateway.log"),
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, 2).await?;
+
+    let (model_base_url, api_key_env, model) = live_model.clone().unwrap_or((
+        format!("http://127.0.0.1:{llm_port}/v1"),
+        "SMOKE_LLM_API_KEY".to_string(),
+        "fake/kimi".to_string(),
+    ));
+    let manifest_path = tmpdir.join("sleep-wake-manifest.json");
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "agent": { "id": "sleep-wake", "display_name": "Sleep/Wake Agent" },
+            "model": {
+                "base_url": model_base_url,
+                "api_key_env": api_key_env,
+                "model": model,
+                "temperature": 0.0
+            },
+            "gateway": {
+                "url": gateway_base,
+                "profile": "operator",
+                "client_id": "operator-service",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "private_key_kid": "test-key"
+            },
+            "episode": {
+                "max_turns": 8,
+                "task_deadline_s": 120,
+                "task_poll_interval_ms": 60_000
+            },
+            "schedule": { "heartbeat_interval_s": 600, "wake_coalesce_window_ms": 250 },
+            "budgets": { "per_episode": { "max_completion_calls": 12, "max_tool_calls": 8 } },
+            "preamble": "You operate hosted tools through an MCP gateway. Long-running tools \
+                         are dispatched as background tasks: dispatch them, then END YOUR TURN \
+                         immediately — you will be woken with the result. Never wait, never \
+                         poll, never re-dispatch a task you already started. When an episode \
+                         starts with a background task result, acknowledge it in one short \
+                         sentence that contains the word DELIVERED, then stop."
+        }))?,
+    )?;
+
+    let boot_prompt = if live {
+        // The real model gets explicit, bounded instructions.
+        "Generate exactly one image by calling the media__run tool once, with arguments \
+         {\"model\": \"fake/image\", \"input\": {\"prompt\": \"sleep wake live\"}}. After the \
+         tool call is dispatched as a background task, say WAITING FOR BACKGROUND TASKS and \
+         stop."
+    } else {
+        "Generate one smoke image with the media tools."
+    };
+
+    let agent_data_dir = tmpdir.join("agent-data");
+    let agent_log = tmpdir.join("agent.log");
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            boot_prompt.into(),
+        ],
+        [
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &agent_log,
+    )?;
+
+    // The whole life in one process: dispatch, sleep, push wake, consume.
+    wait_for_log_substring(&agent_log, "task detached", 240).await?;
+    println!("task detached; the agent is now asleep on the long task");
+    wait_for_log_substring(&agent_log, "task result consumed", 320).await?;
+    agent_child.stop();
+
+    let log = fs::read_to_string(&agent_log)?;
+    if log.matches("agent booting").count() != 1 {
+        bail!("expected exactly one agent boot; the sleep/wake must be one process");
+    }
+    contains(&log, "task status notification received")?;
+
+    {
+        let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
+        let episodes: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM kernel.episodes", [], |row| row.get(0))?;
+        if episodes != 2 {
+            bail!("expected exactly 2 episodes (dispatch + wake), found {episodes}");
+        }
+        let (task_state, consumed): (String, Option<String>) = ledger.query_row(
+            "SELECT state, consumed_by_episode FROM kernel.task_ledger",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if task_state != "resolved" || consumed.is_none() {
+            bail!("task ended ({task_state}, consumed: {consumed:?})");
+        }
+        // Slept: a real gap between the dispatch episode ending and the wake
+        // episode starting. Woke promptly: the gap is bounded near the task
+        // duration — unreachable for the 60s poll or the 600s heartbeat.
+        let (sleep_gap_s, dispatch_s, wake_s): (f64, f64, f64) = ledger.query_row(
+            "WITH ordered AS (SELECT seq, started_at, finished_at FROM kernel.episodes)
+             SELECT
+                 epoch(o2.started_at) - epoch(o1.finished_at),
+                 epoch(o1.finished_at) - epoch(o1.started_at),
+                 epoch(o2.finished_at) - epoch(o2.started_at)
+             FROM ordered o1, ordered o2 WHERE o1.seq = 1 AND o2.seq = 2",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        println!(
+            "dispatch episode {dispatch_s:.1}s, slept {sleep_gap_s:.1}s, wake episode {wake_s:.1}s"
+        );
+        if sleep_gap_s < SLEEP_FLOOR_S {
+            bail!(
+                "agent only slept {sleep_gap_s:.1}s; the task should have held it >= {SLEEP_FLOOR_S}s"
+            );
+        }
+        if sleep_gap_s > WAKE_CEILING_S {
+            bail!(
+                "agent slept {sleep_gap_s:.1}s (> {WAKE_CEILING_S}s): the wake was not prompt, \
+                 so it came from polling, not the push path"
+            );
+        }
+        if live {
+            let delivered: i64 = ledger.query_row(
+                "SELECT COUNT(*) FROM kernel.episodes WHERE final_output LIKE '%DELIVERED%'",
+                [],
+                |row| row.get(0),
+            )?;
+            if delivered < 1 {
+                let outputs = ledger
+                    .prepare("SELECT seq, final_output FROM kernel.episodes ORDER BY seq")?
+                    .query_map([], |row| {
+                        Ok(format!(
+                            "  episode {}: {}",
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?
+                        ))
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join("\n");
+                bail!("live model never acknowledged DELIVERED; outputs:\n{outputs}");
+            }
+        }
+    }
+
+    gateway_child.stop();
+    media_child.stop();
+    provider.stop();
+    if let Some(mut llm) = llm {
+        llm.stop();
+    }
+    cleanup.remove_on_drop();
+    println!(
+        "agent sleep/wake smoke ok ({})",
+        if live { "live model" } else { "scripted model" }
+    );
+    Ok(())
+}
+
 /// Poll a child's log file until it contains `needle`.
 async fn wait_for_log_substring(file: &Path, needle: &str, attempts: u32) -> Result<()> {
     for _ in 0..attempts {

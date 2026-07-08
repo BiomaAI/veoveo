@@ -46,6 +46,12 @@ impl McpNotificationDelegate for KernelNotificationDelegate {
                     | rmcp::model::TaskStatus::Failed
                     | rmcp::model::TaskStatus::Cancelled
             );
+            tracing::info!(
+                task_id = params.task.task_id,
+                status = ?status,
+                terminal,
+                "task status notification received"
+            );
             if terminal {
                 self.bus
                     .send(WakeEvent::task_settled(&params.task.task_id))

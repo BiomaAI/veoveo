@@ -143,6 +143,16 @@ agent-pilot-local data_dir="output/pilot-data":
     cargo build -p veoveo-agent-kernel --bin agent
     PILOT_GATEWAY_URL="${PILOT_GATEWAY_URL:-http://localhost:8780}" target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9876/proxy
 
+# Smoke-test a continuously-running agent sleeping on a long gateway task and waking from its completion push.
+smoke-agent-sleep-wake:
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-sleep-wake --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+
+# The real deal: the sleep/wake smoke with the REAL model from CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN (override model with AGENT_LIVE_MODEL).
+smoke-agent-live:
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-sleep-wake --live --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+
 # Build MCP images.
 compose-build:
     {{compose}} build media-mcp mcp-gateway mcp-gateway-seed
