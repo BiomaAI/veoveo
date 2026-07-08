@@ -1,0 +1,891 @@
+<title>Pilot Harness — Architecture</title>
+<style>
+  :root {
+    --ground: #F2F4F6;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F4;
+    --ink: #17212B;
+    --muted: #5A6772;
+    --faint: #8494A1;
+    --line: #D8DEE4;
+    --line-strong: #B9C4CD;
+    --accent: #B87514;
+    --accent-ink: #8F5A0E;
+    --accent-wash: #B8751418;
+    --hue-media: #7C5CBF;
+    --hue-coords: #1E8A7A;
+    --hue-sql: #3D6DB5;
+    --hue-opt: #B87514;
+    --hue-ts: #4E8A3C;
+    --hue-viewer: #B5486B;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0E141B;
+      --surface: #16202A;
+      --surface-2: #1D2935;
+      --ink: #E7EDF2;
+      --muted: #8C9AA6;
+      --faint: #64747F;
+      --line: #263340;
+      --line-strong: #37475A;
+      --accent: #E2A14E;
+      --accent-ink: #EDBB72;
+      --accent-wash: #E2A14E1A;
+      --hue-media: #A38AE0;
+      --hue-coords: #4DB3A2;
+      --hue-sql: #6E9BD8;
+      --hue-opt: #E2A14E;
+      --hue-ts: #7FB268;
+      --hue-viewer: #D97A9A;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F2F4F6; --surface: #FFFFFF; --surface-2: #EDF1F4;
+    --ink: #17212B; --muted: #5A6772; --faint: #8494A1;
+    --line: #D8DEE4; --line-strong: #B9C4CD;
+    --accent: #B87514; --accent-ink: #8F5A0E; --accent-wash: #B8751418;
+    --hue-media: #7C5CBF; --hue-coords: #1E8A7A; --hue-sql: #3D6DB5;
+    --hue-opt: #B87514; --hue-ts: #4E8A3C; --hue-viewer: #B5486B;
+  }
+  :root[data-theme="dark"] {
+    --ground: #0E141B; --surface: #16202A; --surface-2: #1D2935;
+    --ink: #E7EDF2; --muted: #8C9AA6; --faint: #64747F;
+    --line: #263340; --line-strong: #37475A;
+    --accent: #E2A14E; --accent-ink: #EDBB72; --accent-wash: #E2A14E1A;
+    --hue-media: #A38AE0; --hue-coords: #4DB3A2; --hue-sql: #6E9BD8;
+    --hue-opt: #E2A14E; --hue-ts: #7FB268; --hue-viewer: #D97A9A;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.55;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 28px 80px; }
+
+  /* ---------- header ---------- */
+  header { margin-bottom: 40px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(34px, 5vw, 52px);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede { max-width: 62ch; color: var(--muted); font-size: 16px; margin: 0 0 22px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .statrow { display: flex; flex-wrap: wrap; gap: 10px; }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .stat b {
+    display: block;
+    font-family: var(--mono);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  /* ---------- layer scaffolding ---------- */
+  .layer { position: relative; padding-left: 26px; margin-bottom: 8px; }
+  .layer::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 8px; bottom: -34px;
+    width: 2px;
+    background: var(--line-strong);
+  }
+  .layer:last-of-type::before { bottom: 8px; }
+  .layer::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--ground);
+    border: 3px solid var(--accent);
+  }
+  .layer-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .layer-title {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .layer-sub { color: var(--muted); font-size: 13.5px; }
+  .layer-body { padding: 12px 0 34px; }
+
+  /* ---------- generic cards ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  /* ---------- agent lifecycle ---------- */
+  .agent-card { border-left: 4px solid var(--accent); }
+  .agent-lede { margin: 0 0 16px; font-size: 13.5px; color: var(--muted); max-width: 80ch; }
+  .agent-lede strong { color: var(--ink); }
+  .lifecycle {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+  .lifecycle .stage {
+    flex: 1 1 150px;
+    min-width: 140px;
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 10px 12px;
+  }
+  .lifecycle .stage + .stage { margin-left: 30px; }
+  .lifecycle .stage + .stage::before {
+    content: "→";
+    position: absolute;
+    left: -23px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-ink);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .lifecycle .stage h5 {
+    margin: 0 0 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .lifecycle .stage p { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .lifecycle .stage.episode {
+    background: var(--accent-wash);
+    border-color: var(--accent);
+  }
+  .lifecycle .stage.sleep h5 { color: var(--faint); }
+  .lifecycle .stage.sleep { border-style: dashed; background: transparent; }
+  .lifecycle-return {
+    margin: 4px 8px 18px;
+    padding: 9px 16px 10px;
+    border: 1px dashed var(--line-strong);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .lifecycle-return .wakes { font-family: var(--mono); font-size: 11px; color: var(--accent-ink); }
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .agent-grid > div {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 12px 14px;
+  }
+  .agent-grid h5 {
+    margin: 0 0 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .agent-grid ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--muted); }
+  .agent-grid li { padding: 1.5px 0; }
+  .agent-grid code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- edge row ---------- */
+  .edgeflow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .edgeflow .node { flex: 1 1 160px; min-width: 150px; position: relative; }
+  .edgeflow .node + .node { margin-left: 34px; }
+  .edgeflow .node + .node::before {
+    content: "→";
+    position: absolute;
+    left: -26px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--faint);
+    font-size: 17px;
+  }
+  .node h4 { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+  .node p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .node .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--faint);
+    display: block;
+    margin-bottom: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .bridge-note {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: transparent;
+  }
+  .bridge-note code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- gateway band ---------- */
+  .gateway {
+    border: 1px solid var(--accent);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .gateway-top { padding: 16px 20px 14px; }
+  .gateway-top h3 { margin: 0 0 4px; font-family: var(--display); font-weight: 700; font-size: 17px; }
+  .gateway-top p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 78ch; }
+  .gateway-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    border-top: 1px solid var(--line);
+  }
+  .gcell { padding: 13px 20px; border-top: 1px solid var(--line); }
+  .gcell:nth-child(-n+3) { border-top: none; }
+  .gcell + .gcell { border-left: 1px solid var(--line); }
+  @media (max-width: 760px) { .gcell + .gcell { border-left: none; } .gcell { border-top: 1px solid var(--line) !important; } }
+  .gcell h5 {
+    margin: 0 0 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .gcell ul { margin: 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); }
+  .gcell li { padding: 1.5px 0; }
+  .gcell code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- tool servers ---------- */
+  .servers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .server {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .server-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .server-head .scheme {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+    float: right;
+    margin-top: 3px;
+  }
+  .server-head h4 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 15.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .server-head p { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); clear: both; }
+  .tools { padding: 8px 16px 12px; flex: 1; }
+  .tools table { width: 100%; border-collapse: collapse; }
+  .tools td { padding: 5px 0; vertical-align: baseline; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .tools tr:first-child td { border-top: none; }
+  .tools td.tn {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+    padding-right: 14px;
+    width: 1%;
+  }
+  .server.wide { grid-column: 1 / -1; }
+  .toolcols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 4px 28px;
+    padding: 10px 16px 12px;
+    flex: 1;
+  }
+  .toolcols h6 {
+    margin: 6px 0 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+  }
+  .toolcols table { width: 100%; border-collapse: collapse; }
+  .toolcols td { padding: 4.5px 0; vertical-align: baseline; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .toolcols tr:first-child td { border-top: none; }
+  .toolcols td.tn {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+    padding-right: 14px;
+    width: 1%;
+  }
+  .server-foot {
+    padding: 9px 16px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+    border-radius: 0 0 7px 7px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cap {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+    border: 1px solid transparent;
+  }
+  .cap.plain { background: transparent; border-color: var(--line-strong); color: var(--muted); }
+
+  /* ---------- planes ---------- */
+  .planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .plane h4 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15.5px; }
+  .plane p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .plane p code, .plane li code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .plane ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
+  .plane li { padding: 1.5px 0; }
+
+  /* ---------- ops strip ---------- */
+  .ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .ops .card h4 { margin: 0 0 5px; font-size: 14px; font-weight: 650; }
+  .ops .card p { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+  /* ---------- footer legend ---------- */
+  .legend {
+    margin-top: 34px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+  }
+  .legend code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  a { color: var(--accent-ink); }
+  @media (prefers-reduced-motion: no-preference) {
+    .server, .gateway, .card { transition: border-color 140ms ease; }
+    .server:hover, .plane:hover { border-color: var(--line-strong); }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">System Architecture · Tool Capabilities</p>
+    <h1>Pilot Harness</h1>
+    <p class="lede">
+      A self-hosted <strong>MCP gateway, a fleet of hosted tool servers, and an agent kernel</strong>
+      for regulated workloads. Long-lived autonomous agents — the Pilot is the first — work in
+      bounded episodes over one public endpoint that carries the full MCP protocol through
+      enterprise auth and typed policy to six domain servers, all sharing a single
+      policy-enforced artifact plane.
+    </p>
+    <div class="statrow">
+      <div class="stat"><b>34</b>gateway tools</div>
+      <div class="stat"><b>6</b>hosted tool servers</div>
+      <div class="stat"><b>1</b>agent kernel</div>
+      <div class="stat"><b>2</b>memory planes per agent</div>
+      <div class="stat"><b>5</b>wake sources</div>
+      <div class="stat"><b>1</b>shared artifact plane</div>
+    </div>
+  </header>
+
+  <!-- LAYER 0 : AGENT KERNEL -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Agent Kernel</h2>
+      <span class="layer-sub">long-lived autonomous agents in bounded episodes — the Pilot is the first</span>
+    </div>
+    <div class="layer-body">
+      <div class="card agent-card">
+        <p class="agent-lede">
+          An agent runs forever because <strong>chat history is never the memory</strong>: every
+          episode's context is assembled fresh from the agent's two memory planes, and everything
+          in flight survives process death. The kernel executes typed manifests — an agent type is
+          a manifest, a preamble, and SQL migrations, never kernel code.
+        </p>
+
+        <div class="lifecycle">
+          <div class="stage">
+            <h5>Wake</h5>
+            <p>A batch of wakes, coalesced and deduped; every wake is persisted with its
+               disposition, so the ledger explains why each episode ran.</p>
+          </div>
+          <div class="stage">
+            <h5>Assemble</h5>
+            <p>State header + the wake payload + manifest-defined SQL sections over the memory
+               database, under a token budget. Truncations point at <code>memory_query</code>.</p>
+          </div>
+          <div class="stage episode">
+            <h5>Episode</h5>
+            <p>One bounded LLM run. Quick gateway tools answer inline; long tools dispatch as MCP
+               tasks and keep running. Hooks record every step and terminate over-budget runs.</p>
+          </div>
+          <div class="stage">
+            <h5>Persist</h5>
+            <p>Unresolved task descriptors (serializable) land in the ledger; the episode closes
+               with usage counters and a summary; every step is already in the flight log.</p>
+          </div>
+          <div class="stage sleep">
+            <h5>Sleep</h5>
+            <p>Idle on the wake bus. A watcher per detached task holds the blocking
+               <code>tasks/result</code> long-poll; the heartbeat bounds silence.</p>
+          </div>
+        </div>
+        <div class="lifecycle-return">
+          ↩ wakes: <span class="wakes">task completion push · operator message · heartbeat ·
+          resource update · elicitation answer</span> — and a wake survives process death:
+          descriptors rehydrate from the ledger on any boot, so kill and restart resumes the
+          same tasks.
+        </div>
+
+        <div class="agent-grid">
+          <div>
+            <h5>Two memory planes</h5>
+            <ul>
+              <li><strong>Current truth</strong> — an embedded relational database: domain tables
+                  (the Pilot: <code>targets</code>, <code>missions</code>, <code>waypoints</code>,
+                  <code>constraints</code>, <code>beliefs</code>) plus the kernel ledger of
+                  episodes, tasks, and wakes.</li>
+              <li><strong>Flight log</strong> — an append-only Rerun recording: every turn, tool
+                  call, task lifecycle, prompt, and summary, time-indexed and watchable live in
+                  the Recording Viewer.</li>
+              <li>The agent reads both itself: <code>memory_query</code> (guarded SQL),
+                  <code>memory_write</code> (typed mutations, mirrored to the flight log), and
+                  <code>timeline_query</code> (dataframe reads over the log).</li>
+              <li>The flight log is the log of record: <code>replay</code> rebuilds the domain
+                  tables from it alone, so plane drift is recoverable.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Durability, proven</h5>
+            <ul>
+              <li>Detach at episode end: a task's descriptor outlives the process; any later boot
+                  rehydrates the live handle and keeps waiting.</li>
+              <li>Token rotation is make-before-break; task ids are principal-scoped, so
+                  continuity holds across reconnects.</li>
+              <li>The wake is push, arithmetically: with polling pinned at 60s and the heartbeat
+                  at 600s, the smoke's agent slept the task's full ~15s and woke within a second
+                  of completion — verified live with a real model end to end.</li>
+              <li>Budget hooks book overruns as <code>budget_terminated</code>, a first-class
+                  outcome; hourly windows defer non-priority wakes.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Agents are data</h5>
+            <ul>
+              <li>A typed manifest, validated fail-closed at boot: model endpoint, gateway
+                  principal (client-credentials + private-key JWT), episode limits, budgets,
+                  schedule, context SQL sections, writable tables.</li>
+              <li>A preamble and domain migrations complete the profile — cross-episode
+                  instructions live here or in memory, never in a prior prompt.</li>
+              <li>Operators reach a running agent over a loopback channel: inject a prompt, read
+                  status, answer parked tool questions (elicitations).</li>
+              <li>The Pilot rides the operator profile: geodesy inline, planning as tasks,
+                  waypoints recorded when plans land.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 1 : EDGE -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Edge &amp; Access</h2>
+      <span class="layer-sub">every client enters through one origin</span>
+    </div>
+    <div class="layer-body">
+      <div class="card">
+        <div class="edgeflow">
+          <div class="node">
+            <span class="tag">Clients</span>
+            <h4>Agents &amp; MCP clients</h4>
+            <p>Kernel agents (each its own service principal), IDEs, and hosts speaking streamable-HTTP MCP against the single public contract.</p>
+          </div>
+          <div class="node">
+            <span class="tag">Ingress</span>
+            <h4>Named tunnel / enterprise edge</h4>
+            <p>Zero-inbound-port ingress for self-hosted deployments; enterprise network boundary.</p>
+          </div>
+          <div class="node">
+            <span class="tag">Proxy</span>
+            <h4>Reverse-proxy edge</h4>
+            <p>Single origin routing MCP, OAuth metadata, webhooks, and content routes to the gateway.</p>
+          </div>
+          <div class="node">
+            <span class="tag">Contract</span>
+            <h4>Gateway</h4>
+            <p>The single public contract. Everything below it lives on the internal network.</p>
+          </div>
+        </div>
+        <div class="bridge-note">
+          <strong>Stdio Bridge</strong> — spawns a stdio MCP server as a child process and re-exposes
+          its tool surface over streamable HTTP, so the gateway registers it as a standard
+          <code>streamable_http</code> upstream. It lives on the internal network and relies on the
+          gateway for authentication. In production it carries the <strong>Recording Viewer</strong>:
+          one container running the headless viewer, its stdio MCP, and the bridge together.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 2 : GATEWAY -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Gateway</h2>
+      <span class="layer-sub">MCP server outward · MCP client inward</span>
+    </div>
+    <div class="layer-body">
+      <div class="gateway">
+        <div class="gateway-top">
+          <h3>Protocol-preserving MCP gateway</h3>
+          <p>
+            A full-protocol gateway: it forwards and aggregates the complete MCP surface, projects
+            upstream tools into one namespace (<code style="font-family:var(--mono);font-size:12px">media__run</code>,
+            <code style="font-family:var(--mono);font-size:12px">sql__query</code>,
+            <code style="font-family:var(--mono);font-size:12px">rerun__screenshot</code>), and records durable
+            runtime state, policy decisions, and audit evidence.
+          </p>
+        </div>
+        <div class="gateway-grid">
+          <div class="gcell">
+            <h5>Authentication</h5>
+            <ul>
+              <li>Browser OAuth (authorize / callback)</li>
+              <li>Client credentials + private-key JWT</li>
+              <li>Identity-assertion grant (ID-JAG) exchange</li>
+              <li>JWKS, token issuance, revocation</li>
+            </ul>
+          </div>
+          <div class="gcell">
+            <h5>Policy &amp; Audit</h5>
+            <ul>
+              <li>Typed ABAC/RBAC over tools, resources, tasks, artifacts</li>
+              <li>Tenant + data-label (regulated data) checks</li>
+              <li>Fail-closed decisions with reason codes</li>
+              <li>Audit trail for admin, auth, and policy ops</li>
+            </ul>
+          </div>
+          <div class="gcell">
+            <h5>Control Plane</h5>
+            <ul>
+              <li>Validated server / profile / policy catalog</li>
+              <li>Authenticated live <code>apply</code> &amp; reload</li>
+              <li>Secret references (env / vault) with redaction</li>
+              <li>Durable state: task maps, subscriptions, OAuth state</li>
+            </ul>
+          </div>
+          <div class="gcell" style="grid-column: 1 / -1; border-left: none;">
+            <h5>Forwarded protocol surface</h5>
+            <div class="chiprow" style="margin-top:2px">
+              <span class="chip">tools</span><span class="chip">resources</span><span class="chip">resource templates</span>
+              <span class="chip">prompts</span><span class="chip">completions</span><span class="chip">tasks</span>
+              <span class="chip">subscriptions</span><span class="chip">notifications</span>
+              <span class="chip">artifacts</span><span class="chip">usage</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 3 : TOOL SERVERS -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Hosted Tool Servers</h2>
+      <span class="layer-sub">domain capability behind gateway-signed internal identity</span>
+    </div>
+    <div class="layer-body">
+      <div class="servers">
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">media://</span>
+            <h4><span class="dot" style="background:var(--hue-media)"></span>Media</h4>
+            <p>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">run</td><td>Run any media model asynchronously as an MCP task; outputs land as artifacts.</td></tr>
+            <tr><td class="tn">models</td><td>Search the model catalog, returning exact runnable model ids.</td></tr>
+            <tr><td class="tn">model_schema</td><td>Exact input JSON Schema and pricing metadata for one model.</td></tr>
+            <tr><td class="tn">artifact</td><td>Return an authorized artifact as inline MCP image content.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">mcp tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">prompts</span><span class="cap plain">subscriptions</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">coordinates://</span>
+            <h4><span class="dot" style="background:var(--hue-coords)"></span>Coordinates</h4>
+            <p>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">convert_frame</td><td>Convert between WGS84, ECEF, ENU, NED with explicit target frame and origin.</td></tr>
+            <tr><td class="tn">transform_crs</td><td>Transform tuples between explicit CRS ids with normalized axis order.</td></tr>
+            <tr><td class="tn">derive_local_frame</td><td>Create an ENU or NED local tangent frame from a WGS84 origin.</td></tr>
+            <tr><td class="tn">geodesic_inverse</td><td>Ellipsoidal distance and forward/reverse azimuths between two positions.</td></tr>
+            <tr><td class="tn">geodesic_direct</td><td>Destination position from start, azimuth, and ellipsoidal distance.</td></tr>
+            <tr><td class="tn">validate_geofence</td><td>Validate 2D path / geofence relationships in one explicit frame.</td></tr>
+            <tr><td class="tn">batch_transform</td><td>Batch frame conversion as an MCP task, optionally stored as an artifact.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">mcp tasks</span><span class="cap">artifacts</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">sql://</span>
+            <h4><span class="dot" style="background:var(--hue-sql)"></span>Analytics SQL</h4>
+            <p>Sandboxed embedded SQL over principal-owned databases; every statement runs inside a locked engine, and the server itself fetches and resolves all external sources.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">query</td><td>One read-only statement; large results return as a parquet artifact link.</td></tr>
+            <tr><td class="tn">execute</td><td>DDL/DML on an owned database; writes serialize per database.</td></tr>
+            <tr><td class="tn">ingest</td><td>Load a typed source — inline CSV, allowlisted HTTPS, or any <code style="font-family:var(--mono);font-size:11px">artifact://</code> reference — into one table.</td></tr>
+            <tr><td class="tn">export</td><td>Export a table, query result, or full database snapshot to one immutable artifact.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">mcp tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">cross-server ingest</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">optimization://</span>
+            <h4><span class="dot" style="background:var(--hue-opt)"></span>Optimization</h4>
+            <p>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">plan</td><td>Solve a planning problem; returns a structured plan plus optional database and Rerun RRD artifacts.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">mcp tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">rrd output</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">timeseries://</span>
+            <h4><span class="dot" style="background:var(--hue-ts)"></span>Timeseries</h4>
+            <p>Forecasting over any SQL-readable time-series source, visualized as Rerun recordings.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">forecast</td><td>Ingest a source, compute a forecast, and return one Rerun RRD artifact.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">mcp tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">rrd output</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server wide">
+          <div class="server-head">
+            <span class="scheme">rerun://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Recording Viewer</h4>
+            <p>
+              A live Rerun viewer driven entirely over MCP — the stack's eyes. The other servers' RRD artifacts
+              (timeseries forecasts, optimization plans) open here for timeline scrubbing, inspection, and
+              screenshots. The viewer speaks stdio, so one container runs the headless viewer, its MCP,
+              and the Stdio Bridge together; recordings stream in over gRPC and screenshots render
+              through software rasterization.
+            </p>
+          </div>
+          <div class="toolcols">
+            <div>
+              <h6>Session &amp; state</h6>
+              <table>
+                <tr><td class="tn">connect</td><td>Attach to the running viewer over gRPC; unlocks every other tool.</td></tr>
+                <tr><td class="tn">disconnect</td><td>Drop the viewer bridge until the next connect.</td></tr>
+                <tr><td class="tn">viewer_state</td><td>Active recording, page URL, and every open recording with its timelines, as JSON.</td></tr>
+                <tr><td class="tn">open_url</td><td>Open a recording/blueprint file, dataset URI, catalog URL, or intra-recording link.</td></tr>
+                <tr><td class="tn">set_time</td><td>Move the time cursor on any timeline — sequence index or nanoseconds.</td></tr>
+              </table>
+            </div>
+            <div>
+              <h6>Capture &amp; inspection</h6>
+              <table>
+                <tr><td class="tn">screenshot</td><td>Capture the current frame as PNG, aligned to interaction coordinates.</td></tr>
+                <tr><td class="tn">resize</td><td>Resize the viewport to exact logical-point dimensions.</td></tr>
+                <tr><td class="tn">query_tree</td><td>Walk the widget tree and return nodes matching role or text filters.</td></tr>
+                <tr><td class="tn">get_node</td><td>Return a single widget node by id.</td></tr>
+                <tr><td class="tn">wait_for</td><td>Poll the widget tree until conditions hold or a timeout elapses.</td></tr>
+              </table>
+            </div>
+            <div>
+              <h6>UI automation</h6>
+              <table>
+                <tr><td class="tn">click</td><td>Click a located node or raw position.</td></tr>
+                <tr><td class="tn">drag</td><td>Primary-button drag between two targets.</td></tr>
+                <tr><td class="tn">hover</td><td>Move the pointer over a node — tooltips and popups follow.</td></tr>
+                <tr><td class="tn">scroll</td><td>Wheel scroll over a node or position.</td></tr>
+                <tr><td class="tn">press_key</td><td>Send a key press to the focused widget.</td></tr>
+                <tr><td class="tn">type_text</td><td>Type into the focused widget, optionally focusing a node first.</td></tr>
+                <tr><td class="tn">batch</td><td>Run a sequence of app-driving calls in one round trip; stops on first failure.</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="server-foot">
+            <span class="cap">stdio bridge upstream</span>
+            <span class="cap plain">interactive tools</span><span class="cap plain">headless viewer</span>
+            <span class="cap plain">software rendering</span><span class="cap plain">grpc recording ingest</span>
+            <span class="cap plain">dedicated access profile</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">tasks/*</span>
+            <h4><span class="dot" style="background:var(--faint)"></span>Shared task lifecycle</h4>
+            <p>Every long-running tool must be invoked as an MCP task. The five task-running servers implement the same lifecycle.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">tasks/enqueue</td><td>Start the tool asynchronously under the caller's principal.</td></tr>
+            <tr><td class="tn">tasks/get</td><td>Poll status; progress and status messages stream as notifications.</td></tr>
+            <tr><td class="tn">tasks/result</td><td>Fetch the final output and its artifact links.</td></tr>
+            <tr><td class="tn">tasks/cancel</td><td>Cancel a running task.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap plain">ownership checks</span><span class="cap plain">usage records</span><span class="cap plain">retention GC</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 4 : SHARED PLANES -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Shared Planes</h2>
+      <span class="layer-sub">the shared foundation every server builds on</span>
+    </div>
+    <div class="layer-body">
+      <div class="planes">
+        <div class="card plane">
+          <h4>Artifact Plane</h4>
+          <p>
+            A single byte-level policy-enforcement point. Every domain server stores and reads
+            artifact bytes through the plane, calling it with the gateway-signed identity it already holds.
+          </p>
+          <ul>
+            <li>Per-tenant <strong>encrypted object store</strong> + Postgres <strong>grant ledger</strong></li>
+            <li>Every read/write decided by the shared access contract: principal, tenant, data label, grant</li>
+            <li>Immutable content addressing: <code>{scheme}://artifact/{sha256}</code></li>
+            <li><code>artifact://</code> references let one server consume another's output — e.g. SQL ingesting a media render, optimization snapshotting to a forecastable table</li>
+          </ul>
+        </div>
+        <div class="card plane">
+          <h4>Contract Core</h4>
+          <p>
+            The typed, provider-neutral contract every server shares, validated fail-closed at startup.
+          </p>
+          <ul>
+            <li>Strong ID newtypes: profiles, servers, tools, tenants, scopes, JWT ids</li>
+            <li>Gateway control-plane, auth, and policy config with cross-reference validation</li>
+            <li>Typed deployment profiles: object store, state store, telemetry, network boundaries, regulated-data controls</li>
+            <li>Shared task, artifact, usage, and analytics schemas; JSON Schema export for other languages</li>
+            <li>Gateway-to-server <strong>internal signed identity assertions</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 5 : VERIFICATION -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Verification &amp; Observability</h2>
+      <span class="layer-sub">the harness that keeps the contract honest</span>
+    </div>
+    <div class="layer-body">
+      <div class="ops">
+        <div class="card">
+          <h4>Conformance CLI</h4>
+          <p>Generic MCP client exercising the full protocol surface — info, resources, prompts, completions, runs, usage, artifacts — plus auth-metadata discovery and token tooling.</p>
+        </div>
+        <div class="card">
+          <h4>Smoke Harness</h4>
+          <p>Rust end-to-end scenarios with process orchestration and fake IdP / provider / upstream services, exercising the full stack against controlled dependencies.</p>
+        </div>
+        <div class="card">
+          <h4>Telemetry</h4>
+          <p>OpenTelemetry traces and logs across gateway and servers, with audit summaries as durable evidence for regulated deployments.</p>
+        </div>
+      </div>
+      <div class="legend">
+        <span><code>name__tool</code> — gateway tool-name projection</span>
+        <span><code>{scheme}://artifact/{sha256}</code> — immutable artifact URI</span>
+        <span>amber chips — capability enforced through the shared planes</span>
+        <span>agent lifecycle — wake → assemble → episode → persist → sleep, forever</span>
+      </div>
+    </div>
+  </section>
+</div>
