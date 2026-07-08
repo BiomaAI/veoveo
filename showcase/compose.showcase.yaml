@@ -10,7 +10,8 @@
 services:
   sumo:
     build:
-      context: ./sumo
+      # Contexts are resolved from the project root (the first -f compose file).
+      context: ./showcase/sumo
       dockerfile: Dockerfile
     # TraCI is single-client and unauthenticated: internal network only.
     expose:
@@ -20,7 +21,7 @@ services:
 
   sumo-mcp:
     build:
-      context: ./sumo-mcp
+      context: ./showcase/sumo-mcp
       dockerfile: Dockerfile
     depends_on:
       sumo:
