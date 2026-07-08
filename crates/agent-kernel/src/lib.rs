@@ -12,9 +12,14 @@
 //! and each result wakes a fresh episode.
 
 pub mod connection;
+pub mod context;
 pub mod episode;
 pub mod ledger;
 pub mod llm;
 pub mod manifest;
 pub mod recorder;
+pub mod rrd;
+pub mod summary;
 pub mod tasks;
+pub mod timeline;
+pub mod tools;

@@ -20,5 +20,18 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     match args.cmd {
         Cmd::Run(run_args) => run::cmd_run(run_args).await,
+        Cmd::Timeline(timeline_args) => {
+            let query = veoveo_agent_kernel::timeline::TimelineQuery {
+                entities: timeline_args.entities,
+                timeline: timeline_args.timeline,
+                max_rows: timeline_args.max_rows,
+            };
+            let rows = veoveo_agent_kernel::timeline::query_segments(
+                &timeline_args.data_dir.join(&timeline_args.rrd_dir),
+                &query,
+            )?;
+            println!("{}", serde_json::to_string_pretty(&rows)?);
+            Ok(())
+        }
     }
 }

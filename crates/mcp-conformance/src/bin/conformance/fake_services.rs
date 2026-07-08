@@ -136,12 +136,18 @@ pub(super) async fn cmd_otlp_http_sink(
 
 /// Scripted OpenAI-compatible chat-completions endpoint for agent-kernel
 /// smoke tests. The script is keyed off conversation shape, so it is
-/// deterministic across retries:
+/// deterministic across retries.
 ///
-/// - a message containing `Background task update` → final answer, stop;
-/// - no assistant turns yet → call `media__run` (webhook-delayed task, so it
-///   is guaranteed to outlive the episode and detach);
-/// - otherwise → announce waiting, stop (the run detaches the pending task).
+/// Boot episode (no `Background task update` in the messages):
+/// 1. `memory_query` over the kernel ledger;
+/// 2. `media__run` (webhook-delayed task, guaranteed to outlive the episode
+///    and detach);
+/// 3. announce waiting, stop.
+///
+/// Wake episode (a message contains `Background task update`):
+/// 1. `memory_write` recording the outcome;
+/// 2. `timeline_query` over the flight log;
+/// 3. final answer, stop.
 pub(super) async fn cmd_fake_openai_llm(port: u16, ready_file: Option<PathBuf>) -> Result<()> {
     let router = AxumRouter::new().route("/v1/chat/completions", axum_post(fake_llm_completion));
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
@@ -175,29 +181,43 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
         .count();
 
-    let choice = if has_task_update {
-        json!({
+    let choice = match (has_task_update, assistant_turns) {
+        (true, 0) => fake_llm_tool_call_choice(
+            "memory_write",
+            json!({
+                "op": "insert",
+                "table": "notes",
+                "row": { "note": "media task completed", "source": "agent-kernel-smoke" }
+            }),
+        ),
+        (true, 1) => fake_llm_tool_call_choice(
+            "timeline_query",
+            json!({ "entities": "/agent/**", "max_rows": 10 }),
+        ),
+        (true, _) => json!({
             "index": 0,
             "message": {
                 "role": "assistant",
-                "content": "OBJECTIVE COMPLETE: the export artifact is recorded."
+                "content": "OBJECTIVE COMPLETE: the artifact is recorded in memory."
             },
             "finish_reason": "stop"
-        })
-    } else if assistant_turns == 0 {
-        fake_llm_tool_call_choice(
+        }),
+        (false, 0) => fake_llm_tool_call_choice(
+            "memory_query",
+            json!({ "sql": "SELECT COUNT(*) AS episodes FROM kernel.episodes" }),
+        ),
+        (false, 1) => fake_llm_tool_call_choice(
             "media__run",
             json!({
                 "model": "fake/image",
                 "input": { "prompt": "agent kernel smoke" }
             }),
-        )
-    } else {
-        json!({
+        ),
+        (false, _) => json!({
             "index": 0,
             "message": { "role": "assistant", "content": "WAITING FOR BACKGROUND TASKS" },
             "finish_reason": "stop"
-        })
+        }),
     };
 
     AxumJson(json!({

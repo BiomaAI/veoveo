@@ -19,6 +19,10 @@ clap.workspace = true
 dotenvy.workspace = true
 duckdb.workspace = true
 jsonwebtoken.workspace = true
+re_chunk_store.workspace = true
+re_dataframe.workspace = true
+re_sdk.workspace = true
+re_sdk_types.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rig-core.workspace = true
 rmcp = { workspace = true, features = [

@@ -10,18 +10,24 @@ use anyhow::{Context, Result};
 use rig_core::agent::{Agent, run::TaskDrainPolicy};
 use uuid::Uuid;
 
+use std::sync::Arc;
+
 use crate::{
     connection::GatewayConnection,
+    context,
     ledger::{EpisodeOutcome, KernelLedger},
     llm::KernelModel,
     manifest::AgentManifest,
     recorder::RecorderHook,
+    rrd::RrdRecorder,
+    summary,
 };
 
 pub struct EpisodeDriver {
     manifest: AgentManifest,
     agent: Agent<KernelModel>,
     ledger: KernelLedger,
+    rrd: Arc<RrdRecorder>,
 }
 
 #[derive(Debug)]
@@ -33,11 +39,17 @@ pub struct EpisodeReport {
 }
 
 impl EpisodeDriver {
-    pub fn new(manifest: AgentManifest, agent: Agent<KernelModel>, ledger: KernelLedger) -> Self {
+    pub fn new(
+        manifest: AgentManifest,
+        agent: Agent<KernelModel>,
+        ledger: KernelLedger,
+        rrd: Arc<RrdRecorder>,
+    ) -> Self {
         Self {
             manifest,
             agent,
             ledger,
+            rrd,
         }
     }
 
@@ -45,7 +57,7 @@ impl EpisodeDriver {
         &self,
         connection: &mut GatewayConnection,
         wake_note: &str,
-        prompt: String,
+        wake_body: &str,
     ) -> Result<EpisodeReport> {
         connection
             .ensure_fresh()
@@ -54,9 +66,15 @@ impl EpisodeDriver {
 
         let episode_id = Uuid::new_v4();
         let seq = self.ledger.begin_episode(episode_id, wake_note)?;
+        self.rrd.begin_episode(seq);
         tracing::info!(%episode_id, seq, wake_note, "episode started");
 
-        let recorder = RecorderHook::new(self.ledger.clone(), episode_id);
+        let prompt = context::assemble(&self.manifest, &self.ledger, wake_body)
+            .context("assembling episode context")?;
+        self.rrd
+            .log_document("/agent/episodes", "text/markdown", prompt.clone());
+
+        let recorder = RecorderHook::new(self.ledger.clone(), self.rrd.clone(), episode_id);
         let tool_calls = recorder.tool_call_counter();
         let response = self
             .agent
@@ -99,19 +117,27 @@ impl EpisodeDriver {
                     tool_calls,
                     None,
                 )?;
-                tracing::info!(
-                    %episode_id,
-                    seq,
-                    detached_tasks = response.unresolved_tasks.len(),
-                    outcome = EpisodeOutcome::Completed.as_str(),
-                    "episode completed"
-                );
-                Ok(EpisodeReport {
+                let report = EpisodeReport {
                     episode_id,
                     seq,
                     output: response.output,
                     detached_tasks: response.unresolved_tasks.len(),
-                })
+                };
+                let summary = summary::deterministic(&report, wake_note, tool_calls);
+                self.ledger.set_episode_summary(episode_id, &summary)?;
+                self.rrd.log_text("/agent/episodes", summary);
+                self.rrd.flush();
+                if let Err(err) = self.rrd.rotate_if_needed() {
+                    tracing::warn!(%err, "rrd rotation failed");
+                }
+                tracing::info!(
+                    %episode_id,
+                    seq,
+                    detached_tasks = report.detached_tasks,
+                    outcome = EpisodeOutcome::Completed.as_str(),
+                    "episode completed"
+                );
+                Ok(report)
             }
             Err(err) => {
                 self.ledger.finish_episode(
@@ -124,6 +150,9 @@ impl EpisodeDriver {
                     tool_calls,
                     Some(&err.to_string()),
                 )?;
+                self.rrd
+                    .log_text("/agent/errors", format!("episode {seq} failed: {err:#}"));
+                self.rrd.flush();
                 tracing::error!(%episode_id, seq, %err, "episode failed");
                 Err(err).context("running the episode")
             }
