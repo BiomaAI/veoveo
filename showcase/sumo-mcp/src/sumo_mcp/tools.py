@@ -109,6 +109,18 @@ class SumoToolset:
     def driver(self) -> SimDriver:
         return self._driver
 
+    async def step_once(self):
+        """Advance one step and return (vehicles, signals, mean_speed) under the
+        lock — the push loop uses this so stepping never races MCP tool access to
+        the single sim owner."""
+        async with self._lock:
+            self._driver.step(1)
+            return (
+                self._driver.vehicles(),
+                self._driver.signals(),
+                self._driver.mean_speed(),
+            )
+
     async def query_state(self) -> QueryStateResult:
         async with self._lock:
             vs = self._driver.vehicles()

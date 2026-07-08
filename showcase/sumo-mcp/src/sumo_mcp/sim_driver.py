@@ -165,3 +165,77 @@ class FakeSimDriver:
 
     def close(self) -> None:  # nothing to release
         return None
+
+
+class TraciSimDriver:
+    """The real connection to a running SUMO (started with `--remote-port`).
+
+    `traci` is imported lazily so the package (and its tests) work without SUMO
+    installed. This owns the single TraCI connection; the server serializes all
+    access to it, so stepping is never interleaved with reads or actuation.
+    """
+
+    def __init__(self, host: str = "127.0.0.1", port: int = 8813, name: str = "sumo") -> None:
+        import traci  # lazy: only on the live path
+
+        self._traci = traci
+        traci.init(port=port, host=host)
+        self._name = name
+
+    def describe(self) -> ScenarioInfo:
+        t = self._traci
+        edges = [e for e in t.edge.getIDList() if not e.startswith(":")]
+        signals = list(t.trafficlight.getIDList())
+        # Network geo-reference origin (net offset back to lon/lat).
+        lon, lat = t.simulation.convertGeo(0.0, 0.0)
+        return ScenarioInfo(
+            name=self._name,
+            edges=edges,
+            signals=signals,
+            origin_lat=lat,
+            origin_lon=lon,
+        )
+
+    def sim_time(self) -> float:
+        return float(self._traci.simulation.getTime())
+
+    def step(self, n: int = 1) -> None:
+        if n < 0:
+            raise ValueError("step count must be non-negative")
+        for _ in range(n):
+            self._traci.simulationStep()
+
+    def vehicles(self) -> list[VehicleState]:
+        t = self._traci
+        out: list[VehicleState] = []
+        for vid in t.vehicle.getIDList():
+            x, y = t.vehicle.getPosition(vid)
+            lon, lat = t.simulation.convertGeo(x, y)
+            out.append(
+                VehicleState(
+                    id=vid,
+                    lat=lat,
+                    lon=lon,
+                    speed_mps=float(t.vehicle.getSpeed(vid)),
+                    edge=t.vehicle.getRoadID(vid),
+                )
+            )
+        return out
+
+    def signals(self) -> list[SignalState]:
+        t = self._traci
+        return [SignalState(id=s, phase=int(t.trafficlight.getPhase(s))) for s in t.trafficlight.getIDList()]
+
+    def mean_speed(self) -> float:
+        vs = self.vehicles()
+        return sum(v.speed_mps for v in vs) / len(vs) if vs else 0.0
+
+    def set_signal_phase(self, signal_id: str, phase: int) -> None:
+        self._traci.trafficlight.setPhase(signal_id, phase)
+
+    def reroute_vehicle(self, vehicle_id: str, target_edge: str) -> None:
+        self._traci.vehicle.changeTarget(vehicle_id, target_edge)
+
+    def close(self) -> None:
+        with __import__("contextlib").suppress(Exception):
+            self._traci.close()

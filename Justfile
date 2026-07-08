@@ -344,3 +344,11 @@ e2e public_base_url output_dir='output/e2e':
 # Test the showcase SUMO MCP server (fake driver, no SUMO needed).
 test-sumo-mcp:
     bash showcase/sumo-mcp/scripts/test.sh
+
+# S0 push smoke: SUMO sim (fake driver) pushes world state into the real hub.
+smoke-sumo-push:
+    bash showcase/sumo-mcp/scripts/sumo_push_smoke.sh
+
+# Bring up the full SUMO showcase (SUMO + sumo-mcp + hub).
+showcase-up:
+    docker compose -f compose.yaml -f showcase/compose.showcase.yaml --profile hub --profile showcase up --build
