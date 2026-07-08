@@ -132,6 +132,41 @@ pub(crate) fn spawn_coordinates_smoke(
     )
 }
 
+pub(crate) fn spawn_duckdb_smoke(
+    duckdb: &Path,
+    port: u16,
+    public_base_url: &str,
+    data_dir: &Path,
+    artifact_service_url: &str,
+    log: &Path,
+) -> Result<ChildGuard> {
+    ChildGuard::spawn(
+        duckdb,
+        [
+            "--port".into(),
+            port.to_string().into(),
+            "--public-base-url".into(),
+            public_base_url.into(),
+            "--allow-loopback-hosts".into(),
+            "--state-db".into(),
+            data_dir
+                .join("duckdb-state.duckdb")
+                .as_os_str()
+                .to_os_string(),
+            "--database-dir".into(),
+            data_dir.join("databases").as_os_str().to_os_string(),
+            "--exchange-dir".into(),
+            data_dir.join("exchange").as_os_str().to_os_string(),
+            "--spill-dir".into(),
+            data_dir.join("spill").as_os_str().to_os_string(),
+            "--artifact-service-url".into(),
+            artifact_service_url.into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        log,
+    )
+}
+
 pub(crate) struct GatewayControlDbSmoke {
     pub(crate) url: String,
     _container: ContainerGuard,

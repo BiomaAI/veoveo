@@ -101,7 +101,10 @@ mod tokens;
 use auth_discovery::{AuthDiscoveryCheck, cmd_auth_discovery};
 use cli::{Args, Cmd};
 use client::connect;
-use control_plane::{cmd_gateway_smoke_control_plane, cmd_gateway_two_server_smoke_control_plane};
+use control_plane::{
+    cmd_gateway_agent_smoke_control_plane, cmd_gateway_smoke_control_plane,
+    cmd_gateway_two_server_smoke_control_plane,
+};
 use fake_services::{
     cmd_fake_hosted_mcp, cmd_fake_media_provider, cmd_gateway_fake_oidc_idp, cmd_otlp_http_sink,
 };
@@ -193,6 +196,17 @@ async fn main() -> Result<()> {
                 output.clone(),
                 media_upstream_url.clone(),
                 simulation_upstream_url.clone(),
+            );
+        }
+        Cmd::GatewayAgentSmokeControlPlane {
+            base,
+            output,
+            duckdb_upstream_url,
+        } => {
+            return cmd_gateway_agent_smoke_control_plane(
+                base.clone(),
+                output.clone(),
+                duckdb_upstream_url.clone(),
             );
         }
         Cmd::GatewayFakeOidcIdp {
@@ -361,6 +375,9 @@ async fn main() -> Result<()> {
         Cmd::GatewayPrivateKeyDerB64 => unreachable!("handled before MCP connection"),
         Cmd::GatewaySmokeControlPlane { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayTwoServerSmokeControlPlane { .. } => {
+            unreachable!("handled before MCP connection")
+        }
+        Cmd::GatewayAgentSmokeControlPlane { .. } => {
             unreachable!("handled before MCP connection")
         }
         Cmd::GatewayFakeOidcIdp { .. } => unreachable!("handled before MCP connection"),
