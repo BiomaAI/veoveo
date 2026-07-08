@@ -427,6 +427,37 @@
     .server, .gateway, .card { transition: border-color 140ms ease; }
     .server:hover, .plane:hover { border-color: var(--line-strong); }
   }
+
+  /* ---------- diagrams (mermaid) ---------- */
+  figure.diagram {
+    margin: 6px 0 30px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 18px 14px;
+    overflow-x: auto;
+  }
+  figure.diagram .mermaid {
+    display: flex;
+    justify-content: center;
+    min-height: 40px;
+    font-family: var(--body);
+  }
+  figure.diagram .mermaid:not([data-processed]) { color: var(--faint); font-family: var(--mono); font-size: 12px; }
+  figure.diagram figcaption {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    text-align: center;
+  }
+  figure.diagram figcaption b { color: var(--accent-ink); font-weight: 600; }
+
+  /* hero diagram sits full-width under the header */
+  .hero-diagram { margin: 8px 0 34px; }
 </style>
 
 <div class="wrap">
@@ -434,21 +465,61 @@
     <p class="eyebrow">System Architecture · Tool Capabilities</p>
     <h1>Pilot Harness</h1>
     <p class="lede">
-      A self-hosted <strong>MCP gateway, a fleet of hosted tool servers, and an agent kernel</strong>
-      for regulated workloads. Long-lived autonomous agents — the Pilot is the first — work in
-      bounded episodes over one public endpoint that carries the full MCP protocol through
-      enterprise auth and typed policy to six domain servers, all sharing a single
-      policy-enforced artifact plane.
+      A self-hosted <strong>MCP gateway, a fleet of hosted tool servers, an agent kernel, and a
+      durable recording hub</strong> for regulated workloads. Long-lived autonomous agents — the
+      Pilot is the first — work in bounded episodes over one public endpoint that carries the full
+      MCP protocol through enterprise auth and typed policy to domain servers, all sharing a single
+      policy-enforced artifact plane. Every sensor, agent, and simulator streams its
+      time-and-space data into one durable, queryable record. A live
+      <strong>SUMO traffic world</strong> proves the whole loop end to end.
     </p>
     <div class="statrow">
       <div class="stat"><b>34</b>gateway tools</div>
-      <div class="stat"><b>6</b>hosted tool servers</div>
+      <div class="stat"><b>6+1</b>hosted servers · sumo-mcp</div>
       <div class="stat"><b>1</b>agent kernel</div>
-      <div class="stat"><b>2</b>memory planes per agent</div>
-      <div class="stat"><b>5</b>wake sources</div>
+      <div class="stat"><b>1</b>recording hub</div>
+      <div class="stat"><b>~225k</b>msgs/s lossless</div>
       <div class="stat"><b>1</b>shared artifact plane</div>
     </div>
   </header>
+
+  <!-- HERO: whole-system data flow -->
+  <figure class="diagram hero-diagram">
+    <div class="mermaid">
+flowchart LR
+  classDef prod fill:none,stroke-dasharray:3 3;
+  subgraph PROD["Producers"]
+    direction TB
+    SEN["Sensors<br/>cameras · IMU · GNSS"]
+    SUMO["SUMO sim<br/>traffic world"]
+    TEE["Agent flight log<br/>(tee)"]
+  end
+  subgraph HUB["Recording Hub"]
+    direction TB
+    PROXY["gRPC proxy :9876"]
+    SPOOL["Spooler<br/>durable writer"]
+    FILES[("Segment files<br/>dataset / day / recording")]
+    CAT["Catalog<br/>rerun server · redap :51234"]
+    PROXY --> SPOOL --> FILES --> CAT
+  end
+  subgraph PLANE["Control & Access"]
+    direction TB
+    GW["MCP Gateway<br/>auth · policy · audit"]
+    SRV["6 hosted servers<br/>+ sumo-mcp"]
+    GW --> SRV
+  end
+  KERNEL["Agent Kernel<br/>bounded episodes"]
+
+  SEN -->|push| PROXY
+  SUMO -->|push| PROXY
+  TEE -->|push| PROXY
+  KERNEL -->|tools| GW
+  KERNEL -.tee.-> PROXY
+  CAT -->|latest-at · range · dataframe| KERNEL
+  SRV -.->|world control| SUMO
+    </div>
+    <figcaption><b>The whole system.</b> Files are the record · the proxy is the bus · the catalog is the reading room — governed tools flow through the gateway.</figcaption>
+  </figure>
 
   <!-- LAYER 0 : AGENT KERNEL -->
   <section class="layer">
@@ -859,6 +930,181 @@
     </div>
   </section>
 
+  <!-- LAYER : RECORDING HUB -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Recording Hub</h2>
+      <span class="layer-sub">the durable, queryable time-and-space record — one bus, many producers</span>
+    </div>
+    <div class="layer-body">
+      <div class="card">
+        <p class="agent-lede">
+          Every sensor, estimator, and agent streams Rerun data into <strong>one gRPC ingest
+          point</strong>. A spooler <strong>embeds the proxy and persists every message</strong> to
+          day-partitioned segment files — proxy and durable writer in one process, so the write is
+          first-class and no ring-buffer drop can lose data. Files are <strong>footer-less while
+          live</strong> (crash-decodable) and gain a manifest at freeze; the OSS Rerun catalog
+          serves the same bytes over redap. <strong>Files are the record, the proxy is the bus, the
+          catalog is the reading room.</strong>
+        </p>
+
+        <figure class="diagram">
+          <div class="mermaid">
+flowchart TB
+  subgraph SP["Spooler process (one)"]
+    direction LR
+    RX["Embedded gRPC proxy<br/>re_grpc_server"] --> DEMUX["Demux by<br/>application id → recording"]
+    DEMUX --> ENC["Per-recording encoder<br/>footer-less, buffered"]
+    ENC --> LIVE[("Live segment<br/>crash-decodable")]
+    LIVE -->|size / age| FREEZE["Freeze<br/>finish · optimize · verify"]
+    FREEZE --> FROZEN[("Frozen segment<br/>+ manifest")]
+  end
+  P1["Sensors"] -->|push| RX
+  P2["Agent tee"] -->|push| RX
+  P3["SUMO"] -->|push| RX
+  FROZEN --> CATSRV["Catalog · rerun server"]
+  LIVE -.snapshot.-> QE["QueryEngine<br/>local reader (authoritative)"]
+  CATSRV -->|redap: segment id = recording id| CLIENTS["agents · pipelines · viewers"]
+          </div>
+          <figcaption><b>Durable capture.</b> kill -9 leaves a footer-less but readable segment · restart resumes into a <b>.rN</b> sibling, never truncates · ~225k msgs/s lossless.</figcaption>
+        </figure>
+
+        <div class="agent-grid">
+          <div>
+            <h5>Producers → bus</h5>
+            <ul>
+              <li>Many SDKs stream into one proxy, sessioned by recording id.</li>
+              <li>Routing: application-id prefix → dataset (<code>world</code>, <code>agents</code>, …); unmatched → <code>quarantine</code>.</li>
+              <li>Internal-network only — the OSS proxy trusts every caller.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Durability</h5>
+            <ul>
+              <li>Segment per <code>(dataset, day, recording)</code>.</li>
+              <li>Footer-less live → decodable to the last whole message after a crash.</li>
+              <li>Freeze runs <code>rerun rrd optimize</code> for a lazy-loadable manifest.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Reading room</h5>
+            <ul>
+              <li>Local <code>QueryEngine</code> is the authoritative file reader.</li>
+              <li>Catalog serves the same files over redap; <code>segment id == recording id</code>.</li>
+              <li>latest-at = a world snapshot · range = a trajectory.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="chiprow" style="margin-top:14px">
+          <span class="chip">embedded proxy</span>
+          <span class="chip">footer-less crash-safe</span>
+          <span class="chip">.rN resume</span>
+          <span class="chip">optimize-on-freeze</span>
+          <span class="chip">redap catalog</span>
+          <span class="chip">~225k msgs/s</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER : SUMO SHOWCASE -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">SUMO Showcase</h2>
+      <span class="layer-sub">a live traffic world proving perceive → decide → act, end to end</span>
+    </div>
+    <div class="layer-body">
+      <div class="card">
+        <p class="agent-lede">
+          The <a href="https://eclipse.dev/sumo/">SUMO</a> traffic simulator runs a live city in its
+          own container. A single <strong>Python <code>sumo-mcp</code> server</strong> owns the one
+          TraCI connection, <strong>pushes the world into the hub</strong> as typed
+          <code>/world/sumo/**</code> streams, and exposes SUMO control as governed
+          <code>sumo__*</code> tools. The long operations are <strong>MCP tasks</strong> the agent
+          detaches from and wakes on — the same durable sleep/wake the kernel already runs, now
+          driven by a real simulator. SUMO is just another hub producer; the hub never pulls.
+        </p>
+
+        <figure class="diagram">
+          <div class="mermaid">
+flowchart LR
+  SUMO["SUMO<br/>Docker · TraCI :8813"]
+  MCP["sumo-mcp<br/>Python · task-native"]
+  HUB["Recording Hub<br/>world dataset"]
+  WM["Agent world model<br/>latest-at / range"]
+  EP["Agent episode"]
+
+  SUMO <-->|TraCI step / read| MCP
+  MCP -->|push /world/sumo/**| HUB
+  HUB --> WM --> EP
+  EP -->|"sumo__run_batch (task)"| MCP
+  EP -.->|"detach · sleep"| EP
+  MCP -->|task result → wake| EP
+  EP -->|"set_signal_phase · reroute"| MCP
+  MCP -->|"resources/updated: congestion"| EP
+          </div>
+          <figcaption><b>The closed loop.</b> perceive (push → world model) → decide (task, sleep) → act (signals, reroute) → a congestion resource wakes the next episode.</figcaption>
+        </figure>
+
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant A as Agent kernel
+  participant G as Gateway
+  participant S as sumo-mcp
+  participant U as SUMO
+  A->>G: call sumo__run_batch (task-augmented)
+  G->>S: tools/call (task)
+  S-->>A: CreateTaskResult
+  Note over A: persist descriptor · end episode · sleep
+  S->>U: step N (fast-forward)
+  S-->>A: notifications/tasks/status → completed
+  A->>S: tasks/result  (blocks until terminal)
+  S-->>A: RunBatchResult { congestion_detected }
+  Note over A: fresh episode assembled with the result
+          </div>
+          <figcaption><b>Task sleep/wake.</b> the exact detach → sleep → wake path, wire-compatible with the SEP-1686 tasks our gateway and kernel speak.</figcaption>
+        </figure>
+
+        <div class="agent-grid">
+          <div>
+            <h5>Why our own, in Python</h5>
+            <ul>
+              <li>It's what clients build — a proper task-native server, not a stdio child.</li>
+              <li>Full task API, gateway auth/policy, resource subscriptions, pydantic types.</li>
+              <li>Task line pinned (<code>mcp 1.28.x</code>, SEP-1686) behind one migration seam.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Tools</h5>
+            <ul>
+              <li><strong>sync</strong>: <code>query_state</code>, <code>describe_scenario</code>, <code>set_signal_phase</code>, <code>reroute_vehicle</code>.</li>
+              <li><strong>tasks</strong>: <code>run_batch</code>, <code>generate_network</code>, <code>compute_routes</code>, <code>optimize_signals</code>.</li>
+              <li><strong>events</strong>: <code>sim://congestion</code> — subscribe → wake.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>One sim owner</h5>
+            <ul>
+              <li>TraCI is single-client; one asyncio owner steps, pushes, and applies commands.</li>
+              <li>Push loop and tools share the toolset lock — no interleaving.</li>
+              <li>Vehicles as <code>GeoPoints</code>, speeds and phases as scalars.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="chiprow" style="margin-top:14px">
+          <span class="chip">sumo__*</span>
+          <span class="chip">MCP tasks</span>
+          <span class="chip">detach · sleep · wake</span>
+          <span class="chip">resources/updated</span>
+          <span class="chip">GeoPoints world</span>
+          <span class="chip">16 tests green</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- LAYER 5 : VERIFICATION -->
   <section class="layer">
     <div class="layer-head">
@@ -885,7 +1131,81 @@
         <span><code>{scheme}://artifact/{sha256}</code> — immutable artifact URI</span>
         <span>amber chips — capability enforced through the shared planes</span>
         <span>agent lifecycle — wake → assemble → episode → persist → sleep, forever</span>
+        <span>hub — files are the record · the proxy is the bus · the catalog is the reading room</span>
+        <span>showcase — SUMO proves perceive → decide → act on the real loop</span>
       </div>
     </div>
   </section>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  // Standalone, single-file: mermaid is pulled from CDN and rendered with a
+  // palette derived from the page's own tokens, in both light and dark.
+  (function () {
+    var blocks = Array.prototype.slice.call(document.querySelectorAll(".mermaid"));
+    blocks.forEach(function (el) { el.dataset.src = el.textContent; });
+
+    function isDark() {
+      var attr = document.documentElement.getAttribute("data-theme");
+      if (attr === "dark") return true;
+      if (attr === "light") return false;
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+
+    function themeVariables(dark) {
+      return dark
+        ? {
+            background: "#16202A", mainBkg: "#1D2935", primaryColor: "#1D2935",
+            primaryTextColor: "#E7EDF2", primaryBorderColor: "#37475A",
+            secondaryColor: "#22303C", secondaryBorderColor: "#37475A", secondaryTextColor: "#E7EDF2",
+            tertiaryColor: "#141D26", tertiaryBorderColor: "#263340", tertiaryTextColor: "#8C9AA6",
+            lineColor: "#8C9AA6", textColor: "#E7EDF2",
+            clusterBkg: "#131C24", clusterBorder: "#37475A",
+            noteBkgColor: "#E2A14E22", noteBorderColor: "#E2A14E", noteTextColor: "#E7EDF2",
+            actorBkg: "#1D2935", actorBorder: "#37475A", actorTextColor: "#E7EDF2",
+            signalColor: "#8C9AA6", signalTextColor: "#E7EDF2",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          }
+        : {
+            background: "#FFFFFF", mainBkg: "#EDF1F4", primaryColor: "#EDF1F4",
+            primaryTextColor: "#17212B", primaryBorderColor: "#B9C4CD",
+            secondaryColor: "#F2F4F6", secondaryBorderColor: "#B9C4CD", secondaryTextColor: "#17212B",
+            tertiaryColor: "#F7F9FB", tertiaryBorderColor: "#D8DEE4", tertiaryTextColor: "#5A6772",
+            lineColor: "#5A6772", textColor: "#17212B",
+            clusterBkg: "#F7F9FB", clusterBorder: "#B9C4CD",
+            noteBkgColor: "#B8751418", noteBorderColor: "#B87514", noteTextColor: "#17212B",
+            actorBkg: "#EDF1F4", actorBorder: "#B9C4CD", actorTextColor: "#17212B",
+            signalColor: "#5A6772", signalTextColor: "#17212B",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          };
+    }
+
+    function render() {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        themeVariables: themeVariables(isDark()),
+        flowchart: { curve: "basis", htmlLabels: true, useMaxWidth: true },
+        sequence: { useMaxWidth: true },
+        securityLevel: "loose"
+      });
+      blocks.forEach(function (el) {
+        el.removeAttribute("data-processed");
+        el.innerHTML = el.dataset.src;
+      });
+      mermaid.run({ nodes: blocks });
+    }
+
+    render();
+    if (window.matchMedia) {
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+    }
+    // Re-render if a host toggles the theme attribute (viewer light/dark switch).
+    new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        if (muts[i].attributeName === "data-theme") { render(); break; }
+      }
+    }).observe(document.documentElement, { attributes: true });
+  })();
+</script>
