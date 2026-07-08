@@ -259,6 +259,7 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
             ]),
             credential_secret: None,
             jwks: None,
+            tenant: None,
             metadata: Value::Null,
         },
         OAuthClientRegistration {
@@ -281,6 +282,7 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
                 jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/clients/jwks.json")
                     .unwrap(),
             }),
+            tenant: None,
             metadata: Value::Null,
         },
     ]
@@ -325,6 +327,7 @@ fn hosted_compat_oauth_client(
         allowed_scopes: BTreeSet::from([ScopeName::new("operator:use").unwrap()]),
         credential_secret: None,
         jwks: None,
+        tenant: None,
         metadata: Value::Null,
     }
 }

@@ -10,7 +10,7 @@ use jsonwebtoken::{
 use serde::Serialize;
 use veoveo_mcp_contract::{
     GatewayProfile, JwtId, OAuthClientId, Principal, PrincipalKind, ResourceAuthorizationServer,
-    ScopeName, SecretPurpose, SecretReferenceId, TokenSubject,
+    ScopeName, SecretPurpose, SecretReferenceId, TenantId, TokenSubject,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
 
@@ -52,6 +52,7 @@ pub(super) async fn issue_client_credentials_access_token(
     authorization_server: &ResourceAuthorizationServer,
     profile: &GatewayProfile,
     client_id: &OAuthClientId,
+    service_tenant: Option<&TenantId>,
     scopes: &BTreeSet<ScopeName>,
 ) -> anyhow::Result<IssuedAccessToken> {
     let subject = TokenSubject::new(client_id.as_str())?;
@@ -63,11 +64,13 @@ pub(super) async fn issue_client_credentials_access_token(
         client_id,
         PrincipalKind::Service,
         None,
+        service_tenant,
         scopes,
     )
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn issue_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
@@ -76,6 +79,7 @@ pub(super) async fn issue_access_token(
     client_id: &OAuthClientId,
     principal_kind: PrincipalKind,
     principal: Option<&Principal>,
+    service_tenant: Option<&TenantId>,
     scopes: &BTreeSet<ScopeName>,
 ) -> anyhow::Result<IssuedAccessToken> {
     let signing_key = access_token_signing_key(
@@ -127,6 +131,7 @@ pub(super) async fn issue_access_token(
             .unwrap_or_default(),
         tenant: principal
             .and_then(|principal| principal.tenant.as_ref())
+            .or(service_tenant)
             .map(ToString::to_string),
         data_labels: principal
             .map(|principal| {

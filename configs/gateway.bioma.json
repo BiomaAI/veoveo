@@ -1720,7 +1720,8 @@
       "jwks": {
         "source": "remote",
         "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
-      }
+      },
+      "tenant": "bioma"
     },
     {
       "id": "admin-service",
@@ -1746,7 +1747,8 @@
       "jwks": {
         "source": "remote",
         "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
-      }
+      },
+      "tenant": "bioma"
     }
   ],
   "oidc_clients": [

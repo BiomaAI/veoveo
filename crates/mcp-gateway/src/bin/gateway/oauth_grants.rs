@@ -334,6 +334,7 @@ pub(super) async fn token_endpoint_authorization_code(
         &client_id,
         PrincipalKind::User,
         Some(&code_record.principal),
+        None,
         &code_record.scopes,
     )
     .await

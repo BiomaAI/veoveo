@@ -132,6 +132,12 @@ pub struct OAuthClientRegistration {
     pub credential_secret: Option<SecretReferenceId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jwks: Option<JwksSource>,
+    /// Tenant this client's service principal acts under. Client-credentials
+    /// tokens carry it as the `tenant` claim, which tenant-scoped services
+    /// (the artifact plane, tenant policy checks) require. Browser and
+    /// enterprise grants derive the tenant from the user identity instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<TenantId>,
     #[serde(default)]
     pub metadata: Value,
 }
