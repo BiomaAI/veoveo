@@ -164,7 +164,14 @@ async fn run_sensor(
     let rate = spec.kind.rate_hz() * burst;
     let tick_dur = std::time::Duration::from_secs_f64(1.0 / rate.max(1e-9));
     let mut generator = Generator::new(spec.clone());
-    let total = generator.planned_ticks();
+    // In realtime mode `burst` speeds emission of the planned ticks; in
+    // as-fast-as-possible (bench) mode it also multiplies the tick count, so a
+    // burst run actually generates burst× the data over the same duration.
+    let total = if realtime {
+        generator.planned_ticks()
+    } else {
+        ((generator.planned_ticks() as f64) * burst).round() as u64
+    };
     let mut interval = if realtime {
         Some(tokio::time::interval(tick_dur))
     } else {
