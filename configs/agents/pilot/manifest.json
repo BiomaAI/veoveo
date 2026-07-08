@@ -10,7 +10,7 @@
     "max_output_tokens": 4096
   },
   "gateway": {
-    "url": "http://localhost:8780",
+    "url": "${PILOT_GATEWAY_URL}",
     "profile": "operator",
     "client_id": "pilot-agent",
     "audience": "https://veoveo.bioma.ai/oauth/token",

@@ -141,7 +141,7 @@ smoke-agent-pilot:
 # Run the real Pilot against the live local compose stack with Cloudflare credentials from .env.
 agent-pilot-local data_dir="output/pilot-data":
     cargo build -p veoveo-agent-kernel --bin agent
-    target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9876/proxy
+    PILOT_GATEWAY_URL="${PILOT_GATEWAY_URL:-http://localhost:8780}" target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9876/proxy
 
 # Build MCP images.
 compose-build:

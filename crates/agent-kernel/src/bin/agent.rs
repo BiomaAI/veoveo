@@ -23,6 +23,21 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     match args.cmd {
         Cmd::Run(run_args) => run::cmd_run(run_args).await,
+        Cmd::Replay(replay_args) => {
+            let manifest =
+                veoveo_agent_kernel::manifest::AgentManifest::load(&replay_args.manifest)?;
+            let report =
+                veoveo_agent_kernel::replay::replay_domain(&manifest, &replay_args.data_dir)?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "applied": report.applied,
+                    "skipped": report.skipped,
+                    "output": report.output_path,
+                })
+            );
+            Ok(())
+        }
         Cmd::Ask(ask_args) => {
             let response = operator_client(&ask_args.data_dir)?
                 .post("/v1/prompt")

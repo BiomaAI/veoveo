@@ -614,6 +614,25 @@ pub(crate) async fn agent_pilot_mission(
     wait_for_http(&format!("{coordinates_base}/coordinates/healthz")).await?;
     wait_for_http(&format!("{optimization_base}/optimization/healthz")).await?;
 
+    let otlp_port = 18854u16;
+    let otlp_ready = tmpdir.join("otlp.ready");
+    let otlp_hits = tmpdir.join("otlp.hits");
+    let mut otlp = ChildGuard::spawn(
+        conformance,
+        [
+            "otlp-http-sink".into(),
+            "--port".into(),
+            otlp_port.to_string().into(),
+            "--ready-file".into(),
+            otlp_ready.as_os_str().to_os_string(),
+            "--hits-file".into(),
+            otlp_hits.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("otlp.log"),
+    )?;
+    wait_for_file(&otlp_ready).await?;
+
     let llm_ready = tmpdir.join("llm.ready");
     let mut llm = ChildGuard::spawn(
         conformance,
@@ -725,6 +744,11 @@ pub(crate) async fn agent_pilot_mission(
                 "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
             ),
+            ("OTEL_SERVICE_NAME", "veoveo-pilot-smoke".into()),
+            (
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                format!("http://127.0.0.1:{otlp_port}").into(),
+            ),
         ],
         &agent_log,
     )?;
@@ -776,10 +800,45 @@ pub(crate) async fn agent_pilot_mission(
     contains(&timeline, "coordinates__geodesic_inverse")?;
     contains(&timeline, "optimization__plan")?;
 
+    // Replay rebuilds domain truth from the flight log alone.
+    let replay = run_checked(
+        agent,
+        [
+            "replay".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+        ],
+        [
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+    )?;
+    contains(&replay, "\"applied\":2")?;
+    {
+        let replayed = duckdb::Connection::open(agent_data_dir.join("memory.replayed.duckdb"))?;
+        let (targets, waypoints): (i64, i64) = replayed.query_row(
+            "SELECT (SELECT COUNT(*) FROM targets), (SELECT COUNT(*) FROM waypoints)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        if targets != 1 || waypoints != 1 {
+            bail!("replay rebuilt {targets} targets / {waypoints} waypoints, expected 1/1");
+        }
+    }
+
+    // Telemetry left the building: the agent exported logs or traces.
+    wait_for_file_contains(&otlp_hits, "logs ", "traces ").await?;
+
     gateway_child.stop();
     coordinates_child.stop();
     optimization_child.stop();
     llm.stop();
+    otlp.stop();
     cleanup.remove_on_drop();
     println!("agent pilot mission smoke ok");
     Ok(())

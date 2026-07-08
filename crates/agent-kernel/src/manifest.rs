@@ -253,6 +253,7 @@ impl AgentManifest {
         let mut manifest: AgentManifest = serde_json::from_str(&raw)
             .with_context(|| format!("parsing agent manifest {}", path.display()))?;
         manifest.model.base_url = expand_env_placeholders(&manifest.model.base_url)?;
+        manifest.gateway.url = expand_env_placeholders(&manifest.gateway.url)?;
         if let (Some(dir), Some(parent)) = (&manifest.migrations_dir, path.parent())
             && dir.is_relative()
         {
