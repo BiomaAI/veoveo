@@ -8,6 +8,30 @@ range, dataframe) for agents, pipelines, analysts, and viewers alike.
 
 Files are the record. The proxy is the bus. The catalog is the reading room.
 
+## Build status (2026-07-08)
+
+**Hub H0–H4 built and tested** (`crates/recording-hub`): embedded-proxy spooler
++ `sensor-sim` + `hub-query`; 10 unit + 2 integration Rust tests; process
+smokes `hub_spool` (kill -9 + `.rN` resume + QueryEngine counts),
+`hub_catalog` (freeze→optimize→serve→**real redap query** cross-check, segment
+id == recording id, exact counts), `hub_agent_world` (routing), `hub_bench`
+(lossless at **~225k msgs/s**, burst 100). Docker image + `hub` compose profile
+(`docker compose config` valid). Justfile: `smoke-hub*`, `bench-hub`.
+
+**Showcase S0–S4 built and tested** (`showcase/`): Python `sumo-mcp`
+(task-native, `mcp==1.28.x`, pydantic, sync + task tools + congestion
+resource); **16 pytest** incl. the full `call_tool_as_task → poll →
+get_task_result` lifecycle and the subscribe→`resources/updated` wake; push
+spine proven against the real Rust hub (`sumo_push_smoke`, 40 frames durable).
+SUMO + sumo-mcp Dockerfiles, `compose.showcase.yaml` (config valid), README.
+Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`. The full live
+Docker stack (SUMO image pull + TraCI + push loop) is wired and config-valid;
+it is the one path not run in the build environment.
+
+Deferred (recorded): `append_transport_without_footer` fast path (unreachable
+through `spawn_with_recv`, and target already met); heavy compose e2e of the
+agent tee with real gateway+Cloudflare; the Pilot Harness HTML gaining the hub.
+
 ## Verified constraints this design is built on (Rerun 0.34)
 
 1. The gRPC message proxy is a relay with a bounded in-memory queue
