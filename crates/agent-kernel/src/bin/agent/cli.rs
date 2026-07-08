@@ -15,6 +15,8 @@ pub(crate) enum Cmd {
     Run(RunArgs),
     /// Query the agent's episodic flight log (RRD segments) as JSON rows.
     Timeline(TimelineArgs),
+    /// Rebuild domain tables from the flight log into memory.replayed.duckdb.
+    Replay(ReplayArgs),
     /// Wake a running agent with an operator message.
     Ask(AskArgs),
     /// Show a running agent's status.
@@ -63,6 +65,16 @@ pub(crate) struct RunArgs {
     /// {data-dir}/operator.port).
     #[arg(long)]
     pub(crate) operator_port: Option<u16>,
+}
+
+#[derive(Parser, Debug)]
+pub(crate) struct ReplayArgs {
+    /// Agent manifest JSON.
+    #[arg(long)]
+    pub(crate) manifest: PathBuf,
+    /// Directory holding the agent's durable memory files.
+    #[arg(long)]
+    pub(crate) data_dir: PathBuf,
 }
 
 #[derive(Parser, Debug)]

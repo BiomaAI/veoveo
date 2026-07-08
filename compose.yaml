@@ -241,6 +241,45 @@ services:
     profiles:
       - dev
 
+  # The AI Pilot: a long-lived agent on the kernel, opt-in via the `agents`
+  # profile (it spends real LLM tokens). Connects to the gateway internally
+  # as the pilot-agent service principal; its manifest and migrations mount
+  # read-only from configs/agents/pilot, and PILOT_GATEWAY_URL points the
+  # manifest at the in-network gateway.
+  pilot-agent:
+    build:
+      context: .
+      dockerfile: crates/agent-kernel/Dockerfile
+    depends_on:
+      mcp-gateway:
+        condition: service_started
+    command:
+      - "run"
+      - "--manifest"
+      - "/etc/veoveo/pilot/manifest.json"
+      - "--data-dir"
+      - "/var/lib/veoveo/pilot"
+      - "--operator-port"
+      - "8794"
+      - "--viewer-tee"
+      - "rerun+http://rerun-bridge:9876/proxy"
+    environment:
+      PILOT_GATEWAY_URL: "http://mcp-gateway:8788"
+      CLOUDFLARE_ACCOUNT_ID: "${CLOUDFLARE_ACCOUNT_ID:-}"
+      CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:-}"
+      PILOT_AGENT_PRIVATE_KEY_DER_B64: "${PILOT_AGENT_PRIVATE_KEY_DER_B64:-}"
+      AGENT_OPERATOR_TOKEN: "${AGENT_OPERATOR_TOKEN:-}"
+      OTEL_SERVICE_NAME: veoveo-pilot-agent
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      RUST_LOG: "info,veoveo_agent_kernel=debug"
+    volumes:
+      - ./configs/agents/pilot:/etc/veoveo/pilot:ro
+      - pilot_data:/var/lib/veoveo/pilot
+    ports:
+      - "127.0.0.1:8794:8794"
+    profiles:
+      - agents
+
   rerun-bridge:
     build:
       context: .
@@ -414,6 +453,7 @@ services:
 
 volumes:
   rustfs_data:
+  pilot_data:
   media_state:
   timeseries_state:
   optimization_state:

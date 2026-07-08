@@ -22,6 +22,7 @@ pub mod llm;
 pub mod manifest;
 pub mod operator;
 pub mod recorder;
+pub mod replay;
 pub mod rrd;
 pub mod summary;
 pub mod tasks;
