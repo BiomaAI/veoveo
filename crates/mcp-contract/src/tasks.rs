@@ -160,14 +160,29 @@ pub fn set_related_task_meta(meta: &mut Option<Meta>, task_id: impl Into<String>
     *meta = Some(value);
 }
 
-#[derive(Default)]
 pub struct TaskStore {
     tasks: RwLock<HashMap<String, TaskEntry>>,
+    /// Bumped on every state mutation so `await_payload_state` long-polls
+    /// wake immediately instead of at their fallback tick.
+    changed: tokio::sync::watch::Sender<u64>,
+}
+
+impl Default for TaskStore {
+    fn default() -> Self {
+        Self {
+            tasks: RwLock::new(HashMap::new()),
+            changed: tokio::sync::watch::channel(0).0,
+        }
+    }
 }
 
 impl TaskStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn note_change(&self) {
+        self.changed.send_modify(|version| *version += 1);
     }
 
     pub async fn insert(&self, task: Task, join: Option<JoinHandle<()>>) {
@@ -192,6 +207,7 @@ impl TaskStore {
                 join,
             },
         );
+        self.note_change();
     }
 
     pub async fn set_provider_job_id(&self, task_id: &str, provider_job_id: impl Into<String>) {
@@ -236,7 +252,10 @@ impl TaskStore {
         if error.is_some() {
             entry.error = error;
         }
-        Some(entry.task.clone())
+        let task = entry.task.clone();
+        drop(tasks);
+        self.note_change();
+        Some(task)
     }
 
     pub async fn get(&self, task_id: &str) -> Option<Task> {
@@ -271,7 +290,25 @@ impl TaskStore {
         tasks
     }
 
-    pub async fn payload_state(&self, task_id: &str) -> TaskPayloadState {
+    /// The result-retrieval state for `tasks/result`, blocking while the task
+    /// is non-terminal: MCP 2025-11-25 requires the receiver to hold the
+    /// response until the task reaches a terminal status. Unknown task ids
+    /// return immediately. Store mutations wake the wait; a fallback tick
+    /// guards against missed signals.
+    pub async fn await_payload_state(&self, task_id: &str) -> TaskPayloadState {
+        let mut changed = self.changed.subscribe();
+        loop {
+            changed.mark_unchanged();
+            let state = self.payload_state_now(task_id).await;
+            if !matches!(state, TaskPayloadState::Running) {
+                return state;
+            }
+            let _ = tokio::time::timeout(std::time::Duration::from_millis(500), changed.changed())
+                .await;
+        }
+    }
+
+    async fn payload_state_now(&self, task_id: &str) -> TaskPayloadState {
         let tasks = self.tasks.read().await;
         let Some(entry) = tasks.get(task_id) else {
             return TaskPayloadState::Unknown;
@@ -306,7 +343,10 @@ impl TaskStore {
             entry.task.status_message = Some("cancelled by client".into());
             entry.task.last_updated_at = now_iso();
         }
-        Some(entry.task.clone())
+        let task = entry.task.clone();
+        drop(tasks);
+        self.note_change();
+        Some(task)
     }
 
     pub async fn prune_terminal_before(
@@ -474,7 +514,7 @@ mod tests {
         assert_eq!(task.status, TaskStatus::Cancelled);
         assert!(store.is_terminal("cancelled").await);
         assert_eq!(
-            store.payload_state("cancelled").await,
+            store.await_payload_state("cancelled").await,
             TaskPayloadState::Cancelled
         );
     }
