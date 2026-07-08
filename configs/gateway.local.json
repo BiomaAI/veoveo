@@ -405,7 +405,8 @@
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/jwks.smoke.json"
-      }
+      },
+      "tenant": "tenant-a"
     },
     {
       "id": "admin-service",
@@ -430,7 +431,8 @@
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/jwks.smoke.json"
-      }
+      },
+      "tenant": "tenant-a"
     }
   ],
   "oidc_clients": [

@@ -404,6 +404,7 @@ pub(crate) async fn token_endpoint_id_jag(
         &client_id,
         PrincipalKind::User,
         Some(&verified_id_jag.principal),
+        None,
         &scopes,
     )
     .await

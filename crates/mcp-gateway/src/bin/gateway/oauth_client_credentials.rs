@@ -375,6 +375,7 @@ pub(super) async fn token_endpoint_client_credentials(
         authorization_server,
         profile,
         &client_id,
+        client.tenant.as_ref(),
         &scopes,
     )
     .await
