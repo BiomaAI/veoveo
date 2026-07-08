@@ -8,6 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::contract::DuckDbColumn;
 use anyhow::{Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
 use duckdb::{
@@ -15,7 +16,6 @@ use duckdb::{
     types::{TimeUnit, ValueRef},
 };
 use serde_json::{Value, json};
-use veoveo_mcp_contract::DuckDbColumn;
 
 #[derive(Debug, Clone)]
 pub struct EngineSettings {

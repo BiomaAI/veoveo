@@ -1,7 +1,8 @@
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use veoveo_coordinates_mcp::contract::BatchTransformOutput;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, BatchTransformOutput, ComplianceMetadata, PlaneCaller,
-    UsageKind, UsageRecord, now_utc, set_related_task_meta,
+    ArtifactMetadata, ArtifactPut, ComplianceMetadata, PlaneCaller, UsageKind, UsageRecord,
+    now_utc, set_related_task_meta,
 };
 
 use super::{app_state::AppState, ownership::TaskOwner};

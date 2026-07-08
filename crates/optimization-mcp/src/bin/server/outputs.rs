@@ -1,9 +1,9 @@
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ComplianceMetadata, PlanOutput, PlaneCaller, UsageKind,
-    UsageRecord, now_utc, set_related_task_meta,
+    ArtifactMetadata, ArtifactPut, ComplianceMetadata, PlaneCaller, UsageKind, UsageRecord,
+    now_utc, set_related_task_meta,
 };
-use veoveo_optimization_mcp::{planning::PlanRun, state::TaskOwner};
+use veoveo_optimization_mcp::{contract::PlanOutput, planning::PlanRun, state::TaskOwner};
 
 use super::app_state::AppState;
 

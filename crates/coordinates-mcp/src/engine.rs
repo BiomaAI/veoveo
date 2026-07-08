@@ -1,3 +1,8 @@
+use crate::contract::{
+    ConvertFrameOutput, ConvertFrameRequest, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
+    GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
+    TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
+};
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use geo::{Contains, Intersects};
@@ -6,13 +11,10 @@ use geographiclib_rs::{DirectGeodesic, Geodesic, InverseGeodesic};
 use proj::Proj;
 use rayon::prelude::*;
 use veoveo_mcp_contract::{
-    AxisConvention, ConvertFrameOutput, ConvertFrameRequest, CoordinateOperationId,
-    CoordinateOperationKind, CoordinateOperationProvenance, CoordinateOperationRef,
-    CoordinatePosition, CrsId, DeriveLocalFrameOutput, DeriveLocalFrameRequest, EcefPosition,
-    EnuPosition, FrameDefinition, FrameId, FrameKind, GeodesicDirectOutput, GeodesicDirectRequest,
-    GeodesicInverseOutput, GeodesicInverseRequest, GeofenceRule, GeofenceViolation, LinearRing2,
-    NedPosition, Path2, Polygon2, ProjectedPosition, TransformCrsOutput, TransformCrsRequest,
-    ValidateGeofenceOutput, ValidateGeofenceRequest, Wgs84Position,
+    AxisConvention, CoordinateOperationId, CoordinateOperationKind, CoordinateOperationProvenance,
+    CoordinateOperationRef, CoordinatePosition, CrsId, EcefPosition, EnuPosition, FrameDefinition,
+    FrameId, FrameKind, GeofenceRule, GeofenceViolation, LinearRing2, NedPosition, Path2, Polygon2,
+    ProjectedPosition, Wgs84Position,
 };
 
 use crate::uris;

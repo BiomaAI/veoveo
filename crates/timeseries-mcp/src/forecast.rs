@@ -1,5 +1,10 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
+use crate::contract::{
+    TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
+    TimeseriesForecastSummary, TimeseriesRowFilter, TimeseriesSeriesSummary,
+    TimeseriesTableMapping,
+};
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
 use re_sdk::RecordingStreamBuilder;
@@ -8,9 +13,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    DuckDbFormat, DuckDbReadOptions, DuckDbSource, TimeseriesFilterValue, TimeseriesForecastMethod,
-    TimeseriesForecastRequest, TimeseriesForecastSummary, TimeseriesRowFilter,
-    TimeseriesSeriesSummary, duckdb_quote_identifier, duckdb_quote_literal,
+    DuckDbFormat, DuckDbReadOptions, DuckDbSource, duckdb_quote_identifier, duckdb_quote_literal,
     duckdb_read_function_sql, duckdb_read_options_sql,
 };
 
@@ -53,7 +56,7 @@ struct RrdProvenance<'a> {
     task_id: &'a str,
     source_digest: String,
     source: SourceProvenance,
-    mapping: &'a veoveo_mcp_contract::TimeseriesTableMapping,
+    mapping: &'a TimeseriesTableMapping,
     training_filter: Option<&'a TimeseriesRowFilter>,
     method: &'a TimeseriesForecastMethod,
     horizon: u32,
@@ -583,11 +586,12 @@ fn entity_segment(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use serde::Deserialize;
-    use veoveo_mcp_contract::{
-        DuckDbFormat, DuckDbSource, TimeseriesFilterValue, TimeseriesForecastMethod,
-        TimeseriesForecastRequest, TimeseriesTableMapping,
+    use crate::contract::{
+        TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
+        TimeseriesTableMapping,
     };
+    use serde::Deserialize;
+    use veoveo_mcp_contract::{DuckDbFormat, DuckDbSource};
 
     use super::*;
 

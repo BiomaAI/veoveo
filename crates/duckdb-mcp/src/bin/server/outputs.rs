@@ -2,10 +2,10 @@ use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock, Resource},
 };
-use veoveo_mcp_contract::{
-    DuckDbExecuteOutput, DuckDbExportOutput, DuckDbIngestOutput, DuckDbQueryOutput, UsageKind,
-    UsageRecord, now_utc, set_related_task_meta,
+use veoveo_duckdb_mcp::contract::{
+    DuckDbExecuteOutput, DuckDbExportOutput, DuckDbIngestOutput, DuckDbQueryOutput,
 };
+use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc, set_related_task_meta};
 
 use super::app_state::AppState;
 

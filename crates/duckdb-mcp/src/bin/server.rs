@@ -46,13 +46,16 @@ use serde_json::{Value, json};
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_mcp::{
     artifacts::ArtifactRepository,
+    contract::{
+        DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput,
+        DuckDbExportRequest, DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput,
+        DuckDbQueryRequest,
+    },
     engine::{self, EngineSettings, FileExchange},
     state::{DuckdbState, TaskOwner},
     uris,
 };
 use veoveo_mcp_contract::{
-    DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput, DuckDbExportRequest,
-    DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryRequest,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
     ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
     init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
@@ -614,7 +617,7 @@ async fn database_schema_document(
     identity: &veoveo_mcp_contract::GatewayInternalIdentity,
     db_id: &str,
 ) -> Result<Value, McpError> {
-    let db_id = veoveo_mcp_contract::DuckDbDatabaseId::new(db_id)
+    let db_id = DuckDbDatabaseId::new(db_id)
         .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
     let database = resolve_readable_database(state, identity, &db_id)?;
     let db_path = std::path::PathBuf::from(&database.file_path);

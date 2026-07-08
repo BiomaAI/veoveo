@@ -2,8 +2,9 @@ use std::{collections::HashMap, path::PathBuf};
 
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use sha2::{Digest, Sha256};
+use veoveo_duckdb_mcp::contract::DuckDbDatabaseId;
 use veoveo_duckdb_mcp::state::{DatabaseOwner, TaskOwner};
-use veoveo_mcp_contract::{DuckDbDatabaseId, GatewayInternalIdentity, PlaneCaller};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 
 use super::app_state::AppState;
 

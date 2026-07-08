@@ -1,9 +1,10 @@
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_mcp_contract::{
-    ArtifactPut, ComplianceMetadata, PlaneCaller, TimeseriesForecastOutput, UsageKind, UsageRecord,
-    now_utc, set_related_task_meta,
+    ArtifactPut, ComplianceMetadata, PlaneCaller, UsageKind, UsageRecord, now_utc,
+    set_related_task_meta,
 };
 use veoveo_timeseries_mcp::{
+    contract::{TimeseriesForecastOutput, TimeseriesForecastSummary},
     forecast::{ForecastArtifact, RRD_FILENAME, RRD_MIME_TYPE},
     state::TaskOwner,
 };
@@ -58,7 +59,7 @@ pub(super) async fn forecast_result(
 fn record_usage(
     state: &AppState,
     task_id: &str,
-    summary: &veoveo_mcp_contract::TimeseriesForecastSummary,
+    summary: &TimeseriesForecastSummary,
 ) -> anyhow::Result<()> {
     state.durable.record_usage(&UsageRecord {
         task_id: task_id.to_string(),

@@ -58,27 +58,30 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use url::Url;
+use veoveo_coordinates_mcp::contract::{
+    BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
+    DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput, GeodesicDirectRequest,
+    GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput, TransformCrsRequest,
+    ValidateGeofenceOutput, ValidateGeofenceRequest,
+};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, ArtifactMetadata, AuditEvent, AuthAuditEvent, BatchTransformOutput,
-    BatchTransformRequest, ComplianceMetadata, ConvertFrameOutput, ConvertFrameRequest,
+    AccessTokenSubject, ArtifactMetadata, AuditEvent, AuthAuditEvent, ComplianceMetadata,
     CoordinateOperationProvenance, CoordinatePosition, DataLabelDefinition, DataRetentionPolicy,
-    DeriveLocalFrameOutput, DeriveLocalFrameRequest, FrameDefinition,
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
-    GatewayControlPlane, GatewayControlPlaneRevision, GatewayInternalIdentity,
-    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayJwtRevocation,
-    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
-    GatewayProfile, GatewayProfileId, GatewayResourceProjection, GatewayResourceSubscription,
-    GatewayTaskMapping, GenerationPredictionSummary, GenerationRunOutput, GeodesicDirectOutput,
-    GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, GeofenceGeometry,
-    IdentityProvider, IdentityProviderOidcClientRegistration, InternalTokenSecret,
-    McpSurfaceCapabilities, NetworkBoundaryRule, OAuthClientRegistration, ObjectStoreDeployment,
-    PolicyDecision, PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId,
-    PrincipalKind, ProfileServerExposure, RELATED_TASK_META_KEY, RegulatedDataControls,
+    FrameDefinition, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord,
+    GatewayAuthorizationRequest, GatewayControlPlane, GatewayControlPlaneRevision,
+    GatewayInternalIdentity, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
+    GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
+    GatewayResourceSubscription, GatewayTaskMapping, GenerationPredictionSummary,
+    GenerationRunOutput, GeofenceGeometry, IdentityProvider,
+    IdentityProviderOidcClientRegistration, InternalTokenSecret, McpSurfaceCapabilities,
+    NetworkBoundaryRule, OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision,
+    PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
+    ProfileServerExposure, RELATED_TASK_META_KEY, RegulatedDataControls,
     ResourceAuthorizationServer, ScopeName, SecretReference, SelfHostedDeploymentPlan,
     SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
     ServiceToServiceSecurity, StateStoreDeployment, TelemetrySinkDeployment, TenantDefinition,
-    TenantId, TokenIssuer, TokenSubject, TransformCrsOutput, TransformCrsRequest, UpstreamEndpoint,
-    UsageRecord, UsageReport, ValidateGeofenceOutput, ValidateGeofenceRequest,
+    TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
 };
 
 #[path = "conformance/auth_discovery.rs"]

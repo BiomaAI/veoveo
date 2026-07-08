@@ -13,16 +13,19 @@ use anyhow::{Context as _, Result, bail};
 use rmcp::ErrorData as McpError;
 use serde_json::json;
 use veoveo_duckdb_mcp::{
+    contract::{
+        DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportFormat,
+        DuckDbExportOutput, DuckDbExportRequest, DuckDbExportSelection, DuckDbIngestMode,
+        DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryOutputMode,
+        DuckDbQueryRequest,
+    },
     engine::{self, AttachSpec, FileExchange},
     state::TaskOwner,
 };
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ComplianceMetadata, DuckDbDatabaseId, DuckDbExecuteOutput,
-    DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
-    DuckDbExportSelection, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
-    DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbSource,
-    GatewayInternalIdentity, PlaneCaller, duckdb_quote_identifier, duckdb_quote_literal,
-    duckdb_read_function_sql, duckdb_read_options_sql,
+    ArtifactMetadata, ArtifactPut, ComplianceMetadata, DuckDbSource, GatewayInternalIdentity,
+    PlaneCaller, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
+    duckdb_read_options_sql,
 };
 
 use super::{

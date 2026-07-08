@@ -26,4 +26,5 @@ tokio = { workspace = true, features = ["full"] }
 tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
+veoveo-coordinates-mcp = { path = "../coordinates-mcp" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
