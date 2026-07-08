@@ -253,10 +253,10 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         bail!("artifact metadata schema has no object compliance property");
     }
     let frame = assert_schema_title(
-        &schemas.join("frame-definition.schema.json"),
-        "FrameDefinition",
+        &schemas.join("rrd-frame-definition.schema.json"),
+        "RrdFrameDefinition",
     )?;
-    for property in ["frame_id", "kind", "axis_convention"] {
+    for property in ["frame_id", "kind", "view_coordinates"] {
         if !frame
             .get("properties")
             .and_then(|properties| properties.get(property))
@@ -266,16 +266,16 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         }
     }
     assert_schema_title(
-        &schemas.join("coordinate-position.schema.json"),
-        "CoordinatePosition",
+        &schemas.join("coordinate-point.schema.json"),
+        "CoordinatePoint",
     )?;
     assert_schema_title(
         &schemas.join("coordinate-operation-provenance.schema.json"),
         "CoordinateOperationProvenance",
     )?;
     assert_schema_title(
-        &schemas.join("geofence-geometry.schema.json"),
-        "GeofenceGeometry",
+        &schemas.join("rrd-geofence-geometry.schema.json"),
+        "RrdGeofenceGeometry",
     )?;
     let batch_transform = assert_schema_title(
         &schemas.join("batch-transform-output.schema.json"),

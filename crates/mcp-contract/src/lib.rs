@@ -38,12 +38,9 @@ pub use artifact_service::{
     tenant_scoped_object_key,
 };
 pub use coordinates::{
-    AxisConvention, CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
-    CoordinateOperationProvenance, CoordinateOperationRef, CoordinatePosition, CoordinateUnit,
-    CoordinateValueError, CrsId, DatumId, EcefPosition, EllipsoidId, EnuPosition, FrameDefinition,
-    FrameId, FrameKind, GeofenceGeometry, GeofenceId, GeofenceRule, GeofenceViolation, LinearRing2,
-    NedPosition, Orientation3, Path2, Polygon2, Pose3, ProjectedPosition, Trajectory3,
-    TrajectoryId, TrajectoryInterpolation, TrajectoryPoint, Velocity3, Wgs84Position,
+    CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
+    CoordinateOperationProvenance, CoordinateOperationRef, CrsId, DatumId, EllipsoidId, FrameId,
+    FrameKind, GeofenceId, GeofenceRule, GeofenceViolation, TrajectoryId,
 };
 pub use deployment::{
     DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,

@@ -179,18 +179,39 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
         ComplianceMetadata
     );
     add_schema!(schemas, "artifact-metadata.schema.json", ArtifactMetadata);
-    add_schema!(schemas, "frame-definition.schema.json", FrameDefinition);
     add_schema!(
         schemas,
-        "coordinate-position.schema.json",
-        CoordinatePosition
+        "rrd-frame-definition.schema.json",
+        RrdFrameDefinition
     );
+    add_schema!(
+        schemas,
+        "rrd-view-coordinates.schema.json",
+        RrdViewCoordinates
+    );
+    add_schema!(schemas, "rrd-geo-point.schema.json", RrdGeoPoint);
+    add_schema!(schemas, "rrd-geo-line-string.schema.json", RrdGeoLineString);
+    add_schema!(schemas, "rrd-local-point-3.schema.json", RrdLocalPoint3);
+    add_schema!(
+        schemas,
+        "rrd-local-line-string-2.schema.json",
+        RrdLocalLineString2
+    );
+    add_schema!(schemas, "rrd-local-polygon-2.schema.json", RrdLocalPolygon2);
+    add_schema!(
+        schemas,
+        "rrd-geofence-geometry.schema.json",
+        RrdGeofenceGeometry
+    );
+    add_schema!(schemas, "rrd-selection.schema.json", RrdSelection);
+    add_schema!(schemas, "rrd-time-point.schema.json", RrdTimePoint);
+    add_schema!(schemas, "rrd-time-range.schema.json", RrdTimeRange);
+    add_schema!(schemas, "coordinate-point.schema.json", CoordinatePoint);
     add_schema!(
         schemas,
         "coordinate-operation-provenance.schema.json",
         CoordinateOperationProvenance
     );
-    add_schema!(schemas, "geofence-geometry.schema.json", GeofenceGeometry);
     add_schema!(
         schemas,
         "convert-frame-request.schema.json",

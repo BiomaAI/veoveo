@@ -28,3 +28,4 @@ url.workspace = true
 uuid.workspace = true
 veoveo-coordinates-mcp = { path = "../coordinates-mcp" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+veoveo-rrd.workspace = true

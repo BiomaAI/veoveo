@@ -7112,6 +7112,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-mcp-contract",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -7168,6 +7169,7 @@ dependencies = [
  "uuid",
  "veoveo-coordinates-mcp",
  "veoveo-mcp-contract",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -7301,6 +7303,17 @@ dependencies = [
  "tracing",
  "uuid",
  "veoveo-artifact-client",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
+name = "veoveo-rrd"
+version = "0.1.0"
+dependencies = [
+ "re_sdk_types",
+ "schemars",
+ "serde",
+ "serde_json",
  "veoveo-mcp-contract",
 ]
 

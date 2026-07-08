@@ -46,20 +46,20 @@ use veoveo_coordinates_mcp::{
     artifacts::ArtifactRepository,
     contract::{
         BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-        DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput,
+        CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput,
-        TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
+        TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest, Wgs84Position,
     },
     engine,
     state::CoordinatesState,
     uris,
 };
 use veoveo_mcp_contract::{
-    FrameDefinition, FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
-    InternalTokenSecret, Page, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard,
-    TokenIssuer, UsageReport, init_server_telemetry, is_sha256, now_iso, paginate,
-    public_allowed_hosts, related_task_meta,
+    FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret,
+    Page, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
+    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
 };
+use veoveo_rrd::RrdFrameDefinition;
 
 #[path = "server/app_state.rs"]
 mod app_state;
@@ -191,7 +191,8 @@ impl CoordinatesMcp {
         self.state
             .coordinates
             .insert_frame(output.frame.clone())
-            .await;
+            .await
+            .map_err(invalid_params)?;
         self.state
             .coordinates
             .record_operation(output.provenance.clone())
@@ -323,18 +324,20 @@ fn invalid_params(err: impl std::fmt::Display) -> McpError {
 async fn resolve_origin(
     state: &AppState,
     request: &ConvertFrameRequest,
-    target: &FrameDefinition,
-) -> Result<Option<veoveo_mcp_contract::Wgs84Position>, McpError> {
+    target: &RrdFrameDefinition,
+) -> Result<Option<Wgs84Position>, McpError> {
     if let Some(origin) = &request.origin {
         return Ok(Some(origin.clone()));
     }
     if let Some(origin) = &target.origin {
-        return Ok(Some(origin.clone()));
+        return Wgs84Position::try_from(origin.clone())
+            .map(Some)
+            .map_err(|err| McpError::invalid_params(err.to_string(), None));
     }
     for point in &request.points {
         let frame_id = match point {
-            veoveo_mcp_contract::CoordinatePosition::Enu(point) => Some(&point.frame_id),
-            veoveo_mcp_contract::CoordinatePosition::Ned(point) => Some(&point.frame_id),
+            CoordinatePoint::Enu(point) => Some(&point.frame_id),
+            CoordinatePoint::Ned(point) => Some(&point.frame_id),
             _ => None,
         };
         if let Some(frame_id) = frame_id {
@@ -344,7 +347,9 @@ async fn resolve_origin(
                 .await
                 .map_err(invalid_params)?;
             if let Some(origin) = frame.origin {
-                return Ok(Some(origin));
+                return Wgs84Position::try_from(origin)
+                    .map(Some)
+                    .map_err(|err| McpError::invalid_params(err.to_string(), None));
             }
         }
     }
