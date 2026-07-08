@@ -1,10 +1,10 @@
-//! The flight-recorder hook: every step observed, durable facts persisted.
+//! The flight-recorder hook: every step observed, both planes written.
 //!
-//! Slice 1 records to tracing (structured JSON logs) plus the crash-safety
-//! rows the ledger needs mid-run: a provisional task row the moment a
-//! deferred dispatch is observed, and immediate resolution for tasks that
-//! complete inside the run. The RRD plane joins in slice 2 behind the same
-//! events.
+//! Rule of the split: the RRD plane gets everything (append-only, time-indexed
+//! flight log); the DuckDB plane gets only durable kernel facts needed for
+//! crash safety mid-run — a provisional task row the moment a deferred
+//! dispatch is observed, and immediate resolution for tasks that complete
+//! inside the run.
 
 use std::sync::{
     Arc,
@@ -18,18 +18,34 @@ use rig_core::{
 };
 use uuid::Uuid;
 
-use crate::ledger::KernelLedger;
+use crate::{ledger::KernelLedger, rrd::RrdRecorder};
+
+const RRD_PAYLOAD_CAP: usize = 8 * 1024;
+
+fn capped(text: &str) -> String {
+    if text.len() <= RRD_PAYLOAD_CAP {
+        text.to_string()
+    } else {
+        let mut end = RRD_PAYLOAD_CAP;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}… (+{} bytes)", &text[..end], text.len() - end)
+    }
+}
 
 pub struct RecorderHook {
     ledger: KernelLedger,
+    rrd: Arc<RrdRecorder>,
     episode_id: Uuid,
     tool_calls: Arc<AtomicU64>,
 }
 
 impl RecorderHook {
-    pub fn new(ledger: KernelLedger, episode_id: Uuid) -> Self {
+    pub fn new(ledger: KernelLedger, rrd: Arc<RrdRecorder>, episode_id: Uuid) -> Self {
         Self {
             ledger,
+            rrd,
             episode_id,
             tool_calls: Arc::new(AtomicU64::new(0)),
         }
@@ -48,13 +64,34 @@ where
     async fn on_event(&self, ctx: &HookContext, event: StepEvent<'_, M>) -> Flow {
         let episode = self.episode_id;
         match event {
-            StepEvent::ToolCall { tool_name, .. } => {
+            StepEvent::ToolCall {
+                tool_name, args, ..
+            } => {
                 self.tool_calls.fetch_add(1, Ordering::Relaxed);
+                self.rrd.log_text(
+                    &format!("/agent/tools/{tool_name}"),
+                    format!("call {}", capped(args)),
+                );
                 tracing::info!(%episode, tool_name, turn = ctx.turn(), "tool call");
             }
             StepEvent::ToolResult {
-                tool_name, outcome, ..
+                tool_name,
+                result,
+                outcome,
+                ..
             } => {
+                self.rrd.log_text(
+                    &format!("/agent/tools/{tool_name}"),
+                    format!(
+                        "{} {}",
+                        if outcome.is_error() {
+                            "error"
+                        } else {
+                            "result"
+                        },
+                        capped(result)
+                    ),
+                );
                 tracing::info!(
                     %episode,
                     tool_name,
@@ -63,33 +100,47 @@ where
                 );
             }
             StepEvent::ToolTaskStarted {
-                tool_name, task_id, ..
+                tool_name,
+                task_id,
+                immediate_response,
+                ..
             } => {
                 // Crash safety: a minimal descriptor (backend + task id + tool
                 // name) is enough for McpTaskResumer to rehydrate the task if
                 // the process dies before the episode persists the full one.
                 let descriptor =
                     ToolTaskDescriptor::new(ToolTaskDescriptor::BACKEND_MCP, task_id, tool_name);
-                let descriptor_json = match serde_json::to_string(&descriptor) {
-                    Ok(json) => json,
+                match serde_json::to_string(&descriptor) {
+                    Ok(descriptor_json) => {
+                        if let Err(err) = self.ledger.record_provisional_task(
+                            task_id,
+                            tool_name,
+                            &descriptor_json,
+                            episode,
+                        ) {
+                            tracing::error!(%episode, task_id, %err, "provisional task row failed");
+                        }
+                    }
                     Err(err) => {
                         tracing::error!(%episode, task_id, %err, "descriptor serialization failed");
-                        return Flow::cont();
                     }
-                };
-                if let Err(err) = self.ledger.record_provisional_task(
-                    task_id,
-                    tool_name,
-                    &descriptor_json,
-                    episode,
-                ) {
-                    tracing::error!(%episode, task_id, %err, "provisional task row failed");
                 }
+                self.rrd.log_text(
+                    &format!("/agent/tasks/{task_id}"),
+                    format!(
+                        "started {tool_name}{}",
+                        immediate_response
+                            .map(|hint| format!(": {}", capped(hint)))
+                            .unwrap_or_default()
+                    ),
+                );
                 tracing::info!(%episode, tool_name, task_id, "task started");
             }
             StepEvent::ToolTaskStatus {
                 task_id, status, ..
             } => {
+                self.rrd
+                    .log_text(&format!("/agent/tasks/{task_id}"), status.as_str());
                 tracing::info!(%episode, task_id, status = status.as_str(), "task status");
             }
             StepEvent::ToolTaskResult {
@@ -111,6 +162,18 @@ where
                 } else if let Err(err) = self.ledger.mark_task_consumed(task_id, episode) {
                     tracing::error!(%episode, task_id, %err, "in-run task consumption failed");
                 }
+                self.rrd.log_text(
+                    &format!("/agent/tasks/{task_id}"),
+                    format!(
+                        "{} in run: {}",
+                        if outcome.is_error() {
+                            "failed"
+                        } else {
+                            "resolved"
+                        },
+                        capped(result)
+                    ),
+                );
                 tracing::info!(
                     %episode,
                     tool_name,
@@ -120,6 +183,10 @@ where
                 );
             }
             StepEvent::ModelTurnFinished { turn, usage, .. } => {
+                self.rrd.log_scalars(
+                    "/agent/llm",
+                    [usage.input_tokens as f64, usage.output_tokens as f64],
+                );
                 tracing::info!(
                     %episode,
                     turn,

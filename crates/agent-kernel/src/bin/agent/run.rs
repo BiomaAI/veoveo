@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use rig_core::tool::server::ToolServer;
 use tokio::sync::mpsc;
@@ -7,7 +9,9 @@ use veoveo_agent_kernel::{
     ledger::KernelLedger,
     llm,
     manifest::AgentManifest,
+    rrd::RrdRecorder,
     tasks::{TaskSettled, arm_watcher},
+    tools::{MemoryQueryTool, MemoryWriteTool, TimelineQueryTool},
 };
 
 use crate::cli::RunArgs;
@@ -22,18 +26,46 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     if crashed > 0 {
         tracing::warn!(crashed, "recovered from a crash mid-episode");
     }
+    if let Some(dir) = &manifest.migrations_dir {
+        let applied = ledger.run_migrations(dir)?;
+        tracing::info!(applied, "domain migrations applied");
+    }
+    let rrd = Arc::new(RrdRecorder::open(
+        &args.data_dir,
+        &manifest.memory.rrd_dir,
+        manifest.memory.segment_max_bytes,
+        &agent_id,
+        &ledger,
+        args.viewer_tee.clone(),
+    )?);
 
     let tool_server_handle = ToolServer::new().run();
+    tool_server_handle
+        .add_tool(MemoryQueryTool::new(ledger.clone()))
+        .await
+        .context("registering memory_query")?;
+    tool_server_handle
+        .add_tool(MemoryWriteTool::new(
+            ledger.clone(),
+            rrd.clone(),
+            manifest.memory.memory_write_tables.clone(),
+        ))
+        .await
+        .context("registering memory_write")?;
+    tool_server_handle
+        .add_tool(TimelineQueryTool::new(rrd.clone()))
+        .await
+        .context("registering timeline_query")?;
     let agent = llm::build_agent(&manifest, tool_server_handle.clone())?;
     let (mut connection, epoch_rx) =
         GatewayConnection::connect(manifest.clone(), tool_server_handle)
             .await
             .context("connecting to the gateway")?;
-    let driver = EpisodeDriver::new(manifest, agent, ledger.clone());
+    let driver = EpisodeDriver::new(manifest, agent, ledger.clone(), rrd.clone());
 
     if let Some(prompt) = args.prompt {
         driver
-            .run_episode(&mut connection, "boot_prompt", prompt)
+            .run_episode(&mut connection, "boot_prompt", &prompt)
             .await?;
     }
     if args.halt_after_episode {
@@ -109,7 +141,7 @@ async fn handle_task_wake(
         result = result.result_json,
     );
     let report = driver
-        .run_episode(connection, &format!("task:{}", result.task_id), prompt)
+        .run_episode(connection, &format!("task:{}", result.task_id), &prompt)
         .await?;
     ledger.mark_task_consumed(&result.task_id, report.episode_id)?;
     tracing::info!(

@@ -17,8 +17,66 @@ pub struct AgentManifest {
     pub model: ModelConfig,
     pub gateway: GatewayAccess,
     pub episode: EpisodeConfig,
+    #[serde(default)]
+    pub memory: MemoryConfig,
+    #[serde(default)]
+    pub context: ContextConfig,
+    /// Directory of `NNNN_*.sql` domain migrations applied at boot, relative
+    /// to the manifest file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub migrations_dir: Option<std::path::PathBuf>,
     /// System preamble for every episode.
     pub preamble: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemoryConfig {
+    /// RRD segment directory, relative to the data dir.
+    #[serde(default = "default_rrd_dir")]
+    pub rrd_dir: String,
+    /// Rotate to a fresh segment once the live one exceeds this size.
+    #[serde(default = "default_segment_max_bytes")]
+    pub segment_max_bytes: u64,
+    /// Domain tables `memory_write` may mutate; the `kernel` schema is never
+    /// writable through tools.
+    #[serde(default)]
+    pub memory_write_tables: Vec<String>,
+}
+
+impl Default for MemoryConfig {
+    fn default() -> Self {
+        Self {
+            rrd_dir: default_rrd_dir(),
+            segment_max_bytes: default_segment_max_bytes(),
+            memory_write_tables: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ContextConfig {
+    /// Approximate token budget for the assembled episode prompt.
+    #[serde(default = "default_max_context_tokens")]
+    pub max_context_tokens: u64,
+    /// SQL-backed prompt sections, rendered in ascending priority order.
+    #[serde(default)]
+    pub sections: Vec<ContextSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextSection {
+    pub name: String,
+    /// Lower renders earlier and survives truncation longer.
+    pub priority: u8,
+    /// Single read-only SELECT over the agent's memory database.
+    pub sql: String,
+    #[serde(default = "default_section_max_rows")]
+    pub max_rows: u64,
+    #[serde(default = "default_section_max_tokens")]
+    pub max_tokens: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +146,26 @@ fn default_token_refresh_fraction() -> f64 {
     0.6
 }
 
+fn default_rrd_dir() -> String {
+    "rrd".to_string()
+}
+
+fn default_segment_max_bytes() -> u64 {
+    256 * 1024 * 1024
+}
+
+fn default_max_context_tokens() -> u64 {
+    24_000
+}
+
+fn default_section_max_rows() -> u64 {
+    50
+}
+
+fn default_section_max_tokens() -> u64 {
+    2_000
+}
+
 fn default_max_turns() -> usize {
     8
 }
@@ -111,6 +189,11 @@ impl AgentManifest {
         let mut manifest: AgentManifest = serde_json::from_str(&raw)
             .with_context(|| format!("parsing agent manifest {}", path.display()))?;
         manifest.model.base_url = expand_env_placeholders(&manifest.model.base_url)?;
+        if let (Some(dir), Some(parent)) = (&manifest.migrations_dir, path.parent())
+            && dir.is_relative()
+        {
+            manifest.migrations_dir = Some(parent.join(dir));
+        }
         manifest.validate()?;
         Ok(manifest)
     }
@@ -149,6 +232,23 @@ impl AgentManifest {
         }
         if self.episode.max_turns == 0 {
             bail!("episode.max_turns must be greater than zero");
+        }
+        for table in &self.memory.memory_write_tables {
+            if table.trim().is_empty() || table.contains('.') {
+                bail!("memory.memory_write_tables entries must be bare main-schema table names");
+            }
+        }
+        for section in &self.context.sections {
+            if section.name.trim().is_empty() {
+                bail!("context.sections entries must be named");
+            }
+            crate::ledger::ensure_single_select(&section.sql)
+                .with_context(|| format!("context section `{}`", section.name))?;
+        }
+        if let Some(dir) = &self.migrations_dir
+            && !dir.is_dir()
+        {
+            bail!("migrations_dir `{}` is not a directory", dir.display());
         }
         std::env::var(&self.model.api_key_env).with_context(|| {
             format!("model.api_key_env `{}` is not set", self.model.api_key_env)

@@ -100,6 +100,13 @@ pub(crate) async fn agent_kernel_detach_resume(
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
     assert_ready_profiles(&gateway_base, 2).await?;
 
+    let migrations_dir = tmpdir.join("migrations");
+    fs::create_dir_all(&migrations_dir)?;
+    fs::write(
+        migrations_dir.join("0001_domain.sql"),
+        "CREATE TABLE IF NOT EXISTS notes (note TEXT NOT NULL, source TEXT);\n",
+    )?;
+
     let manifest_path = tmpdir.join("agent-manifest.json");
     fs::write(
         &manifest_path,
@@ -125,6 +132,17 @@ pub(crate) async fn agent_kernel_detach_resume(
                 "task_deadline_s": 120,
                 "task_poll_interval_ms": 300
             },
+            "memory": {
+                "memory_write_tables": ["notes"]
+            },
+            "context": {
+                "sections": [{
+                    "name": "Recent episodes",
+                    "priority": 1,
+                    "sql": "SELECT seq, summary FROM kernel.episodes ORDER BY seq DESC LIMIT 5"
+                }]
+            },
+            "migrations_dir": "migrations",
             "preamble": "You operate hosted tools through a gateway. Follow instructions exactly."
         }))?,
     )?;
@@ -156,6 +174,7 @@ pub(crate) async fn agent_kernel_detach_resume(
     )?;
     contains(&phase_one, "task detached")?;
     contains(&phase_one, "media__run")?;
+    contains(&phase_one, "memory_query")?;
     contains(&phase_one, "halt-after-episode set")?;
 
     {
@@ -221,7 +240,37 @@ pub(crate) async fn agent_kernel_detach_resume(
         if !final_output.contains("OBJECTIVE COMPLETE") {
             bail!("wake episode did not complete the objective: {final_output}");
         }
+        let notes: i64 = ledger.query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))?;
+        if notes != 1 {
+            bail!("memory_write recorded {notes} notes, expected 1");
+        }
+        let summaries: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM kernel.episodes WHERE summary IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        if summaries != 2 {
+            bail!("expected 2 episode summaries, found {summaries}");
+        }
     }
+
+    // The episodic plane must be readable after an unclean stop: the live
+    // segment has no footer and no clean shutdown, and still decodes.
+    let timeline = run_checked(
+        agent,
+        [
+            "timeline".into(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--entities".into(),
+            "/agent/**".into(),
+            "--max-rows".into(),
+            "200".into(),
+        ],
+        [],
+    )?;
+    contains(&timeline, "media__run")?;
+    contains(&timeline, "/agent/tasks/")?;
 
     gateway_child.stop();
     media_child.stop();
