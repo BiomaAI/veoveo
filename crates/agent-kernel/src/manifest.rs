@@ -21,6 +21,10 @@ pub struct AgentManifest {
     pub memory: MemoryConfig,
     #[serde(default)]
     pub context: ContextConfig,
+    #[serde(default)]
+    pub budgets: BudgetConfig,
+    #[serde(default)]
+    pub schedule: ScheduleConfig,
     /// Directory of `NNNN_*.sql` domain migrations applied at boot, relative
     /// to the manifest file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -63,6 +67,54 @@ pub struct ContextConfig {
     /// SQL-backed prompt sections, rendered in ascending priority order.
     #[serde(default)]
     pub sections: Vec<ContextSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct BudgetConfig {
+    #[serde(default)]
+    pub per_episode: PerEpisodeBudget,
+    /// Window budget enforced by the scheduler before an episode starts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_max_episodes: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct PerEpisodeBudget {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_completion_calls: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tool_calls: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScheduleConfig {
+    /// Heartbeat cadence; every tick wakes an episode so silence is bounded.
+    #[serde(default = "default_heartbeat_interval_s")]
+    pub heartbeat_interval_s: u64,
+    /// Debounce between episodes for non-priority wakes.
+    #[serde(default)]
+    pub min_wake_interval_s: u64,
+    /// How long the scheduler drains the bus before starting an episode.
+    #[serde(default = "default_wake_coalesce_window_ms")]
+    pub wake_coalesce_window_ms: u64,
+    /// Grace an in-flight elicitation waits for an inline operator answer
+    /// before parking.
+    #[serde(default = "default_elicitation_grace_s")]
+    pub elicitation_grace_s: u64,
+}
+
+impl Default for ScheduleConfig {
+    fn default() -> Self {
+        Self {
+            heartbeat_interval_s: default_heartbeat_interval_s(),
+            min_wake_interval_s: 0,
+            wake_coalesce_window_ms: default_wake_coalesce_window_ms(),
+            elicitation_grace_s: default_elicitation_grace_s(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,6 +218,18 @@ fn default_section_max_tokens() -> u64 {
     2_000
 }
 
+fn default_heartbeat_interval_s() -> u64 {
+    300
+}
+
+fn default_wake_coalesce_window_ms() -> u64 {
+    250
+}
+
+fn default_elicitation_grace_s() -> u64 {
+    30
+}
+
 fn default_max_turns() -> usize {
     8
 }
@@ -232,6 +296,9 @@ impl AgentManifest {
         }
         if self.episode.max_turns == 0 {
             bail!("episode.max_turns must be greater than zero");
+        }
+        if self.schedule.heartbeat_interval_s == 0 {
+            bail!("schedule.heartbeat_interval_s must be greater than zero");
         }
         for table in &self.memory.memory_write_tables {
             if table.trim().is_empty() || table.contains('.') {

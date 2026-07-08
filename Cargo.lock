@@ -7014,6 +7014,7 @@ name = "veoveo-agent-kernel"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "base64",
  "chrono",
  "clap",

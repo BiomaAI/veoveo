@@ -13,6 +13,7 @@ use uuid::Uuid;
 use std::sync::Arc;
 
 use crate::{
+    budget::{BUDGET_TERMINATED_PREFIX, BudgetHook},
     connection::GatewayConnection,
     context,
     ledger::{EpisodeOutcome, KernelLedger},
@@ -80,6 +81,7 @@ impl EpisodeDriver {
             .agent
             .runner(prompt)
             .add_hook(recorder)
+            .add_hook(BudgetHook::new(self.manifest.budgets.per_episode.clone()))
             .max_turns(self.manifest.episode.max_turns)
             .task_deadline(self.manifest.task_deadline())
             .task_poll_interval(self.manifest.task_poll_interval())
@@ -130,14 +132,40 @@ impl EpisodeDriver {
                 if let Err(err) = self.rrd.rotate_if_needed() {
                     tracing::warn!(%err, "rrd rotation failed");
                 }
+                let output_excerpt: String = report.output.chars().take(200).collect();
                 tracing::info!(
                     %episode_id,
                     seq,
                     detached_tasks = report.detached_tasks,
                     outcome = EpisodeOutcome::Completed.as_str(),
+                    output = output_excerpt,
                     "episode completed"
                 );
                 Ok(report)
+            }
+            Err(rig_core::completion::PromptError::PromptCancelled { reason, .. })
+                if reason.starts_with(BUDGET_TERMINATED_PREFIX) =>
+            {
+                self.ledger.finish_episode(
+                    episode_id,
+                    EpisodeOutcome::BudgetTerminated,
+                    &reason,
+                    0,
+                    0,
+                    0,
+                    tool_calls,
+                    None,
+                )?;
+                self.rrd
+                    .log_text("/agent/episodes", format!("budget terminated: {reason}"));
+                self.rrd.flush();
+                tracing::warn!(%episode_id, seq, reason, "episode budget terminated");
+                Ok(EpisodeReport {
+                    episode_id,
+                    seq,
+                    output: reason,
+                    detached_tasks: 0,
+                })
             }
             Err(err) => {
                 self.ledger.finish_episode(

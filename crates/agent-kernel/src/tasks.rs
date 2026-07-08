@@ -11,33 +11,28 @@
 use std::time::Duration;
 
 use rig_core::tool::{TaskResumer, ToolFailureKind, ToolTaskDescriptor};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 
 use crate::{
     connection::ConnectionEpoch,
     ledger::{KernelLedger, TaskState, WatchableTask},
+    wake::{WakeBus, WakeEvent},
 };
-
-/// Slice-1 wake signal: a detached task settled (resolved, failed, expired).
-#[derive(Debug, Clone)]
-pub struct TaskSettled {
-    pub task_id: String,
-}
 
 const MAX_ATTEMPTS_PER_EPOCH: u32 = 8;
 
 pub fn arm_watcher(
     ledger: KernelLedger,
-    wake_tx: mpsc::Sender<TaskSettled>,
+    bus: WakeBus,
     epoch_rx: watch::Receiver<ConnectionEpoch>,
     task: WatchableTask,
 ) {
-    tokio::spawn(watch_task(ledger, wake_tx, epoch_rx, task));
+    tokio::spawn(watch_task(ledger, bus, epoch_rx, task));
 }
 
 async fn watch_task(
     ledger: KernelLedger,
-    wake_tx: mpsc::Sender<TaskSettled>,
+    bus: WakeBus,
     mut epoch_rx: watch::Receiver<ConnectionEpoch>,
     task: WatchableTask,
 ) {
@@ -46,7 +41,7 @@ async fn watch_task(
         Ok(descriptor) => descriptor,
         Err(err) => {
             tracing::error!(task_id, %err, "task descriptor is unreadable; expiring");
-            settle_expired(&ledger, &wake_tx, &task_id, "unreadable descriptor").await;
+            settle_expired(&ledger, &bus, &task_id, "unreadable descriptor").await;
             return;
         }
     };
@@ -86,7 +81,7 @@ async fn watch_task(
                     continue;
                 }
                 if outcome.is_error_kind(ToolFailureKind::NotFound) {
-                    settle_expired(&ledger, &wake_tx, &task_id, result.model_output()).await;
+                    settle_expired(&ledger, &bus, &task_id, result.model_output()).await;
                     return;
                 }
                 let result_json = serde_json::json!({
@@ -98,7 +93,7 @@ async fn watch_task(
                     tracing::error!(task_id, %err, "recording task result failed");
                 }
                 tracing::info!(task_id, is_error = outcome.is_error(), "task settled");
-                let _ = wake_tx.send(TaskSettled { task_id }).await;
+                bus.send(WakeEvent::task_settled(&task_id)).await;
                 return;
             }
             Ok(None) => {
@@ -110,14 +105,14 @@ async fn watch_task(
                     descriptor.server_key = None;
                     continue;
                 }
-                settle_expired(&ledger, &wake_tx, &task_id, "no resumer accepted the task").await;
+                settle_expired(&ledger, &bus, &task_id, "no resumer accepted the task").await;
                 return;
             }
             Err(err) => {
                 attempts += 1;
                 tracing::warn!(task_id, attempts, %err, "task resume failed");
                 if attempts >= MAX_ATTEMPTS_PER_EPOCH {
-                    settle_expired(&ledger, &wake_tx, &task_id, &err.to_string()).await;
+                    settle_expired(&ledger, &bus, &task_id, &err.to_string()).await;
                     return;
                 }
                 if wait_for_retry(&mut epoch_rx, &mut attempts).await.is_err() {
@@ -157,18 +152,9 @@ async fn wait_for_retry(
     }
 }
 
-async fn settle_expired(
-    ledger: &KernelLedger,
-    wake_tx: &mpsc::Sender<TaskSettled>,
-    task_id: &str,
-    reason: &str,
-) {
+async fn settle_expired(ledger: &KernelLedger, bus: &WakeBus, task_id: &str, reason: &str) {
     if let Err(err) = ledger.expire_task(task_id, reason) {
         tracing::error!(task_id, %err, "expiring task failed");
     }
-    let _ = wake_tx
-        .send(TaskSettled {
-            task_id: task_id.to_string(),
-        })
-        .await;
+    bus.send(WakeEvent::task_settled(task_id)).await;
 }
