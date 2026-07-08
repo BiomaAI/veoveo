@@ -198,6 +198,15 @@ pub(super) enum Cmd {
         #[arg(long)]
         ready_file: Option<PathBuf>,
     },
+    /// Serve a scripted OpenAI-compatible chat-completions endpoint for agent smoke tests.
+    FakeOpenaiLlm {
+        /// HTTP listen port.
+        #[arg(long)]
+        port: u16,
+        /// File touched after the listener is ready.
+        #[arg(long)]
+        ready_file: Option<PathBuf>,
+    },
     /// Print a private-key JWT client assertion signed by the conformance private key.
     GatewayClientAssertion {
         /// OAuth client id used as issuer and subject.

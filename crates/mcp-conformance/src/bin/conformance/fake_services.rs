@@ -134,6 +134,98 @@ pub(super) async fn cmd_otlp_http_sink(
     Ok(())
 }
 
+/// Scripted OpenAI-compatible chat-completions endpoint for agent-kernel
+/// smoke tests. The script is keyed off conversation shape, so it is
+/// deterministic across retries:
+///
+/// - a message containing `Background task update` → final answer, stop;
+/// - no assistant turns yet → call `media__run` (webhook-delayed task, so it
+///   is guaranteed to outlive the episode and detach);
+/// - otherwise → announce waiting, stop (the run detaches the pending task).
+pub(super) async fn cmd_fake_openai_llm(port: u16, ready_file: Option<PathBuf>) -> Result<()> {
+    let router = AxumRouter::new().route("/v1/chat/completions", axum_post(fake_llm_completion));
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
+    if let Some(path) = ready_file {
+        std::fs::write(path, b"ready\n")?;
+    }
+    axum::serve(listener, router).await?;
+    Ok(())
+}
+
+async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Value> {
+    let messages = request
+        .get("messages")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let text_of = |message: &Value| match message.get("content") {
+        Some(Value::String(text)) => text.clone(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => String::new(),
+    };
+    let has_task_update = messages
+        .iter()
+        .any(|message| text_of(message).contains("Background task update"));
+    let assistant_turns = messages
+        .iter()
+        .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
+        .count();
+
+    let choice = if has_task_update {
+        json!({
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "OBJECTIVE COMPLETE: the export artifact is recorded."
+            },
+            "finish_reason": "stop"
+        })
+    } else if assistant_turns == 0 {
+        fake_llm_tool_call_choice(
+            "media__run",
+            json!({
+                "model": "fake/image",
+                "input": { "prompt": "agent kernel smoke" }
+            }),
+        )
+    } else {
+        json!({
+            "index": 0,
+            "message": { "role": "assistant", "content": "WAITING FOR BACKGROUND TASKS" },
+            "finish_reason": "stop"
+        })
+    };
+
+    AxumJson(json!({
+        "id": "chatcmpl-fake",
+        "object": "chat.completion",
+        "created": 0,
+        "model": request.get("model").cloned().unwrap_or_else(|| json!("fake")),
+        "choices": [choice],
+        "usage": { "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30 }
+    }))
+}
+
+fn fake_llm_tool_call_choice(tool_name: &str, arguments: Value) -> Value {
+    json!({
+        "index": 0,
+        "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [{
+                "id": format!("call_{tool_name}"),
+                "type": "function",
+                "function": { "name": tool_name, "arguments": arguments.to_string() }
+            }]
+        },
+        "finish_reason": "tool_calls"
+    })
+}
+
 #[derive(Clone)]
 struct FakeMediaProviderState {
     base_url: String,

@@ -106,7 +106,8 @@ use control_plane::{
     cmd_gateway_two_server_smoke_control_plane,
 };
 use fake_services::{
-    cmd_fake_hosted_mcp, cmd_fake_media_provider, cmd_gateway_fake_oidc_idp, cmd_otlp_http_sink,
+    cmd_fake_hosted_mcp, cmd_fake_media_provider, cmd_fake_openai_llm, cmd_gateway_fake_oidc_idp,
+    cmd_otlp_http_sink,
 };
 use mcp_commands::{
     cmd_call, cmd_complete, cmd_complete_resource, cmd_info, cmd_models_from_catalog, cmd_prompt,
@@ -259,6 +260,9 @@ async fn main() -> Result<()> {
             )
             .await;
         }
+        Cmd::FakeOpenaiLlm { port, ready_file } => {
+            return cmd_fake_openai_llm(*port, ready_file.clone()).await;
+        }
         Cmd::GatewayClientAssertion {
             client_id,
             audience,
@@ -384,6 +388,7 @@ async fn main() -> Result<()> {
         Cmd::OtlpHttpSink { .. } => unreachable!("handled before MCP connection"),
         Cmd::FakeMediaProvider { .. } => unreachable!("handled before MCP connection"),
         Cmd::FakeHostedMcp { .. } => unreachable!("handled before MCP connection"),
+        Cmd::FakeOpenaiLlm { .. } => unreachable!("handled before MCP connection"),
         Cmd::ContractSchemas { .. } => unreachable!("handled before MCP connection"),
         Cmd::DeploymentValidate { .. } => unreachable!("handled before MCP connection"),
         Cmd::GatewayClientAssertion { .. } => unreachable!("handled before MCP connection"),

@@ -1,6 +1,8 @@
 use super::support::*;
 use super::*;
 
+#[path = "scenarios/agent_kernel.rs"]
+mod agent_kernel;
 #[path = "scenarios/basic.rs"]
 mod basic;
 #[path = "scenarios/coordinates.rs"]
@@ -12,6 +14,7 @@ mod media;
 #[path = "scenarios/secrets.rs"]
 mod secrets;
 
+pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
 pub(crate) use coordinates::*;
 pub(crate) use gateway::*;

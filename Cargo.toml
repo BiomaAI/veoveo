@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/agent-kernel",
     "crates/artifact-client",
     "crates/artifact-service",
     "crates/coordinates-mcp",
@@ -51,6 +52,9 @@ parking_lot = "0.12.5"
 proj = { version = "0.31.0", default-features = false, features = ["geo-types", "bundled_proj"] }
 rayon = "1.12.0"
 reqwest = { version = "0.13.4", default-features = false }
+rig-core = { git = "https://github.com/rozgo/rig.git", rev = "bd4eedce769120a016605c9b1c4fbd563181983e", features = ["rmcp"] }
+re_dataframe = "0.34.0"
+re_chunk_store = "0.34.0"
 rcgen = "0.14.8"
 re_sdk = "0.34.0"
 re_sdk_types = "0.34.0"

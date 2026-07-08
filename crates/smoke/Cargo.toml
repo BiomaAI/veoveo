@@ -11,6 +11,7 @@ path = "src/bin/smoke.rs"
 anyhow.workspace = true
 base64.workspace = true
 clap.workspace = true
+duckdb.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-no-provider"] }
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
 rustls.workspace = true
