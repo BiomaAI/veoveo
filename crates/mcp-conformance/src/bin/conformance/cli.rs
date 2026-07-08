@@ -198,6 +198,21 @@ pub(super) enum Cmd {
         #[arg(long)]
         ready_file: Option<PathBuf>,
     },
+    /// Write a coordinates+optimization gateway smoke control plane for pilot agent tests.
+    GatewayPilotSmokeControlPlane {
+        /// Base gateway control plane JSON.
+        #[arg(long)]
+        base: PathBuf,
+        /// Output gateway control plane JSON.
+        #[arg(long)]
+        output: PathBuf,
+        /// Coordinates MCP upstream URL.
+        #[arg(long)]
+        coordinates_upstream_url: String,
+        /// Optimization MCP upstream URL.
+        #[arg(long)]
+        optimization_upstream_url: String,
+    },
     /// Serve a scripted OpenAI-compatible chat-completions endpoint for agent smoke tests.
     FakeOpenaiLlm {
         /// HTTP listen port.

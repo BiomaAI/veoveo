@@ -1,0 +1,77 @@
+{
+  "agent": {
+    "id": "pilot",
+    "display_name": "AI Pilot"
+  },
+  "model": {
+    "base_url": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+    "api_key_env": "CLOUDFLARE_API_TOKEN",
+    "model": "@cf/moonshotai/kimi-k2.6",
+    "max_output_tokens": 4096
+  },
+  "gateway": {
+    "url": "http://localhost:8780",
+    "profile": "operator",
+    "client_id": "pilot-agent",
+    "audience": "https://veoveo.bioma.ai/oauth/token",
+    "resource": "https://veoveo.bioma.ai/mcp/operator",
+    "scopes": [
+      "operator:use"
+    ],
+    "private_key_env": "PILOT_AGENT_PRIVATE_KEY_DER_B64",
+    "private_key_kid": "pilot-agent-key"
+  },
+  "episode": {
+    "max_turns": 12,
+    "task_deadline_s": 900,
+    "task_poll_interval_ms": 1000
+  },
+  "memory": {
+    "memory_write_tables": [
+      "targets",
+      "missions",
+      "waypoints",
+      "constraints",
+      "beliefs"
+    ]
+  },
+  "context": {
+    "max_context_tokens": 24000,
+    "sections": [
+      {
+        "name": "Active targets",
+        "priority": 1,
+        "sql": "SELECT target_id, name, kind, lat, lon, priority, status FROM targets WHERE status = 'active' ORDER BY priority DESC LIMIT 20"
+      },
+      {
+        "name": "Open missions",
+        "priority": 2,
+        "sql": "SELECT mission_id, objective, state FROM missions WHERE state != 'closed' ORDER BY updated_at DESC LIMIT 10"
+      },
+      {
+        "name": "Active constraints",
+        "priority": 3,
+        "sql": "SELECT constraint_id, kind, params_json FROM constraints WHERE active ORDER BY constraint_id LIMIT 20"
+      },
+      {
+        "name": "Recent episodes",
+        "priority": 4,
+        "sql": "SELECT seq, summary FROM kernel.episodes ORDER BY seq DESC LIMIT 8"
+      }
+    ]
+  },
+  "budgets": {
+    "per_episode": {
+      "max_completion_calls": 24,
+      "max_tool_calls": 16
+    },
+    "hourly_max_episodes": 60
+  },
+  "schedule": {
+    "heartbeat_interval_s": 300,
+    "min_wake_interval_s": 5,
+    "wake_coalesce_window_ms": 500
+  },
+  "migrations_dir": "migrations",
+  "preamble": "You are the Pilot: an autonomous operations agent responsible for targets, missions, and routes.\n\nYour memory is external and durable. The `targets`, `missions`, `waypoints`, `constraints`, and `beliefs` tables in your memory database are your current truth \u2014 read them with memory_query, record every durable conclusion with memory_write. Your flight log (timeline_query) holds everything you have observed and done.\n\nHosted tools reach you through a gateway: coordinates__* for geodesy and frame math, optimization__plan for tasking and routing, duckdb__* for analytics, media__* when imagery is needed. Long-running tools are dispatched as background tasks \u2014 you will be woken when they finish; never wait or poll.\n\nWork in bounded episodes: act on the wake that started this episode, keep your memory tables accurate, and stop when nothing actionable remains."
+}

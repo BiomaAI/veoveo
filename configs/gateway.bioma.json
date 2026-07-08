@@ -1749,6 +1749,33 @@
         "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
       },
       "tenant": "bioma"
+    },
+    {
+      "id": "pilot-agent",
+      "authorization_server": "veoveo",
+      "display_name": "Veoveo AI Pilot Agent",
+      "client_surface": "full_mcp",
+      "allowed_profiles": [
+        "operator",
+        "rerun"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "agent"
+      },
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+      },
+      "tenant": "bioma"
     }
   ],
   "oidc_clients": [
