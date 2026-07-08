@@ -1,13 +1,14 @@
 use std::{collections::BTreeSet, path::Path};
 
+use crate::contract::DuckDbDatabaseId;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use duckdb::{OptionalExt, params};
 use rmcp::model::Task;
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, DataLabelId, DuckDbAnalytics, DuckDbDatabaseId, GatewayProfileId,
-    PrincipalId, SharedDuckDbConnection, TenantId, UsageRecord, open_duckdb,
+    ArtifactMetadata, DataLabelId, DuckDbAnalytics, GatewayProfileId, PrincipalId,
+    SharedDuckDbConnection, TenantId, UsageRecord, open_duckdb,
 };
 
 fn parse_rfc3339_utc(timestamp: &str) -> Result<DateTime<Utc>> {

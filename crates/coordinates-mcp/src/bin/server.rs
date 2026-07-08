@@ -43,16 +43,22 @@ use serde_json::{Value, json};
 use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_coordinates_mcp::{
-    artifacts::ArtifactRepository, engine, state::CoordinatesState, uris,
+    artifacts::ArtifactRepository,
+    contract::{
+        BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
+        DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput,
+        GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput,
+        TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
+    },
+    engine,
+    state::CoordinatesState,
+    uris,
 };
 use veoveo_mcp_contract::{
-    BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-    DeriveLocalFrameOutput, DeriveLocalFrameRequest, FrameDefinition, FrameId,
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GeodesicDirectOutput,
-    GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, InternalTokenSecret,
-    Page, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, TransformCrsOutput,
-    TransformCrsRequest, UsageReport, ValidateGeofenceOutput, ValidateGeofenceRequest,
-    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
+    FrameDefinition, FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
+    InternalTokenSecret, Page, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard,
+    TokenIssuer, UsageReport, init_server_telemetry, is_sha256, now_iso, paginate,
+    public_allowed_hosts, related_task_meta,
 };
 
 #[path = "server/app_state.rs"]

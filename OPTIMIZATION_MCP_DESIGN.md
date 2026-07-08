@@ -810,7 +810,7 @@ operator or system approval path outside this server.
 ### Phase 1: Task Option Planner
 
 - Add `optimization-mcp` crate.
-- Add `PlanRequest` / `PlanOutput` contract types.
+- Add `PlanRequest` / `PlanOutput` as `optimization-mcp` server-local contract types.
 - Add typed agents, tasks, options, objectives, constraints, and DuckDB option
   row mapping.
 - Implement `plan` with `good_lp` and the pure-Rust `microlp` backend.

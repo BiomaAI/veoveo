@@ -300,8 +300,9 @@ the only authorization source.
 
 ### Contract Schemas
 
-External Python and TypeScript MCP servers should use the Rust contract as the source of
-truth, not hand-maintained copies. Export JSON Schemas from `veoveo-mcp-contract`:
+External Python and TypeScript MCP servers should use exported schemas as the source of
+truth, not hand-maintained copies. Export platform/shared schemas plus selected
+first-party server-local tool schemas:
 
 ```sh
 just contract-schemas schemas
@@ -309,7 +310,9 @@ just contract-schemas schemas
 
 The export includes gateway control data, policy/audit events, deployment profiles,
 gateway runtime projection records, internal identity assertions, artifact metadata,
-generation outputs, and usage reports. The maintained smoke suite runs
+generation outputs, usage reports, and first-party schemas whose owning MCP crates expose
+typed Rust contracts. Custom MCP tool schemas should come from the server's own
+`tools/list` response. The maintained smoke suite runs
 `just smoke-contract-schemas` so schema generation stays wired into the contract.
 
 ### Local Process
@@ -405,8 +408,10 @@ crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
 crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
 crates/duckdb-mcp/src/bin/server.rs            hosted DuckDB MCP server (sandboxed SQL)
+crates/duckdb-mcp/src/contract.rs              DuckDB MCP tool request/output schemas
 crates/duckdb-mcp/src/engine.rs                hardened DuckDB connection layer
 crates/optimization-mcp/src/bin/server.rs      hosted optimization MCP server
+crates/optimization-mcp/src/contract.rs        optimization MCP tool request/output schemas
 crates/optimization-mcp/src/planning.rs        good_lp-backed task-option planner
 crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
 crates/mcp-stdio-bridge/src/bin/bridge.rs      stdio-to-streamable-HTTP MCP bridge
@@ -424,7 +429,7 @@ crates/media-mcp/src/bin/server.rs             MCP server
 ```
 
 `cargo test --workspace` covers signature verification, URI parsing, schema extraction,
-and the shared contract crate.
+the shared contract crate, and first-party server-local contracts.
 
 ## Command Recipes
 

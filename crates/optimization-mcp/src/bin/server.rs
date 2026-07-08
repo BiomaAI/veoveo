@@ -42,12 +42,12 @@ use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
-    PlanOutput, PlanRequest, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer,
-    UsageReport, init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts,
-    related_task_meta,
+    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
+    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
 };
 use veoveo_optimization_mcp::{
     artifacts::ArtifactRepository,
+    contract::{PlanOutput, PlanRequest},
     planning::{RRD_MIME_TYPE, run_plan},
     state::DuckdbState,
     uris,

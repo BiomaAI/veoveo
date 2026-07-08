@@ -4,6 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::contract::{
+    AgentPlanResult, PlanInput, PlanOutput, PlanRequest, PlanSolverSummary, PlanStatus,
+    PlanSummary, PlanningAgent, PlanningConstraint, PlanningObjective, PlanningOption,
+    PlanningTableMapping, PlanningTask, SelectedOption, TaskPlanResult,
+};
 use anyhow::{Context, Result, bail};
 use duckdb::{Connection, params, types::ValueRef};
 use good_lp::{
@@ -16,10 +21,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    AgentPlanResult, DuckDbSource, PlanInput, PlanOutput, PlanRequest, PlanSolverSummary,
-    PlanStatus, PlanSummary, PlanningAgent, PlanningConstraint, PlanningObjective, PlanningOption,
-    PlanningTableMapping, PlanningTask, SelectedOption, TaskPlanResult, duckdb_quote_literal,
-    duckdb_read_function_sql, duckdb_read_options_sql,
+    DuckDbSource, duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
 };
 
 pub const RRD_MIME_TYPE: &str = "application/vnd.veoveo.rerun-rrd";
@@ -1162,7 +1164,8 @@ fn entity_segment(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use veoveo_mcp_contract::{DuckDbReadOptions, PlanArtifactOptions, PlanningObjective};
+    use crate::contract::{PlanArtifactOptions, PlanningObjective};
+    use veoveo_mcp_contract::DuckDbReadOptions;
 
     use super::*;
 

@@ -16,14 +16,12 @@ pub mod gateway;
 pub mod generation;
 pub mod host;
 pub mod internal_auth;
-pub mod optimization;
 pub mod pagination;
 pub mod provider;
 pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
 pub mod telemetry;
-pub mod timeseries;
 pub mod uri;
 pub mod usage;
 pub mod waiters;
@@ -40,16 +38,12 @@ pub use artifact_service::{
     tenant_scoped_object_key,
 };
 pub use coordinates::{
-    AxisConvention, BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput,
-    ConvertFrameRequest, CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
+    AxisConvention, CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
     CoordinateOperationProvenance, CoordinateOperationRef, CoordinatePosition, CoordinateUnit,
-    CoordinateValueError, CrsId, DatumId, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
-    EcefPosition, EllipsoidId, EnuPosition, FrameDefinition, FrameId, FrameKind,
-    GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
-    GeofenceGeometry, GeofenceId, GeofenceRule, GeofenceViolation, LinearRing2, NedPosition,
-    Orientation3, Path2, Polygon2, Pose3, ProjectedPosition, Trajectory3, TrajectoryId,
-    TrajectoryInterpolation, TrajectoryPoint, TransformCrsOutput, TransformCrsRequest,
-    ValidateGeofenceOutput, ValidateGeofenceRequest, Velocity3, Wgs84Position,
+    CoordinateValueError, CrsId, DatumId, EcefPosition, EllipsoidId, EnuPosition, FrameDefinition,
+    FrameId, FrameKind, GeofenceGeometry, GeofenceId, GeofenceRule, GeofenceViolation, LinearRing2,
+    NedPosition, Orientation3, Path2, Polygon2, Pose3, ProjectedPosition, Trajectory3,
+    TrajectoryId, TrajectoryInterpolation, TrajectoryPoint, Velocity3, Wgs84Position,
 };
 pub use deployment::{
     DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,
@@ -61,12 +55,8 @@ pub use deployment::{
     TelemetrySinkDeployment, TelemetrySinkKind,
 };
 pub use duckdb::{
-    DuckDbColumn, DuckDbDatabaseId, DuckDbDatabaseIdError, DuckDbExecuteOutput,
-    DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
-    DuckDbExportSelection, DuckDbFormat, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
-    DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbReadOptions, DuckDbSource,
-    DuckDbSqlBuildError, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
-    duckdb_read_options_sql,
+    DuckDbFormat, DuckDbReadOptions, DuckDbSource, DuckDbSqlBuildError, duckdb_quote_identifier,
+    duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
@@ -109,11 +99,6 @@ pub use internal_auth::{
     GatewayInternalTokenVerifier, InternalTokenError, InternalTokenSecret,
     IssuedGatewayInternalToken, MIN_INTERNAL_TOKEN_SECRET_BYTES,
 };
-pub use optimization::{
-    AgentPlanResult, PlanArtifactOptions, PlanInput, PlanOutput, PlanRequest, PlanSolverSummary,
-    PlanStatus, PlanSummary, PlanningAgent, PlanningConstraint, PlanningObjective, PlanningOption,
-    PlanningTableMapping, PlanningTask, SelectedOption, TaskPlanResult,
-};
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
 pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};
@@ -125,11 +110,6 @@ pub use tasks::{
     parse_gateway_task_resource_uri, related_task_meta, set_related_task_meta,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
-pub use timeseries::{
-    TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastOutput,
-    TimeseriesForecastRequest, TimeseriesForecastSummary, TimeseriesRowFilter,
-    TimeseriesSeriesSummary, TimeseriesTableMapping,
-};
 pub use uri::{
     ServerResourceUri, ServerResourceUriError, ServerResourceUris, artifact_object_key, is_sha256,
 };

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{ArtifactMetadata, duckdb::DuckDbSource};
+use veoveo_mcp_contract::{ArtifactMetadata, DuckDbSource};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeseriesTableMapping {
