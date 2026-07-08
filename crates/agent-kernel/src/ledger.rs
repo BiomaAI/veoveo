@@ -454,6 +454,179 @@ impl KernelLedger {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeState {
+    Queued,
+    Handled,
+    Coalesced,
+    Dropped,
+}
+
+impl WakeState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            WakeState::Queued => "queued",
+            WakeState::Handled => "handled",
+            WakeState::Coalesced => "coalesced",
+            WakeState::Dropped => "dropped",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ElicitationState {
+    Parked,
+    Answered,
+    Declined,
+    Cancelled,
+}
+
+impl ElicitationState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            ElicitationState::Parked => "parked",
+            ElicitationState::Answered => "answered",
+            ElicitationState::Declined => "declined",
+            ElicitationState::Cancelled => "cancelled",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParkedElicitation {
+    pub elicitation_id: String,
+    pub related_task_id: Option<String>,
+    pub message: String,
+    pub schema_json: Option<String>,
+}
+
+impl KernelLedger {
+    pub fn record_wake(
+        &self,
+        wake_id: Uuid,
+        kind: &str,
+        dedup_key: &str,
+        payload: &serde_json::Value,
+        state: WakeState,
+    ) -> Result<()> {
+        self.conn().execute(
+            "INSERT INTO kernel.wakes (wake_id, kind, dedup_key, payload_json, created_at, state)
+             VALUES (?, ?, ?, ?, ?, ?)",
+            params![
+                wake_id.to_string(),
+                kind,
+                dedup_key,
+                payload.to_string(),
+                Utc::now().naive_utc(),
+                state.as_str()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn mark_wake(
+        &self,
+        wake_id: Uuid,
+        state: WakeState,
+        episode_id: Option<Uuid>,
+    ) -> Result<()> {
+        self.conn().execute(
+            "UPDATE kernel.wakes SET state = ?, handled_episode = ?, handled_at = ?
+             WHERE wake_id = ?",
+            params![
+                state.as_str(),
+                episode_id.map(|id| id.to_string()),
+                Utc::now().naive_utc(),
+                wake_id.to_string()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn task_consumed(&self, task_id: &str) -> Result<bool> {
+        let consumed: i64 = self.conn().query_row(
+            "SELECT COUNT(*) FROM kernel.task_ledger
+             WHERE task_id = ? AND consumed_by_episode IS NOT NULL",
+            params![task_id],
+            |row| row.get(0),
+        )?;
+        Ok(consumed > 0)
+    }
+
+    pub fn park_elicitation(
+        &self,
+        elicitation_id: Uuid,
+        related_task_id: Option<&str>,
+        message: &str,
+        schema_json: Option<&str>,
+    ) -> Result<()> {
+        self.conn().execute(
+            "INSERT INTO kernel.elicitations
+                 (elicitation_id, related_task_id, requested_at, message, schema_json, state)
+             VALUES (?, ?, ?, ?, ?, 'parked')",
+            params![
+                elicitation_id.to_string(),
+                related_task_id,
+                Utc::now().naive_utc(),
+                message,
+                schema_json
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn answer_elicitation(
+        &self,
+        elicitation_id: Uuid,
+        state: ElicitationState,
+        answer_json: Option<&str>,
+        answered_by: &str,
+    ) -> Result<()> {
+        let changed = self.conn().execute(
+            "UPDATE kernel.elicitations SET state = ?, answer_json = ?, answered_at = ?,
+                 answered_by = ? WHERE elicitation_id = ? AND state = 'parked'",
+            params![
+                state.as_str(),
+                answer_json,
+                Utc::now().naive_utc(),
+                answered_by,
+                elicitation_id.to_string()
+            ],
+        )?;
+        if changed == 0 {
+            bail!("elicitation `{elicitation_id}` is not parked");
+        }
+        Ok(())
+    }
+
+    pub fn parked_elicitations(&self) -> Result<Vec<ParkedElicitation>> {
+        let conn = self.conn();
+        let mut statement = conn.prepare(
+            "SELECT elicitation_id, related_task_id, message, schema_json
+             FROM kernel.elicitations WHERE state = 'parked' ORDER BY requested_at",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok(ParkedElicitation {
+                elicitation_id: row.get(0)?,
+                related_task_id: row.get(1)?,
+                message: row.get(2)?,
+                schema_json: row.get(3)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Episodes started in the current UTC hour, for window budgets.
+    pub fn episodes_started_this_hour(&self) -> Result<i64> {
+        Ok(self.conn().query_row(
+            "SELECT COUNT(*) FROM kernel.episodes
+             WHERE started_at >= date_trunc('hour', now()::TIMESTAMP)",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+}
+
 /// Reject anything but one read-only statement: the guard for `memory_query`
 /// and manifest context sections. Read-only is a policy here, not an engine
 /// property — the kernel owns this database, so the guard is about keeping

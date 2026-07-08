@@ -176,10 +176,31 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
     let has_task_update = messages
         .iter()
         .any(|message| text_of(message).contains("Background task update"));
+    let has_heartbeat = messages
+        .iter()
+        .any(|message| text_of(message).contains("Scheduled heartbeat"));
+    let has_episode_count_ask = messages
+        .iter()
+        .any(|message| text_of(message).contains("Count your episodes"));
     let assistant_turns = messages
         .iter()
         .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
         .count();
+
+    if has_heartbeat && !has_task_update && !has_episode_count_ask {
+        return AxumJson(fake_llm_stop_response(&request, "IDLE."));
+    }
+    if has_episode_count_ask && !has_task_update {
+        let choice = if assistant_turns == 0 {
+            fake_llm_tool_call_choice(
+                "memory_query",
+                json!({ "sql": "SELECT COUNT(*) AS episodes FROM kernel.episodes" }),
+            )
+        } else {
+            return AxumJson(fake_llm_stop_response(&request, "EPISODES COUNTED."));
+        };
+        return AxumJson(fake_llm_response(&request, choice));
+    }
 
     let choice = match (has_task_update, assistant_turns) {
         (true, 0) => fake_llm_tool_call_choice(
@@ -220,14 +241,29 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         }),
     };
 
-    AxumJson(json!({
+    AxumJson(fake_llm_response(&request, choice))
+}
+
+fn fake_llm_response(request: &Value, choice: Value) -> Value {
+    json!({
         "id": "chatcmpl-fake",
         "object": "chat.completion",
         "created": 0,
         "model": request.get("model").cloned().unwrap_or_else(|| json!("fake")),
         "choices": [choice],
         "usage": { "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30 }
-    }))
+    })
+}
+
+fn fake_llm_stop_response(request: &Value, content: &str) -> Value {
+    fake_llm_response(
+        request,
+        json!({
+            "index": 0,
+            "message": { "role": "assistant", "content": content },
+            "finish_reason": "stop"
+        }),
+    )
 }
 
 fn fake_llm_tool_call_choice(tool_name: &str, arguments: Value) -> Value {

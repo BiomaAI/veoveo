@@ -11,15 +11,20 @@
 //! rehydrate live handles via `McpTaskResumer` — across process restarts —
 //! and each result wakes a fresh episode.
 
+pub mod budget;
 pub mod connection;
 pub mod context;
+pub mod delegate;
+pub mod elicitation;
 pub mod episode;
 pub mod ledger;
 pub mod llm;
 pub mod manifest;
+pub mod operator;
 pub mod recorder;
 pub mod rrd;
 pub mod summary;
 pub mod tasks;
 pub mod timeline;
 pub mod tools;
+pub mod wake;

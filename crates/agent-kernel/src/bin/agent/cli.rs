@@ -15,6 +15,10 @@ pub(crate) enum Cmd {
     Run(RunArgs),
     /// Query the agent's episodic flight log (RRD segments) as JSON rows.
     Timeline(TimelineArgs),
+    /// Wake a running agent with an operator message.
+    Ask(AskArgs),
+    /// Show a running agent's status.
+    Status(StatusArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -55,4 +59,24 @@ pub(crate) struct RunArgs {
     /// rerun+http://127.0.0.1:9876/proxy.
     #[arg(long)]
     pub(crate) viewer_tee: Option<String>,
+    /// Fixed operator endpoint port (default: ephemeral, written to
+    /// {data-dir}/operator.port).
+    #[arg(long)]
+    pub(crate) operator_port: Option<u16>,
+}
+
+#[derive(Parser, Debug)]
+pub(crate) struct AskArgs {
+    /// Directory holding the agent's durable memory files.
+    #[arg(long)]
+    pub(crate) data_dir: PathBuf,
+    /// The message to wake the agent with.
+    pub(crate) text: String,
+}
+
+#[derive(Parser, Debug)]
+pub(crate) struct StatusArgs {
+    /// Directory holding the agent's durable memory files.
+    #[arg(long)]
+    pub(crate) data_dir: PathBuf,
 }

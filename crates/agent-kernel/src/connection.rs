@@ -34,7 +34,24 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
-use crate::manifest::AgentManifest;
+use crate::{
+    delegate::KernelNotificationDelegate,
+    elicitation::{ElicitationWaiters, ParkedElicitationHandler},
+    ledger::KernelLedger,
+    manifest::AgentManifest,
+    wake::WakeBus,
+};
+
+/// Kernel surfaces wired into every gateway session (and re-wired on each
+/// rotation): the wake bus behind the notification delegate and the parked
+/// elicitation handler.
+#[derive(Clone)]
+pub struct KernelHandlers {
+    pub bus: WakeBus,
+    pub ledger: KernelLedger,
+    pub waiters: ElicitationWaiters,
+    pub elicitation_grace: Duration,
+}
 
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
@@ -77,6 +94,7 @@ pub struct ConnectionEpoch {
 pub struct GatewayConnection {
     manifest: AgentManifest,
     tool_server_handle: ToolServerHandle,
+    handlers: KernelHandlers,
     http: reqwest::Client,
     encoding_key: EncodingKey,
     live: Option<Live>,
@@ -89,6 +107,7 @@ impl GatewayConnection {
     pub async fn connect(
         manifest: AgentManifest,
         tool_server_handle: ToolServerHandle,
+        handlers: KernelHandlers,
     ) -> Result<(Self, watch::Receiver<ConnectionEpoch>)> {
         let key_b64 = std::env::var(&manifest.gateway.private_key_env).with_context(|| {
             format!(
@@ -105,6 +124,7 @@ impl GatewayConnection {
         let mut connection = Self {
             manifest,
             tool_server_handle,
+            handlers,
             http,
             encoding_key,
             live: None,
@@ -153,7 +173,14 @@ impl GatewayConnection {
             ),
             self.tool_server_handle.clone(),
         )
-        .with_timeout(self.manifest.request_timeout());
+        .with_timeout(self.manifest.request_timeout())
+        .with_notification_delegate(KernelNotificationDelegate::new(self.handlers.bus.clone()))
+        .with_elicitation_handler(ParkedElicitationHandler::new(
+            self.handlers.ledger.clone(),
+            self.handlers.bus.clone(),
+            self.handlers.waiters.clone(),
+            self.handlers.elicitation_grace,
+        ));
         let service = handler
             .connect(transport)
             .await

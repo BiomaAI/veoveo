@@ -281,6 +281,279 @@ pub(crate) async fn agent_kernel_detach_resume(
     Ok(())
 }
 
+/// The agent-kernel scheduler: heartbeats, operator wakes, budgets, and
+/// fail-closed manifests.
+///
+/// A long-running agent boots against the full gateway stack with a fast
+/// heartbeat, is woken by an operator `agent ask` over the loopback HTTP
+/// endpoint, and has a sibling data-dir run its episode into a per-episode
+/// budget breach. An invalid manifest must refuse to boot.
+pub(crate) async fn agent_kernel_scheduler(
+    conformance: &Path,
+    media: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+) -> Result<()> {
+    assert_executable(conformance)?;
+    assert_executable(media)?;
+    assert_executable(gateway)?;
+    assert_executable(artifact_service)?;
+    assert_executable(agent)?;
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let provider_port = 18840u16;
+    let media_port = 18801u16;
+    let gateway_port = 18842u16;
+    let llm_port = 18843u16;
+    let media_base = format!("http://127.0.0.1:{media_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let provider_base = format!("http://127.0.0.1:{provider_port}");
+
+    let provider_ready = tmpdir.join("provider.ready");
+    let llm_ready = tmpdir.join("llm.ready");
+
+    let mut provider = spawn_fake_media_provider(
+        conformance,
+        provider_port,
+        &provider_ready,
+        &tmpdir.join("provider.log"),
+        Some(4000),
+    )?;
+    wait_for_file_and_http(&provider_ready, &format!("{provider_base}/api/v3/models")).await?;
+    let mut llm = ChildGuard::spawn(
+        conformance,
+        [
+            "fake-openai-llm".into(),
+            "--port".into(),
+            llm_port.to_string().into(),
+            "--ready-file".into(),
+            llm_ready.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("llm.log"),
+    )?;
+    wait_for_file(&llm_ready).await?;
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut media_child = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &tmpdir.join("media-state.duckdb"),
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(
+            gateway_port,
+            &control_db.url,
+            &tmpdir.join("gw-state.duckdb"),
+        ),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &tmpdir.join("gateway.log"),
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, 2).await?;
+
+    let write_manifest = |name: &str, extra: serde_json::Value| -> Result<std::path::PathBuf> {
+        let mut manifest = serde_json::json!({
+            "agent": { "id": "smoke-scheduler", "display_name": "Scheduler Smoke Agent" },
+            "model": {
+                "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
+                "api_key_env": "SMOKE_LLM_API_KEY",
+                "model": "fake/kimi"
+            },
+            "gateway": {
+                "url": gateway_base,
+                "profile": "operator",
+                "client_id": "operator-service",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "private_key_kid": "test-key"
+            },
+            "episode": { "max_turns": 6, "task_deadline_s": 60, "task_poll_interval_ms": 300 },
+            "schedule": { "heartbeat_interval_s": 2, "wake_coalesce_window_ms": 100 },
+            "preamble": "You operate hosted tools through a gateway. Follow instructions exactly."
+        });
+        if let (serde_json::Value::Object(base), serde_json::Value::Object(extra)) =
+            (&mut manifest, extra)
+        {
+            base.extend(extra);
+        }
+        let path = tmpdir.join(name);
+        fs::write(&path, serde_json::to_vec_pretty(&manifest)?)?;
+        Ok(path)
+    };
+    let agent_envs = || {
+        [
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ]
+    };
+
+    // Fail-closed boot: an unknown manifest field must refuse to start.
+    let invalid_manifest = tmpdir.join("invalid-manifest.json");
+    fs::write(
+        &invalid_manifest,
+        serde_json::to_vec_pretty(&serde_json::json!({ "surprise": true }))?,
+    )?;
+    let invalid = run_raw(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            invalid_manifest.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            tmpdir.join("invalid-data").as_os_str().to_os_string(),
+        ],
+        agent_envs(),
+    )?;
+    if invalid.status.success() {
+        bail!("agent accepted an invalid manifest");
+    }
+
+    // Budget breach: one tool call is over the per-episode cap.
+    let budget_manifest = write_manifest(
+        "budget-manifest.json",
+        serde_json::json!({
+            "budgets": { "per_episode": { "max_tool_calls": 0 } }
+        }),
+    )?;
+    let budget_data_dir = tmpdir.join("budget-data");
+    let budget_run = run_checked(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            budget_manifest.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            budget_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            "Count your episodes".into(),
+            "--halt-after-episode".into(),
+        ],
+        agent_envs(),
+    )?;
+    contains(&budget_run, "episode budget terminated")?;
+    {
+        let ledger = duckdb::Connection::open(budget_data_dir.join("memory.duckdb"))?;
+        let outcome: String = ledger.query_row(
+            "SELECT outcome FROM kernel.episodes ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if outcome != "budget_terminated" {
+            bail!("budget episode outcome was `{outcome}`");
+        }
+    }
+
+    // The scheduler proper: heartbeats fire, operator asks preempt.
+    let scheduler_manifest = write_manifest("scheduler-manifest.json", serde_json::json!({}))?;
+    let scheduler_data_dir = tmpdir.join("scheduler-data");
+    let agent_log = tmpdir.join("agent-scheduler.log");
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            scheduler_manifest.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            scheduler_data_dir.as_os_str().to_os_string(),
+        ],
+        agent_envs(),
+        &agent_log,
+    )?;
+    wait_for_log_substring(&agent_log, "operator endpoint listening", 120).await?;
+    wait_for_log_substring(&agent_log, "\"wake_note\":\"heartbeat\"", 120).await?;
+
+    let ask = run_checked(
+        agent,
+        [
+            "ask".into(),
+            "--data-dir".into(),
+            scheduler_data_dir.as_os_str().to_os_string(),
+            "Count your episodes".into(),
+        ],
+        [],
+    )?;
+    contains(&ask, "wake_id")?;
+    wait_for_log_substring(&agent_log, "\"wake_note\":\"operator\"", 120).await?;
+
+    let status = run_checked(
+        agent,
+        [
+            "status".into(),
+            "--data-dir".into(),
+            scheduler_data_dir.as_os_str().to_os_string(),
+        ],
+        [],
+    )?;
+    contains(&status, "recent_episodes")?;
+
+    // Give the operator episode time to book, then stop and inspect.
+    wait_for_log_substring(&agent_log, "EPISODES COUNTED", 120).await?;
+    agent_child.stop();
+    {
+        let ledger = duckdb::Connection::open(scheduler_data_dir.join("memory.duckdb"))?;
+        let heartbeat_episodes: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM kernel.episodes WHERE wake_note LIKE '%heartbeat%'",
+            [],
+            |row| row.get(0),
+        )?;
+        if heartbeat_episodes < 1 {
+            bail!("no heartbeat episodes ran");
+        }
+        let operator_output: String = ledger.query_row(
+            "SELECT final_output FROM kernel.episodes WHERE wake_note LIKE '%operator%'
+             ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )?;
+        if !operator_output.contains("EPISODES COUNTED") {
+            bail!("operator episode output was `{operator_output}`");
+        }
+        let handled_wakes: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM kernel.wakes WHERE state = 'handled'",
+            [],
+            |row| row.get(0),
+        )?;
+        if handled_wakes < 2 {
+            bail!("expected handled wakes, found {handled_wakes}");
+        }
+    }
+
+    gateway_child.stop();
+    media_child.stop();
+    provider.stop();
+    llm.stop();
+    cleanup.remove_on_drop();
+    println!("agent kernel scheduler smoke ok");
+    Ok(())
+}
+
 /// Poll a child's log file until it contains `needle`.
 async fn wait_for_log_substring(file: &Path, needle: &str, attempts: u32) -> Result<()> {
     for _ in 0..attempts {
