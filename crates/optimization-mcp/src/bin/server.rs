@@ -271,14 +271,16 @@ impl ServerHandler for OptimizationMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskPayloadResult, McpError> {
         require_task_owner(&self.state, &context, &request.task_id).await?;
-        match self.state.tasks.payload_state(&request.task_id).await {
+        match self.state.tasks.await_payload_state(&request.task_id).await {
             TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
             TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
             TaskPayloadState::Cancelled => {
                 Err(McpError::invalid_request("task was cancelled", None))
             }
-            TaskPayloadState::Running => Err(McpError::invalid_request(
-                "task is still running; read tasks/get until completed",
+            // await_payload_state blocks until terminal per MCP 2025-11-25;
+            // Running here means the wait logic itself broke.
+            TaskPayloadState::Running => Err(McpError::internal_error(
+                "task payload wait ended while still running",
                 None,
             )),
             TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
