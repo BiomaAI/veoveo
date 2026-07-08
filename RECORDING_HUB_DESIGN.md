@@ -292,3 +292,251 @@ Three services behind an opt-in `hub` profile, one named volume `hub_spool`:
 4. **redap auth** — none in OSS, by evidence; answered with network
    placement now and a policy-checked MCP query tool later, never by
    trusting the hub.
+
+---
+
+# Showcase — a SUMO traffic world
+
+A `showcase/` that proves the whole platform on a real simulator instead of a
+synthetic generator: the [SUMO](https://eclipse.dev/sumo/) traffic simulator
+runs a live city; its vehicles, signals, and detectors are **pushed** into the
+Recording Hub as typed sensor streams; the Pilot agent perceives that world
+through its world model, and acts back on it through a **task-native MCP
+server we build ourselves** — so long simulator operations become MCP tasks
+the agent detaches from, sleeps through, and wakes on. It is the sleep/wake
+loop already proven, now driven by a real simulator doing real work.
+
+The hub never pulls. SUMO is one more push producer; `sumo-mcp` is one more
+task-native gateway server. Nothing in the platform learns it is talking to a
+traffic simulator.
+
+## Why our own MCP server, not the existing one
+
+The public SUMO MCP servers are **inspiration, not dependency**. The most
+functional (`XRDS76354/SUMO-MCP-Server`, from the arXiv 2506.03548 paper —
+MIT, Python, stdio) gives a proven *tool taxonomy* (network generation, demand
+generation, route computation, live TraCI queries, signal optimization,
+workflows). We take that taxonomy and rebuild it on `mcp-contract` for the
+features that taxonomy leaves on the table:
+
+- **The task API.** Network generation, route computation, batch simulation
+  runs, and signal optimization are long operations. On a stdio server they
+  block a request; on ours they are **MCP tasks** using the exact `TaskStore`
+  / `await_payload_state` machinery every veoveo server now speaks — so the
+  agent gets a `CreateTaskResult`, detaches, sleeps, and is woken by the
+  task-result notification. This is the whole point.
+- **Gateway projection, auth, policy, audit.** Projected as `sumo__*` behind
+  the gateway with an INTERNAL token, a tenant, and policy checks — governed
+  like the other six servers, not an unauthenticated stdio child.
+- **Resource subscriptions.** Congestion, arrival, and collision conditions
+  become `resources/subscribe` targets that push wakes — the showcase is what
+  finally motivates closing the kernel's `resources/subscribe` gap.
+- **Strong typing end to end.** Typed tool params and typed domain ids
+  (`ScenarioId`, `VehicleId`, `EdgeId`, `SignalId`) instead of stringly tools
+  returning `Error:`-prefixed text.
+
+⚠️ **Never touch `HypaSMarty/SUMO-MCP-Server`.** It is a malware lure — a
+copied source tree whose README funnels to a checked-in ZIP payload it tells
+you to unzip and run. It is named only so this document can say: not that one.
+
+## Shape
+
+```
+┌─ sumo (official Docker) ──────────┐
+│  ghcr.io/eclipse-sumo/sumo:v1_27_1│
+│  headless, TraCI :8813            │
+│  seeded scenario (grid+trips)     │
+└───────────┬───────────────────────┘
+            │ TraCI (single client, serialized stepping)
+┌───────────▼─ sumo-bridge (Python) ─────────────────────────┐
+│  owns the one TraCI connection. Two jobs, one clock:        │
+│   PUSH: each step → typed Rerun streams → hub proxy         │
+│         /world/sumo/{vehicle,signal,detector,ego}/**        │
+│   CONTROL: loopback-only typed HTTP (pydantic) — apply      │
+│         commands between steps so stepping never corrupts   │
+│  evaluates watch conditions each step → signals sumo-mcp    │
+└───────────┬─────────────────────────────┬───────────────────┘
+   rerun+http│ (push)          loopback HTTP│ (control + events)
+             ▼                              ▼
+      hub-spooler :9876          ┌─ sumo-mcp (Rust, mcp-contract) ─┐
+      world dataset              │  hosted server, gateway → sumo__*│
+                                 │  sync tools: query state         │
+                                 │  TASK tools: generate_network,   │
+                                 │    compute_routes, run_batch,    │
+                                 │    optimize_signals              │
+                                 │  resources: sim/congestion,      │
+                                 │    sim/arrival, sim/collision    │
+                                 └──────────────────────────────────┘
+```
+
+**One Python component, deliberately dumb.** `sumo-bridge` is the device
+driver for the SUMO world. TraCI is single-client and stepping is serialized,
+so exactly one process may own the connection — it does, and it serializes
+both the sensor reads it pushes and the control commands it applies (queued,
+applied between steps). Python because the SUMO ecosystem is Python (`traci`,
+`sumolib`, the `$SUMO_HOME/tools` scripts); this is the one place the earlier
+"python is fine for the showcase" guidance is spent.
+
+**One Rust component, fully governed.** `sumo-mcp` is a hosted server exactly
+like media/coordinates/optimization: it owns no simulator state, it translates
+governed MCP calls into typed bridge calls, and it models the long ones as
+tasks. The bridge↔server seam is typed on both sides — the Rust request/event
+types export a JSON schema (the `contract_schemas` pattern) that the Python
+side validates with pydantic, so the seam can't drift silently.
+
+## Tools (task-native where it counts)
+
+Synchronous (fast TraCI reads, answered inline):
+- `sumo__query_state` — vehicle list, per-vehicle speed/pos/lane/route, sim
+  time, signal phases. Typed result, not text.
+- `sumo__describe_scenario` — loaded network bounds, edges, signals.
+
+Tasks (long; return `CreateTaskResult`, notify on completion):
+- `sumo__generate_network` — netgenerate/netconvert (grid/spider/OSM).
+- `sumo__compute_routes` — randomTrips + duarouter demand → routes.
+- `sumo__run_batch` — advance the sim N steps as fast as possible (libsumo
+  in-process mode for speed), returning aggregate outcomes.
+- `sumo__optimize_signals` — tlsCycleAdaptation / tlsCoordinator.
+
+Actuation (fast, but state-changing — synchronous with confirmation):
+- `sumo__set_signal_phase`, `sumo__reroute_vehicle`, `sumo__add_vehicle` —
+  queued to the bridge, applied at the next safe step boundary, ack returned.
+
+Resources (subscribe → push wake):
+- `sim/congestion` (mean edge speed below threshold), `sim/arrival` (tracked
+  vehicle reaches destination), `sim/collision` (safety event). The bridge
+  evaluates each condition per step; crossings become `resources/updated`
+  notifications the kernel turns into wakes.
+
+This is the full perceive → decide → act loop against a real simulator:
+SUMO streams the world into the hub → the agent reads its world model → calls
+a task tool (`run_batch`, `optimize_signals`) → **detaches and sleeps** →
+wakes on the task result → acts (`set_signal_phase`, `reroute_vehicle`) → a
+congestion resource wakes the next episode. Every arrow is machinery that now
+exists; the showcase wires it to traffic.
+
+## Streams and sessions
+
+Vehicles and infrastructure are pushed with the same typed component
+discipline the world model uses, so SUMO data is world-model data:
+
+- `/world/sumo/vehicle/{id}` — `GeoPoints` (SUMO geo-projection → lat/lon) +
+  scalar `speed`/`accel` + `TextLog` lane/route.
+- `/world/sumo/signal/{id}` — phase state over time.
+- `/world/sumo/detector/{id}` — induction-loop counts.
+- `/world/sumo/ego` — the vehicle the agent tracks/controls, called out.
+
+One recording id per simulation run = one hub session = one catalog segment,
+routed by application id `veoveo-sumo` into the `world` dataset — so SUMO
+traffic and `sensor-sim` streams share one queryable record. A durable
+property worth stating: **SUMO runs are ephemeral; the hub segment is not.**
+If the simulator container dies mid-run, the world up to that instant is
+already durable in the spool and answerable through the catalog — the record
+outlives the simulator.
+
+## Auth and placement
+
+- `sumo-mcp` sits behind the gateway with an INTERNAL token and a tenant, and
+  is projected/policy-checked/audited like every hosted server.
+- `sumo-bridge`'s control API and the SUMO TraCI port are **internal-network
+  only** — never published, reachable only by `sumo-mcp` and the bridge
+  itself, consistent with the hub's placement rule.
+- The bridge's push into the hub is the same governed-by-placement ingest as
+  any other producer.
+
+## Determinism, strong typing, performance, safety
+
+- **Deterministic scenario.** A seeded scenario checked into
+  `showcase/sumo/scenario/` (`netgenerate --grid` + seeded `randomTrips.py`),
+  so vehicle counts and positions at step N are exact and the smoke asserts
+  on them — not vibes.
+- **Typed both sides.** Rust: serde `deny_unknown_fields` tool params, newtype
+  ids, typed task descriptors. Python: pydantic control models, typed traci
+  wrappers, a typed emit layer mirroring the Rerun components. Shared schema
+  exported from Rust, validated in Python.
+- **Performance.** The bridge's TraCI loop is the sim clock; sensor pushes are
+  batched per step; `run_batch` uses libsumo in-process stepping (no TCP
+  round-trip per step) for fast-forward runs. Control commands never block
+  stepping — they queue and apply at step boundaries.
+- **Safety.** SUMO container is resource-limited; the scenario is bounded;
+  collisions use SUMO's teleport handling; a run is a fresh session so a
+  corrupt sim state can't poison history — and the hub already holds what
+  happened.
+
+## Test plan
+
+- **Rust unit (`sumo-mcp`)** — tool-schema and task-lifecycle tests against a
+  **fake bridge** (a typed in-process stub): `run_batch` produces a task,
+  polls to terminal, `tasks/result` returns typed aggregates; resource
+  subscribe/notify round-trip.
+- **Python tests (`sumo-bridge`)** — traci-mocked control/emit unit tests plus
+  one short real-sim integration run asserting emitted stream counts equal the
+  seeded scenario's ground truth.
+- **Smoke `showcase-sumo`** (capstone e2e, `showcase` profile) — bring up
+  SUMO + bridge + hub + `sumo-mcp` behind the gateway + the Pilot agent. The
+  agent issues `sumo__run_batch`, **detaches and sleeps**, and wakes on the
+  task-result notification (the real-deal sleep/wake, now simulator-driven);
+  assert the vehicle streams landed in the hub `world` dataset and are
+  answerable through the catalog; assert a `sim/congestion` resource update
+  woke a follow-up episode that called `sumo__set_signal_phase`.
+- **Determinism smoke** — seeded scenario, assert exact vehicle count and ego
+  position at a fixed step through `sumo__query_state`.
+- **`showcase-live`** (manual recipe) — real Cloudflare Kimi, real SUMO, the
+  Pilot managing traffic live, visible in the viewer via the hub tee.
+
+## Compose & layout
+
+```
+showcase/
+  README.md
+  compose.showcase.yaml         # `showcase` profile: sumo, sumo-bridge, sumo-mcp
+  sumo/
+    Dockerfile                  # FROM ghcr.io/eclipse-sumo/sumo:v1_27_1 + scenario
+    scenario/                   # seeded grid net + trips + .sumocfg
+  sumo-bridge/                  # Python: traci owner, push + control, pydantic
+    Dockerfile
+    pyproject.toml
+crates/sumo-mcp/                # Rust hosted server on mcp-contract (sumo__*)
+```
+
+- `sumo` — official image + baked scenario, headless `sumo -c … --remote-port
+  8813`, internal network only.
+- `sumo-bridge` — Python image, connects TraCI, pushes to
+  `rerun+http://hub-spooler:9876/proxy`, control API on loopback/internal.
+- `sumo-mcp` — Rust image (workspace two-stage), registered as a gateway
+  upstream in `gateway.bioma.json` (`sumo__*`), talks the bridge control API.
+- `configs/agents/pilot/` gains a traffic preamble + `sumo` migration tables
+  (signals, incidents) so the Pilot can reason about the traffic domain.
+
+## Showcase milestones (depend on hub H1+)
+
+- **S0 — push spine.** SUMO container + seeded scenario + `sumo-bridge`
+  pushing vehicle/signal streams into a plain proxy (or the hub), viewer shows
+  live traffic. This alone is the "tiny simulator pushing to rerun" ask,
+  standalone-provable before the Rust server exists.
+- **S1 — governed server.** `crates/sumo-mcp` with synchronous query tools +
+  the typed bridge control API + shared schema; gateway projection `sumo__*`;
+  Rust unit tests against the fake bridge.
+- **S2 — task-native long ops.** `run_batch`/`generate_network`/
+  `compute_routes`/`optimize_signals` as MCP tasks; `showcase-sumo` detach/
+  sleep/wake smoke against real SUMO.
+- **S3 — event plane.** `sim/congestion|arrival|collision` resources → agent
+  wakes; closes the kernel `resources/subscribe` gap; follow-up-episode
+  assertion.
+- **S4 — capstone.** `showcase` compose profile, capstone + determinism
+  smokes, `showcase-live` recipe, Pilot traffic preamble/migrations, docs +
+  Pilot Harness update.
+
+## Showcase open questions
+
+1. **Rust TraCI vs Python sidecar** — resolved to the Python `sumo-bridge`
+   (the SUMO client ecosystem is Python; keeps the sim seam small). A
+   pure-Rust collapse (one component talking TraCI directly, no Python) stays
+   a later option if the sidecar hop ever costs more than it saves.
+2. **libsumo vs TraCI for `run_batch`** — libsumo is faster (in-process) but
+   cannot attach to the remote container; batch runs may need their own
+   short-lived in-process SUMO inside the bridge rather than the shared TraCI
+   session. S2 spike settles it.
+3. **Geo-projection fidelity** — SUMO nets may be projected or plain-XY;
+   scenario is chosen/authored with a geo-projection so `/world/sumo/**`
+   `GeoPoints` are real lat/lon, not net-local meters.
