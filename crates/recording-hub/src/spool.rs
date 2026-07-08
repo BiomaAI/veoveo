@@ -1,0 +1,350 @@
+//! The durable write path: demux incoming `LogMsg`s into day-partitioned
+//! segment files, one file per `(dataset, day, recording)`, and freeze them on
+//! size/age so the catalog can lazy-load their manifests.
+//!
+//! Files are footer-less while live (crash-decodable to the last whole
+//! message) and gain a footer/manifest at freeze. On restart a recording that
+//! already has a live file resumes into a fresh `.rN` sibling — an RRD file is
+//! never truncated in place, so a crashed segment is always recoverable.
+
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use anyhow::{Context, Result};
+use chrono::NaiveDate;
+use re_build_info::CrateVersion;
+use re_log_channel::{DataSourceMessage, LogReceiver, RecvTimeoutError};
+use re_log_encoding::EncodingOptions;
+use re_log_encoding::rrd::Encoder;
+use re_log_types::{LogMsg, StoreKind};
+
+use crate::config::{DatasetName, SpoolerConfig};
+
+/// The identity of one segment file.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SegmentKey {
+    pub dataset: DatasetName,
+    pub day: NaiveDate,
+    pub recording: String,
+}
+
+/// Aggregate counters, exported for logging and the bench harness.
+#[derive(Debug, Default, Clone)]
+pub struct Counters {
+    pub messages: u64,
+    pub bytes: u64,
+    pub segments_opened: u64,
+    pub segments_frozen: u64,
+    pub quarantined: u64,
+}
+
+struct SegmentWriter {
+    path: PathBuf,
+    encoder: Option<Encoder<BufWriter<File>>>,
+    opened_at: Instant,
+    bytes: u64,
+    messages: u64,
+}
+
+impl SegmentWriter {
+    fn create(path: PathBuf) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating segment dir {}", parent.display()))?;
+        }
+        let file = File::create(&path)
+            .with_context(|| format!("creating segment file {}", path.display()))?;
+        let encoder = Encoder::new_eager(
+            CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            BufWriter::with_capacity(1024 * 1024, file),
+        )
+        .with_context(|| format!("opening encoder for {}", path.display()))?;
+        Ok(Self {
+            path,
+            encoder: Some(encoder),
+            opened_at: Instant::now(),
+            bytes: 0,
+            messages: 0,
+        })
+    }
+
+    fn append(&mut self, msg: &LogMsg) -> Result<u64> {
+        let encoder = self
+            .encoder
+            .as_mut()
+            .context("append to a frozen segment writer")?;
+        let n = encoder
+            .append(msg)
+            .with_context(|| format!("appending to {}", self.path.display()))?;
+        self.bytes += n;
+        self.messages += 1;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        if let Some(encoder) = self.encoder.as_mut() {
+            encoder
+                .flush_blocking()
+                .with_context(|| format!("flushing {}", self.path.display()))?;
+        }
+        Ok(())
+    }
+
+    /// Write the footer/manifest and release the file.
+    fn finish(&mut self) -> Result<()> {
+        if let Some(mut encoder) = self.encoder.take() {
+            encoder
+                .finish()
+                .with_context(|| format!("finishing {}", self.path.display()))?;
+            encoder
+                .flush_blocking()
+                .with_context(|| format!("final flush {}", self.path.display()))?;
+        }
+        Ok(())
+    }
+}
+
+/// Drives demux, freeze, and shutdown for all active recordings.
+pub struct Spooler {
+    config: SpoolerConfig,
+    writers: HashMap<SegmentKey, SegmentWriter>,
+    counters: Counters,
+    today: fn() -> NaiveDate,
+}
+
+impl Spooler {
+    pub fn new(config: SpoolerConfig) -> Result<Self> {
+        config.validate()?;
+        std::fs::create_dir_all(&config.spool_dir)
+            .with_context(|| format!("creating spool dir {}", config.spool_dir.display()))?;
+        Ok(Self {
+            config,
+            writers: HashMap::new(),
+            counters: Counters::default(),
+            today: || chrono::Utc::now().date_naive(),
+        })
+    }
+
+    /// Override the clock (tests inject a fixed day).
+    pub fn with_clock(mut self, today: fn() -> NaiveDate) -> Self {
+        self.today = today;
+        self
+    }
+
+    pub fn counters(&self) -> &Counters {
+        &self.counters
+    }
+
+    pub fn spool_dir(&self) -> &Path {
+        &self.config.spool_dir
+    }
+
+    /// Route and persist one message. Blueprint stores are ignored (they are
+    /// viewer UI state, not recorded world data).
+    pub fn ingest(&mut self, msg: &LogMsg) -> Result<()> {
+        let store_id = msg.store_id();
+        if store_id.kind() != StoreKind::Recording {
+            return Ok(());
+        }
+        let application_id = store_id.application_id().as_str().to_owned();
+        let recording = store_id.recording_id().as_str().to_owned();
+        let dataset = self.config.dataset_for(&application_id);
+        if dataset.as_str() == crate::config::QUARANTINE_DATASET {
+            self.counters.quarantined += 1;
+        }
+        let key = SegmentKey {
+            dataset,
+            day: (self.today)(),
+            recording,
+        };
+
+        if !self.writers.contains_key(&key) {
+            let path = self.next_segment_path(&key)?;
+            let writer = SegmentWriter::create(path)?;
+            self.counters.segments_opened += 1;
+            self.writers.insert(key.clone(), writer);
+        }
+        let writer = self.writers.get_mut(&key).expect("writer just inserted");
+        let n = writer.append(msg)?;
+        self.counters.messages += 1;
+        self.counters.bytes += n;
+        Ok(())
+    }
+
+    /// Flush every live segment's buffered bytes to the OS.
+    pub fn flush_all(&mut self) {
+        for writer in self.writers.values_mut() {
+            if let Err(err) = writer.flush() {
+                tracing::warn!(%err, path = %writer.path.display(), "segment flush failed");
+            }
+        }
+    }
+
+    /// Freeze segments that have outgrown their size or age budget, opening a
+    /// fresh `.rN` sibling for any continued traffic on that key.
+    pub fn freeze_due(&mut self) -> Result<()> {
+        let max_bytes = self.config.segment_max_bytes;
+        let max_age = self.config.segment_max_age();
+        let due: Vec<SegmentKey> = self
+            .writers
+            .iter()
+            .filter(|(_, w)| w.bytes >= max_bytes || w.opened_at.elapsed() >= max_age)
+            .map(|(k, _)| k.clone())
+            .collect();
+        for key in due {
+            self.freeze_key(&key)?;
+        }
+        Ok(())
+    }
+
+    /// Freeze and close every segment (shutdown).
+    pub fn freeze_all(&mut self) -> Result<()> {
+        let keys: Vec<SegmentKey> = self.writers.keys().cloned().collect();
+        for key in keys {
+            self.freeze_key(&key)?;
+        }
+        Ok(())
+    }
+
+    fn freeze_key(&mut self, key: &SegmentKey) -> Result<()> {
+        if let Some(mut writer) = self.writers.remove(key) {
+            writer.finish()?;
+            self.counters.segments_frozen += 1;
+            if let Some(bin) = self.config.rerun_bin.clone() {
+                if let Err(err) = verify_segment(&bin, &writer.path) {
+                    tracing::warn!(%err, path = %writer.path.display(), "segment verify failed");
+                }
+            }
+            tracing::info!(
+                dataset = key.dataset.as_str(),
+                recording = key.recording,
+                path = %writer.path.display(),
+                messages = writer.messages,
+                bytes = writer.bytes,
+                "segment frozen"
+            );
+        }
+        Ok(())
+    }
+
+    /// Pick a not-yet-existing path for a segment key, so a crashed prior file
+    /// is never truncated: `{recording}.rrd`, then `{recording}.r1.rrd`, ...
+    fn next_segment_path(&self, key: &SegmentKey) -> Result<PathBuf> {
+        let dir = self
+            .config
+            .spool_dir
+            .join(key.dataset.as_str())
+            .join(key.day.format("%Y-%m-%d").to_string());
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("creating dataset dir {}", dir.display()))?;
+        let base = dir.join(format!("{}.rrd", sanitize(&key.recording)));
+        if !base.exists() {
+            return Ok(base);
+        }
+        for n in 1.. {
+            let candidate = dir.join(format!("{}.r{n}.rrd", sanitize(&key.recording)));
+            if !candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+        unreachable!("infinite range yields an unused path")
+    }
+}
+
+/// Make a recording id safe as a filename component.
+fn sanitize(recording: &str) -> String {
+    recording
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// Drain a proxy receiver into a spooler until `stop` is set or the channel
+/// disconnects, flushing and freezing on a cadence, then freeze everything.
+///
+/// This is the shared write loop: the `spooler` binary runs it on a blocking
+/// thread, and integration tests run it the same way, so the two never drift.
+pub fn run_blocking(
+    mut spooler: Spooler,
+    receiver: LogReceiver,
+    stop: Arc<AtomicBool>,
+    flush_interval: Duration,
+    counters_interval: Duration,
+) -> Result<Counters> {
+    let mut last_flush = Instant::now();
+    let mut last_counters = Instant::now();
+
+    loop {
+        match receiver.recv_timeout(Duration::from_millis(50)) {
+            Ok(msg) => {
+                if let Some(DataSourceMessage::LogMsg(log_msg)) = msg.into_data() {
+                    if let Err(err) = spooler.ingest(&log_msg) {
+                        tracing::warn!(%err, "ingest failed");
+                    }
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+
+        if last_flush.elapsed() >= flush_interval {
+            spooler.flush_all();
+            if let Err(err) = spooler.freeze_due() {
+                tracing::warn!(%err, "freeze_due failed");
+            }
+            last_flush = Instant::now();
+        }
+        if last_counters.elapsed() >= counters_interval {
+            let c = spooler.counters();
+            tracing::info!(
+                messages = c.messages,
+                bytes = c.bytes,
+                segments_opened = c.segments_opened,
+                segments_frozen = c.segments_frozen,
+                quarantined = c.quarantined,
+                "hub counters"
+            );
+            last_counters = Instant::now();
+        }
+        if stop.load(Ordering::SeqCst) {
+            break;
+        }
+    }
+
+    // Drain anything still queued, then freeze everything durably.
+    while let Ok(msg) = receiver.try_recv() {
+        if let Some(DataSourceMessage::LogMsg(log_msg)) = msg.into_data() {
+            let _ = spooler.ingest(&log_msg);
+        }
+    }
+    spooler.flush_all();
+    spooler.freeze_all()?;
+    Ok(spooler.counters().clone())
+}
+
+fn verify_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
+    let output = std::process::Command::new(rerun_bin)
+        .arg("rrd")
+        .arg("verify")
+        .arg(path)
+        .output()
+        .with_context(|| format!("running {} rrd verify", rerun_bin.display()))?;
+    anyhow::ensure!(
+        output.status.success(),
+        "rrd verify failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok(())
+}
