@@ -186,6 +186,24 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/artifact-service")]
         artifact_service_bin: PathBuf,
     },
+    /// Smoke-test agent-kernel gateway prerequisites: optional-tool task calls and cross-session task continuity.
+    AgentGateway {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built duckdb MCP server binary path.
+        #[arg(long, default_value = "target/debug/server")]
+        duckdb_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
+    },
     /// Smoke-test gateway secret resolution against a real Vault KV v2 service.
     GatewayVaultSecrets {
         /// Built gateway binary path.
@@ -268,6 +286,22 @@ async fn main() -> Result<()> {
             gateway_task_run(
                 &conformance_bin,
                 &media_bin,
+                &gateway_bin,
+                &control_plane,
+                &artifact_service_bin,
+            )
+            .await
+        }
+        Cmd::AgentGateway {
+            conformance_bin,
+            duckdb_bin,
+            gateway_bin,
+            control_plane,
+            artifact_service_bin,
+        } => {
+            agent_gateway(
+                &conformance_bin,
+                &duckdb_bin,
                 &gateway_bin,
                 &control_plane,
                 &artifact_service_bin,

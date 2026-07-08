@@ -120,6 +120,18 @@ pub(super) enum Cmd {
         #[arg(long)]
         simulation_upstream_url: String,
     },
+    /// Write a duckdb-upstream gateway smoke control plane for agent task tests.
+    GatewayAgentSmokeControlPlane {
+        /// Base gateway control plane JSON.
+        #[arg(long)]
+        base: PathBuf,
+        /// Output gateway control plane JSON.
+        #[arg(long)]
+        output: PathBuf,
+        /// DuckDB MCP upstream URL.
+        #[arg(long)]
+        duckdb_upstream_url: String,
+    },
     /// Serve a local HTTPS fake OIDC IdP for browser authorization-code smoke tests.
     GatewayFakeOidcIdp {
         /// HTTPS listen port.

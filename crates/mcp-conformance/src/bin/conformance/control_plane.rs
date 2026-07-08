@@ -94,6 +94,165 @@ pub(super) fn cmd_gateway_two_server_smoke_control_plane(
     Ok(())
 }
 
+pub(super) fn cmd_gateway_agent_smoke_control_plane(
+    base: PathBuf,
+    output: PathBuf,
+    duckdb_upstream_url: String,
+) -> Result<()> {
+    validate_loopback_http_url(&duckdb_upstream_url, "--duckdb-upstream-url")?;
+
+    let mut control_plane: Value = serde_json::from_str(&std::fs::read_to_string(&base)?)?;
+    replace_media_server_with_duckdb(&mut control_plane, &duckdb_upstream_url)?;
+    configure_profiles_for_duckdb(&mut control_plane)?;
+    configure_policy_for_duckdb(&mut control_plane)?;
+    drop_media_owned_secrets(&mut control_plane)?;
+    drop_media_compatibility_helpers(&mut control_plane)?;
+
+    let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
+    parsed.validate()?;
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
+fn replace_media_server_with_duckdb(
+    control_plane: &mut Value,
+    duckdb_upstream_url: &str,
+) -> Result<()> {
+    let servers = control_plane_array_mut(control_plane, "servers")?;
+    let server = servers
+        .iter_mut()
+        .find(|server| server.get("slug").and_then(Value::as_str) == Some("media"))
+        .ok_or_else(|| anyhow!("control plane has no `media` server"))?;
+    *server = json!({
+        "slug": "duckdb",
+        "uri_scheme": "duckdb",
+        "mount_path": "/duckdb",
+        "mcp_path": "/duckdb/mcp",
+        "upstream": {
+            "transport": "streamable_http",
+            "url": duckdb_upstream_url,
+            "security": "loopback_http"
+        },
+        "capabilities": {
+            "tools": true,
+            "resources": true,
+            "resource_templates": true,
+            "resource_subscriptions": false,
+            "prompts": false,
+            "completions": false,
+            "tasks": true,
+            "notifications": true
+        },
+        "tools": ["query", "execute", "ingest", "export"],
+        "required_scopes": ["operator:use"],
+        "owned_routes": [],
+        "metadata": {}
+    });
+    Ok(())
+}
+
+fn configure_profiles_for_duckdb(control_plane: &mut Value) -> Result<()> {
+    for profile_id in ["operator", "admin"] {
+        let profiles = control_plane_array_mut(control_plane, "profiles")?;
+        let profile = profiles
+            .iter_mut()
+            .find(|profile| profile.get("id").and_then(Value::as_str) == Some(profile_id))
+            .ok_or_else(|| anyhow!("control plane has no `{profile_id}` profile"))?;
+        profile["servers"] = json!([{
+            "server": "duckdb",
+            "tools": {
+                "mode": "listed",
+                "items": ["query", "execute", "ingest", "export"]
+            },
+            "resources": {
+                "mode": "listed",
+                "items": [{ "kind": "scheme", "scheme": "duckdb" }]
+            },
+            "prompts": { "mode": "none" },
+            "completions": "disabled",
+            "tasks": "enabled"
+        }]);
+    }
+    Ok(())
+}
+
+fn drop_media_compatibility_helpers(control_plane: &mut Value) -> Result<()> {
+    for client in control_plane_array_mut(control_plane, "oauth_clients")? {
+        if let Some(helpers) = client
+            .get_mut("allowed_compatibility_helpers")
+            .and_then(Value::as_array_mut)
+        {
+            helpers.retain(|helper| {
+                helper
+                    .as_str()
+                    .is_none_or(|helper| !helper.starts_with("media."))
+            });
+        }
+    }
+    Ok(())
+}
+
+fn drop_media_owned_secrets(control_plane: &mut Value) -> Result<()> {
+    let secrets = control_plane_array_mut(control_plane, "secrets")?;
+    secrets.retain(|secret| {
+        secret
+            .get("owner")
+            .and_then(|owner| owner.get("server"))
+            .and_then(Value::as_str)
+            != Some("media")
+    });
+    Ok(())
+}
+
+fn configure_policy_for_duckdb(control_plane: &mut Value) -> Result<()> {
+    let policies = control_plane_array_mut(control_plane, "policies")?;
+    let policy = policies
+        .first_mut()
+        .ok_or_else(|| anyhow!("control plane has no policies"))?;
+    let rules = policy
+        .get_mut("rules")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| anyhow!("policy has no rules array"))?;
+    for (rule_id, profile) in [
+        ("allow_operator_mcp_use", "operator"),
+        ("allow_admin_mcp_use", "admin"),
+    ] {
+        let rule = rules
+            .iter_mut()
+            .find(|rule| rule.get("id").and_then(Value::as_str) == Some(rule_id))
+            .ok_or_else(|| anyhow!("policy has no `{rule_id}` rule"))?;
+        *rule = json!({
+            "id": rule_id,
+            "effect": "allow",
+            "actions": [
+                "tools_list",
+                "tools_call",
+                "resources_list",
+                "resources_templates_list",
+                "resources_read",
+                "tasks_list",
+                "tasks_get",
+                "tasks_result",
+                "tasks_cancel",
+                "artifact_read",
+                "usage_read"
+            ],
+            "profiles": [profile],
+            "servers": ["duckdb"],
+            "tools": ["query", "execute", "ingest", "export"],
+            "resource_schemes": ["duckdb"],
+            "required_scopes": ["operator:use"],
+            "metadata": {}
+        });
+    }
+    Ok(())
+}
+
 fn validate_loopback_http_url(value: &str, label: &str) -> Result<()> {
     let url = Url::parse(value)?;
     if url.scheme() != "http" {
