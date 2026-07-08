@@ -290,6 +290,35 @@ resilient provider-backed generation servers. That layer should standardize the 
 - JSON Schema export for external Rust, Python, and TypeScript server implementations,
 - feature extension names such as `ai.veoveo/artifacts` and `ai.veoveo/usage`.
 
+### Shared types versus server-local contracts
+
+Veoveo has three different contract layers, and keeping them separate prevents the
+gateway from compiling in knowledge of every MCP server's tools:
+
+- `rmcp` owns the MCP protocol surface: protocol types, handler traits, transports,
+  request/response envelopes, resources, templates, tasks, notifications, and tool
+  discovery.
+- `veoveo-mcp-contract` owns platform-wide Veoveo types and semantics that are shared
+  across servers: gateway profiles, server manifests, principals, tenants, scopes,
+  data labels, policy/audit records, internal identities, artifact metadata, usage
+  records, URI conventions, task ownership, and other cross-server policy surfaces.
+- `veoveo-rrd` owns the canonical Rerun/RRD spacetime shapes for overlapping frame,
+  geospatial point, local geometry, and time-selection concepts, plus adapters into
+  Rerun SDK types.
+
+Tool request/response schemas, tool-specific resources, and domain-local result shapes
+belong in the MCP crate that owns the server, for example `coordinates-mcp`,
+`duckdb-mcp`, `optimization-mcp`, `timeseries-mcp`, or `media-mcp`. Those schemas are
+published through that server's MCP surface (`tools/list`, resources, templates, and
+completions) and may be exported by the conformance CLI for non-Rust clients, but the
+owning crate remains the source of truth.
+
+The hard rule is: do not add a tool schema to `veoveo-mcp-contract` merely because it is
+first-party. Promote a type into `veoveo-mcp-contract` only when it is genuinely shared
+platform vocabulary or policy. Promote an overlapping spacetime type into `veoveo-rrd`
+when Rerun already provides the canonical model. Otherwise, leave the type in the server
+crate and let MCP discovery expose it.
+
 This is not a rule that every MCP server must use tasks. It is a rule that any Veoveo MCP
 server wrapping long-lived provider jobs must expose those jobs through MCP tasks, and any
 server creating durable artifacts or billable usage must use the standard artifact and
