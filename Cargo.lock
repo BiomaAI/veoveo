@@ -5136,7 +5136,7 @@ dependencies = [
 [[package]]
 name = "rig-core"
 version = "0.39.0"
-source = "git+https://github.com/rozgo/rig.git?rev=bd4eedce769120a016605c9b1c4fbd563181983e#bd4eedce769120a016605c9b1c4fbd563181983e"
+source = "git+https://github.com/rozgo/rig.git?rev=d40006987ce4c102ba28a91a98ad137a40ea7bf7#d40006987ce4c102ba28a91a98ad137a40ea7bf7"
 dependencies = [
  "as-any",
  "async-stream",
@@ -5170,7 +5170,7 @@ dependencies = [
 [[package]]
 name = "rig-derive"
 version = "0.39.0"
-source = "git+https://github.com/rozgo/rig.git?rev=bd4eedce769120a016605c9b1c4fbd563181983e#bd4eedce769120a016605c9b1c4fbd563181983e"
+source = "git+https://github.com/rozgo/rig.git?rev=d40006987ce4c102ba28a91a98ad137a40ea7bf7#d40006987ce4c102ba28a91a98ad137a40ea7bf7"
 dependencies = [
  "convert_case",
  "deluxe",
