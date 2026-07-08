@@ -451,6 +451,64 @@ services:
     profiles:
       - dev
 
+  # The Recording Hub: durable ingest (spooler) + queryable catalog. Both sit
+  # on the internal network only — the OSS gRPC proxy and redap catalog trust
+  # every caller, so the loopback publishes are for local debugging, not access.
+  hub-spooler:
+    build:
+      context: .
+      dockerfile: crates/recording-hub/Dockerfile
+    command:
+      - "spooler"
+      - "--bind"
+      - "0.0.0.0:9876"
+      - "--spool-dir"
+      - "/var/lib/veoveo/spool"
+      - "--route"
+      - "agents=veoveo-agent"
+      - "--route"
+      - "world="
+      - "--rerun-bin"
+      - "/usr/local/bin/rerun"
+      - "--flush-interval-ms"
+      - "250"
+    environment:
+      RUST_LOG: "info,veoveo_recording_hub=debug"
+    volumes:
+      - hub_spool:/var/lib/veoveo/spool
+    ports:
+      # Producers (sensors, agent tees) push here; loopback for debugging.
+      - "127.0.0.1:9877:9876"
+    profiles:
+      - hub
+
+  hub-catalog:
+    build:
+      context: .
+      dockerfile: crates/recording-hub/Dockerfile
+    depends_on:
+      hub-spooler:
+        condition: service_started
+    command:
+      - "rerun"
+      - "server"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "51234"
+      - "-d"
+      - "world=/var/lib/veoveo/spool/world"
+      - "-d"
+      - "agents=/var/lib/veoveo/spool/agents"
+    volumes:
+      # Readers mount the spool read-only; only the spooler writes.
+      - hub_spool:/var/lib/veoveo/spool:ro
+    ports:
+      - "127.0.0.1:51234:51234"
+    restart: on-failure
+    profiles:
+      - hub
+
 volumes:
   rustfs_data:
   pilot_data:
@@ -461,3 +519,4 @@ volumes:
   gateway_control:
   gateway_state:
   artifact_plane_control:
+  hub_spool:

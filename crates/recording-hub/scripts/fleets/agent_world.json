@@ -1,0 +1,26 @@
+{
+  "sensors": [
+    {
+      "id": "gnss-a",
+      "recording": "sim-gnss-a",
+      "application_id": "veoveo-sim-gnss-a",
+      "seed": 2,
+      "duration_s": 1.0,
+      "kind": "gnss",
+      "rate_hz": 10.0,
+      "origin": { "lat": 47.3769, "lon": 8.5417 },
+      "pattern": { "pattern": "orbit", "radius_m": 120.0, "period_s": 40.0 }
+    },
+    {
+      "id": "ego-pose",
+      "recording": "agent-pilot-episode",
+      "application_id": "veoveo-agent-pilot",
+      "seed": 9,
+      "duration_s": 1.0,
+      "kind": "scalar",
+      "rate_hz": 25.0,
+      "name": "heading_deg",
+      "wave": { "wave": "sine", "amplitude": 180.0, "period_s": 8.0 }
+    }
+  ]
+}
