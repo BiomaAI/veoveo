@@ -39,3 +39,4 @@ tracing.workspace = true
 uuid.workspace = true
 veoveo-artifact-client = { path = "../artifact-client" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+veoveo-rrd.workspace = true

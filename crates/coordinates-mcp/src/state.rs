@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use tokio::sync::RwLock;
 use veoveo_mcp_contract::{
-    AxisConvention, CoordinateOperationId, CoordinateOperationProvenance, FrameDefinition, FrameId,
-    FrameKind, UsageRecord, UsageReport,
+    CoordinateOperationId, CoordinateOperationProvenance, FrameId, FrameKind, UsageRecord,
+    UsageReport,
 };
+use veoveo_rrd::{RrdFrameDefinition, RrdFrameId, RrdViewCoordinates};
 
 use crate::uris;
 
 pub struct CoordinatesState {
-    frames: RwLock<HashMap<FrameId, FrameDefinition>>,
+    frames: RwLock<HashMap<FrameId, RrdFrameDefinition>>,
     operations: RwLock<HashMap<CoordinateOperationId, CoordinateOperationProvenance>>,
     usage: RwLock<HashMap<String, Vec<UsageRecord>>>,
 }
@@ -19,7 +20,8 @@ impl CoordinatesState {
     pub fn new() -> Self {
         let mut frames = HashMap::new();
         for frame in builtin_frames() {
-            frames.insert(frame.frame_id.clone(), frame);
+            let key = frame_key(&frame).expect("valid builtin frame key");
+            frames.insert(key, frame);
         }
         Self {
             frames: RwLock::new(frames),
@@ -28,24 +30,23 @@ impl CoordinatesState {
         }
     }
 
-    pub async fn list_frames(&self) -> Vec<FrameDefinition> {
+    pub async fn list_frames(&self) -> Vec<RrdFrameDefinition> {
         let mut frames: Vec<_> = self.frames.read().await.values().cloned().collect();
         frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
         frames
     }
 
-    pub async fn get_frame(&self, frame_id: &FrameId) -> Option<FrameDefinition> {
+    pub async fn get_frame(&self, frame_id: &FrameId) -> Option<RrdFrameDefinition> {
         self.frames.read().await.get(frame_id).cloned()
     }
 
-    pub async fn insert_frame(&self, frame: FrameDefinition) {
-        self.frames
-            .write()
-            .await
-            .insert(frame.frame_id.clone(), frame);
+    pub async fn insert_frame(&self, frame: RrdFrameDefinition) -> Result<()> {
+        let key = frame_key(&frame)?;
+        self.frames.write().await.insert(key, frame);
+        Ok(())
     }
 
-    pub async fn require_frame(&self, frame_id: &FrameId) -> Result<FrameDefinition> {
+    pub async fn require_frame(&self, frame_id: &FrameId) -> Result<RrdFrameDefinition> {
         self.get_frame(frame_id)
             .await
             .ok_or_else(|| anyhow!("unknown frame `{frame_id}`"))
@@ -92,12 +93,21 @@ impl Default for CoordinatesState {
     }
 }
 
-fn builtin_frames() -> Vec<FrameDefinition> {
+fn frame_key(frame: &RrdFrameDefinition) -> Result<FrameId> {
+    FrameId::new(frame.frame_id.as_str()).with_context(|| {
+        format!(
+            "frame `{}` is not a coordinates resource id",
+            frame.frame_id
+        )
+    })
+}
+
+fn builtin_frames() -> Vec<RrdFrameDefinition> {
     vec![
-        FrameDefinition {
-            frame_id: FrameId::new("WGS84").expect("valid builtin frame id"),
+        RrdFrameDefinition {
+            frame_id: RrdFrameId::new("WGS84").expect("valid builtin frame id"),
             kind: FrameKind::Wgs84,
-            axis_convention: AxisConvention::LatitudeLongitudeHeight,
+            view_coordinates: None,
             parent: None,
             origin: None,
             crs: Some(veoveo_mcp_contract::CrsId::new("EPSG:4326").expect("valid CRS")),
@@ -107,12 +117,13 @@ fn builtin_frames() -> Vec<FrameDefinition> {
             ),
             epoch: None,
             description: Some("WGS84 geodetic latitude, longitude, ellipsoidal height.".into()),
+            metadata: Default::default(),
         },
-        FrameDefinition {
-            frame_id: FrameId::new("ECEF").expect("valid builtin frame id"),
+        RrdFrameDefinition {
+            frame_id: RrdFrameId::new("ECEF").expect("valid builtin frame id"),
             kind: FrameKind::Ecef,
-            axis_convention: AxisConvention::XyzMeters,
-            parent: Some(FrameId::new("WGS84").expect("valid builtin frame id")),
+            view_coordinates: Some(RrdViewCoordinates::xyz_meters()),
+            parent: Some(RrdFrameId::new("WGS84").expect("valid builtin frame id")),
             origin: None,
             crs: Some(veoveo_mcp_contract::CrsId::new("EPSG:4978").expect("valid CRS")),
             datum: Some(veoveo_mcp_contract::DatumId::new("WGS84").expect("valid datum")),
@@ -121,6 +132,7 @@ fn builtin_frames() -> Vec<FrameDefinition> {
             ),
             epoch: None,
             description: Some("Earth-centered, Earth-fixed WGS84 cartesian frame.".into()),
+            metadata: Default::default(),
         },
     ]
 }

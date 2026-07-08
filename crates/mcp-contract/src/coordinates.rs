@@ -113,7 +113,7 @@ impl std::error::Error for CoordinateIdError {}
 
 coordinate_id!(
     FrameId,
-    "Canonical coordinate frame id, such as WGS84, ECEF, ENU:mission-a, or robot body frame id."
+    "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd."
 );
 coordinate_id!(CrsId, "Coordinate reference system id, commonly EPSG:4326.");
 coordinate_id!(
@@ -152,220 +152,9 @@ pub enum FrameKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AxisConvention {
-    LatitudeLongitudeHeight,
-    XyzMeters,
-    EastNorthUp,
-    NorthEastDown,
-    ForwardRightDown,
-    ProjectedXyz,
-    Custom,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CoordinateUnit {
-    Degree,
-    Meter,
-    Unitless,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Wgs84Position {
-    pub latitude_deg: f64,
-    pub longitude_deg: f64,
-    #[serde(default)]
-    pub height_m: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct EcefPosition {
-    pub x_m: f64,
-    pub y_m: f64,
-    pub z_m: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct EnuPosition {
-    pub frame_id: FrameId,
-    pub east_m: f64,
-    pub north_m: f64,
-    pub up_m: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct NedPosition {
-    pub frame_id: FrameId,
-    pub north_m: f64,
-    pub east_m: f64,
-    pub down_m: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct ProjectedPosition {
-    pub crs: CrsId,
-    pub x: f64,
-    pub y: f64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub z: Option<f64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum CoordinatePosition {
-    Wgs84(Wgs84Position),
-    Ecef(EcefPosition),
-    Enu(EnuPosition),
-    Ned(NedPosition),
-    Projected(ProjectedPosition),
-}
-
-impl Wgs84Position {
-    pub fn validate(&self) -> Result<(), CoordinateValueError> {
-        if !self.latitude_deg.is_finite()
-            || !self.longitude_deg.is_finite()
-            || !self.height_m.is_finite()
-        {
-            return Err(CoordinateValueError::new("coordinates must be finite"));
-        }
-        if !(-90.0..=90.0).contains(&self.latitude_deg) {
-            return Err(CoordinateValueError::new(
-                "latitude_deg must be within [-90, 90]",
-            ));
-        }
-        if !(-180.0..=180.0).contains(&self.longitude_deg) {
-            return Err(CoordinateValueError::new(
-                "longitude_deg must be within [-180, 180]",
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CoordinateValueError {
-    rule: &'static str,
-}
-
-impl CoordinateValueError {
-    pub fn new(rule: &'static str) -> Self {
-        Self { rule }
-    }
-}
-
-impl fmt::Display for CoordinateValueError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.rule)
-    }
-}
-
-impl std::error::Error for CoordinateValueError {}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Orientation3 {
-    pub frame_id: FrameId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub quaternion_xyzw: Option<[f64; 4]>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub yaw_pitch_roll_deg: Option<[f64; 3]>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Pose3 {
-    pub frame_id: FrameId,
-    pub position: CoordinatePosition,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub orientation: Option<Orientation3>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub covariance: Option<Vec<f64>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Velocity3 {
-    pub frame_id: FrameId,
-    pub x_mps: f64,
-    pub y_mps: f64,
-    pub z_mps: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TrajectoryPoint {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub time: Option<DateTime<Utc>>,
-    pub pose: Pose3,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub velocity: Option<Velocity3>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum TrajectoryInterpolation {
-    None,
-    Linear,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Trajectory3 {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub trajectory_id: Option<TrajectoryId>,
-    pub frame_id: FrameId,
-    pub points: Vec<TrajectoryPoint>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interpolation: Option<TrajectoryInterpolation>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct FrameDefinition {
-    pub frame_id: FrameId,
-    pub kind: FrameKind,
-    pub axis_convention: AxisConvention,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<FrameId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub origin: Option<Wgs84Position>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub crs: Option<CrsId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub datum: Option<DatumId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ellipsoid: Option<EllipsoidId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub epoch: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub enum GeofenceRule {
     MustStayInside,
     MustStayOutside,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct LinearRing2 {
-    pub coordinates: Vec<[f64; 2]>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Polygon2 {
-    pub exterior: LinearRing2,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub holes: Vec<LinearRing2>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct Path2 {
-    pub coordinates: Vec<[f64; 2]>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct GeofenceGeometry {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub geofence_id: Option<GeofenceId>,
-    pub frame_id: FrameId,
-    pub rule: GeofenceRule,
-    pub polygon: Polygon2,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -434,24 +223,33 @@ mod tests {
     }
 
     #[test]
-    fn wgs84_position_validation_rejects_invalid_ranges() {
-        assert!(
-            Wgs84Position {
-                latitude_deg: 45.0,
-                longitude_deg: -122.0,
-                height_m: 10.0
-            }
-            .validate()
-            .is_ok()
+    fn operation_provenance_round_trips() {
+        let provenance = CoordinateOperationProvenance {
+            operation: CoordinateOperationRef {
+                operation_id: CoordinateOperationId::new("op-test").unwrap(),
+                operation_uri: "coordinates://operation/op-test".to_string(),
+                source_frame: Some(FrameId::new("WGS84").unwrap()),
+                target_frame: Some(FrameId::new("ECEF").unwrap()),
+                created_at: Utc::now(),
+            },
+            kind: CoordinateOperationKind::FrameConversion,
+            source_crs: Some(CrsId::new("EPSG:4326").unwrap()),
+            target_crs: Some(CrsId::new("EPSG:4978").unwrap()),
+            engine: Some("test".to_string()),
+            grid_packages: Vec::new(),
+            approximation_used: false,
+            accuracy_m: Some(0.01),
+            warnings: Vec::new(),
+        };
+
+        let json = serde_json::to_string(&provenance).unwrap();
+        let back: CoordinateOperationProvenance = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            provenance.operation.operation_id,
+            back.operation.operation_id
         );
-        assert!(
-            Wgs84Position {
-                latitude_deg: 91.0,
-                longitude_deg: -122.0,
-                height_m: 10.0
-            }
-            .validate()
-            .is_err()
-        );
+        assert_eq!(provenance.kind, back.kind);
+        assert_eq!(provenance.source_crs, back.source_crs);
+        assert_eq!(provenance.target_crs, back.target_crs);
     }
 }

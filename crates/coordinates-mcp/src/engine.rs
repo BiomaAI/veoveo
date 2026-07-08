@@ -1,7 +1,9 @@
 use crate::contract::{
-    ConvertFrameOutput, ConvertFrameRequest, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
-    GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
-    TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
+    ConvertFrameOutput, ConvertFrameRequest, CoordinatePoint, DeriveLocalFrameOutput,
+    DeriveLocalFrameRequest, EcefPosition, EnuPosition, GeodesicDirectOutput,
+    GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, NedPosition,
+    ProjectedPosition, TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput,
+    ValidateGeofenceRequest, Wgs84Position,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
@@ -11,10 +13,11 @@ use geographiclib_rs::{DirectGeodesic, Geodesic, InverseGeodesic};
 use proj::Proj;
 use rayon::prelude::*;
 use veoveo_mcp_contract::{
-    AxisConvention, CoordinateOperationId, CoordinateOperationKind, CoordinateOperationProvenance,
-    CoordinateOperationRef, CoordinatePosition, CrsId, EcefPosition, EnuPosition, FrameDefinition,
-    FrameId, FrameKind, GeofenceRule, GeofenceViolation, LinearRing2, NedPosition, Path2, Polygon2,
-    ProjectedPosition, Wgs84Position,
+    CoordinateOperationId, CoordinateOperationKind, CoordinateOperationProvenance,
+    CoordinateOperationRef, CrsId, FrameId, FrameKind, GeofenceRule, GeofenceViolation,
+};
+use veoveo_rrd::{
+    RrdFrameDefinition, RrdFrameId, RrdLocalLineString2, RrdLocalPolygon2, RrdViewCoordinates,
 };
 
 use crate::uris;
@@ -63,27 +66,28 @@ pub fn crs_metadata(authority: &str, code: &str) -> serde_json::Value {
 
 pub fn derive_local_frame(request: DeriveLocalFrameRequest) -> Result<DeriveLocalFrameOutput> {
     request.origin.validate()?;
-    let (kind, axis_convention) = match request.kind {
-        FrameKind::Enu => (FrameKind::Enu, AxisConvention::EastNorthUp),
-        FrameKind::Ned => (FrameKind::Ned, AxisConvention::NorthEastDown),
+    let (kind, view_coordinates) = match request.kind {
+        FrameKind::Enu => (FrameKind::Enu, RrdViewCoordinates::east_north_up()),
+        FrameKind::Ned => (FrameKind::Ned, RrdViewCoordinates::north_east_down()),
         _ => bail!("derive_local_frame supports only ENU or NED frames"),
     };
-    let frame = FrameDefinition {
-        frame_id: request.frame_id.clone(),
+    let frame = RrdFrameDefinition {
+        frame_id: rrd_frame_id(&request.frame_id)?,
         kind,
-        axis_convention,
-        parent: Some(FrameId::new("WGS84").expect("valid builtin frame id")),
-        origin: Some(request.origin),
+        view_coordinates: Some(view_coordinates),
+        parent: Some(RrdFrameId::new("WGS84").expect("valid builtin frame id")),
+        origin: Some(request.origin.to_rrd_geo_point()),
         crs: None,
         datum: Some(veoveo_mcp_contract::DatumId::new("WGS84").expect("valid datum")),
         ellipsoid: Some(veoveo_mcp_contract::EllipsoidId::new("WGS84").expect("valid ellipsoid")),
         epoch: None,
         description: request.description,
+        metadata: Default::default(),
     };
     let provenance = provenance(
         CoordinateOperationKind::LocalFrameDerivation,
         Some(FrameId::new("WGS84").expect("valid builtin frame id")),
-        Some(frame.frame_id.clone()),
+        Some(request.frame_id),
         None,
         None,
         Some("veoveo-coordinates".to_string()),
@@ -94,7 +98,7 @@ pub fn derive_local_frame(request: DeriveLocalFrameRequest) -> Result<DeriveLoca
 
 pub fn convert_frame(
     request: ConvertFrameRequest,
-    target_frame: &FrameDefinition,
+    target_frame: &RrdFrameDefinition,
     origin: Option<Wgs84Position>,
 ) -> Result<ConvertFrameOutput> {
     if request.points.is_empty() {
@@ -119,7 +123,7 @@ pub fn convert_frame(
     let provenance = provenance(
         CoordinateOperationKind::FrameConversion,
         source_frame,
-        Some(target_frame.frame_id.clone()),
+        Some(frame_id_from_rrd(&target_frame.frame_id)?),
         None,
         target_frame.crs.clone(),
         Some("veoveo-coordinates:wgs84-ecef-local".to_string()),
@@ -290,10 +294,11 @@ pub fn validate_geofence(request: ValidateGeofenceRequest) -> Result<ValidateGeo
             });
         }
     }
+    let frame_id = frame_id_from_rrd(&request.geofence.polygon.frame_id)?;
     let provenance = provenance(
         CoordinateOperationKind::GeofenceValidation,
-        Some(request.geofence.frame_id.clone()),
-        Some(request.geofence.frame_id),
+        Some(frame_id.clone()),
+        Some(frame_id),
         None,
         None,
         Some("geo".to_string()),
@@ -306,25 +311,22 @@ pub fn validate_geofence(request: ValidateGeofenceRequest) -> Result<ValidateGeo
     })
 }
 
-fn point_to_ecef(
-    point: &CoordinatePosition,
-    origin: Option<&Wgs84Position>,
-) -> Result<EcefPosition> {
+fn point_to_ecef(point: &CoordinatePoint, origin: Option<&Wgs84Position>) -> Result<EcefPosition> {
     match point {
-        CoordinatePosition::Wgs84(position) => {
+        CoordinatePoint::Wgs84(position) => {
             position.validate()?;
             Ok(wgs84_to_ecef(position))
         }
-        CoordinatePosition::Ecef(position) => {
+        CoordinatePoint::Ecef(position) => {
             ensure_finite(&[position.x_m, position.y_m, position.z_m])?;
             Ok(position.clone())
         }
-        CoordinatePosition::Enu(position) => {
+        CoordinatePoint::Enu(position) => {
             let origin = origin.ok_or_else(|| anyhow!("ENU conversion requires a WGS84 origin"))?;
             ensure_finite(&[position.east_m, position.north_m, position.up_m])?;
             Ok(enu_to_ecef(position, origin))
         }
-        CoordinatePosition::Ned(position) => {
+        CoordinatePoint::Ned(position) => {
             let origin = origin.ok_or_else(|| anyhow!("NED conversion requires a WGS84 origin"))?;
             ensure_finite(&[position.north_m, position.east_m, position.down_m])?;
             let enu = EnuPosition {
@@ -335,7 +337,7 @@ fn point_to_ecef(
             };
             Ok(enu_to_ecef(&enu, origin))
         }
-        CoordinatePosition::Projected(_) => {
+        CoordinatePoint::Projected(_) => {
             bail!("convert_frame does not accept projected points; use transform_crs")
         }
     }
@@ -343,21 +345,22 @@ fn point_to_ecef(
 
 fn ecef_to_target(
     ecef: &EcefPosition,
-    target_frame: &FrameDefinition,
+    target_frame: &RrdFrameDefinition,
     origin: Option<&Wgs84Position>,
-) -> Result<CoordinatePosition> {
+) -> Result<CoordinatePoint> {
+    let target_frame_id = frame_id_from_rrd(&target_frame.frame_id)?;
     Ok(match target_frame.kind {
-        FrameKind::Wgs84 => CoordinatePosition::Wgs84(ecef_to_wgs84(ecef)),
-        FrameKind::Ecef => CoordinatePosition::Ecef(ecef.clone()),
+        FrameKind::Wgs84 => CoordinatePoint::Wgs84(ecef_to_wgs84(ecef)),
+        FrameKind::Ecef => CoordinatePoint::Ecef(ecef.clone()),
         FrameKind::Enu => {
             let origin = origin.ok_or_else(|| anyhow!("ENU target requires a WGS84 origin"))?;
-            CoordinatePosition::Enu(ecef_to_enu(ecef, origin, target_frame.frame_id.clone()))
+            CoordinatePoint::Enu(ecef_to_enu(ecef, origin, target_frame_id))
         }
         FrameKind::Ned => {
             let origin = origin.ok_or_else(|| anyhow!("NED target requires a WGS84 origin"))?;
-            let enu = ecef_to_enu(ecef, origin, target_frame.frame_id.clone());
-            CoordinatePosition::Ned(NedPosition {
-                frame_id: target_frame.frame_id.clone(),
+            let enu = ecef_to_enu(ecef, origin, target_frame_id.clone());
+            CoordinatePoint::Ned(NedPosition {
+                frame_id: target_frame_id,
                 north_m: enu.north_m,
                 east_m: enu.east_m,
                 down_m: -enu.up_m,
@@ -370,13 +373,13 @@ fn ecef_to_target(
     })
 }
 
-fn frame_for_position(point: &CoordinatePosition) -> Option<FrameId> {
+fn frame_for_position(point: &CoordinatePoint) -> Option<FrameId> {
     match point {
-        CoordinatePosition::Wgs84(_) => FrameId::new("WGS84").ok(),
-        CoordinatePosition::Ecef(_) => FrameId::new("ECEF").ok(),
-        CoordinatePosition::Enu(point) => Some(point.frame_id.clone()),
-        CoordinatePosition::Ned(point) => Some(point.frame_id.clone()),
-        CoordinatePosition::Projected(point) => FrameId::new(point.crs.as_str()).ok(),
+        CoordinatePoint::Wgs84(_) => FrameId::new("WGS84").ok(),
+        CoordinatePoint::Ecef(_) => FrameId::new("ECEF").ok(),
+        CoordinatePoint::Enu(point) => Some(point.frame_id.clone()),
+        CoordinatePoint::Ned(point) => Some(point.frame_id.clone()),
+        CoordinatePoint::Projected(point) => FrameId::new(point.crs.as_str()).ok(),
     }
 }
 
@@ -460,7 +463,7 @@ fn ensure_finite(values: &[f64]) -> Result<()> {
     }
 }
 
-fn polygon_from_contract(polygon: &Polygon2) -> Result<Polygon<f64>> {
+fn polygon_from_contract(polygon: &RrdLocalPolygon2) -> Result<Polygon<f64>> {
     validate_ring(&polygon.exterior)?;
     let exterior = line_string_from_ring(&polygon.exterior);
     let holes = polygon
@@ -474,7 +477,7 @@ fn polygon_from_contract(polygon: &Polygon2) -> Result<Polygon<f64>> {
     Ok(Polygon::new(exterior, holes))
 }
 
-fn path_from_contract(path: &Path2) -> Result<LineString<f64>> {
+fn path_from_contract(path: &RrdLocalLineString2) -> Result<LineString<f64>> {
     if path.coordinates.is_empty() {
         bail!("path must contain at least one point");
     }
@@ -489,10 +492,9 @@ fn path_from_contract(path: &Path2) -> Result<LineString<f64>> {
     ))
 }
 
-fn line_string_from_ring(ring: &LinearRing2) -> LineString<f64> {
+fn line_string_from_ring(ring: &[[f64; 2]]) -> LineString<f64> {
     LineString::from(
-        ring.coordinates
-            .iter()
+        ring.iter()
             .map(|point| Coord {
                 x: point[0],
                 y: point[1],
@@ -501,17 +503,27 @@ fn line_string_from_ring(ring: &LinearRing2) -> LineString<f64> {
     )
 }
 
-fn validate_ring(ring: &LinearRing2) -> Result<()> {
-    if ring.coordinates.len() < 4 {
+fn validate_ring(ring: &[[f64; 2]]) -> Result<()> {
+    if ring.len() < 4 {
         bail!("ring must contain at least four coordinates");
     }
-    if ring.coordinates.first() != ring.coordinates.last() {
+    if ring.first() != ring.last() {
         bail!("ring must be closed");
     }
-    for point in &ring.coordinates {
+    for point in ring {
         ensure_finite(point)?;
     }
     Ok(())
+}
+
+fn rrd_frame_id(frame_id: &FrameId) -> Result<RrdFrameId> {
+    RrdFrameId::new(frame_id.as_str())
+        .with_context(|| format!("converting frame id `{frame_id}` to RRD frame id"))
+}
+
+fn frame_id_from_rrd(frame_id: &RrdFrameId) -> Result<FrameId> {
+    FrameId::new(frame_id.as_str())
+        .with_context(|| format!("converting RRD frame id `{frame_id}` to coordinate frame id"))
 }
 
 fn provenance(
@@ -598,24 +610,23 @@ mod tests {
     #[test]
     fn geofence_detects_outside_point() {
         let output = validate_geofence(ValidateGeofenceRequest {
-            geofence: veoveo_mcp_contract::GeofenceGeometry {
+            geofence: veoveo_rrd::RrdGeofenceGeometry {
                 geofence_id: None,
-                frame_id: FrameId::new("ENU:test").unwrap(),
                 rule: GeofenceRule::MustStayInside,
-                polygon: Polygon2 {
-                    exterior: LinearRing2 {
-                        coordinates: vec![
-                            [0.0, 0.0],
-                            [10.0, 0.0],
-                            [10.0, 10.0],
-                            [0.0, 10.0],
-                            [0.0, 0.0],
-                        ],
-                    },
+                polygon: veoveo_rrd::RrdLocalPolygon2 {
+                    frame_id: RrdFrameId::new("ENU:test").unwrap(),
+                    exterior: vec![
+                        [0.0, 0.0],
+                        [10.0, 0.0],
+                        [10.0, 10.0],
+                        [0.0, 10.0],
+                        [0.0, 0.0],
+                    ],
                     holes: Vec::new(),
                 },
             },
-            path: Path2 {
+            path: RrdLocalLineString2 {
+                frame_id: RrdFrameId::new("ENU:test").unwrap(),
                 coordinates: vec![[5.0, 5.0], [11.0, 5.0]],
             },
         })

@@ -1,0 +1,15 @@
+[package]
+name = "veoveo-rrd"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_rrd"
+path = "src/lib.rs"
+
+[dependencies]
+re_sdk_types.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+veoveo-mcp-contract = { workspace = true }

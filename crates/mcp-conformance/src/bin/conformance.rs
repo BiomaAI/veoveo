@@ -60,20 +60,19 @@ use serde_json::{Value, json};
 use url::Url;
 use veoveo_coordinates_mcp::contract::{
     BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-    DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput, GeodesicDirectRequest,
-    GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput, TransformCrsRequest,
-    ValidateGeofenceOutput, ValidateGeofenceRequest,
+    CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput,
+    GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput,
+    TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
 };
 use veoveo_mcp_contract::{
     AccessTokenSubject, ArtifactMetadata, AuditEvent, AuthAuditEvent, ComplianceMetadata,
-    CoordinateOperationProvenance, CoordinatePosition, DataLabelDefinition, DataRetentionPolicy,
-    FrameDefinition, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord,
-    GatewayAuthorizationRequest, GatewayControlPlane, GatewayControlPlaneRevision,
-    GatewayInternalIdentity, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
-    GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
-    GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
-    GatewayResourceSubscription, GatewayTaskMapping, GenerationPredictionSummary,
-    GenerationRunOutput, GeofenceGeometry, IdentityProvider,
+    CoordinateOperationProvenance, DataLabelDefinition, DataRetentionPolicy,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
+    GatewayControlPlane, GatewayControlPlaneRevision, GatewayInternalIdentity,
+    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayJwtRevocation,
+    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
+    GatewayProfile, GatewayProfileId, GatewayResourceProjection, GatewayResourceSubscription,
+    GatewayTaskMapping, GenerationPredictionSummary, GenerationRunOutput, IdentityProvider,
     IdentityProviderOidcClientRegistration, InternalTokenSecret, McpSurfaceCapabilities,
     NetworkBoundaryRule, OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision,
     PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
@@ -82,6 +81,10 @@ use veoveo_mcp_contract::{
     SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
     ServiceToServiceSecurity, StateStoreDeployment, TelemetrySinkDeployment, TenantDefinition,
     TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
+};
+use veoveo_rrd::{
+    RrdFrameDefinition, RrdGeoLineString, RrdGeoPoint, RrdGeofenceGeometry, RrdLocalLineString2,
+    RrdLocalPoint3, RrdLocalPolygon2, RrdSelection, RrdTimePoint, RrdTimeRange, RrdViewCoordinates,
 };
 
 #[path = "conformance/auth_discovery.rs"]

@@ -310,8 +310,10 @@ just contract-schemas schemas
 
 The export includes gateway control data, policy/audit events, deployment profiles,
 gateway runtime projection records, internal identity assertions, artifact metadata,
-generation outputs, usage reports, and first-party schemas whose owning MCP crates expose
-typed Rust contracts. Custom MCP tool schemas should come from the server's own
+generation outputs, usage reports, RRD spacetime schemas from `veoveo-rrd`, and
+first-party schemas whose owning MCP crates expose typed Rust contracts. RRD is the
+canonical exported shape for overlapped frame, geospatial point, local geometry, and
+time-selection concepts. Custom MCP tool schemas should come from the server's own
 `tools/list` response. The maintained smoke suite runs
 `just smoke-contract-schemas` so schema generation stays wired into the contract.
 
@@ -406,7 +408,9 @@ crates/mcp-contract/src/analytics.rs           shared DuckDB usage analytics sch
 crates/mcp-contract/src/deployment.rs          shared public URL/server mount contract
 crates/mcp-contract/src/storage.rs             artifact store contract/types
 crates/mcp-contract/src/usage.rs               usage contract/types
+crates/rrd/                                    Rerun RRD canonical spacetime schemas/adapters
 crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
+crates/coordinates-mcp/src/contract.rs         coordinates MCP tool request/output schemas
 crates/duckdb-mcp/src/bin/server.rs            hosted DuckDB MCP server (sandboxed SQL)
 crates/duckdb-mcp/src/contract.rs              DuckDB MCP tool request/output schemas
 crates/duckdb-mcp/src/engine.rs                hardened DuckDB connection layer
