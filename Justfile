@@ -129,6 +129,20 @@ smoke-agent-kernel-scheduler:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
     {{smoke}} agent-kernel-scheduler --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
+# Smoke-test the Pilot agent's full mission loop over coordinates and optimization.
+smoke-agent-pilot:
+    cargo build -p veoveo-coordinates-mcp --bin server
+    cp target/debug/server target/debug/coordinates-mcp-smoke
+    cargo build -p veoveo-optimization-mcp --bin server
+    cp target/debug/server target/debug/optimization-mcp-smoke
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-pilot --conformance-bin target/debug/conformance --coordinates-bin target/debug/coordinates-mcp-smoke --optimization-bin target/debug/optimization-mcp-smoke --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+
+# Run the real Pilot against the live local compose stack with Cloudflare credentials from .env.
+agent-pilot-local data_dir="output/pilot-data":
+    cargo build -p veoveo-agent-kernel --bin agent
+    target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9876/proxy
+
 # Build MCP images.
 compose-build:
     {{compose}} build media-mcp mcp-gateway mcp-gateway-seed

@@ -181,6 +181,183 @@ fn configure_profiles_for_duckdb(control_plane: &mut Value) -> Result<()> {
     Ok(())
 }
 
+pub(super) fn cmd_gateway_pilot_smoke_control_plane(
+    base: PathBuf,
+    output: PathBuf,
+    coordinates_upstream_url: String,
+    optimization_upstream_url: String,
+) -> Result<()> {
+    validate_loopback_http_url(&coordinates_upstream_url, "--coordinates-upstream-url")?;
+    validate_loopback_http_url(&optimization_upstream_url, "--optimization-upstream-url")?;
+
+    let mut control_plane: Value = serde_json::from_str(&std::fs::read_to_string(&base)?)?;
+    let coordinates = pilot_server_manifest(
+        "coordinates",
+        &coordinates_upstream_url,
+        serde_json::json!({
+            "tools": true, "resources": true, "resource_templates": true,
+            "resource_subscriptions": false, "prompts": true, "completions": true,
+            "tasks": true, "notifications": true
+        }),
+        &[
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence",
+        ],
+    );
+    let optimization = pilot_server_manifest(
+        "optimization",
+        &optimization_upstream_url,
+        serde_json::json!({
+            "tools": true, "resources": true, "resource_templates": true,
+            "resource_subscriptions": false, "prompts": false, "completions": false,
+            "tasks": true, "notifications": true
+        }),
+        &["plan"],
+    );
+    {
+        let servers = control_plane_array_mut(&mut control_plane, "servers")?;
+        let media = servers
+            .iter_mut()
+            .find(|server| server.get("slug").and_then(Value::as_str) == Some("media"))
+            .ok_or_else(|| anyhow!("control plane has no `media` server"))?;
+        *media = coordinates;
+        servers.push(optimization);
+    }
+    for profile_id in ["operator", "admin"] {
+        let profiles = control_plane_array_mut(&mut control_plane, "profiles")?;
+        let profile = profiles
+            .iter_mut()
+            .find(|profile| profile.get("id").and_then(Value::as_str) == Some(profile_id))
+            .ok_or_else(|| anyhow!("control plane has no `{profile_id}` profile"))?;
+        profile["servers"] = serde_json::json!([
+            pilot_profile_exposure(
+                "coordinates",
+                &[
+                    "batch_transform",
+                    "convert_frame",
+                    "derive_local_frame",
+                    "geodesic_direct",
+                    "geodesic_inverse",
+                    "transform_crs",
+                    "validate_geofence",
+                ],
+                "all"
+            ),
+            pilot_profile_exposure("optimization", &["plan"], "none"),
+        ]);
+    }
+    {
+        let policies = control_plane_array_mut(&mut control_plane, "policies")?;
+        let policy = policies
+            .first_mut()
+            .ok_or_else(|| anyhow!("control plane has no policies"))?;
+        let rules = policy
+            .get_mut("rules")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| anyhow!("policy has no rules array"))?;
+        for (rule_id, profile) in [
+            ("allow_operator_mcp_use", "operator"),
+            ("allow_admin_mcp_use", "admin"),
+        ] {
+            let rule = rules
+                .iter_mut()
+                .find(|rule| rule.get("id").and_then(Value::as_str) == Some(rule_id))
+                .ok_or_else(|| anyhow!("policy has no `{rule_id}` rule"))?;
+            *rule = serde_json::json!({
+                "id": rule_id,
+                "effect": "allow",
+                "actions": [
+                    "tools_list", "tools_call", "resources_list",
+                    "resources_templates_list", "resources_read", "prompts_list",
+                    "prompts_get", "completion_complete", "tasks_list", "tasks_get",
+                    "tasks_result", "tasks_cancel", "artifact_read", "usage_read"
+                ],
+                "profiles": [profile],
+                "servers": ["coordinates"],
+                "tools": [
+                    "batch_transform", "convert_frame", "derive_local_frame",
+                    "geodesic_direct", "geodesic_inverse", "transform_crs",
+                    "validate_geofence"
+                ],
+                "resource_schemes": ["coordinates"],
+                "required_scopes": ["operator:use"],
+                "metadata": {}
+            });
+            rules.push(serde_json::json!({
+                "id": format!("{rule_id}_optimization"),
+                "effect": "allow",
+                "actions": [
+                    "tools_list", "tools_call", "resources_list",
+                    "resources_templates_list", "resources_read", "tasks_list",
+                    "tasks_get", "tasks_result", "tasks_cancel", "artifact_read",
+                    "usage_read"
+                ],
+                "profiles": [profile],
+                "servers": ["optimization"],
+                "tools": ["plan"],
+                "resource_schemes": ["optimization"],
+                "required_scopes": ["operator:use"],
+                "metadata": {}
+            }));
+        }
+    }
+    drop_media_owned_secrets(&mut control_plane)?;
+    drop_media_compatibility_helpers(&mut control_plane)?;
+
+    let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
+    parsed.validate()?;
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(output, serde_json::to_vec_pretty(&control_plane)?)?;
+    Ok(())
+}
+
+fn pilot_server_manifest(
+    slug: &str,
+    upstream_url: &str,
+    capabilities: Value,
+    tools: &[&str],
+) -> Value {
+    serde_json::json!({
+        "slug": slug,
+        "uri_scheme": slug,
+        "mount_path": format!("/{slug}"),
+        "mcp_path": format!("/{slug}/mcp"),
+        "upstream": {
+            "transport": "streamable_http",
+            "url": upstream_url,
+            "security": "loopback_http"
+        },
+        "capabilities": capabilities,
+        "tools": tools,
+        "required_scopes": ["operator:use"],
+        "owned_routes": [],
+        "metadata": {}
+    })
+}
+
+fn pilot_profile_exposure(server: &str, tools: &[&str], prompts_mode: &str) -> Value {
+    serde_json::json!({
+        "server": server,
+        "tools": { "mode": "listed", "items": tools },
+        "resources": {
+            "mode": "listed",
+            "items": [{ "kind": "scheme", "scheme": server }]
+        },
+        "prompts": { "mode": prompts_mode },
+        "completions": if prompts_mode == "all" { "enabled" } else { "disabled" },
+        "tasks": "enabled"
+    })
+}
+
 fn drop_media_compatibility_helpers(control_plane: &mut Value) -> Result<()> {
     for client in control_plane_array_mut(control_plane, "oauth_clients")? {
         if let Some(helpers) = client

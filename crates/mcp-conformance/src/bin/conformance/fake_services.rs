@@ -187,8 +187,73 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
         .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
         .count();
 
-    if has_heartbeat && !has_task_update && !has_episode_count_ask {
+    let has_pilot_ask = messages
+        .iter()
+        .any(|message| text_of(message).contains("Add target alpha"));
+    let has_plan_update = messages.iter().any(|message| {
+        let text = text_of(message);
+        text.contains("Background task update") && text.contains("optimization__plan")
+    });
+
+    if has_heartbeat && !has_task_update && !has_episode_count_ask && !has_pilot_ask {
         return AxumJson(fake_llm_stop_response(&request, "IDLE."));
+    }
+    // The pilot mission script: record the target, measure the leg, dispatch
+    // the planner as a task; on the plan result, record the waypoint.
+    if has_plan_update {
+        let choice = match assistant_turns {
+            0 => fake_llm_tool_call_choice(
+                "memory_write",
+                json!({
+                    "op": "insert",
+                    "table": "waypoints",
+                    "row": {
+                        "waypoint_id": "wp-1", "mission_id": "m-1", "seq": 1,
+                        "lat": 37.8044, "lon": -122.2712, "source_task_id": "optimization-plan"
+                    }
+                }),
+            ),
+            _ => return AxumJson(fake_llm_stop_response(&request, "MISSION PLANNED.")),
+        };
+        return AxumJson(fake_llm_response(&request, choice));
+    }
+    if has_pilot_ask && !has_task_update {
+        let choice = match assistant_turns {
+            0 => fake_llm_tool_call_choice(
+                "memory_write",
+                json!({
+                    "op": "insert",
+                    "table": "targets",
+                    "row": {
+                        "target_id": "alpha", "name": "Alpha", "kind": "poi",
+                        "lat": 37.7749, "lon": -122.4194, "priority": 1, "status": "active"
+                    }
+                }),
+            ),
+            1 => fake_llm_tool_call_choice(
+                "coordinates__geodesic_inverse",
+                json!({
+                    "start": { "latitude_deg": 37.7749, "longitude_deg": -122.4194 },
+                    "end": { "latitude_deg": 37.8044, "longitude_deg": -122.2712 }
+                }),
+            ),
+            2 => fake_llm_tool_call_choice(
+                "optimization__plan",
+                json!({
+                    "input": {
+                        "kind": "inline",
+                        "agents": [{ "id": "pilot-1" }],
+                        "tasks": [{ "id": "visit-alpha" }],
+                        "options": [{
+                            "id": "opt-1", "task_id": "visit-alpha",
+                            "agent_ids": ["pilot-1"], "cost": 1.0
+                        }]
+                    }
+                }),
+            ),
+            _ => return AxumJson(fake_llm_stop_response(&request, "AWAITING PLAN.")),
+        };
+        return AxumJson(fake_llm_response(&request, choice));
     }
     if has_episode_count_ask && !has_task_update {
         let choice = if assistant_turns == 0 {

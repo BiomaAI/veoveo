@@ -207,6 +207,30 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/agent")]
         agent_bin: PathBuf,
     },
+    /// Smoke-test the Pilot agent's full mission loop over coordinates and optimization.
+    AgentPilot {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built coordinates MCP server binary path.
+        #[arg(long, default_value = "target/debug/coordinates-mcp-smoke")]
+        coordinates_bin: PathBuf,
+        /// Built optimization MCP server binary path.
+        #[arg(long, default_value = "target/debug/optimization-mcp-smoke")]
+        optimization_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
+        /// Built agent kernel binary path.
+        #[arg(long, default_value = "target/debug/agent")]
+        agent_bin: PathBuf,
+    },
     /// Smoke-test the agent kernel's scheduler: heartbeats, operator wakes, budgets, fail-closed manifests.
     AgentKernelScheduler {
         /// Built conformance binary path.
@@ -345,6 +369,26 @@ async fn main() -> Result<()> {
             agent_kernel_detach_resume(
                 &conformance_bin,
                 &media_bin,
+                &gateway_bin,
+                &control_plane,
+                &artifact_service_bin,
+                &agent_bin,
+            )
+            .await
+        }
+        Cmd::AgentPilot {
+            conformance_bin,
+            coordinates_bin,
+            optimization_bin,
+            gateway_bin,
+            control_plane,
+            artifact_service_bin,
+            agent_bin,
+        } => {
+            agent_pilot_mission(
+                &conformance_bin,
+                &coordinates_bin,
+                &optimization_bin,
                 &gateway_bin,
                 &control_plane,
                 &artifact_service_bin,

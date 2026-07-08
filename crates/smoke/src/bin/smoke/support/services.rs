@@ -167,6 +167,32 @@ pub(crate) fn spawn_duckdb_smoke(
     )
 }
 
+pub(crate) fn spawn_optimization_smoke(
+    optimization: &Path,
+    port: u16,
+    public_base_url: &str,
+    state_db: &Path,
+    artifact_service_url: &str,
+    log: &Path,
+) -> Result<ChildGuard> {
+    ChildGuard::spawn(
+        optimization,
+        [
+            "--port".into(),
+            port.to_string().into(),
+            "--public-base-url".into(),
+            public_base_url.into(),
+            "--allow-loopback-hosts".into(),
+            "--state-db".into(),
+            state_db.as_os_str().to_os_string(),
+            "--artifact-service-url".into(),
+            artifact_service_url.into(),
+        ],
+        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        log,
+    )
+}
+
 pub(crate) struct GatewayControlDbSmoke {
     pub(crate) url: String,
     _container: ContainerGuard,

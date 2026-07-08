@@ -554,6 +554,237 @@ pub(crate) async fn agent_kernel_scheduler(
     Ok(())
 }
 
+/// The Pilot mission: the full agent loop over real geodesy and planning.
+///
+/// One operator objective drives the whole choreography — record a target
+/// (memory_write), measure the leg (coordinates__geodesic_inverse, inline),
+/// dispatch the planner (optimization__plan, task-required), then record the
+/// waypoint when the plan lands and declare the mission planned. The pilot's
+/// real domain migrations from configs/agents/pilot are applied verbatim.
+pub(crate) async fn agent_pilot_mission(
+    conformance: &Path,
+    coordinates: &Path,
+    optimization: &Path,
+    gateway: &Path,
+    control_plane: &Path,
+    artifact_service: &Path,
+    agent: &Path,
+) -> Result<()> {
+    for bin in [
+        conformance,
+        coordinates,
+        optimization,
+        gateway,
+        artifact_service,
+        agent,
+    ] {
+        assert_executable(bin)?;
+    }
+
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    println!("smoke workspace: {}", tmpdir.display());
+
+    let coordinates_port = 18850u16;
+    let optimization_port = 18851u16;
+    let gateway_port = 18852u16;
+    let llm_port = 18853u16;
+    let coordinates_base = format!("http://127.0.0.1:{coordinates_port}");
+    let optimization_base = format!("http://127.0.0.1:{optimization_port}");
+    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+
+    let plane =
+        spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
+            .await?;
+    let mut coordinates_child = spawn_coordinates_smoke(
+        coordinates,
+        coordinates_port,
+        &coordinates_base,
+        &plane.url,
+        &tmpdir.join("coordinates.log"),
+    )?;
+    let mut optimization_child = spawn_optimization_smoke(
+        optimization,
+        optimization_port,
+        &optimization_base,
+        &tmpdir.join("optimization-state.duckdb"),
+        &plane.url,
+        &tmpdir.join("optimization.log"),
+    )?;
+    wait_for_http(&format!("{coordinates_base}/coordinates/healthz")).await?;
+    wait_for_http(&format!("{optimization_base}/optimization/healthz")).await?;
+
+    let llm_ready = tmpdir.join("llm.ready");
+    let mut llm = ChildGuard::spawn(
+        conformance,
+        [
+            "fake-openai-llm".into(),
+            "--port".into(),
+            llm_port.to_string().into(),
+            "--ready-file".into(),
+            llm_ready.as_os_str().to_os_string(),
+        ],
+        [],
+        &tmpdir.join("llm.log"),
+    )?;
+    wait_for_file(&llm_ready).await?;
+
+    let generated_control_plane = tmpdir.join("gateway.pilot.json");
+    run_checked(
+        conformance,
+        [
+            "gateway-pilot-smoke-control-plane".into(),
+            "--base".into(),
+            control_plane.as_os_str().to_os_string(),
+            "--output".into(),
+            generated_control_plane.as_os_str().to_os_string(),
+            "--coordinates-upstream-url".into(),
+            format!("{coordinates_base}/coordinates/mcp").into(),
+            "--optimization-upstream-url".into(),
+            format!("{optimization_base}/optimization/mcp").into(),
+        ],
+        [],
+    )?;
+    let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
+    let auth_private_key = auth_private_key.trim().to_string();
+    let control_db = spawn_gateway_control_db(gateway, &generated_control_plane).await?;
+    let mut gateway_child = ChildGuard::spawn(
+        gateway,
+        gateway_serve_args(
+            gateway_port,
+            &control_db.url,
+            &tmpdir.join("gw-state.duckdb"),
+        ),
+        [
+            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &tmpdir.join("gateway.log"),
+    )?;
+    wait_for_http(&format!("{gateway_base}/healthz")).await?;
+    assert_ready_profiles(&gateway_base, 2).await?;
+
+    // The pilot's real domain migrations, applied verbatim.
+    let migrations_dir = fs::canonicalize("configs/agents/pilot/migrations")?;
+    let manifest_path = tmpdir.join("pilot-manifest.json");
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "agent": { "id": "pilot-smoke", "display_name": "Pilot Smoke Agent" },
+            "model": {
+                "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
+                "api_key_env": "SMOKE_LLM_API_KEY",
+                "model": "fake/kimi"
+            },
+            "gateway": {
+                "url": gateway_base,
+                "profile": "operator",
+                "client_id": "operator-service",
+                "audience": format!("{PUBLIC_BASE_URL}/oauth/token"),
+                "resource": format!("{PUBLIC_BASE_URL}/mcp/operator"),
+                "scopes": ["operator:use"],
+                "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                "private_key_kid": "test-key"
+            },
+            "episode": { "max_turns": 8, "task_deadline_s": 120, "task_poll_interval_ms": 300 },
+            "schedule": { "heartbeat_interval_s": 30, "wake_coalesce_window_ms": 100 },
+            "memory": {
+                "memory_write_tables": ["targets", "missions", "waypoints", "constraints", "beliefs"]
+            },
+            "context": {
+                "sections": [{
+                    "name": "Active targets",
+                    "priority": 1,
+                    "sql": "SELECT target_id, name, lat, lon FROM targets WHERE status = 'active' ORDER BY priority DESC LIMIT 20"
+                }]
+            },
+            "migrations_dir": migrations_dir,
+            "preamble": "You are the Pilot. Follow instructions exactly."
+        }))?,
+    )?;
+
+    let agent_data_dir = tmpdir.join("pilot-data");
+    let agent_log = tmpdir.join("pilot.log");
+    let mut agent_child = ChildGuard::spawn(
+        agent,
+        [
+            "run".into(),
+            "--manifest".into(),
+            manifest_path.as_os_str().to_os_string(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--prompt".into(),
+            "Add target alpha at 37.7749,-122.4194 and plan the visit.".into(),
+        ],
+        [
+            ("SMOKE_LLM_API_KEY", "fake".into()),
+            (
+                "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
+                auth_private_key.clone().into(),
+            ),
+        ],
+        &agent_log,
+    )?;
+    wait_for_log_substring(&agent_log, "MISSION PLANNED", 240).await?;
+    agent_child.stop();
+
+    {
+        let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
+        let targets: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM targets", [], |row| row.get(0))?;
+        let waypoints: i64 =
+            ledger.query_row("SELECT COUNT(*) FROM waypoints", [], |row| row.get(0))?;
+        if targets != 1 || waypoints != 1 {
+            bail!("pilot memory had {targets} targets / {waypoints} waypoints, expected 1/1");
+        }
+        let (task_tool, task_state, consumed): (String, String, Option<String>) = ledger
+            .query_row(
+                "SELECT tool_name, state, consumed_by_episode FROM kernel.task_ledger",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?;
+        if task_tool != "optimization__plan" || task_state != "resolved" || consumed.is_none() {
+            bail!("plan task was ({task_tool}, {task_state}, consumed: {consumed:?})");
+        }
+        let planned: i64 = ledger.query_row(
+            "SELECT COUNT(*) FROM kernel.episodes WHERE final_output LIKE '%MISSION PLANNED%'",
+            [],
+            |row| row.get(0),
+        )?;
+        if planned < 1 {
+            bail!("no episode declared the mission planned");
+        }
+    }
+
+    // The flight log shows the whole choreography.
+    let timeline = run_checked(
+        agent,
+        [
+            "timeline".into(),
+            "--data-dir".into(),
+            agent_data_dir.as_os_str().to_os_string(),
+            "--entities".into(),
+            "/agent/**".into(),
+            "--max-rows".into(),
+            "300".into(),
+        ],
+        [],
+    )?;
+    contains(&timeline, "coordinates__geodesic_inverse")?;
+    contains(&timeline, "optimization__plan")?;
+
+    gateway_child.stop();
+    coordinates_child.stop();
+    optimization_child.stop();
+    llm.stop();
+    cleanup.remove_on_drop();
+    println!("agent pilot mission smoke ok");
+    Ok(())
+}
+
 /// Poll a child's log file until it contains `needle`.
 async fn wait_for_log_substring(file: &Path, needle: &str, attempts: u32) -> Result<()> {
     for _ in 0..attempts {
