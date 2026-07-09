@@ -783,7 +783,7 @@ pub(crate) async fn agent_pilot_mission(
         }
     }
 
-    // The flight log shows the whole choreography.
+    // The decision log shows the whole choreography.
     let timeline = run_checked(
         agent,
         [
@@ -800,7 +800,7 @@ pub(crate) async fn agent_pilot_mission(
     contains(&timeline, "coordinates__geodesic_inverse")?;
     contains(&timeline, "optimization__plan")?;
 
-    // Replay rebuilds domain truth from the flight log alone.
+    // Replay rebuilds domain truth from the decision log alone.
     let replay = run_checked(
         agent,
         [

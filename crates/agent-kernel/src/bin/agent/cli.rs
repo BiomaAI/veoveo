@@ -13,9 +13,9 @@ pub(crate) struct Args {
 pub(crate) enum Cmd {
     /// Run an agent from a manifest until stopped.
     Run(RunArgs),
-    /// Query the agent's episodic flight log (RRD segments) as JSON rows.
+    /// Query the agent's episodic decision log (RRD segments) as JSON rows.
     Timeline(TimelineArgs),
-    /// Rebuild domain tables from the flight log into memory.replayed.duckdb.
+    /// Rebuild domain tables from the decision log into memory.replayed.duckdb.
     Replay(ReplayArgs),
     /// Wake a running agent with an operator message.
     Ask(AskArgs),
@@ -57,7 +57,7 @@ pub(crate) struct RunArgs {
     /// deterministic way to exercise resume-across-processes.
     #[arg(long, default_value_t = false)]
     pub(crate) halt_after_episode: bool,
-    /// Tee the flight log to a live Rerun viewer, e.g.
+    /// Tee the decision log to a live Rerun viewer, e.g.
     /// rerun+http://127.0.0.1:9876/proxy.
     #[arg(long)]
     pub(crate) viewer_tee: Option<String>,

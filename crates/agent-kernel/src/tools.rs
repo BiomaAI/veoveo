@@ -145,7 +145,7 @@ impl Tool for MemoryWriteTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let affected_rows = self.ledger.write(&args, &self.allowed_tables)?;
-        // Mirror the mutation onto the episodic plane so the flight log shows
+        // Mirror the mutation onto the episodic plane so the decision log shows
         // when each durable fact changed.
         self.rrd.log_text(
             &format!("/domain/{}", args.table()),
@@ -180,7 +180,7 @@ impl Tool for TimelineQueryTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Query your episodic flight log (everything you have observed and \
+            description: "Query your episodic decision log (everything you have observed and \
                           done, time-indexed). Entities: /agent/turns, /agent/tools/**, \
                           /agent/tasks/**, /agent/episodes, /domain/**."
                 .to_string(),

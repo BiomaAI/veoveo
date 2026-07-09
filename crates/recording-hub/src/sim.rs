@@ -1,9 +1,9 @@
 //! Typed, deterministic sensor generators.
 //!
-//! Every generator is a pure function of `(seed, tick)`, so a fleet run is
+//! Every generator is a pure function of `(seed, tick)`, so a stack run is
 //! exactly reproducible: the smoke asserts emitted counts and final values
-//! against [`FleetReport`], not against approximations. The same binary is the
-//! smoke's fake fleet and the bench harness's load.
+//! against [`StackReport`], not against approximations. The same binary is the
+//! smoke's fake stack and the bench harness's load.
 
 use serde::{Deserialize, Serialize};
 
@@ -112,7 +112,7 @@ pub struct SensorSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SensorFleet {
+pub struct SensorStack {
     pub sensors: Vec<SensorSpec>,
 }
 
@@ -283,14 +283,14 @@ pub struct SensorReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FleetReport {
+pub struct StackReport {
     pub sensors: Vec<SensorReport>,
     pub total_emitted: u64,
 }
 
-impl FleetReport {
+impl StackReport {
     pub fn to_json(&self) -> String {
-        serde_json::to_string_pretty(self).expect("fleet report serializes")
+        serde_json::to_string_pretty(self).expect("stack report serializes")
     }
 }
 
@@ -389,8 +389,8 @@ mod tests {
     }
 
     #[test]
-    fn fleet_json_roundtrips() {
-        let fleet = SensorFleet {
+    fn stack_json_roundtrips() {
+        let stack = SensorStack {
             sensors: vec![
                 gnss(TrackPattern::Orbit {
                     radius_m: 50.0,
@@ -400,8 +400,8 @@ mod tests {
                 .clone(),
             ],
         };
-        let json = serde_json::to_string(&fleet).unwrap();
-        let back: SensorFleet = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&stack).unwrap();
+        let back: SensorStack = serde_json::from_str(&json).unwrap();
         assert_eq!(back.sensors.len(), 1);
     }
 }
