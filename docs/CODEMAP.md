@@ -1,59 +1,89 @@
 # Veoveo Code Map
 
-Snapshot: `8fa9b24` on 2026-07-03.
+Snapshot: `11a3ba6` on 2026-07-08.
 
 This map explains what each area of the repository is for, where the code volume is
 concentrated, and which parts look like technical debt or still-open product gaps.
 
 ## High-level shape
 
-Veoveo is currently a Rust workspace with five crates:
+Veoveo is a Rust workspace of fifteen crates — one gateway, one shared contract, a
+family of hosted domain MCP servers, a shared artifact plane, a recording/telemetry
+plane, an autonomous-agent runtime, and the test/conformance harnesses:
 
 | Crate | Rust lines | Purpose |
 |---|---:|---|
-| `mcp-gateway` | 14,522 | Public MCP gateway, auth, policy, admin, audit, and upstream MCP forwarding. |
-| `mcp-contract` | 9,507 | Shared Veoveo contract: typed IDs, gateway config, policy, internal auth, artifacts, usage, deployment, schemas, pagination, telemetry. |
-| `media-mcp` | 4,009 | Hosted media MCP server: provider-backed generation, webhook completion, artifacts, usage, prompts, resources, tasks. |
-| `smoke` | 3,881 | Rust smoke-test harness for process orchestration and end-to-end checks. |
-| `mcp-conformance` | 3,233 | CLI that exercises MCP surfaces and emits contract schemas/test tokens/fake services. |
+| `mcp-gateway` | 15,664 | Public MCP gateway: auth, policy, admin, audit, and upstream MCP forwarding. |
+| `mcp-contract` | 12,017 | Shared contract: typed IDs, gateway config, policy, internal auth, artifacts, usage, deployment, schemas, telemetry. |
+| `smoke` | 6,657 | Rust smoke-test harness for process orchestration and end-to-end checks. |
+| `media-mcp` | 4,356 | Hosted media MCP server: provider-backed generation, webhook completion, artifacts, usage. |
+| `agent-kernel` | 4,319 | Runtime for long-lived autonomous MCP agents: bounded episodes, sleep/wake, RRD+DuckDB memory. |
+| `mcp-conformance` | 4,068 | CLI that exercises MCP surfaces and emits contract schemas / test tokens / fake services. |
+| `duckdb-mcp` | 3,606 | Hosted DuckDB MCP server: owner-scoped mutable database files, hardened in-process engine. |
+| `optimization-mcp` | 3,240 | Hosted optimization MCP server (solver-backed tasks). |
+| `coordinates-mcp` | 2,828 | Hosted coordinates MCP server (coordinate reference frames / geospatial transforms). |
+| `timeseries-mcp` | 2,419 | Hosted timeseries MCP server (forecasting). |
+| `artifact-service` | 2,100 | The shared artifact plane: a single byte-level policy-enforcement point for artifacts. |
+| `recording-hub` | 1,582 | Durable, queryable time-and-space record; producers stream Rerun data in, QueryEngine reads back. |
+| `rrd` | 539 | Rerun `.rrd` segment read/query helpers, shared by the hub. |
+| `artifact-client` | 274 | Thin HTTP client for the shared artifact plane, which the domain servers depend on. |
+| `mcp-stdio-bridge` | 178 | stdio→streamable-HTTP MCP bridge: spawn a stdio MCP server and re-expose its tools. |
 
-Total Rust source is about 35k lines. Including root docs, JSON config, Compose, Dockerfiles,
-and Justfile, the counted source/docs/config total is about 38k lines.
+Total Rust source is about 64k lines. The SUMO showcase adds ~1.9k lines of Python
+(`showcase/sumo/mcp`, a task-native MCP server).
 
 Runtime flow:
 
 ```text
 external MCP client
-  -> Cloudflare tunnel / enterprise edge
-  -> Caddy edge (:8780)
-  -> mcp-gateway (:8788, /mcp/default)
-  -> media-mcp (:8787, /media/mcp)
-  -> provider API
-  <- provider webhook to /media/webhooks
+  -> Cloudflare tunnel / enterprise edge -> Caddy edge (:8780)
+  -> mcp-gateway (:8788, /mcp/default)        auth · policy · audit · forwarding
+       -> media-mcp         provider generation, webhook completion
+       -> timeseries-mcp    forecasting
+       -> optimization-mcp  solvers
+       -> coordinates-mcp   coordinate frames / transforms
+       -> duckdb-mcp        owner-scoped databases
+  domain servers -> artifact-service    shared artifact plane (byte-level policy)
+  producers      -> recording-hub       durable Rerun time-and-space record
+  agent-kernel   -> drives the gateway as a long-lived autonomous MCP client
 ```
 
-The gateway is the external client contract. `media-mcp` is still a valid hosted MCP
-server internally and for conformance, but public clients should not connect to
-`/media/mcp` directly.
+The gateway is the external client contract. The hosted servers are valid MCP servers
+internally and for conformance, but public clients connect through the gateway, not to
+a server's `/…/mcp` directly.
 
-## Root files
+## Root files and directories
+
+Root is deliberately spare: the front-page `README.md`, the agent-rules `AGENTS.md`,
+the workspace and Compose files, and the Justfile. Design docs live in `docs/`.
 
 | Path | Purpose |
 |---|---|
-| `Cargo.toml` | Workspace membership, Rust 2024 edition, shared dependency versions. |
+| `Cargo.toml` | Workspace membership (15 crates), Rust 2024 edition, shared dependency versions. |
 | `Cargo.lock` | Pinned dependency graph. |
 | `README.md` | Operator-facing architecture, setup, run, routing, logs, and local process notes. |
-| `TECH_DESIGN.md` | Design rationale: protocol-rich MCP, webhook-only provider completion, gateway/auth/security direction. |
 | `AGENTS.md` | Engineering rules for this repo: hard cut, no fallbacks, strong types, module boundaries, Justfile discipline. |
 | `Justfile` | Human command dispatcher for build/test/smoke/compose/e2e. It should not become a test framework. |
-| `compose.yaml` | Local stack: RustFS, media, gateway, edge, OTEL. |
+| `compose.yaml` | Local stack: edge, gateway, hosted MCP servers, artifact plane + Postgres, recording-hub bridge, RustFS, OTEL. |
 | `compose.tunnel.yaml` | Cloudflare named tunnel service. |
-| `configs/Caddyfile` | Public edge routing from one origin to gateway and media provider/content routes. |
+| `crates/` | The fifteen Rust crates (see per-crate sections below). |
+| `docs/` | Design docs (`TECH_DESIGN`, `RECORDING_HUB_DESIGN`, `COORDINATES_MCP_DESIGN`, `OPTIMIZATION_MCP_DESIGN`, this map) and `pilot-harness.html`. |
+| `showcase/` | End-to-end showcases, one per subdirectory; `sumo/` proves the platform on the SUMO simulator (Python MCP server + LuST). |
+| `configs/` | Caddyfile, gateway control planes, JWKS, deployment profiles, OTEL, and `agents/` (Pilot agent data). |
+| `assets/` | Static assets. |
+
+`configs/` in detail:
+
+| Path | Purpose |
+|---|---|
+| `configs/Caddyfile` | Public edge routing from one origin to the gateway and content routes. |
 | `configs/gateway.local.json` | Local gateway control plane for Compose. |
+| `configs/gateway.bioma.json` | Live/bioma gateway control plane (coordinates, duckdb, optimization, rerun profiles). |
 | `configs/gateway.smoke.json` | Test gateway control plane for smoke scenarios. |
 | `configs/jwks.smoke.json` | Local test JWKS trusted by smoke/local headless auth. |
 | `configs/deployments.json` | Typed self-hosted deployment profile examples. |
 | `configs/otel-collector.yaml` | Local OpenTelemetry collector config. |
+| `configs/agents/` | Autonomous-agent data (manifests, preambles, SQL migrations) the agent-kernel loads. |
 
 ## `mcp-contract`
 
@@ -221,32 +251,72 @@ Important files:
 | `src/bin/smoke/scenarios/secrets.rs` | Secret resolution/Vault behavior. |
 | `src/bin/smoke/support/*` | Process lifecycle, HTTP, MCP, auth, usage, control-plane, assertions. |
 
+## Domain servers, planes, and the agent runtime
+
+The five crates above are the original core. The rest of the workspace grew the
+platform from one hosted server into a family of servers over shared planes, plus an
+autonomous-agent runtime. Each keeps the `mcp-contract` boundary and the
+artifact/usage/auth/task conventions rather than copying `media-mcp`.
+
+**Hosted domain servers** — same shape as `media-mcp` (lowlevel MCP server, gateway
+upstream, artifact/usage/task surfaces), different domain:
+
+| Crate | Domain |
+|---|---|
+| `coordinates-mcp` | Coordinate reference frames and geospatial transforms. |
+| `timeseries-mcp` | Forecasting (see `src/forecast.rs`). |
+| `optimization-mcp` | Solver-backed optimization tasks. |
+| `duckdb-mcp` | Owner-scoped mutable database files on a hardened in-process DuckDB engine. |
+
+**Shared planes:**
+
+- `artifact-service` — the artifact plane. A single byte-level policy-enforcement
+  point backed by an object store + Postgres. Domain servers stopped owning private
+  buckets and artifact-metadata tables; they go through this. `artifact-client` is the
+  thin HTTP client each server depends on to read/write.
+- `recording-hub` — the time-and-space record. A spooler embeds Rerun's gRPC proxy and
+  writes durable `.rrd` segments; a catalog serves queries. Producers stream Rerun data
+  in; `QueryEngine` reads it back. `rrd` holds the segment read/query helpers.
+
+**Autonomous agents:**
+
+- `agent-kernel` — runtime for long-lived agents. Each runs forever in bounded
+  *episodes*, sleeping and waking on task results, timers, or operator input, with local
+  RRD (episodic log) + DuckDB (current truth) memory; agents are data under
+  `configs/agents/`, not code.
+
+**Bridge:**
+
+- `mcp-stdio-bridge` — spawns a stdio MCP server as a child and re-exposes its tools
+  over streamable HTTP, so stdio-only servers fit the gateway model.
+
 ## Where most code is
 
 Largest areas:
 
 | Area | Rust lines | Reading |
 |---|---:|---|
-| `mcp-gateway` | 14,522 | Biggest runtime surface: full MCP gateway plus enterprise auth/policy/audit/admin. |
-| `mcp-contract/src/gateway` | 5,317 | Typed control plane, policy, auth config, validation, tests. |
-| `mcp-gateway/src/bin/gateway` | 4,709 | HTTP routes, OAuth, admin, audit, runtime wiring. |
-| `smoke` + `mcp-conformance` | 7,114 | Test/conformance machinery, not production server runtime. |
-| `media-mcp` | 4,009 | Domain server, provider integration, artifacts, usage, ownership. |
+| `mcp-gateway` | 15,664 | Biggest runtime surface: full MCP gateway plus enterprise auth/policy/audit/admin. |
+| `mcp-contract` | 12,017 | Typed contract; `src/gateway` alone is 5,798 (control plane, policy, auth config, validation, tests). |
+| `smoke` + `mcp-conformance` | 10,725 | Test/conformance machinery, not production server runtime. |
+| hosted domain servers | 16,449 | media 4,356 · duckdb 3,606 · optimization 3,240 · coordinates 2,828 · timeseries 2,419. |
+| `agent-kernel` | 4,319 | Autonomous-agent runtime (episodes, memory planes, task resume). |
+| artifact + recording planes | 4,495 | artifact-service 2,100 · recording-hub 1,582 · rrd 539 · artifact-client 274. |
 
 Largest individual files:
 
 | Lines | File | Reading |
 |---:|---|---|
-| 1,677 | `mcp-contract/src/gateway/tests.rs` | Large validation test suite. Acceptable, though can be split if navigation hurts. |
-| 994 | `mcp-gateway/src/catalog/tests.rs` | Large catalog/policy tests. Acceptable but near split threshold. |
-| 969 | `media-mcp/src/bin/server.rs` | Runtime file near the repo's 1,000-line extraction threshold. |
+| 1,744 | `mcp-contract/src/gateway/tests.rs` | Large validation test suite. Acceptable, though can be split if navigation hurts. |
+| 1,276 | `optimization-mcp/src/planning.rs` | Dense planning/solver logic. Past the 1,000-line threshold; a split candidate. |
+| 1,157 | `smoke/src/bin/smoke/scenarios/agent_kernel.rs` | Agent-kernel e2e scenario. Large but it drives a full kill/resume lifecycle. |
+| 1,051 | `media-mcp/src/bin/server.rs` | Runtime file over the repo's 1,000-line extraction threshold. |
+| 1,024 | `mcp-contract/src/gateway/validation.rs` | Dense validation rules. Reasonable, but should not absorb unrelated policy logic. |
+| 1,023 | `coordinates-mcp/src/bin/server.rs` | Server wiring over the threshold; split handler surfaces as it grows. |
+| 1,006 | `mcp-gateway/src/catalog/tests.rs` | Large catalog/policy tests. Near split threshold. |
+| 986 | `mcp-conformance/src/bin/conformance/fake_services.rs` | Fake services. Acceptable test support, but could split by fake service type. |
 | 967 | `mcp-contract/src/deployment.rs` | Dense typed deployment model and validation. Split soon. |
-| 966 | `mcp-gateway/src/state.rs` | State facade plus tests; should continue splitting. |
-| 897 | `mcp-contract/src/gateway/validation.rs` | Dense validation rules. Reasonable, but should not absorb unrelated policy logic. |
-| 773 | `mcp-conformance/src/bin/conformance/fake_services.rs` | Fake services. Acceptable test support, but could split by fake service type. |
-| 692 | `mcp-contract/src/gateway/error.rs` | Many explicit validation errors. Verbose but useful. |
-| 654 | `media-mcp/src/state.rs` | Media DuckDB state. Watch as features grow. |
-| 634 | `mcp-contract/src/gateway/server_config.rs` | Typed config. Watch as server manifests grow. |
+| 953 | `duckdb-mcp/src/bin/server.rs` | Server wiring; watch as tools grow. |
 
 ## Technical debt and cleanup targets
 
@@ -315,11 +385,15 @@ Largest individual files:
 
 ## Is this over-engineered?
 
-Some of it is intentionally ahead of the current one-server product:
+Less so than at the last snapshot. The gateway now fronts a real family of hosted
+servers (media, timeseries, optimization, coordinates, duckdb) over shared artifact and
+recording planes, with an autonomous-agent runtime on top — so the gateway/contract
+weight now carries its intended load rather than sitting ahead of a single server.
 
-- A full gateway is heavier than needed for only `media-mcp`.
-- Enterprise auth and policy create a lot of code before multiple real tenants/users exist.
-- Typed deployment/network/regulated-data models are more ceremony than a small local app needs.
+What remains ahead of the current product:
+
+- Enterprise auth and policy still assume multiple real tenants/users the deployment does not yet have.
+- Typed deployment/network/regulated-data models are more ceremony than a small local app needs, justified only by the CUI/ITAR/PII direction.
 
 But this is mostly aligned with the stated product direction: self-hosted, secure MCP gateway
 and hosted servers for confidential/regulatory workloads. The risk is not the direction; the
