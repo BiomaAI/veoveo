@@ -1,6 +1,6 @@
 # The SUMO traffic-world showcase, layered on the main compose stack.
 #
-#   docker compose -f compose.yaml -f showcase/compose.showcase.yaml \
+#   docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml \
 #       --profile hub --profile showcase up
 #
 # SUMO runs a live traffic world (TraCI, internal-only); sumo-mcp owns the one
@@ -11,7 +11,7 @@ services:
   sumo:
     build:
       # Contexts are resolved from the project root (the first -f compose file).
-      context: ./showcase/sumo
+      context: ./showcase/sumo/sim
       dockerfile: Dockerfile
     # TraCI is single-client and unauthenticated: internal network only.
     expose:
@@ -21,7 +21,7 @@ services:
 
   sumo-mcp:
     build:
-      context: ./showcase/sumo-mcp
+      context: ./showcase/sumo/mcp
       dockerfile: Dockerfile
     depends_on:
       sumo:

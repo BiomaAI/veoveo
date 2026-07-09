@@ -4,8 +4,8 @@
 # base image downloads. Layer on the main compose with the `hub` + `interim`
 # profiles:
 #
-#   docker compose -f compose.yaml -f showcase/compose.showcase.yaml \
-#       -f showcase/compose.interim.yaml --profile hub --profile interim up -d
+#   docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml \
+#       -f showcase/sumo/compose.interim.yaml --profile hub --profile interim up -d
 services:
   sumo-mcp:
     # Only the interim profile activates this variant, so SUMO stays down.
