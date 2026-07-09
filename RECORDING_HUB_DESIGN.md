@@ -26,15 +26,20 @@ spine proven against the real Rust hub (`sumo_push_smoke`, 40 frames durable).
 SUMO + sumo-mcp Dockerfiles, `compose.showcase.yaml` (config valid), README.
 Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`, `showcase-capstone`.
 
-**Full live stack proven end to end** (`showcase-capstone`, 2026-07-08): the
-real SUMO container (grid: 48 edges, 12 traffic lights, 20 vehicles) steps over
-TraCI while `sumo-mcp` pushes the world into the hub — captured durably (40 rows
-under `/world/sumo/**`, read back by QueryEngine) — and the served MCP endpoint
-is driven over streamable HTTP: `query_state`/`describe_scenario`, `run_batch`
-as a detached task (`call_tool_as_task → poll → get_task_result`), and
-`set_signal_phase` actuating a real traffic light over TraCI. An interim
-fake-driver run (`compose.interim.yaml`) separately proves the container
-runtime (serve + background push) without the SUMO image.
+**Full live stack proven end to end on a real city** (2026-07-08): the SUMO
+container runs **LuST — Luxembourg SUMO Traffic** (a validated OpenStreetMap
+network, 5779 edges, 201 signals, geo-referenced), started at the morning ramp.
+`sumo-mcp` calibrates cartesian→lon/lat once from the network's own projection,
+reads all vehicles per frame in a single TraCI subscription round-trip, and
+pushes them as one speed-coloured GeoPoints layer into the hub — **962 live
+vehicles at (49.55, 6.03) Luxembourg**, streamed to a native Rerun viewer on the
+real map via the hub's published proxy. The served MCP endpoint drives it:
+`query_state`/`describe_scenario`, `run_batch` as a detached task, and the full
+control surface on real objects — `set_signal_phase`, `set_edge_speed`,
+`close_lane`/`open_lane`. Offline task tools (`generate_network`,
+`compute_routes`) shell out to the real bundled SUMO CLIs. An interim
+fake-driver run (`compose.interim.yaml`) proves the container runtime without
+the SUMO image.
 
 Deferred (recorded): `append_transport_without_footer` fast path (unreachable
 through `spawn_with_recv`, and target already met); heavy compose e2e of the
