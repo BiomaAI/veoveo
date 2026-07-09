@@ -1,7 +1,7 @@
-//! The flight-recorder hook: every step observed, both planes written.
+//! The decision recorder hook: every step observed, both planes written.
 //!
 //! Rule of the split: the RRD plane gets everything (append-only, time-indexed
-//! flight log); the DuckDB plane gets only durable kernel facts needed for
+//! decision log); the DuckDB plane gets only durable kernel facts needed for
 //! crash safety mid-run — a provisional task row the moment a deferred
 //! dispatch is observed, and immediate resolution for tasks that complete
 //! inside the run.

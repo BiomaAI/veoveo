@@ -3,7 +3,7 @@
 # (application id veoveo-sim-*) and an agent-labeled recording (veoveo-agent-*)
 # push concurrently; the spooler routes them into different datasets by the
 # same rules compose uses (agents=veoveo-agent, world=catch-all), and both are
-# queryable side by side. This is the essence of the agent's flight log and the
+# queryable side by side. This is the essence of the agent's decision log and the
 # sensor world sharing one record — without the full gateway/Cloudflare stack.
 set -euo pipefail
 

@@ -1,4 +1,4 @@
-<title>Pilot Harness — Architecture</title>
+<title>Autonomy Harness — Architecture</title>
 <style>
   :root {
     --ground: #F2F4F6;
@@ -513,7 +513,7 @@
 <div class="wrap">
   <header>
     <p class="eyebrow">System Architecture · Tool Capabilities</p>
-    <h1>Pilot Harness</h1>
+    <h1>Autonomy Harness</h1>
     <p class="lede">
       A self-hosted <strong>MCP gateway, a fleet of hosted tool servers, an agent kernel, and a
       durable recording hub</strong> for regulated workloads. Long-lived autonomous agents — the
@@ -542,7 +542,7 @@ flowchart LR
     direction TB
     SEN["Sensors<br/>cameras · IMU · GNSS"]
     SUMO["SUMO sim<br/>traffic world"]
-    TEE["Agent flight log<br/>(tee)"]
+    TEE["Agent decision log<br/>(tee)"]
   end
   subgraph HUB["Recording Hub"]
     direction TB
@@ -634,7 +634,7 @@ flowchart LR
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">dataset · recording</span><span class="term-kind k-concept">concept</span></div>
-          <p><b>How the record is organised.</b> A <em>recording</em> is one stream (one SUMO run, one agent's flight log); a <em>dataset</em> groups them (<code>world</code>, <code>agents</code>).</p>
+          <p><b>How the record is organised.</b> A <em>recording</em> is one stream (one SUMO run, one agent's decision log); a <em>dataset</em> groups them (<code>world</code>, <code>agents</code>).</p>
           <p>In the catalog a segment's id is its recording id, so the file on disk and the thing you query are the same identity.</p>
         </div>
         <div class="term">
@@ -721,7 +721,7 @@ flowchart LR
           <div class="stage">
             <h5>Persist</h5>
             <p>Unresolved task descriptors (serializable) land in the ledger; the episode closes
-               with usage counters and a summary; every step is already in the flight log.</p>
+               with usage counters and a summary; every step is already in the decision log.</p>
           </div>
           <div class="stage sleep">
             <h5>Sleep</h5>
@@ -744,13 +744,13 @@ flowchart LR
                   (the Pilot: <code>targets</code>, <code>missions</code>, <code>waypoints</code>,
                   <code>constraints</code>, <code>beliefs</code>) plus the kernel ledger of
                   episodes, tasks, and wakes.</li>
-              <li><strong>Flight log</strong> — an append-only Rerun recording: every turn, tool
+              <li><strong>Decision log</strong> — an append-only Rerun recording: every turn, tool
                   call, task lifecycle, prompt, and summary, time-indexed and watchable live in
                   the Recording Viewer.</li>
               <li>The agent reads both itself: <code>memory_query</code> (guarded SQL),
-                  <code>memory_write</code> (typed mutations, mirrored to the flight log), and
+                  <code>memory_write</code> (typed mutations, mirrored to the decision log), and
                   <code>timeline_query</code> (dataframe reads over the log).</li>
-              <li>The flight log is the log of record: <code>replay</code> rebuilds the domain
+              <li>The decision log is the log of record: <code>replay</code> rebuilds the domain
                   tables from it alone, so plane drift is recoverable.</li>
             </ul>
           </div>
