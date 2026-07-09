@@ -51,10 +51,13 @@ Q=$("${COMPOSE[@]}" exec -T hub-spooler hub-query \
       --root /var/lib/veoveo/spool/world \
       --entities '/world/sumo/**' --timeline tick 2>/dev/null || true)
 echo "    $Q"
-echo "$Q" | grep -q '"sumo-live"' || { echo "FAIL: no sumo-live recording captured in hub"; "${COMPOSE[@]}" logs sumo-mcp | tail -40; exit 1; }
-ROWS=$(echo "$Q" | "$PYBIN" -c 'import sys,json;print(json.load(sys.stdin)["rows_by_recording"].get("sumo-live",0))')
-[ "$ROWS" -gt 0 ] || { echo "FAIL: sumo-live captured 0 rows"; exit 1; }
-echo "OK  hub captured $ROWS rows of the live SUMO world under /world/sumo/**"
+# Each boot streams as sumo-live-<suffix> (one session = one recording), so match
+# the recording by its stable prefix rather than an exact id.
+REC=$(echo "$Q" | "$PYBIN" -c 'import sys,json;r=json.load(sys.stdin)["rows_by_recording"];k=[x for x in r if x.startswith("sumo-live")];print(k[0] if k else "")')
+[ -n "$REC" ] || { echo "FAIL: no sumo-live* recording captured in hub"; "${COMPOSE[@]}" logs sumo-mcp | tail -40; exit 1; }
+ROWS=$(echo "$Q" | "$PYBIN" -c "import sys,json;print(json.load(sys.stdin)['rows_by_recording'].get('$REC',0))")
+[ "$ROWS" -gt 0 ] || { echo "FAIL: $REC captured 0 rows"; exit 1; }
+echo "OK  hub captured $ROWS rows of the live SUMO world ($REC) under /world/sumo/**"
 
 echo "==> driving the served MCP endpoint end to end"
 SUMO_MCP_URL="http://127.0.0.1:8795/mcp" "$PYBIN" showcase/scripts/capstone_client.py

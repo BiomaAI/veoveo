@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import uuid
 
 from .sim_driver import FakeSimDriver, SimDriver
 from .tools import SumoToolset
@@ -73,6 +74,13 @@ def main() -> None:  # pragma: no cover - real serving path
     parser.add_argument("--push-period-s", type=float, default=0.5)
     args = parser.parse_args()
 
+    # One boot = one recording. The --recording value is the stable base name;
+    # each boot appends a unique suffix so a restart never collides with a prior
+    # run's frames on the same timeline (old + new frames sharing one recording id
+    # is what makes a stale run look like a live one).
+    recording_id = f"{args.recording}-{uuid.uuid4().hex[:8]}"
+    print(f"[sumo-mcp] streaming as recording {recording_id!r}", flush=True)
+
     driver = build_driver()
     toolset = SumoToolset(driver)
     server = build_server(toolset)
@@ -87,7 +95,7 @@ def main() -> None:  # pragma: no cover - real serving path
             async with anyio.create_task_group() as tg:
                 if args.hub_proxy:
                     tg.start_soon(
-                        push_loop, toolset, args.hub_proxy, args.recording, args.push_period_s
+                        push_loop, toolset, args.hub_proxy, recording_id, args.push_period_s
                     )
                 yield
                 tg.cancel_scope.cancel()
