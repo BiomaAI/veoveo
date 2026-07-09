@@ -111,7 +111,7 @@ kept as milestone insurance, deleted after H1.
 
 The catalog overwrites a segment when a second file carries the same
 recording id in one dataset. Day-partitioned datasets resolve this cleanly
-and match how recording fleets are actually operated:
+and match how recorders are actually operated in the field:
 
 ```
 /spool/world/2026-07-08/{recording_id}.rrd      ← live, footer-less
@@ -199,9 +199,9 @@ the write path is engineered and *measured*, not hoped:
 
 ## sensor-sim: typed generators, deterministic by construction
 
-One binary that is both the smoke suite's fake fleet and the bench harness's
+One binary that is both the smoke suite's fake stack and the bench harness's
 load cannon. A typed manifest (`sensors.json`, serde `deny_unknown_fields`)
-describes a fleet; every generator is seeded and therefore exactly
+describes a stack; every generator is seeded and therefore exactly
 reproducible — the smoke asserts *counts and final values*, not vibes.
 
 ```rust
@@ -264,7 +264,7 @@ SensorKind::Scalar  { rate_hz: f64, name: String, wave: Wave }              // S
   `/world/**` rows — one unified record, two producers.
 
 **`hub-bench`** (recipe, excluded from the default suite)
-- sensor-sim burst fleet (8× IMU at 1 kHz + camera blobs) for 60 s against
+- sensor-sim burst stack (8× IMU at 1 kHz + camera blobs) for 60 s against
   the spooler; assert from the spooler's own counters: sustained ≥ 100k
   msgs/s, zero live-queue drop warnings, p99 append < 1 ms; emit a JSON
   report artifact. Criterion micro-bench on the append hot path lives in the
