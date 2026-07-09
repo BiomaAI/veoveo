@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # hub-spool smoke: process-level proof that the spooler durably captures a
-# deterministic fleet, survives a kill -9 mid-stream, resumes into a sibling
+# deterministic stack, survives a kill -9 mid-stream, resumes into a sibling
 # segment on restart, and that the local QueryEngine reads back exactly the
 # sensor-sim ground truth. No Python or catalog needed — this is the durable
 # core.

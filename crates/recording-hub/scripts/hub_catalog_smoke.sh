@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hub-catalog smoke: spool a deterministic fleet, freeze+optimize the segments,
+# hub-catalog smoke: spool a deterministic stack, freeze+optimize the segments,
 # serve them from the Rerun catalog, and cross-check a real over-the-wire redap
 # query against the sensor-sim ground truth. Segment id must equal recording id
 # and per-recording row counts must match exactly.
@@ -29,7 +29,7 @@ trap cleanup EXIT
 echo "==> building recording-hub binaries"
 cargo build -q -p veoveo-recording-hub --bins
 
-echo "==> spooling a deterministic fleet (freeze optimizes via rerun CLI)"
+echo "==> spooling a deterministic stack (freeze optimizes via rerun CLI)"
 READY="$SPOOL/ready"
 RUST_LOG=warn ./target/debug/spooler \
   --bind "127.0.0.1:$PORT" --spool-dir "$SPOOL/spool" \
