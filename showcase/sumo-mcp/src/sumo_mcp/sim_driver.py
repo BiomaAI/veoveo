@@ -175,25 +175,43 @@ class TraciSimDriver:
     access to it, so stepping is never interleaved with reads or actuation.
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8813, name: str = "sumo") -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8813,
+        name: str = "sumo",
+        origin_lat: float = 52.5200,
+        origin_lon: float = 13.4050,
+    ) -> None:
         import traci  # lazy: only on the live path
 
         self._traci = traci
         traci.init(port=port, host=host)
         self._name = name
+        # The synthetic grid has no geo-reference, so we anchor it ourselves and
+        # convert cartesian metres to lon/lat with an equirectangular projection
+        # about the origin — good to a few metres over a city-scale network.
+        self._lat0 = origin_lat
+        self._lon0 = origin_lon
+        self._m_per_deg_lat = 111_320.0
+        self._m_per_deg_lon = 111_320.0 * math.cos(math.radians(origin_lat))
+
+    def _to_geo(self, x: float, y: float) -> tuple[float, float]:
+        """Cartesian metres (SUMO x/y) → (lat, lon)."""
+        lat = self._lat0 + y / self._m_per_deg_lat
+        lon = self._lon0 + x / self._m_per_deg_lon
+        return lat, lon
 
     def describe(self) -> ScenarioInfo:
         t = self._traci
         edges = [e for e in t.edge.getIDList() if not e.startswith(":")]
         signals = list(t.trafficlight.getIDList())
-        # Network geo-reference origin (net offset back to lon/lat).
-        lon, lat = t.simulation.convertGeo(0.0, 0.0)
         return ScenarioInfo(
             name=self._name,
             edges=edges,
             signals=signals,
-            origin_lat=lat,
-            origin_lon=lon,
+            origin_lat=self._lat0,
+            origin_lon=self._lon0,
         )
 
     def sim_time(self) -> float:
@@ -210,7 +228,7 @@ class TraciSimDriver:
         out: list[VehicleState] = []
         for vid in t.vehicle.getIDList():
             x, y = t.vehicle.getPosition(vid)
-            lon, lat = t.simulation.convertGeo(x, y)
+            lat, lon = self._to_geo(x, y)
             out.append(
                 VehicleState(
                     id=vid,
