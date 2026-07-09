@@ -1,7 +1,7 @@
 //! Layered access-control primitives for the shared artifact plane.
 //!
 //! Veoveo access control is several models composed, not a single ACL (see
-//! `TECH_DESIGN.md`, "Access control model"). This module owns the pure,
+//! `docs/TECH_DESIGN.md`, "Access control model"). This module owns the pure,
 //! I/O-free core:
 //!
 //! - **DAC / ACL** — [`Grant`] scopes one artifact to one [`Subject`] at one

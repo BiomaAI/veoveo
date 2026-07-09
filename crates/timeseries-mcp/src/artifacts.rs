@@ -3,7 +3,7 @@
 //! timeseries no longer owns a private bucket or artifact metadata tables. It calls
 //! the central artifact service with the caller's forwarded gateway identity;
 //! the plane stamps tenant/owner, records the grant ledger, encrypts per tenant,
-//! and enforces every read/write. See `TECH_DESIGN.md`, "shared artifact plane".
+//! and enforces every read/write. See `docs/TECH_DESIGN.md`, "shared artifact plane".
 
 use anyhow::{Result, anyhow};
 use veoveo_artifact_client::HttpArtifactPlane;
