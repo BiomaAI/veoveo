@@ -4,7 +4,7 @@ use anyhow::Result;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfile, GatewayProfileId, McpMethodName, PolicyDecision, PolicyEffect,
     PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, PolicyVersion, Principal,
-    ResourceScheme, ScopeName, TraceId,
+    ResourceProjectionMode, ResourceScheme, ScopeName, ServerManifest, TraceId,
 };
 
 use crate::GatewayCatalog;
@@ -261,7 +261,7 @@ impl GatewayCatalog {
                 let manifest = self.server(server).ok_or(PolicyReasonCode::UnknownServer)?;
                 let scheme =
                     resource_scheme(uri.as_str()).ok_or(PolicyReasonCode::UnknownResource)?;
-                if scheme != manifest.uri_scheme {
+                if !manifest_owns_gateway_resource_uri(manifest, uri.as_str(), &scheme) {
                     return Err(PolicyReasonCode::UnknownResource);
                 }
                 let exposure = profile
@@ -339,6 +339,17 @@ impl GatewayCatalog {
             }
         }
     }
+}
+
+fn manifest_owns_gateway_resource_uri(
+    manifest: &ServerManifest,
+    uri: &str,
+    scheme: &ResourceScheme,
+) -> bool {
+    manifest.uri_scheme == *scheme
+        || (manifest.resource_projection == ResourceProjectionMode::ServerOwned
+            && scheme.as_str() == "ui"
+            && uri.starts_with(&format!("ui://{}/", manifest.slug.as_str())))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

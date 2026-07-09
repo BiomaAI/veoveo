@@ -1,14 +1,15 @@
 use std::fmt;
 
 use rmcp::model::{
-    CallToolResult, ErrorData as McpError, GetTaskPayloadResult, ReadResourceResult,
-    ResourceContents, ServerResult,
+    CallToolResult, ContentBlock, ErrorData as McpError, GetTaskPayloadResult, ReadResourceResult,
+    Resource, ResourceContents, ResourceTemplate, ServerResult, Tool,
 };
+use serde_json::Value;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfileId, GatewayResourceProjection, GatewayTaskMapping,
-    GatewayToolName, GenerationRunOutput, McpMethodName, PolicyTarget, PrincipalId, ResourceUri,
-    ServerResourceUri, ServerSlug, TaskIdProjection, UpstreamTaskId, UsageReport,
-    set_related_task_meta,
+    GatewayToolName, GenerationRunOutput, McpMethodName, PolicyTarget, PrincipalId,
+    ResourceProjectionMode, ResourceUri, ServerManifest, ServerResourceUri, ServerSlug,
+    TaskIdProjection, UpstreamTaskId, UsageReport, set_related_task_meta,
 };
 
 use crate::{GatewayCatalog, GatewayState};
@@ -51,35 +52,211 @@ pub(crate) fn gateway_resource_uri(uri: &str) -> Result<ResourceUri, McpError> {
         .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))
 }
 
-fn identity_resource_projection(
-    server: ServerSlug,
-    uri: &str,
-) -> Result<GatewayResourceProjection, McpError> {
-    let uri = gateway_resource_uri(uri)?;
-    Ok(GatewayResourceProjection {
-        server,
-        gateway_uri: uri.clone(),
-        upstream_uri: uri,
-        task: None,
-    })
+fn split_resource_uri(uri: &str) -> Option<(&str, &str)> {
+    uri.split_once("://")
+}
+
+fn projected_ui_resource_path(path: &str) -> &str {
+    path.split_once('/').map(|(_, rest)| rest).unwrap_or(path)
+}
+
+pub(crate) fn project_upstream_resource_uri_for_gateway(
+    server: &ServerManifest,
+    upstream_uri: &str,
+) -> Result<ResourceUri, McpError> {
+    if server.resource_projection != ResourceProjectionMode::ServerOwned {
+        return gateway_resource_uri(upstream_uri);
+    }
+    let (scheme, path) = split_resource_uri(upstream_uri)
+        .ok_or_else(|| mcp_internal("upstream exposed invalid resource URI"))?;
+    let gateway_uri = if scheme == "ui" {
+        format!(
+            "ui://{}/{}",
+            server.slug.as_str(),
+            projected_ui_resource_path(path)
+        )
+    } else if scheme == "http" || scheme == "https" || scheme == "data" {
+        upstream_uri.to_string()
+    } else if scheme == server.uri_scheme.as_str() {
+        upstream_uri.to_string()
+    } else {
+        format!("{}://{path}", server.uri_scheme.as_str())
+    };
+    gateway_resource_uri(&gateway_uri)
+}
+
+pub(crate) fn project_gateway_resource_uri_for_upstream(
+    server: &ServerManifest,
+    gateway_uri: &str,
+    upstream_resources: &[Resource],
+) -> Result<Option<ResourceUri>, McpError> {
+    if server.resource_projection != ResourceProjectionMode::ServerOwned {
+        return Ok(Some(gateway_resource_uri(gateway_uri)?));
+    }
+    for resource in upstream_resources {
+        let projected = project_upstream_resource_uri_for_gateway(server, &resource.uri)?;
+        if projected.as_str() == gateway_uri {
+            return Ok(Some(gateway_resource_uri(&resource.uri)?));
+        }
+    }
+    Ok(None)
+}
+
+pub(crate) fn project_listed_resource_uri(
+    server: &ServerManifest,
+    resource: &mut Resource,
+) -> Result<(), McpError> {
+    resource.uri = project_upstream_resource_uri_for_gateway(server, &resource.uri)?.to_string();
+    if let Some(meta) = &mut resource.meta {
+        let mut value = Value::Object(meta.0.clone());
+        project_meta_resource_uris(server, &mut value)?;
+        if let Value::Object(projected) = value {
+            meta.0 = projected;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn project_resource_template_uri(
+    server: &ServerManifest,
+    template: &mut ResourceTemplate,
+) -> Result<(), McpError> {
+    if let Some((scheme, path)) = split_resource_uri(&template.uri_template)
+        && server.resource_projection == ResourceProjectionMode::ServerOwned
+    {
+        template.uri_template = if scheme == "ui" {
+            format!(
+                "ui://{}/{}",
+                server.slug.as_str(),
+                projected_ui_resource_path(path)
+            )
+        } else if scheme != server.uri_scheme.as_str()
+            && scheme != "http"
+            && scheme != "https"
+            && scheme != "data"
+        {
+            format!("{}://{path}", server.uri_scheme.as_str())
+        } else {
+            template.uri_template.clone()
+        };
+    }
+    if let Some(meta) = &mut template.meta {
+        let mut value = Value::Object(meta.0.clone());
+        project_meta_resource_uris(server, &mut value)?;
+        if let Value::Object(projected) = value {
+            meta.0 = projected;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn project_tool_resource_metadata(
+    server: &ServerManifest,
+    tool: &mut Tool,
+) -> Result<(), McpError> {
+    if let Some(meta) = &mut tool.meta {
+        let mut value = Value::Object(meta.0.clone());
+        project_meta_resource_uris(server, &mut value)?;
+        if let Value::Object(projected) = value {
+            meta.0 = projected;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn project_call_tool_resource_uris(
+    server: &ServerManifest,
+    result: &mut CallToolResult,
+) -> Result<(), McpError> {
+    if let Some(meta) = &mut result.meta {
+        let mut value = Value::Object(meta.0.clone());
+        project_meta_resource_uris(server, &mut value)?;
+        if let Value::Object(projected) = value {
+            meta.0 = projected;
+        }
+    }
+    if let Some(structured) = &mut result.structured_content {
+        project_meta_resource_uris(server, structured)?;
+    }
+    for content in &mut result.content {
+        match content {
+            ContentBlock::Resource(resource) => {
+                project_resource_content_uri(server, &mut resource.resource)?;
+                if let Some(meta) = &mut resource.meta {
+                    let mut value = Value::Object(meta.0.clone());
+                    project_meta_resource_uris(server, &mut value)?;
+                    if let Value::Object(projected) = value {
+                        meta.0 = projected;
+                    }
+                }
+            }
+            ContentBlock::ResourceLink(resource) => {
+                project_listed_resource_uri(server, resource)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn project_resource_content_uri(
+    server: &ServerManifest,
+    content: &mut ResourceContents,
+) -> Result<(), McpError> {
+    match content {
+        ResourceContents::TextResourceContents { uri, .. }
+        | ResourceContents::BlobResourceContents { uri, .. } => {
+            *uri = project_upstream_resource_uri_for_gateway(server, uri)?.to_string();
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn project_meta_resource_uris(server: &ServerManifest, value: &mut Value) -> Result<(), McpError> {
+    match value {
+        Value::String(text) if split_resource_uri(text).is_some() => {
+            if let Ok(projected) = project_upstream_resource_uri_for_gateway(server, text) {
+                *text = projected.to_string();
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                project_meta_resource_uris(server, value)?;
+            }
+        }
+        Value::Object(object) => {
+            for value in object.values_mut() {
+                project_meta_resource_uris(server, value)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 pub(crate) fn project_upstream_resource_for_owner(
     state: &GatewayState,
     profile_id: &GatewayProfileId,
     owner: &PrincipalId,
-    server: &ServerSlug,
+    server: &ServerManifest,
     uri: &str,
 ) -> Result<Option<GatewayResourceProjection>, McpError> {
     let parsed = ServerResourceUri::parse(uri)
         .map_err(|err| mcp_internal(format!("upstream exposed invalid resource URI: {err}")))?;
     let Some(upstream_task_id) = parsed.usage_task_id() else {
-        return Ok(Some(identity_resource_projection(server.clone(), uri)?));
+        let gateway_uri = project_upstream_resource_uri_for_gateway(server, uri)?;
+        return Ok(Some(GatewayResourceProjection {
+            server: server.slug.clone(),
+            gateway_uri,
+            upstream_uri: gateway_resource_uri(uri)?,
+            task: None,
+        }));
     };
     let upstream_task_id = UpstreamTaskId::new(upstream_task_id.to_string())
         .map_err(|err| mcp_internal(format!("upstream exposed invalid usage task id: {err}")))?;
     let Some(mapping) = state
-        .task_mapping_by_upstream(server, &upstream_task_id)
+        .task_mapping_by_upstream(&server.slug, &upstream_task_id)
         .map_err(|err| mcp_internal(format!("failed to read gateway task mapping: {err}")))?
     else {
         return Ok(None);
@@ -92,7 +269,7 @@ pub(crate) fn project_upstream_resource_for_owner(
         .map_err(|err| mcp_internal(format!("failed to project usage URI: {err}")))?
         .to_string();
     Ok(Some(GatewayResourceProjection {
-        server: server.clone(),
+        server: server.slug.clone(),
         gateway_uri: gateway_resource_uri(&gateway_uri)?,
         upstream_uri: gateway_resource_uri(uri)?,
         task: Some(TaskIdProjection::from(&mapping)),
@@ -116,6 +293,17 @@ pub(crate) fn project_read_resource_result(
     projection: &GatewayResourceProjection,
 ) -> Result<(), McpError> {
     let Some(task) = &projection.task else {
+        for content in &mut result.contents {
+            match content {
+                ResourceContents::TextResourceContents { uri, .. }
+                | ResourceContents::BlobResourceContents { uri, .. }
+                    if uri == projection.upstream_uri.as_str() =>
+                {
+                    *uri = projection.gateway_uri.to_string();
+                }
+                _ => {}
+            }
+        }
         return Ok(());
     };
     for content in &mut result.contents {
@@ -311,8 +499,50 @@ pub(crate) fn mcp_internal(message: impl Into<String>) -> McpError {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use rmcp::model::{GetTaskPayloadResult, ReadResourceResult, ResourceContents};
-    use veoveo_mcp_contract::{GatewayTaskId, TaskIdProjection, UpstreamTaskId};
+    use rmcp::model::{GetTaskPayloadResult, ReadResourceResult, Resource, ResourceContents};
+    use veoveo_mcp_contract::{
+        GatewayTaskId, LocalToolName, McpSurfaceCapabilities, MountPath, ResourceScheme, ScopeName,
+        TaskIdProjection, UpstreamEndpoint, UpstreamTaskId, UpstreamTransport,
+        UpstreamTransportSecurity, UpstreamUrl,
+    };
+
+    fn test_server(
+        slug: &str,
+        uri_scheme: &str,
+        resource_projection: ResourceProjectionMode,
+    ) -> ServerManifest {
+        ServerManifest {
+            slug: ServerSlug::new(slug).unwrap(),
+            uri_scheme: ResourceScheme::new(uri_scheme).unwrap(),
+            mount_path: MountPath::new(format!("/{slug}")).unwrap(),
+            mcp_path: MountPath::new(format!("/{slug}/mcp")).unwrap(),
+            upstream: UpstreamEndpoint {
+                transport: UpstreamTransport::StreamableHttp,
+                url: UpstreamUrl::new(format!("http://{slug}-mcp:8787/{slug}/mcp")).unwrap(),
+                security: UpstreamTransportSecurity::ComposeInternalHttp,
+                trusted_certificate_authorities: Vec::new(),
+                client_certificate: None,
+                client_private_key: None,
+            },
+            capabilities: McpSurfaceCapabilities {
+                tools: true,
+                resources: true,
+                resource_templates: true,
+                resource_subscriptions: false,
+                prompts: true,
+                completions: false,
+                tasks: false,
+                notifications: false,
+            },
+            resource_projection,
+            tools: vec![LocalToolName::new("run").unwrap()],
+            compatibility_helpers: Vec::new(),
+            prompts: Vec::new(),
+            required_scopes: vec![ScopeName::new("operator:use").unwrap()],
+            owned_routes: Vec::new(),
+            metadata: Value::Null,
+        }
+    }
 
     fn temp_path(name: &str) -> std::path::PathBuf {
         let unique = uuid::Uuid::new_v4();
@@ -358,12 +588,13 @@ mod tests {
         let state = GatewayState::open(&path).unwrap();
         let mapping = mapping("default", "issuer#owner");
         state.record_task_mapping(&mapping).unwrap();
+        let server = test_server("media", "media", ResourceProjectionMode::Identity);
 
         let projection = project_upstream_resource_for_owner(
             &state,
             &GatewayProfileId::new("default").unwrap(),
             &PrincipalId::new("issuer#owner").unwrap(),
-            &ServerSlug::new("media").unwrap(),
+            &server,
             "media://usage/task/upstream-task-1",
         )
         .unwrap()
@@ -384,13 +615,74 @@ mod tests {
                 &state,
                 &GatewayProfileId::new("default").unwrap(),
                 &PrincipalId::new("issuer#other").unwrap(),
-                &ServerSlug::new("media").unwrap(),
+                &server,
                 "media://usage/task/upstream-task-1",
             )
             .unwrap()
             .is_none()
         );
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn server_owned_projection_moves_vendor_resource_uris_under_server_namespace() {
+        let server = test_server("charts", "charts", ResourceProjectionMode::ServerOwned);
+
+        assert_eq!(
+            project_upstream_resource_uri_for_gateway(&server, "vendor://chart-types")
+                .unwrap()
+                .as_str(),
+            "charts://chart-types"
+        );
+        assert_eq!(
+            project_upstream_resource_uri_for_gateway(&server, "ui://vendor/chart-view.html")
+                .unwrap()
+                .as_str(),
+            "ui://charts/chart-view.html"
+        );
+    }
+
+    #[test]
+    fn server_owned_projection_roundtrips_listed_resources() {
+        let server = test_server("charts", "charts", ResourceProjectionMode::ServerOwned);
+        let upstream_resources = vec![
+            Resource::new("vendor://chart-types", "chart-types"),
+            Resource::new("ui://vendor/chart-view.html", "chart-view"),
+        ];
+
+        let upstream_uri = project_gateway_resource_uri_for_upstream(
+            &server,
+            "ui://charts/chart-view.html",
+            &upstream_resources,
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(upstream_uri.as_str(), "ui://vendor/chart-view.html");
+    }
+
+    #[test]
+    fn server_owned_projection_updates_tool_result_structured_resource_uris() {
+        let server = test_server("charts", "charts", ResourceProjectionMode::ServerOwned);
+        let mut result = CallToolResult::success(vec![]);
+        result.structured_content = Some(serde_json::json!({
+            "resources": [
+                "vendor://chart-types",
+                { "resourceUri": "ui://vendor/chart-view.html" }
+            ]
+        }));
+
+        project_call_tool_resource_uris(&server, &mut result).unwrap();
+
+        let structured = result.structured_content.unwrap();
+        assert_eq!(
+            structured["resources"][0].as_str(),
+            Some("charts://chart-types")
+        );
+        assert_eq!(
+            structured["resources"][1]["resourceUri"].as_str(),
+            Some("ui://charts/chart-view.html")
+        );
     }
 
     #[test]

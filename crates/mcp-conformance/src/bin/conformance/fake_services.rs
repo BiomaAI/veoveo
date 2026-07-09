@@ -517,6 +517,18 @@ impl FakeHostedMcp {
         format!("{}://scenarios", self.scheme)
     }
 
+    fn is_chart_fixture(&self) -> bool {
+        self.server == "charts"
+    }
+
+    fn chart_types_uri(&self) -> String {
+        format!("{}://chart-types", self.scheme)
+    }
+
+    fn chart_view_uri(&self) -> &'static str {
+        "ui://vendor/chart-view.html"
+    }
+
     fn scenario_template(&self) -> String {
         format!("{}://scenario/{{scenario_id}}", self.scheme)
     }
@@ -557,6 +569,37 @@ impl ServerHandler for FakeHostedMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, rmcp::ErrorData> {
+        if self.is_chart_fixture() {
+            let input_schema: JsonObject = serde_json::from_value(json!({
+                "type": "object",
+                "properties": {
+                    "chart_type": { "type": "string" },
+                    "data": { "type": "array" }
+                },
+                "additionalProperties": true
+            }))
+            .map_err(|err| rmcp::ErrorData::internal_error(err.to_string(), None))?;
+            return Ok(ListToolsResult {
+                tools: vec![
+                    Tool::new(
+                        "render_chart",
+                        "Render a deterministic chart fixture.",
+                        input_schema.clone(),
+                    )
+                    .with_title("render chart")
+                    .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden)),
+                    Tool::new(
+                        "create_chart_view",
+                        "Create a deterministic chart view fixture.",
+                        input_schema,
+                    )
+                    .with_title("create chart view")
+                    .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden)),
+                ],
+                next_cursor: None,
+                meta: None,
+            });
+        }
         let input_schema: JsonObject = serde_json::from_value(json!({
             "type": "object",
             "required": ["scenario"],
@@ -585,6 +628,24 @@ impl ServerHandler for FakeHostedMcp {
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
+        if self.is_chart_fixture() {
+            if request.name != "render_chart" && request.name != "create_chart_view" {
+                return Err(rmcp::ErrorData::invalid_params(
+                    format!("unknown tool `{}`", request.name),
+                    None,
+                ));
+            }
+            let mut result = CallToolResult::success(vec![ContentBlock::text(format!(
+                "{} fixture rendered chart view",
+                self.server
+            ))]);
+            result.structured_content = Some(json!({
+                "server": self.server,
+                "chart_types_uri": self.chart_types_uri(),
+                "view_resource_uri": self.chart_view_uri()
+            }));
+            return Ok(result);
+        }
         if request.name != "run" {
             return Err(rmcp::ErrorData::invalid_params(
                 format!("unknown tool `{}`", request.name),
@@ -614,6 +675,22 @@ impl ServerHandler for FakeHostedMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, rmcp::ErrorData> {
+        if self.is_chart_fixture() {
+            return Ok(ListResourcesResult {
+                resources: vec![
+                    Resource::new(self.chart_types_uri(), "chart types")
+                        .with_title("chart types")
+                        .with_description("Deterministic chart fixture type catalog.")
+                        .with_mime_type("application/json"),
+                    Resource::new(self.chart_view_uri(), "chart view")
+                        .with_title("chart view")
+                        .with_description("Deterministic chart fixture UI resource.")
+                        .with_mime_type("text/html"),
+                ],
+                next_cursor: None,
+                meta: None,
+            });
+        }
         Ok(ListResourcesResult {
             resources: vec![
                 Resource::new(self.scenarios_uri(), format!("{} scenarios", self.server))
@@ -631,6 +708,13 @@ impl ServerHandler for FakeHostedMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, rmcp::ErrorData> {
+        if self.is_chart_fixture() {
+            return Ok(ListResourceTemplatesResult {
+                resource_templates: Vec::new(),
+                next_cursor: None,
+                meta: None,
+            });
+        }
         Ok(ListResourceTemplatesResult {
             resource_templates: vec![
                 ResourceTemplate::new(self.scenario_template(), "scenario")
@@ -648,7 +732,19 @@ impl ServerHandler for FakeHostedMcp {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, rmcp::ErrorData> {
-        let text = if request.uri == self.scenarios_uri() {
+        let text = if self.is_chart_fixture() && request.uri == self.chart_types_uri() {
+            serde_json::to_string(&json!({
+                "server": self.server,
+                "types": ["bar", "line"],
+                "uri": self.chart_types_uri()
+            }))
+        } else if self.is_chart_fixture() && request.uri == self.chart_view_uri() {
+            serde_json::to_string(&json!({
+                "server": self.server,
+                "kind": "chart_view",
+                "uri": self.chart_view_uri()
+            }))
+        } else if request.uri == self.scenarios_uri() {
             serde_json::to_string(&json!({
                 "server": self.server,
                 "scheme": self.scheme,
@@ -687,6 +783,24 @@ impl ServerHandler for FakeHostedMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, rmcp::ErrorData> {
+        if self.is_chart_fixture() {
+            return Ok(ListPromptsResult {
+                prompts: vec![
+                    Prompt::new(
+                        "author_chart",
+                        Some("Draft a deterministic chart fixture specification."),
+                        Some(vec![
+                            PromptArgument::new("chart_type")
+                                .with_description("Chart type from the fixture catalog.")
+                                .with_required(true),
+                        ]),
+                    )
+                    .with_title("author chart"),
+                ],
+                next_cursor: None,
+                meta: None,
+            });
+        }
         Ok(ListPromptsResult {
             prompts: vec![
                 Prompt::new(
@@ -710,6 +824,27 @@ impl ServerHandler for FakeHostedMcp {
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResult, rmcp::ErrorData> {
+        if self.is_chart_fixture() {
+            if request.name != "author_chart" {
+                return Err(rmcp::ErrorData::invalid_params(
+                    format!("unknown prompt `{}`", request.name),
+                    None,
+                ));
+            }
+            let chart_type = request
+                .arguments
+                .and_then(|args| args.get("chart_type").cloned())
+                .and_then(|value| value.as_str().map(str::to_string))
+                .unwrap_or_else(|| "bar".to_string());
+            return Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+                Role::User,
+                format!(
+                    "Author a {chart_type} chart using {}.",
+                    self.chart_types_uri()
+                ),
+            )])
+            .with_description("chart fixture authoring prompt"));
+        }
         if request.name != self.prompt_name() {
             return Err(rmcp::ErrorData::invalid_params(
                 format!("unknown prompt `{}`", request.name),

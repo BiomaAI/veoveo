@@ -127,6 +127,7 @@ impl GatewayMcp {
                 .reinit_on_expired_session(false),
         );
         let handler = GatewayUpstreamHandler::new(
+            self.catalog.clone(),
             self.profile_id.clone(),
             subject.principal.id.clone(),
             server_slug.clone(),

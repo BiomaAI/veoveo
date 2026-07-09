@@ -8,13 +8,14 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayResourceSubscription, PolicyReasonCode,
-    paginate, parse_gateway_task_resource_uri,
+    GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayResourceProjection,
+    GatewayResourceSubscription, PolicyReasonCode, paginate, parse_gateway_task_resource_uri,
 };
 
 use crate::mcp_support::{
-    mcp_internal, mcp_invalid_params, project_listed_resource, project_read_resource_result,
-    resource_policy_target, resource_read_action, upstream_error,
+    mcp_internal, mcp_invalid_params, project_gateway_resource_uri_for_upstream,
+    project_listed_resource, project_listed_resource_uri, project_read_resource_result,
+    project_resource_template_uri, resource_policy_target, resource_read_action, upstream_error,
 };
 
 use super::tools::direct_task_status_document;
@@ -29,6 +30,10 @@ impl GatewayMcp {
         let subject = self.authenticated(&context)?;
         let mut resources = Vec::new();
         for server_slug in self.profile_servers() {
+            let catalog = self.catalog.current();
+            let manifest = catalog
+                .server(&server_slug)
+                .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
             let upstream = self
                 .upstream(&server_slug, context.peer.clone(), &subject)
                 .await?;
@@ -45,6 +50,7 @@ impl GatewayMcp {
                 else {
                     continue;
                 };
+                project_listed_resource_uri(manifest, &mut resource)?;
                 project_listed_resource(&mut resource, &projection);
                 if !self.allows_resource(
                     &context,
@@ -85,14 +91,19 @@ impl GatewayMcp {
             );
         }
         for server_slug in self.profile_servers() {
+            let catalog = self.catalog.current();
+            let manifest = catalog
+                .server(&server_slug)
+                .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
             let upstream = self
                 .upstream(&server_slug, context.peer.clone(), &subject)
                 .await?;
-            for template in upstream
+            for mut template in upstream
                 .list_all_resource_templates()
                 .await
                 .map_err(upstream_error)?
             {
+                project_resource_template_uri(manifest, &mut template)?;
                 if !self.allows_resource(
                     &context,
                     GatewayAction::ResourcesTemplatesList,
@@ -124,16 +135,39 @@ impl GatewayMcp {
                 .handle_read_gateway_task_resource(task_id, context)
                 .await;
         }
+        let server = self.server_for_resource(&request.uri)?;
         let projection = self.project_resource_for_upstream(&request.uri)?;
         let subject = self.authorize_projected_resource(
             &context,
             resource_read_action(&request.uri),
             &projection,
         )?;
-        request.uri = projection.upstream_uri.to_string();
         let upstream = self
-            .upstream(&projection.server, context.peer.clone(), &subject)
+            .upstream(&server, context.peer.clone(), &subject)
             .await?;
+        let catalog = self.catalog.current();
+        let manifest = catalog
+            .server(&server)
+            .ok_or_else(|| mcp_internal(format!("unknown resource server `{server}`")))?;
+        let upstream_resources = upstream
+            .list_all_resources()
+            .await
+            .map_err(upstream_error)?;
+        let Some(upstream_uri) =
+            project_gateway_resource_uri_for_upstream(manifest, &request.uri, &upstream_resources)?
+        else {
+            return Err(mcp_invalid_params(format!(
+                "resource URI is not exposed: {}",
+                request.uri
+            )));
+        };
+        let projection = GatewayResourceProjection {
+            server,
+            gateway_uri: projection.gateway_uri,
+            upstream_uri,
+            task: projection.task,
+        };
+        request.uri = projection.upstream_uri.to_string();
         let mut result = upstream
             .read_resource(request)
             .await

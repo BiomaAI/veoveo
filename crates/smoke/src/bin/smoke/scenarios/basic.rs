@@ -57,6 +57,9 @@ pub(crate) async fn compose_config() -> Result<()> {
         "edge:",
         "gateway-control-db:",
         "rustfs:",
+        "chart-mcp:",
+        "target: 8795",
+        "published: \"8795\"",
     ] {
         contains(&compose_output, expected)?;
     }
@@ -75,6 +78,7 @@ pub(crate) async fn compose_config() -> Result<()> {
     let caddyfile_text = fs::read_to_string(&caddyfile)?;
     contains(&caddyfile_text, "respond /media/mcp* 404")?;
     contains(&caddyfile_text, "respond /coordinates/mcp* 404")?;
+    contains(&caddyfile_text, "respond /charts/mcp* 404")?;
     contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
     contains(&caddyfile_text, "reverse_proxy media-mcp:8787")?;
     contains(&caddyfile_text, "reverse_proxy coordinates-mcp:8793")?;

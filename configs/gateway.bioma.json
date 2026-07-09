@@ -251,6 +251,45 @@
       "metadata": {}
     },
     {
+      "slug": "charts",
+      "uri_scheme": "charts",
+      "mount_path": "/charts",
+      "mcp_path": "/charts/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://chart-mcp:8795/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": false,
+        "resource_subscriptions": false,
+        "prompts": true,
+        "completions": false,
+        "tasks": false,
+        "notifications": false
+      },
+      "resource_projection": "server_owned",
+      "tools": [
+        "render_chart",
+        "compile_chart",
+        "validate_chart",
+        "list_chart_types",
+        "create_chart_view"
+      ],
+      "prompts": [
+        "author_flint_chart"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "upstream_kind": "external_http",
+        "runtime": "node"
+      }
+    },
+    {
       "slug": "rerun",
       "uri_scheme": "rerun",
       "mount_path": "/rerun",
@@ -420,6 +459,40 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "charts",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "render_chart",
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "create_chart_view"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "charts"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://charts/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "author_flint_chart"
+            ]
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -567,6 +640,40 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "charts",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "render_chart",
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "create_chart_view"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "charts"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://charts/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "author_flint_chart"
+            ]
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
       "metadata": {
@@ -895,6 +1002,168 @@
           ],
           "principal_ids": [
             "https://veoveo.bioma.ai/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
           ],
           "required_scopes": [
             "operator:use"

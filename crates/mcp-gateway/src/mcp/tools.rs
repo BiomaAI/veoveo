@@ -22,8 +22,8 @@ use veoveo_mcp_contract::{
 
 use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, mcp_invalid_request, parse_gateway_tool,
-    project_call_tool_result, task_mapping_allows_principal, unexpected_upstream_response,
-    upstream_error,
+    project_call_tool_resource_uris, project_call_tool_result, project_tool_resource_metadata,
+    task_mapping_allows_principal, unexpected_upstream_response, upstream_error,
 };
 
 use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
@@ -57,6 +57,10 @@ impl GatewayMcp {
             tools.push(task_result_tool());
         }
         for server_slug in self.profile_servers() {
+            let catalog = self.catalog.current();
+            let manifest = catalog
+                .server(&server_slug)
+                .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
             let upstream = self
                 .upstream(&server_slug, context.peer.clone(), &subject)
                 .await?;
@@ -76,9 +80,8 @@ impl GatewayMcp {
                 )? {
                     continue;
                 }
-                let gateway_name = self
-                    .catalog
-                    .current()
+                project_tool_resource_metadata(manifest, &mut tool)?;
+                let gateway_name = catalog
                     .project_tool_name(&server_slug, &local_tool)
                     .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
                 tool.name = Cow::Owned(gateway_name.to_string());
@@ -189,7 +192,13 @@ impl GatewayMcp {
             )
             .await;
         match result? {
-            ServerResult::CallToolResult(result) => Ok(result),
+            ServerResult::CallToolResult(mut result) => {
+                let manifest = catalog.server(&projection.server).ok_or_else(|| {
+                    mcp_internal(format!("unknown tool server `{}`", projection.server))
+                })?;
+                project_call_tool_resource_uris(manifest, &mut result)?;
+                Ok(result)
+            }
             other => Err(unexpected_upstream_response("tools/call", other)),
         }
     }

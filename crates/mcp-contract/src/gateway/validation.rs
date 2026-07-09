@@ -132,7 +132,7 @@ fn validate_resource_exposure(
                             McpSurfaceCapability::Resources,
                             server.capabilities.resources,
                         )?;
-                        if !resource_text_uses_scheme(prefix.as_str(), &server.uri_scheme) {
+                        if !resource_text_belongs_to_server(prefix.as_str(), server) {
                             return Err(
                                 GatewayControlPlaneError::ProfileResourceSelectorMismatch {
                                     profile: profile.id.clone(),
@@ -150,7 +150,7 @@ fn validate_resource_exposure(
                             McpSurfaceCapability::ResourceTemplates,
                             server.capabilities.resource_templates,
                         )?;
-                        if !resource_text_uses_scheme(uri_template.as_str(), &server.uri_scheme) {
+                        if !resource_text_belongs_to_server(uri_template.as_str(), server) {
                             return Err(
                                 GatewayControlPlaneError::ProfileResourceSelectorMismatch {
                                     profile: profile.id.clone(),
@@ -402,6 +402,18 @@ fn resource_text_uses_scheme(text: &str, scheme: &ResourceScheme) -> bool {
     text.starts_with(&format!("{}://", scheme.as_str()))
 }
 
+fn resource_text_belongs_to_server(text: &str, server: &ServerManifest) -> bool {
+    resource_text_uses_scheme(text, &server.uri_scheme)
+        || (server.resource_projection == ResourceProjectionMode::ServerOwned
+            && text.starts_with(&format!("ui://{}/", server.slug.as_str())))
+}
+
+fn server_owns_policy_resource_scheme(server: &ServerManifest, scheme: &ResourceScheme) -> bool {
+    scheme == &server.uri_scheme
+        || (server.resource_projection == ResourceProjectionMode::ServerOwned
+            && scheme.as_str() == "ui")
+}
+
 pub(super) fn resource_selector_description(selector: &ResourceSelector) -> String {
     match selector {
         ResourceSelector::Scheme { scheme } => format!("scheme `{scheme}`"),
@@ -459,7 +471,7 @@ pub(super) fn validate_policy_set(
             if !rule.servers.is_empty()
                 && !server_scope
                     .iter()
-                    .any(|server| &server.uri_scheme == scheme)
+                    .any(|server| server_owns_policy_resource_scheme(server, scheme))
             {
                 return Err(
                     GatewayControlPlaneError::PolicyRuleResourceSchemeOutsideServerScope {

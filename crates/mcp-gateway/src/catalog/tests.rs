@@ -14,11 +14,11 @@ use veoveo_mcp_contract::{
     OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose,
     PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, Principal,
     PrincipalAssurance, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
-    ResourceAuthorizationServer, ResourceScheme, ResourceSelector, ResourceUri,
-    ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
-    SecretReference, SecretReferenceId, SecretSource, TaskExposure, TenantDefinition, TenantId,
-    TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport,
-    UpstreamTransportSecurity, UpstreamUrl,
+    ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme, ResourceSelector,
+    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
+    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
+    TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 
 use super::*;
@@ -111,6 +111,7 @@ fn media_manifest() -> ServerManifest {
             tasks: true,
             notifications: true,
         },
+        resource_projection: ResourceProjectionMode::Identity,
         tools: vec![LocalToolName::new("run").unwrap()],
         compatibility_helpers: Vec::new(),
         prompts: vec![],
@@ -741,6 +742,71 @@ fn json_config_round_trips_through_contract_validation() {
 
     assert_eq!(catalog.server_count(), 1);
     assert_eq!(catalog.profile_count(), 1);
+}
+
+#[test]
+fn catalog_routes_server_owned_projected_ui_resources() {
+    let mut chart_server = media_manifest();
+    chart_server.slug = ServerSlug::new("charts").unwrap();
+    chart_server.uri_scheme = ResourceScheme::new("charts").unwrap();
+    chart_server.resource_projection = ResourceProjectionMode::ServerOwned;
+
+    let mut profile = profile();
+    profile.servers.push(ProfileServerExposure {
+        server: ServerSlug::new("charts").unwrap(),
+        tools: Exposure::None,
+        resources: Exposure::Listed(vec![
+            ResourceSelector::Scheme {
+                scheme: ResourceScheme::new("charts").unwrap(),
+            },
+            ResourceSelector::UriPrefix {
+                prefix: ResourceUriPrefix::new("ui://charts/").unwrap(),
+            },
+        ]),
+        prompts: Exposure::None,
+        completions: CompletionExposure::Disabled,
+        tasks: TaskExposure::Disabled,
+    });
+
+    let catalog = GatewayCatalog::from_control_plane(GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest(), chart_server],
+        profiles: vec![profile],
+        tenants: tenants(),
+        policies: vec![policy()],
+        data_labels: data_labels(),
+        oauth_clients: oauth_clients(),
+        oidc_clients: oidc_clients(),
+        secrets: vec![signing_secret(), oidc_client_secret()],
+        metadata: Value::Null,
+    })
+    .unwrap();
+
+    let (_, server) = catalog
+        .server_for_resource_uri(
+            &GatewayProfileId::new("default").unwrap(),
+            "ui://charts/chart-view.html",
+        )
+        .expect("projected UI resource should route to chart server");
+    assert_eq!(server.slug.as_str(), "charts");
+
+    let (_, server) = catalog
+        .server_for_resource_uri(
+            &GatewayProfileId::new("default").unwrap(),
+            "charts://chart-types",
+        )
+        .expect("primary chart scheme should route to chart server");
+    assert_eq!(server.slug.as_str(), "charts");
+
+    assert!(
+        catalog
+            .server_for_resource_uri(
+                &GatewayProfileId::new("default").unwrap(),
+                "ui://other/chart-view.html",
+            )
+            .is_none()
+    );
 }
 
 #[test]
