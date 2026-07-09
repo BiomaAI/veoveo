@@ -146,7 +146,7 @@ pub(super) async fn cmd_otlp_http_sink(
 ///
 /// Wake episode (a message contains `Background task update`):
 /// 1. `memory_write` recording the outcome;
-/// 2. `timeline_query` over the flight log;
+/// 2. `timeline_query` over the decision log;
 /// 3. final answer, stop.
 pub(super) async fn cmd_fake_openai_llm(port: u16, ready_file: Option<PathBuf>) -> Result<()> {
     let router = AxumRouter::new().route("/v1/chat/completions", axum_post(fake_llm_completion));

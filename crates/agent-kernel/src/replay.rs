@@ -1,4 +1,4 @@
-//! Replay: rebuild domain truth from the flight log.
+//! Replay: rebuild domain truth from the decision log.
 //!
 //! The RRD plane is the log of record for domain state — every
 //! `memory_write` is mirrored to `/domain/{table}` as its serialized typed
@@ -42,7 +42,7 @@ pub fn replay_domain(manifest: &AgentManifest, data_dir: &Path) -> Result<Replay
             max_rows: u64::MAX,
         },
     )
-    .context("reading the flight log")?;
+    .context("reading the decision log")?;
 
     let mut applied = 0usize;
     let mut skipped = 0usize;

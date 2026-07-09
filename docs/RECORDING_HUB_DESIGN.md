@@ -43,7 +43,7 @@ the SUMO image.
 
 Deferred (recorded): `append_transport_without_footer` fast path (unreachable
 through `spawn_with_recv`, and target already met); heavy compose e2e of the
-agent tee with real gateway+Cloudflare; the Pilot Harness HTML gaining the hub.
+agent tee with real gateway+Cloudflare; the Autonomy Harness HTML gaining the hub.
 
 ## Verified constraints this design is built on (Rerun 0.34)
 
@@ -61,7 +61,7 @@ agent tee with real gateway+Cloudflare; the Pilot Harness HTML gaining the hub.
    crates: the proxy is embeddable, the read stream is consumable, and the
    encoder appends `LogMsg`s to RRD framing (footers optional; a raw
    transport pass-through exists behind an explicit `unsafe` contract).
-4. Our own kernel facts: agents already tee their flight logs to a proxy URI
+4. Our own kernel facts: agents already tee their decision logs to a proxy URI
    (`--viewer-tee`); segment files with `write_footer: false` are the proven
    long-lived sink discipline; `rerun rrd optimize` adds the manifests lazy
    loading wants.
@@ -311,7 +311,7 @@ Three services behind an opt-in `hub` profile, one named volume `hub_spool`:
 - **H4 — performance.** Bench harness asserting the counter targets;
   BufWriter/flush tuning; feature-gated raw pass-through + corruption gate;
   Criterion regression bench.
-- **H5 — record & docs.** Pilot Harness document gains the hub; memory notes
+- **H5 — record & docs.** Autonomy Harness document gains the hub; memory notes
   updated; deferred items recorded (redap MCP tool for policy-checked agent
   queries; plane promotion of frozen segments as an automated flow).
 
@@ -621,7 +621,7 @@ showcase/
   assertion.
 - **S4 — capstone.** `showcase` compose profile, capstone + determinism
   smokes, `showcase-live` recipe, Pilot traffic preamble/migrations, docs +
-  Pilot Harness update.
+  Autonomy Harness update.
 
 ## Showcase open questions
 
