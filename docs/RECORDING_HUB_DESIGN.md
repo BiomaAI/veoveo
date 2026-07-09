@@ -18,12 +18,12 @@ id == recording id, exact counts), `hub_agent_world` (routing), `hub_bench`
 (lossless at **~225k msgs/s**, burst 100). Docker image + `hub` compose profile
 (`docker compose config` valid). Justfile: `smoke-hub*`, `bench-hub`.
 
-**Showcase S0–S4 built and tested** (`showcase/`): Python `sumo-mcp`
+**Showcase S0–S4 built and tested** (`showcase/sumo/`): Python `sumo-mcp`
 (task-native, `mcp==1.28.x`, pydantic, sync + task tools + congestion
-resource); **16 pytest** incl. the full `call_tool_as_task → poll →
+resource); **24 pytest** incl. the full `call_tool_as_task → poll →
 get_task_result` lifecycle and the subscribe→`resources/updated` wake; push
 spine proven against the real Rust hub (`sumo_push_smoke`, 40 frames durable).
-SUMO + sumo-mcp Dockerfiles, `compose.showcase.yaml` (config valid), README.
+SUMO + sumo-mcp Dockerfiles, `showcase/sumo/compose.showcase.yaml` (config valid), README.
 Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`, `showcase-capstone`.
 
 **Full live stack proven end to end on a real city** (2026-07-08): the SUMO
@@ -519,10 +519,10 @@ outlives the simulator.
 
 ## Determinism, strong typing, performance, safety
 
-- **Deterministic scenario.** A seeded scenario checked into
-  `showcase/sumo/scenario/` (`netgenerate --grid` + seeded `randomTrips.py`),
-  so vehicle counts and positions at step N are exact and the smoke asserts
-  on them — not vibes.
+- **Deterministic scenario.** The smoke's world is the seeded `FakeSimDriver`
+  (a pure function of `(seed, step)`), so vehicle counts and positions at step N
+  are exact and the smoke asserts on them — not vibes. The live world is the
+  real geo-referenced LuST network (Luxembourg), cloned at image build.
 - **Typed throughout.** pydantic models (`model_config = ConfigDict(extra=
   "forbid")`) for every tool param and result, `NewType`/`Annotated` domain
   ids, typed traci wrappers, and a typed emit layer mirroring the Rerun
@@ -573,22 +573,25 @@ outlives the simulator.
 
 ```
 showcase/
-  README.md
-  compose.showcase.yaml         # `showcase` profile: sumo, sumo-mcp
-  sumo/
-    Dockerfile                  # FROM ghcr.io/eclipse-sumo/sumo:v1_27_1 + scenario
-    scenario/                   # seeded grid net + trips + .sumocfg
-  sumo-mcp/                     # Python: lowlevel MCP server, traci owner, push
-    Dockerfile                  # slim python + mcp==1.28.x + traci + rerun-sdk
-    pyproject.toml              # pinned deps; ruff + mypy(strict) + pytest
-    src/sumo_mcp/
-      server.py                 # lowlevel Server, streamable HTTP, tool registry
-      sim_driver.py             # asyncio TraCI owner: step, push, apply, watch
-      tools.py                  # pydantic-typed tool params/results
-      tasks_compat.py           # thin task-serving seam (extension-swappable)
-      streams.py                # typed Rerun emit layer (/world/sumo/**)
-      resources.py              # sim/congestion|arrival|collision subscriptions
-    tests/                      # pytest: fake-traci unit + real-sim integration
+  README.md                     # index of showcases
+  sumo/                         # the SUMO showcase (siblings live alongside)
+    README.md
+    compose.showcase.yaml       # `showcase` profile: sumo, sumo-mcp
+    compose.interim.yaml        # `interim` profile: fake-driver runtime, no SUMO
+    sim/
+      Dockerfile                # FROM ghcr.io/eclipse-sumo/sumo:v1_27_1 + LuST clone
+    mcp/                        # Python: lowlevel MCP server, traci owner, push
+      Dockerfile                # slim python + mcp==1.28.x + traci + rerun-sdk
+      pyproject.toml            # pinned deps; ruff + mypy(strict) + pytest
+      src/sumo_mcp/
+        server.py               # lowlevel Server, streamable HTTP, tool registry
+        sim_driver.py           # asyncio TraCI owner: step, push, apply, watch
+        tools.py                # pydantic-typed tool params/results
+        tasks_compat.py         # thin task-serving seam (extension-swappable)
+        streams.py              # typed Rerun emit layer (/world/sumo/**, map + 3D)
+        resources.py            # congestion subscription
+      tests/                    # pytest: fake-driver unit, no SUMO needed
+    scripts/                    # capstone client + orchestration
 ```
 
 - `sumo` — official image + baked scenario, headless `sumo -c … --remote-port
