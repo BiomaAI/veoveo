@@ -41,7 +41,9 @@ done
 
 echo "==> waiting for the SUMO world to reach the hub"
 for _ in $(seq 1 60); do
-  msgs=$("${COMPOSE[@]}" logs hub-spooler 2>/dev/null | grep -oE 'messages=[0-9]+' | tail -1 | cut -d= -f2)
+  # `|| true`: before the first counter log line appears, grep matches nothing
+  # and would fail the pipeline under `set -o pipefail` + `set -e`.
+  msgs=$("${COMPOSE[@]}" logs hub-spooler 2>/dev/null | grep -oE 'messages=[0-9]+' | tail -1 | cut -d= -f2 || true)
   [ -n "$msgs" ] && [ "$msgs" -gt 0 ] && { echo "    hub ingesting ($msgs messages)"; break; }
   sleep 2
 done
