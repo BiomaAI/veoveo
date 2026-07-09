@@ -8,10 +8,10 @@ ENV SUMO_HOME=/usr/share/sumo
 WORKDIR /scenario
 
 # Generate a deterministic grid network + seeded random trips at build time.
-# A geo-projection is applied so /world/sumo/** GeoPoints are real lon/lat.
+# netgenerate emits a cartesian network; sumo-mcp geo-references it from a fixed
+# origin so /world/sumo/** GeoPoints land on a real map.
 RUN netgenerate --grid --grid.number 4 --grid.length 200 \
-        --tls.guess true \
-        --proj "+proj=utm +zone=32 +datum=WGS84" \
+        --tls.guess true --tls.guess.threshold 0 \
         --output-file grid.net.xml \
     && python3 "$SUMO_HOME/tools/randomTrips.py" \
         -n grid.net.xml -o trips.xml -r routes.rou.xml \
