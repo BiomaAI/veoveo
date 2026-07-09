@@ -229,48 +229,53 @@ class TraciSimDriver:
         self._lon0 = origin_lon
         self._m_per_deg_lat = 111_320.0
         self._m_per_deg_lon = 111_320.0 * math.cos(math.radians(origin_lat))
-        self._geo_affine: tuple[float, float, float, float, float, float] | None = None
+        # (lon coeffs a,b,c), (lat coeffs d,e,f) for lon/lat = a·x+b·y+c etc.
+        self._geo_affine: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._calibrate_geo()
         # Subscribe any vehicles already present at connect time.
         for vid in traci.vehicle.getIDList():
             traci.vehicle.subscribe(vid, self._sub_vars)
 
     def _calibrate_geo(self) -> None:
-        """Derive a cartesian→lon/lat map once, from the network's own geo
-        reference. A real projection (LuST, any OSM network) makes vehicles land
-        on the true streets; a projection-less network (a bare grid) falls back
-        to the fixed-origin equirectangular map."""
+        """Fit a full 2D affine cartesian→lon/lat map once, from the network's own
+        geo reference. A single affine (not an axis-aligned scale) captures the
+        UTM grid's rotation — meridian convergence — so vehicles land squarely on
+        the streets. A projection-less network (a bare grid) leaves the affine
+        unset and falls back to the fixed-origin equirectangular map."""
         t = self._traci
         try:
+            import numpy as np
+
             (xmin, ymin), (xmax, ymax) = t.simulation.getNetBoundary()
-            lon_sw, lat_sw = t.simulation.convertGeo(xmin, ymin)
-            lon_ne, lat_ne = t.simulation.convertGeo(xmax, ymax)
+            if not (xmax > xmin and ymax > ymin):
+                return
+            # Sample a 3×3 grid across the network and project each point exactly.
+            rows, lon, lat = [], [], []
+            for fx in (0.0, 0.5, 1.0):
+                for fy in (0.0, 0.5, 1.0):
+                    x = xmin + (xmax - xmin) * fx
+                    y = ymin + (ymax - ymin) * fy
+                    glon, glat = t.simulation.convertGeo(x, y)
+                    rows.append([x, y, 1.0])
+                    lon.append(glon)
+                    lat.append(glat)
             # A projection-less net returns the input unchanged (metres as lon/lat)
             # or values outside the geographic range — reject those.
-            plausible = (
-                abs(lat_sw) <= 90
-                and abs(lon_sw) <= 180
-                and (abs(lon_sw - xmin) > 1e-6 or abs(lat_sw - ymin) > 1e-6)
-                and xmax > xmin
-                and ymax > ymin
-            )
-            if plausible:
-                self._geo_affine = (
-                    xmin,
-                    ymin,
-                    lon_sw,
-                    lat_sw,
-                    (lon_ne - lon_sw) / (xmax - xmin),
-                    (lat_ne - lat_sw) / (ymax - ymin),
-                )
+            if not (abs(lat[0]) <= 90 and abs(lon[0]) <= 180
+                    and (abs(lon[0] - rows[0][0]) > 1e-6 or abs(lat[0] - rows[0][1]) > 1e-6)):
+                return
+            A = np.array(rows)
+            clon, *_ = np.linalg.lstsq(A, np.array(lon), rcond=None)  # lon = a·x+b·y+c
+            clat, *_ = np.linalg.lstsq(A, np.array(lat), rcond=None)  # lat = d·x+e·y+f
+            self._geo_affine = (tuple(clon), tuple(clat))
         except Exception:
             self._geo_affine = None
 
     def _to_geo(self, x: float, y: float) -> tuple[float, float]:
         """Cartesian metres (SUMO x/y) → (lat, lon)."""
         if self._geo_affine is not None:
-            x0, y0, lon0, lat0, sx, sy = self._geo_affine
-            return lat0 + (y - y0) * sy, lon0 + (x - x0) * sx
+            (a, b, c), (d, e, f) = self._geo_affine
+            return d * x + e * y + f, a * x + b * y + c
         return self._lat0 + y / self._m_per_deg_lat, self._lon0 + x / self._m_per_deg_lon
 
     def describe(self) -> ScenarioInfo:
