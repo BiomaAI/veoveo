@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hub bench: drive a burst sensor fleet into the spooler as fast as possible and
+# hub bench: drive a burst sensor stack into the spooler as fast as possible and
 # assert the durable capture is lossless — every emitted row is queryable — while
 # reporting sustained throughput. Loss is the failure the hub must never have; a
 # spooler that can't outrun its producers is a data-loss machine.
@@ -34,7 +34,7 @@ RUST_LOG=warn "$SPOOLER" \
 SP=$!
 for _ in $(seq 1 100); do [ -f "$READY" ] && break; sleep 0.1; done
 
-echo "==> bursting fleet: burst=${BURST}x duration=${DURATION}s (as fast as possible)"
+echo "==> bursting stack: burst=${BURST}x duration=${DURATION}s (as fast as possible)"
 START=$(python3 -c 'import time; print(time.time())')
 "$SIM" --proxy "rerun+http://127.0.0.1:$PORT/proxy" \
   --duration-s "$DURATION" --burst "$BURST" --realtime false \

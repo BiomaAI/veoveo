@@ -15,7 +15,7 @@ pub mod spool;
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
 pub use query::{QueryResult, collect_segments, query_tree};
 pub use sim::{
-    FleetReport, Generator, LatLon, Sample, SensorFleet, SensorId, SensorKind, SensorReport,
+    StackReport, Generator, LatLon, Sample, SensorStack, SensorId, SensorKind, SensorReport,
     SensorSpec, TrackPattern, Wave,
 };
 pub use spool::{Counters, SegmentKey, Spooler, run_blocking};

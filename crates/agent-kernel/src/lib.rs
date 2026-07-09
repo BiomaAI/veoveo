@@ -3,7 +3,7 @@
 //! An agent runs forever against the veoveo gateway in bounded *episodes*:
 //! it sleeps between episodes and wakes on task results, timers, or operator
 //! input. Durable state lives in two local files — a DuckDB ledger (current
-//! truth) and, from slice 2, an RRD flight log. Episode LLM context is
+//! truth) and, from slice 2, an RRD decision log. Episode LLM context is
 //! assembled from those files each time; chat history is never the memory.
 //!
 //! Long gateway tools are dispatched as MCP tasks (SEP-1686) and detached at

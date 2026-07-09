@@ -3,7 +3,7 @@
 # (application id veoveo-sim-*) and an agent-labeled recording (veoveo-agent-*)
 # push concurrently; the spooler routes them into different datasets by the
 # same rules compose uses (agents=veoveo-agent, world=catch-all), and both are
-# queryable side by side. This is the essence of the agent's flight log and the
+# queryable side by side. This is the essence of the agent's decision log and the
 # sensor world sharing one record — without the full gateway/Cloudflare stack.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
 PORT="${HUB_PROXY_PORT:-9934}"
-FLEET="crates/recording-hub/scripts/fleets/agent_world.json"
+STACK="crates/recording-hub/scripts/stacks/agent_world.json"
 SPOOL="$(mktemp -d)"
 SP=""
 cleanup() { [ -n "$SP" ] && kill "$SP" 2>/dev/null || true; rm -rf "$SPOOL"; }
@@ -33,7 +33,7 @@ for _ in $(seq 1 100); do [ -f "$READY" ] && break; sleep 0.1; done
 echo "==> two producers push concurrently (sensor + agent tee)"
 ./target/debug/sensor-sim \
   --proxy "rerun+http://127.0.0.1:$PORT/proxy" \
-  --fleet "$FLEET" --realtime false --report "$SPOOL/report.json" \
+  --stack "$STACK" --realtime false --report "$SPOOL/report.json" \
   >"$SPOOL/sim.log" 2>&1
 sleep 1
 kill -TERM $SP; wait $SP 2>/dev/null || true; SP=

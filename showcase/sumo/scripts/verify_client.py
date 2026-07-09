@@ -1,5 +1,5 @@
-"""Live MCP client for the capstone: exercises the served sumo-mcp endpoint
-over streamable HTTP against the real running container (real TraCI world).
+"""Live MCP client for end-to-end verification: exercises the served sumo-mcp
+endpoint over streamable HTTP against the real running container (real TraCI world).
 
 Proves the full surface end to end: initialize, list tools with task modes, a
 sync read (query_state over the live SUMO world), and the task path
@@ -84,7 +84,7 @@ async def main() -> int:
             reopened = (await client.call_tool("open_lane", {"lane_id": lane})).structuredContent
             print(f"OK  incident: {closed['detail']} then {reopened['detail']}")
 
-    print("CAPSTONE OK — live SUMO world driven end to end over MCP")
+    print("VERIFY OK — live SUMO world driven end to end over MCP")
     return 0
 
 

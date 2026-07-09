@@ -67,7 +67,7 @@ the workspace and Compose files, and the Justfile. Design docs live in `docs/`.
 | `compose.yaml` | Local stack: edge, gateway, hosted MCP servers, artifact plane + Postgres, recording-hub bridge, RustFS, OTEL. |
 | `compose.tunnel.yaml` | Cloudflare named tunnel service. |
 | `crates/` | The fifteen Rust crates (see per-crate sections below). |
-| `docs/` | Design docs (`TECH_DESIGN`, `RECORDING_HUB_DESIGN`, `COORDINATES_MCP_DESIGN`, `OPTIMIZATION_MCP_DESIGN`, this map) and `pilot-harness.html`. |
+| `docs/` | Design docs (`TECH_DESIGN`, `RECORDING_HUB_DESIGN`, `COORDINATES_MCP_DESIGN`, `OPTIMIZATION_MCP_DESIGN`, this map) and `autonomy-harness.html`. |
 | `showcase/` | End-to-end showcases, one per subdirectory; `sumo/` proves the platform on the SUMO simulator (Python MCP server + LuST). |
 | `configs/` | Caddyfile, gateway control planes, JWKS, deployment profiles, OTEL, and `agents/` (Pilot agent data). |
 | `assets/` | Static assets. |

@@ -24,7 +24,7 @@ resource); **24 pytest** incl. the full `call_tool_as_task → poll →
 get_task_result` lifecycle and the subscribe→`resources/updated` wake; push
 spine proven against the real Rust hub (`sumo_push_smoke`, 40 frames durable).
 SUMO + sumo-mcp Dockerfiles, `showcase/sumo/compose.showcase.yaml` (config valid), README.
-Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`, `showcase-capstone`.
+Justfile: `showcase-sumo-test`, `showcase-sumo-smoke`, `showcase-sumo-up`, `showcase-sumo-verify`.
 
 **Full live stack proven end to end on a real city** (2026-07-08): the SUMO
 container runs **LuST — Luxembourg SUMO Traffic** (a validated OpenStreetMap
@@ -43,7 +43,7 @@ the SUMO image.
 
 Deferred (recorded): `append_transport_without_footer` fast path (unreachable
 through `spawn_with_recv`, and target already met); heavy compose e2e of the
-agent tee with real gateway+Cloudflare; the Pilot Harness HTML gaining the hub.
+agent tee with real gateway+Cloudflare; the Autonomy Harness HTML gaining the hub.
 
 ## Verified constraints this design is built on (Rerun 0.34)
 
@@ -61,7 +61,7 @@ agent tee with real gateway+Cloudflare; the Pilot Harness HTML gaining the hub.
    crates: the proxy is embeddable, the read stream is consumable, and the
    encoder appends `LogMsg`s to RRD framing (footers optional; a raw
    transport pass-through exists behind an explicit `unsafe` contract).
-4. Our own kernel facts: agents already tee their flight logs to a proxy URI
+4. Our own kernel facts: agents already tee their decision logs to a proxy URI
    (`--viewer-tee`); segment files with `write_footer: false` are the proven
    long-lived sink discipline; `rerun rrd optimize` adds the manifests lazy
    loading wants.
@@ -111,7 +111,7 @@ kept as milestone insurance, deleted after H1.
 
 The catalog overwrites a segment when a second file carries the same
 recording id in one dataset. Day-partitioned datasets resolve this cleanly
-and match how recording fleets are actually operated:
+and match how recorders are actually operated in the field:
 
 ```
 /spool/world/2026-07-08/{recording_id}.rrd      ← live, footer-less
@@ -199,9 +199,9 @@ the write path is engineered and *measured*, not hoped:
 
 ## sensor-sim: typed generators, deterministic by construction
 
-One binary that is both the smoke suite's fake fleet and the bench harness's
+One binary that is both the smoke suite's fake stack and the bench harness's
 load cannon. A typed manifest (`sensors.json`, serde `deny_unknown_fields`)
-describes a fleet; every generator is seeded and therefore exactly
+describes a stack; every generator is seeded and therefore exactly
 reproducible — the smoke asserts *counts and final values*, not vibes.
 
 ```rust
@@ -264,7 +264,7 @@ SensorKind::Scalar  { rate_hz: f64, name: String, wave: Wave }              // S
   `/world/**` rows — one unified record, two producers.
 
 **`hub-bench`** (recipe, excluded from the default suite)
-- sensor-sim burst fleet (8× IMU at 1 kHz + camera blobs) for 60 s against
+- sensor-sim burst stack (8× IMU at 1 kHz + camera blobs) for 60 s against
   the spooler; assert from the spooler's own counters: sustained ≥ 100k
   msgs/s, zero live-queue drop warnings, p99 append < 1 ms; emit a JSON
   report artifact. Criterion micro-bench on the append hot path lives in the
@@ -311,7 +311,7 @@ Three services behind an opt-in `hub` profile, one named volume `hub_spool`:
 - **H4 — performance.** Bench harness asserting the counter targets;
   BufWriter/flush tuning; feature-gated raw pass-through + corruption gate;
   Criterion regression bench.
-- **H5 — record & docs.** Pilot Harness document gains the hub; memory notes
+- **H5 — record & docs.** Autonomy Harness document gains the hub; memory notes
   updated; deferred items recorded (redap MCP tool for policy-checked agent
   queries; plane promotion of frozen segments as an automated flow).
 
@@ -557,7 +557,7 @@ outlives the simulator.
 - **Client-side task test** — the SDK client's
   `experimental.call_tool_as_task` + `get_task_result` against the running
   server, proving the exact detach/poll/result path the kernel uses.
-- **Smoke `showcase-sumo`** (capstone e2e, `showcase` profile) — bring up
+- **Smoke `showcase-sumo`** (end-to-end verify, `showcase` profile) — bring up
   SUMO + hub + `sumo-mcp` behind the gateway + the Pilot agent. The
   agent issues `sumo__run_batch`, **detaches and sleeps**, and wakes on the
   task-result notification (the real-deal sleep/wake, now simulator-driven);
@@ -591,7 +591,7 @@ showcase/
         streams.py              # typed Rerun emit layer (/world/sumo/**, map + 3D)
         resources.py            # congestion subscription
       tests/                    # pytest: fake-driver unit, no SUMO needed
-    scripts/                    # capstone client + orchestration
+    scripts/                    # verify client + orchestration
 ```
 
 - `sumo` — official image + baked scenario, headless `sumo -c … --remote-port
@@ -619,9 +619,9 @@ showcase/
 - **S3 — event plane.** `sim/congestion|arrival|collision` resources → agent
   wakes; closes the kernel `resources/subscribe` gap; follow-up-episode
   assertion.
-- **S4 — capstone.** `showcase` compose profile, capstone + determinism
+- **S4 — end-to-end verify.** `showcase` compose profile, verify + determinism
   smokes, `showcase-live` recipe, Pilot traffic preamble/migrations, docs +
-  Pilot Harness update.
+  Autonomy Harness update.
 
 ## Showcase open questions
 

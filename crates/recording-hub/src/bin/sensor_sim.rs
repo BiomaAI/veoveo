@@ -1,5 +1,5 @@
-//! sensor-sim: a deterministic sensor fleet that pushes typed Rerun streams
-//! into the hub. It is both the smoke suite's fake fleet and the bench
+//! sensor-sim: a deterministic sensor stack that pushes typed Rerun streams
+//! into the hub. It is both the smoke suite's fake stack and the bench
 //! harness's load. Every sensor is a seeded pure function of its tick, so
 //! `--report` is exact ground truth the smoke asserts against.
 
@@ -10,22 +10,22 @@ use clap::Parser;
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::{GeoPoints, Scalars};
 use veoveo_recording_hub::sim::{
-    FleetReport, Generator, LatLon, Sample, SensorFleet, SensorId, SensorKind, SensorReport,
+    StackReport, Generator, LatLon, Sample, SensorStack, SensorId, SensorKind, SensorReport,
     SensorSpec, TrackPattern, Wave,
 };
 
 const SIM_TIMELINE: &str = "tick";
 
 #[derive(Parser, Debug)]
-#[command(name = "sensor-sim", about = "Deterministic sensor fleet → hub")]
+#[command(name = "sensor-sim", about = "Deterministic sensor stack → hub")]
 struct Args {
     /// Proxy URI to push into (the hub spooler).
     #[arg(long, default_value = "rerun+http://127.0.0.1:9876/proxy")]
     proxy: String,
-    /// Fleet manifest JSON. When omitted, a built-in 3-sensor fleet is used.
+    /// Stack manifest JSON. When omitted, a built-in 3-sensor stack is used.
     #[arg(long)]
-    fleet: Option<PathBuf>,
-    /// Emit this many seconds when the built-in fleet is used.
+    stack: Option<PathBuf>,
+    /// Emit this many seconds when the built-in stack is used.
     #[arg(long, default_value_t = 2.0)]
     duration_s: f64,
     /// Multiply every sensor's rate (bench load).
@@ -34,14 +34,14 @@ struct Args {
     /// Sleep between ticks to emit at real rate; off = as fast as possible.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     realtime: bool,
-    /// Write the exact fleet report JSON here (also printed to stdout).
+    /// Write the exact stack report JSON here (also printed to stdout).
     #[arg(long)]
     report: Option<PathBuf>,
 }
 
-/// A built-in, seeded fleet used when no manifest is supplied.
-fn builtin_fleet(duration_s: f64) -> SensorFleet {
-    SensorFleet {
+/// A built-in, seeded stack used when no manifest is supplied.
+fn builtin_stack(duration_s: f64) -> SensorStack {
+    SensorStack {
         sensors: vec![
             SensorSpec {
                 id: SensorId::new("imu-a").unwrap(),
@@ -101,20 +101,20 @@ fn main() -> Result<()> {
         .init();
 
     let args = Args::parse();
-    let fleet = match &args.fleet {
+    let stack = match &args.stack {
         Some(path) => {
             let raw = std::fs::read_to_string(path)
-                .with_context(|| format!("reading fleet {}", path.display()))?;
+                .with_context(|| format!("reading stack {}", path.display()))?;
             serde_json::from_str(&raw)
-                .with_context(|| format!("parsing fleet {}", path.display()))?
+                .with_context(|| format!("parsing stack {}", path.display()))?
         }
-        None => builtin_fleet(args.duration_s),
+        None => builtin_stack(args.duration_s),
     };
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
-    let report = runtime.block_on(run_fleet(fleet, &args))?;
+    let report = runtime.block_on(run_stack(stack, &args))?;
 
     let json = report.to_json();
     if let Some(path) = &args.report {
@@ -125,9 +125,9 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_fleet(fleet: SensorFleet, args: &Args) -> Result<FleetReport> {
+async fn run_stack(stack: SensorStack, args: &Args) -> Result<StackReport> {
     let mut handles = Vec::new();
-    for spec in fleet.sensors {
+    for spec in stack.sensors {
         let proxy = args.proxy.clone();
         let burst = args.burst.max(1e-9);
         let realtime = args.realtime;
@@ -143,7 +143,7 @@ async fn run_fleet(fleet: SensorFleet, args: &Args) -> Result<FleetReport> {
         total += report.emitted;
         sensors.push(report);
     }
-    Ok(FleetReport {
+    Ok(StackReport {
         sensors,
         total_emitted: total,
     })
