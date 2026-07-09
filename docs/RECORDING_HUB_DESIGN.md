@@ -24,7 +24,7 @@ resource); **24 pytest** incl. the full `call_tool_as_task → poll →
 get_task_result` lifecycle and the subscribe→`resources/updated` wake; push
 spine proven against the real Rust hub (`sumo_push_smoke`, 40 frames durable).
 SUMO + sumo-mcp Dockerfiles, `showcase/sumo/compose.showcase.yaml` (config valid), README.
-Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`, `showcase-capstone`.
+Justfile: `showcase-sumo-test`, `showcase-sumo-smoke`, `showcase-sumo-up`, `showcase-sumo-verify`.
 
 **Full live stack proven end to end on a real city** (2026-07-08): the SUMO
 container runs **LuST — Luxembourg SUMO Traffic** (a validated OpenStreetMap
@@ -557,7 +557,7 @@ outlives the simulator.
 - **Client-side task test** — the SDK client's
   `experimental.call_tool_as_task` + `get_task_result` against the running
   server, proving the exact detach/poll/result path the kernel uses.
-- **Smoke `showcase-sumo`** (capstone e2e, `showcase` profile) — bring up
+- **Smoke `showcase-sumo`** (end-to-end verify, `showcase` profile) — bring up
   SUMO + hub + `sumo-mcp` behind the gateway + the Pilot agent. The
   agent issues `sumo__run_batch`, **detaches and sleeps**, and wakes on the
   task-result notification (the real-deal sleep/wake, now simulator-driven);
@@ -591,7 +591,7 @@ showcase/
         streams.py              # typed Rerun emit layer (/world/sumo/**, map + 3D)
         resources.py            # congestion subscription
       tests/                    # pytest: fake-driver unit, no SUMO needed
-    scripts/                    # capstone client + orchestration
+    scripts/                    # verify client + orchestration
 ```
 
 - `sumo` — official image + baked scenario, headless `sumo -c … --remote-port
@@ -619,7 +619,7 @@ showcase/
 - **S3 — event plane.** `sim/congestion|arrival|collision` resources → agent
   wakes; closes the kernel `resources/subscribe` gap; follow-up-episode
   assertion.
-- **S4 — capstone.** `showcase` compose profile, capstone + determinism
+- **S4 — end-to-end verify.** `showcase` compose profile, verify + determinism
   smokes, `showcase-live` recipe, Pilot traffic preamble/migrations, docs +
   Autonomy Harness update.
 
