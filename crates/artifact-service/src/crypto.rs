@@ -1,6 +1,6 @@
 //! Per-tenant envelope encryption for artifact bytes.
 //!
-//! Tenant isolation is a hard partition (see `TECH_DESIGN.md`). Beyond the
+//! Tenant isolation is a hard partition (see `docs/TECH_DESIGN.md`). Beyond the
 //! tenant-scoped object key, bytes are encrypted at rest under a key derived
 //! *per tenant* from a master key, so a leak of one tenant's key — or of the
 //! raw object store — never exposes another tenant's content, and byte-identical
