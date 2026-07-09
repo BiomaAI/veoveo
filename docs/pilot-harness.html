@@ -458,6 +458,56 @@
 
   /* hero diagram sits full-width under the header */
   .hero-diagram { margin: 8px 0 34px; }
+
+  /* ---------- component reference (glossary) ---------- */
+  .reference { margin: 0 0 44px; }
+  .ref-lede { max-width: 70ch; color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+  .ref-lede strong { color: var(--ink); }
+  .ref-group { margin-bottom: 24px; }
+  .ref-group > h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--line);
+  }
+  .glossary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .term {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 13px 15px;
+  }
+  .term-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 6px; }
+  .term-name { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .term-kind {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  /* what kind of thing each component is, colour-coded */
+  .k-ours    { color: var(--accent-ink); background: var(--accent-wash); }
+  .k-oss     { color: var(--hue-ts);     background: color-mix(in srgb, var(--hue-ts) 12%, transparent); }
+  .k-proto   { color: var(--hue-coords); background: color-mix(in srgb, var(--hue-coords) 12%, transparent); }
+  .k-format  { color: var(--hue-media);  background: color-mix(in srgb, var(--hue-media) 12%, transparent); }
+  .k-client  { color: var(--hue-viewer); background: color-mix(in srgb, var(--hue-viewer) 12%, transparent); }
+  .k-concept { color: var(--hue-sql);    background: color-mix(in srgb, var(--hue-sql) 12%, transparent); }
+  .term p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+  .term p + p { margin-top: 6px; }
+  .term p b { color: var(--ink); font-weight: 600; }
+  .term code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
 </style>
 
 <div class="wrap">
@@ -520,6 +570,122 @@ flowchart LR
     </div>
     <figcaption><b>The whole system.</b> Files are the record · the proxy is the bus · the catalog is the reading room — governed tools flow through the gateway.</figcaption>
   </figure>
+
+  <!-- COMPONENT REFERENCE -->
+  <section class="reference">
+    <p class="eyebrow">Component Reference</p>
+    <h2 class="layer-title" style="font-size:24px;margin:0 0 10px">What every box is</h2>
+    <p class="ref-lede">
+      Each named service, protocol, and format above, defined by what it is and what it does. The
+      tag on each says its role: <strong>ours</strong> (we built it), <strong>OSS</strong> (an
+      open-source component we run), <strong>protocol</strong> (a wire language), <strong>format</strong>
+      (a data shape on disk or on the wire), <strong>client</strong> (something a person or agent
+      attaches), or <strong>concept</strong> (an idea the system is built on).
+    </p>
+
+    <div class="ref-group">
+      <h3>Access &amp; control</h3>
+      <div class="glossary">
+        <div class="term">
+          <div class="term-head"><span class="term-name">Edge</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The single public door.</b> One internet-facing endpoint (fronted by Cloudflare) that terminates TLS and absorbs abuse.</p>
+          <p>Every request from outside enters here and nowhere else, so there is exactly one place to defend and observe.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">MCP Gateway</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The front desk for tools.</b> It authenticates the caller, checks policy, renames each server's tools into one flat menu, and writes an audit trail.</p>
+          <p>Anything an agent or client can do passes through it, so access rules live in one place instead of in every server.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Agent Kernel</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The runtime for long-lived agents.</b> It runs an agent in short <em>episodes</em>: assemble what it needs to know, let it act, then sleep.</p>
+          <p>Memory lives in files, not chat history, so an agent can run for weeks, survive a restart, and wake on a result, a timer, or a message.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h3>Recording Hub — the durable record</h3>
+      <div class="glossary">
+        <div class="term">
+          <div class="term-head"><span class="term-name">Rerun proxy</span><span class="term-kind k-oss">OSS</span></div>
+          <p><b>The ingest socket.</b> A gRPC server (<code>re_grpc_server</code>) where every producer <em>pushes</em> data, and which rebroadcasts it live to anyone reading.</p>
+          <p>It is the single meeting point: producers write to it, viewers read from it. It holds only a short in-memory buffer — durability is the spooler's job.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">hub-spooler</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>Catch-and-persist.</b> Our service that <em>embeds</em> the Rerun proxy and writes every message it receives to disk before anything else.</p>
+          <p>Because the proxy and the writer are one process, no data can arrive and be lost before it is saved — the write is the first thing that happens, not an afterthought.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Segment file <code>.rrd</code></span><span class="term-kind k-format">format</span></div>
+          <p><b>The record on disk.</b> Rerun's recording format — one growing file per <code>dataset / day / recording</code>.</p>
+          <p>It stays readable even mid-write, so a crash leaves a decodable file up to the last whole message. This <em>is</em> the durable truth; everything else is a view onto it.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">hub-catalog</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The reading room.</b> Our service (running Rerun's <code>rerun server</code>) that serves the spooled files for querying over the network.</p>
+          <p>A headless data server: it answers questions about recordings, it does not draw anything.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">redap</span><span class="term-kind k-proto">protocol</span></div>
+          <p><b>How you ask the hub for data.</b> Rerun's remote data-access protocol — a query API for recordings, spoken over gRPC.</p>
+          <p>It lets a client pull just the slice it needs — <em>latest-at</em> (every vehicle's most recent position), <em>range</em> (one vehicle's path over five minutes), or a full dataframe — without downloading the whole file.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">dataset · recording</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>How the record is organised.</b> A <em>recording</em> is one stream (one SUMO run, one agent's flight log); a <em>dataset</em> groups them (<code>world</code>, <code>agents</code>).</p>
+          <p>In the catalog a segment's id is its recording id, so the file on disk and the thing you query are the same identity.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Rerun viewer</span><span class="term-kind k-client">client</span></div>
+          <p><b>The window that draws it.</b> A GUI app that renders the streams — vehicles on a map, speeds as graphs, a scrubbable timeline.</p>
+          <p>It attaches to the hub like any other reader: to the proxy for a live tail, or to a <code>.rrd</code> file to replay a whole run. It runs where you are, not in the containers.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">GeoPoints · Scalars</span><span class="term-kind k-format">format</span></div>
+          <p><b>Typed data shapes.</b> Rerun archetypes — <em>GeoPoints</em> are points with real lat/lon that land on a map; <em>Scalars</em> are named time-series numbers.</p>
+          <p>Logging data as a known shape is what lets the viewer put vehicles on a map and plot speeds without any per-project wiring.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h3>SUMO Showcase — the live proof</h3>
+      <div class="glossary">
+        <div class="term">
+          <div class="term-head"><span class="term-name">SUMO</span><span class="term-kind k-oss">OSS</span></div>
+          <p><b>The traffic simulator.</b> An open-source microsimulator (Eclipse SUMO) that steps a road network full of individual vehicles through time.</p>
+          <p>It stands in for a real fleet of sensors: a live world that produces a stream of positions and states to record and reason about.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">TraCI</span><span class="term-kind k-proto">protocol</span></div>
+          <p><b>The socket into the sim.</b> SUMO's Traffic Control Interface — a connection to advance the simulation one step and read or command it.</p>
+          <p>Through it you get every vehicle's position and speed, and you can change a traffic light or reroute a car mid-run.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">sumo-mcp</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The bridge.</b> A Python service that holds the one TraCI connection, pushes the world into the hub, and exposes SUMO control as governed <code>sumo__*</code> tools.</p>
+          <p>One process is the sole owner of the sim, so reads, pushes, and commands never collide.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">MCP</span><span class="term-kind k-proto">protocol</span></div>
+          <p><b>The tool language.</b> Model Context Protocol — the standard the gateway, the servers, and the agents all speak for calling tools, reading resources, and running tasks.</p>
+          <p>Because every server speaks it, the gateway can front them all through one endpoint with one set of rules.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">MCP task</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>A tool call you walk away from.</b> A long operation returns a task id immediately; the agent sleeps and is woken when the result is ready.</p>
+          <p>This is how an agent runs a 50-step batch or a signal optimisation without holding a connection open or burning an episode waiting.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Resource · subscribe</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>A condition that wakes you.</b> An MCP resource is a readable endpoint; subscribing to one means the agent is notified the moment it changes.</p>
+          <p>The showcase exposes <code>sim://congestion</code>, so a jam forming is a wake, not something the agent has to poll for.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- LAYER 0 : AGENT KERNEL -->
   <section class="layer">
