@@ -24,9 +24,17 @@ resource); **16 pytest** incl. the full `call_tool_as_task → poll →
 get_task_result` lifecycle and the subscribe→`resources/updated` wake; push
 spine proven against the real Rust hub (`sumo_push_smoke`, 40 frames durable).
 SUMO + sumo-mcp Dockerfiles, `compose.showcase.yaml` (config valid), README.
-Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`. The full live
-Docker stack (SUMO image pull + TraCI + push loop) is wired and config-valid;
-it is the one path not run in the build environment.
+Justfile: `test-sumo-mcp`, `smoke-sumo-push`, `showcase-up`, `showcase-capstone`.
+
+**Full live stack proven end to end** (`showcase-capstone`, 2026-07-08): the
+real SUMO container (grid: 48 edges, 12 traffic lights, 20 vehicles) steps over
+TraCI while `sumo-mcp` pushes the world into the hub — captured durably (40 rows
+under `/world/sumo/**`, read back by QueryEngine) — and the served MCP endpoint
+is driven over streamable HTTP: `query_state`/`describe_scenario`, `run_batch`
+as a detached task (`call_tool_as_task → poll → get_task_result`), and
+`set_signal_phase` actuating a real traffic light over TraCI. An interim
+fake-driver run (`compose.interim.yaml`) separately proves the container
+runtime (serve + background push) without the SUMO image.
 
 Deferred (recorded): `append_transport_without_footer` fast path (unreachable
 through `spawn_with_recv`, and target already met); heavy compose e2e of the
