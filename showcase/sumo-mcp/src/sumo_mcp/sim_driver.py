@@ -22,6 +22,20 @@ class VehicleState:
     lon: float
     speed_mps: float
     edge: str
+    # Heading in SUMO convention: degrees, 0 = north, clockwise. Drives the map
+    # facing-hint whisker and the 3D box orientation.
+    heading_deg: float = 0.0
+    # Local metric position (SUMO network cartesian, metres) for the 3D view.
+    x: float = 0.0
+    y: float = 0.0
+    # Physical footprint, so the 3D box reads as the actual vehicle (a bus is
+    # long and tall, a car small) — type carried in silhouette.
+    length_m: float = 4.5
+    width_m: float = 1.8
+    height_m: float = 1.5
+    # SUMO vehicle class (passenger, bus, truck, emergency, …) for categorical
+    # colouring or labels when wanted.
+    vclass: str = "passenger"
 
 
 @dataclass(frozen=True)
@@ -48,6 +62,7 @@ class SimDriver(Protocol):
     def step(self, n: int = 1) -> None: ...
     def vehicles(self) -> list[VehicleState]: ...
     def vehicle_count(self) -> int: ...
+    def network_geometry(self) -> list[list[tuple[float, float]]]: ...
     def signals(self) -> list[SignalState]: ...
     def mean_speed(self) -> float: ...
     def set_signal_phase(self, signal_id: str, phase: int) -> None: ...
@@ -134,8 +149,13 @@ class FakeSimDriver:
         out: list[VehicleState] = []
         for i in range(self.n_vehicles):
             theta = (math.tau * i / self.n_vehicles) + self.sim_time() * 0.05
-            dx = self.radius_m * math.cos(theta)
-            dy = self.radius_m * math.sin(theta)
+            dx = self.radius_m * math.cos(theta)  # east metres from origin
+            dy = self.radius_m * math.sin(theta)  # north metres from origin
+            # Orbit tangent → heading (SUMO: 0 = north, clockwise).
+            east_v, north_v = -math.sin(theta), math.cos(theta)
+            heading = math.degrees(math.atan2(east_v, north_v)) % 360.0
+            # Every fifth vehicle is a bus, so type-by-silhouette is visible.
+            is_bus = i % 5 == 0
             out.append(
                 VehicleState(
                     id=f"veh_{i}",
@@ -143,9 +163,25 @@ class FakeSimDriver:
                     lon=self.origin_lon + dx / m_per_deg_lon,
                     speed_mps=self._vehicle_speed(i),
                     edge=self._rerouted.get(f"veh_{i}", f"edge_{i % 4}"),
+                    heading_deg=heading,
+                    x=dx,
+                    y=dy,
+                    length_m=12.0 if is_bus else 4.5,
+                    width_m=2.5 if is_bus else 1.8,
+                    height_m=3.2 if is_bus else 1.5,
+                    vclass="bus" if is_bus else "passenger",
                 )
             )
         return out
+
+    def network_geometry(self) -> list[list[tuple[float, float]]]:
+        """A small synthetic grid (local metres) so the 3D view has road context
+        without a SUMO network."""
+        r = self.radius_m
+        return [
+            [(-r, 0.0), (r, 0.0)],  # east–west
+            [(0.0, -r), (0.0, r)],  # north–south
+        ]
 
     def vehicle_count(self) -> int:
         return self.n_vehicles
@@ -223,7 +259,19 @@ class TraciSimDriver:
         # Bound the per-frame vehicle set so reads and Rerun frames stay light on
         # a dense city network; aggregates (count, mean speed) still cover all.
         self._max_vehicles = max_vehicles
-        self._sub_vars = [tc.VAR_POSITION, tc.VAR_SPEED, tc.VAR_ROAD_ID]
+        # One subscription carries everything the map + 3D views need per frame:
+        # position, speed, road, plus heading (facing hint / box orientation),
+        # physical size (box silhouette), and vehicle class (categorical colour).
+        self._sub_vars = [
+            tc.VAR_POSITION,
+            tc.VAR_SPEED,
+            tc.VAR_ROAD_ID,
+            tc.VAR_ANGLE,
+            tc.VAR_LENGTH,
+            tc.VAR_WIDTH,
+            tc.VAR_HEIGHT,
+            tc.VAR_VEHICLECLASS,
+        ]
         # Fallback (no network projection): equirectangular about a fixed origin.
         self._lat0 = origin_lat
         self._lon0 = origin_lon
@@ -321,11 +369,33 @@ class TraciSimDriver:
                     lon=lon,
                     speed_mps=float(sub[tc.VAR_SPEED]),
                     edge=sub[tc.VAR_ROAD_ID],
+                    heading_deg=float(sub.get(tc.VAR_ANGLE, 0.0)),
+                    x=float(x),
+                    y=float(y),
+                    length_m=float(sub.get(tc.VAR_LENGTH, 4.5)),
+                    width_m=float(sub.get(tc.VAR_WIDTH, 1.8)),
+                    height_m=float(sub.get(tc.VAR_HEIGHT, 1.5)),
+                    vclass=str(sub.get(tc.VAR_VEHICLECLASS, "passenger")),
                 )
             )
             if len(out) >= self._max_vehicles:
                 break
         return out
+
+    def network_geometry(self) -> list[list[tuple[float, float]]]:
+        """Every edge's centreline (lane 0 shape) in local metres, read once for
+        the 3D view's static road underlay. A per-lane TraCI round-trip, so it is
+        fetched a single time at startup — never per frame."""
+        t = self._traci
+        strips: list[list[tuple[float, float]]] = []
+        for edge in t.edge.getIDList():
+            if edge.startswith(":"):  # internal junction edges — skip clutter
+                continue
+            with __import__("contextlib").suppress(Exception):
+                shape = t.lane.getShape(f"{edge}_0")
+                if len(shape) >= 2:
+                    strips.append([(float(px), float(py)) for px, py in shape])
+        return strips
 
     def vehicle_count(self) -> int:
         return int(self._traci.vehicle.getIDCount())

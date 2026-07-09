@@ -44,10 +44,18 @@ async def push_loop(toolset: SumoToolset, proxy: str, recording: str, period_s: 
 
     publisher = RerunPublisher(proxy, application_id="veoveo-sumo", recording=recording)
     step = 0
+    # Draw the road network once as a static 3D underlay. It is a one-time
+    # per-edge TraCI read (can take a moment on a dense city under emulation), so
+    # publish it after the first frame is on the wire — the map and boxes appear
+    # immediately, the streets fill in behind them. Set SUMO_DRAW_NETWORK=0 to skip.
+    draw_network = os.environ.get("SUMO_DRAW_NETWORK", "1") == "1"
     try:
         while True:
             vehicles, mean_speed, count = await toolset.step_once()
             publisher.publish(step, vehicles, mean_speed, count)
+            if step == 0 and draw_network:
+                with contextlib.suppress(Exception):
+                    publisher.publish_network(await toolset.network_geometry())
             step += 1
             await anyio.sleep(period_s)
     finally:

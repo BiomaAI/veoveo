@@ -136,6 +136,13 @@ class SumoToolset:
                 self._driver.vehicle_count(),
             )
 
+    async def network_geometry(self) -> list[list[tuple[float, float]]]:
+        """The road network's centrelines (local metres), read once under the lock
+        for the 3D view's static underlay. Not a hot-path call — the push loop
+        fetches it a single time at startup."""
+        async with self._lock:
+            return self._driver.network_geometry()
+
     async def query_state(self) -> QueryStateResult:
         async with self._lock:
             vs = self._driver.vehicles()

@@ -27,9 +27,26 @@ The SUMO container runs [**LuST — Luxembourg SUMO Traffic**](https://github.co
 (MIT): a validated OpenStreetMap network of Luxembourg City with a full day of
 realistic demand and actuated signals, started at the morning ramp (07:00). Because
 the network is geo-referenced, vehicle positions convert to true lat/lon and land on
-the actual streets in the Rerun map view — `sumo-mcp` calibrates the cartesian→lon/lat
-map once from the network's own projection, then reads all vehicles per frame in a
-single TraCI subscription round-trip and publishes them as one coloured GeoPoints layer.
+the actual streets — `sumo-mcp` fits the cartesian→lon/lat map once as a full 2D
+affine (rotation-aware, so cars sit squarely on the streets), then reads all vehicles
+per frame in a single TraCI subscription round-trip.
+
+### Two views from one frame
+
+Each frame publishes complementary layers under `/world/sumo/**`:
+
+- **Map view** — vehicles as one `GeoPoints` cloud on the real Luxembourg tiles,
+  plus a batched `GeoLineStrings` **facing chevron** per vehicle showing heading.
+- **3D view** — vehicles as oriented `Boxes3D` sized to their real footprint
+  (a bus is long and tall, a car small — vehicle class carried in silhouette),
+  yawed to their heading, over the road network drawn **once** as static
+  `LineStrips3D`.
+
+Speed is colour-coded on both on a **red → amber → green** ramp weighted toward the
+jam end, so stopped and crawling traffic stays vividly red. The subscription carries
+position, speed, road, heading, footprint, and vehicle class in one round-trip; every
+layer is a single batched log call, so a dense city stays smooth. `SUMO_DRAW_NETWORK=0`
+skips the one-time network fetch if you want the fastest possible startup.
 
 ## What the agent controls
 
@@ -48,7 +65,10 @@ docker compose -f compose.yaml -f showcase/compose.showcase.yaml \
 rerun --port auto "rerun+http://127.0.0.1:9877/proxy"
 ```
 
-Cars appear moving on the Luxembourg map, coloured red (congested) → green (free-flowing).
+Cars appear moving on the Luxembourg map, coloured red (congested) → green
+(free-flowing), each with a facing chevron. The viewer auto-creates both a Map view
+and a 3D view from the data — arrange them side by side to watch the same traffic as
+oriented boxes over the road network.
 
 ## Why Python, and why our own server
 

@@ -15,6 +15,7 @@ from .streams import RerunPublisher
 
 def run_push(driver: SimDriver, publisher: RerunPublisher, steps: int) -> int:
     """Advance `steps` and publish every frame; returns frames published."""
+    publisher.publish_network(driver.network_geometry())
     for step in range(steps):
         driver.step(1)
         publisher.publish(
