@@ -25,9 +25,11 @@ from . import tasks_compat
 from .resources import CONGESTION_URI, evaluate_congestion
 from .sim_driver import FakeSimDriver, SimDriver
 from .tools import (
+    LaneParams,
     OfflineOpParams,
     RerouteVehicleParams,
     RunBatchParams,
+    SetEdgeSpeedParams,
     SetSignalPhaseParams,
     SumoToolset,
     _Model,
@@ -81,6 +83,24 @@ SYNC_TOOLS: dict[str, ToolSpec] = {
         "reroute_vehicle",
         "Reroute a vehicle onto a target edge.",
         RerouteVehicleParams,
+        tasks_compat.TASK_FORBIDDEN,
+    ),
+    "set_edge_speed": ToolSpec(
+        "set_edge_speed",
+        "Set an edge's speed limit in m/s (a variable-speed sign).",
+        SetEdgeSpeedParams,
+        tasks_compat.TASK_FORBIDDEN,
+    ),
+    "close_lane": ToolSpec(
+        "close_lane",
+        "Close a lane to all traffic (model an incident).",
+        LaneParams,
+        tasks_compat.TASK_FORBIDDEN,
+    ),
+    "open_lane": ToolSpec(
+        "open_lane",
+        "Reopen a previously closed lane to all traffic.",
+        LaneParams,
         tasks_compat.TASK_FORBIDDEN,
     ),
     "check_events": ToolSpec(
@@ -180,6 +200,12 @@ def build_server(toolset: SumoToolset, name: str = "veoveo-sumo-mcp") -> Server:
                 return _ok(await toolset.set_signal_phase(SetSignalPhaseParams(**arguments)))
             if name == "reroute_vehicle":
                 return _ok(await toolset.reroute_vehicle(RerouteVehicleParams(**arguments)))
+            if name == "set_edge_speed":
+                return _ok(await toolset.set_edge_speed(SetEdgeSpeedParams(**arguments)))
+            if name == "close_lane":
+                return _ok(await toolset.close_lane(LaneParams(**arguments)))
+            if name == "open_lane":
+                return _ok(await toolset.open_lane(LaneParams(**arguments)))
             if name == "check_events":
                 state = evaluate_congestion(toolset.driver)
                 if state.congested:

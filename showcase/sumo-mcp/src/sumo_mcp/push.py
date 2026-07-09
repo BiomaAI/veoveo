@@ -20,8 +20,8 @@ def run_push(driver: SimDriver, publisher: RerunPublisher, steps: int) -> int:
         publisher.publish(
             step,
             driver.vehicles(),
-            driver.signals(),
             driver.mean_speed(),
+            driver.vehicle_count(),
         )
     publisher.flush()
     return steps

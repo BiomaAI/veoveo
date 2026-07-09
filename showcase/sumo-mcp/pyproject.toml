@@ -13,7 +13,7 @@ dependencies = [
 [project.optional-dependencies]
 # The real SUMO client (only needed against a live simulator; tests use the
 # fake driver). The rerun SDK is the push path into the hub.
-sumo = ["traci>=1.27", "sumolib>=1.27"]
+sumo = ["traci>=1.27", "sumolib>=1.27", "eclipse-sumo>=1.27"]
 rerun = ["rerun-sdk==0.34.0"]
 serve = ["uvicorn>=0.30", "starlette>=0.37"]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff", "mypy"]

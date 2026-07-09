@@ -22,7 +22,13 @@ def build_driver() -> SimDriver:
         from .sim_driver import TraciSimDriver
 
         port = int(os.environ.get("SUMO_PORT", "8813"))
-        return TraciSimDriver(host=host, port=port, name=os.environ.get("SUMO_SCENARIO", "sumo"))
+        return TraciSimDriver(
+            host=host,
+            port=port,
+            name=os.environ.get("SUMO_SCENARIO", "sumo"),
+            max_vehicles=int(os.environ.get("SUMO_MAX_VEHICLES", "800")),
+            connect_retries=int(os.environ.get("SUMO_CONNECT_RETRIES", "180")),
+        )
     return FakeSimDriver(
         n_vehicles=int(os.environ.get("SUMO_FAKE_VEHICLES", "12")),
         seed=int(os.environ.get("SUMO_FAKE_SEED", "1")),
@@ -39,8 +45,8 @@ async def push_loop(toolset: SumoToolset, proxy: str, recording: str, period_s: 
     step = 0
     try:
         while True:
-            vehicles, signals, mean_speed = await toolset.step_once()
-            publisher.publish(step, vehicles, signals, mean_speed)
+            vehicles, mean_speed, count = await toolset.step_once()
+            publisher.publish(step, vehicles, mean_speed, count)
             step += 1
             await anyio.sleep(period_s)
     finally:

@@ -47,10 +47,14 @@ class SimDriver(Protocol):
     def sim_time(self) -> float: ...
     def step(self, n: int = 1) -> None: ...
     def vehicles(self) -> list[VehicleState]: ...
+    def vehicle_count(self) -> int: ...
     def signals(self) -> list[SignalState]: ...
     def mean_speed(self) -> float: ...
     def set_signal_phase(self, signal_id: str, phase: int) -> None: ...
     def reroute_vehicle(self, vehicle_id: str, target_edge: str) -> None: ...
+    def set_edge_speed(self, edge_id: str, speed_mps: float) -> None: ...
+    def close_lane(self, lane_id: str) -> None: ...
+    def open_lane(self, lane_id: str) -> None: ...
     def close(self) -> None: ...
 
 
@@ -86,6 +90,8 @@ class FakeSimDriver:
     _step: int = field(default=0, init=False)
     _signal_phase: dict[str, int] = field(default_factory=dict, init=False)
     _rerouted: dict[str, str] = field(default_factory=dict, init=False)
+    _edge_speeds: dict[str, float] = field(default_factory=dict, init=False)
+    _closed_lanes: set[str] = field(default_factory=set, init=False)
 
     _M_PER_DEG_LAT = 111_320.0
 
@@ -141,6 +147,9 @@ class FakeSimDriver:
             )
         return out
 
+    def vehicle_count(self) -> int:
+        return self.n_vehicles
+
     def signals(self) -> list[SignalState]:
         return [
             SignalState(id=s, phase=self._signal_phase.get(s, 0))
@@ -163,6 +172,23 @@ class FakeSimDriver:
             raise KeyError(f"unknown edge {target_edge}")
         self._rerouted[vehicle_id] = target_edge
 
+    def set_edge_speed(self, edge_id: str, speed_mps: float) -> None:
+        if edge_id not in self._edges():
+            raise KeyError(f"unknown edge {edge_id}")
+        if speed_mps < 0:
+            raise ValueError("speed must be non-negative")
+        self._edge_speeds[edge_id] = speed_mps
+
+    def close_lane(self, lane_id: str) -> None:
+        if lane_id.rsplit("_", 1)[0] not in self._edges():
+            raise KeyError(f"unknown lane {lane_id}")
+        self._closed_lanes.add(lane_id)
+
+    def open_lane(self, lane_id: str) -> None:
+        if lane_id.rsplit("_", 1)[0] not in self._edges():
+            raise KeyError(f"unknown lane {lane_id}")
+        self._closed_lanes.discard(lane_id)
+
     def close(self) -> None:  # nothing to release
         return None
 
@@ -180,38 +206,84 @@ class TraciSimDriver:
         host: str = "127.0.0.1",
         port: int = 8813,
         name: str = "sumo",
+        max_vehicles: int = 800,
+        connect_retries: int = 180,
         origin_lat: float = 52.5200,
         origin_lon: float = 13.4050,
     ) -> None:
         import traci  # lazy: only on the live path
+        from traci import constants as tc
 
         self._traci = traci
-        traci.init(port=port, host=host)
+        self._tc = tc
+        # A large scenario (LuST) can take a while to load before the TraCI port
+        # opens — especially under emulation — so retry generously.
+        traci.init(port=port, host=host, numRetries=connect_retries)
         self._name = name
-        # The synthetic grid has no geo-reference, so we anchor it ourselves and
-        # convert cartesian metres to lon/lat with an equirectangular projection
-        # about the origin — good to a few metres over a city-scale network.
+        # Bound the per-frame vehicle set so reads and Rerun frames stay light on
+        # a dense city network; aggregates (count, mean speed) still cover all.
+        self._max_vehicles = max_vehicles
+        self._sub_vars = [tc.VAR_POSITION, tc.VAR_SPEED, tc.VAR_ROAD_ID]
+        # Fallback (no network projection): equirectangular about a fixed origin.
         self._lat0 = origin_lat
         self._lon0 = origin_lon
         self._m_per_deg_lat = 111_320.0
         self._m_per_deg_lon = 111_320.0 * math.cos(math.radians(origin_lat))
+        self._geo_affine: tuple[float, float, float, float, float, float] | None = None
+        self._calibrate_geo()
+        # Subscribe any vehicles already present at connect time.
+        for vid in traci.vehicle.getIDList():
+            traci.vehicle.subscribe(vid, self._sub_vars)
+
+    def _calibrate_geo(self) -> None:
+        """Derive a cartesian→lon/lat map once, from the network's own geo
+        reference. A real projection (LuST, any OSM network) makes vehicles land
+        on the true streets; a projection-less network (a bare grid) falls back
+        to the fixed-origin equirectangular map."""
+        t = self._traci
+        try:
+            (xmin, ymin), (xmax, ymax) = t.simulation.getNetBoundary()
+            lon_sw, lat_sw = t.simulation.convertGeo(xmin, ymin)
+            lon_ne, lat_ne = t.simulation.convertGeo(xmax, ymax)
+            # A projection-less net returns the input unchanged (metres as lon/lat)
+            # or values outside the geographic range — reject those.
+            plausible = (
+                abs(lat_sw) <= 90
+                and abs(lon_sw) <= 180
+                and (abs(lon_sw - xmin) > 1e-6 or abs(lat_sw - ymin) > 1e-6)
+                and xmax > xmin
+                and ymax > ymin
+            )
+            if plausible:
+                self._geo_affine = (
+                    xmin,
+                    ymin,
+                    lon_sw,
+                    lat_sw,
+                    (lon_ne - lon_sw) / (xmax - xmin),
+                    (lat_ne - lat_sw) / (ymax - ymin),
+                )
+        except Exception:
+            self._geo_affine = None
 
     def _to_geo(self, x: float, y: float) -> tuple[float, float]:
         """Cartesian metres (SUMO x/y) → (lat, lon)."""
-        lat = self._lat0 + y / self._m_per_deg_lat
-        lon = self._lon0 + x / self._m_per_deg_lon
-        return lat, lon
+        if self._geo_affine is not None:
+            x0, y0, lon0, lat0, sx, sy = self._geo_affine
+            return lat0 + (y - y0) * sy, lon0 + (x - x0) * sx
+        return self._lat0 + y / self._m_per_deg_lat, self._lon0 + x / self._m_per_deg_lon
 
     def describe(self) -> ScenarioInfo:
         t = self._traci
         edges = [e for e in t.edge.getIDList() if not e.startswith(":")]
         signals = list(t.trafficlight.getIDList())
+        lat0, lon0 = self._to_geo(0.0, 0.0)
         return ScenarioInfo(
             name=self._name,
             edges=edges,
             signals=signals,
-            origin_lat=self._lat0,
-            origin_lon=self._lon0,
+            origin_lat=lat0,
+            origin_lon=lon0,
         )
 
     def sim_time(self) -> float:
@@ -220,39 +292,63 @@ class TraciSimDriver:
     def step(self, n: int = 1) -> None:
         if n < 0:
             raise ValueError("step count must be non-negative")
+        t = self._traci
         for _ in range(n):
-            self._traci.simulationStep()
+            t.simulationStep()
+            # Subscribe newly departed vehicles so the next read is a single
+            # round-trip (getAllSubscriptionResults) instead of per-vehicle calls.
+            for vid in t.simulation.getDepartedIDList():
+                t.vehicle.subscribe(vid, self._sub_vars)
+
+    def _results(self) -> dict:
+        return self._traci.vehicle.getAllSubscriptionResults()
 
     def vehicles(self) -> list[VehicleState]:
-        t = self._traci
+        tc = self._tc
         out: list[VehicleState] = []
-        for vid in t.vehicle.getIDList():
-            x, y = t.vehicle.getPosition(vid)
+        for vid, sub in self._results().items():
+            x, y = sub[tc.VAR_POSITION]
             lat, lon = self._to_geo(x, y)
             out.append(
                 VehicleState(
                     id=vid,
                     lat=lat,
                     lon=lon,
-                    speed_mps=float(t.vehicle.getSpeed(vid)),
-                    edge=t.vehicle.getRoadID(vid),
+                    speed_mps=float(sub[tc.VAR_SPEED]),
+                    edge=sub[tc.VAR_ROAD_ID],
                 )
             )
+            if len(out) >= self._max_vehicles:
+                break
         return out
+
+    def vehicle_count(self) -> int:
+        return int(self._traci.vehicle.getIDCount())
 
     def signals(self) -> list[SignalState]:
         t = self._traci
         return [SignalState(id=s, phase=int(t.trafficlight.getPhase(s))) for s in t.trafficlight.getIDList()]
 
     def mean_speed(self) -> float:
-        vs = self.vehicles()
-        return sum(v.speed_mps for v in vs) / len(vs) if vs else 0.0
+        tc = self._tc
+        speeds = [float(s[tc.VAR_SPEED]) for s in self._results().values()]
+        return sum(speeds) / len(speeds) if speeds else 0.0
 
     def set_signal_phase(self, signal_id: str, phase: int) -> None:
         self._traci.trafficlight.setPhase(signal_id, phase)
 
     def reroute_vehicle(self, vehicle_id: str, target_edge: str) -> None:
         self._traci.vehicle.changeTarget(vehicle_id, target_edge)
+
+    def set_edge_speed(self, edge_id: str, speed_mps: float) -> None:
+        self._traci.edge.setMaxSpeed(edge_id, speed_mps)
+
+    def close_lane(self, lane_id: str) -> None:
+        # Disallow every vehicle class → the lane is shut, an incident.
+        self._traci.lane.setDisallowed(lane_id, ["all"])
+
+    def open_lane(self, lane_id: str) -> None:
+        self._traci.lane.setAllowed(lane_id, ["all"])
 
     def close(self) -> None:
         with __import__("contextlib").suppress(Exception):

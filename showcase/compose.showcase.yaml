@@ -38,11 +38,14 @@ services:
       - "--recording"
       - "sumo-live"
     environment:
-      # Real driver: connect TraCI to the SUMO container.
+      # Real driver: connect TraCI to the SUMO container (LuST / Luxembourg).
       SUMO_HOST: "sumo"
       SUMO_PORT: "8813"
-      SUMO_SCENARIO: "grid"
-      # Streamable-HTTP MCP endpoint (a gateway upstream would target this).
+      SUMO_SCENARIO: "luxembourg"
+      # Bound the per-frame vehicle set on a dense city network.
+      SUMO_MAX_VEHICLES: "800"
+      # LuST is large; allow generous time for it to load before TraCI opens.
+      SUMO_CONNECT_RETRIES: "300"
       RUST_LOG: "info"
     ports:
       # Loopback for local inspection; the gateway would reach it in-network.
