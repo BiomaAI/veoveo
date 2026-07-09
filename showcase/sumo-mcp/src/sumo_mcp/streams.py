@@ -13,9 +13,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from .sim_driver import SignalState, VehicleState
+from .sim_driver import VehicleState
 
 WORLD_TIMELINE = "tick"
+
+# Free-flow reference for colouring: at/above this a car is "green", at 0 "red".
+_FREE_FLOW_MPS = 14.0
+
+
+def _speed_color(speed_mps: float) -> list[int]:
+    """Congested (red) → free-flowing (green), so a jam reads at a glance."""
+    t = max(0.0, min(1.0, speed_mps / _FREE_FLOW_MPS))
+    return [int(235 * (1.0 - t)) + 20, int(200 * t) + 40, 70]
 
 
 class RerunPublisher:
@@ -37,31 +46,26 @@ class RerunPublisher:
         self,
         step: int,
         vehicles: Sequence[VehicleState],
-        signals: Sequence[SignalState],
         mean_speed: float,
+        vehicle_count: int,
     ) -> None:
         rr = self._rr
         rr.set_time(WORLD_TIMELINE, sequence=step, recording=self._stream)
-        for v in vehicles:
-            rr.log(
-                f"/world/sumo/vehicle/{v.id}",
-                rr.GeoPoints(lat_lon=[[v.lat, v.lon]]),
-                recording=self._stream,
-            )
-            rr.log(
-                f"/world/sumo/vehicle/{v.id}/speed",
-                rr.Scalars([v.speed_mps]),
-                recording=self._stream,
-            )
-        for s in signals:
-            rr.log(
-                f"/world/sumo/signal/{s.id}",
-                rr.Scalars([float(s.phase)]),
-                recording=self._stream,
-            )
+        # Every vehicle as one geo point cloud, coloured by speed — one log call
+        # per frame, so a dense city stays smooth and reads as a live map.
         rr.log(
-            "/world/sumo/mean_speed",
-            rr.Scalars([mean_speed]),
+            "/world/sumo/vehicles",
+            rr.GeoPoints(
+                lat_lon=[[v.lat, v.lon] for v in vehicles],
+                colors=[_speed_color(v.speed_mps) for v in vehicles],
+                radii=[-4.0],  # 4 UI points, so cars stay visible at any zoom
+            ),
+            recording=self._stream,
+        )
+        rr.log("/world/sumo/mean_speed", rr.Scalars([mean_speed]), recording=self._stream)
+        rr.log(
+            "/world/sumo/vehicle_count",
+            rr.Scalars([float(vehicle_count)]),
             recording=self._stream,
         )
 

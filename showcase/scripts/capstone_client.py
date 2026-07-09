@@ -41,10 +41,11 @@ async def main() -> int:
             print(f"OK  query_state: {state['vehicle_count']} vehicles, "
                   f"mean_speed={state['mean_speed_mps']:.2f} m/s @ t={state['sim_time_s']}")
 
-            # Describe the scenario the SUMO container baked.
+            # Describe the scenario the SUMO container loaded.
             desc = (await client.call_tool("describe_scenario", {})).structuredContent
             print(f"OK  describe_scenario: {desc['name']} · "
-                  f"{len(desc['edges'])} edges · {len(desc['signals'])} signals")
+                  f"{desc['edge_count']} edges · {desc['signal_count']} signals "
+                  f"@ ({desc['origin_lat']:.4f}, {desc['origin_lon']:.4f})")
 
             # Task path: run_batch detaches, we poll to terminal, read the result.
             created = await client.experimental.call_tool_as_task(
@@ -64,13 +65,24 @@ async def main() -> int:
             print(f"OK  tasks/result: advanced {body['steps_advanced']} steps, "
                   f"congestion_detected={body['congestion_detected']}")
 
-            # Actuate: set a signal phase on the first real signal, if any.
+            # Actuate the real network: signal phase, speed limit, lane close/open.
             if desc["signals"]:
                 sig = desc["signals"][0]
                 ack = (await client.call_tool(
                     "set_signal_phase", {"signal_id": sig, "phase": 0}
                 )).structuredContent
-                print(f"OK  set_signal_phase({sig}) -> ok={ack['ok']}")
+                print(f"OK  set_signal_phase({sig}) -> {ack['detail']}")
+
+            edge = desc["edges"][0]
+            ack = (await client.call_tool(
+                "set_edge_speed", {"edge_id": edge, "speed_mps": 8.0}
+            )).structuredContent
+            print(f"OK  set_edge_speed -> {ack['detail']}")
+
+            lane = f"{edge}_0"
+            closed = (await client.call_tool("close_lane", {"lane_id": lane})).structuredContent
+            reopened = (await client.call_tool("open_lane", {"lane_id": lane})).structuredContent
+            print(f"OK  incident: {closed['detail']} then {reopened['detail']}")
 
     print("CAPSTONE OK — live SUMO world driven end to end over MCP")
     return 0

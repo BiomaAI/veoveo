@@ -6,9 +6,11 @@ import pytest
 
 from sumo_mcp.sim_driver import FakeSimDriver
 from sumo_mcp.tools import (
+    LaneParams,
     OfflineOpParams,
     RerouteVehicleParams,
     RunBatchParams,
+    SetEdgeSpeedParams,
     SetSignalPhaseParams,
     SumoToolset,
 )
@@ -32,6 +34,30 @@ async def test_describe_scenario() -> None:
     assert info.name == "grid-fake"
     assert "edge_0" in info.edges
     assert info.signals == ["tl_center"]
+    assert info.edge_count == 4
+    assert info.signal_count == 1
+
+
+async def test_edge_speed_and_lane_controls() -> None:
+    ts = toolset()
+    ack = await ts.set_edge_speed(SetEdgeSpeedParams(edge_id="edge_1", speed_mps=5.0))
+    assert ack.ok and "5.0" in ack.detail
+    assert ts.driver._edge_speeds["edge_1"] == 5.0
+
+    closed = await ts.close_lane(LaneParams(lane_id="edge_2_0"))
+    assert closed.ok
+    assert "edge_2_0" in ts.driver._closed_lanes
+    reopened = await ts.open_lane(LaneParams(lane_id="edge_2_0"))
+    assert reopened.ok
+    assert "edge_2_0" not in ts.driver._closed_lanes
+
+
+async def test_controls_reject_unknown_targets() -> None:
+    ts = toolset()
+    with pytest.raises(KeyError):
+        await ts.set_edge_speed(SetEdgeSpeedParams(edge_id="nope", speed_mps=5.0))
+    with pytest.raises(KeyError):
+        await ts.close_lane(LaneParams(lane_id="nope_0"))
 
 
 async def test_determinism_same_seed_same_state() -> None:

@@ -1,31 +1,32 @@
 # syntax=docker/dockerfile:1.7
-# Headless SUMO serving TraCI, with a seeded grid scenario baked in at build so
-# a run is deterministic and reproducible. Internal-network only — TraCI has no
-# auth, so the port is never published beyond the compose network.
+# SUMO serving TraCI on a real, geo-referenced city: the LuST scenario
+# (Luxembourg SUMO Traffic, lcodeca/LuSTScenario, MIT) — a validated OpenStreetMap
+# network with a full day of realistic demand and actuated signals. Because the
+# network carries a real projection, vehicle positions convert to true lat/lon
+# and land on the actual streets in any map view. Internal-network only — TraCI
+# has no auth, so the port is never published beyond the compose network.
 FROM ghcr.io/eclipse-sumo/sumo:v1_27_1
 
 ENV SUMO_HOME=/usr/share/sumo
-WORKDIR /scenario
 
-# Generate a deterministic grid network + seeded random trips at build time.
-# netgenerate emits a cartesian network; sumo-mcp geo-references it from a fixed
-# origin so /world/sumo/** GeoPoints land on a real map.
-RUN netgenerate --grid --grid.number 4 --grid.length 200 \
-        --tls.guess true --tls.guess.threshold 0 \
-        --output-file grid.net.xml \
-    && python3 "$SUMO_HOME/tools/randomTrips.py" \
-        -n grid.net.xml -o trips.xml -r routes.rou.xml \
-        --seed 42 --begin 0 --end 600 --period 2 --validate \
-    && printf '%s\n' \
-        '<configuration>' \
-        '  <input>' \
-        '    <net-file value="grid.net.xml"/>' \
-        '    <route-files value="routes.rou.xml"/>' \
-        '  </input>' \
-        '  <time><begin value="0"/><end value="3600"/></time>' \
-        '</configuration>' > grid.sumocfg
+# The published LuST scenario, pinned to a commit for reproducibility. Shallow
+# clone keeps the layer to the scenario itself.
+ARG LUST_REF=master
+RUN git clone --depth 1 --branch "$LUST_REF" \
+        https://github.com/lcodeca/LuSTScenario.git /lust \
+    && rm -rf /lust/.git \
+    && chmod -R a+w /lust/scenario
 
+WORKDIR /lust/scenario
+
+# dua.actuated: dynamic user assignment (realistic routes) + actuated traffic
+# lights — the richest of the four bundled configs. Start at the morning ramp
+# (07:00 = 25200 s) so there is dense traffic the moment a client connects.
 EXPOSE 8813
-# Block waiting for the TraCI client (sumo-mcp) to connect and drive stepping.
-CMD ["sumo", "-c", "/scenario/grid.sumocfg", "--remote-port", "8813", \
-     "--step-length", "1", "--no-step-log", "true", "--start"]
+CMD ["sumo", "-c", "dua.actuated.sumocfg", \
+     "--begin", "25200", \
+     "--remote-port", "8813", \
+     "--step-length", "1", \
+     "--no-step-log", "true", \
+     "--no-warnings", "true", \
+     "--time-to-teleport", "300"]

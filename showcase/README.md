@@ -9,15 +9,46 @@ never pulls.
 
 ```
 ┌─ sumo (Docker) ────────────┐      ┌─ sumo-mcp (Python, one process) ─────────┐
-│ ghcr.io eclipse-sumo 1.27  │TraCI │ owns TraCI · pushes /world/sumo/** to hub │
-│ seeded grid, --remote-port │◄────►│ serves sumo__* over streamable HTTP       │
-└────────────────────────────┘      │ sync: query_state, set_signal_phase, …   │
-                                     │ tasks: run_batch, generate_network, …    │
-   push /world/sumo/**  ─────────────┤ events: sim://congestion (subscribe)     │
-             │                       └───────────────────────────────────────────┘
-             ▼
-      hub-spooler → world dataset → hub-catalog (redap)
+│ eclipse-sumo 1.27 + LuST   │TraCI │ owns TraCI · pushes /world/sumo/** to hub │
+│ real Luxembourg, geo-ref'd │◄────►│ serves sumo__* over streamable HTTP       │
+│ --remote-port 8813         │      │ read:  query_state, describe_scenario     │
+└────────────────────────────┘      │ act:   set_signal_phase, reroute_vehicle, │
+                                     │        set_edge_speed, close/open_lane    │
+   push /world/sumo/vehicles  ───────┤ tasks: run_batch, generate_network,       │
+   (GeoPoints, real lat/lon)  │      │        compute_routes, optimize_signals   │
+             │                       │ events: sim://congestion (subscribe)      │
+             ▼                       └───────────────────────────────────────────┘
+      hub-spooler → world dataset → hub-catalog (redap)   → Rerun viewer (live map)
 ```
+
+## The scenario: LuST (real Luxembourg)
+
+The SUMO container runs [**LuST — Luxembourg SUMO Traffic**](https://github.com/lcodeca/LuSTScenario)
+(MIT): a validated OpenStreetMap network of Luxembourg City with a full day of
+realistic demand and actuated signals, started at the morning ramp (07:00). Because
+the network is geo-referenced, vehicle positions convert to true lat/lon and land on
+the actual streets in the Rerun map view — `sumo-mcp` calibrates the cartesian→lon/lat
+map once from the network's own projection, then reads all vehicles per frame in a
+single TraCI subscription round-trip and publishes them as one coloured GeoPoints layer.
+
+## What the agent controls
+
+- **Read** — `query_state` (every vehicle's geo position + speed, signals, mean speed), `describe_scenario`
+- **Act** — `set_signal_phase`, `reroute_vehicle`, `set_edge_speed` (variable-speed sign), `close_lane` / `open_lane` (model an incident)
+- **Time** — `run_batch` (fast-forward, as a detachable MCP task) — the sleep/wake op
+- **Wake** — subscribe `sim://congestion`; a jam pushes `resources/updated`
+- **Offline** — `generate_network` / `compute_routes` / `optimize_signals` shell out to the real SUMO CLIs (netgenerate / duarouter / tlsCoordinator)
+
+## Visualize it live
+
+```bash
+docker compose -f compose.yaml -f showcase/compose.showcase.yaml \
+    --profile hub --profile showcase up -d --build
+# then attach a native Rerun viewer to the hub's live proxy on your machine:
+rerun --port auto "rerun+http://127.0.0.1:9877/proxy"
+```
+
+Cars appear moving on the Luxembourg map, coloured red (congested) → green (free-flowing).
 
 ## Why Python, and why our own server
 

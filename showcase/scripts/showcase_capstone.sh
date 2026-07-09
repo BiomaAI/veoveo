@@ -29,18 +29,22 @@ for svc in hub-spooler sumo sumo-mcp; do
   [ "$state" = "running" ] || { echo "FAIL: $svc did not reach running ($state)"; "${COMPOSE[@]}" logs "$svc" | tail -30; exit 1; }
 done
 
-echo "==> waiting for sumo-mcp HTTP endpoint (127.0.0.1:8795)"
-for _ in $(seq 1 60); do
-  # streamable-HTTP: a bare GET without a session returns 400/406, which still
-  # proves the listener is up.
+# sumo-mcp connects TraCI (waiting for LuST to load) before it serves HTTP, so a
+# live endpoint already means SUMO is up and the push loop is running.
+echo "==> waiting for sumo-mcp HTTP endpoint (LuST can take a while to load)"
+for _ in $(seq 1 300); do
   code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8795/mcp || true)
   [ "$code" != "000" ] && { echo "    endpoint answering (HTTP $code)"; break; }
   sleep 1
 done
 [ "$code" != "000" ] || { echo "FAIL: sumo-mcp endpoint never answered"; "${COMPOSE[@]}" logs sumo-mcp | tail -40; exit 1; }
 
-echo "==> letting SUMO step and sumo-mcp push into the hub (~20s)"
-sleep 20
+echo "==> waiting for the SUMO world to reach the hub"
+for _ in $(seq 1 60); do
+  msgs=$("${COMPOSE[@]}" logs hub-spooler 2>/dev/null | grep -oE 'messages=[0-9]+' | tail -1 | cut -d= -f2)
+  [ -n "$msgs" ] && [ "$msgs" -gt 0 ] && { echo "    hub ingesting ($msgs messages)"; break; }
+  sleep 2
+done
 
 echo "==> proving the SUMO world is durable in the hub (QueryEngine)"
 Q=$("${COMPOSE[@]}" exec -T hub-spooler hub-query \
