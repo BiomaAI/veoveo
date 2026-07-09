@@ -105,29 +105,30 @@ showcase/sumo/                  # this showcase (siblings can be added under sho
       runtime.py                # container entry: own TraCI + push + serve
       resources.py              # congestion watch condition
     tests/                      # unit tests, fake driver, no SUMO needed
-    scripts/sumo_push_smoke.sh  # S0 push spine smoke (invoked by `just smoke-sumo-push`)
+    scripts/sumo_push_smoke.sh  # S0 push spine smoke (invoked by `just showcase-sumo-smoke`)
   scripts/
-    showcase_capstone.sh        # live e2e (invoked by `just showcase-capstone`)
-    capstone_client.py          # the MCP client the capstone drives
+    verify_e2e.sh               # live end-to-end verify (invoked by `just showcase-sumo-verify`)
+    verify_client.py            # the MCP verification client verify_e2e.sh drives
 ```
 
-Task entry points live in the root `Justfile` (`just test-sumo-mcp`,
-`smoke-sumo-push`, `showcase-up`, `showcase-capstone`); the heavier smoke and
-capstone orchestration stay as scripts the recipes invoke.
+Task entry points live in the root `Justfile`, namespaced per showcase
+(`just showcase-sumo-test`, `showcase-sumo-smoke`, `showcase-sumo-up`,
+`showcase-sumo-verify`); the heavier smoke and verify orchestration stay as
+scripts the recipes invoke.
 
 ## Run it
 
 Tests (no SUMO needed — fake driver):
 
 ```bash
-just test-sumo-mcp
+just showcase-sumo-test
 ```
 
 Push spine against the real Rust hub (no SUMO needed — fake driver pushes,
 the hub captures and QueryEngine reads back):
 
 ```bash
-just smoke-sumo-push
+just showcase-sumo-smoke
 ```
 
 Full live stack (SUMO + sumo-mcp + hub, Docker):
