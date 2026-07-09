@@ -386,7 +386,11 @@ impl GatewayMcp {
         owner: &PrincipalId,
         uri: &str,
     ) -> Result<Option<GatewayResourceProjection>, McpError> {
-        project_upstream_resource_for_owner(&self.state, &self.profile_id, owner, server, uri)
+        let catalog = self.catalog.current();
+        let manifest = catalog
+            .server(server)
+            .ok_or_else(|| mcp_internal(format!("unknown upstream server `{server}`")))?;
+        project_upstream_resource_for_owner(&self.state, &self.profile_id, owner, manifest, uri)
     }
 
     pub(super) fn server_for_prompt(&self, prompt: &str) -> Result<ServerSlug, McpError> {

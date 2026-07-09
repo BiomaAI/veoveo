@@ -226,11 +226,12 @@ pub(crate) async fn spawn_gateway_control_db(
     )?;
     wait_for_postgres_container(&container_name, "veoveo_gateway", "veoveo_gateway").await?;
 
-    let url =
-        format!("postgresql://veoveo_gateway:veoveo_gateway@127.0.0.1:{host_port}/veoveo_gateway");
-    run_checked(
+    let url = format!(
+        "postgresql://veoveo_gateway:veoveo_gateway@127.0.0.1:{host_port}/veoveo_gateway?sslmode=disable"
+    );
+    run_gateway_control_db_command_with_retry(
         gateway,
-        [
+        vec![
             "control-plane-seed".into(),
             "--control-db-url".into(),
             url.clone().into(),
@@ -239,22 +240,62 @@ pub(crate) async fn spawn_gateway_control_db(
             "--applied-by".into(),
             "smoke#control-db".into(),
         ],
-        [],
-    )?;
-    run_checked(
+    )
+    .await?;
+    run_gateway_control_db_command_with_retry(
         gateway,
-        [
+        vec![
             "validate-db".into(),
             "--control-db-url".into(),
             url.clone().into(),
         ],
-        [],
-    )?;
+    )
+    .await?;
 
     Ok(GatewayControlDbSmoke {
         url,
         _container: container,
     })
+}
+
+async fn run_gateway_control_db_command_with_retry(
+    gateway: &Path,
+    args: Vec<OsString>,
+) -> Result<String> {
+    let mut last_output = None;
+    for _ in 0..20 {
+        let output = run_raw(gateway, args.clone(), [])?;
+        if output.status.success() {
+            return Ok(String::from_utf8(output.stdout)?);
+        }
+        if !is_transient_postgres_startup_failure(&output) {
+            return command_failure(gateway, output);
+        }
+        last_output = Some(output);
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    command_failure(
+        gateway,
+        last_output.ok_or_else(|| anyhow!("gateway control DB command did not run"))?,
+    )
+}
+
+fn is_transient_postgres_startup_failure(output: &Output) -> bool {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    stderr.contains("failed to connect to gateway control-plane Postgres")
+        || stderr.contains("error communicating with database")
+        || stderr.contains("unexpected response from SSLRequest")
+        || stderr.contains("got 0 bytes at EOF")
+}
+
+fn command_failure<T>(program: &Path, output: Output) -> Result<T> {
+    bail!(
+        "{} failed with status {}\nstdout:\n{}\nstderr:\n{}",
+        program.display(),
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
 }
 
 pub(crate) fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u16) -> Result<()> {

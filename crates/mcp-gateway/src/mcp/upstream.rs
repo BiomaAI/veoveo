@@ -8,7 +8,7 @@ use rmcp::{
 use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug, UpstreamTaskId};
 
 use crate::{
-    GatewayState,
+    GatewayCatalogHandle, GatewayState,
     mcp_support::{project_upstream_resource_for_owner, task_mapping_allows_principal},
 };
 
@@ -16,6 +16,7 @@ use super::progress::{GatewayProgressTokens, is_terminal};
 
 #[derive(Debug, Clone)]
 pub(super) struct GatewayUpstreamHandler {
+    catalog: GatewayCatalogHandle,
     profile_id: GatewayProfileId,
     principal_id: PrincipalId,
     upstream_server: ServerSlug,
@@ -26,6 +27,7 @@ pub(super) struct GatewayUpstreamHandler {
 
 impl GatewayUpstreamHandler {
     pub(super) fn new(
+        catalog: GatewayCatalogHandle,
         profile_id: GatewayProfileId,
         principal_id: PrincipalId,
         upstream_server: ServerSlug,
@@ -34,6 +36,7 @@ impl GatewayUpstreamHandler {
         progress_tokens: GatewayProgressTokens,
     ) -> Self {
         Self {
+            catalog,
             profile_id,
             principal_id,
             upstream_server,
@@ -86,11 +89,20 @@ impl ClientHandler for GatewayUpstreamHandler {
         mut params: rmcp::model::ResourceUpdatedNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) {
+        let catalog = self.catalog.current();
+        let Some(manifest) = catalog.server(&self.upstream_server) else {
+            tracing::warn!(
+                upstream_server = %self.upstream_server,
+                upstream_uri = %params.uri,
+                "dropped resource update notification for unknown upstream server"
+            );
+            return;
+        };
         match project_upstream_resource_for_owner(
             &self.state,
             &self.profile_id,
             &self.principal_id,
-            &self.upstream_server,
+            manifest,
             &params.uri,
         ) {
             Ok(Some(projection)) => {

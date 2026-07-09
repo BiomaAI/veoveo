@@ -129,6 +129,9 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
     suite_step("gateway with two hosted servers");
     gateway_two_servers(conformance, gateway, smoke_control_plane).await?;
 
+    suite_step("gateway chart resource projection");
+    gateway_chart_projection(conformance, gateway, smoke_control_plane).await?;
+
     suite_step("gateway task run with artifacts and usage");
     gateway_task_run(
         conformance,

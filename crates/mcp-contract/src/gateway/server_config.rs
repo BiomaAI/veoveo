@@ -15,6 +15,8 @@ pub struct ServerManifest {
     pub mcp_path: MountPath,
     pub upstream: UpstreamEndpoint,
     pub capabilities: McpSurfaceCapabilities,
+    #[serde(default)]
+    pub resource_projection: ResourceProjectionMode,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<LocalToolName>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -27,6 +29,14 @@ pub struct ServerManifest {
     pub owned_routes: Vec<OwnedRoute>,
     #[serde(default)]
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceProjectionMode {
+    #[default]
+    Identity,
+    ServerOwned,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

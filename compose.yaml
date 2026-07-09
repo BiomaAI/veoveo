@@ -241,6 +241,38 @@ services:
     profiles:
       - dev
 
+  chart-mcp:
+    build:
+      context: .
+      dockerfile: containers/chart-mcp/Dockerfile
+    command:
+      - "--transport"
+      - "http"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8795"
+      - "--path"
+      - "/mcp"
+      - "--allowed-hosts"
+      - "chart-mcp:8795,localhost:8795,127.0.0.1:8795"
+      - "--disable-file-reference"
+    environment:
+      OTEL_SERVICE_NAME: chart-mcp
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    tmpfs:
+      - /tmp
+    ports:
+      - "127.0.0.1:8795:8795"
+    profiles:
+      - dev
+
   # The AI Pilot: a long-lived agent on the kernel, opt-in via the `agents`
   # profile (it spends real LLM tokens). Connects to the gateway internally
   # as the pilot-agent service principal; its manifest and migrations mount
@@ -408,6 +440,8 @@ services:
       coordinates-mcp:
         condition: service_started
       duckdb-mcp:
+        condition: service_started
+      chart-mcp:
         condition: service_started
       mcp-gateway-seed:
         condition: service_completed_successfully

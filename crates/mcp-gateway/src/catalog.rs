@@ -6,7 +6,8 @@ use veoveo_mcp_contract::{
     AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
     OidcClientRegistrationId, PolicySet, PolicyVersion, ResourceAuthorizationServer,
-    SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TenantDefinition, TenantId,
+    ResourceProjectionMode, SecretReference, SecretReferenceId, ServerManifest, ServerSlug,
+    TenantDefinition, TenantId,
 };
 
 use crate::policy::{exposure_contains, resource_scheme};
@@ -378,7 +379,7 @@ impl GatewayCatalog {
         let scheme = resource_scheme(uri)?;
         self.profile_servers(profile_id)
             .into_iter()
-            .find(|(_, server)| server.uri_scheme == scheme)
+            .find(|(_, server)| server_owns_gateway_resource_uri(server, uri, &scheme))
     }
 
     pub fn prompt_servers(
@@ -412,6 +413,17 @@ impl GatewayCatalog {
             .get(tenant)
             .map(|index| &self.control_plane.tenants[*index])
     }
+}
+
+fn server_owns_gateway_resource_uri(
+    server: &ServerManifest,
+    uri: &str,
+    scheme: &veoveo_mcp_contract::ResourceScheme,
+) -> bool {
+    server.uri_scheme == *scheme
+        || (server.resource_projection == ResourceProjectionMode::ServerOwned
+            && scheme.as_str() == "ui"
+            && uri.starts_with(&format!("ui://{}/", server.slug.as_str())))
 }
 
 #[cfg(test)]

@@ -137,6 +137,11 @@ smoke-gateway-two-servers:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     {{smoke}} gateway-two-servers --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
+# Smoke-test gateway projection for server-owned chart resources.
+smoke-gateway-chart-projection:
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    {{smoke}} gateway-chart-projection --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
+
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
 smoke-gateway-task-run:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway
@@ -183,7 +188,7 @@ smoke-agent-live:
 
 # Build MCP images.
 compose-build:
-    {{compose}} build media-mcp mcp-gateway mcp-gateway-seed
+    {{compose}} build media-mcp chart-mcp mcp-gateway mcp-gateway-seed
 
 # Build and start RustFS, Postgres, media-mcp, mcp-gateway, and the managed Cloudflare tunnel.
 compose-up:

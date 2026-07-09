@@ -78,13 +78,13 @@ pub use gateway::{
     PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
     PolicyTarget, PolicyVersion, Principal, PrincipalAssurance, PrincipalAuditAttributes,
     PrincipalId, PrincipalKind, ProfileServerExposure, PromptName, ProtectedResourceId,
-    ResourceAuthorizationServer, ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix,
-    ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
-    SecretReference, SecretReferenceId, SecretSource, ServerManifest, ServerSlug, TaskExposure,
-    TaskIdProjection, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId,
-    UpstreamEndpoint, UpstreamTaskId, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
-    VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID, VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME,
-    is_gateway_compatibility_helper_id,
+    ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme, ResourceSelector,
+    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
+    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
+    ServerSlug, TaskExposure, TaskIdProjection, TenantDefinition, TenantId, TokenIssuer,
+    TokenSubject, TraceId, UpstreamEndpoint, UpstreamTaskId, UpstreamTransport,
+    UpstreamTransportSecurity, UpstreamUrl, VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID,
+    VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME, is_gateway_compatibility_helper_id,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{

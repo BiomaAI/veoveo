@@ -133,6 +133,10 @@ impl GatewayControlPlane {
                     server.uri_scheme.clone(),
                 ));
             }
+            if server.resource_projection == ResourceProjectionMode::ServerOwned {
+                resource_schemes
+                    .insert(ResourceScheme::new("ui").expect("ui is a valid resource scheme"));
+            }
             validate_server_compatibility_helpers(server)?;
             validate_server_upstream(server)?;
         }

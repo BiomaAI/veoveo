@@ -115,6 +115,7 @@ fn media_manifest() -> ServerManifest {
             tasks: true,
             notifications: true,
         },
+        resource_projection: ResourceProjectionMode::Identity,
         tools: vec![LocalToolName::new("run").unwrap()],
         compatibility_helpers: Vec::new(),
         prompts: vec![PromptName::new("model_help").unwrap()],
@@ -748,6 +749,85 @@ fn control_plane_rejects_profile_resource_scheme_mismatch() {
     let err = config
         .validate()
         .expect_err("profile resource selector must stay server-scoped");
+
+    assert!(matches!(
+        err,
+        GatewayControlPlaneError::ProfileResourceSelectorMismatch { .. }
+    ));
+}
+
+#[test]
+fn control_plane_accepts_server_owned_projected_ui_resources() {
+    let mut chart_server = media_manifest();
+    chart_server.slug = ServerSlug::new("charts").unwrap();
+    chart_server.uri_scheme = ResourceScheme::new("charts").unwrap();
+    chart_server.resource_projection = ResourceProjectionMode::ServerOwned;
+
+    let mut profile = default_profile();
+    profile.servers[0].server = ServerSlug::new("charts").unwrap();
+    profile.servers[0].tools = Exposure::None;
+    profile.servers[0].resources = Exposure::Listed(vec![ResourceSelector::UriPrefix {
+        prefix: ResourceUriPrefix::new("ui://charts/").unwrap(),
+    }]);
+
+    let mut policy = default_policy();
+    policy.rules[0].actions = BTreeSet::from([GatewayAction::ResourcesRead]);
+    policy.rules[0].servers = BTreeSet::from([ServerSlug::new("charts").unwrap()]);
+    policy.rules[0].tools.clear();
+    policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("ui").unwrap()]);
+
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![chart_server],
+        profiles: vec![profile],
+        tenants: default_tenants(),
+        policies: vec![policy],
+        data_labels: default_data_labels(),
+        oauth_clients: default_oauth_clients(),
+        oidc_clients: default_oidc_clients(),
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+
+    config
+        .validate()
+        .expect("server-owned projected UI resources must validate");
+}
+
+#[test]
+fn control_plane_rejects_projected_ui_resources_for_other_server_slug() {
+    let mut chart_server = media_manifest();
+    chart_server.slug = ServerSlug::new("charts").unwrap();
+    chart_server.uri_scheme = ResourceScheme::new("charts").unwrap();
+    chart_server.resource_projection = ResourceProjectionMode::ServerOwned;
+
+    let mut profile = default_profile();
+    profile.servers[0].server = ServerSlug::new("charts").unwrap();
+    profile.servers[0].resources = Exposure::Listed(vec![ResourceSelector::UriPrefix {
+        prefix: ResourceUriPrefix::new("ui://other/").unwrap(),
+    }]);
+
+    let mut policy = default_policy();
+    policy.rules[0].servers = BTreeSet::from([ServerSlug::new("charts").unwrap()]);
+
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![chart_server],
+        profiles: vec![profile],
+        tenants: default_tenants(),
+        policies: vec![policy],
+        data_labels: default_data_labels(),
+        oauth_clients: default_oauth_clients(),
+        oidc_clients: default_oidc_clients(),
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+
+    let err = config
+        .validate()
+        .expect_err("projected UI resource prefix must belong to the server slug");
 
     assert!(matches!(
         err,
