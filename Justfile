@@ -343,16 +343,22 @@ e2e public_base_url output_dir='output/e2e':
 
 # Test the showcase SUMO MCP server (fake driver, no SUMO needed).
 test-sumo-mcp:
-    bash showcase/sumo-mcp/scripts/test.sh
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkg=showcase/sumo/mcp
+    venv="${SUMO_MCP_VENV:-/tmp/veoveo-sumo-venv}"
+    [ -x "$venv/bin/python3" ] || uv venv "$venv" --python 3.11 >&2
+    uv pip install --python "$venv/bin/python3" -e "$pkg[dev]" >&2
+    "$venv/bin/python3" -m pytest "$pkg" -q
 
 # S0 push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 smoke-sumo-push:
-    bash showcase/sumo-mcp/scripts/sumo_push_smoke.sh
+    bash showcase/sumo/mcp/scripts/sumo_push_smoke.sh
 
 # Bring up the full SUMO showcase (SUMO + sumo-mcp + hub).
 showcase-up:
-    docker compose -f compose.yaml -f showcase/compose.showcase.yaml --profile hub --profile showcase up --build
+    docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml --profile hub --profile showcase up --build
 
 # Live capstone: full SUMO showcase up, world durable in hub, MCP driven e2e.
 showcase-capstone:
-    bash showcase/scripts/showcase_capstone.sh
+    bash showcase/sumo/scripts/showcase_capstone.sh

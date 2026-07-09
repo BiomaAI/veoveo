@@ -8,9 +8,9 @@
 # hub, and a real MCP client over streamable HTTP.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
-COMPOSE=(docker compose -f compose.yaml -f showcase/compose.showcase.yaml --profile hub --profile showcase)
+COMPOSE=(docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml --profile hub --profile showcase)
 PYBIN="${CAPSTONE_PYTHON:-/tmp/veoveo-sumo-venv/bin/python}"
 
 cleanup() { echo "==> tearing down"; "${COMPOSE[@]}" down -v >/dev/null 2>&1 || true; }
@@ -60,6 +60,6 @@ ROWS=$(echo "$Q" | "$PYBIN" -c "import sys,json;print(json.load(sys.stdin)['rows
 echo "OK  hub captured $ROWS rows of the live SUMO world ($REC) under /world/sumo/**"
 
 echo "==> driving the served MCP endpoint end to end"
-SUMO_MCP_URL="http://127.0.0.1:8795/mcp" "$PYBIN" showcase/scripts/capstone_client.py
+SUMO_MCP_URL="http://127.0.0.1:8795/mcp" "$PYBIN" showcase/sumo/scripts/capstone_client.py
 
 echo "showcase capstone ok"

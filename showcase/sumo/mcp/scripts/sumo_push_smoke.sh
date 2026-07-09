@@ -4,7 +4,7 @@
 # recording back. Proves SUMO is just another hub producer — no pull.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
 
 PORT="${HUB_PROXY_PORT:-9935}"
@@ -17,7 +17,7 @@ trap cleanup EXIT
 
 echo "==> ensure python env with rerun SDK"
 if [ ! -x "$VENV/bin/python3" ]; then uv venv "$VENV" --python 3.11 >&2; fi
-uv pip install --python "$VENV/bin/python3" -e "showcase/sumo-mcp[rerun,dev]" >/tmp/sumo_push_env.log 2>&1 \
+uv pip install --python "$VENV/bin/python3" -e "showcase/sumo/mcp[rerun,dev]" >/tmp/sumo_push_env.log 2>&1 \
   || { echo "env install failed"; tail -15 /tmp/sumo_push_env.log; exit 1; }
 
 echo "==> build hub spooler + query"
