@@ -1,0 +1,762 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Veoveo Whitepaper — Print</title>
+<style>
+  @page { size: letter; margin: 0; }
+  :root {
+    --ink: #17212B;
+    --muted: #4A5560;
+    --faint: #8494A1;
+    --line: #D8DEE4;
+    --accent: #B87514;
+    --accent-bright: #E2A14E;
+    --wash: #F4F6F8;
+    --dark: #0E141B;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --body: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #fff; font-family: var(--body); color: var(--ink); }
+
+  .page {
+    width: 8.5in; height: 11in;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    padding: 0.8in 0.85in 1.0in;
+    background: #fff;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* running header / footer */
+  .runhead {
+    position: absolute; top: 0.32in; right: 0.85in;
+    font-family: var(--mono); font-size: 6.5px; letter-spacing: 0.14em;
+    color: var(--faint); text-transform: uppercase;
+  }
+  .foot {
+    position: absolute; bottom: 0.42in; left: 0.85in; right: 0.85in;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .foot .wordmark { font-family: var(--body); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--ink); }
+  .foot .wordmark::after { content: "."; color: var(--accent); }
+  .foot .pageno { font-family: var(--mono); font-size: 8px; color: var(--faint); position: absolute; left: 50%; transform: translateX(-50%); }
+  .foot .mark { width: 14px; height: 14px; opacity: 0.75; }
+  .foot .mark svg { display: block; }
+
+  /* headings */
+  h1.section {
+    font-size: 30px; font-weight: 700; letter-spacing: -0.015em;
+    padding-bottom: 12px; border-bottom: 3px solid var(--ink); margin-bottom: 18px;
+  }
+  h2.sub {
+    font-size: 21px; font-weight: 700; letter-spacing: -0.01em;
+    padding-bottom: 9px; border-bottom: 2.5px solid var(--ink);
+    margin: 26px 0 14px;
+  }
+  h3.minor { font-size: 12.5px; font-weight: 700; margin: 16px 0 8px; }
+
+  p.body { font-size: 10.5px; line-height: 1.62; color: var(--ink); margin-bottom: 10px; }
+  p.body b { font-weight: 700; }
+  .bullets { list-style: none; margin: 4px 0 12px; }
+  .bullets li {
+    font-size: 10.5px; line-height: 1.58; color: var(--ink);
+    padding-left: 14px; position: relative; margin-bottom: 7px;
+  }
+  .bullets li::before { content: "•"; position: absolute; left: 2px; color: var(--ink); }
+  .bullets li b { font-weight: 700; }
+  code { font-family: var(--mono); font-size: 9px; color: var(--ink); }
+
+  /* stat trio */
+  .stats { display: flex; margin: 22px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .stats .stat { flex: 1; text-align: center; padding: 20px 8px 16px; }
+  .stats .stat + .stat { border-left: 1px solid var(--line); }
+  .stats .stat b { display: block; font-size: 40px; font-weight: 300; letter-spacing: -0.02em; color: var(--ink); font-family: var(--body); }
+  .stats .stat span { display: block; margin-top: 6px; font-size: 9.5px; color: var(--muted); }
+
+  /* callout */
+  .callout {
+    background: var(--wash); border-left: 3.5px solid var(--accent);
+    padding: 13px 16px 14px; margin: 16px 0;
+  }
+  .callout .label { font-family: var(--mono); font-size: 8px; letter-spacing: 0.14em; color: var(--muted); margin-bottom: 6px; }
+  .callout p { font-size: 10.5px; line-height: 1.6; color: var(--ink); }
+
+  /* tables */
+  table.data { width: 100%; border-collapse: collapse; margin: 12px 0 16px; }
+  table.data thead td {
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.1em; color: var(--muted);
+    padding: 7px 10px 7px 0; border-bottom: 2px solid var(--ink);
+  }
+  table.data tbody td {
+    font-size: 9.5px; line-height: 1.5; color: var(--muted);
+    padding: 8px 10px 8px 0; vertical-align: top; border-bottom: 1px solid var(--line);
+  }
+  table.data tbody tr:nth-child(even) { background: var(--wash); }
+  table.data tbody td:first-child { font-weight: 700; color: var(--ink); white-space: nowrap; padding-left: 2px; }
+  table.data tbody td.mono, table.data tbody td:first-child.mono { font-family: var(--mono); font-size: 8.5px; font-weight: 600; }
+  table.data.tight tbody td { padding: 5.5px 8px 5.5px 0; font-size: 9px; line-height: 1.45; }
+  table.data.tight tbody td.mono { font-size: 8px; }
+
+  /* figures */
+  figure.art { margin: 14px 0 18px; }
+  figure.art img { width: 100%; display: block; border: 1px solid var(--line); }
+  figure.art figcaption {
+    font-family: var(--mono); font-size: 7.5px; letter-spacing: 0.08em;
+    color: var(--faint); margin-top: 7px; text-transform: uppercase;
+  }
+  figure.diagram { margin: 14px 0 18px; padding: 14px 12px; border: 1px solid var(--line); background: #fff; }
+  figure.diagram img { max-width: 100%; margin: 0 auto; display: block; }
+  figure.diagram figcaption {
+    font-family: var(--mono); font-size: 7.5px; letter-spacing: 0.08em;
+    color: var(--faint); margin-top: 10px; text-transform: uppercase; text-align: center;
+    border-top: 1px dashed var(--line); padding-top: 8px;
+  }
+  figure.diagram figcaption b { color: var(--accent); }
+
+  .twocol { display: flex; gap: 24px; }
+  .twocol > div { flex: 1; min-width: 0; }
+
+  /* ---------- cover ---------- */
+  .cover { background: var(--dark); color: #E7EDF2; padding: 0; }
+  .cover .cover-art {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    opacity: 0.9;
+  }
+  .cover .cover-veil {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(14,20,27,0.55) 0%, rgba(14,20,27,0.1) 38%, rgba(14,20,27,0.86) 74%, rgba(14,20,27,0.97) 100%);
+  }
+  .cover .brand {
+    position: absolute; top: 0.55in; left: 0.7in;
+    font-size: 26px; font-weight: 700; letter-spacing: -0.01em; color: #fff;
+  }
+  .cover .brand::after { content: "."; color: var(--accent-bright); }
+  .cover .confid {
+    position: absolute; top: 0.6in; right: 0.7in;
+    font-family: var(--mono); font-size: 6.5px; letter-spacing: 0.16em; color: #8C9AA6;
+    text-transform: uppercase;
+  }
+  .cover .titleblock { position: absolute; left: 0.7in; right: 0.9in; bottom: 2.2in; }
+  .cover .eyebrow {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em;
+    color: var(--accent-bright); margin-bottom: 18px;
+  }
+  .cover h1 { font-size: 58px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.04; color: #fff; }
+  .cover .subtitle { margin-top: 18px; font-size: 13.5px; line-height: 1.5; color: #B9C4CD; max-width: 6.4in; }
+  .cover .subtitle b { color: #E7EDF2; }
+
+  /* ---------- toc ---------- */
+  table.toc { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  table.toc thead td {
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.1em; color: var(--muted);
+    padding: 8px 10px; border-bottom: 2.5px solid var(--ink);
+  }
+  table.toc tbody td { font-size: 10.5px; font-weight: 600; color: var(--ink); padding: 9px 10px; }
+  table.toc tbody tr:nth-child(even) { background: var(--wash); }
+  table.toc tbody td:first-child { width: 40px; font-weight: 400; color: var(--muted); }
+
+  /* ---------- whitepaper additions ---------- */
+  .abstract {
+    border-top: 3px solid var(--ink); border-bottom: 1px solid var(--line);
+    padding: 18px 0 16px; margin: 10px 0 18px;
+  }
+  .abstract .ab-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; }
+  .abstract p { font-size: 11px; line-height: 1.7; color: var(--ink); }
+  .keywords { font-size: 9px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.04em; margin-top: 14px; }
+  .keywords b { color: var(--ink); font-weight: 600; letter-spacing: 0.1em; }
+  ol.contribs { margin: 8px 0 12px; padding-left: 0; list-style: none; counter-reset: contrib; }
+  ol.contribs li {
+    counter-increment: contrib; position: relative;
+    padding: 12px 14px 12px 52px; margin-bottom: 10px;
+    background: var(--wash); border-left: 3px solid var(--accent);
+    font-size: 10.5px; line-height: 1.6;
+  }
+  ol.contribs li::before {
+    content: counter(contrib);
+    position: absolute; left: 16px; top: 10px;
+    font-family: var(--body); font-size: 22px; font-weight: 300; color: var(--accent);
+  }
+  ol.contribs li b { font-weight: 700; }
+  .verline { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em; color: #8C9AA6; text-transform: uppercase; margin-top: 14px; }
+</style>
+</head>
+
+<!-- COVER -->
+<div class="page cover">
+  <div class="cover-art" style="background-image:url('images/cover.png')"></div>
+  <div class="cover-veil"></div>
+  <div class="brand">veoveo</div>
+  <div class="confid">Self-Hosted Autonomy Platform</div>
+  <div class="titleblock">
+    <div class="eyebrow">[TECHNICAL WHITEPAPER]</div>
+    <h1>Autonomy<br>Harness</h1>
+    <p class="subtitle">A reactive and proactive cognition stack: autonomous agents that run live
+       operations — on infrastructure you own.</p>
+    <div class="verline">Version 1.0 · July 2026</div>
+  </div>
+</div>
+
+
+<!-- ABSTRACT -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">Abstract</h1>
+  <div class="abstract">
+    <p>
+      Persistent autonomy in contested and disconnected operations imposes three requirements that
+      current agent architectures rarely meet together: cognition that outlives any context window,
+      governance that holds even when the model is wrong, and evidence that an independent reviewer
+      can replay. This paper presents the <b>Autonomy Harness</b>, a self-hosted cognition stack
+      that meets all three on infrastructure the operator owns. Agent context is a
+      <b>world model</b> — everything the operation senses, remembers, and decides, fused into one
+      durable, queryable model of reality — from which every reasoning episode assembles a fresh
+      slice. Enforcement lives outside the agent's reasoning: every action clears one authenticated
+      gateway and answers to installation policy, refused by default and audited always.
+      Long-running work executes as durable tasks with declared recovery semantics that survive
+      process death, and every signal the operation produces is persisted before anything else
+      touches it — losslessly, at approximately 225,000 messages per second. A live traffic-world
+      case study closes the perceive–decide–act loop end to end, and the same platform deploys
+      unchanged from a single edge host to an air-gapped cluster.
+    </p>
+    <p class="keywords"><b>KEYWORDS</b> &nbsp; autonomous agents · world model · runtime governance ·
+      durable execution · persist-first recording · edge and air-gap deployment · MCP</p>
+  </div>
+  <div class="callout">
+    <div class="label">[READING GUIDE]</div>
+    <p>Sections 1–2 state the problem and the contributions. Sections 3–9 develop the
+       architecture: the system model, the world model, the agent kernel, governance, the
+       capability plane, durable work, and the record. Section 10 validates the loop on a live
+       traffic world; Sections 11–12 cover deployment and conclusions. Appendix A defines every
+       component.</p>
+  </div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">2</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- TOC -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">Contents</h1>
+  <table class="toc">
+    <thead><tr><td>#</td><td>Section</td></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Introduction</td></tr>
+      <tr><td>2</td><td>Contributions</td></tr>
+      <tr><td>3</td><td>System Model</td></tr>
+      <tr><td>4</td><td>The World Model</td></tr>
+      <tr><td>5</td><td>The Agent Kernel</td></tr>
+      <tr><td>6</td><td>Governance: Edge, Access, and the Gateway</td></tr>
+      <tr><td>7</td><td>The Capability Plane</td></tr>
+      <tr><td>8</td><td>Durable Work and Shared Planes</td></tr>
+      <tr><td>9</td><td>The Record</td></tr>
+      <tr><td>10</td><td>Empirical Validation</td></tr>
+      <tr><td>11</td><td>Deployment Considerations</td></tr>
+      <tr><td>12</td><td>Conclusion</td></tr>
+      <tr><td>A</td><td>Appendix: Component Reference</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">3</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 1. INTRODUCTION -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">1. Introduction</h1>
+  <p class="body">
+    Autonomous systems are leaving the laboratory and entering operations: traffic networks,
+    sensor deployments, logistics, field robotics. The intelligence available to run them — large
+    language models and other general reasoners — is powerful, but three properties of real
+    operations expose the gap between a capable model and a deployable autonomous system.
+  </p>
+  <p class="body">
+    <b>Operations outlast context windows.</b> A mission runs for days or weeks; a model's context
+    holds one conversation. An agent whose knowledge lives in its context forgets its mission at
+    every restart, every upgrade, and every machine failure. Persistent autonomy requires memory
+    that is architectural, not conversational.
+  </p>
+  <p class="body">
+    <b>Models cannot be their own governors.</b> A reasoner can hallucinate, drift over a long
+    mission, or absorb hostile instructions from the environment it observes. Any property that
+    must hold — who may act, on which data, within which bounds — has to be enforced outside the
+    model's own reasoning, and every enforcement decision has to leave evidence.
+  </p>
+  <p class="body">
+    <b>Operations cannot depend on someone else's cloud.</b> The environments that most need
+    autonomy — contested, disconnected, regulated — are precisely the ones where a vendor control
+    plane, a required hosted service, or a mandatory network link is a liability. The platform
+    must deploy where the operation is, including behind an air gap, and be owned entirely by its
+    operator.
+  </p>
+  <p class="body">
+    The Autonomy Harness is a cognition stack built for these constraints. Its thesis: give
+    agents a <b>world model</b> instead of a chat history, govern them from <b>outside their own
+    reasoning</b>, make every piece of long-running work <b>durable with declared recovery</b>,
+    persist <b>every signal before anything else touches it</b>, and package the whole stack so
+    that one operator can run it anywhere. The remainder of this paper develops each of these
+    commitments and validates them on a live traffic world.
+  </p>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">4</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 2. CONTRIBUTIONS -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">2. Contributions</h1>
+  <p class="body">
+    The Autonomy Harness makes six architectural contributions. Each is developed in the section
+    noted and exercised end to end by the validation in Section 10.
+  </p>
+  <ol class="contribs">
+    <li><b>The world model as agent context (§4).</b> Everything the operation senses, remembers,
+        and decides fuses into one durable, queryable model of reality. Every reasoning episode
+        assembles a fresh slice of it, so an agent's knowledge survives any restart and outlives
+        any context window.</li>
+    <li><b>Cognition governed from outside the model (§6).</b> Every action clears one
+        authenticated gateway and answers to installation policy — refused by default when in
+        doubt. A model can be wrong, drift, or swallow hostile instructions and still cannot act
+        beyond the envelope; even refusals leave evidence.</li>
+    <li><b>Persist-first recording (§9).</b> The ingest socket and the durable writer are one
+        process: every message is written before anything else happens to it. Live files stay
+        readable mid-write, segments are verified before replacement, and capture is lossless at
+        approximately 225,000 messages per second.</li>
+    <li><b>Durable tasks with declared recovery semantics (§8).</b> Long work detaches from the
+        episode that started it and survives process death. Every operation declares its recovery
+        class — resumable, webhook-bound, or fail-closed — and completion wakes the sleeping agent
+        within a second.</li>
+    <li><b>A modular capability plane under one contract (§7).</b> Nine capability modules run at
+        the edge today; any MCP server — local, bridged, or remote — registers in a validated
+        catalog, applies live, and immediately answers to the same task, artifact, and policy
+        contract.</li>
+    <li><b>Deployment-invariant cognition (§11).</b> The same platform, the same agents, and the
+        same operational intelligence run on one edge host, across a cluster, sealed inside an air
+        gap, or hybrid — with provenance included and connectivity on the operator's terms.</li>
+  </ol>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">5</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 3. SYSTEM MODEL -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">3. System Model</h1>
+  <p class="body">
+    The system closes one loop. The <b>world</b> — sensors, simulators, and the agents themselves
+    — streams into the <b>record</b>; agents perceive from it, decide, and act through
+    <b>governed tools</b>; their effects land back in the world; and every step deposits
+    <b>evidence</b>. Three flows share this spine. <b>Observe</b>: producers push into the
+    recording hub, and agents query the record back out through governed tools. <b>Act</b>:
+    agents and operators call tools through the gateway; long work becomes a durable task whose
+    completion wakes the sleeping agent. <b>Account</b>: every authentication decision, tool
+    call, task transition, artifact grant, and agent step lands in the platform store and the
+    decision log.
+  </p>
+  <figure class="art" style="text-align:center">
+    <img src="images/exec-overview.png" alt="" style="width:auto;max-height:2.7in;margin:0 auto">
+    <figcaption style="text-align:left">Figure 1 — The autonomy loop: the world is recorded, agents perceive and act through governed tools, effects land back in the world, and every step leaves evidence.</figcaption>
+  </figure>
+  <table class="data">
+    <thead><tr><td>Flow</td><td>Path</td><td>Guarantee</td></tr></thead>
+    <tbody>
+      <tr><td>Observe</td><td>Producers push typed streams to one ingest point; segments become governed catalog records; agents read slices through the recording module.</td><td>The hub persists first; a crash mid-write leaves readable files.</td></tr>
+      <tr><td>Act</td><td>Every tool call enters through the gateway under one flat namespace; quick tools answer inline; long tools return a durable task handle immediately.</td><td>Task completion pushes a wake; the next episode assembles with the result.</td></tr>
+      <tr><td>Account</td><td>Auth, policy, admin, and task transitions write audit evidence; every decision records what the agent saw, chose, and why.</td><td>Usage records meter provider spend and tool activity per principal.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">6</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 4. WORLD MODEL -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">4. The World Model</h1>
+  <p class="body">
+    Agent context is a <b>world model</b>: everything the operation senses, remembers, and
+    decides, fused into one durable, queryable model of reality. Sensors and simulators stream
+    the physical world into the record; agents keep their beliefs, missions, and constraints in
+    analytical memory; every decision lands in the log — and each act an agent takes becomes part
+    of the model the next episode reasons from. Context is assembled fresh from the world model
+    every episode, so an agent's knowledge survives any restart and outlives any context window.
+  </p>
+  <figure class="art">
+    <img src="images/world-model.png" alt="">
+    <figcaption>Figure 2 — Sensors, memories, and decisions fuse into the world model; every episode's context is a fresh slice of it.</figcaption>
+  </figure>
+  <table class="data">
+    <thead><tr><td>Source</td><td>What it contributes</td><td>What agents draw</td></tr></thead>
+    <tbody>
+      <tr><td>Sensors &amp; sims</td><td>The physical world, streamed into the durable time-and-space record.</td><td>The world now (latest-at) · how it got here (trajectories and ranges).</td></tr>
+      <tr><td>Agent memory</td><td>Beliefs, missions, constraints, and state in each agent's analytical memory.</td><td>What the agent believes and intends — queryable with guarded SQL.</td></tr>
+      <tr><td>Decision log</td><td>Every turn, tool call, and rationale, time-indexed and replayable.</td><td>What happened and why — the model of the agents themselves.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">7</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 5. AGENT KERNEL -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">5. The Agent Kernel</h1>
+  <p class="body">
+    An agent runs indefinitely because durable stores are the memory: every episode's context is
+    assembled fresh from the world model, and everything in flight survives process death. The
+    kernel executes typed manifests — an agent type is a manifest, a preamble, and SQL
+    migrations — so fielding another agent is an act of configuration, and one installation runs
+    one agent or a team of them.
+  </p>
+  <figure class="art">
+    <img src="images/agent-loop.png" alt="" style="height:3.0in;object-fit:contain">
+    <figcaption>Figure 3 — The lifecycle: wake → assemble → episode → persist → sleep, grounded on the durable planes.</figcaption>
+  </figure>
+  <table class="data tight">
+    <thead><tr><td>Stage</td><td>What happens</td></tr></thead>
+    <tbody>
+      <tr><td>Wake</td><td>A batch of wakes, coalesced and deduped; every wake is persisted with its disposition, so the ledger explains why each episode ran.</td></tr>
+      <tr><td>Assemble</td><td>A fresh slice of the world model — current state, beliefs, and history — plus the wake payload, under a token budget.</td></tr>
+      <tr><td>Episode</td><td>One bounded reasoning run. Quick gateway tools answer inline; long tools dispatch as durable tasks. Hooks record every step and terminate over-budget runs.</td></tr>
+      <tr><td>Persist</td><td>Unresolved task descriptors land in the platform store; the episode closes with usage counters and a summary.</td></tr>
+      <tr><td>Sleep</td><td>Idle on the wake bus. A leased watcher per detached task waits on the result; the heartbeat bounds silence.</td></tr>
+    </tbody>
+  </table>
+  <p class="body" style="font-size:9.5px;color:var(--muted)">
+    Wakes: task result · resource change · timer · operator message · elicitation answer. A wake
+    survives process death — descriptors and watcher leases rehydrate from the platform store on
+    any boot, so kill and restart resumes the same tasks.
+  </p>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">8</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 5.1 -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h2 class="sub" style="margin-top:0">5.1 Memory Planes and Durability</h2>
+  <div class="twocol">
+    <div>
+      <h3 class="minor">Memory planes</h3>
+      <ul class="bullets">
+        <li><b>Scheduling truth.</b> The platform store owns episodes, wakes, task watchers, and
+            leases; the transactional outbox and changefeed deliver wakes across processes.</li>
+        <li><b>Analytical memory.</b> A sandboxed analytical database per agent: domain tables
+            (the Pilot: <code>targets</code>, <code>missions</code>, <code>waypoints</code>,
+            <code>constraints</code>, <code>beliefs</code>), a kv store, and an episode-log
+            projection for context assembly.</li>
+        <li><b>Decision log.</b> An append-only recording: every turn, tool call, task lifecycle,
+            prompt, and summary — time-indexed and watchable live.</li>
+        <li>The agent reads all three itself: <code>memory_query</code> (guarded SQL),
+            <code>memory_write</code> (typed mutations), and <code>timeline_query</code>
+            (dataframe reads over the log).</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="minor">Durability, measured</h3>
+      <ul class="bullets">
+        <li>Detach at episode end: a task's descriptor outlives the process; any later boot
+            rehydrates the live handle and keeps waiting.</li>
+        <li>Token rotation is make-before-break; task ids are principal-scoped, so continuity
+            holds across reconnects.</li>
+        <li>The wake is push, arithmetically: with polling pinned at 60&nbsp;s and the heartbeat
+            at 600&nbsp;s, a validation agent slept a task's full ~15&nbsp;s and woke within one
+            second of completion — verified live with a real model end to end.</li>
+        <li>Budget hooks book overruns as <code>budget_terminated</code>, a first-class outcome;
+            hourly windows defer non-priority wakes.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <div class="label">[PRINCIPLE]</div>
+    <p>Agents are data. A typed manifest — model endpoint, gateway principal, episode limits,
+       budgets, schedule, context sections, writable tables — is validated fail-closed at boot.
+       A preamble and domain migrations complete the profile; cross-episode instructions live
+       there or in memory.</p>
+  </div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">9</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 6. GOVERNANCE -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">6. Governance: Edge, Access, and the Gateway</h1>
+  <p class="body">
+    Every client enters through the installation's own ingress, and every action runs the same
+    gauntlet: authenticate, then policy, then audit. Enforcement lives outside the agent's own
+    reasoning — a model can be wrong, drift, or swallow hostile instructions and still cannot act
+    beyond the envelope the operator set. The only path onward carries a gateway-signed identity,
+    and every edge module lives on the internal network behind it.
+  </p>
+  <figure class="art">
+    <img src="images/gateway-gauntlet.png" alt="">
+    <figcaption>Figure 4 — One door in, authenticate → policy → audit, refused by default, signed identity onward, evidence kept.</figcaption>
+  </figure>
+  <table class="data tight">
+    <thead><tr><td>Function</td><td>Behavior</td></tr></thead>
+    <tbody>
+      <tr><td>Authentication</td><td>Browser OAuth with PKCE, client credentials with private-key JWT, identity-assertion grant exchange, JWKS, token issuance and revocation, durable refresh rotation — reuse revokes the family.</td></tr>
+      <tr><td>Policy &amp; audit</td><td>Typed attribute- and role-based policy over tools, resources, tasks, and artifacts; tenant and data-label checks for regulated data; fail-closed decisions with reason codes; a durable audit trail.</td></tr>
+      <tr><td>Control plane</td><td>Validated module / profile / policy catalog, authenticated live apply and reload, secret references with redaction, an admin API for the console, and policy-checked, audited artifact downloads.</td></tr>
+      <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, artifacts, and usage — forwarded and aggregated under one flat tool namespace.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">10</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 7. CAPABILITY PLANE -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">7. The Capability Plane</h1>
+  <p class="body">
+    Capability is modular. Nine modules run at the edge today, inside the installation, behind
+    gateway-signed identity — and the surface is open: a new capability, whether another edge
+    server, a stdio server carried by the bridge, or a remote MCP endpoint, registers in the
+    validated catalog, applies live, and immediately answers to the same tasks, artifacts, and
+    policy contract. The gateway projects every module into one flat tool menu.
+  </p>
+  <figure class="art" style="text-align:center">
+    <img src="images/capability-map.png" alt="" style="width:auto;max-height:2.5in;margin:0 auto">
+    <figcaption style="text-align:left">Figure 5 — Edge and remote capability modules; one contract governs all, and the next slot is open.</figcaption>
+  </figure>
+  <table class="data tight">
+    <thead><tr><td>Module</td><td>Capability</td><td>Tools</td></tr></thead>
+    <tbody>
+      <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
+      <tr><td>Geodesy<br><code>coordinates</code></td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
+      <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
+      <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
+      <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as recordings.</td><td class="mono">forecast</td></tr>
+      <tr><td>Sharing<br><code>artifact</code></td><td>Discovery, metadata, grants, release, and sharing — the governance surface over the byte store.</td><td class="mono">metadata · grant_access · revoke_access · set_release_state · create_share_link · revoke_share_link</td></tr>
+      <tr><td>Recordings<br><code>recording</code></td><td>Authorized access to the record: discovery, dataframe queries, subscriptions, publication.</td><td class="mono">query_recording · seal_recording</td></tr>
+      <tr><td>Charts<br><code>charts</code></td><td>Chart rendering projected through the gateway, turning query results into shareable visuals.</td><td class="mono">render_chart · compile_chart · validate_chart · list_chart_types · create_chart_view</td></tr>
+      <tr><td>Viewer<br><code>rerun</code></td><td>A live viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 8. DURABLE WORK -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">8. Durable Work and Shared Planes</h1>
+  <h3 class="minor">Durable tasks</h3>
+  <p class="body">
+    Every long-running tool runs on the shared task runtime. Task identities are time-ordered;
+    creation, leases, transitions, results, and outbox events are atomic in the platform store.
+    Recovery is declared per operation, so an interruption always has defined, recorded
+    semantics:
+  </p>
+  <table class="data">
+    <thead><tr><td>Class</td><td>Meaning</td></tr></thead>
+    <tbody>
+      <tr><td class="mono">resume</td><td>Deterministic, side-effect-safe work may be reclaimed after its lease expires.</td></tr>
+      <tr><td class="mono">webhook_wait</td><td>A durably submitted provider job waits for its signed webhook. Completion is webhook-only.</td></tr>
+      <tr><td class="mono">interrupted_indeterminate</td><td>Interrupted mutating work fails closed and is never replayed automatically.</td></tr>
+    </tbody>
+  </table>
+  <h3 class="minor">Shared planes</h3>
+  <ul class="bullets">
+    <li><b>Platform store.</b> One durable coordination authority for identity, policy,
+        control-plane revisions, tasks, artifacts, recordings, agents, wakes, audit evidence, and
+        usage. The transactional outbox and replayable changefeed carry all cross-process work.</li>
+    <li><b>Artifact plane.</b> A single byte-level policy-enforcement point: object storage for
+        bytes, the platform store for grants, labels, and release state. Fresh opaque identity per
+        occurrence; hashes provide integrity and tenant-local dedup; artifact references let one
+        module consume another's output.</li>
+    <li><b>Contract core.</b> The typed, provider-neutral contract every module shares, validated
+        fail-closed at startup: strong identities, deployment profiles, shared task and artifact
+        schemas, and gateway-signed identity assertions — modules hold public verification keys
+        only.</li>
+  </ul>
+  <div class="callout">
+    <div class="label">[PRINCIPLE]</div>
+    <p>Two sharing modes, both explicit: authorized grants to users or groups, still constrained
+       by tenant and label policy; and read-only anyone-with-link bearers for artifacts explicitly
+       marked releasable — expiring, download-limited, and revocable.</p>
+  </div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 9. THE RECORD -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">9. The Record</h1>
+  <p class="body">
+    Every sensor, estimator, and agent streams into one ingest point, and the hub persists first:
+    each message is written — fsynced — to day-partitioned segment files the moment it arrives.
+    Live files stay readable mid-write, so a crash leaves a decodable record, and every segment
+    is verified before its optimized replacement when it freezes. Every recording and segment
+    becomes a governed record in the platform store, and the recordings module answers authorized
+    queries over the same bytes. The record is simultaneously the agents' ground truth and the
+    operation's evidence chain: any run replays, any moment is queryable, and when someone asks
+    why the system acted, the record answers.
+  </p>
+  <figure class="art">
+    <img src="images/capture-pipeline.png" alt="">
+    <figcaption>Figure 6 — Durable capture: a crash leaves a readable record · a restart never overwrites · ~225k msgs/s lossless.</figcaption>
+  </figure>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 10. VALIDATION -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">10. Empirical Validation</h1>
+  <p class="body">
+    The claims above are exercised on a live traffic world. The SUMO microsimulator runs the
+    pinned, MIT-licensed LuST Luxembourg scenario in its own container; one <code>sumo-mcp</code>
+    module owns the single serialized control connection, pushes the world into the record as
+    typed streams, and exposes traffic control as governed tools. The long operations are durable
+    tasks the agent detaches from and wakes on — the same sleep/wake the kernel runs everywhere,
+    now driven by a real simulator.
+  </p>
+  <figure class="art">
+    <img src="images/sumo-loop.png" alt="">
+    <figcaption>Figure 7 — The closed loop on a live city: perceive from the record, decide, act on signals and routes.</figcaption>
+  </figure>
+  <table class="data tight">
+    <thead><tr><td>Surface</td><td>Detail</td></tr></thead>
+    <tbody>
+      <tr><td>Sync tools</td><td><code>query_state</code> · <code>describe_scenario</code> · <code>set_signal_phase</code> · <code>reroute_vehicle</code> · <code>set_edge_speed</code> · <code>close_lane</code> · <code>open_lane</code></td></tr>
+      <tr><td>Durable tasks</td><td><code>run_batch</code> (live sim — fails closed on interruption) · <code>generate_network</code> · <code>compute_routes</code> · <code>optimize_signals</code> (real SUMO programs, resumable)</td></tr>
+      <tr><td>Events</td><td><code>sumo://congestion</code> is subscribable — a jam forming is a wake the moment it happens.</td></tr>
+      <tr><td>Outputs</td><td>Successful task outputs upload through a task-bound write capability to the shared artifact plane.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 10.1 -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h2 class="sub" style="margin-top:0">10.1 The Loop, Measured</h2>
+  <p class="body">
+    The exact detach → sleep → wake path: the agent calls a task-augmented tool, receives a
+    durable handle immediately, persists the descriptor, ends the episode, and sleeps. The module
+    runs on; completion pushes a wake, and a fresh episode assembles with the result.
+  </p>
+  <figure class="art">
+    <img src="images/task-sleepwake.png" alt="" style="height:2.7in;object-fit:contain">
+    <figcaption>Figure 8 — Detach → sleep → wake: zero connections held, zero episodes burned waiting.</figcaption>
+  </figure>
+  <table class="data">
+    <thead><tr><td>Property</td><td>Measured behavior</td></tr></thead>
+    <tbody>
+      <tr><td>Capture throughput</td><td>~225,000 messages per second, lossless, on the persist-first path.</td></tr>
+      <tr><td>Crash recovery</td><td>kill -9 mid-write leaves a decodable segment; restart writes a sibling and never overwrites; startup reconciles leftovers into catalog records.</td></tr>
+      <tr><td>Wake latency</td><td>With polling pinned at 60 s and the heartbeat at 600 s, the agent slept a ~15 s task in full and woke within one second of completion — push, arithmetically.</td></tr>
+      <tr><td>Process death</td><td>Task descriptors and watcher leases rehydrate on any boot; kill and restart resumes the same tasks with memory intact.</td></tr>
+    </tbody>
+  </table>
+  <h3 class="minor">Methodology</h3>
+  <ul class="bullets">
+    <li><b>Smoke harness.</b> End-to-end scenarios with real process orchestration: fake identity
+        provider, provider, and upstream services; a real enterprise IdP realm; live agent
+        sleep/wake; and the full traffic world in a disposable project.</li>
+    <li><b>Conformance.</b> A generic MCP client exercises the full protocol surface, plus
+        auth-metadata discovery and token tooling; continuous integration runs the full suite,
+        the console build, the IdP integration path, and the deployment contract checks on every
+        change.</li>
+  </ul>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 11. DEPLOYMENT -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">11. Deployment Considerations</h1>
+  <p class="body">
+    Deployment is a spectrum, and cognition is constant across it. The same platform runs at the
+    operation's edge on one host, across a cluster, sealed inside an air gap, or hybrid — an edge
+    installation that reaches remote capability when links allow. Wherever it lands, it carries
+    the full stack: one agent or a team of them, every capability module, and the operational
+    intelligence to run the mission — the console, the record, and the audit trail.
+  </p>
+  <figure class="art" style="text-align:center">
+    <img src="images/deployment-map.png" alt="" style="width:auto;max-height:2.7in;margin:0 auto">
+    <figcaption style="text-align:left">Figure 9 — Same platform, same cognition — edge, cluster, air-gap, or hybrid; only hybrid reaches out, and on the operator's terms.</figcaption>
+  </figure>
+  <table class="data tight">
+    <thead><tr><td>Form</td><td>Shape</td></tr></thead>
+    <tbody>
+      <tr><td>Edge</td><td>One host at the operation: a single command brings up the full stack behind a loopback edge. Public exposure is the operator's ingress decision.</td></tr>
+      <tr><td>Cluster</td><td>The Helm form: one platform-store StatefulSet, default-deny network policy, optional service-mesh mTLS, separate migration and runtime credentials, operator-supplied telemetry and SIEM wiring.</td></tr>
+      <tr><td>Air-gap</td><td>The verified offline bundle: pinned images, installation material, configuration schemas, checksums, and SBOMs. Installation and verification complete entirely inside the boundary.</td></tr>
+      <tr><td>Hybrid</td><td>An edge installation that registers remote MCP endpoints and provider-backed modules. The reach is governed like everything else — same policy, same audit, same task contract.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- 12. CONCLUSION -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">12. Conclusion</h1>
+  <p class="body">
+    The Autonomy Harness closes the loop that persistent autonomy requires. Agents reason from a
+    world model that outlives every context window; they act through a gateway that enforces the
+    operator's policy outside the model's own reasoning; their long work is durable, with recovery
+    semantics declared per operation; and everything the operation senses and decides is persisted
+    first and preserved as evidence. A live traffic world exercises the whole loop — perceive,
+    decide, act, wake — and the same platform deploys unchanged from a single edge host to an
+    air-gapped cluster.
+  </p>
+  <p class="body">
+    The contracts are the foundation for what comes next: teams of agents coordinating over the
+    same world model, richer capability modules registered from the ecosystem, and fleet-level
+    guarantees expressed over mission outcomes. Each grows on the same spine this paper describes
+    — the world model, the envelope, the durable task, and the record.
+  </p>
+  <div class="callout">
+    <div class="label">[THESIS, RESTATED]</div>
+    <p>Give agents a world model instead of a chat history. Govern them from outside their own
+       reasoning. Make every piece of long work durable. Persist every signal first. And let one
+       operator own the whole thing, anywhere the mission runs.</p>
+  </div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">17</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+
+<!-- APPENDIX A -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
+  <h1 class="section">Appendix A: Component Reference</h1>
+  <table class="data tight">
+    <thead><tr><td>Component</td><td>Role</td><td>What it is</td></tr></thead>
+    <tbody>
+      <tr><td class="mono">ingress</td><td>ours</td><td>The single public door, owned by the operator. One place to defend and observe.</td></tr>
+      <tr><td class="mono">mcp-gateway</td><td>ours</td><td>The front desk for tools: authenticates the caller, checks policy, projects every module's tools into one flat menu, writes the audit trail.</td></tr>
+      <tr><td class="mono">console</td><td>ours</td><td>The cockpit: the operations UI plus a session backend that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
+      <tr><td class="mono">agent-kernel</td><td>ours</td><td>The runtime for long-lived agents: short episodes, durable memory, wake on a result, a timer, or a message.</td></tr>
+      <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: everything the operation senses, remembers, and decides, fused into one durable, queryable model of reality.</td></tr>
+      <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB — the platform's memory: identity, policy, tasks, artifacts, recordings, agents, audit, and the transactional outbox.</td></tr>
+      <tr><td class="mono">task runtime</td><td>ours</td><td>The ledger for long work: atomic leases, transitions, results, and declared recovery per operation.</td></tr>
+      <tr><td class="mono">ingest socket</td><td>OSS</td><td>Where every producer pushes: one gRPC endpoint (the Rerun proxy), rebroadcast live to anyone reading.</td></tr>
+      <tr><td class="mono">persist-first writer</td><td>ours</td><td>Embeds the ingest socket and fsyncs every message to disk before anything else — the write happens first.</td></tr>
+      <tr><td class="mono">.rrd segment</td><td>format</td><td>The record on disk: one growing file per dataset / day / recording, readable even mid-write.</td></tr>
+      <tr><td class="mono">catalog</td><td>ours</td><td>The card catalog: typed installation identity for every recording and segment; startup reconciles crash leftovers.</td></tr>
+      <tr><td class="mono">recordings module</td><td>ours</td><td>The reading room: authorized discovery, latest-at / range / dataframe queries, subscriptions, and sealing to an artifact.</td></tr>
+      <tr><td class="mono">SUMO / TraCI</td><td>OSS</td><td>The traffic simulator and its control socket — a live world producing positions and states to record and reason about.</td></tr>
+      <tr><td class="mono">sumo-mcp</td><td>ours</td><td>The bridge: the one owner of the simulator's control socket, pushing the world into the record and exposing governed control.</td></tr>
+      <tr><td class="mono">MCP</td><td>protocol</td><td>The tool language every module speaks — which is why one gateway can front them all with one set of rules.</td></tr>
+      <tr><td class="mono">durable task</td><td>concept</td><td>A tool call you walk away from: the handle returns immediately; the row, lease, and result live in the platform store.</td></tr>
+      <tr><td class="mono">resource · subscribe</td><td>concept</td><td>A condition that wakes you: subscribing to a resource means the agent is notified the moment it changes.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">18</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+</body>
+</html>
