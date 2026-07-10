@@ -1,0 +1,1699 @@
+<title>Autonomy Harness — Architecture</title>
+<style>
+  :root {
+    --ground: #F2F4F6;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F4;
+    --ink: #17212B;
+    --muted: #5A6772;
+    --faint: #8494A1;
+    --line: #D8DEE4;
+    --line-strong: #B9C4CD;
+    --accent: #B87514;
+    --accent-ink: #8F5A0E;
+    --accent-wash: #B8751418;
+    --hue-media: #7C5CBF;
+    --hue-coords: #1E8A7A;
+    --hue-sql: #3D6DB5;
+    --hue-opt: #B87514;
+    --hue-ts: #4E8A3C;
+    --hue-viewer: #B5486B;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0E141B;
+      --surface: #16202A;
+      --surface-2: #1D2935;
+      --ink: #E7EDF2;
+      --muted: #8C9AA6;
+      --faint: #64747F;
+      --line: #263340;
+      --line-strong: #37475A;
+      --accent: #E2A14E;
+      --accent-ink: #EDBB72;
+      --accent-wash: #E2A14E1A;
+      --hue-media: #A38AE0;
+      --hue-coords: #4DB3A2;
+      --hue-sql: #6E9BD8;
+      --hue-opt: #E2A14E;
+      --hue-ts: #7FB268;
+      --hue-viewer: #D97A9A;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F2F4F6; --surface: #FFFFFF; --surface-2: #EDF1F4;
+    --ink: #17212B; --muted: #5A6772; --faint: #8494A1;
+    --line: #D8DEE4; --line-strong: #B9C4CD;
+    --accent: #B87514; --accent-ink: #8F5A0E; --accent-wash: #B8751418;
+    --hue-media: #7C5CBF; --hue-coords: #1E8A7A; --hue-sql: #3D6DB5;
+    --hue-opt: #B87514; --hue-ts: #4E8A3C; --hue-viewer: #B5486B;
+  }
+  :root[data-theme="dark"] {
+    --ground: #0E141B; --surface: #16202A; --surface-2: #1D2935;
+    --ink: #E7EDF2; --muted: #8C9AA6; --faint: #64747F;
+    --line: #263340; --line-strong: #37475A;
+    --accent: #E2A14E; --accent-ink: #EDBB72; --accent-wash: #E2A14E1A;
+    --hue-media: #A38AE0; --hue-coords: #4DB3A2; --hue-sql: #6E9BD8;
+    --hue-opt: #E2A14E; --hue-ts: #7FB268; --hue-viewer: #D97A9A;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.55;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 28px 80px; }
+
+  /* ---------- header ---------- */
+  header { margin-bottom: 40px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(34px, 5vw, 52px);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede { max-width: 62ch; color: var(--muted); font-size: 16px; margin: 0 0 22px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .statrow { display: flex; flex-wrap: wrap; gap: 10px; }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .stat b {
+    display: block;
+    font-family: var(--mono);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  /* ---------- top-level sections ---------- */
+  .section { margin: 0 0 44px; }
+  .section > h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+  }
+  .section-lede { max-width: 70ch; color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+  .section-lede strong { color: var(--ink); }
+
+  /* ---------- layer scaffolding ---------- */
+  .layer { position: relative; padding-left: 26px; margin-bottom: 8px; }
+  .layer::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 8px; bottom: -34px;
+    width: 2px;
+    background: var(--line-strong);
+  }
+  .layer:last-of-type::before { bottom: 8px; }
+  .layer::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--ground);
+    border: 3px solid var(--accent);
+  }
+  .layer-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .layer-title {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .layer-sub { color: var(--muted); font-size: 13.5px; }
+  .layer-body { padding: 12px 0 34px; }
+
+  /* ---------- generic cards ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  /* ---------- capability grid ---------- */
+  .caps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .cap-card { border-top: 3px solid var(--accent); }
+  .cap-card h4 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15.5px; }
+  .cap-card p { margin: 0; font-size: 13px; color: var(--muted); }
+  .cap-card p code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .cap-card p b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- agent lifecycle ---------- */
+  .agent-card { border-left: 4px solid var(--accent); }
+  .agent-lede { margin: 0 0 16px; font-size: 13.5px; color: var(--muted); max-width: 80ch; }
+  .agent-lede strong { color: var(--ink); }
+  .lifecycle {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+  .lifecycle .stage {
+    flex: 1 1 150px;
+    min-width: 140px;
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 10px 12px;
+  }
+  .lifecycle .stage + .stage { margin-left: 30px; }
+  .lifecycle .stage + .stage::before {
+    content: "→";
+    position: absolute;
+    left: -23px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-ink);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .lifecycle .stage h5 {
+    margin: 0 0 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .lifecycle .stage p { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .lifecycle .stage.episode {
+    background: var(--accent-wash);
+    border-color: var(--accent);
+  }
+  .lifecycle .stage.sleep h5 { color: var(--faint); }
+  .lifecycle .stage.sleep { border-style: dashed; background: transparent; }
+  .lifecycle-return {
+    margin: 4px 8px 18px;
+    padding: 9px 16px 10px;
+    border: 1px dashed var(--line-strong);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .lifecycle-return .wakes { font-family: var(--mono); font-size: 11px; color: var(--accent-ink); }
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .agent-grid > div {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 12px 14px;
+  }
+  .agent-grid h5 {
+    margin: 0 0 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .agent-grid ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--muted); }
+  .agent-grid li { padding: 1.5px 0; }
+  .agent-grid code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- edge row ---------- */
+  .edgeflow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .edgeflow .node { flex: 1 1 160px; min-width: 150px; position: relative; }
+  .edgeflow .node + .node { margin-left: 34px; }
+  .edgeflow .node + .node::before {
+    content: "→";
+    position: absolute;
+    left: -26px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--faint);
+    font-size: 17px;
+  }
+  .node h4 { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+  .node p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .node .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--faint);
+    display: block;
+    margin-bottom: 6px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .bridge-note {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: transparent;
+  }
+  .bridge-note code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- gateway band ---------- */
+  .gateway {
+    border: 1px solid var(--accent);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .gateway-top { padding: 16px 20px 14px; }
+  .gateway-top h3 { margin: 0 0 4px; font-family: var(--display); font-weight: 700; font-size: 17px; }
+  .gateway-top p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 78ch; }
+  .gateway-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    border-top: 1px solid var(--line);
+  }
+  .gcell { padding: 13px 20px; border-top: 1px solid var(--line); }
+  .gcell:nth-child(-n+3) { border-top: none; }
+  .gcell + .gcell { border-left: 1px solid var(--line); }
+  @media (max-width: 760px) { .gcell + .gcell { border-left: none; } .gcell { border-top: 1px solid var(--line) !important; } }
+  .gcell h5 {
+    margin: 0 0 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  .gcell ul { margin: 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); }
+  .gcell li { padding: 1.5px 0; }
+  .gcell code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- tool servers ---------- */
+  .servers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .server {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .server-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .server-head .scheme {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+    float: right;
+    margin-top: 3px;
+  }
+  .server-head h4 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 15.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .server-head p { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); clear: both; }
+  .tools { padding: 8px 16px 12px; flex: 1; }
+  .tools table { width: 100%; border-collapse: collapse; }
+  .tools td { padding: 5px 0; vertical-align: baseline; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .tools tr:first-child td { border-top: none; }
+  .tools td.tn {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+    padding-right: 14px;
+    width: 1%;
+  }
+  .server.wide { grid-column: 1 / -1; }
+  .toolcols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 4px 28px;
+    padding: 10px 16px 12px;
+    flex: 1;
+  }
+  .toolcols h6 {
+    margin: 6px 0 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 600;
+  }
+  .toolcols table { width: 100%; border-collapse: collapse; }
+  .toolcols td { padding: 4.5px 0; vertical-align: baseline; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .toolcols tr:first-child td { border-top: none; }
+  .toolcols td.tn {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+    padding-right: 14px;
+    width: 1%;
+  }
+  .server-foot {
+    padding: 9px 16px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+    border-radius: 0 0 7px 7px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cap {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+    border: 1px solid transparent;
+  }
+  .cap.plain { background: transparent; border-color: var(--line-strong); color: var(--muted); }
+
+  /* ---------- planes ---------- */
+  .planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .plane h4 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15.5px; }
+  .plane p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .plane p code, .plane li code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .plane ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
+  .plane li { padding: 1.5px 0; }
+
+  /* ---------- ops strip ---------- */
+  .ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .ops .card h4 { margin: 0 0 5px; font-size: 14px; font-weight: 650; }
+  .ops .card p { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .ops .card p code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  /* ---------- footer legend ---------- */
+  .legend {
+    margin-top: 34px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+  }
+  .legend code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  a { color: var(--accent-ink); }
+  @media (prefers-reduced-motion: no-preference) {
+    .server, .gateway, .card { transition: border-color 140ms ease; }
+    .server:hover, .plane:hover, .cap-card:hover { border-color: var(--line-strong); }
+    .cap-card:hover { border-top-color: var(--accent); }
+  }
+
+  /* ---------- diagrams (mermaid) ---------- */
+  figure.diagram {
+    margin: 6px 0 30px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 18px 14px;
+    overflow-x: auto;
+  }
+  figure.diagram .mermaid {
+    display: flex;
+    justify-content: center;
+    min-height: 40px;
+    font-family: var(--body);
+  }
+  figure.diagram .mermaid:not([data-processed]) { color: var(--faint); font-family: var(--mono); font-size: 12px; }
+  figure.diagram figcaption {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    text-align: center;
+  }
+  figure.diagram figcaption b { color: var(--accent-ink); font-weight: 600; }
+
+  /* hero diagram sits full-width under the header */
+  .hero-diagram { margin: 8px 0 34px; }
+
+  /* ---------- component reference (glossary) ---------- */
+  .reference { margin: 0 0 44px; }
+  .ref-lede { max-width: 70ch; color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+  .ref-lede strong { color: var(--ink); }
+  .ref-group { margin-bottom: 24px; }
+  .ref-group > h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--line);
+  }
+  .glossary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .term {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 13px 15px;
+  }
+  .term-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 6px; }
+  .term-name { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .term-kind {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  /* what kind of thing each component is, colour-coded */
+  .k-ours    { color: var(--accent-ink); background: var(--accent-wash); }
+  .k-oss     { color: var(--hue-ts);     background: color-mix(in srgb, var(--hue-ts) 12%, transparent); }
+  .k-proto   { color: var(--hue-coords); background: color-mix(in srgb, var(--hue-coords) 12%, transparent); }
+  .k-format  { color: var(--hue-media);  background: color-mix(in srgb, var(--hue-media) 12%, transparent); }
+  .k-client  { color: var(--hue-viewer); background: color-mix(in srgb, var(--hue-viewer) 12%, transparent); }
+  .k-concept { color: var(--hue-sql);    background: color-mix(in srgb, var(--hue-sql) 12%, transparent); }
+  .term p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+  .term p + p { margin-top: 6px; }
+  .term p b { color: var(--ink); font-weight: 600; }
+  .term code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Platform Architecture · Self-Hosted</p>
+    <h1>Autonomy Harness</h1>
+    <p class="lede">
+      <strong>A reactive and proactive cognition stack: autonomous agents that run live
+      operations — on infrastructure you own.</strong> Every sensor, simulator, and decision
+      feeds one live operating picture. Agents hunt through it around the clock: they catch
+      conditions the moment they change, decide, and intervene — and between events they drive
+      the mission forward on their own initiative, analyzing, planning, and tasking work under
+      rules of engagement you set. Every decision is recorded, every action is accountable, and the
+      same platform installs with Docker Compose on one host, with Helm in a cluster, or from a
+      verified offline bundle. A live <strong>SUMO traffic city</strong> proves the whole loop
+      end to end.
+    </p>
+    <div class="statrow">
+      <div class="stat"><b>9</b>hosted servers · +sumo</div>
+      <div class="stat"><b>58</b>governed tools</div>
+      <div class="stat"><b>~225k</b>msgs/s lossless</div>
+      <div class="stat"><b>1</b>platform store</div>
+      <div class="stat"><b>1</b>shared artifact plane</div>
+      <div class="stat"><b>3</b>install forms</div>
+    </div>
+  </header>
+
+  <!-- CAPABILITIES -->
+  <section class="section">
+    <p class="eyebrow">Capabilities</p>
+    <h2>What the platform does</h2>
+    <p class="section-lede">
+      Each capability below is live, smoke-tested behavior of the current installation.
+    </p>
+    <div class="caps">
+      <div class="card cap-card">
+        <h4>Detect, decide, intervene — nonstop</h4>
+        <p>Agents chase the live picture around the clock: they <b>catch conditions the moment
+           they change, decide, and intervene — retiming signals, rerouting vehicles, retasking
+           work</b> — and between events they drive the mission forward on their own initiative.
+           The tempo holds through restarts, upgrades, and machine failures, memory and in-flight
+           work intact.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Dispatch long work and move on</h4>
+        <p>A render, a forecast, a plan, or a 500-step simulation batch <b>carries its own
+           guarantees</b>: it completes on its own, delivers the result the moment it is ready,
+           and an interruption has a defined, recorded outcome.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Hold a complete operating picture</h4>
+        <p>Every sensor, simulator, and agent decision streams into one durable record at
+           <b>~225k messages/s, lossless</b> — the shared ground truth agents and operators
+           reason from. A crash mid-write leaves readable files; any run replays; any moment
+           is queryable.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Set the rules of engagement</h4>
+        <p>Every action clears one authenticated door and <b>answers to your policy — who is
+           acting, on which tenant's data, at what sensitivity</b> — refused by default when in
+           doubt, and leaving a durable audit trail. Agents act freely inside the rules, and the
+           rules are yours.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Give agents real capabilities</h4>
+        <p>Generate media, run any SQL safely in its own sandbox, forecast time
+           series, solve planning problems, transform coordinates, render charts, and drive a
+           live viewer — <b>all under one task, artifact, and policy contract</b>.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Share results deliberately</h4>
+        <p>Every output is an owned <b>artifact</b>. Grant read, write,
+           or admin to users and groups; mark an artifact releasable and mint a revocable,
+           expiring link. Downloads pass policy and audit before bytes move.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Command from one console</h4>
+        <p>The operations console opens on the running installation: <b>health, tasks,
+           artifacts, agents, recordings, the tool network, policy, and audit evidence</b> —
+           with task cancellation and artifact sharing as one-click operations.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Own the whole installation</h4>
+        <p>Each installation is owned and operated by whoever deploys it: <b>your hostname, your
+           identity provider, your object store</b>. Compose runs it on one host, Helm runs it
+           in a cluster, and a verified offline bundle runs it air-gapped.</p>
+      </div>
+      <div class="card cap-card">
+        <h4>Prove it on a live city</h4>
+        <p>Against a pinned SUMO Luxembourg traffic world, an agent <b>watches congestion form,
+           decides, and retimes signals and reroutes vehicles</b> — through the same contracts
+           every other capability uses.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA FLOW -->
+  <section class="section">
+    <p class="eyebrow">Data Flow</p>
+    <h2>How data moves</h2>
+    <p class="section-lede">
+      The decision cycle, engineered. <strong>Observe</strong>: producers push into the
+      Recording Hub, and agents query the record back out through governed tools.
+      <strong>Act</strong>: agents and operators call tools through the gateway; long work
+      becomes a durable task whose completion wakes the sleeping agent.
+      <strong>Account</strong>: every auth decision, tool call, task transition, artifact grant,
+      and agent step lands in the platform store and the decision log.
+    </p>
+
+    <figure class="diagram hero-diagram">
+      <div class="mermaid">
+flowchart LR
+  subgraph PROD["Live world"]
+    direction TB
+    SEN["Sensors<br/>cameras · IMU · GNSS"]
+    SUMO["SUMO city<br/>traffic world"]
+    TEE["Agent decision log<br/>(tee)"]
+  end
+  subgraph HUB["Recording Hub"]
+    direction TB
+    PROXY["gRPC ingest :9876"]
+    SPOOL["Spooler<br/>fsynced durable writer"]
+    FILES[("RRD segments<br/>dataset / day / recording")]
+    PROXY --> SPOOL --> FILES
+  end
+  subgraph GOV["Governed plane"]
+    direction TB
+    GW["MCP Gateway<br/>auth · policy · audit"]
+    SRV["9 hosted servers<br/>+ sumo"]
+    GW --> SRV
+  end
+  KERNEL["Agent Kernel<br/>bounded episodes"]
+  CONSOLE["Operations Console<br/>browser · BFF"]
+  STORE[("SurrealDB<br/>platform store")]
+  BYTES[("Object store<br/>artifact bytes")]
+
+  SEN -->|push| PROXY
+  SUMO -->|push| PROXY
+  TEE -->|push| PROXY
+  KERNEL -->|tools| GW
+  CONSOLE -->|session| GW
+  SRV -.->|world control| SUMO
+  FILES -->|governed recording queries| SRV
+  SRV --- STORE
+  SRV --- BYTES
+      </div>
+      <figcaption><b>The whole system.</b> Files are the record · the hub is the bus · the gateway is the door · SurrealDB is the platform's memory.</figcaption>
+    </figure>
+
+    <div class="agent-grid">
+      <div>
+        <h5>Observe</h5>
+        <ul>
+          <li>Producers push typed Rerun streams to one ingest point; the hub persists first.</li>
+          <li>Segments become governed catalog records in the platform store.</li>
+          <li>Agents read slices — a world snapshot, a trajectory — through the recording server.</li>
+        </ul>
+      </div>
+      <div>
+        <h5>Act</h5>
+        <ul>
+          <li>Every tool call enters through the gateway under one flat namespace (<code>sumo__run_batch</code>).</li>
+          <li>Quick tools answer inline; long tools return a durable task handle immediately.</li>
+          <li>Task completion pushes a wake; the next episode assembles with the result.</li>
+        </ul>
+      </div>
+      <div>
+        <h5>Account</h5>
+        <ul>
+          <li>Auth, policy, admin, and task transitions write audit evidence to the platform store.</li>
+          <li>Every agent turn, prompt, and tool call tees into the Rerun decision log.</li>
+          <li>Usage records meter provider spend and tool activity per principal.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECHNOLOGY STACK -->
+  <section class="section" style="margin-bottom:18px">
+    <p class="eyebrow">Technology Stack</p>
+    <h2>The layers underneath</h2>
+    <p class="section-lede">
+      The capabilities above rest on a small set of layers: an agent runtime, one governed door,
+      a family of domain servers, shared durable planes, and the recording pipeline. Each layer
+      is typed, validated fail-closed, and exercised by the Rust smoke harness.
+    </p>
+  </section>
+
+  <!-- LAYER 0 : AGENT KERNEL -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Agent Kernel</h2>
+      <span class="layer-sub">long-lived autonomous agents in bounded episodes — the Pilot is the first</span>
+    </div>
+    <div class="layer-body">
+      <div class="card agent-card">
+        <p class="agent-lede">
+          An agent runs forever because <strong>durable stores are the memory</strong>: every
+          episode's context is assembled fresh from the agent's memory planes, and everything in
+          flight survives process death. The kernel executes typed manifests — an agent type is a
+          manifest, a preamble, and SQL migrations.
+        </p>
+
+        <div class="lifecycle">
+          <div class="stage">
+            <h5>Wake</h5>
+            <p>A batch of wakes, coalesced and deduped; every wake is persisted with its
+               disposition, so the ledger explains why each episode ran.</p>
+          </div>
+          <div class="stage">
+            <h5>Assemble</h5>
+            <p>State header + the wake payload + manifest-defined SQL sections over the memory
+               database, under a token budget. Truncations point at <code>memory_query</code>.</p>
+          </div>
+          <div class="stage episode">
+            <h5>Episode</h5>
+            <p>One bounded LLM run. Quick gateway tools answer inline; long tools dispatch as
+               durable tasks and keep running. Hooks record every step and terminate over-budget
+               runs.</p>
+          </div>
+          <div class="stage">
+            <h5>Persist</h5>
+            <p>Unresolved task descriptors land in the platform store; the episode closes with
+               usage counters and a summary; every step is already in the decision log.</p>
+          </div>
+          <div class="stage sleep">
+            <h5>Sleep</h5>
+            <p>Idle on the wake bus. A leased watcher per detached task waits on the result;
+               the heartbeat bounds silence.</p>
+          </div>
+        </div>
+        <div class="lifecycle-return">
+          ↩ wakes: <span class="wakes">task result · resource change · timer · operator message ·
+          elicitation answer</span> — and a wake survives process death: descriptors and watcher
+          leases rehydrate from the platform store on any boot, so kill and restart resumes the
+          same tasks.
+        </div>
+
+        <div class="agent-grid">
+          <div>
+            <h5>Memory planes</h5>
+            <ul>
+              <li><strong>Scheduling truth</strong> — the SurrealDB platform store owns episodes,
+                  wakes, task watchers, and leases; the outbox and changefeed deliver wakes across
+                  processes.</li>
+              <li><strong>Analytical memory</strong> — a sandboxed DuckDB per agent: domain tables
+                  (the Pilot: <code>targets</code>, <code>missions</code>, <code>waypoints</code>,
+                  <code>constraints</code>, <code>beliefs</code>), a kv store, and an episode-log
+                  projection for context assembly.</li>
+              <li><strong>Decision log</strong> — an append-only Rerun recording: every turn, tool
+                  call, task lifecycle, prompt, and summary, time-indexed and watchable live.</li>
+              <li>The agent reads all three itself: <code>memory_query</code> (guarded SQL),
+                  <code>memory_write</code> (typed mutations, mirrored to the decision log), and
+                  <code>timeline_query</code> (dataframe reads over the log).</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Durability, proven</h5>
+            <ul>
+              <li>Detach at episode end: a task's descriptor outlives the process; any later boot
+                  rehydrates the live handle and keeps waiting.</li>
+              <li>Token rotation is make-before-break; task ids are principal-scoped, so
+                  continuity holds across reconnects.</li>
+              <li>The wake is push, arithmetically: with polling pinned at 60s and the heartbeat
+                  at 600s, the smoke's agent slept the task's full ~15s and woke within a second
+                  of completion — verified live with a real model end to end.</li>
+              <li>Budget hooks book overruns as <code>budget_terminated</code>, a first-class
+                  outcome; hourly windows defer non-priority wakes.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Agents are data</h5>
+            <ul>
+              <li>A typed manifest, validated fail-closed at boot: model endpoint, gateway
+                  principal (client-credentials + private-key JWT), episode limits, budgets,
+                  schedule, context SQL sections, writable tables.</li>
+              <li>A preamble and domain migrations complete the profile — cross-episode
+                  instructions live here or in memory.</li>
+              <li>Operators reach a running agent through durable wakes: inject a prompt, read
+                  status in the console, answer parked tool questions (elicitations).</li>
+              <li>The Pilot rides the operator profile: geodesy inline, planning as tasks,
+                  waypoints recorded when plans land.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 1 : EDGE -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Edge &amp; Access</h2>
+      <span class="layer-sub">every client enters through the installation's own ingress</span>
+    </div>
+    <div class="layer-body">
+      <div class="card">
+        <div class="edgeflow">
+          <div class="node">
+            <span class="tag">Clients</span>
+            <h4>Agents, browsers &amp; MCP clients</h4>
+            <p>Kernel agents (each its own service principal), the console in a browser, IDEs, and
+               hosts speaking streamable-HTTP MCP against the single public contract.</p>
+          </div>
+          <div class="node">
+            <span class="tag">Ingress</span>
+            <h4>Installation ingress</h4>
+            <p>The operator's own boundary: the Caddy edge on Compose, an Ingress on Helm. The
+               local edge binds to loopback; public exposure is the operator's decision.</p>
+          </div>
+          <div class="node">
+            <span class="tag">Routes</span>
+            <h4>Three doors, one origin</h4>
+            <p><code>/mcp</code>, <code>/oauth</code>, <code>/admin</code>, <code>/artifacts</code>
+               reach the gateway; <code>/console</code>, <code>/auth</code> reach the console BFF;
+               <code>/s/{token}</code> reaches the artifact service for public links.</p>
+          </div>
+          <div class="node">
+            <span class="tag">Contract</span>
+            <h4>Gateway</h4>
+            <p>The single MCP contract. Every hosted server lives on the internal network and
+               requires a gateway-signed identity assertion.</p>
+          </div>
+        </div>
+        <div class="bridge-note">
+          <strong>Stdio Bridge</strong> — spawns a stdio MCP server as a child process and re-exposes
+          its tool surface over streamable HTTP, so the gateway registers it as a standard
+          <code>streamable_http</code> upstream. It lives on the internal network and relies on the
+          gateway for authentication. In production it carries the <strong>Recording Viewer</strong>:
+          one container running the headless viewer, its stdio MCP, and the bridge together.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 2 : GATEWAY -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Gateway</h2>
+      <span class="layer-sub">MCP server outward · MCP client inward</span>
+    </div>
+    <div class="layer-body">
+      <div class="gateway">
+        <div class="gateway-top">
+          <h3>Protocol-preserving MCP gateway</h3>
+          <p>
+            A full-protocol gateway: it forwards and aggregates the complete MCP surface, projects
+            upstream tools into one namespace (<code style="font-family:var(--mono);font-size:12px">media__run</code>,
+            <code style="font-family:var(--mono);font-size:12px">duckdb__query</code>,
+            <code style="font-family:var(--mono);font-size:12px">rerun__screenshot</code>), and records durable
+            runtime state, policy decisions, and audit evidence in the platform store.
+          </p>
+        </div>
+        <div class="gateway-grid">
+          <div class="gcell">
+            <h5>Authentication</h5>
+            <ul>
+              <li>Browser OAuth with PKCE (authorize / callback)</li>
+              <li>Client credentials + private-key JWT</li>
+              <li>Identity-assertion grant (ID-JAG) exchange</li>
+              <li>Durable refresh rotation; reuse revokes the family</li>
+              <li>JWKS, token issuance, revocation</li>
+            </ul>
+          </div>
+          <div class="gcell">
+            <h5>Policy &amp; Audit</h5>
+            <ul>
+              <li>Typed ABAC/RBAC over tools, resources, tasks, artifacts</li>
+              <li>Tenant + data-label (regulated data) checks</li>
+              <li>Fail-closed decisions with reason codes</li>
+              <li>Audit trail for admin, auth, and policy ops</li>
+              <li>Ed25519-signed identity assertions to every server</li>
+            </ul>
+          </div>
+          <div class="gcell">
+            <h5>Control Plane</h5>
+            <ul>
+              <li>Validated server / profile / policy catalog</li>
+              <li>Authenticated live <code>apply</code> &amp; reload</li>
+              <li>Secret references (env / vault) with redaction</li>
+              <li>Admin API for the console: tasks, artifacts, topology</li>
+              <li>Policy-checked, audited artifact downloads</li>
+            </ul>
+          </div>
+          <div class="gcell" style="grid-column: 1 / -1; border-left: none;">
+            <h5>Forwarded protocol surface</h5>
+            <div class="chiprow" style="margin-top:2px">
+              <span class="chip">tools</span><span class="chip">resources</span><span class="chip">resource templates</span>
+              <span class="chip">prompts</span><span class="chip">completions</span><span class="chip">tasks</span>
+              <span class="chip">subscriptions</span><span class="chip">notifications</span>
+              <span class="chip">artifacts</span><span class="chip">usage</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 3 : TOOL SERVERS -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Hosted Tool Servers</h2>
+      <span class="layer-sub">nine domain servers behind gateway-signed internal identity</span>
+    </div>
+    <div class="layer-body">
+      <div class="servers">
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">media://</span>
+            <h4><span class="dot" style="background:var(--hue-media)"></span>Media</h4>
+            <p>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">run</td><td>Run any media model asynchronously as a durable task; outputs land as artifacts.</td></tr>
+            <tr><td class="tn">models</td><td>Search the model catalog, returning exact runnable model ids.</td></tr>
+            <tr><td class="tn">model_schema</td><td>Exact input JSON Schema and pricing metadata for one model.</td></tr>
+            <tr><td class="tn">artifact</td><td>Return an authorized artifact as inline MCP image content.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">webhook-only completion</span><span class="cap plain">prompts</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">coordinates://</span>
+            <h4><span class="dot" style="background:var(--hue-coords)"></span>Coordinates</h4>
+            <p>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">convert_frame</td><td>Convert between WGS84, ECEF, ENU, NED with explicit target frame and origin.</td></tr>
+            <tr><td class="tn">transform_crs</td><td>Transform tuples between explicit CRS ids with normalized axis order.</td></tr>
+            <tr><td class="tn">derive_local_frame</td><td>Create an ENU or NED local tangent frame from a WGS84 origin.</td></tr>
+            <tr><td class="tn">geodesic_inverse</td><td>Ellipsoidal distance and forward/reverse azimuths between two positions.</td></tr>
+            <tr><td class="tn">geodesic_direct</td><td>Destination position from start, azimuth, and ellipsoidal distance.</td></tr>
+            <tr><td class="tn">validate_geofence</td><td>Validate 2D path / geofence relationships in one explicit frame.</td></tr>
+            <tr><td class="tn">batch_transform</td><td>Batch frame conversion as a durable task, optionally stored as an artifact.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">duckdb://</span>
+            <h4><span class="dot" style="background:var(--hue-sql)"></span>DuckDB SQL</h4>
+            <p>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded
+               sandbox; the server itself fetches and resolves all external sources.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">query</td><td>One read-only statement; large results return as a parquet artifact link.</td></tr>
+            <tr><td class="tn">execute</td><td>DDL/DML on an owned database; writes serialize per database.</td></tr>
+            <tr><td class="tn">ingest</td><td>Load a typed source — inline CSV, allowlisted HTTPS, or any <code style="font-family:var(--mono);font-size:11px">artifact://</code> reference — into one table.</td></tr>
+            <tr><td class="tn">export</td><td>Export a table, query result, or full database snapshot to one immutable artifact.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">container sandbox</span><span class="cap plain">cross-server ingest</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">optimization://</span>
+            <h4><span class="dot" style="background:var(--hue-opt)"></span>Optimization</h4>
+            <p>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">plan</td><td>Solve a planning problem; returns a structured plan plus optional database and Rerun RRD artifacts.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">rrd output</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">timeseries://</span>
+            <h4><span class="dot" style="background:var(--hue-ts)"></span>Timeseries</h4>
+            <p>Forecasting over any SQL-readable time-series source, visualized as Rerun recordings.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">forecast</td><td>Ingest a source, compute a forecast, and return one Rerun RRD artifact.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">rrd output</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">artifact://</span>
+            <h4><span class="dot" style="background:var(--hue-media)"></span>Artifact</h4>
+            <p>Discovery, metadata, grants, release, and sharing for every artifact in the plane —
+               the governance surface over the byte store.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">metadata</td><td>Typed metadata, labels, and release state for one authorized artifact.</td></tr>
+            <tr><td class="tn">grant_access</td><td>Grant read, write, or admin to a user or group, within tenant and label policy.</td></tr>
+            <tr><td class="tn">revoke_access</td><td>Remove a standing grant.</td></tr>
+            <tr><td class="tn">set_release_state</td><td>Mark an artifact releasable — the precondition for public links.</td></tr>
+            <tr><td class="tn">create_share_link</td><td>Mint a read-only anyone-with-link bearer: expiring, download-limited, revocable.</td></tr>
+            <tr><td class="tn">revoke_share_link</td><td>Kill a live share link.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">artifacts</span>
+            <span class="cap plain">resources</span><span class="cap plain">subscriptions</span><span class="cap plain">prompts</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">recording://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Recording</h4>
+            <p>Authorized access to the Recording Hub: discovery, dataframe queries,
+               subscriptions, and publication of recordings as artifacts.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">query_recording</td><td>Latest-at, range, or dataframe reads over an authorized recording's segments.</td></tr>
+            <tr><td class="tn">seal_recording</td><td>Close a recording and publish it to the artifact plane.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">artifacts</span>
+            <span class="cap plain">recording://catalog</span><span class="cap plain">segment resources</span><span class="cap plain">subscriptions</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">charts://</span>
+            <h4><span class="dot" style="background:var(--hue-opt)"></span>Charts</h4>
+            <p>Chart rendering projected through the gateway, so agents turn query results into
+               shareable visuals.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">render_chart</td><td>Render a typed chart spec to an image.</td></tr>
+            <tr><td class="tn">compile_chart</td><td>Compile a spec for rendering.</td></tr>
+            <tr><td class="tn">validate_chart</td><td>Validate a spec against its chart type.</td></tr>
+            <tr><td class="tn">list_chart_types</td><td>Enumerate supported chart types.</td></tr>
+            <tr><td class="tn">create_chart_view</td><td>Create a persistent chart view.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap plain">gateway projection</span>
+          </div>
+        </div>
+
+        <div class="server wide">
+          <div class="server-head">
+            <span class="scheme">rerun://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Recording Viewer</h4>
+            <p>
+              A live Rerun viewer driven entirely over MCP — the stack's eyes. The other servers' RRD artifacts
+              (timeseries forecasts, optimization plans) open here for timeline scrubbing, inspection, and
+              screenshots. The viewer speaks stdio, so one container runs the headless viewer, its MCP,
+              and the Stdio Bridge together; recordings stream in over gRPC and screenshots render
+              through software rasterization.
+            </p>
+          </div>
+          <div class="toolcols">
+            <div>
+              <h6>Session &amp; state</h6>
+              <table>
+                <tr><td class="tn">connect</td><td>Attach to the running viewer over gRPC; unlocks every other tool.</td></tr>
+                <tr><td class="tn">disconnect</td><td>Drop the viewer bridge until the next connect.</td></tr>
+                <tr><td class="tn">viewer_state</td><td>Active recording, page URL, and every open recording with its timelines, as JSON.</td></tr>
+                <tr><td class="tn">open_url</td><td>Open a recording/blueprint file, dataset URI, catalog URL, or intra-recording link.</td></tr>
+                <tr><td class="tn">set_time</td><td>Move the time cursor on any timeline — sequence index or nanoseconds.</td></tr>
+              </table>
+            </div>
+            <div>
+              <h6>Capture &amp; inspection</h6>
+              <table>
+                <tr><td class="tn">screenshot</td><td>Capture the current frame as PNG, aligned to interaction coordinates.</td></tr>
+                <tr><td class="tn">resize</td><td>Resize the viewport to exact logical-point dimensions.</td></tr>
+                <tr><td class="tn">query_tree</td><td>Walk the widget tree and return nodes matching role or text filters.</td></tr>
+                <tr><td class="tn">get_node</td><td>Return a single widget node by id.</td></tr>
+                <tr><td class="tn">wait_for</td><td>Poll the widget tree until conditions hold or a timeout elapses.</td></tr>
+              </table>
+            </div>
+            <div>
+              <h6>UI automation</h6>
+              <table>
+                <tr><td class="tn">click</td><td>Click a located node or raw position.</td></tr>
+                <tr><td class="tn">drag</td><td>Primary-button drag between two targets.</td></tr>
+                <tr><td class="tn">hover</td><td>Move the pointer over a node — tooltips and popups follow.</td></tr>
+                <tr><td class="tn">scroll</td><td>Wheel scroll over a node or position.</td></tr>
+                <tr><td class="tn">press_key</td><td>Send a key press to the focused widget.</td></tr>
+                <tr><td class="tn">type_text</td><td>Type into the focused widget, optionally focusing a node first.</td></tr>
+                <tr><td class="tn">batch</td><td>Run a sequence of app-driving calls in one round trip; stops on first failure.</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="server-foot">
+            <span class="cap">stdio bridge upstream</span>
+            <span class="cap plain">interactive tools</span><span class="cap plain">headless viewer</span>
+            <span class="cap plain">software rendering</span><span class="cap plain">grpc recording ingest</span>
+            <span class="cap plain">dedicated access profile</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">tasks/*</span>
+            <h4><span class="dot" style="background:var(--faint)"></span>Shared durable tasks</h4>
+            <p>Every long-running tool runs on the shared task runtime and the final Veoveo task
+               extension. UUIDv7 ids; creation, leases, transitions, results, and outbox events
+               are atomic in the platform store.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">tools/call</td><td>Task-augmented: returns a durable task handle immediately.</td></tr>
+            <tr><td class="tn">tasks/get</td><td>Durable status, progress, and the terminal result envelope.</td></tr>
+            <tr><td class="tn">tasks/cancel</td><td>Cancel a running task; provider cancellation is recorded with its outcome.</td></tr>
+            <tr><td class="tn">recovery</td><td><code style="font-family:var(--mono);font-size:11px">resume</code> · <code style="font-family:var(--mono);font-size:11px">webhook_wait</code> · <code style="font-family:var(--mono);font-size:11px">interrupted_indeterminate</code> — declared per operation.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap plain">ownership checks</span><span class="cap plain">usage records</span><span class="cap plain">retention pins</span><span class="cap plain">idempotency keys</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER 4 : SHARED PLANES -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Shared Planes</h2>
+      <span class="layer-sub">the durable foundation every server builds on</span>
+    </div>
+    <div class="layer-body">
+      <div class="planes">
+        <div class="card plane">
+          <h4>Platform Store</h4>
+          <p>
+            One SurrealDB <code>3.2.0</code> node (RocksDB) is the durable coordination authority
+            for the whole installation.
+          </p>
+          <ul>
+            <li>Owns identity, policy, control-plane revisions, tasks, artifacts, recordings,
+                agents, wakes, audit evidence, and usage</li>
+            <li>The <strong>transactional outbox</strong> and replayable changefeed carry all
+                cross-process work; LIVE queries accelerate delivery</li>
+            <li>Ordered typed migrations; separate admin and runtime credentials</li>
+            <li>Every subsystem uses the same typed tenant and principal identities</li>
+          </ul>
+        </div>
+        <div class="card plane">
+          <h4>Artifact Plane</h4>
+          <p>
+            A single byte-level policy-enforcement point. Every domain server stores and reads
+            artifact bytes through the plane, calling it with the gateway-signed identity it
+            already holds.
+          </p>
+          <ul>
+            <li>S3-compatible <strong>object store</strong> for bytes; the platform store owns
+                grants, labels, and release state</li>
+            <li>Fresh opaque identity per occurrence: <code>artifact://{uuidv7}</code>; hashes
+                provide integrity and tenant-local dedup</li>
+            <li>Grants to users and groups; revocable expiring links for released artifacts</li>
+            <li>Async producers redeem bounded, expiring <strong>write capabilities</strong>
+                issued while a live identity was present</li>
+            <li><code>artifact://</code> references let one server consume another's output —
+                SQL ingesting a media render, optimization snapshotting to a forecastable table</li>
+          </ul>
+        </div>
+        <div class="card plane">
+          <h4>Contract Core</h4>
+          <p>
+            The typed, provider-neutral contract every server shares, validated fail-closed at startup.
+          </p>
+          <ul>
+            <li>Strong ID newtypes: profiles, servers, tools, tenants, scopes, JWT ids</li>
+            <li>Gateway control-plane, auth, and policy config with cross-reference validation</li>
+            <li>Typed deployment profiles: object store, state store, telemetry, network
+                boundaries, regulated-data controls</li>
+            <li>Shared task, artifact, usage, and analytics schemas; JSON Schema export for other languages</li>
+            <li>Gateway-to-server <strong>Ed25519 identity assertions</strong> — servers hold
+                public verification keys only</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER : RECORDING HUB -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Recording Hub</h2>
+      <span class="layer-sub">the durable, queryable time-and-space record — one bus, many producers</span>
+    </div>
+    <div class="layer-body">
+      <div class="card">
+        <p class="agent-lede">
+          Every sensor, estimator, and agent streams Rerun data into <strong>one gRPC ingest
+          point</strong>. A spooler <strong>embeds the proxy and persists every message</strong> —
+          fsynced, to day-partitioned segment files — so the write is the first thing that happens
+          to arriving data. Files are <strong>footer-less while live</strong> (crash-decodable) and
+          are verified before their optimized replacement at freeze. Every recording and segment
+          becomes a <strong>governed record in the platform store</strong>, and the recording
+          server answers authorized queries over the same bytes.
+          <strong>Files are the record, the proxy is the bus, the recording server is the reading
+          room.</strong>
+        </p>
+
+        <figure class="diagram">
+          <div class="mermaid">
+flowchart TB
+  subgraph SP["Spooler process (one)"]
+    direction LR
+    RX["Embedded gRPC proxy<br/>re_grpc_server"] --> DEMUX["Demux by<br/>application id → recording"]
+    DEMUX --> ENC["Per-recording encoder<br/>footer-less, buffered"]
+    ENC --> LIVE[("Live segment<br/>crash-decodable")]
+    LIVE -->|size / age| FREEZE["Freeze<br/>finish · optimize · verify"]
+    FREEZE --> FROZEN[("Frozen segment<br/>+ manifest")]
+  end
+  P1["Sensors"] -->|push| RX
+  P2["Agent tee"] -->|push| RX
+  P3["SUMO"] -->|push| RX
+  FROZEN --> CAT["Catalog projection<br/>SurrealDB recording records"]
+  LIVE -.snapshot.-> QE["QueryEngine<br/>local reader (authoritative)"]
+  CAT --> RMCP["recording server<br/>authorized queries · seal to artifact"]
+  RMCP --> CLIENTS["agents · pipelines · console"]
+          </div>
+          <figcaption><b>Durable capture.</b> kill -9 leaves a footer-less but readable segment · restart resumes into a <b>.rN</b> sibling · startup reconciles crash leftovers · ~225k msgs/s lossless.</figcaption>
+        </figure>
+
+        <div class="agent-grid">
+          <div>
+            <h5>Producers → bus</h5>
+            <ul>
+              <li>Many SDKs stream into one proxy, sessioned by recording id.</li>
+              <li>Routing: application-id prefix → dataset (<code>world</code>, <code>agents</code>, …); unmatched → <code>quarantine</code>.</li>
+              <li>Internal-network only; the recording server is the authorized surface.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Durability</h5>
+            <ul>
+              <li>Segment per <code>(dataset, day, recording)</code>, fsynced on write.</li>
+              <li>Footer-less live → decodable to the last whole message after a crash.</li>
+              <li>Freeze runs <code>rerun rrd optimize</code> and verifies before replacing.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Reading room</h5>
+            <ul>
+              <li>Local <code>QueryEngine</code> is the authoritative file reader.</li>
+              <li>Recordings and segments carry typed tenant identities in the platform store.</li>
+              <li>latest-at = a world snapshot · range = a trajectory · seal = an artifact.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="chiprow" style="margin-top:14px">
+          <span class="chip">embedded proxy</span>
+          <span class="chip">fsynced writes</span>
+          <span class="chip">footer-less crash-safe</span>
+          <span class="chip">.rN resume</span>
+          <span class="chip">verify-on-freeze</span>
+          <span class="chip">governed catalog</span>
+          <span class="chip">~225k msgs/s</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER : SUMO SHOWCASE -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">SUMO Showcase</h2>
+      <span class="layer-sub">a live traffic world proving perceive → decide → act, end to end</span>
+    </div>
+    <div class="layer-body">
+      <div class="card">
+        <p class="agent-lede">
+          The <a href="https://eclipse.dev/sumo/">SUMO</a> simulator runs the pinned, MIT-licensed
+          <strong>LuST Luxembourg scenario</strong> in its own container. A <strong>Rust
+          <code>sumo-mcp</code> server</strong> owns the single serialized TraCI connection,
+          <strong>pushes the world into the hub</strong> as typed <code>/world/sumo/**</code>
+          streams, and exposes SUMO control as governed <code>sumo__*</code> tools. The long
+          operations are <strong>durable tasks</strong> the agent detaches from and wakes on — the
+          same sleep/wake the kernel already runs, now driven by a real simulator. SUMO is another
+          hub producer; the hub only ever receives pushes.
+        </p>
+
+        <figure class="diagram">
+          <div class="mermaid">
+flowchart LR
+  SUMO["SUMO 1.27.1<br/>Docker · TraCI :8813"]
+  MCP["sumo-mcp<br/>Rust · task-native"]
+  HUB["Recording Hub<br/>world dataset"]
+  WM["Agent world model<br/>latest-at / range"]
+  EP["Agent episode"]
+
+  SUMO <-->|TraCI step / read| MCP
+  MCP -->|push /world/sumo/**| HUB
+  HUB --> WM --> EP
+  EP -->|"sumo__run_batch (task)"| MCP
+  EP -.->|"detach · sleep"| EP
+  MCP -->|task result → wake| EP
+  EP -->|"set_signal_phase · reroute"| MCP
+  MCP -->|"resources/updated: congestion"| EP
+          </div>
+          <figcaption><b>The closed loop.</b> perceive (push → world model) → decide (task, sleep) → act (signals, routes, lanes) → a congestion resource wakes the next episode.</figcaption>
+        </figure>
+
+        <figure class="diagram">
+          <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant A as Agent kernel
+  participant G as Gateway
+  participant S as sumo-mcp
+  participant U as SUMO
+  A->>G: call sumo__run_batch (task-augmented)
+  G->>S: tools/call (task)
+  S-->>A: CreateTaskResult
+  Note over A: persist descriptor · end episode · sleep
+  S->>U: step N (fast-forward)
+  S-->>A: notifications/tasks/status → completed
+  A->>S: fetch terminal result
+  S-->>A: RunBatchResult { congestion_detected }
+  Note over A: fresh episode assembled with the result
+          </div>
+          <figcaption><b>Task sleep/wake.</b> the exact detach → sleep → wake path, on the final task extension the gateway and kernel speak.</figcaption>
+        </figure>
+
+        <div class="agent-grid">
+          <div>
+            <h5>One sim owner</h5>
+            <ul>
+              <li>TraCI is single-client; one serialized owner steps, pushes, and applies commands.</li>
+              <li>Vehicles land as <code>GeoPoints</code>, speeds and phases as scalars.</li>
+              <li>TraCI stays internal; the loopback MCP port requires the same gateway-signed
+                  assertion as every hosted server.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Tools</h5>
+            <ul>
+              <li><strong>sync</strong>: <code>query_state</code>, <code>describe_scenario</code>, <code>set_signal_phase</code>, <code>reroute_vehicle</code>, <code>set_edge_speed</code>, <code>close_lane</code>, <code>open_lane</code>.</li>
+              <li><strong>tasks</strong>: <code>run_batch</code>, <code>generate_network</code>, <code>compute_routes</code>, <code>optimize_signals</code>.</li>
+              <li><strong>events</strong>: <code>sumo://congestion</code> — subscribe → wake.</li>
+            </ul>
+          </div>
+          <div>
+            <h5>Durable by contract</h5>
+            <ul>
+              <li>Task state lives in the platform store on the shared task runtime.</li>
+              <li><code>run_batch</code> advances a live sim, so recovery is
+                  <code>interrupted_indeterminate</code>; the CLI tasks resume.</li>
+              <li>Successful outputs upload through a task-bound write capability to the shared
+                  artifact plane.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="chiprow" style="margin-top:14px">
+          <span class="chip">sumo__*</span>
+          <span class="chip">durable tasks</span>
+          <span class="chip">detach · sleep · wake</span>
+          <span class="chip">resources/updated</span>
+          <span class="chip">GeoPoints world</span>
+          <span class="chip">LuST scenario</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER : OPERATIONS & DEPLOYMENT -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Operations &amp; Deployment</h2>
+      <span class="layer-sub">one console to run it, three ways to install it</span>
+    </div>
+    <div class="layer-body">
+      <div class="ops">
+        <div class="card">
+          <h4>Operations Console</h4>
+          <p>A React UI whose first screen is the live installation: health, tasks, artifacts,
+             agents, recordings, topology, policy, audit. Its Rust BFF owns PKCE login and keeps
+             tokens in an encrypted HttpOnly cookie — the browser sees only same-origin session
+             calls.</p>
+        </div>
+        <div class="card">
+          <h4>Compose</h4>
+          <p>The canonical single-host installation: <code>just compose-up</code> brings up the
+             full stack behind a loopback Caddy edge. Public exposure is the operator's ingress
+             decision.</p>
+        </div>
+        <div class="card">
+          <h4>Helm</h4>
+          <p>The cluster form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional
+             service-mesh mTLS, separate migration and runtime credentials, operator-supplied
+             telemetry and SIEM wiring.</p>
+        </div>
+        <div class="card">
+          <h4>Offline bundle</h4>
+          <p>A verified air-gap path: pinned images, Compose and Helm material, config schemas,
+             checksums, and SBOMs. Installation and verification complete entirely inside the
+             isolated environment.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYER : VERIFICATION -->
+  <section class="layer">
+    <div class="layer-head">
+      <h2 class="layer-title">Verification &amp; Observability</h2>
+      <span class="layer-sub">the harness that keeps the contract honest</span>
+    </div>
+    <div class="layer-body">
+      <div class="ops">
+        <div class="card">
+          <h4>Conformance CLI</h4>
+          <p>Generic MCP client exercising the full protocol surface — info, resources, prompts, completions, runs, usage, artifacts — plus auth-metadata discovery and token tooling.</p>
+        </div>
+        <div class="card">
+          <h4>Smoke Harness</h4>
+          <p>Rust end-to-end scenarios with process orchestration: fake IdP / provider / upstream
+             services, a real Keycloak realm, live agent-kernel sleep/wake, and the full SUMO
+             world in a disposable Compose project.</p>
+        </div>
+        <div class="card">
+          <h4>CI</h4>
+          <p>GitHub Actions runs formatting, clippy, tests, the console UI build, the Keycloak
+             integration path, and the deployment contract checks on every change.</p>
+        </div>
+        <div class="card">
+          <h4>Telemetry</h4>
+          <p>OpenTelemetry traces and logs across gateway and servers, with audit summaries as durable evidence for regulated deployments.</p>
+        </div>
+      </div>
+      <div class="legend">
+        <span><code>name__tool</code> — gateway tool-name projection</span>
+        <span><code>artifact://{uuidv7}</code> — opaque immutable artifact identity</span>
+        <span>amber chips — capability enforced through the shared planes</span>
+        <span>agent lifecycle — wake → assemble → episode → persist → sleep, forever</span>
+        <span>hub — files are the record · the proxy is the bus · the recording server is the reading room</span>
+        <span>showcase — SUMO proves perceive → decide → act on the real loop</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPONENT REFERENCE -->
+  <section class="reference">
+    <p class="eyebrow">Component Reference</p>
+    <h2 class="layer-title" style="font-size:24px;margin:0 0 10px">What every box is</h2>
+    <p class="ref-lede">
+      Each named service, protocol, and format above, defined by what it is and what it does. The
+      tag on each says its role: <strong>ours</strong> (we built it), <strong>OSS</strong> (an
+      open-source component we run), <strong>protocol</strong> (a wire language), <strong>format</strong>
+      (a data shape on disk or on the wire), <strong>client</strong> (something a person or agent
+      attaches), or <strong>concept</strong> (an idea the system is built on).
+    </p>
+
+    <div class="ref-group">
+      <h3>Access &amp; control</h3>
+      <div class="glossary">
+        <div class="term">
+          <div class="term-head"><span class="term-name">Installation ingress</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The single public door, owned by the operator.</b> The Caddy edge on Compose, an
+             Ingress on Helm; it terminates TLS and routes the handful of public paths.</p>
+          <p>Every request from outside enters here and nowhere else, so there is exactly one
+             place to defend and observe. The local edge binds to loopback until the operator
+             decides otherwise.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">MCP Gateway</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The front desk for tools.</b> It authenticates the caller, checks policy, renames each server's tools into one flat menu, and writes an audit trail.</p>
+          <p>Anything an agent or client can do passes through it, so access rules live in one place instead of in every server.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Operations Console</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The cockpit.</b> A React UI plus a Rust BFF that owns browser login (PKCE), an
+             encrypted HttpOnly session, and CSRF enforcement.</p>
+          <p>Its first screen is the live installation; every mutation flows through the gateway
+             or the owning service, so the console reads and steers the same governed truth.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Agent Kernel</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The runtime for long-lived agents.</b> It runs an agent in short <em>episodes</em>: assemble what it needs to know, let it act, then sleep.</p>
+          <p>Memory lives in durable stores, so an agent stays on duty indefinitely, survives a restart, and wakes on a result, a timer, or a message.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Platform Store</span><span class="term-kind k-oss">OSS</span></div>
+          <p><b>The platform's memory.</b> One SurrealDB <code>3.2.0</code> node (RocksDB) holding
+             identity, policy, tasks, artifacts, recordings, agents, wakes, audit, and the
+             transactional outbox.</p>
+          <p>The outbox and changefeed are how work crosses processes durably; every subsystem
+             shares the same typed tenant and principal identities.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Task Runtime</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The ledger for long work.</b> UUIDv7 task ids with atomic creation, leases,
+             transitions, cancellation, results, and retention pins in the platform store.</p>
+          <p>Each operation declares its recovery: <code>resume</code> for deterministic work,
+             <code>webhook_wait</code> for submitted provider jobs, and
+             <code>interrupted_indeterminate</code> for mutating work that fails closed.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h3>Recording Hub — the durable record</h3>
+      <div class="glossary">
+        <div class="term">
+          <div class="term-head"><span class="term-name">Rerun proxy</span><span class="term-kind k-oss">OSS</span></div>
+          <p><b>The ingest socket.</b> A gRPC server (<code>re_grpc_server</code>) where every producer <em>pushes</em> data, and which rebroadcasts it live to anyone reading.</p>
+          <p>It is the single meeting point: producers write to it, viewers read from it. It holds a short in-memory buffer; durability is the spooler's job.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">hub-spooler</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>Catch-and-persist.</b> Our service that <em>embeds</em> the Rerun proxy and fsyncs every message it receives to disk before anything else.</p>
+          <p>Because the proxy and the writer are one process, the write is the first thing that happens to arriving data.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Segment file <code>.rrd</code></span><span class="term-kind k-format">format</span></div>
+          <p><b>The record on disk.</b> Rerun's recording format — one growing file per <code>dataset / day / recording</code>.</p>
+          <p>It stays readable even mid-write, so a crash leaves a decodable file up to the last whole message. This <em>is</em> the durable truth; everything else is a view onto it.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Catalog projection</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The card catalog.</b> Every recording and segment gets a typed installation
+             identity in the platform store — tenant, owner, classification, labels, state.</p>
+          <p>Startup reconciles footer-less crash leftovers into explicit records, so the catalog
+             always reflects what is actually on disk.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">recording server</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The reading room.</b> The MCP server that answers authorized questions about the
+             record: discovery, latest-at / range / dataframe queries, subscriptions, and sealing
+             a recording into an artifact.</p>
+          <p>Access rides the same gateway policy as every other tool, so the record is governed
+             data like everything else.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">dataset · recording</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>How the record is organised.</b> A <em>recording</em> is one stream (one SUMO run, one agent's decision log); a <em>dataset</em> groups them (<code>world</code>, <code>agents</code>).</p>
+          <p>A segment's catalog identity is its recording id, so the file on disk and the thing you query are the same identity.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Rerun viewer</span><span class="term-kind k-client">client</span></div>
+          <p><b>The window that draws it.</b> A GUI app that renders the streams — vehicles on a map, speeds as graphs, a scrubbable timeline.</p>
+          <p>It attaches like any other reader: to the proxy for a live tail, or to a <code>.rrd</code> file or sealed artifact to replay a whole run. The hosted headless instance is the <code>rerun</code> server above.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">GeoPoints · Scalars</span><span class="term-kind k-format">format</span></div>
+          <p><b>Typed data shapes.</b> Rerun archetypes — <em>GeoPoints</em> are points with real lat/lon that land on a map; <em>Scalars</em> are named time-series numbers.</p>
+          <p>Logging data as a known shape is what lets the viewer put vehicles on a map and plot speeds without any per-project wiring.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ref-group">
+      <h3>SUMO Showcase — the live proof</h3>
+      <div class="glossary">
+        <div class="term">
+          <div class="term-head"><span class="term-name">SUMO</span><span class="term-kind k-oss">OSS</span></div>
+          <p><b>The traffic simulator.</b> An open-source microsimulator (Eclipse SUMO <code>1.27.1</code>) stepping the pinned LuST Luxembourg road network full of individual vehicles through time.</p>
+          <p>It stands in for a real fleet of sensors: a live world that produces a stream of positions and states to record and reason about.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">TraCI</span><span class="term-kind k-proto">protocol</span></div>
+          <p><b>The socket into the sim.</b> SUMO's Traffic Control Interface — a connection to advance the simulation one step and read or command it.</p>
+          <p>Through it you get every vehicle's position and speed, and you can change a traffic light or reroute a car mid-run. It stays on the internal network.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">sumo-mcp</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>The bridge.</b> A Rust service that holds the one serialized TraCI connection, pushes the world into the hub, and exposes SUMO control as governed <code>sumo__*</code> tools on the shared task runtime.</p>
+          <p>One process is the sole owner of the sim, so reads, pushes, and commands stay ordered.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">MCP</span><span class="term-kind k-proto">protocol</span></div>
+          <p><b>The tool language.</b> Model Context Protocol — the standard the gateway, the servers, and the agents all speak for calling tools, reading resources, and running tasks.</p>
+          <p>Because every server speaks it, the gateway can front them all through one endpoint with one set of rules.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Durable task</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>A tool call you walk away from.</b> A long operation returns a task handle immediately; the agent sleeps and is woken when the result is ready. The task row, its lease, and its result live in the platform store.</p>
+          <p>This is how an agent runs a 50-step batch or a signal optimisation while holding zero connections and burning zero episodes waiting.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Resource · subscribe</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>A condition that wakes you.</b> An MCP resource is a readable endpoint; subscribing to one means the agent is notified the moment it changes.</p>
+          <p>The showcase exposes <code>sumo://congestion</code>, so a jam forming is a wake the moment it happens.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  // Standalone, single-file: mermaid is pulled from CDN and rendered with a
+  // palette derived from the page's own tokens, in both light and dark.
+  (function () {
+    var blocks = Array.prototype.slice.call(document.querySelectorAll(".mermaid"));
+    blocks.forEach(function (el) { el.dataset.src = el.textContent; });
+
+    function isDark() {
+      var attr = document.documentElement.getAttribute("data-theme");
+      if (attr === "dark") return true;
+      if (attr === "light") return false;
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+
+    function themeVariables(dark) {
+      return dark
+        ? {
+            background: "#16202A", mainBkg: "#1D2935", primaryColor: "#1D2935",
+            primaryTextColor: "#E7EDF2", primaryBorderColor: "#37475A",
+            secondaryColor: "#22303C", secondaryBorderColor: "#37475A", secondaryTextColor: "#E7EDF2",
+            tertiaryColor: "#141D26", tertiaryBorderColor: "#263340", tertiaryTextColor: "#8C9AA6",
+            lineColor: "#8C9AA6", textColor: "#E7EDF2",
+            clusterBkg: "#131C24", clusterBorder: "#37475A",
+            noteBkgColor: "#E2A14E22", noteBorderColor: "#E2A14E", noteTextColor: "#E7EDF2",
+            actorBkg: "#1D2935", actorBorder: "#37475A", actorTextColor: "#E7EDF2",
+            signalColor: "#8C9AA6", signalTextColor: "#E7EDF2",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          }
+        : {
+            background: "#FFFFFF", mainBkg: "#EDF1F4", primaryColor: "#EDF1F4",
+            primaryTextColor: "#17212B", primaryBorderColor: "#B9C4CD",
+            secondaryColor: "#F2F4F6", secondaryBorderColor: "#B9C4CD", secondaryTextColor: "#17212B",
+            tertiaryColor: "#F7F9FB", tertiaryBorderColor: "#D8DEE4", tertiaryTextColor: "#5A6772",
+            lineColor: "#5A6772", textColor: "#17212B",
+            clusterBkg: "#F7F9FB", clusterBorder: "#B9C4CD",
+            noteBkgColor: "#B8751418", noteBorderColor: "#B87514", noteTextColor: "#17212B",
+            actorBkg: "#EDF1F4", actorBorder: "#B9C4CD", actorTextColor: "#17212B",
+            signalColor: "#5A6772", signalTextColor: "#17212B",
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          };
+    }
+
+    function render() {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        themeVariables: themeVariables(isDark()),
+        flowchart: { curve: "basis", htmlLabels: true, useMaxWidth: true },
+        sequence: { useMaxWidth: true },
+        securityLevel: "loose"
+      });
+      blocks.forEach(function (el) {
+        el.removeAttribute("data-processed");
+        el.innerHTML = el.dataset.src;
+      });
+      mermaid.run({ nodes: blocks });
+    }
+
+    render();
+    if (window.matchMedia) {
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+    }
+    // Re-render if a host toggles the theme attribute (viewer light/dark switch).
+    new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        if (muts[i].attributeName === "data-theme") { render(); break; }
+      }
+    }).observe(document.documentElement, { attributes: true });
+  })();
+</script>
