@@ -131,7 +131,7 @@
     width: 2px;
     background: var(--line-strong);
   }
-  .layer:last-of-type::before { bottom: 8px; }
+  .layer:last-of-type::before, .layer.layer-end::before { bottom: 8px; }
   .layer::after {
     content: "";
     position: absolute;
@@ -425,7 +425,7 @@
   .plane li { padding: 1.5px 0; }
 
   /* ---------- ops strip ---------- */
-  .ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .ops { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
   .ops .card h4 { margin: 0 0 5px; font-size: 14px; font-weight: 650; }
   .ops .card p { margin: 0; font-size: 12.5px; color: var(--muted); }
   .ops .card p code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
@@ -582,16 +582,17 @@
       <div class="card cap-card">
         <h4>Hold a complete operating picture</h4>
         <p>Every sensor, simulator, and agent decision streams into one durable record at
-           <b>~225k messages/s, lossless</b> — the shared ground truth agents and operators
-           reason from. A crash mid-write leaves readable files; any run replays; any moment
-           is queryable.</p>
+           <b>~225k messages/s, lossless — ground truth for agents in the moment, an evidence
+           chain after the fact</b>. Any run replays, any moment is queryable, and when someone
+           asks why the system acted, the record answers.</p>
       </div>
       <div class="card cap-card">
         <h4>Set the rules of engagement</h4>
         <p>Every action clears one authenticated door and <b>answers to your policy — who is
            acting, on which tenant's data, at what sensitivity</b> — refused by default when in
-           doubt, and leaving a durable audit trail. Agents act freely inside the rules, and the
-           rules are yours.</p>
+           doubt. Enforcement lives outside the agent's own reasoning: a model can be wrong,
+           drift, or swallow hostile instructions and still cannot act beyond the envelope
+           you set.</p>
       </div>
       <div class="card cap-card">
         <h4>Give agents real capabilities</h4>
@@ -613,9 +614,10 @@
       </div>
       <div class="card cap-card">
         <h4>Own the whole installation</h4>
-        <p>Each installation is owned and operated by whoever deploys it: <b>your hostname, your
-           identity provider, your object store</b>. Compose runs it on one host, Helm runs it
-           in a cluster, and a verified offline bundle runs it air-gapped.</p>
+        <p>Built for contested and disconnected operations: each installation is owned and
+           operated by whoever deploys it — <b>your hostname, your identity provider, your
+           object store</b>. Compose runs it on one host, Helm runs it in a cluster, and a
+           verified offline bundle, provenance included, runs it fully disconnected.</p>
       </div>
       <div class="card cap-card">
         <h4>Prove it on a live city</h4>
@@ -644,27 +646,27 @@
 flowchart LR
   subgraph PROD["Live world"]
     direction TB
-    SEN["Sensors<br/>cameras · IMU · GNSS"]
-    SUMO["SUMO city<br/>traffic world"]
-    TEE["Agent decision log<br/>(tee)"]
+    SEN["Sensors&lt;br/&gt;cameras · IMU · GNSS"]
+    SUMO["SUMO city&lt;br/&gt;traffic world"]
+    TEE["Agent decision log&lt;br/&gt;(tee)"]
   end
   subgraph HUB["Recording Hub"]
     direction TB
     PROXY["gRPC ingest :9876"]
-    SPOOL["Spooler<br/>fsynced durable writer"]
-    FILES[("RRD segments<br/>dataset / day / recording")]
+    SPOOL["Spooler&lt;br/&gt;fsynced durable writer"]
+    FILES[("RRD segments&lt;br/&gt;dataset / day / recording")]
     PROXY --> SPOOL --> FILES
   end
   subgraph GOV["Governed plane"]
     direction TB
-    GW["MCP Gateway<br/>auth · policy · audit"]
-    SRV["9 hosted servers<br/>+ sumo"]
+    GW["MCP Gateway&lt;br/&gt;auth · policy · audit"]
+    SRV["9 hosted servers&lt;br/&gt;+ sumo"]
     GW --> SRV
   end
-  KERNEL["Agent Kernel<br/>bounded episodes"]
-  CONSOLE["Operations Console<br/>browser · BFF"]
-  STORE[("SurrealDB<br/>platform store")]
-  BYTES[("Object store<br/>artifact bytes")]
+  KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"]
+  CONSOLE["Operations Console&lt;br/&gt;browser · BFF"]
+  STORE[("SurrealDB&lt;br/&gt;platform store")]
+  BYTES[("Object store&lt;br/&gt;artifact bytes")]
 
   SEN -->|push| PROXY
   SUMO -->|push| PROXY
@@ -700,7 +702,7 @@ flowchart LR
         <h5>Account</h5>
         <ul>
           <li>Auth, policy, admin, and task transitions write audit evidence to the platform store.</li>
-          <li>Every agent turn, prompt, and tool call tees into the Rerun decision log.</li>
+          <li>Every decision records what the agent saw, chose, and why — teed into the Rerun decision log.</li>
           <li>Usage records meter provider spend and tool activity per principal.</li>
         </ul>
       </div>
@@ -1081,6 +1083,25 @@ flowchart LR
           </div>
         </div>
 
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">tasks/*</span>
+            <h4><span class="dot" style="background:var(--faint)"></span>Shared durable tasks</h4>
+            <p>Every long-running tool runs on the shared task runtime and the final Veoveo task
+               extension. UUIDv7 ids; creation, leases, transitions, results, and outbox events
+               are atomic in the platform store.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">tools/call</td><td>Task-augmented: returns a durable task handle immediately.</td></tr>
+            <tr><td class="tn">tasks/get</td><td>Durable status, progress, and the terminal result envelope.</td></tr>
+            <tr><td class="tn">tasks/cancel</td><td>Cancel a running task; provider cancellation is recorded with its outcome.</td></tr>
+            <tr><td class="tn">recovery</td><td><code style="font-family:var(--mono);font-size:11px">resume</code> · <code style="font-family:var(--mono);font-size:11px">webhook_wait</code> · <code style="font-family:var(--mono);font-size:11px">interrupted_indeterminate</code> — declared per operation.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap plain">ownership checks</span><span class="cap plain">usage records</span><span class="cap plain">retention pins</span><span class="cap plain">idempotency keys</span>
+          </div>
+        </div>
+
         <div class="server wide">
           <div class="server-head">
             <span class="scheme">rerun://</span>
@@ -1132,25 +1153,6 @@ flowchart LR
             <span class="cap plain">interactive tools</span><span class="cap plain">headless viewer</span>
             <span class="cap plain">software rendering</span><span class="cap plain">grpc recording ingest</span>
             <span class="cap plain">dedicated access profile</span>
-          </div>
-        </div>
-
-        <div class="server">
-          <div class="server-head">
-            <span class="scheme">tasks/*</span>
-            <h4><span class="dot" style="background:var(--faint)"></span>Shared durable tasks</h4>
-            <p>Every long-running tool runs on the shared task runtime and the final Veoveo task
-               extension. UUIDv7 ids; creation, leases, transitions, results, and outbox events
-               are atomic in the platform store.</p>
-          </div>
-          <div class="tools"><table>
-            <tr><td class="tn">tools/call</td><td>Task-augmented: returns a durable task handle immediately.</td></tr>
-            <tr><td class="tn">tasks/get</td><td>Durable status, progress, and the terminal result envelope.</td></tr>
-            <tr><td class="tn">tasks/cancel</td><td>Cancel a running task; provider cancellation is recorded with its outcome.</td></tr>
-            <tr><td class="tn">recovery</td><td><code style="font-family:var(--mono);font-size:11px">resume</code> · <code style="font-family:var(--mono);font-size:11px">webhook_wait</code> · <code style="font-family:var(--mono);font-size:11px">interrupted_indeterminate</code> — declared per operation.</td></tr>
-          </table></div>
-          <div class="server-foot">
-            <span class="cap plain">ownership checks</span><span class="cap plain">usage records</span><span class="cap plain">retention pins</span><span class="cap plain">idempotency keys</span>
           </div>
         </div>
 
@@ -1244,18 +1246,18 @@ flowchart LR
 flowchart TB
   subgraph SP["Spooler process (one)"]
     direction LR
-    RX["Embedded gRPC proxy<br/>re_grpc_server"] --> DEMUX["Demux by<br/>application id → recording"]
-    DEMUX --> ENC["Per-recording encoder<br/>footer-less, buffered"]
-    ENC --> LIVE[("Live segment<br/>crash-decodable")]
-    LIVE -->|size / age| FREEZE["Freeze<br/>finish · optimize · verify"]
-    FREEZE --> FROZEN[("Frozen segment<br/>+ manifest")]
+    RX["Embedded gRPC proxy&lt;br/&gt;re_grpc_server"] --> DEMUX["Demux by&lt;br/&gt;application id → recording"]
+    DEMUX --> ENC["Per-recording encoder&lt;br/&gt;footer-less, buffered"]
+    ENC --> LIVE[("Live segment&lt;br/&gt;crash-decodable")]
+    LIVE -->|size / age| FREEZE["Freeze&lt;br/&gt;finish · optimize · verify"]
+    FREEZE --> FROZEN[("Frozen segment&lt;br/&gt;+ manifest")]
   end
   P1["Sensors"] -->|push| RX
   P2["Agent tee"] -->|push| RX
   P3["SUMO"] -->|push| RX
-  FROZEN --> CAT["Catalog projection<br/>SurrealDB recording records"]
-  LIVE -.snapshot.-> QE["QueryEngine<br/>local reader (authoritative)"]
-  CAT --> RMCP["recording server<br/>authorized queries · seal to artifact"]
+  FROZEN --> CAT["Catalog projection&lt;br/&gt;SurrealDB recording records"]
+  LIVE -.snapshot.-> QE["QueryEngine&lt;br/&gt;local reader (authoritative)"]
+  CAT --> RMCP["recording server&lt;br/&gt;authorized queries · seal to artifact"]
   RMCP --> CLIENTS["agents · pipelines · console"]
           </div>
           <figcaption><b>Durable capture.</b> kill -9 leaves a footer-less but readable segment · restart resumes into a <b>.rN</b> sibling · startup reconciles crash leftovers · ~225k msgs/s lossless.</figcaption>
@@ -1322,10 +1324,10 @@ flowchart TB
         <figure class="diagram">
           <div class="mermaid">
 flowchart LR
-  SUMO["SUMO 1.27.1<br/>Docker · TraCI :8813"]
-  MCP["sumo-mcp<br/>Rust · task-native"]
-  HUB["Recording Hub<br/>world dataset"]
-  WM["Agent world model<br/>latest-at / range"]
+  SUMO["SUMO 1.27.1&lt;br/&gt;Docker · TraCI :8813"]
+  MCP["sumo-mcp&lt;br/&gt;Rust · task-native"]
+  HUB["Recording Hub&lt;br/&gt;world dataset"]
+  WM["Agent world model&lt;br/&gt;latest-at / range"]
   EP["Agent episode"]
 
   SUMO <-->|TraCI step / read| MCP
@@ -1440,7 +1442,7 @@ sequenceDiagram
   </section>
 
   <!-- LAYER : VERIFICATION -->
-  <section class="layer">
+  <section class="layer layer-end">
     <div class="layer-head">
       <h2 class="layer-title">Verification &amp; Observability</h2>
       <span class="layer-sub">the harness that keeps the contract honest</span>
