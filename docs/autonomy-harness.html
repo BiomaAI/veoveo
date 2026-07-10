@@ -538,8 +538,9 @@
     <h1>Autonomy Harness</h1>
     <p class="lede">
       <strong>A reactive and proactive cognition stack: autonomous agents that run live
-      operations — on infrastructure you own.</strong> Every sensor, simulator, and decision
-      feeds one live operating picture. Agents hunt through it around the clock: they catch
+      operations — on infrastructure you own.</strong> Every sensor, memory, and decision the
+      operation collects fuses into a <strong>world model of your operational reality</strong>.
+      Agents hunt through it around the clock: they catch
       conditions the moment they change, decide, and intervene — and between events they drive
       the mission forward on their own initiative, analyzing, planning, and tasking work under
       rules of engagement you set. Every decision is recorded, every action is accountable, and the
@@ -580,11 +581,11 @@
            and an interruption has a defined, recorded outcome.</p>
       </div>
       <div class="card cap-card">
-        <h4>Hold a complete operating picture</h4>
-        <p>Every sensor, simulator, and agent decision streams into one durable record at
-           <b>~225k messages/s, lossless — ground truth for agents in the moment, an evidence
-           chain after the fact</b>. Any run replays, any moment is queryable, and when someone
-           asks why the system acted, the record answers.</p>
+        <h4>Build a world model of the operation</h4>
+        <p>Every sensor, memory, and agent decision fuses into one durable <b>world model —
+           ground truth for agents in the moment, an evidence chain after the fact</b>. Any run
+           replays, any moment is queryable, and when someone asks why the system acted, the
+           record answers.</p>
       </div>
       <div class="card cap-card">
         <h4>Set the rules of engagement</h4>
@@ -630,6 +631,40 @@
     </div>
   </section>
 
+  <!-- WORLD MODEL -->
+  <section class="section">
+    <p class="eyebrow">World Model</p>
+    <h2>A world model of your operational reality</h2>
+    <p class="section-lede">
+      Agent context is a <strong>world model</strong>: everything the operation senses, remembers,
+      and decides, fused into one durable, queryable model of reality. Sensors and simulators
+      stream the physical world into the record; agents keep their beliefs, missions, and
+      constraints in analytical memory; every decision lands in the log. Each episode assembles a
+      fresh slice of it — <strong>the world now</strong> (a latest-at snapshot),
+      <strong>how it got here</strong> (trajectories and history), and <strong>what the agent
+      believes and intends</strong> — and each act the agent takes becomes part of the model the
+      next episode reasons from.
+    </p>
+    <figure class="diagram" style="max-width:900px">
+      <div class="mermaid">
+flowchart LR
+  SEN["Sensors"]
+  MEM["Memories"]
+  DEC["Decisions"]
+  WM(("WORLD MODEL"))
+  AG["Agent&lt;br/&gt;episode context"]
+  SEN --> WM
+  MEM --> WM
+  DEC --> WM
+  WM ==>|"fresh slice"| AG
+  AG -. acts feed back .-> WM
+  classDef model stroke:#B87514,stroke-width:2.5px,font-weight:bold;
+  class WM model;
+      </div>
+      <figcaption><b>The world model.</b> Sensors, memories, and decisions fuse into it; every episode's context is a fresh slice of it — and each act feeds the model the next episode reads.</figcaption>
+    </figure>
+  </section>
+
   <!-- DATA FLOW -->
   <section class="section">
     <p class="eyebrow">Data Flow</p>
@@ -655,7 +690,7 @@ flowchart LR
   subgraph HUB["Recording Hub"]
     direction TB
     PROXY["gRPC ingest :9876"]
-    SPOOL["Spooler&lt;br/&gt;fsynced durable writer"]
+    SPOOL["Persist-first writer&lt;br/&gt;fsynced on arrival"]
     FILES[("RRD segments&lt;br/&gt;dataset / day / recording")]
     PROXY --> SPOOL --> FILES
   end
@@ -667,7 +702,7 @@ flowchart LR
   end
   KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"]
   CONSOLE["Operations Console&lt;br/&gt;browser · BFF"]
-  STORE[("SurrealDB&lt;br/&gt;platform store")]
+  STORE[("Platform store&lt;br/&gt;SurrealDB")]
   BYTES[("Object store&lt;br/&gt;artifact bytes")]
 
   SEN -->|push| PROXY
@@ -679,8 +714,9 @@ flowchart LR
   FILES -->|governed recording queries| SRV
   SRV --- STORE
   SRV --- BYTES
+  STORE -. wakes .-> KERNEL
       </div>
-      <figcaption><b>The whole system.</b> Files are the record · the hub is the bus · the gateway is the door · SurrealDB is the platform's memory.</figcaption>
+      <figcaption><b>The whole system.</b> Files are the record · the hub is the bus · the gateway is the door · the platform store is the memory.</figcaption>
     </figure>
 
     <div class="agent-grid">
@@ -718,7 +754,7 @@ flowchart LR
     <p class="section-lede">
       The capabilities above rest on a small set of layers: an agent runtime, one governed door,
       a modular capability plane, shared durable planes, and the recording pipeline. Each layer
-      is typed, validated fail-closed, and exercised by the Rust smoke harness.
+      is typed, validated fail-closed, and exercised end to end by the smoke harness.
     </p>
   </section>
 
@@ -745,8 +781,9 @@ flowchart LR
           </div>
           <div class="stage">
             <h5>Assemble</h5>
-            <p>State header + the wake payload + manifest-defined SQL sections over the memory
-               database, under a token budget. Truncations point at <code>memory_query</code>.</p>
+            <p>A fresh slice of the world model — current state, beliefs, and history — plus
+               the wake payload, under a token budget. Truncations point at
+               <code>memory_query</code>.</p>
           </div>
           <div class="stage episode">
             <h5>Episode</h5>
@@ -854,7 +891,7 @@ flowchart LR
           <div class="node">
             <span class="tag">Contract</span>
             <h4>Gateway</h4>
-            <p>The single MCP contract. Every hosted server lives on the internal network and
+            <p>The single MCP contract. Every edge module lives on the internal network and
                requires a gateway-signed identity assertion.</p>
           </div>
         </div>
@@ -1240,24 +1277,24 @@ flowchart LR
     <div class="layer-body">
       <div class="card">
         <p class="agent-lede">
-          Every sensor, estimator, and agent streams Rerun data into <strong>one gRPC ingest
-          point</strong>. A spooler <strong>embeds the proxy and persists every message</strong> —
-          fsynced, to day-partitioned segment files — so the write is the first thing that happens
-          to arriving data. Files are <strong>footer-less while live</strong> (crash-decodable) and
+          Every sensor, estimator, and agent streams Rerun data into <strong>one ingest
+          point</strong>, and the hub <strong>persists first</strong>: the ingest socket and the
+          durable writer are one process, so every message is fsynced to day-partitioned segment
+          files the moment it arrives. Live files <strong>stay readable mid-write</strong> and
           are verified before their optimized replacement at freeze. Every recording and segment
           becomes a <strong>governed record in the platform store</strong>, and the recording
           server answers authorized queries over the same bytes.
-          <strong>Files are the record, the proxy is the bus, the recording server is the reading
+          <strong>Files are the record, the hub is the bus, the recording server is the reading
           room.</strong>
         </p>
 
         <figure class="diagram">
           <div class="mermaid">
 flowchart TB
-  subgraph SP["Spooler process (one)"]
+  subgraph SP["Persist-first writer (one process)"]
     direction LR
-    RX["Embedded gRPC proxy&lt;br/&gt;re_grpc_server"] --> DEMUX["Demux by&lt;br/&gt;application id → recording"]
-    DEMUX --> ENC["Per-recording encoder&lt;br/&gt;footer-less, buffered"]
+    RX["Ingest socket&lt;br/&gt;embedded Rerun proxy"] --> DEMUX["Demux by&lt;br/&gt;application id → recording"]
+    DEMUX --> ENC["Per-recording writer&lt;br/&gt;readable mid-write"]
     ENC --> LIVE[("Live segment&lt;br/&gt;crash-decodable")]
     LIVE -->|size / age| FREEZE["Freeze&lt;br/&gt;finish · optimize · verify"]
     FREEZE --> FROZEN[("Frozen segment&lt;br/&gt;+ manifest")]
@@ -1265,19 +1302,19 @@ flowchart TB
   P1["Sensors"] -->|push| RX
   P2["Agent tee"] -->|push| RX
   P3["SUMO"] -->|push| RX
-  FROZEN --> CAT["Catalog projection&lt;br/&gt;SurrealDB recording records"]
+  FROZEN --> CAT["Catalog projection&lt;br/&gt;platform store records"]
   LIVE -.snapshot.-> QE["QueryEngine&lt;br/&gt;local reader (authoritative)"]
   CAT --> RMCP["recording server&lt;br/&gt;authorized queries · seal to artifact"]
   RMCP --> CLIENTS["agents · pipelines · console"]
           </div>
-          <figcaption><b>Durable capture.</b> kill -9 leaves a footer-less but readable segment · restart resumes into a <b>.rN</b> sibling · startup reconciles crash leftovers · ~225k msgs/s lossless.</figcaption>
+          <figcaption><b>Durable capture.</b> kill -9 leaves a readable segment · a restart never overwrites · startup reconciles crash leftovers · ~225k msgs/s lossless.</figcaption>
         </figure>
 
         <div class="agent-grid">
           <div>
             <h5>Producers → bus</h5>
             <ul>
-              <li>Many SDKs stream into one proxy, sessioned by recording id.</li>
+              <li>Many SDKs stream into one ingest socket, sessioned by recording id.</li>
               <li>Routing: application-id prefix → dataset (<code>world</code>, <code>agents</code>, …); unmatched → <code>quarantine</code>.</li>
               <li>Internal-network only; the recording server is the authorized surface.</li>
             </ul>
@@ -1300,9 +1337,9 @@ flowchart TB
           </div>
         </div>
         <div class="chiprow" style="margin-top:14px">
-          <span class="chip">embedded proxy</span>
+          <span class="chip">persist-first ingest</span>
           <span class="chip">fsynced writes</span>
-          <span class="chip">footer-less crash-safe</span>
+          <span class="chip">readable mid-write</span>
           <span class="chip">.rN resume</span>
           <span class="chip">verify-on-freeze</span>
           <span class="chip">governed catalog</span>
@@ -1322,7 +1359,7 @@ flowchart TB
       <div class="card">
         <p class="agent-lede">
           The <a href="https://eclipse.dev/sumo/">SUMO</a> simulator runs the pinned, MIT-licensed
-          <strong>LuST Luxembourg scenario</strong> in its own container. A <strong>Rust
+          <strong>LuST Luxembourg scenario</strong> in its own container. <strong>One
           <code>sumo-mcp</code> server</strong> owns the single serialized TraCI connection,
           <strong>pushes the world into the hub</strong> as typed <code>/world/sumo/**</code>
           streams, and exposes SUMO control as governed <code>sumo__*</code> tools. The long
@@ -1335,7 +1372,7 @@ flowchart TB
           <div class="mermaid">
 flowchart LR
   SUMO["SUMO 1.27.1&lt;br/&gt;Docker · TraCI :8813"]
-  MCP["sumo-mcp&lt;br/&gt;Rust · task-native"]
+  MCP["sumo-mcp&lt;br/&gt;task-native"]
   HUB["Recording Hub&lt;br/&gt;world dataset"]
   WM["Agent world model&lt;br/&gt;latest-at / range"]
   EP["Agent episode"]
@@ -1380,7 +1417,7 @@ sequenceDiagram
               <li>TraCI is single-client; one serialized owner steps, pushes, and applies commands.</li>
               <li>Vehicles land as <code>GeoPoints</code>, speeds and phases as scalars.</li>
               <li>TraCI stays internal; the loopback MCP port requires the same gateway-signed
-                  assertion as every hosted server.</li>
+                  assertion as every edge module.</li>
             </ul>
           </div>
           <div>
@@ -1453,8 +1490,8 @@ sequenceDiagram
         </div>
         <div class="card">
           <h4>Operations Console</h4>
-          <p>A React UI whose first screen is the live installation: health, tasks, artifacts,
-             agents, recordings, policy, audit. Its Rust BFF owns PKCE login and keeps tokens in
+          <p>The console's first screen is the live installation: health, tasks, artifacts,
+             agents, recordings, policy, audit. Its session backend owns PKCE login and keeps tokens in
              an encrypted HttpOnly cookie — the browser sees only same-origin session calls.</p>
         </div>
         <div class="card">
@@ -1481,7 +1518,7 @@ sequenceDiagram
         </div>
         <div class="card">
           <h4>Smoke Harness</h4>
-          <p>Rust end-to-end scenarios with process orchestration: fake IdP / provider / upstream
+          <p>End-to-end scenarios with real process orchestration: fake IdP / provider / upstream
              services, a real Keycloak realm, live agent-kernel sleep/wake, and the full SUMO
              world in a disposable Compose project.</p>
         </div>
@@ -1500,7 +1537,7 @@ sequenceDiagram
         <span><code>artifact://{uuidv7}</code> — opaque immutable artifact identity</span>
         <span>amber chips — capability enforced through the shared planes</span>
         <span>agent lifecycle — wake → assemble → episode → persist → sleep, forever</span>
-        <span>hub — files are the record · the proxy is the bus · the recording server is the reading room</span>
+        <span>hub — files are the record · the hub is the bus · the recording server is the reading room</span>
         <span>showcase — SUMO proves perceive → decide → act on the real loop</span>
       </div>
     </div>
@@ -1536,7 +1573,7 @@ sequenceDiagram
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Operations Console</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>The cockpit.</b> A React UI plus a Rust BFF that owns browser login (PKCE), an
+          <p><b>The cockpit.</b> The operations UI plus a session backend that owns browser login (PKCE), an
              encrypted HttpOnly session, and CSRF enforcement.</p>
           <p>Its first screen is the live installation; every mutation flows through the gateway
              or the owning service, so the console reads and steers the same governed truth.</p>
@@ -1545,6 +1582,14 @@ sequenceDiagram
           <div class="term-head"><span class="term-name">Agent Kernel</span><span class="term-kind k-ours">ours</span></div>
           <p><b>The runtime for long-lived agents.</b> It runs an agent in short <em>episodes</em>: assemble what it needs to know, let it act, then sleep.</p>
           <p>Memory lives in durable stores, so an agent stays on duty indefinitely, survives a restart, and wakes on a result, a timer, or a message.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">World model</span><span class="term-kind k-concept">concept</span></div>
+          <p><b>What an agent knows.</b> Everything the operation senses, remembers, and decides,
+             fused into one durable, queryable model of reality — the record, the agent's beliefs
+             and missions, and the decision log.</p>
+          <p>Each episode's context is a fresh slice of it: the world now, how it got here, and
+             what the agent intends. The agent's own acts feed the model the next episode reads.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Platform Store</span><span class="term-kind k-oss">OSS</span></div>
@@ -1569,14 +1614,14 @@ sequenceDiagram
       <h3>Recording Hub — the durable record</h3>
       <div class="glossary">
         <div class="term">
-          <div class="term-head"><span class="term-name">Rerun proxy</span><span class="term-kind k-oss">OSS</span></div>
+          <div class="term-head"><span class="term-name">Ingest socket</span><span class="term-kind k-oss">OSS</span></div>
           <p><b>The ingest socket.</b> A gRPC server (<code>re_grpc_server</code>) where every producer <em>pushes</em> data, and which rebroadcasts it live to anyone reading.</p>
-          <p>It is the single meeting point: producers write to it, viewers read from it. It holds a short in-memory buffer; durability is the spooler's job.</p>
+          <p>It is the single meeting point: producers write to it, viewers read from it. It holds a short in-memory buffer; durability is the writer's job.</p>
         </div>
         <div class="term">
-          <div class="term-head"><span class="term-name">hub-spooler</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>Catch-and-persist.</b> Our service that <em>embeds</em> the Rerun proxy and fsyncs every message it receives to disk before anything else.</p>
-          <p>Because the proxy and the writer are one process, the write is the first thing that happens to arriving data.</p>
+          <div class="term-head"><span class="term-name">Persist-first writer</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>Catch-and-persist.</b> Our service that <em>embeds</em> the ingest socket and fsyncs every message it receives to disk before anything else.</p>
+          <p>Because the socket and the writer are one process, the write is the first thing that happens to arriving data.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Segment file <code>.rrd</code></span><span class="term-kind k-format">format</span></div>
@@ -1606,7 +1651,7 @@ sequenceDiagram
         <div class="term">
           <div class="term-head"><span class="term-name">Rerun viewer</span><span class="term-kind k-client">client</span></div>
           <p><b>The window that draws it.</b> A GUI app that renders the streams — vehicles on a map, speeds as graphs, a scrubbable timeline.</p>
-          <p>It attaches like any other reader: to the proxy for a live tail, or to a <code>.rrd</code> file or sealed artifact to replay a whole run. The hosted headless instance is the <code>rerun</code> server above.</p>
+          <p>It attaches like any other reader: to the ingest socket for a live tail, or to a <code>.rrd</code> file or sealed artifact to replay a whole run. The hosted headless instance is the <code>rerun</code> server above.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">GeoPoints · Scalars</span><span class="term-kind k-format">format</span></div>
@@ -1631,7 +1676,7 @@ sequenceDiagram
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">sumo-mcp</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>The bridge.</b> A Rust service that holds the one serialized TraCI connection, pushes the world into the hub, and exposes SUMO control as governed <code>sumo__*</code> tools on the shared task runtime.</p>
+          <p><b>The bridge.</b> The one owner of the simulator's control socket: it holds the single serialized TraCI connection, pushes the world into the hub, and exposes SUMO control as governed <code>sumo__*</code> tools on the shared task runtime.</p>
           <p>One process is the sole owner of the sim, so reads, pushes, and commands stay ordered.</p>
         </div>
         <div class="term">

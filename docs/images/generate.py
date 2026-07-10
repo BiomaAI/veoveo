@@ -48,7 +48,20 @@ IMAGES = {
     ),
     "system-map": (
         "1536*1024",
-        "System architecture schematic. Left: three outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three stacked outlined stages labeled INGEST, SPOOLER, SEGMENTS. Center-right: one outlined circle labeled GATEWAY. Two clients feed it: above it, an outlined rounded rectangle labeled CONSOLE with a plain dark arrow down into the circle, and left of it, an outlined hexagon labeled AGENT with a plain dark arrow into the circle, and this hexagon arrow is labeled TOOLS. One plain dark unlabeled arrow leaves the gateway circle rightward into a row of nine tiny outlined rectangles labeled SERVERS. Bottom center: an outlined database cylinder labeled SURREALDB connected by thin plain dark lines to GATEWAY and SERVERS. One long amber arrow starts at the right edge of the RECORDING HUB container, passes under the gateway, and ends at the SERVERS row, labeled QUERIES. One amber dashed arrow starts at the SURREALDB cylinder and ends exactly at the AGENT hexagon, labeled WAKES. Amber appears only on the three PUSH arrows, the hub stage outlines, the QUERIES arrow, and the WAKES arrow; every other line is dark slate."
+        "System architecture schematic with exactly one hexagon in the whole image. Left: three outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three stacked outlined stages labeled INGEST, PERSIST, SEGMENTS. Center-right: one outlined circle labeled GATEWAY. Above the circle, an outlined rounded rectangle labeled CONSOLE with a plain dark arrow down into the circle. Left of the circle, the single outlined hexagon, labeled AGENT, with a plain dark arrow into the circle labeled TOOLS. One plain dark unlabeled arrow leaves the circle rightward into a horizontal row of nine tiny outlined rectangles with the word MODULES written beneath the row. Bottom center: an outlined database cylinder labeled PLATFORM STORE, connected by thin plain dark lines up to the GATEWAY circle and to the MODULES row. One long amber arrow starts at the bottom edge of the RECORDING HUB container and ends at the MODULES row, labeled QUERIES. One amber dashed arrow starts at the PLATFORM STORE cylinder and ends at the AGENT hexagon, labeled WAKES, pointing at the hexagon. Amber appears only on the three PUSH arrows, the QUERIES arrow, and the WAKES arrow; every other line is dark slate."
+    ),
+    "world-model": (
+        "1536*1024",
+        "World model schematic, the centerpiece drawn large. Left: three outlined boxes stacked"
+        " vertically labeled SENSORS, MEMORIES, DECISIONS, each with a thin arrow converging into"
+        " the center. Center: one large dominant sphere drawn as a thin-line hexagonal wireframe"
+        " lattice, labeled WORLD MODEL in larger letters beneath it — the only amber-outlined"
+        " element. Right: one outlined hexagon labeled AGENT, receiving one amber arrow from the"
+        " sphere labeled CONTEXT. From the AGENT hexagon one thin plain dark curved arrow returns"
+        " to the DECISIONS box on the left — the agent's own choices become part of the model."
+        " Exactly six labels: SENSORS, MEMORIES, DECISIONS, WORLD MODEL, CONTEXT, AGENT, each"
+        " appearing exactly once. The amber accent appears only on the wireframe sphere and the"
+        " CONTEXT arrow; everything else dark slate."
     ),
     "agent-loop": (
         "1536*1024",
@@ -77,7 +90,7 @@ IMAGES = {
     ),
     "capability-map": (
         "1536*1024",
-        "Modular capability schematic in three parts. Center: one outlined circle labeled GATEWAY; directly beneath it, three stacked wide horizontal bars drawn as thin amber outlines with white interiors, labeled TASKS, ARTIFACTS, POLICY. Left of the gateway: one large dashed rounded boundary labeled EDGE containing a three by three grid of nine equal outlined rectangles; reading left to right, top to bottom they are labeled row one MEDIA, COORDINATES, DUCKDB; row two OPTIMIZATION, TIMESERIES, ARTIFACT; row three RECORDING, CHARTS, RERUN — exactly nine rectangles, each word appearing exactly once. Right of the gateway: one large dashed rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line connects the EDGE boundary to the gateway circle and one trunk line connects the REMOTE boundary to the gateway circle. The amber accent appears only on the three contract bars and the plus symbol; everything else dark slate."
+        "Modular capability schematic in three parts. Center: one outlined circle labeled GATEWAY; directly beneath it, three stacked wide horizontal bars drawn as thin amber outlines with white interiors, labeled TASKS, ARTIFACTS, POLICY. Left of the gateway: one large dashed rounded boundary labeled EDGE containing a three by three grid of nine equal outlined rectangles; reading left to right, top to bottom they are labeled row one MEDIA, GEODESY, SQL; row two PLANNING, FORECASTING, SHARING; row three RECORDINGS, CHARTS, VIEWER — exactly nine rectangles, each word appearing exactly once. Right of the gateway: one large dashed rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line connects the EDGE boundary to the gateway circle and one trunk line connects the REMOTE boundary to the gateway circle. The amber accent appears only on the three contract bars and the plus symbol; everything else dark slate."
     ),
     "gateway-gauntlet": (
         "1536*1024",
@@ -99,7 +112,7 @@ IMAGES = {
     ),
     "capture-pipeline": (
         "1536*1024",
-        "Horizontal pipeline schematic. Left: three outlined boxes stacked vertically labeled SENSORS, AGENTS, SUMO, each with a thin arrow labeled PUSH merging into the pipeline. The pipeline flows left to right through four outlined stages connected by arrows, labeled PROXY, SPOOLER, LIVE SEGMENT, FROZEN SEGMENT. On the arrow between LIVE SEGMENT and FROZEN SEGMENT sits one small diamond checkpoint labeled VERIFY. Below the pipeline, one branch arrow drops from LIVE SEGMENT down to an outlined box labeled CATALOG, which sends one arrow right to an outlined box labeled QUERIES. The amber accent is used only for the LIVE SEGMENT and FROZEN SEGMENT stage outlines, the VERIFY diamond, and the arrows between them — the durable record and its proof; everything else dark slate."
+        "Horizontal pipeline schematic. Left: three outlined boxes stacked vertically labeled SENSORS, AGENTS, SUMO, each with a thin arrow labeled PUSH merging into the pipeline. The pipeline flows left to right through four outlined stages connected by arrows, labeled INGEST, PERSIST, LIVE SEGMENT, FROZEN SEGMENT. On the arrow between LIVE SEGMENT and FROZEN SEGMENT sits one small diamond checkpoint labeled VERIFY. Below the pipeline, one branch arrow drops from LIVE SEGMENT down to an outlined box labeled CATALOG, which sends one arrow right to an outlined box labeled QUERIES. The amber accent is used only for the LIVE SEGMENT and FROZEN SEGMENT stage outlines, the VERIFY diamond, and the arrows between them — the durable record and its proof; everything else dark slate."
     ),
     "task-sleepwake": (
         "1536*1024",

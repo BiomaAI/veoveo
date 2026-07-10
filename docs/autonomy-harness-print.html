@@ -185,16 +185,17 @@
     <tbody>
       <tr><td>1</td><td>Executive Summary</td></tr>
       <tr><td>2</td><td>Capabilities</td></tr>
-      <tr><td>3</td><td>Data Flow</td></tr>
-      <tr><td>4</td><td>Agent Kernel</td></tr>
-      <tr><td>5</td><td>Edge, Access, and the Gateway</td></tr>
-      <tr><td>6</td><td>Modular Capabilities</td></tr>
-      <tr><td>7</td><td>Durable Tasks and Shared Planes</td></tr>
-      <tr><td>8</td><td>Recording Hub</td></tr>
-      <tr><td>9</td><td>SUMO Showcase</td></tr>
-      <tr><td>10</td><td>Operations and Deployment</td></tr>
-      <tr><td>11</td><td>Verification and Observability</td></tr>
-      <tr><td>12</td><td>Component Reference</td></tr>
+      <tr><td>3</td><td>World Model</td></tr>
+      <tr><td>4</td><td>Data Flow</td></tr>
+      <tr><td>5</td><td>Agent Kernel</td></tr>
+      <tr><td>6</td><td>Edge, Access, and the Gateway</td></tr>
+      <tr><td>7</td><td>Modular Capabilities</td></tr>
+      <tr><td>8</td><td>Durable Tasks and Shared Planes</td></tr>
+      <tr><td>9</td><td>Recording Hub</td></tr>
+      <tr><td>10</td><td>SUMO Showcase</td></tr>
+      <tr><td>11</td><td>Operations and Deployment</td></tr>
+      <tr><td>12</td><td>Verification and Observability</td></tr>
+      <tr><td>13</td><td>Component Reference</td></tr>
     </tbody>
   </table>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">2</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
@@ -206,14 +207,15 @@
   <h1 class="section">1. Executive Summary</h1>
   <p class="body">
     The Autonomy Harness is a reactive and proactive cognition stack: autonomous agents that run
-    live operations on infrastructure the operator owns. Every sensor, simulator, and decision
-    feeds one live operating picture. Agents hunt through it around the clock — they catch
+    live operations on infrastructure the operator owns. Every sensor, memory, and decision the
+    operation collects fuses into a world model of its operational reality. Agents hunt through
+    it around the clock — they catch
     conditions the moment they change, decide, and intervene — and between events they drive the
     mission forward on their own initiative, analyzing, planning, and tasking work under rules of
     engagement the operator sets.
   </p>
   <div class="stats">
-    <div class="stat"><b>9</b><span>Hosted Servers</span></div>
+    <div class="stat"><b>9</b><span>Edge Modules</span></div>
     <div class="stat"><b>58</b><span>Governed Tools</span></div>
     <div class="stat"><b>~225k</b><span>Messages/s, Lossless</span></div>
   </div>
@@ -222,7 +224,7 @@
     <li><b>Cognition is governed from outside.</b> Every action clears one authenticated door and
         answers to installation policy, refused by default when in doubt. A model can be wrong,
         drift, or swallow hostile instructions and still cannot act beyond the envelope.</li>
-    <li><b>The record is the ground truth and the evidence chain.</b> Sensors, simulators, and
+    <li><b>The world model is the ground truth and the evidence chain.</b> Sensors, memories, and
         agent decisions stream into one durable record. Any run replays, any moment is queryable,
         and when someone asks why the system acted, the record answers.</li>
     <li><b>Long work carries its own guarantees.</b> Every long operation is a durable task with a
@@ -265,9 +267,10 @@
     <li><b>Dispatch long work and move on.</b> A render, a forecast, a plan, or a 500-step
         simulation batch carries its own guarantees: it completes on its own, delivers the result
         the moment it is ready, and an interruption has a defined, recorded outcome.</li>
-    <li><b>Hold a complete operating picture.</b> Every sensor, simulator, and agent decision
-        streams into one durable record at ~225k messages/s, lossless — ground truth for agents
-        in the moment, an evidence chain after the fact.</li>
+    <li><b>Build a world model of the operation.</b> Every sensor, memory, and agent decision
+        fuses into one durable world model — ground truth for agents in the moment, an evidence
+        chain after the fact. Any run replays, any moment is queryable, and when someone asks
+        why the system acted, the record answers.</li>
     <li><b>Set the rules of engagement.</b> Every action clears one authenticated door and answers
         to your policy — who is acting, on which tenant's data, at what sensitivity — refused by
         default when in doubt. Agents act freely inside the rules, and the rules are yours.</li>
@@ -289,10 +292,37 @@
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">4</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
+<!-- ======================= 3. WORLD MODEL ======================= -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness</span>
+  <h1 class="section">3. World Model</h1>
+  <p class="body">
+    Agent context is a <b>world model</b>: everything the operation senses, remembers, and
+    decides, fused into one durable, queryable model of reality. Sensors and simulators stream
+    the physical world into the record; agents keep their beliefs, missions, and constraints in
+    analytical memory; every decision lands in the log — and each act an agent takes becomes part
+    of the model the next episode reasons from. Context is assembled fresh from the world model
+    every episode, so an agent's knowledge survives any restart and outlives any context window.
+  </p>
+  <figure class="art">
+    <img src="images/world-model.png" alt="">
+    <figcaption>Sensors, memories, and decisions fuse into the world model; every episode's context is a fresh slice of it.</figcaption>
+  </figure>
+  <table class="data">
+    <thead><tr><td>Source</td><td>What it contributes</td><td>What agents draw</td></tr></thead>
+    <tbody>
+      <tr><td>Sensors &amp; sims</td><td>The physical world, streamed into the durable time-and-space record.</td><td>The world now (latest-at) · how it got here (trajectories and ranges).</td></tr>
+      <tr><td>Agent memory</td><td>Beliefs, missions, constraints, and state in each agent's analytical memory.</td><td>What the agent believes and intends — queryable with guarded SQL.</td></tr>
+      <tr><td>Decision log</td><td>Every turn, tool call, and rationale, time-indexed and replayable.</td><td>What happened and why — the model of the agents themselves.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">5</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
 <!-- ======================= 3. DATA FLOW ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">3. Data Flow</h1>
+  <h1 class="section">4. Data Flow</h1>
   <p class="body">
     The decision cycle, engineered. <b>Observe</b>: producers push into the Recording Hub, and
     agents query the record back out through governed tools. <b>Act</b>: agents and operators call
@@ -302,7 +332,7 @@
   </p>
   <figure class="art">
     <img src="images/system-map.png" alt="">
-    <figcaption>The whole system: files are the record · the hub is the bus · the gateway is the door · SurrealDB is the platform's memory.</figcaption>
+    <figcaption>The whole system: files are the record · the hub is the bus · the gateway is the door · the platform store is the memory.</figcaption>
   </figure>
   <table class="data">
     <thead><tr><td>Flow</td><td>Path</td><td>Guarantee</td></tr></thead>
@@ -312,13 +342,13 @@
       <tr><td>Account</td><td>Auth, policy, admin, and task transitions write audit evidence; every decision records what the agent saw, chose, and why.</td><td>Usage records meter provider spend and tool activity per principal.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">5</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">6</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 4. AGENT KERNEL ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">4. Agent Kernel</h1>
+  <h1 class="section">5. Agent Kernel</h1>
   <p class="body">
     An agent runs forever because durable stores are the memory: every episode's context is
     assembled fresh from the agent's memory planes, and everything in flight survives process
@@ -344,13 +374,13 @@
     survives process death — descriptors and watcher leases rehydrate from the platform store on
     any boot, so kill and restart resumes the same tasks.
   </p>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">6</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">7</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 4.1 KERNEL CONT ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h2 class="sub" style="margin-top:0">4.1 Memory Planes and Durability</h2>
+  <h2 class="sub" style="margin-top:0">5.1 Memory Planes and Durability</h2>
   <div class="twocol">
     <div>
       <h3 class="minor">Memory planes</h3>
@@ -390,13 +420,13 @@
        boot. A preamble and domain migrations complete the profile; cross-episode instructions
        live there or in memory.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">7</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">8</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 5. GATEWAY ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">5. Edge, Access, and the Gateway</h1>
+  <h1 class="section">6. Edge, Access, and the Gateway</h1>
   <p class="body">
     Every client enters through the installation's own ingress: the Caddy edge on Compose, an
     Ingress on Helm. <code>/mcp</code>, <code>/oauth</code>, <code>/admin</code>, and
@@ -418,13 +448,13 @@
       <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, artifacts, and usage — forwarded and aggregated under one flat tool namespace (<code>media__run</code>, <code>duckdb__query</code>).</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">8</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">9</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 6. SERVERS ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">6. Modular Capabilities</h1>
+  <h1 class="section">7. Modular Capabilities</h1>
   <p class="body">
     Capability is modular. Nine modules run at the edge today, inside the installation, behind
     gateway-signed identity — and the surface is open: a new capability, whether another edge
@@ -439,24 +469,24 @@
   <table class="data tight">
     <thead><tr><td>Module</td><td>Capability</td><td>Tools</td></tr></thead>
     <tbody>
-      <tr><td class="mono">media</td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
-      <tr><td class="mono">coordinates</td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
-      <tr><td class="mono">duckdb</td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
-      <tr><td class="mono">optimization</td><td>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
-      <tr><td class="mono">timeseries</td><td>Forecasting over any SQL-readable time-series source, visualized as Rerun recordings.</td><td class="mono">forecast</td></tr>
-      <tr><td class="mono">artifact</td><td>Discovery, metadata, grants, release, and sharing — the governance surface over the byte store.</td><td class="mono">metadata · grant_access · revoke_access · set_release_state · create_share_link · revoke_share_link</td></tr>
-      <tr><td class="mono">recording</td><td>Authorized access to the Recording Hub: discovery, dataframe queries, subscriptions, publication.</td><td class="mono">query_recording · seal_recording</td></tr>
-      <tr><td class="mono">charts</td><td>Chart rendering projected through the gateway, turning query results into shareable visuals.</td><td class="mono">render_chart · compile_chart · validate_chart · list_chart_types · create_chart_view</td></tr>
-      <tr><td class="mono">rerun</td><td>A live Rerun viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
+      <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
+      <tr><td>Geodesy<br><code>coordinates</code></td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
+      <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
+      <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
+      <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as Rerun recordings.</td><td class="mono">forecast</td></tr>
+      <tr><td>Sharing<br><code>artifact</code></td><td>Discovery, metadata, grants, release, and sharing — the governance surface over the byte store.</td><td class="mono">metadata · grant_access · revoke_access · set_release_state · create_share_link · revoke_share_link</td></tr>
+      <tr><td>Recordings<br><code>recording</code></td><td>Authorized access to the Recording Hub: discovery, dataframe queries, subscriptions, publication.</td><td class="mono">query_recording · seal_recording</td></tr>
+      <tr><td>Charts<br><code>charts</code></td><td>Chart rendering projected through the gateway, turning query results into shareable visuals.</td><td class="mono">render_chart · compile_chart · validate_chart · list_chart_types · create_chart_view</td></tr>
+      <tr><td>Viewer<br><code>rerun</code></td><td>A live Rerun viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">9</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">10</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 7. TASKS + PLANES ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">7. Durable Tasks and Shared Planes</h1>
+  <h1 class="section">8. Durable Tasks and Shared Planes</h1>
   <h3 class="minor">Shared durable tasks</h3>
   <p class="body">
     Every long-running tool runs on the shared task runtime and the final Veoveo task extension.
@@ -493,35 +523,35 @@
        by tenant and label policy; and read-only anyone-with-link bearers for artifacts explicitly
        marked releasable — expiring, download-limited, and revocable.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">10</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 8. RECORDING HUB ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">8. Recording Hub</h1>
+  <h1 class="section">9. Recording Hub</h1>
   <p class="body">
-    Every sensor, estimator, and agent streams Rerun data into one gRPC ingest point. A spooler
-    embeds the proxy and persists every message — fsynced, to day-partitioned segment files — so
-    the write is the first thing that happens to arriving data. Files are footer-less while live
-    (crash-decodable) and are verified before their optimized replacement at freeze. Every
+    Every sensor, estimator, and agent streams into one ingest point, and the hub persists
+    first: each message is written — fsynced — to day-partitioned segment files the moment it
+    arrives. Live files stay readable mid-write, so a crash leaves a decodable record, and every
+    segment is verified before its optimized replacement when it freezes. Every
     recording and segment becomes a governed record in the platform store, and the recording
     server answers authorized queries over the same bytes.
   </p>
   <figure class="art">
     <img src="images/capture-pipeline.png" alt="">
-    <figcaption>Durable capture: kill -9 leaves a readable segment · restart resumes into a .rN sibling · ~225k msgs/s lossless.</figcaption>
+    <figcaption>Durable capture: a crash leaves a readable record · a restart never overwrites · ~225k msgs/s lossless.</figcaption>
   </figure>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 9. SUMO ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">9. SUMO Showcase</h1>
+  <h1 class="section">10. SUMO Showcase</h1>
   <p class="body">
     The SUMO simulator runs the pinned, MIT-licensed LuST Luxembourg scenario in its own
-    container. A Rust <code>sumo-mcp</code> server owns the single serialized TraCI connection,
+    container. One <code>sumo-mcp</code> server owns the single serialized TraCI connection,
     pushes the world into the hub as typed <code>/world/sumo/**</code> streams, and exposes SUMO
     control as governed <code>sumo__*</code> tools. The long operations are durable tasks the
     agent detaches from and wakes on — the same sleep/wake the kernel already runs, now driven by
@@ -540,13 +570,13 @@
       <tr><td>Outputs</td><td>Successful task outputs upload through a task-bound write capability to the shared artifact plane.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 9.1 SUMO LOOP ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h2 class="sub" style="margin-top:0">9.1 Task Sleep/Wake</h2>
+  <h2 class="sub" style="margin-top:0">10.1 Task Sleep/Wake</h2>
   <p class="body">
     The exact detach → sleep → wake path, on the final task extension the gateway and kernel
     speak: the agent calls a task-augmented tool, receives a durable handle immediately, persists
@@ -557,13 +587,13 @@
     <img src="images/task-sleepwake.png" alt="">
     <figcaption>Detach → sleep → wake: zero connections held, zero episodes burned waiting.</figcaption>
   </figure>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 10. OPS ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">10. Operations and Deployment</h1>
+  <h1 class="section">11. Operations and Deployment</h1>
   <p class="body">
     Deployment is a spectrum, and cognition is constant across it. The same platform runs at the
     operation's edge on one host, across a cluster, sealed inside an air gap, or hybrid — an edge
@@ -594,18 +624,18 @@
     <li><b>Evidence deploys with the platform.</b> The record, the audit trail, and usage metering
         are part of every form — air-gapped included.</li>
   </ul>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 11. VERIFICATION ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">11. Verification and Observability</h1>
+  <h1 class="section">12. Verification and Observability</h1>
   <ul class="bullets">
     <li><b>Conformance CLI.</b> A generic MCP client exercising the full protocol surface — info,
         resources, prompts, completions, runs, usage, artifacts — plus auth-metadata discovery and
         token tooling.</li>
-    <li><b>Smoke harness.</b> Rust end-to-end scenarios with process orchestration: fake IdP,
+    <li><b>Smoke harness.</b> End-to-end scenarios with real process orchestration: fake IdP,
         provider, and upstream services; a real Keycloak realm; live agent-kernel sleep/wake; and
         the full SUMO world in a disposable Compose project.</li>
     <li><b>CI.</b> Formatting, clippy, tests, the console UI build, the Keycloak integration path,
@@ -619,35 +649,36 @@
        installation. The record replays, the audit trail is durable, and the decision log carries
        each agent's rationale — when someone asks why the system acted, the record answers.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 12. COMPONENT REFERENCE ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">12. Component Reference</h1>
+  <h1 class="section">13. Component Reference</h1>
   <table class="data">
     <thead><tr><td>Component</td><td>Role</td><td>What it is</td></tr></thead>
     <tbody>
       <tr><td class="mono">ingress</td><td>ours</td><td>The single public door, owned by the operator: Caddy on Compose, an Ingress on Helm. One place to defend and observe.</td></tr>
       <tr><td class="mono">mcp-gateway</td><td>ours</td><td>The front desk for tools: authenticates the caller, checks policy, projects every server's tools into one flat menu, writes the audit trail.</td></tr>
-      <tr><td class="mono">console</td><td>ours</td><td>The cockpit: a React UI plus a Rust BFF that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
+      <tr><td class="mono">console</td><td>ours</td><td>The cockpit: the operations UI plus a session backend that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
       <tr><td class="mono">agent-kernel</td><td>ours</td><td>The runtime for long-lived agents: short episodes, durable memory, wake on a result, a timer, or a message.</td></tr>
+      <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: everything the operation senses, remembers, and decides, fused into one durable, queryable model of reality. Every episode's context is a fresh slice of it.</td></tr>
       <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.0 — the platform's memory: identity, policy, tasks, artifacts, recordings, agents, audit, and the transactional outbox.</td></tr>
       <tr><td class="mono">task runtime</td><td>ours</td><td>The ledger for long work: UUIDv7 task ids with atomic leases, transitions, results, and declared recovery per operation.</td></tr>
-      <tr><td class="mono">rerun proxy</td><td>OSS</td><td>The ingest socket: a gRPC server every producer pushes into, rebroadcast live to anyone reading.</td></tr>
-      <tr><td class="mono">hub-spooler</td><td>ours</td><td>Catch-and-persist: embeds the proxy and fsyncs every message to disk before anything else.</td></tr>
+      <tr><td class="mono">ingest socket</td><td>OSS</td><td>Where every producer pushes: one gRPC endpoint (the Rerun proxy), rebroadcast live to anyone reading.</td></tr>
+      <tr><td class="mono">persist-first writer</td><td>ours</td><td>Embeds the ingest socket and fsyncs every message to disk before anything else — the write happens first.</td></tr>
       <tr><td class="mono">.rrd segment</td><td>format</td><td>The record on disk: one growing file per dataset / day / recording, readable even mid-write.</td></tr>
       <tr><td class="mono">catalog</td><td>ours</td><td>The card catalog: typed installation identity for every recording and segment; startup reconciles crash leftovers.</td></tr>
       <tr><td class="mono">recording server</td><td>ours</td><td>The reading room: authorized discovery, latest-at / range / dataframe queries, subscriptions, and sealing to an artifact.</td></tr>
       <tr><td class="mono">SUMO / TraCI</td><td>OSS</td><td>The traffic simulator and its control socket — a live world producing positions and states to record and reason about.</td></tr>
-      <tr><td class="mono">sumo-mcp</td><td>ours</td><td>The bridge: a Rust service holding the one serialized TraCI connection, pushing the world into the hub, exposing governed control.</td></tr>
+      <tr><td class="mono">sumo-mcp</td><td>ours</td><td>The bridge: the one owner of the simulator's control socket, pushing the world into the hub and exposing governed control.</td></tr>
       <tr><td class="mono">MCP</td><td>protocol</td><td>The tool language every server speaks — which is why one gateway can front them all with one set of rules.</td></tr>
       <tr><td class="mono">durable task</td><td>concept</td><td>A tool call you walk away from: the handle returns immediately; the row, lease, and result live in the platform store.</td></tr>
       <tr><td class="mono">resource · subscribe</td><td>concept</td><td>A condition that wakes you: subscribing to a resource means the agent is notified the moment it changes.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">17</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 </body>
