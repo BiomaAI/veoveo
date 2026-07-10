@@ -48,11 +48,11 @@ IMAGES = {
     ),
     "system-map": (
         "1536*1024",
-        "System architecture schematic. Left: three outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three stacked outlined stages labeled INGEST, SPOOLER, SEGMENTS. Right of center: one outlined hexagon labeled AGENT with a plain dark arrow labeled TOOLS into an outlined circle labeled GATEWAY, and a plain dark unlabeled arrow from GATEWAY into a row of nine tiny outlined rectangles labeled SERVERS. Bottom center: an outlined database cylinder labeled SURREALDB connected by thin plain dark lines to GATEWAY and SERVERS. One separate long amber arrow curves from the RECORDING HUB container directly to the SERVERS row, bypassing the gateway, labeled QUERIES. Amber appears only on the three PUSH arrows, the hub stage outlines, and the QUERIES arrow; every other line is dark slate."
+        "System architecture schematic. Left: three outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three stacked outlined stages labeled INGEST, SPOOLER, SEGMENTS. Center-right: one outlined circle labeled GATEWAY. Two clients feed it: above it, an outlined rounded rectangle labeled CONSOLE with a plain dark arrow down into the circle, and left of it, an outlined hexagon labeled AGENT with a plain dark arrow into the circle, and this hexagon arrow is labeled TOOLS. One plain dark unlabeled arrow leaves the gateway circle rightward into a row of nine tiny outlined rectangles labeled SERVERS. Bottom center: an outlined database cylinder labeled SURREALDB connected by thin plain dark lines to GATEWAY and SERVERS. One long amber arrow starts at the right edge of the RECORDING HUB container, passes under the gateway, and ends at the SERVERS row, labeled QUERIES. One amber dashed arrow starts at the SURREALDB cylinder and ends exactly at the AGENT hexagon, labeled WAKES. Amber appears only on the three PUSH arrows, the hub stage outlines, the QUERIES arrow, and the WAKES arrow; every other line is dark slate."
     ),
     "agent-loop": (
         "1536*1024",
-        "Lifecycle schematic: five outlined circles placed at the five vertices of a regular pentagon, connected clockwise by curved arrows to form a single closed loop. Going clockwise from the top vertex the circles are labeled: WAKE, then ASSEMBLE, then EPISODE, then PERSIST, then SLEEP. There are exactly five circles and exactly five labels; every circle has one label; the words WAKE, ASSEMBLE, EPISODE, PERSIST, SLEEP each appear exactly once. In the pentagon's center, one outlined hexagon labeled AGENT. Outside the loop at the upper left, three small outlined tags labeled TASK RESULT, TIMER, MESSAGE, each with a thin arrow pointing at the WAKE circle. The amber accent appears only on the EPISODE circle outline and on the closing arrow from SLEEP to WAKE; everything else dark slate."
+        "Lifecycle schematic: five outlined circles placed at the five vertices of a regular pentagon, connected clockwise by curved dark slate arrows to form a single closed loop. Going clockwise from the top vertex the circles are labeled: WAKE, then ASSEMBLE, then EPISODE, then PERSIST, then SLEEP. There are exactly five circles and exactly five labels; every circle has one label; the words WAKE, ASSEMBLE, EPISODE, PERSIST, SLEEP each appear exactly once. In the pentagon's center, one outlined hexagon labeled AGENT. Below the pentagon, three small outlined database cylinders in a row labeled STATE, MEMORY, LOG, each connected by one thin plain line up to the AGENT hexagon only. Outside the loop at the upper left, three small outlined tags labeled TASK RESULT, TIMER, MESSAGE, each with a thin arrow pointing at the WAKE circle. Exactly one element in the whole image is amber: the outline of the EPISODE circle. Every arrow and every other outline is dark slate."
     ),
     "envelope": (
         "1536*1024",
@@ -63,19 +63,43 @@ IMAGES = {
         " the closed wall, labeled REFUSED. The amber accent is used only for the envelope boundary"
         " line itself; everything else dark slate."
     ),
-    "servers-map": (
+    "exec-overview": (
         "1536*1024",
-        "Architecture schematic in two parts. Left: one large outlined circle labeled GATEWAY. Right: a three by three grid of nine equal outlined rectangles. One horizontal trunk line leaves the gateway circle and fans out into the grid. Reading the grid left to right, top to bottom, the nine rectangles are labeled: row one MEDIA, COORDINATES, DUCKDB; row two OPTIMIZATION, TIMESERIES, ARTIFACT; row three RECORDING, CHARTS, RERUN. Exactly nine rectangles, each with one label, each word appearing exactly once. The amber accent appears only on the gateway circle; everything else dark slate."
+        "Holistic system loop schematic: five outlined nodes placed at the five vertices of a regular"
+        " pentagon, connected clockwise by curved arrows into one closed loop. Clockwise from the top"
+        " vertex: a small flat street-grid icon labeled WORLD, a stack of layered strata labeled"
+        " RECORD, an outlined hexagon labeled AGENT, a small chamber holding three tiny checkpoint"
+        " squares labeled GATEWAY, and a three by three mini grid of tiny squares labeled TOOLS; the"
+        " loop closes from TOOLS back to WORLD. Exactly five nodes, each labeled once. In the"
+        " pentagon's center, one outlined database cylinder labeled EVIDENCE, connected to every node"
+        " by one thin plain dark line. The amber accent appears only on the five curved loop arrows —"
+        " the autonomy loop itself; everything else dark slate."
+    ),
+    "capability-map": (
+        "1536*1024",
+        "Modular capability schematic in three parts. Center: one outlined circle labeled GATEWAY; directly beneath it, three stacked wide horizontal bars drawn as thin amber outlines with white interiors, labeled TASKS, ARTIFACTS, POLICY. Left of the gateway: one large dashed rounded boundary labeled EDGE containing a three by three grid of nine equal outlined rectangles; reading left to right, top to bottom they are labeled row one MEDIA, COORDINATES, DUCKDB; row two OPTIMIZATION, TIMESERIES, ARTIFACT; row three RECORDING, CHARTS, RERUN — exactly nine rectangles, each word appearing exactly once. Right of the gateway: one large dashed rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line connects the EDGE boundary to the gateway circle and one trunk line connects the REMOTE boundary to the gateway circle. The amber accent appears only on the three contract bars and the plus symbol; everything else dark slate."
+    ),
+    "gateway-gauntlet": (
+        "1536*1024",
+        "Defense-in-depth architecture schematic, read left to right as one continuous flow."
+        " Far left: three client shapes stacked vertically — an outlined hexagon labeled AGENT, an"
+        " outlined rounded rectangle labeled BROWSER, an outlined rectangle labeled CLIENT — each"
+        " sending one thin arrow that converges on a single narrow opening in a tall vertical wall"
+        " labeled INGRESS; the wall has exactly one opening. Center: one large outlined chamber"
+        " labeled GATEWAY containing exactly three checkpoint stages in sequence connected by arrows,"
+        " labeled in order AUTHENTICATE, POLICY, AUDIT; the flow enters the chamber on the left,"
+        " passes through all three stages, and exits on the right. From the POLICY stage one short"
+        " arrow deflects downward out of the flow, labeled REFUSED. Right: one large dashed boundary"
+        " region labeled INTERNAL NETWORK containing a three by three grid of nine small unlabeled"
+        " outlined rectangles; the single arrow from the gateway chamber into this region is labeled"
+        " SIGNED IDENTITY. Below the gateway chamber, one outlined database cylinder labeled EVIDENCE"
+        " receiving a thin arrow down from the AUDIT stage. The amber accent appears only on the"
+        " three checkpoint stage outlines and the REFUSED deflection arrow — the enforcement path;"
+        " every other line is dark slate."
     ),
     "capture-pipeline": (
         "1536*1024",
-        "Horizontal pipeline schematic. Left: three outlined boxes stacked vertically labeled SENSORS,"
-        " AGENTS, SUMO, each with a thin arrow labeled PUSH merging into the pipeline. The pipeline"
-        " flows left to right through four outlined stages connected by arrows, labeled PROXY, SPOOLER,"
-        " LIVE SEGMENT, FROZEN SEGMENT. Below the pipeline, one branch arrow drops from LIVE SEGMENT"
-        " down to an outlined box labeled CATALOG, which sends one arrow right to an outlined box"
-        " labeled QUERIES. The amber accent is used only for the LIVE SEGMENT and FROZEN SEGMENT"
-        " stage outlines and the arrow between them — the durable record; everything else dark slate."
+        "Horizontal pipeline schematic. Left: three outlined boxes stacked vertically labeled SENSORS, AGENTS, SUMO, each with a thin arrow labeled PUSH merging into the pipeline. The pipeline flows left to right through four outlined stages connected by arrows, labeled PROXY, SPOOLER, LIVE SEGMENT, FROZEN SEGMENT. On the arrow between LIVE SEGMENT and FROZEN SEGMENT sits one small diamond checkpoint labeled VERIFY. Below the pipeline, one branch arrow drops from LIVE SEGMENT down to an outlined box labeled CATALOG, which sends one arrow right to an outlined box labeled QUERIES. The amber accent is used only for the LIVE SEGMENT and FROZEN SEGMENT stage outlines, the VERIFY diamond, and the arrows between them — the durable record and its proof; everything else dark slate."
     ),
     "task-sleepwake": (
         "1536*1024",
@@ -99,24 +123,13 @@ IMAGES = {
         " used only for the descending SIGNALS arrow and the marked intersection — the intervention;"
         " everything else dark slate."
     ),
-    "deployment-forms": (
+    "deployment-map": (
         "1536*1024",
-        "Three deployment schematics side by side, drawn flat 2D. Left: one outlined box containing a"
-        " small diamond mark, labeled COMPOSE below. Middle: a three by two grid of small outlined"
-        " boxes with the same diamond mark in the center box, labeled HELM below. Right: one outlined"
-        " box with a double-line border and no connecting lines, containing the same diamond mark,"
-        " labeled OFFLINE below. A single baseline under all three labeled ONE PLATFORM. The amber"
-        " accent is used only for the three identical diamond marks — the same platform in every form;"
-        " everything else dark slate."
+        "Deployment spectrum schematic: four flat 2D installation islands in a row, each a large rounded outlined base, labeled beneath in order EDGE, CLUSTER, AIR-GAP, HYBRID. Every island carries the same stack drawn identically: one small amber diamond mark at the center of the base, and outlined agent hexagons floating above the diamond — exactly one hexagon above the EDGE island, three hexagons above the CLUSTER island, two hexagons above the AIR-GAP island, and two hexagons above the HYBRID island. The EDGE base contains a single small outlined box; the CLUSTER base contains a row of three small outlined boxes; the AIR-GAP base is drawn with a double-line sealed border and connects to nothing; the HYBRID base has one dashed line rising to a small outlined box at the upper right labeled REMOTE. One continuous baseline under all four islands labeled ONE PLATFORM. The amber accent appears only on the four identical diamond marks — the same platform in every form; everything else dark slate."
     ),
     "operations-loop": (
         "1536*1024",
-        "Continuous operations cycle schematic: exactly three outlined circles connected clockwise by"
-        " curved arrows into a loop, labeled DETECT, DECIDE, INTERVENE — each label exactly once, no"
-        " duplicates. In the center of the loop, a small flat radar rose of concentric thin circles"
-        " with a few signal dots. One small outlined tag under the loop reads NONSTOP. The amber accent"
-        " is used only for the arrow from DECIDE to INTERVENE and two intercepted signal dots;"
-        " everything else dark slate."
+        "Dual-loop cognition schematic: two closed triangular loops side by side. Above the left loop a small heading tag reads REACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled DETECT, DECIDE, INTERVENE. Above the right loop a small heading tag reads PROACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled ANALYZE, PLAN, DISPATCH. Every word appears exactly once; every circle has one label. Between the two loops at the bottom, one small outlined tag reads NONSTOP. The amber accent appears only on the arrow from DECIDE to INTERVENE and the arrow from PLAN to DISPATCH — the two moments of action; everything else dark slate."
     ),
 }
 

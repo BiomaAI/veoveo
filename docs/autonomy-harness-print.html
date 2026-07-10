@@ -188,7 +188,7 @@
       <tr><td>3</td><td>Data Flow</td></tr>
       <tr><td>4</td><td>Agent Kernel</td></tr>
       <tr><td>5</td><td>Edge, Access, and the Gateway</td></tr>
-      <tr><td>6</td><td>Hosted Tool Servers</td></tr>
+      <tr><td>6</td><td>Modular Capabilities</td></tr>
       <tr><td>7</td><td>Durable Tasks and Shared Planes</td></tr>
       <tr><td>8</td><td>Recording Hub</td></tr>
       <tr><td>9</td><td>SUMO Showcase</td></tr>
@@ -234,6 +234,10 @@
     <li><b>A live city proves the loop.</b> A pinned SUMO traffic world drives
         perceive → decide → act end to end through the same contracts as every other capability.</li>
   </ul>
+  <figure class="art" style="text-align:center">
+    <img src="images/exec-overview.png" alt="" style="width:auto;max-height:2.35in;margin:0 auto">
+    <figcaption style="text-align:left">The whole loop: the world is recorded, agents perceive and act through governed tools, effects land back in the world — and every step leaves evidence.</figcaption>
+  </figure>
   <div class="callout">
     <div class="label">[SCOPE]</div>
     <p>This document describes the architecture and live, smoke-tested behavior of the current
@@ -250,7 +254,7 @@
   <h1 class="section">2. Capabilities</h1>
   <figure class="art">
     <img src="images/operations-loop.png" alt="">
-    <figcaption>Agents detect, decide, and intervene — nonstop.</figcaption>
+    <figcaption>Reactive and proactive cognition: react the moment conditions change; drive the mission forward between events — nonstop.</figcaption>
   </figure>
   <ul class="bullets">
     <li><b>Detect, decide, intervene — nonstop.</b> Agents chase the live picture around the
@@ -269,7 +273,9 @@
         default when in doubt. Agents act freely inside the rules, and the rules are yours.</li>
     <li><b>Give agents real capabilities.</b> Generate media, run any SQL safely in its own
         sandbox, forecast time series, solve planning problems, transform coordinates, render
-        charts, and drive a live viewer — all under one task, artifact, and policy contract.</li>
+        charts, and drive a live viewer — all under one task, artifact, and policy contract.
+        Adding a capability, at the edge or from a remote server, is a registration — the
+        platform stays put.</li>
     <li><b>Share results deliberately.</b> Every output is an owned artifact. Grant read, write,
         or admin to users and groups; mark an artifact releasable and mint a revocable, expiring
         link. Downloads pass policy and audit before bytes move.</li>
@@ -400,8 +406,8 @@
     assertion.
   </p>
   <figure class="art">
-    <img src="images/envelope.png" alt="">
-    <figcaption>Agents act freely inside the envelope — and the envelope is yours.</figcaption>
+    <img src="images/gateway-gauntlet.png" alt="">
+    <figcaption>Every action runs the gauntlet: one door in, authenticate → policy → audit, refused by default, signed identity onward, evidence kept.</figcaption>
   </figure>
   <table class="data">
     <thead><tr><td>Function</td><td>Behavior</td></tr></thead>
@@ -418,13 +424,20 @@
 <!-- ======================= 6. SERVERS ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
-  <h1 class="section">6. Hosted Tool Servers</h1>
+  <h1 class="section">6. Modular Capabilities</h1>
+  <p class="body">
+    Capability is modular. Nine modules run at the edge today, inside the installation, behind
+    gateway-signed identity — and the surface is open: a new capability, whether another edge
+    server, a stdio server carried by the bridge, or a <b>remote MCP endpoint</b>, registers in
+    the validated catalog, applies live, and immediately answers to the same tasks, artifacts,
+    and policy contract. The gateway projects every module into one flat tool menu.
+  </p>
   <figure class="art" style="text-align:center">
-    <img src="images/servers-map.png" alt="" style="width:auto;max-height:2.7in;margin:0 auto">
-    <figcaption style="text-align:left">Nine domain servers behind gateway-signed internal identity.</figcaption>
+    <img src="images/capability-map.png" alt="" style="width:auto;max-height:2.6in;margin:0 auto">
+    <figcaption style="text-align:left">Edge and remote capability modules — one contract governs all, and the next slot is open.</figcaption>
   </figure>
   <table class="data tight">
-    <thead><tr><td>Server</td><td>Capability</td><td>Tools</td></tr></thead>
+    <thead><tr><td>Module</td><td>Capability</td><td>Tools</td></tr></thead>
     <tbody>
       <tr><td class="mono">media</td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
       <tr><td class="mono">coordinates</td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
@@ -551,19 +564,36 @@
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">10. Operations and Deployment</h1>
-  <figure class="art">
-    <img src="images/deployment-forms.png" alt="">
-    <figcaption>One platform, three installation forms — each self-contained.</figcaption>
+  <p class="body">
+    Deployment is a spectrum, and cognition is constant across it. The same platform runs at the
+    operation's edge on one host, across a cluster, sealed inside an air gap, or hybrid — an edge
+    installation that reaches remote capability when links allow. Wherever it lands, it carries
+    the full stack: <b>one agent or a team of them, every capability module, and the operational
+    intelligence to run the mission</b> — the console, the record, and the audit trail.
+  </p>
+  <figure class="art" style="text-align:center">
+    <img src="images/deployment-map.png" alt="" style="width:auto;max-height:2.9in;margin:0 auto">
+    <figcaption style="text-align:left">Same platform, same cognition — edge, cluster, air-gap, or hybrid; only hybrid reaches out, and on your terms.</figcaption>
   </figure>
-  <table class="data">
+  <table class="data tight">
     <thead><tr><td>Form</td><td>Shape</td></tr></thead>
     <tbody>
-      <tr><td>Operations console</td><td>A React UI whose first screen is the live installation: health, tasks, artifacts, agents, recordings, topology, policy, audit. Its Rust BFF owns PKCE login and keeps tokens in an encrypted HttpOnly cookie — the browser sees only same-origin session calls.</td></tr>
-      <tr><td>Compose</td><td>The canonical single-host installation: <code>just compose-up</code> brings up the full stack behind a loopback Caddy edge. Public exposure is the operator's ingress decision.</td></tr>
-      <tr><td>Helm</td><td>The cluster form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional service-mesh mTLS, separate migration and runtime credentials, operator-supplied telemetry and SIEM wiring.</td></tr>
-      <tr><td>Offline bundle</td><td>A verified air-gap path: pinned images, Compose and Helm material, config schemas, checksums, and SBOMs. Installation and verification complete entirely inside the isolated environment.</td></tr>
+      <tr><td>Edge</td><td>One host at the operation: <code>just compose-up</code> brings up the full stack behind a loopback Caddy edge. Public exposure is the operator's ingress decision.</td></tr>
+      <tr><td>Cluster</td><td>The Helm form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional service-mesh mTLS, separate migration and runtime credentials, operator-supplied telemetry and SIEM wiring.</td></tr>
+      <tr><td>Air-gap</td><td>The verified offline bundle: pinned images, Compose and Helm material, config schemas, checksums, and SBOMs. Installation and verification complete entirely inside the boundary.</td></tr>
+      <tr><td>Hybrid</td><td>An edge installation that registers remote MCP endpoints and provider-backed modules. The reach is governed like everything else — same policy, same audit, same task contract.</td></tr>
     </tbody>
   </table>
+  <h3 class="minor">Operational intelligence, wherever it lands</h3>
+  <ul class="bullets">
+    <li><b>Command from the console.</b> The first screen is the live installation — health, tasks,
+        artifacts, agents, recordings, policy, audit — with cancellation and sharing as one-click
+        operations.</li>
+    <li><b>Cognition scales in place.</b> Agents are data: field another agent by adding a
+        manifest. The same wake bus, budgets, and memory planes run one agent or a team.</li>
+    <li><b>Evidence deploys with the platform.</b> The record, the audit trail, and usage metering
+        are part of every form — air-gapped included.</li>
+  </ul>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 

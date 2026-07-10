@@ -548,7 +548,7 @@
       end to end.
     </p>
     <div class="statrow">
-      <div class="stat"><b>9</b>hosted servers · +sumo</div>
+      <div class="stat"><b>9</b>edge modules · +sumo</div>
       <div class="stat"><b>58</b>governed tools</div>
       <div class="stat"><b>~225k</b>msgs/s lossless</div>
       <div class="stat"><b>1</b>platform store</div>
@@ -598,7 +598,9 @@
         <h4>Give agents real capabilities</h4>
         <p>Generate media, run any SQL safely in its own sandbox, forecast time
            series, solve planning problems, transform coordinates, render charts, and drive a
-           live viewer — <b>all under one task, artifact, and policy contract</b>.</p>
+           live viewer — <b>all under one task, artifact, and policy contract</b>. Adding a
+           capability, at the edge or from a remote server, is a registration — the platform
+           stays put.</p>
       </div>
       <div class="card cap-card">
         <h4>Share results deliberately</h4>
@@ -660,7 +662,7 @@ flowchart LR
   subgraph GOV["Governed plane"]
     direction TB
     GW["MCP Gateway&lt;br/&gt;auth · policy · audit"]
-    SRV["9 hosted servers&lt;br/&gt;+ sumo"]
+    SRV["capability modules&lt;br/&gt;9 edge + sumo + remote"]
     GW --> SRV
   end
   KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"]
@@ -715,7 +717,7 @@ flowchart LR
     <h2>The layers underneath</h2>
     <p class="section-lede">
       The capabilities above rest on a small set of layers: an agent runtime, one governed door,
-      a family of domain servers, shared durable planes, and the recording pipeline. Each layer
+      a modular capability plane, shared durable planes, and the recording pipeline. Each layer
       is typed, validated fail-closed, and exercised by the Rust smoke harness.
     </p>
   </section>
@@ -933,10 +935,18 @@ flowchart LR
   <!-- LAYER 3 : TOOL SERVERS -->
   <section class="layer">
     <div class="layer-head">
-      <h2 class="layer-title">Hosted Tool Servers</h2>
-      <span class="layer-sub">nine domain servers behind gateway-signed internal identity</span>
+      <h2 class="layer-title">Modular Capabilities</h2>
+      <span class="layer-sub">nine edge modules today — and any MCP server you connect — under one contract</span>
     </div>
     <div class="layer-body">
+      <p class="agent-lede" style="margin:0 0 16px">
+        Capability is modular. The nine modules below run <strong>at the edge</strong>, inside the
+        installation, behind gateway-signed identity. The surface they share is the point: a new
+        capability — another edge server, a stdio server carried by the bridge, or a
+        <strong>remote MCP endpoint</strong> — registers in the validated catalog, applies live,
+        and immediately answers to the same tasks, artifacts, and policy contract. The gateway
+        projects every module into one flat tool menu.
+      </p>
       <div class="servers">
 
         <div class="server">
@@ -1408,34 +1418,50 @@ sequenceDiagram
   <section class="layer">
     <div class="layer-head">
       <h2 class="layer-title">Operations &amp; Deployment</h2>
-      <span class="layer-sub">one console to run it, three ways to install it</span>
+      <span class="layer-sub">the same cognition stack — edge, cluster, air-gap, or hybrid</span>
     </div>
     <div class="layer-body">
-      <div class="ops">
+      <p class="agent-lede" style="margin:0 0 16px">
+        Deployment is a spectrum, and cognition is constant across it. Wherever an installation
+        lands, it carries the full stack: <strong>one agent or a team of them, every capability
+        module, and the operational intelligence to run the mission</strong> — the console, the
+        record, and the audit trail.
+      </p>
+      <div class="ops" style="grid-template-columns:repeat(3,1fr)">
         <div class="card">
-          <h4>Operations Console</h4>
-          <p>A React UI whose first screen is the live installation: health, tasks, artifacts,
-             agents, recordings, topology, policy, audit. Its Rust BFF owns PKCE login and keeps
-             tokens in an encrypted HttpOnly cookie — the browser sees only same-origin session
-             calls.</p>
+          <h4>Edge</h4>
+          <p>One host at the operation: <code>just compose-up</code> brings up the full stack
+             behind a loopback Caddy edge. Public exposure is the operator's ingress decision.</p>
         </div>
         <div class="card">
-          <h4>Compose</h4>
-          <p>The canonical single-host installation: <code>just compose-up</code> brings up the
-             full stack behind a loopback Caddy edge. Public exposure is the operator's ingress
-             decision.</p>
-        </div>
-        <div class="card">
-          <h4>Helm</h4>
-          <p>The cluster form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional
+          <h4>Cluster</h4>
+          <p>The Helm form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional
              service-mesh mTLS, separate migration and runtime credentials, operator-supplied
              telemetry and SIEM wiring.</p>
         </div>
         <div class="card">
-          <h4>Offline bundle</h4>
-          <p>A verified air-gap path: pinned images, Compose and Helm material, config schemas,
-             checksums, and SBOMs. Installation and verification complete entirely inside the
-             isolated environment.</p>
+          <h4>Air-gap</h4>
+          <p>The verified offline bundle: pinned images, Compose and Helm material, config
+             schemas, checksums, and SBOMs. Installation and verification complete entirely
+             inside the boundary.</p>
+        </div>
+        <div class="card">
+          <h4>Hybrid</h4>
+          <p>An edge installation that registers remote MCP endpoints and provider-backed
+             modules. The reach is governed like everything else — same policy, same audit,
+             same task contract.</p>
+        </div>
+        <div class="card">
+          <h4>Operations Console</h4>
+          <p>A React UI whose first screen is the live installation: health, tasks, artifacts,
+             agents, recordings, policy, audit. Its Rust BFF owns PKCE login and keeps tokens in
+             an encrypted HttpOnly cookie — the browser sees only same-origin session calls.</p>
+        </div>
+        <div class="card">
+          <h4>Cognition in place</h4>
+          <p>Agents are data: field another agent by adding a manifest. The same wake bus,
+             budgets, and memory planes run one agent or a team — in every deployment form,
+             air-gapped included.</p>
         </div>
       </div>
     </div>
