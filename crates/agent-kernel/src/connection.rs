@@ -33,11 +33,11 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use veoveo_agent_runtime::AgentRuntime;
 
 use crate::{
     delegate::KernelNotificationDelegate,
     elicitation::{ElicitationWaiters, ParkedElicitationHandler},
-    ledger::KernelLedger,
     manifest::AgentManifest,
     wake::WakeBus,
 };
@@ -48,7 +48,7 @@ use crate::{
 #[derive(Clone)]
 pub struct KernelHandlers {
     pub bus: WakeBus,
-    pub ledger: KernelLedger,
+    pub runtime: AgentRuntime,
     pub waiters: ElicitationWaiters,
     pub elicitation_grace: Duration,
 }
@@ -68,7 +68,7 @@ struct ClientAssertionClaims {
     jti: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct TokenEndpointResponse {
     access_token: String,
     token_type: String,
@@ -176,7 +176,7 @@ impl GatewayConnection {
         .with_timeout(self.manifest.request_timeout())
         .with_notification_delegate(KernelNotificationDelegate::new(self.handlers.bus.clone()))
         .with_elicitation_handler(ParkedElicitationHandler::new(
-            self.handlers.ledger.clone(),
+            self.handlers.runtime.clone(),
             self.handlers.bus.clone(),
             self.handlers.waiters.clone(),
             self.handlers.elicitation_grace,
@@ -220,7 +220,7 @@ impl GatewayConnection {
             exp: now + ASSERTION_TTL_SECONDS,
             nbf: now,
             iat: now,
-            jti: uuid::Uuid::new_v4().to_string(),
+            jti: uuid::Uuid::now_v7().to_string(),
         };
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(gateway.private_key_kid.clone());

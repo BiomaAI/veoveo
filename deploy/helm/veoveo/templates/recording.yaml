@@ -1,0 +1,183 @@
+{{- if .Values.recording.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: recording-spool
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+spec:
+  accessModes:
+    {{- toYaml .Values.recording.persistence.accessModes | nindent 4 }}
+  {{- if .Values.recording.persistence.storageClass }}
+  storageClassName: {{ .Values.recording.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.recording.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recording-ingest
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+  ports:
+    - name: rerun-ingest
+      port: 9876
+      targetPort: rerun-ingest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recording-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+  ports:
+    - name: http
+      port: 8796
+      targetPort: recording-mcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recording
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: recording
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: recording
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: recording-hub
+          image: {{ include "veoveo.image" (list . .Values.recording.hubImage) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - spooler
+            - --bind
+            - 0.0.0.0:9876
+            - --spool-dir
+            - /recordings
+            - --route
+            - {{ .Values.recording.route | quote }}
+            - --rerun-bin
+            - /usr/local/bin/rerun
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: RECORDING_TENANT_KEY
+              value: {{ .Values.recording.tenantKey | quote }}
+            - name: RECORDING_OWNER_KEY
+              value: recording-hub
+            - name: RECORDING_OWNER_ISSUER
+              value: https://veoveo.local/services
+            - name: RECORDING_OWNER_SUBJECT
+              value: recording-hub
+            - name: RECORDING_CLASSIFICATION
+              value: {{ .Values.recording.classification | quote }}
+            {{- if .Values.recording.labels }}
+            - name: RECORDING_LABELS
+              value: {{ join "," .Values.recording.labels | quote }}
+            {{- end }}
+            - name: HOME
+              value: /tmp
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-recording-hub
+          ports:
+            - name: rerun-ingest
+              containerPort: 9876
+          readinessProbe:
+            tcpSocket:
+              port: rerun-ingest
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: rerun-ingest
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.recording.resources | nindent 12 }}
+          volumeMounts:
+            - name: recordings
+              mountPath: /recordings
+            - name: tmp
+              mountPath: /tmp
+        - name: recording-mcp
+          image: {{ include "veoveo.image" (list . .Values.recording.mcpImage) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - --port
+            - "8796"
+            - --spool-dir
+            - /recordings
+            - --allowed-host
+            - recording-mcp:8796
+            - --artifact-service-url
+            - http://artifact-service:8790
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-recording-mcp
+          ports:
+            - name: recording-mcp
+              containerPort: 8796
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: recording-mcp
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: recording-mcp
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.recording.resources | nindent 12 }}
+          volumeMounts:
+            - name: recordings
+              mountPath: /recordings
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: recordings
+          persistentVolumeClaim:
+            claimName: recording-spool
+        - name: tmp
+          emptyDir: {}
+{{- end }}

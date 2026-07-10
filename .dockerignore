@@ -3,3 +3,6 @@ target
 .env
 .DS_Store
 output
+**/.venv
+**/__pycache__
+**/.pytest_cache

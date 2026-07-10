@@ -1,5 +1,7 @@
 mod authorization;
 mod completion;
+mod final_tasks;
+mod health;
 mod info;
 mod progress;
 mod prompts;
@@ -19,18 +21,20 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CreateTaskResult, ErrorData as McpError,
         GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
         GetTaskPayloadResult, GetTaskResult, InitializeRequestParams, InitializeResult,
-        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListTasksResult,
-        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        ServerInfo, SubscribeRequestParams, UnsubscribeRequestParams,
+        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ServerInfo,
+        SubscribeRequestParams, UnsubscribeRequestParams,
     },
     service::{Peer, RequestContext, RoleClient, RoleServer},
     transport::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
+use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GatewayInternalTokenIssuer, GatewayProfileId, ServerSlug, UpstreamTransport,
+    GatewayInternalTokenIssuer, GatewayProfileId, Principal, ServerSlug, UpstreamTransport,
 };
+use veoveo_platform_store::PlatformStore;
 
 use crate::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState,
@@ -40,6 +44,9 @@ use upstream::GatewayUpstreamHandler;
 use upstream_cache::{UpstreamCacheKey, UpstreamConnection, UpstreamConnectionCache};
 use upstream_http::build_upstream_http_client;
 
+pub use final_tasks::FinalTaskClient;
+pub use health::{GatewayServerHealth, GatewayServerHealthState, probe_gateway_server_health};
+
 pub(super) const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 const INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS: i64 = 30;
@@ -48,6 +55,7 @@ const INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS: i64 = 30;
 pub struct GatewayMcp {
     catalog: GatewayCatalogHandle,
     state: GatewayState,
+    platform_store: PlatformStore,
     profile_id: GatewayProfileId,
     internal_token_issuer: GatewayInternalTokenIssuer,
     upstreams: UpstreamConnectionCache,
@@ -59,11 +67,13 @@ impl GatewayMcp {
         catalog: GatewayCatalogHandle,
         profile_id: GatewayProfileId,
         state: GatewayState,
+        platform_store: PlatformStore,
         internal_token_issuer: GatewayInternalTokenIssuer,
     ) -> Self {
         Self {
             catalog,
             state,
+            platform_store,
             profile_id,
             internal_token_issuer,
             upstreams: UpstreamConnectionCache::new(),
@@ -79,9 +89,11 @@ impl GatewayMcp {
     ) -> Result<Peer<RoleClient>, McpError> {
         let snapshot = self.catalog.snapshot();
         let catalog_generation = snapshot.generation();
+        let authorization_fingerprint = principal_authorization_fingerprint(&subject.principal)?;
         let key = UpstreamCacheKey {
             server: server_slug.clone(),
             principal: subject.principal.id.clone(),
+            authorization_fingerprint,
             catalog_generation,
         };
         let refresh_after = Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS);
@@ -131,7 +143,6 @@ impl GatewayMcp {
             self.profile_id.clone(),
             subject.principal.id.clone(),
             server_slug.clone(),
-            self.state.clone(),
             downstream,
             self.progress_tokens.clone(),
         );
@@ -151,6 +162,48 @@ impl GatewayMcp {
             )
             .await)
     }
+
+    async fn final_task_client(
+        &self,
+        server_slug: &ServerSlug,
+        subject: &AuthenticatedSubject,
+    ) -> Result<final_tasks::FinalTaskClient, McpError> {
+        let snapshot = self.catalog.snapshot();
+        let server = snapshot
+            .catalog()
+            .server(server_slug)
+            .ok_or_else(|| mcp_invalid_params(format!("unknown upstream server `{server_slug}`")))?
+            .clone();
+        if server.upstream.transport != UpstreamTransport::StreamableHttp {
+            return Err(mcp_internal(format!(
+                "unsupported upstream transport for server `{server_slug}`"
+            )));
+        }
+        let token_expires_at = internal_token_expires_at(subject)?;
+        let internal_token = self
+            .internal_token_issuer
+            .issue(
+                self.profile_id.clone(),
+                server_slug.clone(),
+                subject.principal.clone(),
+                token_expires_at,
+            )
+            .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
+        final_tasks::FinalTaskClient::for_server(
+            snapshot.catalog(),
+            &server,
+            internal_token.bearer_token,
+        )
+        .await
+    }
+}
+
+fn principal_authorization_fingerprint(principal: &Principal) -> Result<[u8; 32], McpError> {
+    Ok(Sha256::digest(
+        serde_json::to_vec(principal)
+            .map_err(|err| mcp_internal(format!("failed to fingerprint principal: {err}")))?,
+    )
+    .into())
 }
 
 fn internal_token_expires_at(subject: &AuthenticatedSubject) -> Result<DateTime<Utc>, McpError> {
@@ -266,14 +319,6 @@ impl ServerHandler for GatewayMcp {
         self.handle_complete(request, context).await
     }
 
-    async fn list_tasks(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListTasksResult, McpError> {
-        self.handle_list_tasks(request, context).await
-    }
-
     async fn get_task_info(
         &self,
         request: GetTaskParams,
@@ -296,5 +341,49 @@ impl ServerHandler for GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CancelTaskResult, McpError> {
         self.handle_cancel_task(request, context).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use veoveo_mcp_contract::{
+        PrincipalId, PrincipalKind, RoleId, ScopeName, TokenIssuer, TokenSubject,
+    };
+
+    use super::*;
+
+    fn principal() -> Principal {
+        Principal {
+            id: PrincipalId::new("issuer#subject").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://identity.example").unwrap(),
+            subject: TokenSubject::new("subject").unwrap(),
+            tenant: None,
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
+            scopes: BTreeSet::from([ScopeName::new("tools:call").unwrap()]),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: None,
+        }
+    }
+
+    #[test]
+    fn upstream_fingerprint_covers_authorization_attributes() {
+        let baseline = principal();
+        let mut changed = baseline.clone();
+        changed.roles.insert(RoleId::new("administrator").unwrap());
+
+        assert_eq!(
+            principal_authorization_fingerprint(&baseline).unwrap(),
+            principal_authorization_fingerprint(&baseline).unwrap()
+        );
+        assert_ne!(
+            principal_authorization_fingerprint(&baseline).unwrap(),
+            principal_authorization_fingerprint(&changed).unwrap()
+        );
     }
 }

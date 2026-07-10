@@ -1,0 +1,88 @@
+-- Durable autonomous-agent scheduling. DuckDB remains an analytical memory
+-- plane and is never authoritative for these records.
+
+DEFINE FIELD OVERWRITE last_episode ON TABLE agent TYPE option<record<agent_episode>>;
+DEFINE FIELD IF NOT EXISTS next_episode_sequence ON TABLE agent TYPE int DEFAULT 1 ASSERT $value > 0;
+DEFINE FIELD IF NOT EXISTS lease_owner ON TABLE agent TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS lease_expires_at ON TABLE agent TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS heartbeat_at ON TABLE agent TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS fence ON TABLE agent TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS revision ON TABLE agent TYPE int DEFAULT 0 ASSERT $value >= 0;
+REMOVE FIELD IF EXISTS last_episode_id ON TABLE agent;
+DEFINE INDEX IF NOT EXISTS agent_lease_expiry ON TABLE agent FIELDS lease_expires_at;
+
+DEFINE FIELD OVERWRITE kind ON TABLE wake TYPE "task_result" | "resource_changed" | "timer" | "operator_message" | "elicitation";
+DEFINE FIELD OVERWRITE state ON TABLE wake TYPE "pending" | "claimed" | "acked" | "coalesced" | "failed" DEFAULT "pending";
+DEFINE FIELD IF NOT EXISTS claim_expires_at ON TABLE wake TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS claim_fence ON TABLE wake TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS acked_by_episode ON TABLE wake TYPE option<record<agent_episode>>;
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE wake TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS revision ON TABLE wake TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS coalesced_into ON TABLE wake TYPE option<record<wake>>;
+DEFINE INDEX IF NOT EXISTS wake_claim_expires ON TABLE wake FIELDS agent, state, claim_expires_at;
+
+DEFINE TABLE IF NOT EXISTS agent_episode SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE agent_episode TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_episode TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_episode TYPE record<agent>;
+DEFINE FIELD IF NOT EXISTS sequence ON TABLE agent_episode TYPE int ASSERT $value > 0;
+DEFINE FIELD IF NOT EXISTS retention_pin ON TABLE agent_episode TYPE string;
+DEFINE FIELD IF NOT EXISTS wake_note ON TABLE agent_episode TYPE string;
+DEFINE FIELD IF NOT EXISTS state ON TABLE agent_episode TYPE "running" | "completed" | "budget_terminated" | "failed" | "crashed";
+DEFINE FIELD IF NOT EXISTS final_output ON TABLE agent_episode TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS summary ON TABLE agent_episode TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS input_tokens ON TABLE agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS output_tokens ON TABLE agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS completion_calls ON TABLE agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS tool_calls ON TABLE agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS error ON TABLE agent_episode TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS started_at ON TABLE agent_episode TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS finished_at ON TABLE agent_episode TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS revision ON TABLE agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE INDEX IF NOT EXISTS agent_episode_sequence_unique ON TABLE agent_episode FIELDS agent, sequence UNIQUE;
+DEFINE INDEX IF NOT EXISTS agent_episode_state_started ON TABLE agent_episode FIELDS agent, state, started_at;
+
+DEFINE TABLE IF NOT EXISTS agent_task SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE agent_task TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_task TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_task TYPE record<agent>;
+DEFINE FIELD IF NOT EXISTS task ON TABLE agent_task TYPE record<task>;
+DEFINE FIELD IF NOT EXISTS tool_name ON TABLE agent_task TYPE string;
+DEFINE FIELD IF NOT EXISTS descriptor ON TABLE agent_task TYPE object FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS descriptor_complete ON TABLE agent_task TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS state ON TABLE agent_task TYPE "pending" | "watching" | "resolved" | "failed" | "cancelled" DEFAULT "pending";
+DEFINE FIELD IF NOT EXISTS result ON TABLE agent_task TYPE option<object> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS result_is_error ON TABLE agent_task TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS result_wake ON TABLE agent_task TYPE option<record<wake>>;
+DEFINE FIELD IF NOT EXISTS retention_pin ON TABLE agent_task TYPE string;
+DEFINE FIELD IF NOT EXISTS retention_pin_active ON TABLE agent_task TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS attempt_count ON TABLE agent_task TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS next_retry_at ON TABLE agent_task TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS lease_owner ON TABLE agent_task TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS lease_expires_at ON TABLE agent_task TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS started_by_episode ON TABLE agent_task TYPE record<agent_episode>;
+DEFINE FIELD IF NOT EXISTS consumed_by_episode ON TABLE agent_task TYPE option<record<agent_episode>>;
+DEFINE FIELD IF NOT EXISTS last_error ON TABLE agent_task TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE agent_task TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE agent_task TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS resolved_at ON TABLE agent_task TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS revision ON TABLE agent_task TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE INDEX IF NOT EXISTS agent_task_unique ON TABLE agent_task FIELDS agent, task UNIQUE;
+DEFINE INDEX IF NOT EXISTS agent_task_available ON TABLE agent_task FIELDS agent, state, next_retry_at;
+DEFINE INDEX IF NOT EXISTS agent_task_lease ON TABLE agent_task FIELDS agent, lease_expires_at;
+DEFINE INDEX IF NOT EXISTS agent_task_retention_pin ON TABLE agent_task FIELDS task, retention_pin_active;
+
+DEFINE TABLE IF NOT EXISTS agent_elicitation SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE agent_elicitation TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE agent_elicitation TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS agent ON TABLE agent_elicitation TYPE record<agent>;
+DEFINE FIELD IF NOT EXISTS related_task ON TABLE agent_elicitation TYPE option<record<task>>;
+DEFINE FIELD IF NOT EXISTS message ON TABLE agent_elicitation TYPE string;
+DEFINE FIELD IF NOT EXISTS requested_schema ON TABLE agent_elicitation TYPE option<object> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS state ON TABLE agent_elicitation TYPE "parked" | "answered" | "declined" | "cancelled" DEFAULT "parked";
+DEFINE FIELD IF NOT EXISTS answer ON TABLE agent_elicitation TYPE option<object> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS answered_by ON TABLE agent_elicitation TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS requested_at ON TABLE agent_elicitation TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS answered_at ON TABLE agent_elicitation TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS revision ON TABLE agent_elicitation TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE INDEX IF NOT EXISTS agent_elicitation_state ON TABLE agent_elicitation FIELDS agent, state, requested_at;

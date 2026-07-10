@@ -1,10 +1,16 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use duckdb::{OptionalExt, params};
+use serde::Serialize;
 use veoveo_mcp_contract::{
     AuthorizationServerId, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
     GatewayJwtRevocation, GatewayProfileId, JwtId, OAuthAuthorizationCode, OAuthClientId,
     OAuthStateValue, TokenIssuer,
+};
+use veoveo_platform_store::{
+    GatewayAuthorizationCodeStateRecord, GatewayAuthorizationRequestRecord,
+    GatewayJwtRevocationRecord, GatewayReplayKind, GatewayReplayRecord, OpenObject,
+    gateway_authorization_code_record_id, gateway_authorization_request_record_id,
+    gateway_jwt_revocation_record_id, gateway_replay_record_id,
 };
 
 use super::GatewayState;
@@ -16,58 +22,71 @@ pub struct GatewayReplayRetentionSummary {
 }
 
 impl GatewayState {
-    pub fn record_jwt_revocation(&self, revocation: &GatewayJwtRevocation) -> Result<()> {
-        let revocation_json = serde_json::to_string(revocation)?;
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            INSERT INTO gateway_revoked_jwt_ids (
-                profile, issuer, jwt_id, revoked_at, expires_at, revocation_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            ON CONFLICT(profile, issuer, jwt_id) DO UPDATE SET
-                revoked_at = excluded.revoked_at,
-                expires_at = excluded.expires_at,
-                revocation_json = excluded.revocation_json
-            "#,
-            params![
-                revocation.profile.as_str(),
-                revocation.issuer.as_str(),
-                revocation.jwt_id.as_str(),
-                revocation.revoked_at,
-                revocation.expires_at,
-                revocation_json,
-            ],
-        )?;
-        Ok(())
+    pub async fn record_jwt_revocation(&self, revocation: &GatewayJwtRevocation) -> Result<()> {
+        let id = gateway_jwt_revocation_record_id(
+            revocation.profile.as_str(),
+            revocation.issuer.as_str(),
+            revocation.jwt_id.as_str(),
+        );
+        self.platform
+            .upsert_gateway_jwt_revocation(GatewayJwtRevocationRecord {
+                id,
+                profile: revocation.profile.to_string(),
+                issuer: revocation.issuer.to_string(),
+                jwt_id: revocation.jwt_id.to_string(),
+                revoked_at: revocation.revoked_at,
+                expires_at: revocation.expires_at,
+                reason: revocation.reason.clone(),
+                payload: serialize_object(revocation)?,
+            })
+            .await
+            .context("failed to persist gateway JWT revocation")
     }
 
-    pub fn jwt_revocation(
+    pub async fn jwt_revocation(
         &self,
         profile: &GatewayProfileId,
         issuer: &TokenIssuer,
         jwt_id: &JwtId,
         now: DateTime<Utc>,
     ) -> Result<Option<GatewayJwtRevocation>> {
-        self.query_revocation(
-            r#"
-            SELECT revocation_json
-            FROM gateway_revoked_jwt_ids
-            WHERE profile = ?1 AND issuer = ?2 AND jwt_id = ?3 AND expires_at > ?4
-            "#,
-            params![profile.as_str(), issuer.as_str(), jwt_id.as_str(), now],
+        let id =
+            gateway_jwt_revocation_record_id(profile.as_str(), issuer.as_str(), jwt_id.as_str());
+        self.platform
+            .gateway_jwt_revocation(id, now)
+            .await
+            .context("failed to read gateway JWT revocation")?
+            .map(|record| deserialize_object(record.payload))
+            .transpose()
+    }
+
+    pub async fn prune_expired_jwt_revocations(&self, now: DateTime<Utc>) -> Result<u64> {
+        self.platform
+            .prune_expired_gateway_jwt_revocations(now)
+            .await
+            .context("failed to prune expired gateway JWT revocations")
+    }
+
+    pub async fn record_client_assertion_jti(
+        &self,
+        authorization_server: &AuthorizationServerId,
+        client_id: &OAuthClientId,
+        jwt_id: &JwtId,
+        expires_at: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> Result<bool> {
+        self.register_replay_id(
+            GatewayReplayKind::ClientAssertion,
+            authorization_server,
+            client_id,
+            jwt_id,
+            expires_at,
+            now,
         )
+        .await
     }
 
-    pub fn prune_expired_jwt_revocations(&self, now: DateTime<Utc>) -> Result<u64> {
-        let conn = self.conn.lock();
-        let deleted = conn.execute(
-            "DELETE FROM gateway_revoked_jwt_ids WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        Ok(u64::try_from(deleted)?)
-    }
-
-    pub fn record_client_assertion_jti(
+    pub async fn record_id_jag_jti(
         &self,
         authorization_server: &AuthorizationServerId,
         client_id: &OAuthClientId,
@@ -75,267 +94,164 @@ impl GatewayState {
         expires_at: DateTime<Utc>,
         now: DateTime<Utc>,
     ) -> Result<bool> {
-        let conn = self.conn.lock();
-        conn.execute(
-            "DELETE FROM gateway_client_assertion_jtis WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        let existing: Option<DateTime<Utc>> = conn
-            .query_row(
-                r#"
-                SELECT expires_at
-                FROM gateway_client_assertion_jtis
-                WHERE authorization_server = ?1 AND client_id = ?2 AND jwt_id = ?3
-                "#,
-                params![
-                    authorization_server.as_str(),
-                    client_id.as_str(),
-                    jwt_id.as_str()
-                ],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if existing.is_some_and(|existing_expires_at| existing_expires_at > now) {
-            return Ok(false);
-        }
-        conn.execute(
-            r#"
-            INSERT INTO gateway_client_assertion_jtis (
-                authorization_server, client_id, jwt_id, seen_at, expires_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5)
-            ON CONFLICT(authorization_server, client_id, jwt_id) DO UPDATE SET
-                seen_at = excluded.seen_at,
-                expires_at = excluded.expires_at
-            "#,
-            params![
-                authorization_server.as_str(),
-                client_id.as_str(),
-                jwt_id.as_str(),
-                now,
-                expires_at,
-            ],
-        )?;
-        Ok(true)
+        self.register_replay_id(
+            GatewayReplayKind::IdJag,
+            authorization_server,
+            client_id,
+            jwt_id,
+            expires_at,
+            now,
+        )
+        .await
     }
 
-    pub fn record_id_jag_jti(
-        &self,
-        authorization_server: &AuthorizationServerId,
-        client_id: &OAuthClientId,
-        jwt_id: &JwtId,
-        expires_at: DateTime<Utc>,
-        now: DateTime<Utc>,
-    ) -> Result<bool> {
-        let conn = self.conn.lock();
-        conn.execute(
-            "DELETE FROM gateway_id_jag_jtis WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        let existing: Option<DateTime<Utc>> = conn
-            .query_row(
-                r#"
-                SELECT expires_at
-                FROM gateway_id_jag_jtis
-                WHERE authorization_server = ?1 AND client_id = ?2 AND jwt_id = ?3
-                "#,
-                params![
-                    authorization_server.as_str(),
-                    client_id.as_str(),
-                    jwt_id.as_str()
-                ],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if existing.is_some_and(|existing_expires_at| existing_expires_at > now) {
-            return Ok(false);
-        }
-        conn.execute(
-            r#"
-            INSERT INTO gateway_id_jag_jtis (
-                authorization_server, client_id, jwt_id, seen_at, expires_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5)
-            ON CONFLICT(authorization_server, client_id, jwt_id) DO UPDATE SET
-                seen_at = excluded.seen_at,
-                expires_at = excluded.expires_at
-            "#,
-            params![
-                authorization_server.as_str(),
-                client_id.as_str(),
-                jwt_id.as_str(),
-                now,
-                expires_at,
-            ],
-        )?;
-        Ok(true)
-    }
-
-    pub fn prune_expired_replay_ids(
+    pub async fn prune_expired_replay_ids(
         &self,
         now: DateTime<Utc>,
     ) -> Result<GatewayReplayRetentionSummary> {
-        let conn = self.conn.lock();
-        let client_assertion_jtis_deleted = conn.execute(
-            "DELETE FROM gateway_client_assertion_jtis WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        let id_jag_jtis_deleted = conn.execute(
-            "DELETE FROM gateway_id_jag_jtis WHERE expires_at <= ?1",
-            params![now],
-        )?;
+        let client_assertion_jtis_deleted = self
+            .platform
+            .prune_expired_gateway_replay_ids(GatewayReplayKind::ClientAssertion, now)
+            .await
+            .context("failed to prune client assertion replay identifiers")?;
+        let id_jag_jtis_deleted = self
+            .platform
+            .prune_expired_gateway_replay_ids(GatewayReplayKind::IdJag, now)
+            .await
+            .context("failed to prune ID-JAG replay identifiers")?;
         Ok(GatewayReplayRetentionSummary {
-            client_assertion_jtis_deleted: u64::try_from(client_assertion_jtis_deleted)?,
-            id_jag_jtis_deleted: u64::try_from(id_jag_jtis_deleted)?,
+            client_assertion_jtis_deleted,
+            id_jag_jtis_deleted,
         })
     }
 
-    pub fn record_authorization_request(
+    pub async fn record_authorization_request(
         &self,
         request: &GatewayAuthorizationRequest,
     ) -> Result<()> {
-        let request_json = serde_json::to_string(request)?;
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            INSERT INTO gateway_authorization_requests (
-                idp_state, profile, oauth_client_id, oidc_client, redirect_uri,
-                created_at, expires_at, request_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-            "#,
-            params![
-                request.idp_state.as_str(),
-                request.profile.as_str(),
-                request.oauth_client_id.as_str(),
-                request.oidc_client.as_str(),
-                request.redirect_uri.as_str(),
-                request.created_at,
-                request.expires_at,
-                request_json,
-            ],
-        )?;
-        Ok(())
+        self.platform
+            .create_gateway_authorization_request(GatewayAuthorizationRequestRecord {
+                id: gateway_authorization_request_record_id(request.idp_state.as_str()),
+                idp_state: request.idp_state.to_string(),
+                profile: request.profile.to_string(),
+                oauth_client_id: request.oauth_client_id.to_string(),
+                oidc_client: request.oidc_client.to_string(),
+                redirect_uri: request.redirect_uri.to_string(),
+                created_at: request.created_at,
+                expires_at: request.expires_at,
+                payload: serialize_object(request)?,
+            })
+            .await
+            .context("failed to persist OAuth authorization request")
     }
 
-    pub fn consume_authorization_request(
+    pub async fn consume_authorization_request(
         &self,
         idp_state: &OAuthStateValue,
         now: DateTime<Utc>,
     ) -> Result<Option<GatewayAuthorizationRequest>> {
-        let conn = self.conn.lock();
-        conn.execute(
-            "DELETE FROM gateway_authorization_requests WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        let request_json = conn
-            .query_row(
-                r#"
-                SELECT request_json
-                FROM gateway_authorization_requests
-                WHERE idp_state = ?1 AND expires_at > ?2
-                "#,
-                params![idp_state.as_str(), now],
-                |row| row.get::<_, String>(0),
+        self.platform
+            .consume_gateway_authorization_request(
+                gateway_authorization_request_record_id(idp_state.as_str()),
+                now,
             )
-            .optional()?;
-        let Some(request_json) = request_json else {
-            return Ok(None);
-        };
-        conn.execute(
-            "DELETE FROM gateway_authorization_requests WHERE idp_state = ?1",
-            params![idp_state.as_str()],
-        )?;
-        Ok(Some(serde_json::from_str(&request_json)?))
+            .await
+            .context("failed to consume OAuth authorization request")?
+            .map(|record| deserialize_object(record.payload))
+            .transpose()
     }
 
-    pub fn record_authorization_code(&self, code: &GatewayAuthorizationCodeRecord) -> Result<()> {
-        let code_json = serde_json::to_string(code)?;
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            INSERT INTO gateway_authorization_codes (
-                code, profile, oauth_client_id, oidc_client, principal, redirect_uri,
-                issued_at, expires_at, consumed_at, code_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-            "#,
-            params![
-                code.code.as_str(),
-                code.profile.as_str(),
-                code.oauth_client_id.as_str(),
-                code.oidc_client.as_str(),
-                code.principal.id.as_str(),
-                code.redirect_uri.as_str(),
-                code.issued_at,
-                code.expires_at,
-                code.consumed_at,
-                code_json,
-            ],
-        )?;
-        Ok(())
+    pub async fn record_authorization_code(
+        &self,
+        code: &GatewayAuthorizationCodeRecord,
+    ) -> Result<()> {
+        self.platform
+            .create_gateway_authorization_code(GatewayAuthorizationCodeStateRecord {
+                id: gateway_authorization_code_record_id(code.code.as_str()),
+                code: code.code.to_string(),
+                profile: code.profile.to_string(),
+                oauth_client_id: code.oauth_client_id.to_string(),
+                oidc_client: code.oidc_client.to_string(),
+                principal: code.principal.id.to_string(),
+                redirect_uri: code.redirect_uri.to_string(),
+                issued_at: code.issued_at,
+                expires_at: code.expires_at,
+                consumed_at: code.consumed_at,
+                payload: serialize_object(code)?,
+            })
+            .await
+            .context("failed to persist OAuth authorization code")
     }
 
-    pub fn consume_authorization_code(
+    pub async fn consume_authorization_code(
         &self,
         code: &OAuthAuthorizationCode,
         now: DateTime<Utc>,
     ) -> Result<Option<GatewayAuthorizationCodeRecord>> {
-        let conn = self.conn.lock();
-        conn.execute(
-            "DELETE FROM gateway_authorization_codes WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        let code_json = conn
-            .query_row(
-                r#"
-                SELECT code_json
-                FROM gateway_authorization_codes
-                WHERE code = ?1 AND expires_at > ?2 AND consumed_at IS NULL
-                "#,
-                params![code.as_str(), now],
-                |row| row.get::<_, String>(0),
+        let record = self
+            .platform
+            .consume_gateway_authorization_code(
+                gateway_authorization_code_record_id(code.as_str()),
+                now,
             )
-            .optional()?;
-        let Some(code_json) = code_json else {
-            return Ok(None);
-        };
-        let mut record: GatewayAuthorizationCodeRecord = serde_json::from_str(&code_json)?;
-        record.consumed_at = Some(now);
-        let updated_json = serde_json::to_string(&record)?;
-        let updated = conn.execute(
-            r#"
-            UPDATE gateway_authorization_codes
-            SET consumed_at = ?2, code_json = ?3
-            WHERE code = ?1 AND expires_at > ?2 AND consumed_at IS NULL
-            "#,
-            params![code.as_str(), now, updated_json],
-        )?;
-        if updated == 0 {
-            return Ok(None);
-        }
-        Ok(Some(record))
+            .await
+            .context("failed to consume OAuth authorization code")?;
+        record
+            .map(|record| {
+                let mut code: GatewayAuthorizationCodeRecord = deserialize_object(record.payload)?;
+                code.consumed_at = Some(now);
+                Ok(code)
+            })
+            .transpose()
     }
 
-    pub fn prune_expired_authorization_records(&self, now: DateTime<Utc>) -> Result<u64> {
-        let conn = self.conn.lock();
-        let requests = conn.execute(
-            "DELETE FROM gateway_authorization_requests WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        let codes = conn.execute(
-            "DELETE FROM gateway_authorization_codes WHERE expires_at <= ?1",
-            params![now],
-        )?;
-        Ok(u64::try_from(requests + codes)?)
+    pub async fn prune_expired_authorization_records(&self, now: DateTime<Utc>) -> Result<u64> {
+        self.platform
+            .prune_expired_gateway_authorization_records(now)
+            .await
+            .context("failed to prune expired OAuth authorization records")
     }
 
-    fn query_revocation<P>(&self, sql: &str, params: P) -> Result<Option<GatewayJwtRevocation>>
-    where
-        P: duckdb::Params,
-    {
-        let conn = self.conn.lock();
-        let revocation_json = conn
-            .query_row(sql, params, |row| row.get::<_, String>(0))
-            .optional()?;
-        Ok(revocation_json
-            .map(|json| serde_json::from_str(&json))
-            .transpose()?)
+    async fn register_replay_id(
+        &self,
+        kind: GatewayReplayKind,
+        authorization_server: &AuthorizationServerId,
+        client_id: &OAuthClientId,
+        jwt_id: &JwtId,
+        expires_at: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> Result<bool> {
+        self.platform
+            .register_gateway_replay_id(
+                GatewayReplayRecord {
+                    id: gateway_replay_record_id(
+                        kind,
+                        authorization_server.as_str(),
+                        client_id.as_str(),
+                        jwt_id.as_str(),
+                    ),
+                    kind,
+                    authorization_server: authorization_server.to_string(),
+                    client_id: client_id.to_string(),
+                    jwt_id: jwt_id.to_string(),
+                    seen_at: now,
+                    expires_at,
+                },
+                now,
+            )
+            .await
+            .context("failed to atomically register gateway replay identifier")
     }
+}
+
+fn serialize_object(value: impl Serialize) -> Result<OpenObject> {
+    let value = serde_json::to_value(value)?;
+    let serde_json::Value::Object(object) = value else {
+        anyhow::bail!("gateway runtime value did not serialize as an object");
+    };
+    Ok(OpenObject::new(object.into_iter().collect()))
+}
+
+fn deserialize_object<T: serde::de::DeserializeOwned>(value: OpenObject) -> Result<T> {
+    serde_json::from_value(serde_json::to_value(value)?).map_err(Into::into)
 }

@@ -163,8 +163,14 @@ impl OidcIdTokenConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BearerToken(String);
+
+impl std::fmt::Debug for BearerToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("BearerToken([REDACTED])")
+    }
+}
 
 impl BearerToken {
     pub fn from_authorization_header(value: &str) -> Result<Self, AuthError> {

@@ -6,7 +6,9 @@
 //! upstream slugs and reads the embedded principal.
 
 use veoveo_mcp_contract::gateway::ServerSlug;
-use veoveo_mcp_contract::internal_auth::{GatewayInternalTokenVerifier, InternalTokenSecret};
+use veoveo_mcp_contract::internal_auth::{
+    GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+};
 use veoveo_mcp_contract::{ArtifactPlaneError, PlaneCaller, TokenIssuer};
 
 /// Verifies forwarded gateway tokens and builds the [`PlaneCaller`].
@@ -19,13 +21,13 @@ impl PlaneAuthenticator {
     pub fn new(
         issuer: TokenIssuer,
         allowed_audiences: Vec<ServerSlug>,
-        secret: InternalTokenSecret,
+        trust_bundle: GatewayInternalTrustBundle,
     ) -> Self {
         Self {
             verifier: GatewayInternalTokenVerifier::new_for_audiences(
                 issuer,
                 allowed_audiences,
-                secret,
+                trust_bundle,
             ),
         }
     }

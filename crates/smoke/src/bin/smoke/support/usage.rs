@@ -51,7 +51,10 @@ pub(crate) fn wait_for_actual_usage_for_scheme(
 pub(crate) fn usage_envs(bearer_token: Option<&str>) -> Vec<(&'static str, OsString)> {
     match bearer_token {
         Some(token) => vec![("MCP_BEARER_TOKEN", token.into())],
-        None => vec![("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        None => vec![(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     }
 }
 

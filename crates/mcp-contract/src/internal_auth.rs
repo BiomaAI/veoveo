@@ -1,9 +1,13 @@
-use std::fmt;
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{
-    Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode,
+    Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode,
     errors::Error as JwtError,
+    jwk::{
+        AlgorithmParameters, EllipticCurve, Jwk, JwkSet, KeyAlgorithm, KeyOperations, PublicKeyUse,
+    },
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,34 +17,136 @@ use crate::{
 };
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
-pub const MIN_INTERNAL_TOKEN_SECRET_BYTES: usize = 32;
+pub const DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID: &str = "veoveo-internal-1";
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct InternalTokenSecret(String);
+pub struct GatewayInternalSigningKey {
+    key_id: String,
+    private_key_der: Vec<u8>,
+}
 
-impl InternalTokenSecret {
-    pub fn new(value: impl Into<String>) -> Result<Self, InternalTokenError> {
-        let value = value.into();
-        if value.len() < MIN_INTERNAL_TOKEN_SECRET_BYTES {
-            return Err(InternalTokenError::SecretTooShort {
-                actual: value.len(),
-                minimum: MIN_INTERNAL_TOKEN_SECRET_BYTES,
-            });
+impl GatewayInternalSigningKey {
+    pub fn new(
+        key_id: impl Into<String>,
+        private_key_der: impl Into<Vec<u8>>,
+    ) -> Result<Self, InternalTokenError> {
+        ensure_jwt_crypto_provider();
+        let key_id = validate_key_id(key_id.into())?;
+        let private_key_der = private_key_der.into();
+        if private_key_der.is_empty() {
+            return Err(InternalTokenError::EmptyPrivateKey);
         }
-        if value.chars().any(char::is_control) {
-            return Err(InternalTokenError::SecretContainsControlCharacter);
-        }
-        Ok(Self(value))
+        jsonwebtoken::crypto::sign(
+            b"veoveo-internal-signing-key-validation",
+            &EncodingKey::from_ed_der(&private_key_der),
+            Algorithm::EdDSA,
+        )
+        .map_err(InternalTokenError::Jwt)?;
+        Ok(Self {
+            key_id,
+            private_key_der,
+        })
     }
 
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+    pub fn key_id(&self) -> &str {
+        &self.key_id
     }
 }
 
-impl fmt::Debug for InternalTokenSecret {
+impl fmt::Debug for GatewayInternalSigningKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("InternalTokenSecret(<redacted>)")
+        f.debug_struct("GatewayInternalSigningKey")
+            .field("key_id", &self.key_id)
+            .field("private_key_der", &"<redacted>")
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GatewayInternalTrustBundle {
+    keys: Arc<BTreeMap<String, Jwk>>,
+}
+
+impl GatewayInternalTrustBundle {
+    pub fn new(jwks: JwkSet) -> Result<Self, InternalTokenError> {
+        ensure_jwt_crypto_provider();
+        if jwks.keys.is_empty() {
+            return Err(InternalTokenError::EmptyTrustBundle);
+        }
+        let mut keys = BTreeMap::new();
+        for jwk in jwks.keys {
+            validate_verification_jwk(&jwk)?;
+            DecodingKey::from_jwk(&jwk).map_err(InternalTokenError::Jwt)?;
+            let key_id = validate_key_id(
+                jwk.common
+                    .key_id
+                    .clone()
+                    .ok_or(InternalTokenError::MissingKeyId)?,
+            )?;
+            if keys.insert(key_id.clone(), jwk).is_some() {
+                return Err(InternalTokenError::DuplicateKeyId(key_id));
+            }
+        }
+        Ok(Self {
+            keys: Arc::new(keys),
+        })
+    }
+
+    pub fn from_json(value: &str) -> Result<Self, InternalTokenError> {
+        let jwks = serde_json::from_str(value).map_err(InternalTokenError::TrustBundleJson)?;
+        Self::new(jwks)
+    }
+
+    pub fn key_ids(&self) -> impl Iterator<Item = &str> {
+        self.keys.keys().map(String::as_str)
+    }
+}
+
+fn validate_key_id(value: String) -> Result<String, InternalTokenError> {
+    if value.is_empty()
+        || value.trim() != value
+        || value.chars().any(|character| character.is_control())
+    {
+        return Err(InternalTokenError::InvalidKeyId);
+    }
+    Ok(value)
+}
+
+fn validate_verification_jwk(jwk: &Jwk) -> Result<(), InternalTokenError> {
+    if jwk.common.key_algorithm != Some(KeyAlgorithm::EdDSA) {
+        return Err(InternalTokenError::UnsupportedTrustKey);
+    }
+    if jwk
+        .common
+        .public_key_use
+        .as_ref()
+        .is_some_and(|usage| usage != &PublicKeyUse::Signature)
+    {
+        return Err(InternalTokenError::UnsupportedTrustKey);
+    }
+    if jwk
+        .common
+        .key_operations
+        .as_ref()
+        .is_some_and(|operations| {
+            operations.is_empty()
+                || operations
+                    .iter()
+                    .any(|operation| operation != &KeyOperations::Verify)
+        })
+    {
+        return Err(InternalTokenError::UnsupportedTrustKey);
+    }
+    match &jwk.algorithm {
+        AlgorithmParameters::OctetKeyPair(parameters)
+            if parameters.curve == EllipticCurve::Ed25519
+                && URL_SAFE_NO_PAD
+                    .decode(&parameters.x)
+                    .is_ok_and(|key| key.len() == 32) =>
+        {
+            Ok(())
+        }
+        _ => Err(InternalTokenError::UnsupportedTrustKey),
     }
 }
 
@@ -56,21 +162,33 @@ pub struct GatewayInternalIdentity {
     pub expires_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct IssuedGatewayInternalToken {
     pub bearer_token: String,
     pub identity: GatewayInternalIdentity,
 }
 
+impl fmt::Debug for IssuedGatewayInternalToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IssuedGatewayInternalToken")
+            .field("bearer_token", &"<redacted>")
+            .field("identity", &self.identity)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GatewayInternalTokenIssuer {
     issuer: TokenIssuer,
-    secret: InternalTokenSecret,
+    signing_key: GatewayInternalSigningKey,
 }
 
 impl GatewayInternalTokenIssuer {
-    pub fn new(issuer: TokenIssuer, secret: InternalTokenSecret) -> Self {
-        Self { issuer, secret }
+    pub fn new(issuer: TokenIssuer, signing_key: GatewayInternalSigningKey) -> Self {
+        Self {
+            issuer,
+            signing_key,
+        }
     }
 
     pub fn issue(
@@ -80,6 +198,7 @@ impl GatewayInternalTokenIssuer {
         principal: Principal,
         expires_at: DateTime<Utc>,
     ) -> Result<IssuedGatewayInternalToken, InternalTokenError> {
+        ensure_jwt_crypto_provider();
         let now = Utc::now();
         if expires_at <= now {
             return Err(InternalTokenError::ExpiredDelegation);
@@ -97,12 +216,13 @@ impl GatewayInternalTokenIssuer {
             expires_at,
         };
         let claims = GatewayInternalJwtClaims::from_identity(&identity);
-        let mut header = Header::new(Algorithm::HS256);
+        let mut header = Header::new(Algorithm::EdDSA);
         header.typ = Some("JWT".to_string());
+        header.kid = Some(self.signing_key.key_id.clone());
         let bearer_token = encode(
             &header,
             &claims,
-            &EncodingKey::from_secret(self.secret.as_bytes()),
+            &EncodingKey::from_ed_der(&self.signing_key.private_key_der),
         )
         .map_err(InternalTokenError::Jwt)?;
         Ok(IssuedGatewayInternalToken {
@@ -116,16 +236,20 @@ impl GatewayInternalTokenIssuer {
 pub struct GatewayInternalTokenVerifier {
     issuer: TokenIssuer,
     audiences: Vec<ServerSlug>,
-    secret: InternalTokenSecret,
+    trust_bundle: GatewayInternalTrustBundle,
 }
 
 impl GatewayInternalTokenVerifier {
     /// Verify tokens audienced to exactly one server (the common upstream case).
-    pub fn new(issuer: TokenIssuer, audience: ServerSlug, secret: InternalTokenSecret) -> Self {
+    pub fn new(
+        issuer: TokenIssuer,
+        audience: ServerSlug,
+        trust_bundle: GatewayInternalTrustBundle,
+    ) -> Self {
         Self {
             issuer,
             audiences: vec![audience],
-            secret,
+            trust_bundle,
         }
     }
 
@@ -139,12 +263,12 @@ impl GatewayInternalTokenVerifier {
     pub fn new_for_audiences(
         issuer: TokenIssuer,
         audiences: Vec<ServerSlug>,
-        secret: InternalTokenSecret,
+        trust_bundle: GatewayInternalTrustBundle,
     ) -> Self {
         Self {
             issuer,
             audiences,
-            secret,
+            trust_bundle,
         }
     }
 
@@ -152,20 +276,28 @@ impl GatewayInternalTokenVerifier {
         &self,
         bearer_token: &str,
     ) -> Result<GatewayInternalIdentity, InternalTokenError> {
-        let mut validation = Validation::new(Algorithm::HS256);
-        validation.algorithms = vec![Algorithm::HS256];
+        ensure_jwt_crypto_provider();
+        let header = decode_header(bearer_token).map_err(InternalTokenError::Jwt)?;
+        if header.alg != Algorithm::EdDSA {
+            return Err(InternalTokenError::UnsupportedTokenAlgorithm(header.alg));
+        }
+        let key_id = header.kid.ok_or(InternalTokenError::MissingKeyId)?;
+        let jwk = self
+            .trust_bundle
+            .keys
+            .get(&key_id)
+            .ok_or_else(|| InternalTokenError::UnknownKeyId(key_id.clone()))?;
+        let decoding_key = DecodingKey::from_jwk(jwk).map_err(InternalTokenError::Jwt)?;
+        let mut validation = Validation::new(Algorithm::EdDSA);
+        validation.algorithms = vec![Algorithm::EdDSA];
         validation.validate_nbf = true;
         validation.leeway = 0;
         validation.set_issuer(&[self.issuer.as_str()]);
         let audience_strs: Vec<&str> = self.audiences.iter().map(ServerSlug::as_str).collect();
         validation.set_audience(&audience_strs);
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "iat", "nbf", "jti"]);
-        let token = decode::<GatewayInternalJwtClaims>(
-            bearer_token,
-            &DecodingKey::from_secret(self.secret.as_bytes()),
-            &validation,
-        )
-        .map_err(InternalTokenError::Jwt)?;
+        let token = decode::<GatewayInternalJwtClaims>(bearer_token, &decoding_key, &validation)
+            .map_err(InternalTokenError::Jwt)?;
         let claims = token.claims;
         if !self.audiences.contains(&claims.server) {
             return Err(InternalTokenError::AudienceMismatch {
@@ -193,6 +325,10 @@ impl GatewayInternalTokenVerifier {
             expires_at: timestamp_to_datetime(claims.exp, "exp")?,
         })
     }
+}
+
+fn ensure_jwt_crypto_provider() {
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,11 +364,14 @@ impl GatewayInternalJwtClaims {
 
 #[derive(Debug)]
 pub enum InternalTokenError {
-    SecretTooShort {
-        actual: usize,
-        minimum: usize,
-    },
-    SecretContainsControlCharacter,
+    EmptyPrivateKey,
+    InvalidKeyId,
+    EmptyTrustBundle,
+    MissingKeyId,
+    DuplicateKeyId(String),
+    UnknownKeyId(String),
+    UnsupportedTrustKey,
+    UnsupportedTokenAlgorithm(Algorithm),
     ExpiredDelegation,
     AudienceMismatch {
         expected: ServerSlug,
@@ -244,18 +383,28 @@ pub enum InternalTokenError {
         value: i64,
     },
     Identifier(IdentifierError),
+    TrustBundleJson(serde_json::Error),
     Jwt(JwtError),
 }
 
 impl fmt::Display for InternalTokenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SecretTooShort { actual, minimum } => write!(
-                f,
-                "internal token secret is {actual} byte(s); minimum is {minimum}"
-            ),
-            Self::SecretContainsControlCharacter => {
-                f.write_str("internal token secret must not contain control characters")
+            Self::EmptyPrivateKey => f.write_str("internal signing private key is empty"),
+            Self::InvalidKeyId => f.write_str("internal signing key id is empty or invalid"),
+            Self::EmptyTrustBundle => f.write_str("internal trust JWKS contains no keys"),
+            Self::MissingKeyId => f.write_str("internal token or trust key is missing kid"),
+            Self::DuplicateKeyId(key_id) => {
+                write!(f, "internal trust JWKS contains duplicate kid `{key_id}`")
+            }
+            Self::UnknownKeyId(key_id) => {
+                write!(f, "internal token references unknown kid `{key_id}`")
+            }
+            Self::UnsupportedTrustKey => {
+                f.write_str("internal trust JWKS must contain Ed25519 verification keys")
+            }
+            Self::UnsupportedTokenAlgorithm(algorithm) => {
+                write!(f, "internal token algorithm `{algorithm:?}` is not EdDSA")
             }
             Self::ExpiredDelegation => {
                 f.write_str("internal token expiration is not in the future")
@@ -274,6 +423,7 @@ impl fmt::Display for InternalTokenError {
                 )
             }
             Self::Identifier(err) => write!(f, "invalid internal token identifier: {err}"),
+            Self::TrustBundleJson(err) => write!(f, "invalid internal trust JWKS: {err}"),
             Self::Jwt(err) => write!(f, "internal token JWT validation failed: {err}"),
         }
     }
@@ -297,8 +447,22 @@ mod tests {
     use super::*;
     use crate::{GroupId, PrincipalKind, RoleId, ScopeName, TenantId, TokenSubject};
 
-    fn secret() -> InternalTokenSecret {
-        InternalTokenSecret::new("local-dev-internal-token-secret-32-bytes-minimum").unwrap()
+    const PRIVATE_KEY_DER_B64: &str =
+        "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
+    const PUBLIC_KEY_X: &str = "OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg";
+
+    fn signing_key(key_id: &str) -> GatewayInternalSigningKey {
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+        GatewayInternalSigningKey::new(key_id, STANDARD.decode(PRIVATE_KEY_DER_B64).unwrap())
+            .unwrap()
+    }
+
+    fn trust_bundle(key_id: &str) -> GatewayInternalTrustBundle {
+        GatewayInternalTrustBundle::from_json(&format!(
+            r#"{{"keys":[{{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"{key_id}"}}]}}"#
+        ))
+        .unwrap()
     }
 
     fn principal() -> Principal {
@@ -319,17 +483,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_short_internal_token_secret() {
+    fn rejects_non_eddsa_trust_keys() {
         assert!(matches!(
-            InternalTokenSecret::new("too-short"),
-            Err(InternalTokenError::SecretTooShort { .. })
+            GatewayInternalTrustBundle::from_json(
+                r#"{"keys":[{"kty":"oct","k":"c2VjcmV0","alg":"HS256","kid":"bad"}]}"#
+            ),
+            Err(InternalTokenError::UnsupportedTrustKey)
         ));
     }
 
     #[test]
     fn internal_token_round_trips_typed_identity() {
-        let issuer =
-            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), secret());
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            signing_key("key-1"),
+        );
         let issued = issuer
             .issue(
                 GatewayProfileId::new("default").unwrap(),
@@ -338,11 +506,12 @@ mod tests {
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
+        assert!(!format!("{issued:?}").contains(&issued.bearer_token));
 
         let verified = GatewayInternalTokenVerifier::new(
             TokenIssuer::new("veoveo-internal").unwrap(),
             ServerSlug::new("media").unwrap(),
-            secret(),
+            trust_bundle("key-1"),
         )
         .verify(&issued.bearer_token)
         .unwrap();
@@ -357,8 +526,10 @@ mod tests {
 
     #[test]
     fn internal_token_rejects_wrong_server_audience() {
-        let issuer =
-            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), secret());
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            signing_key("key-1"),
+        );
         let issued = issuer
             .issue(
                 GatewayProfileId::new("default").unwrap(),
@@ -371,11 +542,60 @@ mod tests {
         let err = GatewayInternalTokenVerifier::new(
             TokenIssuer::new("veoveo-internal").unwrap(),
             ServerSlug::new("simulation").unwrap(),
-            secret(),
+            trust_bundle("key-1"),
         )
         .verify(&issued.bearer_token)
         .expect_err("wrong server audience should be rejected");
 
         assert!(matches!(err, InternalTokenError::Jwt(_)));
+    }
+
+    #[test]
+    fn internal_token_rejects_unknown_key_id() {
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            signing_key("retired-key"),
+        );
+        let issued = issuer
+            .issue(
+                GatewayProfileId::new("default").unwrap(),
+                ServerSlug::new("media").unwrap(),
+                principal(),
+                Utc::now() + TimeDelta::minutes(5),
+            )
+            .unwrap();
+
+        let err = GatewayInternalTokenVerifier::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            ServerSlug::new("media").unwrap(),
+            trust_bundle("active-key"),
+        )
+        .verify(&issued.bearer_token)
+        .expect_err("unknown kid should be rejected");
+
+        assert!(matches!(err, InternalTokenError::UnknownKeyId(key) if key == "retired-key"));
+    }
+
+    #[test]
+    fn trust_bundle_accepts_rotation_set() {
+        let bundle = GatewayInternalTrustBundle::from_json(&format!(
+            r#"{{"keys":[
+                {{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"key-1"}},
+                {{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"key-2"}}
+            ]}}"#
+        ))
+        .unwrap();
+
+        assert_eq!(bundle.key_ids().collect::<Vec<_>>(), vec!["key-1", "key-2"]);
+    }
+
+    #[test]
+    fn trust_bundle_rejects_malformed_public_key() {
+        assert!(matches!(
+            GatewayInternalTrustBundle::from_json(
+                r#"{"keys":[{"kty":"OKP","crv":"Ed25519","x":"eA","alg":"EdDSA","use":"sig","kid":"key-1"}]}"#
+            ),
+            Err(InternalTokenError::UnsupportedTrustKey)
+        ));
     }
 }

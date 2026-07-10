@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use veoveo_mcp_contract::ArtifactId;
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[command(name = "conformance", about = "Veoveo MCP conformance client")]
 pub(super) struct Args {
     /// MCP endpoint of the server under test.
@@ -14,15 +15,23 @@ pub(super) struct Args {
     /// Bearer token sent to the MCP endpoint under test.
     #[arg(long, env = "MCP_BEARER_TOKEN", global = true, hide_env_values = true)]
     pub(super) bearer_token: Option<String>,
-    /// Internal gateway signing secret for direct hosted-server conformance.
+    /// Base64 PKCS#8 Ed25519 gateway signing key for direct hosted-server conformance.
     #[arg(
         long,
-        env = "VEOVEO_INTERNAL_TOKEN_SECRET",
+        env = "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
         global = true,
         hide_env_values = true,
         conflicts_with = "bearer_token"
     )]
-    pub(super) internal_token_secret: Option<String>,
+    pub(super) internal_signing_key_der_b64: Option<String>,
+    /// `kid` for direct hosted-server conformance assertions.
+    #[arg(
+        long,
+        env = "VEOVEO_INTERNAL_SIGNING_KEY_ID",
+        default_value = veoveo_mcp_contract::DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID,
+        global = true
+    )]
+    pub(super) internal_signing_key_id: String,
     /// Server slug for direct hosted-server conformance.
     #[arg(long, default_value = "media", global = true)]
     pub(super) internal_server: String,
@@ -42,7 +51,7 @@ pub(super) struct Args {
     pub(super) cmd: Cmd,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand)]
 pub(super) enum Cmd {
     /// Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
     ContractSchemas {
@@ -179,6 +188,9 @@ pub(super) enum Cmd {
         /// Delay before posting the completion webhook.
         #[arg(long, default_value_t = 250)]
         completion_delay_ms: u64,
+        /// HMAC secret used to sign webhook deliveries.
+        #[arg(long, default_value = "whsec_smoke-webhook-secret", hide = true)]
+        webhook_secret: String,
     },
     /// Serve a generic hosted MCP server that requires gateway internal authorization.
     FakeHostedMcp {
@@ -191,9 +203,9 @@ pub(super) enum Cmd {
         /// Server-owned resource URI scheme.
         #[arg(long)]
         scheme: String,
-        /// Secret used to verify gateway-issued internal identity assertions.
-        #[arg(long, env = "VEOVEO_INTERNAL_TOKEN_SECRET", hide_env_values = true)]
-        internal_token_secret: String,
+        /// Public Ed25519 JWKS used to verify gateway identity assertions.
+        #[arg(long, env = "VEOVEO_INTERNAL_TRUST_JWKS", hide_env_values = true)]
+        internal_trust_jwks: String,
         /// File touched after the listener is ready.
         #[arg(long)]
         ready_file: Option<PathBuf>,
@@ -228,7 +240,7 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "operator-service")]
         client_id: String,
         /// Token endpoint audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/token")]
+        #[arg(long, default_value = "https://veoveo.example/oauth/token")]
         audience: String,
         /// JWT id claim.
         #[arg(long)]
@@ -246,7 +258,7 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "operator-service")]
         client_id: String,
         /// Client assertion audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth/token")]
+        #[arg(long, default_value = "https://veoveo.example/oauth/token")]
         audience: String,
         /// MCP protected resource for the requested profile.
         #[arg(long)]
@@ -267,10 +279,10 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "https://idp.example.com")]
         issuer: String,
         /// Resource Authorization Server issuer audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth")]
+        #[arg(long, default_value = "https://veoveo.example/oauth")]
         audience: String,
         /// MCP protected resource claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/operator")]
+        #[arg(long, default_value = "https://veoveo.example/mcp/operator")]
         resource: String,
         /// Registered MCP client id.
         #[arg(long, default_value = "operator-local-public")]
@@ -312,10 +324,10 @@ pub(super) enum Cmd {
         #[arg(long, default_value = "https://idp.example.com")]
         issuer: String,
         /// Resource Authorization Server issuer audience claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/oauth")]
+        #[arg(long, default_value = "https://veoveo.example/oauth")]
         audience: String,
         /// MCP protected resource claim.
-        #[arg(long, default_value = "https://veoveo.bioma.ai/mcp/operator")]
+        #[arg(long, default_value = "https://veoveo.example/mcp/operator")]
         resource: String,
         /// Registered MCP client id.
         #[arg(long, default_value = "operator-local-public")]
@@ -383,9 +395,18 @@ pub(super) enum Cmd {
         /// Tool arguments as a JSON object.
         #[arg(long)]
         arguments: String,
-        /// Invoke as an MCP task (SEP-1319) and poll to completion.
+        /// Invoke through the explicit core-task compatibility projection.
         #[arg(long)]
         task: bool,
+    },
+    /// Invoke one tool through the canonical final MCP task extension.
+    TaskCall {
+        /// Tool name to invoke.
+        #[arg(long)]
+        tool_name: String,
+        /// Tool arguments as a JSON object.
+        #[arg(long)]
+        arguments: String,
     },
     /// Autocomplete any resource-template argument via completion/complete.
     CompleteResource {
@@ -408,7 +429,7 @@ pub(super) enum Cmd {
     Usage { task_id: String },
     /// Read and save an artifact resource.
     Artifact {
-        sha256: String,
+        artifact_id: ArtifactId,
         /// Where to save the artifact file.
         #[arg(long, default_value = "output")]
         output_dir: PathBuf,

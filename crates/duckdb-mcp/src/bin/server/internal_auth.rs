@@ -56,16 +56,6 @@ pub(super) fn verify_internal_authorization(
     verifier.verify(token).map_err(|err| err.to_string())
 }
 
-/// Extract the raw bearer token from request headers, for forwarding to the
-/// artifact plane. Returns `None` when absent or malformed.
-pub(super) fn bearer_from_headers(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get(AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|h| internal_bearer_token(h).ok())
-        .map(str::to_string)
-}
-
 fn internal_bearer_token(header: &str) -> Result<&str, &'static str> {
     let Some((scheme, token)) = header.split_once(' ') else {
         return Err("missing bearer token");

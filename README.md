@@ -1,447 +1,281 @@
-# veoveo
+# Veoveo
 
-Veoveo exposes hosted MCP servers through a production gateway. The current hosted server
-is `media-mcp`, which exposes image, video, audio, 3D, and LLM generation models.
-Long-running generation is handled by MCP **tasks** (SEP-1319) and provider webhooks
-instead of blocking calls.
+Veoveo is a self-hosted MCP platform for governed tools, durable work, artifacts,
+recordings, and autonomous agents. Each installation is owned and operated by the
+organization that deploys it. Veoveo has no vendor control plane, required hosted
+service, or required domain name.
 
-The gateway is the normal client entrypoint. The media server lives in its own crate; the
-generic full-protocol conformance CLI lives in its own conformance crate.
+`veoveo.bioma.ai` is one deployment example under `examples/bioma`; it is not a
+product dependency or canonical hostname.
+
+## What It Provides
+
+- A typed MCP gateway that aggregates hosted servers into policy-scoped profiles.
+- Full MCP surfaces where the domain fits: tools, resources and templates, prompts,
+  completions, final durable tasks, subscriptions, notifications, structured
+  content, and URI identities.
+- OIDC/OAuth browser login, PKCE, client credentials, ID-JAG, signed access tokens,
+  durable refresh-token rotation, encrypted duplicate delivery, and replay-family
+  revocation.
+- Short-lived Ed25519 gateway-to-service identity assertions. Hosted servers receive
+  only public verification keys.
+- A required SurrealDB `3.2.0` platform store for identity, policy, control revisions,
+  tasks, artifacts, recordings, agents, audit, and the transactional outbox.
+- A shared artifact plane with opaque UUIDv7 occurrence identities, tenant-local
+  deduplication, user/group grants, and expiring revocable anyone-with-link shares.
+- Arbitrary DuckDB SQL inside an owner-scoped, resource-bounded container sandbox.
+- Durable Rerun recording ingestion and an authorized recording MCP projection.
+- A durable autonomous-agent runtime with task detach/resume, wakes, budgets, local
+  analytical memory, and Rerun episode recording.
+- An authenticated operations console for health, tasks, artifacts, agents,
+  recordings, MCP topology, policy, audit, and installation state.
+- Equivalent Docker Compose and Helm installation shapes, plus a verified offline
+  bundle path.
+
+The normative product boundaries are in
+[`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md).
 
 ## Architecture
 
+```text
+Browser / MCP client
+        |
+        v
+  installation ingress
+   |       |        |
+   |       |        +--> /s/{token} -> artifact-service
+   |       +-----------> /console, /auth -> console-bff
+   +-------------------> /mcp/*, /oauth/*, /admin/*,
+                           /artifacts/* -> mcp-gateway
+                                           |
+                  gateway-signed identity  |
+             +-------------+---------------+----------------+
+             |             |               |                |
+          media-mcp    duckdb-mcp     recording-mcp    other MCPs
+             |             |               |                |
+             +-------------+--------+------+----------------+
+                                    |
+                         artifact-service / recording-hub
+                                    |
+                  +-----------------+-----------------+
+                  |                                   |
+           SurrealDB 3.2.0                      S3 / RustFS bytes
 ```
-┌──────────┐   MCP (streamable HTTP)   ┌─────────────────────┐   single origin   ┌─────────────────────────┐
-│  client  │ ────────────────────────▶ │ Cloudflare Tunnel   │ ────────────────▶ │ edge proxy (:8780)     │
-│  (rmcp)  │ ◀──── notifications ───── │ or enterprise edge  │                   │ /mcp, /oauth, /media   │
-└──────────┘                            └─────────────────────┘                   └───────────┬─────────────┘
-                                                                                                │
-                                        ┌─────────────────────────┐   internal MCP              │
-                                        │ gateway (axum, :8788)  │ ◀────────────────────────────┤
-                                        │ /mcp/operator          │ ────────────────────────────▶ │
-                                        └───────────┬─────────────┘                              │
-                                                    │ internal MCP                               │ provider/content paths
-                                                    ▼                                            ▼
-                                           ┌─────────────────────────┐                   ┌───────────┐
-                                           │ media-mcp (axum, :8787)│ ────────────────▶ │ provider  │
-                                           │ /media/mcp /media/...  │  provider API     └───────────┘
-                                           └─────────────────────────┘
+
+SurrealDB is the durable coordination authority. DuckDB is an analytical runtime,
+not the platform database. RRD segments are the durable time-and-space record. S3
+compatible storage owns artifact bytes while SurrealDB owns their governed identity
+and authorization records.
+
+## Hosted Servers
+
+The canonical control plane defines nine server identities:
+
+| Server | Main capability |
+|---|---|
+| `media` | provider-neutral media catalog, schemas, generation, webhook completion |
+| `timeseries` | typed forecasting and durable RRD output |
+| `duckdb` | arbitrary query/execute/ingest/export SQL in bounded workspaces |
+| `optimization` | deterministic planning and artifact output |
+| `coordinates` | CRS, geodesic, local-frame, geofence, and batch transformations |
+| `artifact` | artifact discovery, metadata, grants, release, and sharing |
+| `recording` | governed recording discovery, query, subscription, and publication |
+| `charts` | chart rendering projected through the gateway |
+| `rerun` | bridged Rerun viewer MCP surface |
+
+The SUMO showcase adds a provider-neutral `sumo` traffic-world server without
+changing platform contracts. See [`showcase/sumo/README.md`](showcase/sumo/README.md).
+
+## Durable Tasks
+
+Long operations use the shared `TaskRuntime` and the final Veoveo task extension.
+Task IDs are UUIDv7; creation, leases, transitions, cancellation, results, retention
+pins, and outbox events are durable and atomic.
+
+Recovery is declared per operation:
+
+- `resume`: deterministic work may resume after lease expiry.
+- `webhook_wait`: a submitted provider job waits only for a signed webhook.
+- `interrupted_indeterminate`: mutating work is failed and never replayed.
+
+Provider completion is webhook-only. There is no provider status polling or polling
+fallback.
+
+Cancelling a submitted media task makes the local task result permanently cancelled and
+records a durable provider-cancellation request plus its outcome. The provider request is
+best effort: acknowledgement does not guarantee that compute stopped or that billing was
+refunded. A later signed terminal webhook may update the provider job and reconcile actual
+billing, but it cannot create artifacts or replace the cancelled task result.
+
+## DuckDB SQL
+
+DuckDB intentionally accepts arbitrary SQL. Flexibility is the product feature; the
+security boundary is the execution sandbox:
+
+- owner-derived database paths and one canonical workspace registry;
+- locked DuckDB settings and extension policy;
+- memory, thread, spill, row, byte, and execution limits;
+- governed artifact/ingest inputs and explicitly authorized HTTPS attachment;
+- container filesystem, capability, process, and network restrictions;
+- `query` and `export` may resume; mutating `execute` and `ingest` become
+  `interrupted_indeterminate` once execution may have begun.
+
+## Artifacts And Sharing
+
+Every occurrence receives a new `artifact://{uuidv7}` identity. Hashes are integrity
+and tenant-local deduplication data, never public addresses.
+
+Two sharing modes are separate and explicit:
+
+1. Grant `read`, `write`, or `admin` to an authorized user or group. Tenant and label
+   policy still applies.
+2. Mark an artifact `releasable`, then create a read-only anyone-with-link bearer.
+   Links default to seven days, may not exceed thirty days, can have a download limit,
+   and can be revoked.
+
+Authorized large downloads pass through the gateway policy/audit boundary before a
+short-lived object-store redirect is returned. Public links use `/s/{token}`; only a
+token hash is stored. The default Caddy edge suppresses these bearer paths from
+access logs. Helm isolates `/s` in a dedicated Ingress with an explicit access-log
+disable annotation; operators using another controller must replace it with that
+controller's equivalent and apply the same suppression in APM/WAF/tracing. Domain
+servers expose no independent byte routes.
+
+## Operations Console
+
+The first console screen is the live installation, not a landing page. The React UI
+and Rust BFF support:
+
+- service and MCP health;
+- task progress, recovery class, and cancellation;
+- artifact download, release state, grants, link creation, and revocation;
+- agents, wakes, recordings, policies, and audit evidence.
+
+The BFF performs authorization-code PKCE, keeps access and rotating refresh tokens in
+an encrypted HttpOnly cookie, and enforces CSRF on mutations. Browser JavaScript never
+receives a gateway bearer token. A short gateway delivery window lets concurrent
+stateless BFF requests receive the identical rotated successor; use of the consumed
+token after that window is replay and revokes the family.
+
+## Install With Compose
+
+Prerequisites are Docker with Compose v2 and enough resources to build the Rust
+workspace. Copy and populate the installation environment:
+
+```bash
+cp .env.example .env
 ```
 
-- `/mcp/operator` — operator gateway MCP profile over streamable HTTP (rmcp 2.0), routed by the edge proxy to `mcp-gateway`
-- `/media/mcp` — internal media MCP endpoint for conformance and service composition; not routed by the public edge and requires a gateway-signed internal token
-- `/media/webhooks` — provider callback receiver routed by the edge proxy to `media-mcp`
-- `/media/files/*` — optional static dir so the provider can fetch input media by URL
-- `/media/artifacts/*` — GET-only immutable content route for artifact bytes already surfaced by MCP
+Required values include SurrealDB bootstrap/runtime credentials, object-store
+credentials, the gateway Ed25519 private key and public JWKS, authorization-server
+signing material, OIDC client secret, a distinct 32-byte gateway refresh-delivery key,
+console session key, media webhook secret, and `PUBLIC_BASE_URL`. Generate the refresh
+delivery key with `openssl rand -base64 32`; the decoded value must be exactly 32 bytes.
+Update `configs/gateway.local.json` for the installation's OIDC issuer, tenant mapping,
+public origin, and client registrations.
 
-## MCP surface
+Validate before startup:
 
-The canonical media action is `run`; discovery, state, artifacts, usage, prompts, and
-completion live on their proper MCP protocol surfaces. Direct media exposes `run`; the
-gateway exposes that tool as `media__run` because it collapses all hosted servers into one
-outward MCP surface.
+```bash
+just gateway-validate
+just deployments-validate
+just smoke-compose-config
+```
 
-Veoveo does not reduce servers to tools-only MCP. The gateway and hosted servers may expose
-compatibility helper tools for clients that can authenticate and call tools but do not
-surface resources, tasks, prompts, completions, or artifact reads well in their UI. Those
-helpers are additive projections over the canonical protocol data, not separate APIs or
-second sources of truth.
+Start the canonical single-host installation:
 
-| Surface | What |
-|---|---|
-| tool `run(model, input)` | task-**required** (SEP-1319); input validated against the model's JSON Schema before submit; advertises a typed structured output schema |
-| helper tool `models(query, type, limit)` | read-only catalog search for tools-only clients; backed by `media://models` |
-| helper tool `model_schema(model)` | read-only exact schema lookup for tools-only clients; backed by `media://model/{model_id}` |
-| prompts | `media-model-select`, `media-image-edit`, `media-video-generate`, `media-task-review` |
-| resource `media://models` | compact catalog of all models (id, type, description, price) |
-| template `media://model/{model_id}` | full input JSON Schema + pricing for one model |
-| template `media://prediction/{id}` | live prediction state; **subscribable** — webhook arrival fires `notifications/resources/updated` |
-| template `media://artifact/{sha256}` | server-owned immutable artifact bytes stored in RustFS/S3-compatible storage |
-| resource `media://usage` | index of task usage resources |
-| template `media://usage/task/{task_id}` | usage estimates/actuals for one task |
-| `completion/complete` | model-id autocompletion over the whole catalog |
-| notifications | `tasks/status`, `progress`, `resources/updated`, `resources/list_changed` |
+```bash
+just compose-up
+just compose-ps
+just health
+```
 
-Task lifecycle: `tools/call` (+`task` metadata) → `CreateTaskResult` → poll `tasks/get`
-(statusMessage carries the prediction id) → `tasks/result` returns `media://artifact/{sha256}`
-resource links + structured content. `tasks/cancel` aborts. Provider webhook delivery is
-the only server-side completion path.
+The local edge binds to `127.0.0.1:8780`. Public exposure belongs to the installation
+operator's ingress. The canonical stack does not start a tunnel.
 
-Gateway profiles expose MCP tasks directly (`tasks/list`, `tasks/get`, `tasks/result`,
-`tasks/cancel`) and also adapt direct calls to task-required tools for clients that do not
-support task invocation. In that compatibility path, the gateway creates the upstream task,
-waits briefly, and either returns the completed result or a gateway-owned
-`veoveo://task/{task_id}` status resource.
-
-List surfaces owned by Veoveo servers (`tools/list`, `prompts/list`, `resources/list`,
-`resources/templates/list`, and `tasks/list`) honor MCP pagination cursors.
-
-### Timeseries, Optimization, and DuckDB servers
-
-`timeseries-mcp` exposes `forecast` (task-required), which reads a typed DuckDB source and
-returns a Rerun RRD artifact. `optimization-mcp` exposes `plan` (task-required), which
-solves high-level agent/task/option planning problems with `good_lp`, accepts typed inline
-options or option rows through the shared `DuckDbSource` contract, and returns structured
-plan output plus optional DuckDB and Rerun RRD artifacts. `duckdb-mcp` exposes a small SQL
-surface over owner-scoped mutable database files:
-
-| Tool | Invocation | What |
-|---|---|---|
-| `plan(input, objective?, artifacts?)` | task | Solve a binary option-selection planning model for one or many agents completing tasks under constraints. Returns `optimization://artifact/{sha256}` links for DuckDB/RRD outputs when requested. |
-| `query(db, sql, attach?, output?)` | direct or task | Read-only SQL. Inline rows are capped; `output = {mode: "artifact", format: "parquet"}` spills large results to a `duckdb://artifact/{sha256}` link. Read-only databases can be attached for cross-database joins. |
-| `execute(db, sql, create_if_missing?)` | direct or task | DDL/DML on a caller-owned database; writes serialize per file. |
-| `ingest(db, table, source, mode)` | task | Load an inline CSV or an allowlisted HTTPS source into a table. |
-| `export(db, selection, format)` | task | Export a table, a read-only SQL result, or a full database snapshot to an immutable artifact (parquet/csv/`duck_db`). |
-
-Databases are addressed by `duckdb://db/{db_id}` and listed at `duckdb://dbs`. Each database
-is owned by the creating principal; tenant peers get read visibility only when the tenant is
-set and the database's data labels are covered by the reader's. Only the owner writes.
-
-SQL is the input surface but never an escape hatch. Every connection is hardened before
-caller SQL runs — `enable_external_access = false` (no file paths, no httpfs), no extension
-auto-install/auto-load, memory/thread caps, and `lock_configuration` so caller SQL cannot
-undo any of it — and reads use a read-only connection. Ingest sources are fetched by the
-server under an HTTPS host allowlist, never by the SQL engine, and file exchange is confined
-to per-request directories kept separate from the DuckDB spill directory. Per-statement
-timeouts interrupt the running query. The container drops all capabilities and runs
-read-only except for the database/exchange/spill volume.
-
-## Public Routing
-
-`PUBLIC_BASE_URL` is the public origin for the whole Veoveo deployment. Its hostname is
-opaque to the contract; `https://veoveo.bioma.ai`,
-`https://staging.veoveo.bioma.ai`, and an enterprise-owned hostname are all equivalent
-as long as they route to the deployment.
-
-External MCP clients use Veoveo profile endpoints. The edge proxy is the public boundary
-for the single origin. Hosted servers still own provider plumbing paths below the same
-origin:
-
-| Surface | Endpoint |
-|---|---|
-| operator profile | `{PUBLIC_BASE_URL}/mcp/operator` |
-| admin profile | `{PUBLIC_BASE_URL}/mcp/admin` |
-| media webhook | `{PUBLIC_BASE_URL}/media/webhooks` |
-| media input files | `{PUBLIC_BASE_URL}/media/files/*` |
-| media artifact bytes | `{PUBLIC_BASE_URL}/media/artifacts/*` |
-| timeseries artifact bytes | `{PUBLIC_BASE_URL}/timeseries/artifacts/*` |
-| optimization artifact bytes | `{PUBLIC_BASE_URL}/optimization/artifacts/*` |
-| duckdb artifact bytes | `{PUBLIC_BASE_URL}/duckdb/artifacts/*` |
-
-`/media/mcp`, `/timeseries/mcp`, `/optimization/mcp`, and `/duckdb/mcp` are intentionally not public client routes. For local conformance or service
-debugging, use the direct service endpoint with a Veoveo-signed internal token, such as
-`http://localhost:8787/media/mcp` in the development Compose stack.
-
-### MCP Clients
-
-The Bioma reference deployment uses client IDs by trust boundary:
-
-| Client boundary | OAuth client id | Use |
-|---|---|---|
-| hosted public connector | `operator-hosted-public` | Browser-hosted MCP clients such as Claude web or ChatGPT. |
-| local public connector | `operator-local-public` | Loopback clients such as Claude Code, local inspectors, or desktop tools. |
-| operator service | `operator-service` | Headless automation using private-key JWT client credentials. |
-| admin service | `admin-service` | Admin automation using private-key JWT client credentials. |
-
-Hosted public clients connect to:
+Useful entrypoints are:
 
 ```text
-https://veoveo.bioma.ai/mcp/operator
+{PUBLIC_BASE_URL}/console/
+{PUBLIC_BASE_URL}/mcp/operator
+{PUBLIC_BASE_URL}/mcp/admin
+{PUBLIC_BASE_URL}/healthz
+{PUBLIC_BASE_URL}/readyz
 ```
 
-Use OAuth client ID `operator-hosted-public`. Leave the client secret blank unless that
-client registration is intentionally changed to a confidential-client registration. The
-Bioma reference registration currently allows hosted redirects for Claude web
-(`https://claude.ai/api/mcp/auth_callback`) and ChatGPT
-(`https://chatgpt.com/connector/oauth/gJtUJETZMrHO`).
-The enterprise user must be assigned the `veoveo_operator` app role in Entra; otherwise
-OAuth login can succeed but `tools/list` will return no operator tools. Reconnect the MCP
-client after role changes so the next token carries the updated `roles` claim.
+Direct hosted MCP ports are loopback development targets and are blocked at the public
+edge. Provider webhooks and curated provider-fetchable media remain plumbing routes.
 
-Local loopback clients should use OAuth client ID `operator-local-public`. Claude Code can
-use a fixed callback port that matches the registered local redirect URIs:
+## Install With Helm
 
-```sh
-claude mcp add --transport http \
-    --client-id operator-local-public \
-    --callback-port 8789 \
-    veoveo https://veoveo.bioma.ai/mcp/operator
+The Helm chart is under `deploy/helm/veoveo`. It uses one SurrealDB 3.2.0 RocksDB
+StatefulSet, separate bootstrap/runtime Secrets, default-deny NetworkPolicy, optional
+strict service-mesh mTLS, a singleton persistent DuckDB workspace, governed recording
+storage, and operator-supplied telemetry/SIEM configuration.
 
-claude mcp login veoveo
+```bash
+just helm-check
 ```
 
-Do not point external clients at `/media/mcp`; that route is intentionally not public.
+See [`deploy/helm/veoveo/README.md`](deploy/helm/veoveo/README.md) for required
+Secrets, ConfigMaps, object-store ingress, and offline values.
 
-## Setup
+## Offline Installation
 
-`.env`:
+Create the bundle on a connected build host, then verify and import it on the isolated
+host:
 
-```
-MEDIA_PROVIDER_API_KEY=...
-MEDIA_PROVIDER_WEBHOOK_SECRET=whsec_...   # optional; enables webhook signature verification
-VEOVEO_INTERNAL_TOKEN_SECRET=...           # signs gateway-to-server assertions
-VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64=...
-PUBLIC_BASE_URL=https://veoveo.bioma.ai
-```
-
-## Run
-
-### Docker Compose
-
-The default development stack runs the edge proxy, `mcp-gateway`, `media-mcp`, RustFS,
-Postgres for gateway control data, an OpenTelemetry collector, and the managed
-Cloudflare tunnel. RustFS image/version, Postgres image/version, edge routing, and local
-S3-compatible wiring are defined in `compose.yaml`.
-The Cloudflare named tunnel should route the public hostname to `http://edge:8080`;
-individual MCP server containers are not public tunnel targets.
-Published development ports bind to `127.0.0.1` only. The local edge is available at
-`http://localhost:8780`; direct gateway, media, RustFS, and OTEL ports are local debugging
-surfaces, not public ingress.
-
-```sh
-cp .env.example .env
-# fill MEDIA_PROVIDER_API_KEY, MEDIA_PROVIDER_WEBHOOK_SECRET, PUBLIC_BASE_URL,
-# VEOVEO_INTERNAL_TOKEN_SECRET, VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64,
-# and CLOUDFLARED_TUNNEL_TOKEN for the managed Cloudflare tunnel.
-
-just compose-up
-just info
+```bash
+just offline-bundle
+just offline-load output/veoveo-offline-0.1.0.tar.gz docker /opt/veoveo
 ```
 
-The media image uses BuildKit cache mounts for Cargo registry, git, and target output.
-The workspace also pins `DUCKDB_DOWNLOAD_LIB=1` in `.cargo/config.toml`, so builds link
-the matching prebuilt DuckDB library instead of compiling DuckDB C++ sources. First builds
-still download crates and DuckDB; rebuilds reuse the BuildKit caches.
+The bundle contains pinned runtime images, Veoveo images, Compose and Helm material,
+typed configuration schemas, checksums, resolved image identities, and SPDX SBOMs.
+Loading retains all verification evidence. See
+[`deploy/offline/README.md`](deploy/offline/README.md).
 
-RustFS is available locally at `http://localhost:9000` with the development credentials
-defined in Compose. Compose also creates the `media-artifacts` bucket. Those credentials
-are for the local stack only.
+## Development And Verification
 
-Task, prediction, artifact metadata, and usage metadata are persisted in DuckDB. The
-shared contract crate owns the DuckDB usage analytics schema so every MCP server can
-record estimates and actual billing rows the same way. Veoveo profiles, tenants,
-clients, policies, and hosted-server manifests are seeded into Postgres as immutable
-control-plane revisions; `mcp-gateway` loads the active Postgres revision in Compose.
-Deployment profiles declare typed DuckDB state stores for the gateway and each hosted MCP
-server. Local runs default to `state.duckdb`; Compose stores the media server's state at
-`/var/lib/veoveo/media/state.duckdb` on the `media_state` volume. Gateway runtime state
-and audit evidence live at `/var/lib/veoveo/gateway/state.duckdb` on the `gateway_state`
-volume. RustFS stores artifact bytes only.
+The workspace is pinned by `rust-toolchain.toml` and uses Rust edition 2024. Common
+checks are:
 
-### Logs
-
-The server writes operational logs to stdout/stderr. Docker Compose exposes those logs
-through:
-
-```sh
-just logs mcp-gateway
-just logs media-mcp
-just logs cloudflared
+```bash
+just fmt
+just check
+just test
+just smoke-gateway
+just smoke-hub
+just smoke-agent-kernel
+just showcase-sumo-smoke
 ```
 
-Enterprise deployments should collect container stdout/stderr with their platform-native
-logging stack, such as Kubernetes logging, Docker logging drivers, CloudWatch, Splunk,
-Datadog, or an OpenTelemetry collector. Veoveo does not store application logs in DuckDB
-or RustFS. DuckDB is for task, artifact, prediction, and usage analytics state; object
-storage is for artifact bytes.
+All smoke orchestration is Rust. The `Justfile` only builds or dispatches human-facing
+commands.
 
-Gateway secret references are resolved by source, not stored in control data. Local
-`env` secrets name the required variable. HashiCorp Vault and HCP Vault use KV v2 locators
-such as `kv2://secret/veoveo/gateway#client_secret` or
-`kv2://secret/veoveo/gateway?version=3#client_secret`, and require explicit `VAULT_ADDR`
-and `VAULT_TOKEN`.
+## Repository Map
 
-Deployment profiles declare gateway-to-server service-to-service security explicitly.
-Local Compose uses gateway-signed internal JWTs over the private Docker network. Enterprise
-and regulated profiles must use mTLS or service-mesh mTLS transport plus gateway-signed
-assertions.
-
-Deployment network rules are typed by target kind. Profiles must declare explicit ingress
-and egress for the gateway, hosted MCP servers, object stores, telemetry collectors,
-enterprise secret managers, identity providers, and external provider APIs instead of
-leaving those boundaries as opaque hostnames.
-
-Gateway control-plane server manifests also declare upstream transport security next to
-the upstream URL. Local loopback tests use `loopback_http`, Docker Compose service-name
-routes use `compose_internal_http`, and production manifests should use `tls`,
-`mutual_tls`, or `service_mesh_mtls`. Public plaintext HTTP upstreams are rejected by
-contract validation.
-
-Gateway OAuth client registrations are also validated against implemented token endpoint
-paths. Browser authorization-code and enterprise-managed authorization clients use
-`auth_methods: ["none"]`; headless client-credentials clients use
-`auth_methods: ["private_key_jwt"]`. Client-secret and TLS-client-auth OAuth clients are
-not accepted until those flows are implemented end to end.
-
-### Admin Operations
-
-Gateway admin operations are authenticated and policy-gated through `/admin/{profile}`.
-Control-plane reload/apply, JWT revocation, and revocation pruning emit structured audit
-events in the gateway DuckDB state. Each operation records the policy decision and a
-separate `*/result` event with `operation_status` evidence such as `succeeded`,
-`rejected`, or `failed`. The maintained local recipes call the admin API; they do not
-mutate the gateway state database directly:
-
-```sh
-just gateway-revoke-jwt <jwt-id> 2026-07-02T20:00:00Z
-just gateway-prune-revoked-jwts
-cargo run -p veoveo-mcp-gateway --bin gateway -- audit-metadata-summary \
-  --state-db data/gateway/state.duckdb --metadata-key operation_status
-cargo run -p veoveo-mcp-gateway --bin gateway -- auth-audit-method-summary \
-  --state-db data/gateway/state.duckdb
-cargo run -p veoveo-mcp-gateway --bin gateway -- auth-audit-metadata-summary \
-  --state-db data/gateway/state.duckdb --metadata-key principal_data_labels
+```text
+crates/mcp-contract/        shared typed policy and protocol contracts
+crates/platform-store/      SurrealDB 3.2 schema and typed persistence API
+crates/task-runtime/        durable task leases, recovery, outbox, and retention
+crates/mcp-task-extension/  final task-extension wire adapter
+crates/mcp-gateway/         auth, policy, MCP aggregation, admin, audit, refresh tokens
+crates/artifact-service/    artifact byte PEP, grants, shares, retention, S3
+crates/artifact-mcp/        canonical artifact MCP projection
+crates/recording-hub/       durable Rerun ingest and segment spool
+crates/recording-mcp/       authorized recording MCP projection
+crates/agent-runtime/       durable agent persistence and scheduling
+crates/agent-kernel/        autonomous MCP agent loop and memory planes
+crates/*-mcp/               hosted domain servers
+crates/console-bff/         browser auth/session/API boundary
+crates/smoke/               Rust multi-process and deployment smoke harness
+console/                    React operations console
+configs/                    canonical typed installation configuration
+deploy/                     Helm and offline installation material
+showcase/sumo/              real traffic-world integration
+examples/bioma/             one optional Entra/Cloudflare deployment example
 ```
 
-Artifact metadata carries typed compliance fields from the gateway principal, including
-`tenant_id`, `owner_id`, `data_labels`, and `retention_expires_at`. Media still enforces
-artifact and task access from durable owner rows; object metadata is exported evidence, not
-the only authorization source.
-
-### Contract Schemas
-
-External Python and TypeScript MCP servers should use exported schemas as the source of
-truth, not hand-maintained copies. Export platform/shared schemas plus selected
-first-party server-local tool schemas:
-
-```sh
-just contract-schemas schemas
-```
-
-The export includes gateway control data, policy/audit events, deployment profiles,
-gateway runtime projection records, internal identity assertions, artifact metadata,
-generation outputs, usage reports, RRD spacetime schemas from `veoveo-rrd`, and
-first-party schemas whose owning MCP crates expose typed Rust contracts. RRD is the
-canonical exported shape for overlapped frame, geospatial point, local geometry, and
-time-selection concepts. Custom MCP tool schemas should come from the server's own
-`tools/list` response. The maintained smoke suite runs
-`just smoke-contract-schemas` so schema generation stays wired into the contract.
-
-### Local Process
-
-Run the media server and gateway in separate shells, with the same
-`VEOVEO_INTERNAL_TOKEN_SECRET` value in both.
-
-```sh
-# 1. ensure PUBLIC_BASE_URL routes to this process, using your ingress/proxy/tunnel
-
-# 2. media server (requires a reachable S3-compatible artifact store)
-export AWS_ACCESS_KEY_ID=rustfsadmin
-export AWS_SECRET_ACCESS_KEY=rustfsadmin
-export AWS_DEFAULT_REGION=us-east-1
-export VEOVEO_INTERNAL_TOKEN_SECRET=local-development-secret-at-least-32-bytes
-cargo run -p veoveo-media-mcp --bin server -- --port 8787 --static-dir assets \
-    --public-base-url https://veoveo.bioma.ai \
-    --artifact-endpoint http://localhost:9000 --artifact-bucket media-artifacts
-
-# 3. gateway
-export VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-private-key-der-b64)"
-export VEOVEO_GATEWAY_CONTROL_DB_URL=postgresql://veoveo_gateway:veoveo_gateway@localhost:5432/veoveo_gateway
-cargo run -p veoveo-mcp-gateway --bin gateway -- control-plane-seed \
-    --control-db-url "$VEOVEO_GATEWAY_CONTROL_DB_URL" \
-    --control-plane configs/gateway.bioma.json \
-    --applied-by local#operator
-cargo run -p veoveo-mcp-gateway --bin gateway -- serve --port 8788 \
-    --public-base-url https://veoveo.bioma.ai \
-    --control-db-url "$VEOVEO_GATEWAY_CONTROL_DB_URL" \
-    --state-db data/gateway/state.duckdb
-
-# 4. conformance CLI through the gateway
-unset VEOVEO_INTERNAL_TOKEN_SECRET
-export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-token-exchange \
-    --token-url http://localhost:8788/oauth/token --scope operator:use)"
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator info
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator prompts
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator prompt media-image-edit \
-    --arguments '{"image_url":"https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg","edit_goal":"add a red wizard hat"}'
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator models kling --type image-to-video
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator complete gpt-image
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator schema openai/gpt-image-2/edit
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator run openai/gpt-image-2/edit \
-    --tool-name media__run \
-    --input '{"prompt":"add a red wizard hat","images":["https://veoveo.bioma.ai/media/files/gol-real-roblox.jpeg"]}'
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator usage <task-id>
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8788/mcp/operator artifact <sha256>
-```
-
-`--public-base-url` is required for generation because providers must be able to deliver
-webhook callbacks. `/media/files` URLs also need that public base URL to be reachable by the
-provider.
-
-### Stdio Bridge and the Rerun Server
-
-Some MCP servers only speak stdio, for example `rerun viewer-mcp` (Rerun >= 0.34). The
-gateway registers upstreams as `streamable_http` only, so `crates/mcp-stdio-bridge` spawns
-the stdio server as a child process and re-exposes its tool surface over MCP streamable
-HTTP. The bridge forwards tools only and adds no auth of its own: keep it on loopback, and
-register it like any other upstream server in the gateway control plane. If the child
-process exits, the bridge exits with an error instead of restarting it.
-
-The `rerun` server in `configs/gateway.bioma.json` is wired this way. The `rerun-bridge`
-Compose service runs the whole unit in one container — headless Rerun viewer,
-`rerun viewer-mcp`, and the bridge — because `viewer-mcp` can only dial a viewer on its own
-host. If any of the three exits, the container exits. Host SDKs log recordings into the
-containerized viewer at `127.0.0.1:9876`. The `rerun` profile is separate from `operator`
-so a stopped bridge never breaks media tool listing.
-
-```sh
-# rerun tools through the gateway (note the rerun profile resource)
-export MCP_BEARER_TOKEN="$(cargo run -q -p veoveo-mcp-conformance --bin conformance -- gateway-token-exchange \
-    --token-url http://localhost:8780/oauth/token --client-id operator-service --scope operator:use \
-    --resource https://veoveo.bioma.ai/mcp/rerun)"
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun info
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun call \
-    --tool-name rerun__connect --arguments '{}'
-cargo run -p veoveo-mcp-conformance --bin conformance -- --url http://localhost:8780/mcp/rerun call \
-    --tool-name rerun__screenshot --arguments '{}'
-```
-
-For bridging an arbitrary local stdio MCP server during development, `just stdio-bridge`
-runs the bridge directly on the host against a viewer you started yourself.
-
-## Layout
-
-```
-Cargo.toml                                      veoveo workspace manifest
-crates/mcp-contract/                           reusable Veoveo MCP contract crate
-crates/mcp-contract/src/analytics.rs           shared DuckDB usage analytics schema/store
-crates/mcp-contract/src/deployment.rs          shared public URL/server mount contract
-crates/mcp-contract/src/storage.rs             artifact store contract/types
-crates/mcp-contract/src/usage.rs               usage contract/types
-crates/rrd/                                    Rerun RRD canonical spacetime schemas/adapters
-crates/mcp-conformance/src/bin/conformance.rs  generic Veoveo MCP conformance CLI
-crates/coordinates-mcp/src/contract.rs         coordinates MCP tool request/output schemas
-crates/duckdb-mcp/src/bin/server.rs            hosted DuckDB MCP server (sandboxed SQL)
-crates/duckdb-mcp/src/contract.rs              DuckDB MCP tool request/output schemas
-crates/duckdb-mcp/src/engine.rs                hardened DuckDB connection layer
-crates/optimization-mcp/src/bin/server.rs      hosted optimization MCP server
-crates/optimization-mcp/src/contract.rs        optimization MCP tool request/output schemas
-crates/optimization-mcp/src/planning.rs        good_lp-backed task-option planner
-crates/mcp-gateway/src/bin/gateway.rs          production MCP gateway
-crates/mcp-stdio-bridge/src/bin/bridge.rs      stdio-to-streamable-HTTP MCP bridge
-crates/mcp-gateway/src/mcp.rs                  full-protocol gateway MCP handler
-crates/mcp-gateway/src/state.rs                gateway DuckDB runtime/audit state
-configs/gateway.bioma.json                     typed Bioma demo gateway control plane
-configs/gateway.local.json                     typed local placeholder gateway control plane
-crates/media-mcp/src/lib.rs                    shared media MCP crate (veoveo_media_mcp)
-crates/media-mcp/src/artifacts.rs              S3-compatible artifact store implementation
-crates/media-mcp/src/provider.rs               internal provider API client + types
-crates/media-mcp/src/state.rs                  per-server DuckDB task/prediction/artifact state
-crates/media-mcp/src/webhook.rs                internal webhook signature verification
-crates/media-mcp/src/uris.rs                   media:// URI scheme
-crates/media-mcp/src/bin/server.rs             MCP server
-```
-
-`cargo test --workspace` covers signature verification, URI parsing, schema extraction,
-the shared contract crate, and first-party server-local contracts.
-
-## Command Recipes
-
-Use `just --list` for the maintained command recipes. The common path is:
-
-```sh
-just compose-up
-just health https://veoveo.bioma.ai
-just info
-just e2e https://veoveo.bioma.ai
-```
+Detailed ownership and call paths are in [`docs/CODEMAP.md`](docs/CODEMAP.md) and
+[`docs/TECH_DESIGN.md`](docs/TECH_DESIGN.md).

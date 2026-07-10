@@ -1,0 +1,64 @@
+{{- if eq .Values.objectStore.mode "rustfs" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-object-init-%d" (include "veoveo.fullname" .) .Release.Revision | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: object-store-init
+spec:
+  backoffLimit: 12
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: object-store-init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: create-bucket
+          image: {{ include "veoveo.image" (list . .Values.objectStore.bucketInitImage) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket "$ARTIFACT_BUCKET" 2>/dev/null; do
+                aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket "$ARTIFACT_BUCKET" && break
+                sleep 2
+              done
+          env:
+            - name: ARTIFACT_BUCKET
+              value: {{ .Values.objectStore.rustfs.bucket | quote }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: object-store-access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: object-store-secret-key
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

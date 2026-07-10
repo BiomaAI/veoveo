@@ -27,12 +27,15 @@ impl GatewayMcp {
                 let prompt_name = PromptName::new(prompt.name.clone()).map_err(|err| {
                     mcp_internal(format!("upstream exposed invalid prompt name: {err}"))
                 })?;
-                if !self.allows_prompt(
-                    &context,
-                    GatewayAction::PromptsList,
-                    server_slug.clone(),
-                    prompt_name,
-                )? {
+                if !self
+                    .allows_prompt(
+                        &context,
+                        GatewayAction::PromptsList,
+                        server_slug.clone(),
+                        prompt_name,
+                    )
+                    .await?
+                {
                     continue;
                 }
                 prompts.push(prompt);
@@ -57,8 +60,9 @@ impl GatewayMcp {
         let server = self.server_for_prompt(&request.name)?;
         let prompt = PromptName::new(request.name.clone())
             .map_err(|err| mcp_invalid_params(format!("invalid prompt name: {err}")))?;
-        let subject =
-            self.authorize_prompt(&context, GatewayAction::PromptsGet, server.clone(), prompt)?;
+        let subject = self
+            .authorize_prompt(&context, GatewayAction::PromptsGet, server.clone(), prompt)
+            .await?;
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
             .await?;

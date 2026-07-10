@@ -25,11 +25,48 @@ use re_log_types::{LogMsg, StoreKind};
 
 use crate::config::{DatasetName, SpoolerConfig};
 
+/// Durable catalog hooks invoked at segment lifecycle boundaries. A hook
+/// failure is fatal to the drain: bytes remain on disk, but the proxy stops
+/// accepting traffic rather than running with an unauthoritative catalog.
+pub trait SegmentCatalog: Send {
+    fn segment_opened(&mut self, segment: &OpenedSegment) -> Result<()>;
+    fn segment_frozen(&mut self, segment: &FrozenSegment) -> Result<()>;
+}
+
+#[derive(Debug, Clone)]
+pub struct OpenedSegment {
+    pub key: SegmentKey,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct FrozenSegment {
+    pub key: SegmentKey,
+    pub path: PathBuf,
+    pub byte_len: u64,
+    pub message_count: u64,
+    pub sha256: String,
+}
+
+#[derive(Default)]
+struct NoopCatalog;
+
+impl SegmentCatalog for NoopCatalog {
+    fn segment_opened(&mut self, _segment: &OpenedSegment) -> Result<()> {
+        Ok(())
+    }
+
+    fn segment_frozen(&mut self, _segment: &FrozenSegment) -> Result<()> {
+        Ok(())
+    }
+}
+
 /// The identity of one segment file.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SegmentKey {
     pub dataset: DatasetName,
     pub day: NaiveDate,
+    pub application_id: String,
     pub recording: String,
 }
 
@@ -46,6 +83,7 @@ pub struct Counters {
 struct SegmentWriter {
     path: PathBuf,
     encoder: Option<Encoder<BufWriter<File>>>,
+    sync_file: File,
     opened_at: Instant,
     bytes: u64,
     messages: u64,
@@ -59,6 +97,10 @@ impl SegmentWriter {
         }
         let file = File::create(&path)
             .with_context(|| format!("creating segment file {}", path.display()))?;
+        sync_parent_dir(&path)?;
+        let sync_file = file
+            .try_clone()
+            .with_context(|| format!("cloning segment file {}", path.display()))?;
         let encoder = Encoder::new_eager(
             CrateVersion::LOCAL,
             EncodingOptions::PROTOBUF_COMPRESSED,
@@ -68,6 +110,7 @@ impl SegmentWriter {
         Ok(Self {
             path,
             encoder: Some(encoder),
+            sync_file,
             opened_at: Instant::now(),
             bytes: 0,
             messages: 0,
@@ -87,17 +130,34 @@ impl SegmentWriter {
         Ok(n)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn append_preamble(&mut self, msg: &LogMsg) -> Result<()> {
+        let encoder = self
+            .encoder
+            .as_mut()
+            .context("append preamble to a frozen segment writer")?;
+        let n = encoder
+            .append(msg)
+            .with_context(|| format!("appending preamble to {}", self.path.display()))?;
+        self.bytes += n;
+        Ok(())
+    }
+
+    fn flush(&mut self, fsync: bool) -> Result<()> {
         if let Some(encoder) = self.encoder.as_mut() {
             encoder
                 .flush_blocking()
                 .with_context(|| format!("flushing {}", self.path.display()))?;
         }
+        if fsync {
+            self.sync_file
+                .sync_data()
+                .with_context(|| format!("syncing {}", self.path.display()))?;
+        }
         Ok(())
     }
 
     /// Write the footer/manifest and release the file.
-    fn finish(&mut self) -> Result<()> {
+    fn finish(&mut self, fsync: bool) -> Result<()> {
         if let Some(mut encoder) = self.encoder.take() {
             encoder
                 .finish()
@@ -105,6 +165,12 @@ impl SegmentWriter {
             encoder
                 .flush_blocking()
                 .with_context(|| format!("final flush {}", self.path.display()))?;
+        }
+        if fsync {
+            self.sync_file
+                .sync_data()
+                .with_context(|| format!("final sync {}", self.path.display()))?;
+            sync_parent_dir(&self.path)?;
         }
         Ok(())
     }
@@ -116,6 +182,8 @@ pub struct Spooler {
     writers: HashMap<SegmentKey, SegmentWriter>,
     counters: Counters,
     today: fn() -> NaiveDate,
+    catalog: Box<dyn SegmentCatalog>,
+    store_info: HashMap<(String, String), LogMsg>,
 }
 
 impl Spooler {
@@ -128,7 +196,14 @@ impl Spooler {
             writers: HashMap::new(),
             counters: Counters::default(),
             today: || chrono::Utc::now().date_naive(),
+            catalog: Box::new(NoopCatalog),
+            store_info: HashMap::new(),
         })
+    }
+
+    pub fn with_catalog(mut self, catalog: impl SegmentCatalog + 'static) -> Self {
+        self.catalog = Box::new(catalog);
+        self
     }
 
     /// Override the clock (tests inject a fixed day).
@@ -154,6 +229,10 @@ impl Spooler {
         }
         let application_id = store_id.application_id().as_str().to_owned();
         let recording = store_id.recording_id().as_str().to_owned();
+        let store_key = (application_id.clone(), recording.clone());
+        if matches!(msg, LogMsg::SetStoreInfo(_)) {
+            self.store_info.insert(store_key.clone(), msg.clone());
+        }
         let dataset = self.config.dataset_for(&application_id);
         if dataset.as_str() == crate::config::QUARANTINE_DATASET {
             self.counters.quarantined += 1;
@@ -161,12 +240,22 @@ impl Spooler {
         let key = SegmentKey {
             dataset,
             day: (self.today)(),
+            application_id,
             recording,
         };
 
         if !self.writers.contains_key(&key) {
             let path = self.next_segment_path(&key)?;
-            let writer = SegmentWriter::create(path)?;
+            let mut writer = SegmentWriter::create(path.clone())?;
+            if !matches!(msg, LogMsg::SetStoreInfo(_))
+                && let Some(store_info) = self.store_info.get(&store_key)
+            {
+                writer.append_preamble(store_info)?;
+            }
+            self.catalog.segment_opened(&OpenedSegment {
+                key: key.clone(),
+                path,
+            })?;
             self.counters.segments_opened += 1;
             self.writers.insert(key.clone(), writer);
         }
@@ -178,12 +267,11 @@ impl Spooler {
     }
 
     /// Flush every live segment's buffered bytes to the OS.
-    pub fn flush_all(&mut self) {
+    pub fn flush_all(&mut self) -> Result<()> {
         for writer in self.writers.values_mut() {
-            if let Err(err) = writer.flush() {
-                tracing::warn!(%err, path = %writer.path.display(), "segment flush failed");
-            }
+            writer.flush(self.config.fsync_on_flush)?;
         }
+        Ok(())
     }
 
     /// Freeze segments that have outgrown their size or age budget, opening a
@@ -214,19 +302,30 @@ impl Spooler {
 
     fn freeze_key(&mut self, key: &SegmentKey) -> Result<()> {
         if let Some(mut writer) = self.writers.remove(key) {
-            writer.finish()?;
+            writer.finish(self.config.fsync_on_flush)?;
             self.counters.segments_frozen += 1;
             // Compact + embed a manifest so the catalog can lazy-load the
             // segment, then verify. Both are best-effort: a freeze that can't
             // reach the CLI still leaves a valid footer-full file behind.
-            if let Some(bin) = self.config.rerun_bin.clone() {
-                if let Err(err) = optimize_segment(&bin, &writer.path) {
-                    tracing::warn!(%err, path = %writer.path.display(), "segment optimize failed");
-                }
-                if let Err(err) = verify_segment(&bin, &writer.path) {
-                    tracing::warn!(%err, path = %writer.path.display(), "segment verify failed");
-                }
+            if let Some(bin) = self.config.rerun_bin.clone()
+                && let Err(err) = optimize_segment(&bin, &writer.path)
+            {
+                tracing::warn!(%err, path = %writer.path.display(), "segment optimize failed");
             }
+            let inspection = crate::catalog::inspect_segment(&writer.path)?;
+            anyhow::ensure!(
+                inspection.application_id == key.application_id
+                    && inspection.recording_key == key.recording,
+                "frozen segment identity changed while writing {}",
+                writer.path.display()
+            );
+            self.catalog.segment_frozen(&FrozenSegment {
+                key: key.clone(),
+                path: writer.path.clone(),
+                byte_len: inspection.byte_len,
+                message_count: writer.messages,
+                sha256: inspection.sha256,
+            })?;
             tracing::info!(
                 dataset = key.dataset.as_str(),
                 recording = key.recording,
@@ -296,9 +395,7 @@ pub fn run_blocking(
         match receiver.recv_timeout(Duration::from_millis(50)) {
             Ok(msg) => {
                 if let Some(DataSourceMessage::LogMsg(log_msg)) = msg.into_data() {
-                    if let Err(err) = spooler.ingest(&log_msg) {
-                        tracing::warn!(%err, "ingest failed");
-                    }
+                    spooler.ingest(&log_msg)?;
                 }
             }
             Err(RecvTimeoutError::Timeout) => {}
@@ -306,10 +403,8 @@ pub fn run_blocking(
         }
 
         if last_flush.elapsed() >= flush_interval {
-            spooler.flush_all();
-            if let Err(err) = spooler.freeze_due() {
-                tracing::warn!(%err, "freeze_due failed");
-            }
+            spooler.flush_all()?;
+            spooler.freeze_due()?;
             last_flush = Instant::now();
         }
         if last_counters.elapsed() >= counters_interval {
@@ -332,10 +427,10 @@ pub fn run_blocking(
     // Drain anything still queued, then freeze everything durably.
     while let Ok(msg) = receiver.try_recv() {
         if let Some(DataSourceMessage::LogMsg(log_msg)) = msg.into_data() {
-            let _ = spooler.ingest(&log_msg);
+            spooler.ingest(&log_msg)?;
         }
     }
-    spooler.flush_all();
+    spooler.flush_all()?;
     spooler.freeze_all()?;
     Ok(spooler.counters().clone())
 }
@@ -353,6 +448,16 @@ fn verify_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
         String::from_utf8_lossy(&output.stderr)
     );
     Ok(())
+}
+
+fn sync_parent_dir(path: &Path) -> Result<()> {
+    let parent = path
+        .parent()
+        .with_context(|| format!("segment path {} has no parent", path.display()))?;
+    File::open(parent)
+        .with_context(|| format!("opening segment directory {}", parent.display()))?
+        .sync_all()
+        .with_context(|| format!("syncing segment directory {}", parent.display()))
 }
 
 /// Compact a frozen segment in place: `rerun rrd optimize <path> -o <tmp>` then
@@ -376,7 +481,12 @@ fn optimize_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+    if let Err(err) = verify_segment(rerun_bin, &tmp) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(err).with_context(|| format!("verifying optimized segment {}", path.display()));
+    }
     std::fs::rename(&tmp, path)
         .with_context(|| format!("publishing optimized segment {}", path.display()))?;
+    sync_parent_dir(path)?;
     Ok(())
 }

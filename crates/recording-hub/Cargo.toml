@@ -19,15 +19,25 @@ path = "src/bin/sensor_sim.rs"
 name = "hub-query"
 path = "src/bin/hub_query.rs"
 
+[[bin]]
+name = "hub-smoke"
+path = "src/bin/hub_smoke.rs"
+
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
+hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+secrecy.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+uuid.workspace = true
+veoveo-platform-store.workspace = true
+tempfile = "3"
 
 re_sdk.workspace = true
 re_sdk_types.workspace = true
@@ -39,6 +49,3 @@ re_log_encoding.workspace = true
 re_log_types.workspace = true
 re_uri.workspace = true
 re_dataframe.workspace = true
-
-[dev-dependencies]
-tempfile = "3"

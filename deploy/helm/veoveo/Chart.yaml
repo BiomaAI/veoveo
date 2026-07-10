@@ -1,0 +1,10 @@
+apiVersion: v2
+name: veoveo
+description: Autonomous, single-enterprise Veoveo installation
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+annotations:
+  veoveo.ai/platform-store: surrealdb-3.2.0-single-node-rocksdb
+  veoveo.ai/database-ha: out-of-scope

@@ -3,13 +3,17 @@
 //! Domain servers (media, timeseries, optimization, duckdb) depend on this thin
 //! crate — not on the heavy `artifact-service` crate — to reach the plane. It
 //! implements the contract's [`ArtifactPlane`] over the service's internal HTTP
-//! surface, forwarding the caller's gateway-signed bearer on every request.
+//! surface. Synchronous operations forward the caller's gateway-signed bearer;
+//! asynchronous writes use a separately issued, task-bound write capability.
 
 use base64::Engine;
-use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, ArtifactSha256, Grant, Subject};
+use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, ArtifactId, Grant, Subject};
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactObject};
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, GrantList, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactReleaseState, ArtifactShareLink,
+    ArtifactShareLinkId, ArtifactWriteCapabilitySecret, CreateArtifactShareLinkRequest, GrantList,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactsRequest,
+    PlaneCaller, PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
 };
 
 /// A plane client bound to one artifact-service base URL.
@@ -36,6 +40,57 @@ impl HttpArtifactPlane {
 
     fn url(&self, path: &str) -> String {
         format!("{}{path}", self.base_url)
+    }
+
+    /// Issue a task-bound capability while a live gateway identity is
+    /// available. Only artifact-service can issue or redeem this secret.
+    pub async fn issue_write_capability(
+        &self,
+        caller: &PlaneCaller,
+        request: &IssueArtifactWriteCapabilityRequest,
+    ) -> Result<IssuedArtifactWriteCapability, ArtifactPlaneError> {
+        let response = self
+            .http
+            .post(self.url("/artifact-write-capabilities"))
+            .bearer_auth(&caller.bearer_token)
+            .json(request)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
+    }
+
+    /// Redeem a task-bound capability for exactly the artifact put described
+    /// by `request`. The capability cannot be used by any other artifact or
+    /// identity operation.
+    pub async fn redeem_write_capability(
+        &self,
+        secret: &ArtifactWriteCapabilitySecret,
+        request: &RedeemArtifactWriteCapabilityRequest,
+        bytes: Vec<u8>,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        let redeem_header = serde_json::to_string(request).map_err(transport)?;
+        let response = self
+            .http
+            .post(self.url(&format!(
+                "/artifact-write-capabilities/{}/redeem",
+                request.capability_id
+            )))
+            .bearer_auth(secret.expose_secret())
+            .header("x-artifact-capability-redeem", redeem_header)
+            .body(bytes)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
     }
 }
 
@@ -72,6 +127,13 @@ fn decision_header(response: &reqwest::Response) -> Option<String> {
         .get("x-artifact-decision")
         .and_then(|v| v.to_str().ok())
         .map(str::to_string)
+}
+
+async fn response_error<T>(response: reqwest::Response) -> Result<T, ArtifactPlaneError> {
+    let dh = decision_header(&response);
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    Err(error_for_status(status, dh.as_deref(), body))
 }
 
 fn metadata_header(response: &reqwest::Response) -> Result<ArtifactMetadata, ArtifactPlaneError> {
@@ -127,7 +189,7 @@ impl ArtifactPlane for HttpArtifactPlane {
     async fn get(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
         level: AccessLevel,
     ) -> Result<ArtifactObject, ArtifactPlaneError> {
         let level = match level {
@@ -136,7 +198,7 @@ impl ArtifactPlane for HttpArtifactPlane {
             AccessLevel::Admin => "admin",
         };
         let url = reqwest::Url::parse_with_params(
-            &self.url(&format!("/artifacts/{sha}")),
+            &self.url(&format!("/artifacts/{artifact_id}")),
             &[("level", level)],
         )
         .map_err(transport)?;
@@ -160,11 +222,11 @@ impl ArtifactPlane for HttpArtifactPlane {
     async fn head(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
         let response = self
             .http
-            .get(self.url(&format!("/artifacts/{sha}/meta")))
+            .get(self.url(&format!("/artifacts/{artifact_id}/meta")))
             .bearer_auth(&caller.bearer_token)
             .send()
             .await
@@ -176,6 +238,26 @@ impl ArtifactPlane for HttpArtifactPlane {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             Err(error_for_status(status, dh.as_deref(), body))
+        }
+    }
+
+    async fn list(
+        &self,
+        caller: &PlaneCaller,
+        request: ListArtifactsRequest,
+    ) -> Result<ArtifactPage, ArtifactPlaneError> {
+        let response = self
+            .http
+            .get(self.url("/artifacts"))
+            .bearer_auth(&caller.bearer_token)
+            .query(&request)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
         }
     }
 
@@ -206,13 +288,13 @@ impl ArtifactPlane for HttpArtifactPlane {
     async fn grant(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
         subject: Subject,
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
         let response = self
             .http
-            .post(self.url(&format!("/artifacts/{sha}/grants")))
+            .post(self.url(&format!("/artifacts/{artifact_id}/grants")))
             .bearer_auth(&caller.bearer_token)
             .json(&PutGrantRequest { subject, level })
             .send()
@@ -224,12 +306,12 @@ impl ArtifactPlane for HttpArtifactPlane {
     async fn revoke(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
         subject: &Subject,
     ) -> Result<(), ArtifactPlaneError> {
         let response = self
             .http
-            .delete(self.url(&format!("/artifacts/{sha}/grants")))
+            .delete(self.url(&format!("/artifacts/{artifact_id}/grants")))
             .bearer_auth(&caller.bearer_token)
             .json(subject)
             .send()
@@ -241,11 +323,11 @@ impl ArtifactPlane for HttpArtifactPlane {
     async fn list_grants(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
     ) -> Result<Vec<Grant>, ArtifactPlaneError> {
         let response = self
             .http
-            .get(self.url(&format!("/artifacts/{sha}/grants")))
+            .get(self.url(&format!("/artifacts/{artifact_id}/grants")))
             .bearer_auth(&caller.bearer_token)
             .send()
             .await
@@ -259,6 +341,64 @@ impl ArtifactPlane for HttpArtifactPlane {
             let body = response.text().await.unwrap_or_default();
             Err(error_for_status(status, dh.as_deref(), body))
         }
+    }
+
+    async fn set_release_state(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        release_state: ArtifactReleaseState,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        let response = self
+            .http
+            .put(self.url(&format!("/artifacts/{artifact_id}/release-state")))
+            .bearer_auth(&caller.bearer_token)
+            .json(&veoveo_mcp_contract::SetArtifactReleaseStateRequest { release_state })
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
+    }
+
+    async fn create_share_link(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        request: CreateArtifactShareLinkRequest,
+    ) -> Result<ArtifactShareLink, ArtifactPlaneError> {
+        let response = self
+            .http
+            .post(self.url(&format!("/artifacts/{artifact_id}/share-links")))
+            .bearer_auth(&caller.bearer_token)
+            .json(&request)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
+    }
+
+    async fn revoke_share_link(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        link_id: &ArtifactShareLinkId,
+    ) -> Result<(), ArtifactPlaneError> {
+        let response = self
+            .http
+            .delete(self.url(&format!("/artifacts/{artifact_id}/share-links/{link_id}")))
+            .bearer_auth(&caller.bearer_token)
+            .send()
+            .await
+            .map_err(transport)?;
+        expect_no_content(response).await
     }
 }
 

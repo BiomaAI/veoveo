@@ -226,9 +226,6 @@ pub enum GatewayControlPlaneError {
         client: OAuthClientId,
         helper: CompatibilityHelperId,
     },
-    OAuthClientDirectTaskAdapterMissingTaskResultHelper {
-        client: OAuthClientId,
-    },
     OAuthClientUnsupportedAuthConfiguration {
         client: OAuthClientId,
         grant_types: BTreeSet<OAuthGrantType>,
@@ -680,10 +677,6 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::UnknownOAuthClientCompatibilityHelper { client, helper } => write!(
                 f,
                 "OAuth client `{client}` references unknown compatibility helper `{helper}`"
-            ),
-            Self::OAuthClientDirectTaskAdapterMissingTaskResultHelper { client } => write!(
-                f,
-                "OAuth client `{client}` enables direct task adaptation but does not allow `{VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID}`"
             ),
             Self::OAuthClientUnsupportedAuthConfiguration {
                 client,

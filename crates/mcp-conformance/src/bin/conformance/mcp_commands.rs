@@ -1,5 +1,8 @@
-use super::client::Client;
+use super::client::{Client, FinalTaskClient};
 use super::*;
+use veoveo_mcp_task_extension::{
+    DetailedTask, RequestMeta as FinalRequestMeta, TaskStatus as FinalTaskStatus, ToolCallParams,
+};
 
 pub(super) async fn read_resource_json(client: &Client, uri: &str) -> Result<Value> {
     let result = client
@@ -303,6 +306,69 @@ pub(super) async fn cmd_call(
     Ok(())
 }
 
+pub(super) async fn cmd_task_call(
+    final_tasks: &FinalTaskClient,
+    tool_name: String,
+    arguments: String,
+) -> Result<()> {
+    let arguments = serde_json::from_str::<Value>(&arguments)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| anyhow!("tool arguments must be a JSON object"))?;
+    let created = final_tasks
+        .start_tool(ToolCallParams {
+            meta: FinalRequestMeta::new().with_task_capability(),
+            name: tool_name,
+            arguments: arguments.into_iter().collect(),
+        })
+        .await?;
+    let task_id = created.task.task_id;
+    let poll_ms = created
+        .task
+        .poll_interval_ms
+        .unwrap_or(100)
+        .clamp(10, 5_000);
+    println!(
+        "task {task_id} created (status {:?}, poll {poll_ms}ms)",
+        created.task.status
+    );
+
+    let final_task = tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            let task = final_tasks.get(task_id).await?;
+            let message = task.metadata().status_message.as_deref().unwrap_or("");
+            println!("poll: {:?} - {message}", task.status());
+            match task {
+                DetailedTask::Working { .. } => {
+                    tokio::time::sleep(Duration::from_millis(poll_ms)).await;
+                }
+                DetailedTask::InputRequired { .. } => {
+                    return Err(anyhow!("task {task_id} requires additional input"));
+                }
+                terminal => return Ok(terminal),
+            }
+        }
+    })
+    .await
+    .map_err(|_| anyhow!("timed out waiting for task {task_id}"))??;
+
+    match final_task {
+        DetailedTask::Completed { result, .. } => {
+            let result: CallToolResult =
+                serde_json::from_value(Value::Object(result.into_iter().collect()))?;
+            print_call_tool_result(&result);
+            Ok(())
+        }
+        DetailedTask::Failed { error, .. } => {
+            Err(anyhow!("task failed ({}): {}", error.code, error.message))
+        }
+        DetailedTask::Cancelled { .. } => Err(anyhow!("task was cancelled")),
+        DetailedTask::Working { .. } | DetailedTask::InputRequired { .. } => {
+            unreachable!("task wait returns only terminal states")
+        }
+    }
+}
+
 pub(super) async fn cmd_complete_resource(
     client: &Client,
     uri: String,
@@ -392,10 +458,10 @@ pub(super) async fn save_output_uri(
     output_dir: &std::path::Path,
     uri: &str,
 ) -> Result<()> {
-    let (name, bytes) = if let Some(sha256) = uris.parse_artifact_uri(uri) {
+    let (name, bytes) = if let Some(artifact_id) = uris.parse_artifact_uri(uri) {
         let (bytes, mime_type) = read_resource_blob(client, uri).await?;
         let ext = extension_for_mime(mime_type.as_deref());
-        (format!("{sha256}.{ext}"), bytes)
+        (format!("{artifact_id}.{ext}"), bytes)
     } else if uri.starts_with("http://") || uri.starts_with("https://") {
         let name = uri
             .split('?')
@@ -423,136 +489,109 @@ pub(super) async fn save_output_uri(
     Ok(())
 }
 
-fn task_from_cancel_result(result: ServerResult) -> Result<rmcp::model::Task> {
-    match result {
-        ServerResult::CancelTaskResult(result) => Ok(result.task),
-        ServerResult::GetTaskResult(result) => Ok(result.task),
-        other => Err(anyhow!("expected task-shaped cancel result, got {other:?}")),
-    }
-}
-
-fn ensure_related_task_meta(
-    meta: Option<&rmcp::model::Meta>,
-    task_id: &str,
-    context: &str,
-) -> Result<()> {
-    let related = meta
-        .and_then(|meta| meta.0.get(RELATED_TASK_META_KEY))
-        .and_then(|value| value.get("taskId"))
-        .and_then(Value::as_str);
-    if related != Some(task_id) {
-        return Err(anyhow!(
-            "{context} _meta `{RELATED_TASK_META_KEY}` was {related:?}, expected `{task_id}`"
-        ));
-    }
-    Ok(())
+pub(super) struct RunCommand {
+    pub(super) tool_name: String,
+    pub(super) model_id: String,
+    pub(super) input: String,
+    pub(super) output_dir: PathBuf,
+    pub(super) cancel: bool,
 }
 
 pub(super) async fn cmd_run(
     client: &Client,
+    final_tasks: &FinalTaskClient,
     uris: &ServerResourceUris,
-    tool_name: String,
-    model_id: String,
-    input: String,
-    output_dir: PathBuf,
-    cancel: bool,
+    command: RunCommand,
 ) -> Result<()> {
+    let RunCommand {
+        tool_name,
+        model_id,
+        input,
+        output_dir,
+        cancel,
+    } = command;
     let input: Value = serde_json::from_str(&input)?;
-
-    // tools/call augmented with SEP-1319 task metadata. RMCP adds the active
-    // progress token to request metadata.
-    let params = CallToolRequestParams::new(tool_name)
-        .with_arguments(
-            serde_json::json!({ "model": model_id, "input": input })
+    let created = final_tasks
+        .start_tool(ToolCallParams {
+            meta: FinalRequestMeta::new().with_task_capability(),
+            name: tool_name,
+            arguments: serde_json::json!({ "model": model_id, "input": input })
                 .as_object()
                 .cloned()
-                .unwrap(),
-        )
-        .with_task(TaskMetadata::new().with_ttl(3_600_000));
-
-    let created = client
-        .send_request(ClientRequest::CallToolRequest(Request::new(params)))
+                .unwrap()
+                .into_iter()
+                .collect(),
+        })
         .await?;
-    let ServerResult::CreateTaskResult(created) = created else {
-        return Err(anyhow!("expected CreateTaskResult, got {created:?}"));
-    };
-    let task_id = created.task.task_id.clone();
-    ensure_related_task_meta(created.meta.as_ref(), &task_id, "tools/call task response")?;
+    let task_id = created.task.task_id;
     println!(
         "task {task_id} created (status {:?}, poll {}ms)",
         created.task.status,
-        created.task.poll_interval.unwrap_or(3000)
+        created.task.poll_interval_ms.unwrap_or(3000)
     );
 
     if cancel {
-        let result = client
-            .send_request(ClientRequest::CancelTaskRequest(Request::new(
-                CancelTaskParams::new(task_id.clone()),
-            )))
-            .await?;
-        let cancelled = task_from_cancel_result(result)?;
-        if cancelled.task_id != task_id {
-            return Err(anyhow!(
-                "tasks/cancel returned task id `{}`, expected `{task_id}`",
-                cancelled.task_id
-            ));
-        }
-        if cancelled.status != TaskStatus::Cancelled {
-            return Err(anyhow!(
-                "tasks/cancel returned status {:?}, expected Cancelled",
-                cancelled.status
-            ));
-        }
-        tokio::time::sleep(Duration::from_millis(400)).await;
-        let info = client
-            .send_request(ClientRequest::GetTaskRequest(Request::new(
-                GetTaskParams::new(task_id.clone()),
-            )))
-            .await?;
-        let ServerResult::GetTaskResult(info) = info else {
-            return Err(anyhow!("expected GetTaskResult after cancel, got {info:?}"));
-        };
-        if info.task.task_id != task_id {
-            return Err(anyhow!(
-                "tasks/get returned task id `{}`, expected `{task_id}`",
-                info.task.task_id
-            ));
-        }
-        if info.task.status != TaskStatus::Cancelled {
-            return Err(anyhow!(
-                "tasks/get returned status {:?}, expected Cancelled",
-                info.task.status
-            ));
-        }
-        if client
-            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
-                GetTaskPayloadParams::new(task_id.clone()),
-            )))
-            .await
-            .is_ok()
+        let ready = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let task = final_tasks.get(task_id).await?;
+                let message = task.metadata().status_message.clone().unwrap_or_default();
+                if message.contains("prediction ") {
+                    return Ok(message);
+                }
+                match task.status() {
+                    FinalTaskStatus::Completed
+                    | FinalTaskStatus::Failed
+                    | FinalTaskStatus::Cancelled => {
+                        return Err(anyhow!(
+                            "task reached {:?} before provider cancellation could be requested",
+                            task.status()
+                        ));
+                    }
+                    _ => tokio::time::sleep(Duration::from_millis(25)).await,
+                }
+            }
+        })
+        .await
+        .map_err(|_| anyhow!("timed out waiting for task {task_id} provider binding"))??;
+        println!("cancel target ready: {ready}");
+        final_tasks.cancel(task_id).await?;
+        let cancelled = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let task = final_tasks.get(task_id).await?;
+                match task.status() {
+                    FinalTaskStatus::Cancelled => return Ok(task),
+                    FinalTaskStatus::Completed | FinalTaskStatus::Failed => {
+                        return Err(anyhow!(
+                            "task reached {:?} while cancellation was pending",
+                            task.status()
+                        ));
+                    }
+                    _ => tokio::time::sleep(Duration::from_millis(25)).await,
+                }
+            }
+        })
+        .await
+        .map_err(|_| anyhow!("timed out waiting for task {task_id} cancellation"))??;
+        if cancelled.status() != FinalTaskStatus::Cancelled
+            || cancelled.metadata().task_id != task_id
         {
-            return Err(anyhow!("tasks/result unexpectedly succeeded after cancel"));
+            return Err(anyhow!(
+                "tasks/get after cancellation returned {cancelled:?}"
+            ));
         }
         println!("cancelled task {task_id} (status Cancelled)");
         return Ok(());
     }
 
-    // Poll tasks/get, honoring the server's suggested interval. Subscribe to
-    // the prediction resource as soon as the statusMessage names it.
-    let poll_ms = created.task.poll_interval.unwrap_or(3000);
+    // Poll final tasks/get, honoring the server's suggested interval. Subscribe
+    // to the prediction resource as soon as the status message names it.
+    let poll_ms = created.task.poll_interval_ms.unwrap_or(3000);
     let mut subscribed_uri = None::<String>;
     let final_task = loop {
         tokio::time::sleep(Duration::from_millis(poll_ms)).await;
-        let info = client
-            .send_request(ClientRequest::GetTaskRequest(Request::new(
-                GetTaskParams::new(task_id.clone()),
-            )))
-            .await?;
-        let ServerResult::GetTaskResult(info) = info else {
-            return Err(anyhow!("expected GetTaskResult, got {info:?}"));
-        };
-        let message = info.task.status_message.clone().unwrap_or_default();
-        println!("poll: {:?} — {message}", info.task.status);
+        let task = final_tasks.get(task_id).await?;
+        let message = task.metadata().status_message.clone().unwrap_or_default();
+        println!("poll: {:?} — {message}", task.status());
 
         let prediction_prefix = format!("{}://prediction/", uris.scheme());
         if subscribed_uri.is_none()
@@ -571,44 +610,30 @@ pub(super) async fn cmd_run(
             subscribed_uri = Some(uri);
         }
 
-        match info.task.status {
-            TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => {
-                break info.task;
+        match task.status() {
+            FinalTaskStatus::Completed | FinalTaskStatus::Failed | FinalTaskStatus::Cancelled => {
+                break task;
             }
             _ => {}
         }
     };
 
-    if final_task.status != TaskStatus::Completed {
-        // tasks/result surfaces the failure detail as a JSON-RPC error.
-        let err = client
-            .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
-                GetTaskPayloadParams::new(task_id.clone()),
-            )))
-            .await
-            .err()
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| "unknown error".into());
-        if let Some(uri) = subscribed_uri {
-            client
-                .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
-                .await?;
-            println!("unsubscribed from {uri}");
+    let result: CallToolResult = match final_task {
+        DetailedTask::Completed { result, .. } => {
+            serde_json::from_value(Value::Object(result.into_iter().collect()))?
         }
-        return Err(anyhow!("task ended {:?}: {err}", final_task.status));
-    }
-
-    let payload = client
-        .send_request(ClientRequest::GetTaskPayloadRequest(Request::new(
-            GetTaskPayloadParams::new(task_id.clone()),
-        )))
-        .await?;
-    let result: CallToolResult = match payload {
-        ServerResult::CallToolResult(r) => r,
-        ServerResult::CustomResult(c) => serde_json::from_value(c.0)?,
-        other => return Err(anyhow!("unexpected tasks/result payload: {other:?}")),
+        DetailedTask::Failed { error, .. } => {
+            if let Some(uri) = subscribed_uri {
+                client
+                    .unsubscribe(UnsubscribeRequestParams::new(uri.clone()))
+                    .await?;
+                println!("unsubscribed from {uri}");
+            }
+            return Err(anyhow!("task failed ({}): {}", error.code, error.message));
+        }
+        DetailedTask::Cancelled { .. } => return Err(anyhow!("task was cancelled")),
+        other => return Err(anyhow!("unexpected non-terminal task state: {other:?}")),
     };
-    ensure_related_task_meta(result.meta.as_ref(), &task_id, "tasks/result payload")?;
     let outputs = print_call_tool_result(&result);
 
     if !outputs.is_empty() {

@@ -42,7 +42,7 @@ pub struct MemoryConfig {
     /// Rotate to a fresh segment once the live one exceeds this size.
     #[serde(default = "default_segment_max_bytes")]
     pub segment_max_bytes: u64,
-    /// Domain tables `memory_write` may mutate; the `kernel` schema is never
+    /// Domain tables `memory_write` may mutate; the `agent_memory` schema is never
     /// writable through tools.
     #[serde(default)]
     pub memory_write_tables: Vec<String>,
@@ -134,6 +134,8 @@ pub struct ContextSection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentIdentity {
+    /// Installation-local tenant key used for all platform records.
+    pub tenant: String,
     /// Stable agent id: lowercase alphanumerics, `-` and `_`.
     pub id: String,
     pub display_name: String,
@@ -190,8 +192,6 @@ pub struct EpisodeConfig {
     pub request_timeout_s: u64,
     #[serde(default = "default_task_deadline_s")]
     pub task_deadline_s: u64,
-    #[serde(default = "default_task_poll_interval_ms")]
-    pub task_poll_interval_ms: u64,
 }
 
 fn default_token_refresh_fraction() -> f64 {
@@ -242,10 +242,6 @@ fn default_task_deadline_s() -> u64 {
     600
 }
 
-fn default_task_poll_interval_ms() -> u64 {
-    1_000
-}
-
 impl AgentManifest {
     pub fn load(path: &Path) -> Result<Self> {
         let raw = std::fs::read_to_string(path)
@@ -270,6 +266,9 @@ impl AgentManifest {
             })
         {
             bail!("agent.id must be non-empty lowercase alphanumerics, `-` or `_`");
+        }
+        if self.agent.tenant.trim().is_empty() || self.agent.tenant.chars().any(char::is_control) {
+            bail!("agent.tenant must be non-empty and contain no control characters");
         }
         for (field, value) in [
             ("model.base_url", &self.model.base_url),
@@ -310,7 +309,7 @@ impl AgentManifest {
             if section.name.trim().is_empty() {
                 bail!("context.sections entries must be named");
             }
-            crate::ledger::ensure_single_select(&section.sql)
+            crate::memory::ensure_single_select(&section.sql)
                 .with_context(|| format!("context section `{}`", section.name))?;
         }
         if let Some(dir) = &self.migrations_dir
@@ -349,10 +348,6 @@ impl AgentManifest {
     pub fn task_deadline(&self) -> Duration {
         Duration::from_secs(self.episode.task_deadline_s)
     }
-
-    pub fn task_poll_interval(&self) -> Duration {
-        Duration::from_millis(self.episode.task_poll_interval_ms)
-    }
 }
 
 /// Expand `${VAR}` placeholders from the environment, failing closed on any
@@ -382,7 +377,7 @@ mod tests {
 
     fn manifest_json() -> serde_json::Value {
         serde_json::json!({
-            "agent": { "id": "test-agent", "display_name": "Test Agent" },
+            "agent": { "tenant": "test", "id": "test-agent", "display_name": "Test Agent" },
             "model": {
                 "base_url": "http://127.0.0.1:9/v1",
                 "api_key_env": "TEST_MANIFEST_API_KEY",
@@ -392,8 +387,8 @@ mod tests {
                 "url": "http://127.0.0.1:9",
                 "profile": "operator",
                 "client_id": "operator-service",
-                "audience": "https://veoveo.bioma.ai/oauth/token",
-                "resource": "https://veoveo.bioma.ai/mcp/operator",
+                "audience": "http://127.0.0.1:9/oauth/token",
+                "resource": "http://127.0.0.1:9/mcp/operator",
                 "scopes": ["operator:use"],
                 "private_key_env": "TEST_MANIFEST_PRIVATE_KEY",
                 "private_key_kid": "test-key"

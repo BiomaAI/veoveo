@@ -8,8 +8,8 @@
 use anyhow::Result;
 
 use crate::{
-    ledger::KernelLedger,
     manifest::{AgentManifest, ContextSection},
+    memory::MemoryStore,
 };
 
 /// chars/4 plus slack: deliberately approximate. The budget protects the
@@ -20,14 +20,16 @@ pub fn estimate_tokens(text: &str) -> u64 {
 
 pub fn assemble(
     manifest: &AgentManifest,
-    ledger: &KernelLedger,
+    memory: &MemoryStore,
     wake_body: &str,
+    pending_tasks: usize,
+    unconsumed_results: usize,
 ) -> Result<String> {
     let budget = manifest.context.max_context_tokens;
     let mut spent = 0u64;
     let mut parts: Vec<String> = Vec::new();
 
-    let header = state_header(ledger)?;
+    let header = state_header(pending_tasks, unconsumed_results);
     spent += estimate_tokens(&header);
     parts.push(header);
 
@@ -38,7 +40,7 @@ pub fn assemble(
     let mut sections: Vec<&ContextSection> = manifest.context.sections.iter().collect();
     sections.sort_by_key(|section| section.priority);
     for section in sections {
-        let rendered = match render_section(ledger, section) {
+        let rendered = match render_section(memory, section) {
             Ok(rendered) => rendered,
             Err(err) => {
                 tracing::warn!(section = section.name, %err, "context section failed");
@@ -67,18 +69,16 @@ pub fn assemble(
     Ok(parts.join("\n\n"))
 }
 
-fn state_header(ledger: &KernelLedger) -> Result<String> {
-    let pending = ledger.tasks_to_watch()?.len();
-    let unconsumed = ledger.unconsumed_results()?.len();
-    Ok(format!(
-        "## State\n\nUTC now: {}. Background tasks in flight: {pending}. Task results awaiting \
-         you: {unconsumed}.",
+fn state_header(pending_tasks: usize, unconsumed_results: usize) -> String {
+    format!(
+        "## State\n\nUTC now: {}. Background tasks in flight: {pending_tasks}. Task results awaiting \
+         you: {unconsumed_results}.",
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
-    ))
+    )
 }
 
-fn render_section(ledger: &KernelLedger, section: &ContextSection) -> Result<String> {
-    let rows = ledger.query_json(&section.sql, section.max_rows)?;
+fn render_section(memory: &MemoryStore, section: &ContextSection) -> Result<String> {
+    let rows = memory.query_json(&section.sql, section.max_rows)?;
     let mut body = String::new();
     let mut spent = 0u64;
     let mut shown = 0usize;

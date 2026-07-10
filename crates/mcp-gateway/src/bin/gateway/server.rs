@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{
@@ -9,50 +9,85 @@ use axum::{
     response::IntoResponse,
     routing::{any, get, post},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use parking_lot::RwLock;
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
+use secrecy::{ExposeSecret, SecretString};
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayProfileId,
-    InternalTokenSecret, PublicDeployment, TokenIssuer, public_allowed_hosts,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
+    GatewayProfileId, PublicDeployment, TokenIssuer, public_allowed_hosts,
 };
-use veoveo_mcp_gateway::{GatewayCatalog, GatewayCatalogHandle, GatewayControlDb, GatewayMcp};
+use veoveo_mcp_gateway::{
+    GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayMcp,
+    GatewayRefreshDeliveryWindow, RefreshTokenDeliveryCipher,
+};
 
 use super::{
-    admin::{prune_jwt_revocations, read_control_plane, revoke_jwt, update_control_plane},
+    admin::{
+        cancel_task, create_artifact_share_link, grant_artifact, prune_jwt_revocations,
+        read_console_snapshot, read_control_plane, revoke_artifact_grant,
+        revoke_artifact_share_link, revoke_jwt, set_artifact_release_state, update_control_plane,
+    },
+    artifact_download::download_artifact,
     auth::{
         authenticate_mcp, authorization_server_jwks, authorization_server_metadata,
         protected_resource_metadata,
     },
     host::validate_host,
-    oauth::{authorization_callback, authorize_endpoint, token_endpoint},
+    oauth::{authorization_callback, authorize_endpoint, revoke_refresh_token, token_endpoint},
     runtime::{
-        AdminState, AppState, DynamicMcpState, GatewayRetentionPolicy, ProfileAuthState,
-        ProfileMcpService, Readiness, build_http_client, current_catalog,
+        AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
+        ProfileAuthState, ProfileMcpService, Readiness, build_http_client, current_catalog,
         profile_id_from_gateway_path, run_gateway_retention_gc, spawn_gateway_retention_gc_loop,
+        spawn_refresh_delivery_gc_loop,
     },
 };
 
-pub(super) async fn serve(
-    port: u16,
-    public_base_url: String,
-    control_db: GatewayControlDb,
-    state_db: PathBuf,
-    internal_token_secret: String,
-    allow_loopback_hosts: bool,
-    retention: GatewayRetentionPolicy,
-) -> anyhow::Result<()> {
-    let gateway_state = veoveo_mcp_gateway::GatewayState::open(&state_db)?;
-    run_gateway_retention_gc(&gateway_state, retention)?;
+pub(super) struct ServeConfig {
+    pub(super) port: u16,
+    pub(super) public_base_url: String,
+    pub(super) artifact_service_url: String,
+    pub(super) control_store: GatewayControlStore,
+    pub(super) internal_signing_key_der_b64: SecretString,
+    pub(super) internal_signing_key_id: String,
+    pub(super) refresh_delivery_cipher: RefreshTokenDeliveryCipher,
+    pub(super) refresh_delivery_window: GatewayRefreshDeliveryWindow,
+    pub(super) allow_loopback_hosts: bool,
+    pub(super) offline_mode: bool,
+    pub(super) retention: GatewayRetentionPolicy,
+}
+
+pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
+    let ServeConfig {
+        port,
+        public_base_url,
+        artifact_service_url,
+        control_store,
+        internal_signing_key_der_b64,
+        internal_signing_key_id,
+        refresh_delivery_cipher,
+        refresh_delivery_window,
+        allow_loopback_hosts,
+        offline_mode,
+        retention,
+    } = config;
+    let gateway_state =
+        veoveo_mcp_gateway::GatewayState::new(control_store.platform_store().clone());
+    run_gateway_retention_gc(&gateway_state, retention).await?;
     spawn_gateway_retention_gc_loop(gateway_state.clone(), retention);
-    let initial_catalog = load_initial_catalog(&control_db).await?;
+    spawn_refresh_delivery_gc_loop(gateway_state.clone());
+    let initial_catalog = load_initial_catalog(&control_store).await?;
     let catalog = GatewayCatalogHandle::new(initial_catalog.clone());
+    let internal_signing_key_der = BASE64_STANDARD
+        .decode(internal_signing_key_der_b64.expose_secret().trim())
+        .context("internal signing key must be base64-encoded Ed25519 PKCS#8 DER")?;
     let internal_token_issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        InternalTokenSecret::new(internal_token_secret)?,
+        GatewayInternalSigningKey::new(internal_signing_key_id, internal_signing_key_der)?,
     );
     let deployment = PublicDeployment::new(public_base_url)?;
     let ct = CancellationToken::new();
@@ -63,6 +98,8 @@ pub(super) async fn serve(
         gateway_state: gateway_state.clone(),
         http: http.clone(),
         public_base_url: deployment.base_url().to_string(),
+        refresh_delivery_cipher,
+        refresh_delivery_window,
     };
 
     let mut router = Router::new()
@@ -71,6 +108,7 @@ pub(super) async fn serve(
         .route("/oauth/authorize", get(authorize_endpoint))
         .route("/oauth/callback", get(authorization_callback))
         .route("/oauth/token", post(token_endpoint))
+        .route("/oauth/revoke", post(revoke_refresh_token))
         .route(
             "/.well-known/oauth-protected-resource/mcp/{profile}",
             get(protected_resource_metadata),
@@ -91,6 +129,7 @@ pub(super) async fn serve(
     let mcp_state = DynamicMcpState {
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
+        platform_store: control_store.platform_store().clone(),
         internal_token_issuer: internal_token_issuer.clone(),
         allowed_hosts: allowed_hosts.clone(),
         cancellation_token: ct.child_token(),
@@ -106,21 +145,66 @@ pub(super) async fn serve(
         ));
     router = router.merge(mcp_router);
 
+    let artifact_download_state = ArtifactDownloadState {
+        catalog: catalog.clone(),
+        gateway_state: gateway_state.clone(),
+        http: http.clone(),
+        internal_token_issuer: internal_token_issuer.clone(),
+        artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
+        artifact_service_url: artifact_service_url.trim_end_matches('/').to_owned(),
+    };
+    let artifact_download_router = Router::new()
+        .route(
+            "/artifacts/{profile}/{artifact_id}/download",
+            get(download_artifact),
+        )
+        .with_state(artifact_download_state)
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_mcp,
+        ));
+    router = router.merge(artifact_download_router);
+
     let admin_state = AdminState {
         catalog: catalog.clone(),
         http: http.clone(),
-        control_db,
+        control_store,
         gateway_state: gateway_state.clone(),
+        internal_token_issuer,
+        artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
+        artifact_service_url,
+        offline_mode,
     };
     let admin_router = Router::new()
         .route(
             "/admin/{profile}/control-plane",
             get(read_control_plane).put(update_control_plane),
         )
+        .route(
+            "/admin/{profile}/console/snapshot",
+            get(read_console_snapshot),
+        )
         .route("/admin/{profile}/jwt-revocations", post(revoke_jwt))
         .route(
             "/admin/{profile}/jwt-revocations/prune",
             post(prune_jwt_revocations),
+        )
+        .route("/admin/{profile}/tasks/{task_id}/cancel", post(cancel_task))
+        .route(
+            "/admin/{profile}/artifacts/{artifact_id}/release-state",
+            axum::routing::put(set_artifact_release_state),
+        )
+        .route(
+            "/admin/{profile}/artifacts/{artifact_id}/grants",
+            post(grant_artifact).delete(revoke_artifact_grant),
+        )
+        .route(
+            "/admin/{profile}/artifacts/{artifact_id}/share-links",
+            post(create_artifact_share_link),
+        )
+        .route(
+            "/admin/{profile}/artifacts/{artifact_id}/share-links/{link_id}",
+            axum::routing::delete(revoke_artifact_share_link),
         )
         .with_state(admin_state)
         .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));
@@ -153,12 +237,10 @@ pub(super) async fn serve(
     Ok(())
 }
 
-async fn load_initial_catalog(db: &GatewayControlDb) -> anyhow::Result<Arc<GatewayCatalog>> {
-    db.migrate().await?;
-    let revision = db
-        .load_active_revision()
-        .await?
-        .context("gateway control-plane Postgres has no active revision; seed it first")?;
+async fn load_initial_catalog(store: &GatewayControlStore) -> anyhow::Result<Arc<GatewayCatalog>> {
+    let revision = store.load_active_revision().await?.context(
+        "SurrealDB platform store has no active gateway control-plane revision; run installation-bootstrap first",
+    )?;
     let catalog = Arc::new(GatewayCatalog::from_control_plane(revision.control_plane)?);
     tracing::info!(
         revision_id = %revision.revision_id,
@@ -166,7 +248,7 @@ async fn load_initial_catalog(db: &GatewayControlDb) -> anyhow::Result<Arc<Gatew
         source = ?revision.source,
         server_count = catalog.server_count(),
         profile_count = catalog.profile_count(),
-        "loaded active gateway control-plane revision from Postgres"
+        "loaded active gateway control-plane revision from the SurrealDB platform store"
     );
     Ok(catalog)
 }
@@ -203,12 +285,14 @@ fn build_profile_mcp_service(
         {
             let catalog = state.catalog.clone();
             let gateway_state = state.gateway_state.clone();
+            let platform_store = state.platform_store.clone();
             let profile_id = profile_id.clone();
             move || {
                 Ok(GatewayMcp::new(
                     catalog.clone(),
                     profile_id.clone(),
                     gateway_state.clone(),
+                    platform_store.clone(),
                     internal_token_issuer.clone(),
                 ))
             }
@@ -235,21 +319,34 @@ mod tests {
 
     #[test]
     fn production_allowed_hosts_use_public_authority_only() {
-        let deployment = PublicDeployment::new("https://veoveo.bioma.ai").expect("valid URL");
+        let deployment = PublicDeployment::new("https://veoveo.example").expect("valid URL");
 
         assert_eq!(
             public_allowed_hosts(&deployment, false),
-            vec!["veoveo.bioma.ai"]
+            vec!["veoveo.example"]
         );
     }
 
     #[test]
     fn local_allowed_hosts_are_explicit() {
-        let deployment = PublicDeployment::new("https://veoveo.bioma.ai").expect("valid URL");
+        let deployment = PublicDeployment::new("https://veoveo.example").expect("valid URL");
 
         assert_eq!(
             public_allowed_hosts(&deployment, true),
-            vec!["veoveo.bioma.ai", "localhost", "127.0.0.1", "::1"]
+            vec!["veoveo.example", "localhost", "127.0.0.1", "::1"]
+        );
+    }
+
+    #[test]
+    fn artifact_download_path_carries_the_authenticated_profile() {
+        assert_eq!(
+            profile_id_from_gateway_path(
+                "/artifacts/operator/0197f78e-f2f0-7a6e-8a5d-f41c691e4471/download"
+            )
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
+            Some("operator")
         );
     }
 }

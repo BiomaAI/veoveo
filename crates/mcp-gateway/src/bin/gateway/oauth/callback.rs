@@ -26,7 +26,7 @@ use crate::{
 
 const AUTHORIZATION_CODE_TTL_SECONDS: i64 = 5 * 60;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct AuthorizationCallback {
     #[serde(default)]
     code: Option<String>,
@@ -63,6 +63,7 @@ pub(crate) async fn authorization_callback(
     let authorization_request = match state
         .gateway_state
         .consume_authorization_request(&idp_state, Utc::now())
+        .await
     {
         Ok(Some(request)) => request,
         Ok(_) => {
@@ -109,7 +110,9 @@ pub(crate) async fn authorization_callback(
                 reason: AuthReasonCode::InvalidAuthorizationRequest,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return redirect_with_oauth_error(
@@ -223,7 +226,9 @@ pub(crate) async fn authorization_callback(
                         reason: AuthReasonCode::IdentityProviderUnavailable,
                         started_at,
                     },
-                ) {
+                )
+                .await
+                {
                     return auth_audit_error_response(err);
                 }
                 return redirect_with_oauth_error(
@@ -272,7 +277,9 @@ pub(crate) async fn authorization_callback(
                     reason: AuthReasonCode::InvalidOidcIdToken,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return redirect_with_oauth_error(
@@ -308,7 +315,11 @@ pub(crate) async fn authorization_callback(
         expires_at,
         consumed_at: None,
     };
-    if let Err(err) = state.gateway_state.record_authorization_code(&code_record) {
+    if let Err(err) = state
+        .gateway_state
+        .record_authorization_code(&code_record)
+        .await
+    {
         tracing::error!("failed to record gateway authorization code: {err}");
         if let Err(err) = record_oidc_auth_audit(
             &state.gateway_state,
@@ -322,7 +333,9 @@ pub(crate) async fn authorization_callback(
                 reason: AuthReasonCode::AuthStateUnavailable,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -339,7 +352,9 @@ pub(crate) async fn authorization_callback(
             reason: AuthReasonCode::AuthAllow,
             started_at,
         },
-    ) {
+    )
+    .await
+    {
         return auth_audit_error_response(err);
     }
     redirect_with_authorization_code(

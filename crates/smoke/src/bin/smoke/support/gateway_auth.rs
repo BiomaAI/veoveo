@@ -92,53 +92,45 @@ pub(crate) fn gateway_token_for_profile(
     run_checked(conformance, all_args, [])
 }
 
-pub(crate) fn run_gateway_json(gateway: &Path, command: &str, state_db: &Path) -> Result<Value> {
-    let output = run_checked(
-        gateway,
-        [
-            command.into(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
-        ],
-        [],
-    )?;
+pub(crate) fn run_gateway_json(
+    gateway: &Path,
+    command: &str,
+    platform: &PlatformStoreSmoke,
+) -> Result<Value> {
+    let output = run_checked(gateway, [command.into()], platform.runtime_env())?;
     Ok(serde_json::from_str(&output)?)
 }
 
 pub(crate) fn run_gateway_metadata_summary(
     gateway: &Path,
-    state_db: &Path,
+    platform: &PlatformStoreSmoke,
     metadata_key: &str,
 ) -> Result<Value> {
     let output = run_checked(
         gateway,
         [
             "audit-metadata-summary".into(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
             "--metadata-key".into(),
             metadata_key.into(),
         ],
-        [],
+        platform.runtime_env(),
     )?;
     Ok(serde_json::from_str(&output)?)
 }
 
 pub(crate) fn run_gateway_auth_metadata_summary(
     gateway: &Path,
-    state_db: &Path,
+    platform: &PlatformStoreSmoke,
     metadata_key: &str,
 ) -> Result<Value> {
     let output = run_checked(
         gateway,
         [
             "auth-audit-metadata-summary".into(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
             "--metadata-key".into(),
             metadata_key.into(),
         ],
-        [],
+        platform.runtime_env(),
     )?;
     Ok(serde_json::from_str(&output)?)
 }

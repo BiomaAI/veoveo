@@ -24,7 +24,81 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::gateway::{DataLabelId, GroupId, PrincipalId, TenantId};
-use crate::uri::is_sha256;
+
+/// Canonical identity of one logical artifact occurrence. Every put creates a
+/// fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(try_from = "String", into = "String")]
+pub struct ArtifactId(uuid::Uuid);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactIdError;
+
+impl std::fmt::Display for ArtifactIdError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("artifact id must be a UUIDv7")
+    }
+}
+
+impl std::error::Error for ArtifactIdError {}
+
+impl ArtifactId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::now_v7())
+    }
+
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, ArtifactIdError> {
+        let value = uuid::Uuid::parse_str(value.as_ref()).map_err(|_| ArtifactIdError)?;
+        if value.get_version_num() != 7 {
+            return Err(ArtifactIdError);
+        }
+        Ok(Self(value))
+    }
+
+    pub fn as_uuid(self) -> uuid::Uuid {
+        self.0
+    }
+
+    pub fn plane_uri(self) -> String {
+        format!("{ARTIFACT_PLANE_SCHEME}://{self}")
+    }
+}
+
+impl Default for ArtifactId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for ArtifactId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl TryFrom<String> for ArtifactId {
+    type Error = ArtifactIdError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+
+impl std::str::FromStr for ArtifactId {
+    type Err = ArtifactIdError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
+    }
+}
+
+impl From<ArtifactId> for String {
+    fn from(value: ArtifactId) -> Self {
+        value.to_string()
+    }
+}
 
 /// A capability level. Ordered `Read < Write < Admin`, so `min` yields the
 /// lesser privilege — exactly what capping a group role by a grant level needs.
@@ -45,10 +119,28 @@ impl AccessLevel {
     }
 }
 
-/// The role a principal holds *within* a group. Same lattice as a grant level,
-/// so the two compose under `min`. A distinct alias keeps call sites honest
-/// about which axis they mean ("role in group" vs "level on artifact").
-pub type GroupRole = AccessLevel;
+/// The role a principal holds *within* a group. It has the same wire values and
+/// ordering as a grant level, but remains a distinct domain type so callers
+/// cannot accidentally substitute one axis for the other.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupRole {
+    Read,
+    Write,
+    Admin,
+}
+
+impl GroupRole {
+    fn access_level(self) -> AccessLevel {
+        match self {
+            Self::Read => AccessLevel::Read,
+            Self::Write => AccessLevel::Write,
+            Self::Admin => AccessLevel::Admin,
+        }
+    }
+}
 
 /// Who a grant is made to. Groups enter the model here, as a grant subject —
 /// not as a set of permissions and not as a resource container.
@@ -72,95 +164,25 @@ pub struct GroupMembership {
     pub role: GroupRole,
 }
 
-/// A content-addressed artifact identity: 64 lowercase hex characters.
-///
-/// The sha is the artifact's *content* identity (integrity, dedup within a
-/// tenant). It is deliberately never the physical storage key — that is
-/// `f(tenant, sha)` under a per-tenant key so identical bytes across tenants
-/// never collide.
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-pub struct ArtifactSha256(String);
-
-/// Error returned when an artifact sha is not 64 lowercase hex characters.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ArtifactShaError;
-
-impl std::fmt::Display for ArtifactShaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("artifact sha must be 64 lowercase hex characters")
-    }
-}
-
-impl std::error::Error for ArtifactShaError {}
-
-impl ArtifactSha256 {
-    pub fn new(value: impl Into<String>) -> Result<Self, ArtifactShaError> {
-        let value = value.into();
-        if is_sha256(&value) {
-            Ok(Self(value))
-        } else {
-            Err(ArtifactShaError)
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// The neutral, cross-server plane URI for this artifact: `artifact://{sha}`.
-    /// Distinct from per-server schemes (`media://artifact/{sha}`), so any
-    /// server can resolve any artifact through the one artifact service.
-    pub fn plane_uri(&self) -> String {
-        format!("{ARTIFACT_PLANE_SCHEME}://{}", self.0)
-    }
-}
-
-impl std::fmt::Display for ArtifactSha256 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for ArtifactSha256 {
-    type Error = ArtifactShaError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<ArtifactSha256> for String {
-    fn from(value: ArtifactSha256) -> Self {
-        value.0
-    }
-}
-
 /// The neutral scheme every server uses to name any artifact on the shared plane.
 pub const ARTIFACT_PLANE_SCHEME: &str = "artifact";
 
-/// Parse an artifact reference into its sha, validating the sha. Accepts both
-/// the neutral plane form `artifact://{sha}` and any server-presented form
-/// `{scheme}://artifact/{sha}` (e.g. `media://artifact/{sha}`,
-/// `duckdb://artifact/{sha}`), so a URI a client received from any server can be
-/// pasted back as cross-server input without translation.
-pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactSha256> {
+/// Parse the canonical occurrence identity from either `artifact://{id}` or a
+/// server presentation such as `media://artifact/{id}`.
+pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
     if let Some(rest) = uri.strip_prefix(&format!("{ARTIFACT_PLANE_SCHEME}://"))
         && !rest.contains('/')
     {
-        return ArtifactSha256::new(rest).ok();
+        return ArtifactId::parse(rest).ok();
     }
-    // `{scheme}://artifact/{sha}` — take the segment after the last `/artifact/`.
-    let rest = uri.rsplit_once("://artifact/").map(|(_, sha)| sha)?;
-    ArtifactSha256::new(rest).ok()
+    let rest = uri.rsplit_once("://artifact/").map(|(_, id)| id)?;
+    ArtifactId::parse(rest).ok()
 }
 
 /// One entry in an artifact's access control list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Grant {
-    pub artifact: ArtifactSha256,
+    pub artifact: ArtifactId,
     pub subject: Subject,
     pub level: AccessLevel,
     /// Tenant the artifact (and therefore this grant) lives in. Isolation is a
@@ -220,7 +242,7 @@ pub fn grant_level_for_caller(
         Subject::User(user) if user == caller_id => Some(grant.level),
         Subject::User(_) => None,
         Subject::Group(group) => {
-            role_in_group(memberships, group).map(|role| role.min(grant.level))
+            role_in_group(memberships, group).map(|role| role.access_level().min(grant.level))
         }
     }
 }
@@ -291,11 +313,11 @@ mod tests {
     fn lid(s: &str) -> DataLabelId {
         DataLabelId::new(s).unwrap()
     }
-    fn sha() -> ArtifactSha256 {
-        ArtifactSha256::new("a".repeat(64)).unwrap()
+    fn artifact_id() -> ArtifactId {
+        ArtifactId::new()
     }
 
-    fn member(group: &str, role: AccessLevel) -> BTreeSet<GroupMembership> {
+    fn member(group: &str, role: GroupRole) -> BTreeSet<GroupMembership> {
         let mut s = BTreeSet::new();
         s.insert(GroupMembership {
             group: gid(group),
@@ -306,7 +328,7 @@ mod tests {
 
     fn user_grant(user: &str, level: AccessLevel) -> Grant {
         Grant {
-            artifact: sha(),
+            artifact: artifact_id(),
             subject: Subject::User(pid(user)),
             level,
             tenant: tid("acme"),
@@ -317,7 +339,7 @@ mod tests {
 
     fn group_grant(group: &str, level: AccessLevel, labels: BTreeSet<DataLabelId>) -> Grant {
         Grant {
-            artifact: sha(),
+            artifact: artifact_id(),
             subject: Subject::Group(gid(group)),
             level,
             tenant: tid("acme"),
@@ -358,23 +380,22 @@ mod tests {
 
     #[test]
     fn parse_plane_uri_accepts_neutral_and_server_forms() {
-        let sha = "a".repeat(64);
-        let expected = ArtifactSha256::new(sha.clone()).unwrap();
+        let expected = ArtifactId::new();
         // Neutral plane form.
         assert_eq!(
-            parse_artifact_plane_uri(&format!("artifact://{sha}")),
-            Some(expected.clone())
+            parse_artifact_plane_uri(&format!("artifact://{expected}")),
+            Some(expected)
         );
-        // Any server-presented `{scheme}://artifact/{sha}` form round-trips.
+        // Any server-presented `{scheme}://artifact/{artifact_id}` form round-trips.
         for scheme in ["media", "duckdb", "timeseries", "optimization"] {
             assert_eq!(
-                parse_artifact_plane_uri(&format!("{scheme}://artifact/{sha}")),
-                Some(expected.clone()),
+                parse_artifact_plane_uri(&format!("{scheme}://artifact/{expected}")),
+                Some(expected),
                 "scheme {scheme}"
             );
         }
-        // Junk and bad shas are rejected.
-        assert_eq!(parse_artifact_plane_uri("artifact://not-a-sha"), None);
+        // Junk and non-UUIDv7 ids are rejected.
+        assert_eq!(parse_artifact_plane_uri("artifact://not-an-id"), None);
         assert_eq!(parse_artifact_plane_uri("media://artifact/xyz"), None);
         assert_eq!(parse_artifact_plane_uri("media://models"), None);
     }
@@ -446,7 +467,7 @@ mod tests {
         let nl = no_labels();
 
         // member role write, grant level read -> effective read.
-        let memberships = member("eng", AccessLevel::Write);
+        let memberships = member("eng", GroupRole::Write);
         let grants = [group_grant("eng", AccessLevel::Read, BTreeSet::new())];
         let read = request(
             &caller,
@@ -472,7 +493,7 @@ mod tests {
         assert_eq!(decide(&write), AccessDecision::DenyNeedToKnow);
 
         // member role read, grant level admin -> still only read.
-        let memberships = member("eng", AccessLevel::Read);
+        let memberships = member("eng", GroupRole::Read);
         let grants = [group_grant("eng", AccessLevel::Admin, BTreeSet::new())];
         let write = request(
             &caller,
@@ -513,7 +534,7 @@ mod tests {
         let tenant = tid("acme");
         let caller_labels = BTreeSet::new(); // no clearance
         let artifact_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
-        let memberships = member("eng", AccessLevel::Admin);
+        let memberships = member("eng", GroupRole::Admin);
         let grants = [group_grant(
             "eng",
             AccessLevel::Admin,
@@ -538,7 +559,7 @@ mod tests {
         let tenant = tid("acme");
         let caller_labels: BTreeSet<_> = [lid("cui"), lid("us_only")].into_iter().collect();
         let artifact_labels: BTreeSet<_> = [lid("cui")].into_iter().collect();
-        let memberships = member("eng", AccessLevel::Write);
+        let memberships = member("eng", GroupRole::Write);
         let grants = [group_grant(
             "eng",
             AccessLevel::Write,
@@ -604,7 +625,7 @@ mod tests {
         let caller = pid("alice");
         let tenant = tid("acme");
         let nl = no_labels();
-        let memberships = member("eng", AccessLevel::Admin);
+        let memberships = member("eng", GroupRole::Admin);
         let grants = [
             user_grant("alice", AccessLevel::Read),
             group_grant("eng", AccessLevel::Write, BTreeSet::new()),
@@ -623,12 +644,10 @@ mod tests {
     }
 
     #[test]
-    fn artifact_sha_validation_and_plane_uri() {
-        assert!(ArtifactSha256::new("bad").is_err());
-        let s = ArtifactSha256::new("a".repeat(64)).unwrap();
-        assert_eq!(s.plane_uri(), format!("artifact://{}", "a".repeat(64)));
-        let parsed = parse_artifact_plane_uri(&s.plane_uri()).unwrap();
-        assert_eq!(parsed, s);
+    fn occurrence_uri_is_uuid_v7() {
+        let artifact_id = ArtifactId::new();
+        let parsed = parse_artifact_plane_uri(&artifact_id.plane_uri()).unwrap();
+        assert_eq!(parsed, artifact_id);
         assert!(parse_artifact_plane_uri("artifact://bad").is_none());
         assert!(parse_artifact_plane_uri("media://artifact/x").is_none());
     }

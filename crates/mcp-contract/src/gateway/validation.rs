@@ -566,10 +566,9 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         }
         GatewayAction::PromptsList | GatewayAction::PromptsGet => server.capabilities.prompts,
         GatewayAction::CompletionComplete => server.capabilities.completions,
-        GatewayAction::TasksList
-        | GatewayAction::TasksGet
-        | GatewayAction::TasksResult
-        | GatewayAction::TasksCancel => server.capabilities.tasks,
+        GatewayAction::TasksGet | GatewayAction::TasksResult | GatewayAction::TasksCancel => {
+            server.capabilities.tasks
+        }
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
     }
@@ -841,22 +840,7 @@ fn validate_oauth_client_surface(
             },
         );
     }
-    if client.direct_task_call_adapter
-        && !client
-            .allowed_compatibility_helpers
-            .iter()
-            .any(is_gateway_compatibility_helper_id)
-    {
-        return Err(
-            GatewayControlPlaneError::OAuthClientDirectTaskAdapterMissingTaskResultHelper {
-                client: client.id.clone(),
-            },
-        );
-    }
     for helper in &client.allowed_compatibility_helpers {
-        if is_gateway_compatibility_helper_id(helper) {
-            continue;
-        }
         let Some((server_slug, tool_name)) = helper.as_str().split_once('.') else {
             return Err(
                 GatewayControlPlaneError::UnknownOAuthClientCompatibilityHelper {
@@ -912,6 +896,7 @@ fn validate_oauth_client_auth_configuration(
         .grant_types
         .iter()
         .any(|grant| matches!(grant, OAuthGrantType::AuthorizationCodePkce));
+    let refresh_grants = client.grant_types.contains(&OAuthGrantType::RefreshToken);
     let enterprise_managed_grants = client
         .grant_types
         .iter()
@@ -929,6 +914,7 @@ fn validate_oauth_client_auth_configuration(
     };
 
     if expected == client.auth_methods
+        && (!refresh_grants || browser_grants)
         && !(client_credentials_grants && (browser_grants || enterprise_managed_grants))
     {
         return Ok(());

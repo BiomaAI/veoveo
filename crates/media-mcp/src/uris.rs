@@ -3,15 +3,15 @@
 //! - `media://models`                  — compact model catalog index
 //! - `media://model/{model_id}`        — full schema + pricing for one model
 //! - `media://prediction/{id}`         — live prediction state (subscribable)
-//! - `media://artifact/{sha256}`       — server-owned artifact metadata/content
+//! - `media://artifact/{artifact_id}`  — server-owned artifact metadata/content
 //! - `media://usage/task/{task_id}`    — task usage estimates/actuals
 
-use veoveo_mcp_contract::ServerResourceUris;
+use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
 pub const MODELS_URI: &str = "media://models";
 pub const MODEL_TEMPLATE: &str = "media://model/{model_id}";
 pub const PREDICTION_TEMPLATE: &str = "media://prediction/{id}";
-pub const ARTIFACT_TEMPLATE: &str = "media://artifact/{sha256}";
+pub const ARTIFACT_TEMPLATE: &str = "media://artifact/{artifact_id}";
 pub const USAGE_ROOT_URI: &str = "media://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "media://usage/task/{task_id}";
 
@@ -27,8 +27,8 @@ pub fn prediction_uri(id: &str) -> String {
     media_uris().prediction_uri(id)
 }
 
-pub fn artifact_uri(sha256: &str) -> String {
-    media_uris().artifact_uri(sha256)
+pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+    media_uris().artifact_uri(artifact_id)
 }
 
 pub fn usage_task_uri(task_id: &str) -> String {
@@ -45,7 +45,7 @@ pub fn parse_prediction_uri(uri: &str) -> Option<&str> {
     media_uris().parse_prediction_uri(uri)
 }
 
-pub fn parse_artifact_uri(uri: &str) -> Option<&str> {
+pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
     media_uris().parse_artifact_uri(uri)
 }
 
@@ -74,10 +74,10 @@ mod tests {
 
     #[test]
     fn artifact_uri_round_trip() {
-        let sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let uri = artifact_uri(sha);
-        assert_eq!(uri, format!("media://artifact/{sha}"));
-        assert_eq!(parse_artifact_uri(&uri), Some(sha));
+        let artifact_id = ArtifactId::new();
+        let uri = artifact_uri(artifact_id);
+        assert_eq!(uri, format!("media://artifact/{artifact_id}"));
+        assert_eq!(parse_artifact_uri(&uri), Some(artifact_id));
         assert_eq!(parse_artifact_uri("media://artifact/not-a-sha"), None);
     }
 

@@ -1,7 +1,7 @@
 //! Generic Veoveo MCP conformance CLI.
 //!
 //! Exercises every surface the server exposes: authorization discovery, resources (+templates),
-//! completions, SEP-1319 tasks, subscriptions, and notifications
+//! completions, final-extension tasks, subscriptions, and notifications
 //! (progress, tasks/status, resources/updated, resources/list_changed).
 
 use std::{
@@ -34,9 +34,9 @@ use reqwest::header::WWW_AUTHENTICATE;
 use rmcp::{
     ClientHandler, RoleServer, ServerHandler, ServiceExt,
     model::{
-        ArgumentInfo, CallToolRequestParams, CallToolResult, CancelTaskParams, ClientCapabilities,
-        ClientInfo, ClientRequest, CompleteRequestParams, CompleteResult, CompletionInfo,
-        ContentBlock, GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
+        ArgumentInfo, CallToolRequestParams, CallToolResult, ClientCapabilities, ClientInfo,
+        ClientRequest, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
+        GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
         Implementation, JsonObject, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListTasksRequest, ListToolsResult, PaginatedRequestParams,
         ProgressNotificationParam, Prompt, PromptArgument, PromptMessage,
@@ -65,22 +65,23 @@ use veoveo_coordinates_mcp::contract::{
     TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
 };
 use veoveo_mcp_contract::{
-    AccessTokenSubject, ArtifactMetadata, AuditEvent, AuthAuditEvent, ComplianceMetadata,
-    CoordinateOperationProvenance, DataLabelDefinition, DataRetentionPolicy,
+    AccessTokenSubject, AnalyticalRuntimeDeployment, ArtifactMetadata, AuditEvent, AuthAuditEvent,
+    ComplianceMetadata, CoordinateOperationProvenance, DataLabelDefinition, DataRetentionPolicy,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
     GatewayControlPlane, GatewayControlPlaneRevision, GatewayInternalIdentity,
-    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayJwtRevocation,
-    GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
-    GatewayProfile, GatewayProfileId, GatewayResourceProjection, GatewayResourceSubscription,
-    GatewayTaskMapping, GenerationPredictionSummary, GenerationRunOutput, IdentityProvider,
-    IdentityProviderOidcClientRegistration, InternalTokenSecret, McpSurfaceCapabilities,
-    NetworkBoundaryRule, OAuthClientRegistration, ObjectStoreDeployment, PolicyDecision,
+    GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    GatewayInternalTrustBundle, GatewayJwtRevocation, GatewayJwtRevocationApplyResult,
+    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
+    GatewayResourceProjection, GatewayResourceSubscription, GenerationPredictionSummary,
+    GenerationRunOutput, IdentityProvider, IdentityProviderDeployment,
+    IdentityProviderOidcClientRegistration, IngressDeployment, McpSurfaceCapabilities,
+    OAuthClientRegistration, ObjectStoreDeployment, PlatformStoreDeployment, PolicyDecision,
     PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
-    ProfileServerExposure, RELATED_TASK_META_KEY, RegulatedDataControls,
-    ResourceAuthorizationServer, ScopeName, SecretReference, SelfHostedDeploymentPlan,
-    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
-    ServiceToServiceSecurity, StateStoreDeployment, TelemetrySinkDeployment, TenantDefinition,
-    TenantId, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
+    ProfileServerExposure, ResourceAuthorizationServer, ScopeName, SecretManagerDeployment,
+    SecretReference, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest,
+    ServerResourceUris, ServerSlug, ServiceToServiceSecurity, TelemetryDeployment,
+    TenantDefinition, TenantId, TenantModel, TokenIssuer, TokenSubject, UpstreamEndpoint,
+    UsageRecord, UsageReport,
 };
 use veoveo_rrd::{
     RrdFrameDefinition, RrdGeoLineString, RrdGeoPoint, RrdGeofenceGeometry, RrdLocalLineString2,
@@ -106,7 +107,7 @@ mod tokens;
 
 use auth_discovery::{AuthDiscoveryCheck, cmd_auth_discovery};
 use cli::{Args, Cmd};
-use client::connect;
+use client::{FinalTaskClient, connect};
 use control_plane::{
     cmd_gateway_agent_smoke_control_plane, cmd_gateway_pilot_smoke_control_plane,
     cmd_gateway_smoke_control_plane, cmd_gateway_two_server_smoke_control_plane,
@@ -116,9 +117,9 @@ use fake_services::{
     cmd_otlp_http_sink,
 };
 use mcp_commands::{
-    cmd_call, cmd_complete, cmd_complete_resource, cmd_info, cmd_models_from_catalog, cmd_prompt,
-    cmd_prompts, cmd_resource, cmd_resources, cmd_run, cmd_tasks, read_resource_json,
-    save_output_uri,
+    RunCommand, cmd_call, cmd_complete, cmd_complete_resource, cmd_info, cmd_models_from_catalog,
+    cmd_prompt, cmd_prompts, cmd_resource, cmd_resources, cmd_run, cmd_task_call, cmd_tasks,
+    read_resource_json, save_output_uri,
 };
 use schema::cmd_contract_schemas;
 use tokens::{
@@ -127,13 +128,14 @@ use tokens::{
     cmd_gateway_jwks, cmd_gateway_private_key_der_b64, cmd_gateway_token_exchange,
 };
 
-fn install_rustls_provider() {
+fn install_crypto_providers() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    install_rustls_provider();
+    install_crypto_providers();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
@@ -247,21 +249,28 @@ async fn main() -> Result<()> {
             port,
             ready_file,
             completion_delay_ms,
+            webhook_secret,
         } => {
-            return cmd_fake_media_provider(*port, ready_file.clone(), *completion_delay_ms).await;
+            return cmd_fake_media_provider(
+                *port,
+                ready_file.clone(),
+                *completion_delay_ms,
+                webhook_secret.clone(),
+            )
+            .await;
         }
         Cmd::FakeHostedMcp {
             port,
             server,
             scheme,
-            internal_token_secret,
+            internal_trust_jwks,
             ready_file,
         } => {
             return cmd_fake_hosted_mcp(
                 *port,
                 server.clone(),
                 scheme.clone(),
-                internal_token_secret.clone(),
+                internal_trust_jwks.clone(),
                 ready_file.clone(),
             )
             .await;
@@ -390,6 +399,7 @@ async fn main() -> Result<()> {
     }
 
     let client = connect(&args).await?;
+    let final_tasks = FinalTaskClient::from_args(&args)?;
     let uris = ServerResourceUris::new(args.scheme);
 
     let result = match args.cmd {
@@ -432,6 +442,10 @@ async fn main() -> Result<()> {
             arguments,
             task,
         } => cmd_call(&client, tool_name, arguments, task).await,
+        Cmd::TaskCall {
+            tool_name,
+            arguments,
+        } => cmd_task_call(&final_tasks, tool_name, arguments).await,
         Cmd::CompleteResource {
             uri,
             argument,
@@ -453,9 +467,12 @@ async fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&value)?);
             Ok(())
         }
-        Cmd::Artifact { sha256, output_dir } => {
+        Cmd::Artifact {
+            artifact_id,
+            output_dir,
+        } => {
             std::fs::create_dir_all(&output_dir)?;
-            let uri = uris.artifact_uri(&sha256);
+            let uri = uris.artifact_uri(artifact_id);
             let http = reqwest::Client::new();
             save_output_uri(&client, &uris, &http, &output_dir, &uri).await
         }
@@ -467,7 +484,16 @@ async fn main() -> Result<()> {
             cancel,
         } => {
             cmd_run(
-                &client, &uris, tool_name, model_id, input, output_dir, cancel,
+                &client,
+                &final_tasks,
+                &uris,
+                RunCommand {
+                    tool_name,
+                    model_id,
+                    input,
+                    output_dir,
+                    cancel,
+                },
             )
             .await
         }

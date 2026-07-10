@@ -12,7 +12,10 @@ use super::{
     claims::{OidcIdTokenClaims, StringListClaim},
     config::OidcIdTokenConfig,
     principal::principal_assurances,
-    support::{AuthError, allowed_algorithms_for_header, unix_timestamp, validate_jwk_algorithm},
+    support::{
+        AuthError, allowed_algorithms_for_header, ensure_jwt_crypto_provider, unix_timestamp,
+        validate_jwk_algorithm,
+    },
     verified::VerifiedOidcIdentity,
 };
 
@@ -28,6 +31,7 @@ impl OidcIdTokenVerifier {
     }
 
     pub fn verify(&self, id_token: &str) -> Result<VerifiedOidcIdentity, AuthError> {
+        ensure_jwt_crypto_provider();
         if id_token.is_empty() || id_token.chars().any(char::is_whitespace) {
             return Err(AuthError::InvalidOidcIdToken);
         }

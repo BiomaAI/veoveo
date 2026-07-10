@@ -2,7 +2,7 @@
 //!
 //! Every process boot opens a fresh footer-less segment file (`FileSink`
 //! truncates on open, and the streaming footer manifest grows unboundedly on
-//! long runs), all pinned to one recording id persisted in the kernel ledger —
+//! long runs), all pinned to one recording id persisted in the kernel memory —
 //! the viewer pools the segments into a single timeline. An optional gRPC tee
 //! streams the same data to a live viewer. Rotation swaps in a new segment
 //! once the live one exceeds the configured size.
@@ -16,7 +16,7 @@ use re_sdk::{
 };
 use re_sdk_types::archetypes::{Scalars, TextDocument, TextLog};
 
-use crate::ledger::KernelLedger;
+use crate::memory::MemoryStore;
 
 pub const EPISODE_TIMELINE: &str = "episode";
 const RECORDING_ID_KEY: &str = "recording_id";
@@ -37,18 +37,18 @@ impl RrdRecorder {
         rrd_dir_name: &str,
         segment_max_bytes: u64,
         agent_id: &str,
-        ledger: &KernelLedger,
+        memory: &MemoryStore,
         viewer_tee: Option<String>,
     ) -> Result<Self> {
         let rrd_dir = data_dir.join(rrd_dir_name);
         std::fs::create_dir_all(&rrd_dir)?;
 
         let application_id = format!("veoveo-agent-{agent_id}");
-        let recording_id = match ledger.kv_get(RECORDING_ID_KEY)? {
+        let recording_id = match memory.kv_get(RECORDING_ID_KEY)? {
             Some(serde_json::Value::String(id)) => id,
             _ => {
-                let id = format!("{application_id}-{}", uuid::Uuid::new_v4());
-                ledger.kv_set(RECORDING_ID_KEY, &serde_json::Value::String(id.clone()))?;
+                let id = format!("{application_id}-{}", uuid::Uuid::now_v7());
+                memory.kv_set(RECORDING_ID_KEY, &serde_json::Value::String(id.clone()))?;
                 id
             }
         };
@@ -176,16 +176,16 @@ mod tests {
     #[test]
     fn segments_share_the_persisted_recording_id() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let ledger = KernelLedger::open(&dir.path().join("memory.duckdb")).expect("ledger");
+        let memory = MemoryStore::open(&dir.path().join("memory.duckdb")).expect("memory");
 
-        let first = RrdRecorder::open(dir.path(), "rrd", 1024, "test", &ledger, None)
+        let first = RrdRecorder::open(dir.path(), "rrd", 1024, "test", &memory, None)
             .expect("first recorder");
         let first_id = first.recording_id.clone();
         first.log_text("/agent/test", "hello");
         first.flush();
         drop(first);
 
-        let second = RrdRecorder::open(dir.path(), "rrd", 1024, "test", &ledger, None)
+        let second = RrdRecorder::open(dir.path(), "rrd", 1024, "test", &memory, None)
             .expect("second recorder");
         assert_eq!(second.recording_id, first_id);
 

@@ -29,7 +29,7 @@ use super::resolve_oauth_profile;
 
 const AUTHORIZATION_REQUEST_TTL_SECONDS: i64 = 10 * 60;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct AuthorizationRequest {
     response_type: String,
     client_id: String,
@@ -56,7 +56,7 @@ pub(crate) async fn authorize_endpoint(
         request.resource.as_deref(),
     ) {
         Ok(profile) => profile,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
     else {
@@ -72,7 +72,9 @@ pub(crate) async fn authorize_endpoint(
                 reason: AuthReasonCode::UnknownAuthorizationServer,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -97,7 +99,9 @@ pub(crate) async fn authorize_endpoint(
                 reason: AuthReasonCode::UnsupportedGrantType,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -119,7 +123,9 @@ pub(crate) async fn authorize_endpoint(
                 reason: AuthReasonCode::InvalidAuthorizationRequest,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -143,7 +149,9 @@ pub(crate) async fn authorize_endpoint(
                     reason: AuthReasonCode::InvalidClient,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -166,7 +174,9 @@ pub(crate) async fn authorize_endpoint(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -188,7 +198,9 @@ pub(crate) async fn authorize_endpoint(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -212,7 +224,9 @@ pub(crate) async fn authorize_endpoint(
                     reason: AuthReasonCode::InvalidAuthorizationRequest,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -238,7 +252,9 @@ pub(crate) async fn authorize_endpoint(
                     reason: AuthReasonCode::InvalidScope,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -263,7 +279,9 @@ pub(crate) async fn authorize_endpoint(
                     reason: AuthReasonCode::InvalidPkce,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -293,7 +311,9 @@ pub(crate) async fn authorize_endpoint(
                     reason: AuthReasonCode::InvalidAuthorizationRequest,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -370,6 +390,7 @@ pub(crate) async fn authorize_endpoint(
     if let Err(err) = state
         .gateway_state
         .record_authorization_request(&authorization_request)
+        .await
     {
         tracing::error!("failed to record gateway authorization request: {err}");
         if let Err(err) = record_oidc_auth_audit(
@@ -384,7 +405,9 @@ pub(crate) async fn authorize_endpoint(
                 reason: AuthReasonCode::AuthStateUnavailable,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -401,7 +424,9 @@ pub(crate) async fn authorize_endpoint(
             reason: AuthReasonCode::AuthAllow,
             started_at,
         },
-    ) {
+    )
+    .await
+    {
         return auth_audit_error_response(err);
     }
 

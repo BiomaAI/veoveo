@@ -1,11 +1,11 @@
 use super::*;
 
-pub(crate) const INTERNAL_SECRET: &str = "local-smoke-internal-token-secret-32-bytes-minimum";
-pub(crate) const PUBLIC_BASE_URL: &str = "https://veoveo.bioma.ai";
-/// 64 hex chars = 32 bytes; the artifact plane's per-tenant envelope master key.
-/// Test-only value; the real key is provisioned per deployment.
-pub(crate) const ARTIFACT_MASTER_KEY: &str =
-    "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+pub(crate) const INTERNAL_SIGNING_KEY_DER_B64: &str =
+    "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
+pub(crate) const REFRESH_DELIVERY_KEY_B64: &str = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+pub(crate) const REFRESH_DELIVERY_WINDOW_SECONDS: u64 = 5;
+pub(crate) const INTERNAL_TRUST_JWKS: &str = r#"{"keys":[{"kty":"OKP","crv":"Ed25519","x":"OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg","alg":"EdDSA","use":"sig","kid":"veoveo-internal-1"}]}"#;
+pub(crate) const PUBLIC_BASE_URL: &str = "https://veoveo.example";
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SmokeGenerationRunOutput {
@@ -20,7 +20,7 @@ pub(crate) struct SmokeCoordinatesBatchOutput {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SmokeArtifactMetadata {
-    pub(crate) sha256: String,
+    pub(crate) artifact_id: String,
     pub(crate) artifact_uri: String,
     #[serde(default)]
     pub(crate) download_url: Option<String>,

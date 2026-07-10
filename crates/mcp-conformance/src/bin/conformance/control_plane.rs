@@ -274,7 +274,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
                 "actions": [
                     "tools_list", "tools_call", "resources_list",
                     "resources_templates_list", "resources_read", "prompts_list",
-                    "prompts_get", "completion_complete", "tasks_list", "tasks_get",
+                    "prompts_get", "completion_complete", "tasks_get",
                     "tasks_result", "tasks_cancel", "artifact_read", "usage_read"
                 ],
                 "profiles": [profile],
@@ -293,7 +293,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
                 "effect": "allow",
                 "actions": [
                     "tools_list", "tools_call", "resources_list",
-                    "resources_templates_list", "resources_read", "tasks_list",
+                    "resources_templates_list", "resources_read",
                     "tasks_get", "tasks_result", "tasks_cancel", "artifact_read",
                     "usage_read"
                 ],
@@ -412,7 +412,6 @@ fn configure_policy_for_duckdb(control_plane: &mut Value) -> Result<()> {
                 "resources_list",
                 "resources_templates_list",
                 "resources_read",
-                "tasks_list",
                 "tasks_get",
                 "tasks_result",
                 "tasks_cancel",

@@ -1,11 +1,11 @@
-use veoveo_mcp_contract::ServerResourceUris;
+use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
 pub const FRAMES_URI: &str = "coordinates://frames";
 pub const CRS_ROOT_URI: &str = "coordinates://crs";
 pub const FRAME_TEMPLATE: &str = "coordinates://frame/{frame_id}";
 pub const CRS_TEMPLATE: &str = "coordinates://crs/{authority}/{code}";
 pub const OPERATION_TEMPLATE: &str = "coordinates://operation/{operation_id}";
-pub const ARTIFACT_TEMPLATE: &str = "coordinates://artifact/{sha256}";
+pub const ARTIFACT_TEMPLATE: &str = "coordinates://artifact/{artifact_id}";
 pub const USAGE_ROOT_URI: &str = "coordinates://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "coordinates://usage/task/{task_id}";
 
@@ -25,8 +25,8 @@ pub fn operation_uri(operation_id: &str) -> String {
     format!("coordinates://operation/{operation_id}")
 }
 
-pub fn artifact_uri(sha256: &str) -> String {
-    coordinates_uris().artifact_uri(sha256)
+pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+    coordinates_uris().artifact_uri(artifact_id)
 }
 
 pub fn usage_task_uri(task_id: &str) -> String {
@@ -52,7 +52,7 @@ pub fn parse_operation_uri(uri: &str) -> Option<&str> {
         .filter(|operation_id| !operation_id.is_empty() && !operation_id.contains('/'))
 }
 
-pub fn parse_artifact_uri(uri: &str) -> Option<&str> {
+pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
     coordinates_uris().parse_artifact_uri(uri)
 }
 
@@ -75,8 +75,14 @@ mod tests {
             parse_crs_uri("coordinates://crs/EPSG/4326"),
             Some(("EPSG", "4326"))
         );
-        let sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        assert_eq!(artifact_uri(sha), format!("coordinates://artifact/{sha}"));
-        assert_eq!(parse_artifact_uri(&artifact_uri(sha)), Some(sha));
+        let artifact_id = ArtifactId::new();
+        assert_eq!(
+            artifact_uri(artifact_id),
+            format!("coordinates://artifact/{artifact_id}")
+        );
+        assert_eq!(
+            parse_artifact_uri(&artifact_uri(artifact_id)),
+            Some(artifact_id)
+        );
     }
 }

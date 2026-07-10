@@ -17,26 +17,23 @@ path = "src/bin/server.rs"
 anyhow.workspace = true
 axum.workspace = true
 base64.workspace = true
-chacha20poly1305.workspace = true
 chrono.workspace = true
-clap.workspace = true
 dotenvy.workspace = true
+futures.workspace = true
 getrandom.workspace = true
 hex.workspace = true
-hmac.workspace = true
-object_store.workspace = true
-rustls.workspace = true
+object_store = { workspace = true, features = ["fs"] }
+secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-sqlx.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-uuid.workspace = true
+url.workspace = true
+uuid = { workspace = true, features = ["v5"] }
 veoveo-mcp-contract = { workspace = true, default-features = false }
-zeroize.workspace = true
+veoveo-platform-store = { path = "../platform-store" }
 
 [dev-dependencies]
 reqwest = { workspace = true, features = ["rustls-no-provider", "json"] }

@@ -22,7 +22,7 @@ pub(crate) async fn coordinates_mcp(
         spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
             .await?;
     let mut coordinates_child =
-        spawn_coordinates_smoke(coordinates, port, &base, &plane.url, &log)?;
+        spawn_coordinates_smoke(coordinates, port, &base, &plane.url, &plane.platform, &log)?;
     wait_for_http(&format!("{base}/coordinates/healthz")).await?;
     let health = reqwest::get(format!("{base}/coordinates/healthz"))
         .await?
@@ -52,7 +52,7 @@ pub(crate) async fn coordinates_mcp(
         &format!(
             "{base}/coordinates/artifacts/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         ),
-        StatusCode::UNAUTHORIZED,
+        StatusCode::NOT_FOUND,
     )
     .await?;
 
@@ -67,7 +67,10 @@ pub(crate) async fn coordinates_mcp(
             "media".into(),
             "info".into(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )?;
 
     let info = run_coordinates_mcp(conformance, &mcp_url, ["info".into()])?;
@@ -82,7 +85,7 @@ pub(crate) async fn coordinates_mcp(
         "prompt `coordinates-frame-audit`",
         "template: coordinates://frame/{frame_id}",
         "template: coordinates://crs/{authority}/{code}",
-        "template: coordinates://artifact/{sha256}",
+        "template: coordinates://artifact/{artifact_id}",
     ] {
         contains(&info, expected)?;
     }
@@ -300,11 +303,11 @@ pub(crate) async fn coordinates_mcp(
     let artifact = batch_output
         .artifact
         .ok_or_else(|| anyhow!("batch output had no artifact metadata"))?;
-    if artifact.artifact_uri != format!("coordinates://artifact/{}", artifact.sha256) {
+    if artifact.artifact_uri != format!("coordinates://artifact/{}", artifact.artifact_id) {
         bail!(
-            "batch artifact URI `{}` did not match sha `{}`",
+            "batch artifact URI `{}` did not match artifact id `{}`",
             artifact.artifact_uri,
-            artifact.sha256
+            artifact.artifact_id
         );
     }
     if artifact.metadata.get("task_id").and_then(Value::as_str) != Some(task_id.as_str()) {
@@ -316,7 +319,7 @@ pub(crate) async fn coordinates_mcp(
         &mcp_url,
         [
             "artifact".into(),
-            artifact.sha256.clone().into(),
+            artifact.artifact_id.clone().into(),
             "--output-dir".into(),
             output_dir.as_os_str().to_os_string(),
         ],
@@ -334,11 +337,14 @@ pub(crate) async fn coordinates_mcp(
             "--internal-principal-subject".into(),
             "intruder".into(),
             "artifact".into(),
-            artifact.sha256.clone().into(),
+            artifact.artifact_id.clone().into(),
             "--output-dir".into(),
             tmpdir.join("denied-intruder").as_os_str().to_os_string(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )?;
     assert_direct_mcp_denied(
         conformance,
@@ -351,14 +357,17 @@ pub(crate) async fn coordinates_mcp(
             "--internal-tenant".into(),
             "other-tenant".into(),
             "artifact".into(),
-            artifact.sha256.clone().into(),
+            artifact.artifact_id.clone().into(),
             "--output-dir".into(),
             tmpdir
                 .join("denied-cross-tenant")
                 .as_os_str()
                 .to_os_string(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )?;
 
     let usage =
@@ -408,7 +417,10 @@ fn run_coordinates_mcp(
         conformance,
         mcp_url,
         all_args,
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )
 }
 

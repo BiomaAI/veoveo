@@ -1,5 +1,16 @@
 use super::*;
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
+use serde::{Serialize, de::DeserializeOwned};
+use veoveo_mcp_task_extension::{
+    AcknowledgeTaskResult, CANCEL_TASK_METHOD, CancelTaskParams, CreateTaskResult, DISCOVER_METHOD,
+    DetailedTask, DiscoverParams, DiscoverResult, EXTENSION_ID, GET_TASK_METHOD, GetTaskParams,
+    GetTaskResult, HEADER_MCP_METHOD, HEADER_MCP_NAME, HEADER_MCP_PROTOCOL_VERSION,
+    PROTOCOL_VERSION, ProtocolTaskId, RequestMeta, ToolCallParams,
+};
+
 /// Client handler that surfaces every server-initiated notification.
 #[derive(Clone, Default)]
 pub(super) struct CliHandler;
@@ -55,21 +66,157 @@ impl ClientHandler for CliHandler {
 
 pub(super) type Client = rmcp::service::RunningService<rmcp::RoleClient, CliHandler>;
 
+#[derive(Clone)]
+pub(super) struct FinalTaskClient {
+    http: reqwest::Client,
+    endpoint: String,
+    bearer_token: Option<String>,
+    request_ids: Arc<AtomicU64>,
+}
+
+impl FinalTaskClient {
+    pub(super) fn from_args(args: &Args) -> Result<Self> {
+        let bearer_token = if let Some(token) = &args.bearer_token {
+            Some(token.clone())
+        } else if let Some(private_key_der_b64) = &args.internal_signing_key_der_b64 {
+            Some(issue_internal_conformance_token(args, private_key_der_b64)?)
+        } else {
+            None
+        };
+        Ok(Self {
+            http: reqwest::Client::new(),
+            endpoint: args.url.clone(),
+            bearer_token,
+            request_ids: Arc::new(AtomicU64::new(1)),
+        })
+    }
+
+    pub(super) async fn discover(&self) -> Result<DiscoverResult> {
+        let result: DiscoverResult = self
+            .request(
+                DISCOVER_METHOD,
+                None,
+                &DiscoverParams {
+                    meta: RequestMeta::new(),
+                },
+            )
+            .await?;
+        let extensions = result
+            .capabilities
+            .get("extensions")
+            .and_then(Value::as_object);
+        if result
+            .supported_versions
+            .iter()
+            .all(|version| version != PROTOCOL_VERSION)
+            || !extensions.is_some_and(|extensions| extensions.contains_key(EXTENSION_ID))
+        {
+            return Err(anyhow!(
+                "server does not advertise the final MCP task extension"
+            ));
+        }
+        Ok(result)
+    }
+
+    pub(super) async fn start_tool(&self, request: ToolCallParams) -> Result<CreateTaskResult> {
+        self.discover().await?;
+        self.request("tools/call", Some(&request.name), &request)
+            .await
+    }
+
+    pub(super) async fn get(&self, task_id: ProtocolTaskId) -> Result<DetailedTask> {
+        let result: GetTaskResult = self
+            .request(
+                GET_TASK_METHOD,
+                Some(&task_id.to_string()),
+                &GetTaskParams {
+                    meta: task_meta(),
+                    task_id,
+                },
+            )
+            .await?;
+        Ok(result.task)
+    }
+
+    pub(super) async fn cancel(&self, task_id: ProtocolTaskId) -> Result<AcknowledgeTaskResult> {
+        self.request(
+            CANCEL_TASK_METHOD,
+            Some(&task_id.to_string()),
+            &CancelTaskParams {
+                meta: task_meta(),
+                task_id,
+            },
+        )
+        .await
+    }
+
+    async fn request<T, P>(&self, method: &str, name: Option<&str>, params: &P) -> Result<T>
+    where
+        T: DeserializeOwned,
+        P: Serialize + ?Sized,
+    {
+        let mut request = self
+            .http
+            .post(&self.endpoint)
+            .header(CONTENT_TYPE, "application/json")
+            .header(ACCEPT, "application/json")
+            .header(HEADER_MCP_PROTOCOL_VERSION, PROTOCOL_VERSION)
+            .header(HEADER_MCP_METHOD, method)
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "id": self.request_ids.fetch_add(1, Ordering::Relaxed),
+                "method": method,
+                "params": params,
+            }));
+        if let Some(name) = name {
+            request = request.header(HEADER_MCP_NAME, name);
+        }
+        if let Some(token) = &self.bearer_token {
+            request = request.header(AUTHORIZATION, format!("Bearer {token}"));
+        }
+        let response = request.send().await?;
+        let status = response.status();
+        let envelope: RpcResponse<T> = response.json().await?;
+        match (envelope.result, envelope.error) {
+            (Some(result), None) if status.is_success() => Ok(result),
+            (_, Some(error)) => Err(anyhow!(
+                "task extension request `{method}` failed ({}): {}",
+                error.code,
+                error.message
+            )),
+            _ => Err(anyhow!(
+                "task extension request `{method}` returned invalid HTTP {status} response"
+            )),
+        }
+    }
+}
+
+fn task_meta() -> RequestMeta {
+    RequestMeta::new().with_task_capability()
+}
+
+#[derive(Deserialize)]
+struct RpcResponse<T> {
+    result: Option<T>,
+    error: Option<veoveo_mcp_task_extension::JsonRpcErrorData>,
+}
+
 pub(super) async fn connect(args: &Args) -> Result<Client> {
     let mut config = StreamableHttpClientTransportConfig::with_uri(args.url.clone());
     if let Some(token) = &args.bearer_token {
         config = config.auth_header(token.clone());
-    } else if let Some(secret) = &args.internal_token_secret {
-        config = config.auth_header(issue_internal_conformance_token(args, secret)?);
+    } else if let Some(private_key_der_b64) = &args.internal_signing_key_der_b64 {
+        config = config.auth_header(issue_internal_conformance_token(args, private_key_der_b64)?);
     }
     let transport = StreamableHttpClientTransport::from_config(config);
     Ok(CliHandler.serve(transport).await?)
 }
 
-fn issue_internal_conformance_token(args: &Args, secret: &str) -> Result<String> {
+fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> Result<String> {
+    let private_key_der = BASE64_STANDARD.decode(private_key_der_b64.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        InternalTokenSecret::new(secret.to_string())?,
+        GatewayInternalSigningKey::new(args.internal_signing_key_id.clone(), private_key_der)?,
     );
     let principal_issuer = TokenIssuer::new("https://conformance.veoveo.local")?;
     let principal_subject = TokenSubject::new(args.internal_principal_subject.clone())?;

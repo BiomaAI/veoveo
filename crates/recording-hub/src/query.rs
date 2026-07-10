@@ -40,7 +40,7 @@ fn collect_into(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 }
 
 /// Flattened query result: JSON rows and per-recording row counts.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct QueryResult {
     pub rows: Vec<serde_json::Value>,
     /// recording id → number of data rows seen on the queried timeline.
@@ -55,11 +55,21 @@ pub fn query_tree(
     timeline: &str,
     max_rows: u64,
 ) -> Result<QueryResult> {
-    let segments = collect_segments(root)?;
+    query_segments(&collect_segments(root)?, entities, timeline, max_rows)
+}
+
+/// Query an explicit, already-authorized segment set. Callers remain
+/// responsible for confining paths to the configured spool root.
+pub fn query_segments(
+    segments: &[PathBuf],
+    entities: &str,
+    timeline: &str,
+    max_rows: u64,
+) -> Result<QueryResult> {
     let filter = EntityPathFilter::parse_forgiving(entities);
     let mut result = QueryResult::default();
 
-    for segment in &segments {
+    for segment in segments {
         let engines = QueryEngine::from_rrd_filepath(&ChunkStoreConfig::DEFAULT, segment)
             .with_context(|| format!("reading segment {}", segment.display()))?;
         for (store_id, engine) in engines {

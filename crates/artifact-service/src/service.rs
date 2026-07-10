@@ -1,40 +1,180 @@
-//! The artifact service: the byte-level policy-enforcement point.
-//!
-//! It stamps tenant/owner from the verified identity, records the grant ledger,
-//! decides every read/write with [`veoveo_mcp_contract::access::decide`], and
-//! emits one audit line per decision carrying the reason chain.
+//! Artifact-plane policy enforcement and security workflows.
 
+use std::collections::BTreeSet;
+use std::num::NonZeroU64;
+
+use base64::Engine;
+use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::access::{
-    AccessDecision, AccessLevel, AccessRequest, ArtifactSha256, Grant, Subject, decide,
+    AccessDecision, AccessLevel, AccessRequest, ArtifactId, Grant, Subject, decide,
 };
-use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactObject, ComplianceMetadata};
+use veoveo_mcp_contract::gateway::DataLabelId;
+use veoveo_mcp_contract::storage::{
+    ArtifactMetadata, ArtifactObject, ArtifactReleaseState, ComplianceMetadata,
+};
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, PlaneCaller, PutArtifactRequest, parse_artifact_plane_uri,
+    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, CreateArtifactShareLinkRequest,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactsRequest,
+    PlaneCaller, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
+    parse_artifact_plane_uri,
 };
 
-use crate::ledger::{GrantLedger, StoredArtifact};
-use crate::store::BlobStore;
+use crate::ledger::{
+    ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository, AuditOutcome, BlobSha256,
+    NewArtifact, RepositoryActor, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
+    WriteCapabilityReservation,
+};
+use crate::store::{BlobDownload, BlobStore};
 
-/// Generic over the ledger and blob store so it is unit-testable without a DB.
-pub struct ArtifactService<L: GrantLedger, S: BlobStore> {
-    ledger: L,
-    store: S,
+const DEFAULT_INTERNAL_READ_LIMIT: u64 = 64 * 1024 * 1024;
+const DEFAULT_REDIRECT_THRESHOLD: u64 = 8 * 1024 * 1024;
+const CAPABILITY_MAX_TTL: TimeDelta = TimeDelta::hours(24);
+const SHARE_DEFAULT_TTL: TimeDelta = TimeDelta::days(7);
+const SHARE_MAX_TTL: TimeDelta = TimeDelta::days(30);
+const MAX_ARTIFACT_PUT_JSON_BYTES: usize = 4 * 1024;
+const MAX_ARTIFACT_PRESENTATION_FIELD_BYTES: usize = 255;
+const DEFAULT_LIST_LIMIT: usize = 50;
+const MAX_LIST_LIMIT: usize = 100;
+const LIST_SCAN_BATCH: usize = 100;
+const OBJECT_KEY_NAMESPACE: uuid::Uuid =
+    uuid::Uuid::from_u128(0x78115f34_7753_5b1f_a22c_6cc48885dbf9);
+
+pub enum DownloadDelivery {
+    Bytes(Vec<u8>),
+    SignedRedirect(String),
+    Stream(crate::store::BlobStream),
 }
 
-impl<L: GrantLedger, S: BlobStore> ArtifactService<L, S> {
-    pub fn new(ledger: L, store: S) -> Self {
-        Self { ledger, store }
+pub struct ArtifactDownload {
+    pub metadata: ArtifactMetadata,
+    pub delivery: DownloadDelivery,
+}
+
+pub struct ArtifactService<R: ArtifactRepository, S: BlobStore> {
+    repository: R,
+    store: S,
+    public_base_url: String,
+    max_internal_read_bytes: u64,
+    redirect_threshold_bytes: u64,
+}
+
+impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
+    pub fn new(repository: R, store: S) -> Self {
+        Self::with_options(
+            repository,
+            store,
+            "http://artifact.invalid",
+            DEFAULT_INTERNAL_READ_LIMIT,
+            DEFAULT_REDIRECT_THRESHOLD,
+        )
     }
 
-    /// Run the access decision against a stored artifact, emitting audit
-    /// evidence, and translate a denial into a typed error.
-    fn authorize(
+    pub fn with_options(
+        repository: R,
+        store: S,
+        public_base_url: impl Into<String>,
+        max_internal_read_bytes: u64,
+        redirect_threshold_bytes: u64,
+    ) -> Self {
+        Self {
+            repository,
+            store,
+            public_base_url: public_base_url.into().trim_end_matches('/').to_owned(),
+            max_internal_read_bytes,
+            redirect_threshold_bytes,
+        }
+    }
+
+    fn actor(caller: &PlaneCaller) -> Result<RepositoryActor, ArtifactPlaneError> {
+        Ok(RepositoryActor {
+            tenant: caller
+                .tenant()
+                .cloned()
+                .ok_or(ArtifactPlaneError::Unauthenticated)?,
+            principal: caller.identity.principal.id.clone(),
+            kind: caller.identity.principal.kind,
+            issuer: caller.identity.principal.issuer.clone(),
+            subject: caller.identity.principal.subject.clone(),
+        })
+    }
+
+    async fn load(&self, artifact_id: ArtifactId) -> Result<StoredArtifact, ArtifactPlaneError> {
+        let artifact = self
+            .repository
+            .get_artifact(artifact_id)
+            .await
+            .map_err(transport)?
+            .ok_or(ArtifactPlaneError::NotFound)?;
+        if artifact
+            .metadata
+            .compliance
+            .retention_expires_at
+            .is_some_and(|expires| expires <= Utc::now())
+        {
+            return Err(ArtifactPlaneError::NotFound);
+        }
+        Ok(artifact)
+    }
+
+    async fn audit(
+        &self,
+        actor: Option<RepositoryActor>,
+        tenant: Option<veoveo_mcp_contract::TenantId>,
+        action: &str,
+        artifact_id: Option<ArtifactId>,
+        outcome: AuditOutcome,
+        details: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<(), ArtifactPlaneError> {
+        self.repository
+            .append_audit(ArtifactAuditEvent {
+                actor,
+                tenant,
+                action: action.to_owned(),
+                artifact_id,
+                outcome,
+                details,
+            })
+            .await
+            .map_err(transport)
+    }
+
+    async fn authorize(
+        &self,
         caller: &PlaneCaller,
         stored: &StoredArtifact,
         action: &str,
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
+        let decision = Self::access_decision(caller, stored, level);
+        let mut details = serde_json::Map::new();
+        details.insert("requested".into(), serde_json::json!(level));
+        details.insert("decision".into(), serde_json::json!(decision));
+        self.audit(
+            Some(Self::actor(caller)?),
+            Some(stored.tenant.clone()),
+            action,
+            Some(stored.metadata.artifact_id),
+            if decision.is_allowed() {
+                AuditOutcome::Allowed
+            } else {
+                AuditOutcome::Denied
+            },
+            details,
+        )
+        .await?;
+        match decision {
+            AccessDecision::Allow => Ok(()),
+            denied => Err(ArtifactPlaneError::Denied(denied)),
+        }
+    }
+
+    fn access_decision(
+        caller: &PlaneCaller,
+        stored: &StoredArtifact,
+        level: AccessLevel,
+    ) -> AccessDecision {
         let request = AccessRequest {
             caller_id: &caller.identity.principal.id,
             caller_tenant: caller.tenant(),
@@ -45,135 +185,454 @@ impl<L: GrantLedger, S: BlobStore> ArtifactService<L, S> {
             grants: &stored.grants,
             requested: level,
         };
-        let decision = decide(&request);
-        emit_audit(caller, action, &stored.metadata.sha256, level, decision);
-        match decision {
-            AccessDecision::Allow => Ok(()),
-            other => Err(ArtifactPlaneError::Denied(other)),
+        decide(&request)
+    }
+
+    fn validate_put(
+        caller_labels: &BTreeSet<DataLabelId>,
+        request: &PutArtifactRequest,
+    ) -> Result<BTreeSet<DataLabelId>, ArtifactPlaneError> {
+        let request_bytes = serde_json::to_vec(request).map_err(|error| {
+            ArtifactPlaneError::InvalidRequest(format!(
+                "artifact put descriptor is not serializable: {error}"
+            ))
+        })?;
+        if request_bytes.len() > MAX_ARTIFACT_PUT_JSON_BYTES {
+            return Err(ArtifactPlaneError::InvalidRequest(format!(
+                "artifact put descriptor exceeds {MAX_ARTIFACT_PUT_JSON_BYTES} bytes"
+            )));
         }
+        if let Some(mime_type) = &request.mime_type
+            && (mime_type.is_empty()
+                || mime_type.len() > MAX_ARTIFACT_PRESENTATION_FIELD_BYTES
+                || mime_type.trim() != mime_type
+                || mime_type.chars().any(char::is_control)
+                || !mime_type.contains('/'))
+        {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "artifact MIME type must be a trimmed media type of at most 255 bytes".into(),
+            ));
+        }
+        if let Some(filename) = &request.filename
+            && (filename.is_empty()
+                || filename.len() > MAX_ARTIFACT_PRESENTATION_FIELD_BYTES
+                || filename.trim() != filename
+                || filename.chars().any(char::is_control)
+                || filename.contains('/')
+                || filename.contains('\\')
+                || matches!(filename.as_str(), "." | ".."))
+        {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "artifact filename must be a trimmed basename of at most 255 bytes".into(),
+            ));
+        }
+        if !request.metadata.is_null() && !request.metadata.is_object() {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "artifact metadata must be an object or null".into(),
+            ));
+        }
+        if request
+            .retention_expires_at
+            .is_some_and(|expires| expires <= Utc::now())
+        {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "artifact retention expiry must be in the future".into(),
+            ));
+        }
+        let labels = request.effective_labels();
+        if !labels.is_subset(caller_labels) {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "artifact labels exceed the writer's clearance".into(),
+            ));
+        }
+        Ok(labels)
     }
 
-    async fn load(&self, sha: &ArtifactSha256) -> Result<StoredArtifact, ArtifactPlaneError> {
-        self.ledger
-            .get_artifact(sha)
+    async fn put_for_actor(
+        &self,
+        actor: RepositoryActor,
+        allowed_labels: &BTreeSet<DataLabelId>,
+        request: PutArtifactRequest,
+        bytes: Vec<u8>,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        let artifact_id = ArtifactId::new();
+        let stored = self
+            .store_occurrence(artifact_id, actor.clone(), allowed_labels, request, bytes)
+            .await?;
+        self.audit(
+            Some(actor),
+            Some(stored.tenant.clone()),
+            "artifact.put",
+            Some(artifact_id),
+            AuditOutcome::Allowed,
+            serde_json::Map::new(),
+        )
+        .await?;
+        Ok(stored.metadata)
+    }
+
+    async fn store_occurrence(
+        &self,
+        artifact_id: ArtifactId,
+        actor: RepositoryActor,
+        allowed_labels: &BTreeSet<DataLabelId>,
+        request: PutArtifactRequest,
+        bytes: Vec<u8>,
+    ) -> Result<StoredArtifact, ArtifactPlaneError> {
+        let labels = Self::validate_put(allowed_labels, &request)?;
+        let sha = compute_sha(&bytes);
+        let object_key = tenant_blob_key(&actor.tenant, &sha);
+        self.store
+            .put(&object_key, bytes.clone())
             .await
-            .map_err(|e| ArtifactPlaneError::Transport(e.to_string()))?
-            .ok_or(ArtifactPlaneError::NotFound)
+            .map_err(transport)?;
+        let metadata = ArtifactMetadata {
+            artifact_id,
+            byte_len: bytes.len() as u64,
+            mime_type: request.mime_type.clone(),
+            filename: request.filename.clone(),
+            artifact_uri: artifact_id.plane_uri(),
+            download_url: None,
+            created_at: Utc::now(),
+            release_state: ArtifactReleaseState::Private,
+            compliance: ComplianceMetadata {
+                classification: request.classification.clone(),
+                tenant_id: Some(actor.tenant.clone()),
+                owner_id: Some(actor.principal.clone()),
+                data_labels: request.data_labels.clone(),
+                retention_expires_at: request.retention_expires_at,
+            },
+            metadata: request.metadata,
+        };
+        let owner_grant = Grant {
+            artifact: artifact_id,
+            subject: Subject::User(actor.principal.clone()),
+            level: AccessLevel::Admin,
+            tenant: actor.tenant.clone(),
+            data_labels: labels.clone(),
+            retention_expires_at: request.retention_expires_at,
+        };
+        self.repository
+            .create_artifact(NewArtifact {
+                actor: actor.clone(),
+                stored: StoredArtifact {
+                    metadata,
+                    tenant: actor.tenant.clone(),
+                    labels,
+                    grants: vec![owner_grant],
+                    blob_sha256: sha,
+                    object_key,
+                },
+            })
+            .await
+            .map_err(transport)
+    }
+
+    pub async fn issue_write_capability(
+        &self,
+        caller: &PlaneCaller,
+        request: IssueArtifactWriteCapabilityRequest,
+    ) -> Result<IssuedArtifactWriteCapability, ArtifactPlaneError> {
+        let now = Utc::now();
+        if uuid::Uuid::parse_str(&request.task_id)
+            .ok()
+            .is_none_or(|task_id| task_id.get_version_num() != 7)
+        {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "capability task_id must be a UUIDv7".into(),
+            ));
+        }
+        if request.expires_at <= now || request.expires_at > now + CAPABILITY_MAX_TTL {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "capability expiry must be within the next 24 hours".into(),
+            ));
+        }
+        let actor = Self::actor(caller)?;
+        let capability_id = ArtifactWriteCapabilityId::new();
+        let secret = random_secret()?;
+        self.repository
+            .create_write_capability(WriteCapabilityDraft {
+                capability_id,
+                actor: actor.clone(),
+                profile: caller.identity.profile.clone(),
+                server: caller.identity.server.clone(),
+                task_id: request.task_id.clone(),
+                token_hash: secret_hash(b"veoveo.artifact-write.v1", &secret),
+                labels: caller.clearance().clone(),
+                max_artifact_count: request.max_artifact_count.get(),
+                max_total_bytes: request.max_total_bytes.get(),
+                expires_at: request.expires_at,
+            })
+            .await
+            .map_err(transport)?;
+        self.audit(
+            Some(actor.clone()),
+            Some(actor.tenant),
+            "artifact.capability.issue",
+            None,
+            AuditOutcome::Allowed,
+            serde_json::Map::from_iter([(
+                "capability_id".into(),
+                serde_json::json!(capability_id),
+            )]),
+        )
+        .await?;
+        Ok(IssuedArtifactWriteCapability {
+            capability_id,
+            secret: ArtifactWriteCapabilitySecret::new(secret)?,
+            task_id: request.task_id,
+            expires_at: request.expires_at,
+        })
+    }
+
+    pub async fn redeem_write_capability(
+        &self,
+        secret: &str,
+        request: RedeemArtifactWriteCapabilityRequest,
+        bytes: Vec<u8>,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        let requested_labels =
+            Self::validate_put(&request.artifact.effective_labels(), &request.artifact)?;
+        let sha = compute_sha(&bytes);
+        let request_hash = artifact_write_request_hash(&request.artifact, &sha)?;
+        let proposed_artifact_id = ArtifactId::new();
+        let redemption = self
+            .repository
+            .reserve_write_capability(WriteCapabilityReservation {
+                capability_id: request.capability_id,
+                token_hash: secret_hash(b"veoveo.artifact-write.v1", secret),
+                task_id: request.task_id.clone(),
+                idempotency_key: request.idempotency_key.to_string(),
+                request_hash,
+                byte_len: bytes.len() as u64,
+                requested_labels,
+                proposed_artifact_id,
+            })
+            .await
+            .map_err(|error| match error {
+                crate::ledger::RepositoryError::Conflict(message) => {
+                    ArtifactPlaneError::Conflict(message)
+                }
+                other => transport(other),
+            })?
+            .ok_or(ArtifactPlaneError::Unauthenticated)?;
+        if redemption.finalized {
+            return self
+                .repository
+                .get_artifact(redemption.artifact_id)
+                .await
+                .map_err(transport)?
+                .map(|stored| stored.metadata)
+                .ok_or_else(|| {
+                    ArtifactPlaneError::Transport(
+                        "finalized artifact write has no occurrence".into(),
+                    )
+                });
+        }
+        if !redemption.request_matches {
+            let existing = self
+                .repository
+                .get_artifact(redemption.artifact_id)
+                .await
+                .map_err(transport)?;
+            let Some(existing) = existing else {
+                return Err(ArtifactPlaneError::Conflict(
+                    "artifact write reservation changed concurrently before staging".into(),
+                ));
+            };
+            if existing.tenant != redemption.actor.tenant {
+                return Err(ArtifactPlaneError::Conflict(
+                    "reserved occurrence belongs to a different tenant".into(),
+                ));
+            }
+            let finalized = self
+                .repository
+                .finalize_write_capability(redemption.redemption_id, redemption.artifact_id)
+                .await
+                .map_err(transport)?;
+            if finalized {
+                self.audit(
+                    Some(redemption.actor),
+                    Some(existing.tenant.clone()),
+                    "artifact.capability.redeem",
+                    Some(redemption.artifact_id),
+                    AuditOutcome::Allowed,
+                    serde_json::Map::from_iter([(
+                        "idempotency_key".into(),
+                        serde_json::json!(request.idempotency_key.as_str()),
+                    )]),
+                )
+                .await?;
+            }
+            return Ok(existing.metadata);
+        }
+
+        let stored = match self
+            .store_occurrence(
+                redemption.artifact_id,
+                redemption.actor.clone(),
+                &redemption.labels,
+                request.artifact,
+                bytes,
+            )
+            .await
+        {
+            Ok(stored) => stored,
+            Err(ArtifactPlaneError::Transport(_)) => {
+                let existing = self
+                    .repository
+                    .get_artifact(redemption.artifact_id)
+                    .await
+                    .map_err(transport)?;
+                let Some(existing) = existing else {
+                    return Err(ArtifactPlaneError::Transport(
+                        "artifact occurrence staging failed".into(),
+                    ));
+                };
+                if existing.tenant != redemption.actor.tenant
+                    || existing.blob_sha256.as_str() != sha.as_str()
+                {
+                    return Err(ArtifactPlaneError::Conflict(
+                        "reserved occurrence conflicts with the idempotent artifact write".into(),
+                    ));
+                }
+                existing
+            }
+            Err(error) => return Err(error),
+        };
+        let finalized = self
+            .repository
+            .finalize_write_capability(redemption.redemption_id, redemption.artifact_id)
+            .await
+            .map_err(transport)?;
+        if finalized {
+            self.audit(
+                Some(redemption.actor),
+                Some(stored.tenant.clone()),
+                "artifact.capability.redeem",
+                Some(redemption.artifact_id),
+                AuditOutcome::Allowed,
+                serde_json::Map::from_iter([(
+                    "idempotency_key".into(),
+                    serde_json::json!(request.idempotency_key.as_str()),
+                )]),
+            )
+            .await?;
+        }
+        Ok(stored.metadata)
+    }
+
+    pub async fn download(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: ArtifactId,
+    ) -> Result<ArtifactDownload, ArtifactPlaneError> {
+        let stored = self.load(artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.download", AccessLevel::Read)
+            .await?;
+        self.delivery(stored).await
+    }
+
+    pub async fn redeem_public_share(
+        &self,
+        token: &str,
+    ) -> Result<ArtifactDownload, ArtifactPlaneError> {
+        if token.len() < 32 || token.chars().any(char::is_whitespace) {
+            return Err(ArtifactPlaneError::NotFound);
+        }
+        let token_hash = secret_hash(b"veoveo.artifact-share.v1", token);
+        let artifact_id = self
+            .repository
+            .redeem_share_link(&token_hash)
+            .await
+            .map_err(transport)?;
+        let Some(artifact_id) = artifact_id else {
+            self.audit(
+                None,
+                None,
+                "artifact.share.redeem",
+                None,
+                AuditOutcome::Denied,
+                serde_json::Map::new(),
+            )
+            .await?;
+            return Err(ArtifactPlaneError::NotFound);
+        };
+        let stored = self.load(artifact_id).await?;
+        self.audit(
+            None,
+            Some(stored.tenant.clone()),
+            "artifact.share.redeem",
+            Some(artifact_id),
+            AuditOutcome::Allowed,
+            serde_json::Map::new(),
+        )
+        .await?;
+        self.delivery(stored).await
+    }
+
+    async fn delivery(
+        &self,
+        stored: StoredArtifact,
+    ) -> Result<ArtifactDownload, ArtifactPlaneError> {
+        let delivery = if stored.metadata.byte_len < self.redirect_threshold_bytes {
+            DownloadDelivery::Bytes(
+                self.store
+                    .get_bounded(&stored.object_key, self.redirect_threshold_bytes)
+                    .await
+                    .map_err(transport)?,
+            )
+        } else {
+            match self
+                .store
+                .download(&stored.object_key)
+                .await
+                .map_err(transport)?
+            {
+                BlobDownload::SignedRedirect(url) => DownloadDelivery::SignedRedirect(url),
+                BlobDownload::Stream(stream) => DownloadDelivery::Stream(stream),
+            }
+        };
+        Ok(ArtifactDownload {
+            metadata: stored.metadata,
+            delivery,
+        })
     }
 }
 
-fn emit_audit(
-    caller: &PlaneCaller,
-    action: &str,
-    sha: &str,
-    requested: AccessLevel,
-    decision: AccessDecision,
-) {
-    let principal = caller.identity.principal.id.as_str();
-    let tenant = caller.tenant().map(|t| t.as_str()).unwrap_or("<none>");
-    // Single structured audit stream; reason chain is the AccessDecision variant.
-    tracing::info!(
-        target: "artifact_audit",
-        principal,
-        tenant,
-        action,
-        artifact_sha256 = sha,
-        requested = ?requested,
-        decision = ?decision,
-        allowed = decision.is_allowed(),
-        "artifact access decision"
-    );
-}
-
-fn compute_sha(bytes: &[u8]) -> ArtifactSha256 {
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    let digest = hasher.finalize();
-    // hex of a sha256 is always valid; unwrap is safe.
-    ArtifactSha256::new(hex::encode(digest)).expect("sha256 hex is valid")
-}
-
-impl<L: GrantLedger, S: BlobStore> ArtifactPlane for ArtifactService<L, S> {
+impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S> {
     async fn put(
         &self,
         caller: &PlaneCaller,
         request: PutArtifactRequest,
         bytes: Vec<u8>,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
-        let tenant = caller
-            .tenant()
-            .cloned()
-            .ok_or(ArtifactPlaneError::Unauthenticated)?;
-        let owner = caller.identity.principal.id.clone();
-        let sha = compute_sha(&bytes);
-        let labels = request.effective_labels();
-
-        // Store bytes first (encrypted, tenant-scoped); ledger records truth.
-        self.store
-            .put(&tenant, &sha, bytes.clone())
+        self.put_for_actor(Self::actor(caller)?, caller.clearance(), request, bytes)
             .await
-            .map_err(|e| ArtifactPlaneError::Transport(e.to_string()))?;
-
-        let metadata = ArtifactMetadata {
-            sha256: sha.as_str().to_string(),
-            byte_len: bytes.len() as u64,
-            mime_type: request.mime_type.clone(),
-            filename: request.filename.clone(),
-            artifact_uri: sha.plane_uri(),
-            download_url: None,
-            created_at: chrono::Utc::now(),
-            compliance: ComplianceMetadata {
-                classification: request.classification.clone(),
-                tenant_id: Some(tenant.clone()),
-                owner_id: Some(owner.clone()),
-                data_labels: request.data_labels.clone(),
-                retention_expires_at: request.retention_expires_at,
-            },
-            metadata: request.metadata.clone(),
-        };
-
-        let owner_grant = Grant {
-            artifact: sha.clone(),
-            subject: Subject::User(owner),
-            level: AccessLevel::Admin,
-            tenant: tenant.clone(),
-            data_labels: labels.clone(),
-            retention_expires_at: request.retention_expires_at,
-        };
-
-        self.ledger
-            .insert_artifact(StoredArtifact {
-                metadata: metadata.clone(),
-                tenant,
-                labels,
-                grants: vec![owner_grant],
-            })
-            .await
-            .map_err(|e| ArtifactPlaneError::Transport(e.to_string()))?;
-
-        emit_audit(
-            caller,
-            "put",
-            &metadata.sha256,
-            AccessLevel::Admin,
-            AccessDecision::Allow,
-        );
-        Ok(metadata)
     }
 
     async fn get(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
         level: AccessLevel,
     ) -> Result<ArtifactObject, ArtifactPlaneError> {
-        let stored = self.load(sha).await?;
-        Self::authorize(caller, &stored, "get", level)?;
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.get", level)
+            .await?;
         let bytes = self
             .store
-            .get(&stored.tenant, sha)
+            .get_bounded(&stored.object_key, self.max_internal_read_bytes)
             .await
-            .map_err(|e| ArtifactPlaneError::Transport(e.to_string()))?;
+            .map_err(|error| match error {
+                crate::store::BlobStoreError::TooLarge { .. } => {
+                    ArtifactPlaneError::InvalidRequest(
+                        "artifact exceeds the internal read limit; use the download endpoint"
+                            .into(),
+                    )
+                }
+                other => transport(other),
+            })?;
         Ok(ArtifactObject {
             metadata: stored.metadata,
             bytes,
@@ -183,11 +642,98 @@ impl<L: GrantLedger, S: BlobStore> ArtifactPlane for ArtifactService<L, S> {
     async fn head(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
-        let stored = self.load(sha).await?;
-        Self::authorize(caller, &stored, "head", AccessLevel::Read)?;
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.head", AccessLevel::Read)
+            .await?;
         Ok(stored.metadata)
+    }
+
+    async fn list(
+        &self,
+        caller: &PlaneCaller,
+        request: ListArtifactsRequest,
+    ) -> Result<ArtifactPage, ArtifactPlaneError> {
+        let limit = usize::from(request.limit.unwrap_or(DEFAULT_LIST_LIMIT as u16));
+        if limit == 0 || limit > MAX_LIST_LIMIT {
+            return Err(ArtifactPlaneError::InvalidRequest(format!(
+                "artifact list limit must be between 1 and {MAX_LIST_LIMIT}"
+            )));
+        }
+        let actor = Self::actor(caller)?;
+        let groups: BTreeSet<_> = caller
+            .memberships
+            .iter()
+            .map(|membership| membership.group.clone())
+            .collect();
+        let mut scan_cursor = request.cursor;
+        let mut artifacts = Vec::with_capacity(limit);
+
+        loop {
+            let candidates = self
+                .repository
+                .list_artifacts(ArtifactListQuery {
+                    actor: actor.clone(),
+                    groups: groups.clone(),
+                    cursor: scan_cursor,
+                    limit: LIST_SCAN_BATCH,
+                })
+                .await
+                .map_err(transport)?;
+            if candidates.is_empty() {
+                break;
+            }
+            let exhausted = candidates.len() < LIST_SCAN_BATCH;
+            let previous_cursor = scan_cursor;
+            for stored in candidates {
+                scan_cursor = Some(stored.metadata.artifact_id);
+                let retained = stored
+                    .metadata
+                    .compliance
+                    .retention_expires_at
+                    .is_none_or(|expires| expires > Utc::now());
+                if retained
+                    && Self::access_decision(caller, &stored, AccessLevel::Read).is_allowed()
+                {
+                    artifacts.push(stored.metadata);
+                    if artifacts.len() == limit {
+                        break;
+                    }
+                }
+            }
+            if artifacts.len() == limit || exhausted {
+                break;
+            }
+            if scan_cursor == previous_cursor {
+                return Err(ArtifactPlaneError::Transport(
+                    "artifact discovery cursor did not advance".into(),
+                ));
+            }
+        }
+
+        self.audit(
+            Some(actor.clone()),
+            Some(actor.tenant),
+            "artifact.list",
+            None,
+            AuditOutcome::Allowed,
+            serde_json::Map::from_iter([
+                ("count".into(), serde_json::json!(artifacts.len())),
+                ("limit".into(), serde_json::json!(limit)),
+            ]),
+        )
+        .await?;
+        let next_cursor = (artifacts.len() == limit).then(|| {
+            artifacts
+                .last()
+                .expect("full page has a last artifact")
+                .artifact_id
+        });
+        Ok(ArtifactPage {
+            artifacts,
+            next_cursor,
+        })
     }
 
     async fn resolve(
@@ -195,89 +741,247 @@ impl<L: GrantLedger, S: BlobStore> ArtifactPlane for ArtifactService<L, S> {
         caller: &PlaneCaller,
         uri: &str,
     ) -> Result<ArtifactObject, ArtifactPlaneError> {
-        let sha = parse_artifact_plane_uri(uri)
-            .ok_or_else(|| ArtifactPlaneError::InvalidRequest(format!("bad plane uri: {uri}")))?;
-        self.get(caller, &sha, AccessLevel::Read).await
+        let artifact_id = parse_artifact_plane_uri(uri).ok_or_else(|| {
+            ArtifactPlaneError::InvalidRequest(format!("invalid artifact URI `{uri}`"))
+        })?;
+        self.get(caller, &artifact_id, AccessLevel::Read).await
     }
 
     async fn grant(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
         subject: Subject,
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
-        let stored = self.load(sha).await?;
-        Self::authorize(caller, &stored, "grant", AccessLevel::Admin)?;
-        let grant = Grant {
-            artifact: sha.clone(),
-            subject,
-            level,
-            tenant: stored.tenant.clone(),
-            data_labels: stored.labels.clone(),
-            retention_expires_at: stored.metadata.compliance.retention_expires_at,
-        };
-        self.ledger
-            .upsert_grant(grant)
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.grant", AccessLevel::Admin)
+            .await?;
+        if matches!(
+            &subject,
+            Subject::User(id)
+                if stored.metadata.compliance.owner_id.as_ref() == Some(id)
+                    && level != AccessLevel::Admin
+        ) {
+            return Err(ArtifactPlaneError::Conflict(
+                "the owner admin grant cannot be lowered".into(),
+            ));
+        }
+        self.repository
+            .upsert_grant(
+                &Self::actor(caller)?,
+                Grant {
+                    artifact: *artifact_id,
+                    subject,
+                    level,
+                    tenant: stored.tenant,
+                    data_labels: stored.labels,
+                    retention_expires_at: stored.metadata.compliance.retention_expires_at,
+                },
+            )
             .await
-            .map_err(|e| ArtifactPlaneError::Transport(e.to_string()))
+            .map_err(transport)
     }
 
     async fn revoke(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
         subject: &Subject,
     ) -> Result<(), ArtifactPlaneError> {
-        let stored = self.load(sha).await?;
-        Self::authorize(caller, &stored, "revoke", AccessLevel::Admin)?;
-        self.ledger
-            .remove_grant(sha, subject)
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.revoke", AccessLevel::Admin)
+            .await?;
+        if matches!(
+            subject,
+            Subject::User(id) if stored.metadata.compliance.owner_id.as_ref() == Some(id)
+        ) {
+            return Err(ArtifactPlaneError::Conflict(
+                "the owner admin grant cannot be revoked".into(),
+            ));
+        }
+        self.repository
+            .remove_grant(*artifact_id, subject)
             .await
-            .map_err(|e| ArtifactPlaneError::Transport(e.to_string()))
+            .map_err(transport)
     }
 
     async fn list_grants(
         &self,
         caller: &PlaneCaller,
-        sha: &ArtifactSha256,
+        artifact_id: &ArtifactId,
     ) -> Result<Vec<Grant>, ArtifactPlaneError> {
-        let stored = self.load(sha).await?;
-        Self::authorize(caller, &stored, "list_grants", AccessLevel::Admin)?;
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.grants.list", AccessLevel::Admin)
+            .await?;
         Ok(stored.grants)
     }
+
+    async fn set_release_state(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        release_state: ArtifactReleaseState,
+    ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.release", AccessLevel::Admin)
+            .await?;
+        self.repository
+            .set_release_state(*artifact_id, release_state)
+            .await
+            .map_err(transport)?
+            .map(|stored| stored.metadata)
+            .ok_or(ArtifactPlaneError::NotFound)
+    }
+
+    async fn create_share_link(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        request: CreateArtifactShareLinkRequest,
+    ) -> Result<ArtifactShareLink, ArtifactPlaneError> {
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.share.create", AccessLevel::Admin)
+            .await?;
+        if stored.metadata.release_state == ArtifactReleaseState::Private {
+            return Err(ArtifactPlaneError::Conflict(
+                "artifact must be releasable before a public link can be created".into(),
+            ));
+        }
+        let now = Utc::now();
+        let expires_at = request.expires_at.unwrap_or(now + SHARE_DEFAULT_TTL);
+        if expires_at <= now || expires_at > now + SHARE_MAX_TTL {
+            return Err(ArtifactPlaneError::InvalidRequest(
+                "share expiry must be within the next 30 days".into(),
+            ));
+        }
+        let actor = Self::actor(caller)?;
+        let link_id = ArtifactShareLinkId::new();
+        let secret = random_secret()?;
+        let max_downloads = request.max_downloads.map(NonZeroU64::get);
+        self.repository
+            .create_share_link(ShareLinkDraft {
+                link_id,
+                artifact_id: *artifact_id,
+                actor: actor.clone(),
+                token_hash: secret_hash(b"veoveo.artifact-share.v1", &secret),
+                expires_at,
+                max_downloads,
+            })
+            .await
+            .map_err(transport)?;
+        Ok(ArtifactShareLink {
+            link_id,
+            artifact_id: *artifact_id,
+            url: format!("{}/s/{secret}", self.public_base_url),
+            expires_at,
+            max_downloads: request.max_downloads,
+        })
+    }
+
+    async fn revoke_share_link(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        link_id: &ArtifactShareLinkId,
+    ) -> Result<(), ArtifactPlaneError> {
+        let stored = self.load(*artifact_id).await?;
+        self.authorize(caller, &stored, "artifact.share.revoke", AccessLevel::Admin)
+            .await?;
+        if self
+            .repository
+            .revoke_share_link(*artifact_id, *link_id)
+            .await
+            .map_err(transport)?
+        {
+            Ok(())
+        } else {
+            Err(ArtifactPlaneError::NotFound)
+        }
+    }
+}
+
+fn compute_sha(bytes: &[u8]) -> BlobSha256 {
+    BlobSha256::new(hex::encode(Sha256::digest(bytes)))
+        .expect("a SHA-256 digest is valid lowercase hex")
+}
+
+fn artifact_write_request_hash(
+    request: &PutArtifactRequest,
+    blob_sha: &BlobSha256,
+) -> Result<String, ArtifactPlaneError> {
+    let request = serde_json::to_vec(request).map_err(|error| {
+        ArtifactPlaneError::InvalidRequest(format!(
+            "artifact write request cannot be canonicalized: {error}"
+        ))
+    })?;
+    let mut hash = Sha256::new();
+    hash.update(b"veoveo.artifact-write-request.v1");
+    hash.update([0]);
+    hash.update(blob_sha.as_str().as_bytes());
+    hash.update([0]);
+    hash.update(request);
+    Ok(hex::encode(hash.finalize()))
+}
+
+fn tenant_blob_key(tenant: &veoveo_mcp_contract::TenantId, sha: &BlobSha256) -> String {
+    let blob_id = uuid::Uuid::new_v5(
+        &OBJECT_KEY_NAMESPACE,
+        format!("{}:{}", tenant.as_str(), sha.as_str()).as_bytes(),
+    );
+    format!("tenants/{}/blobs/{blob_id}", tenant.as_str())
+}
+
+fn random_secret() -> Result<String, ArtifactPlaneError> {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).map_err(|error| {
+        ArtifactPlaneError::Transport(format!("randomness unavailable: {error}"))
+    })?;
+    Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes))
+}
+
+fn secret_hash(domain: &[u8], secret: &str) -> String {
+    let mut hash = Sha256::new();
+    hash.update(domain);
+    hash.update([0]);
+    hash.update(secret.as_bytes());
+    hex::encode(hash.finalize())
+}
+
+fn transport(error: impl std::fmt::Display) -> ArtifactPlaneError {
+    ArtifactPlaneError::Transport(error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+    use std::num::{NonZeroU32, NonZeroU64};
 
-    use chrono::Utc;
-    use veoveo_mcp_contract::gateway::TenantId;
+    use chrono::{TimeDelta, Utc};
     use veoveo_mcp_contract::gateway::{
-        DataLabelId, GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TokenIssuer,
+        GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
         TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
-    use veoveo_mcp_contract::{JwtId, Principal};
+    use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, JwtId, Principal};
 
     use super::*;
-    use crate::ledger::testing::InMemoryLedger;
+    use crate::ledger::testing::InMemoryRepository;
     use crate::store::testing::InMemoryBlobStore;
 
     fn caller(principal: &str, tenant: &str, labels: &[&str]) -> PlaneCaller {
         let now = Utc::now();
         PlaneCaller {
-            bearer_token: "t".to_string(),
+            bearer_token: "signed-token".into(),
             identity: GatewayInternalIdentity {
                 issuer: TokenIssuer::new("veoveo-internal").unwrap(),
                 profile: GatewayProfileId::new("operator").unwrap(),
-                server: ServerSlug::new("duckdb").unwrap(),
+                server: ServerSlug::new("media").unwrap(),
                 principal: Principal {
                     id: PrincipalId::new(principal).unwrap(),
                     kind: PrincipalKind::User,
                     issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-                    subject: TokenSubject::new("s").unwrap(),
+                    subject: TokenSubject::new(format!("subject-{principal}")).unwrap(),
                     tenant: Some(TenantId::new(tenant).unwrap()),
                     groups: BTreeSet::new(),
                     group_roles: BTreeSet::new(),
@@ -285,7 +989,7 @@ mod tests {
                     scopes: BTreeSet::new(),
                     data_labels: labels
                         .iter()
-                        .map(|l| DataLabelId::new(*l).unwrap())
+                        .map(|label| DataLabelId::new(*label).unwrap())
                         .collect(),
                     assurances: BTreeSet::new(),
                     authenticated_at: Some(now),
@@ -293,199 +997,513 @@ mod tests {
                 jwt_id: JwtId::new(uuid::Uuid::new_v4().to_string()).unwrap(),
                 issued_at: now,
                 not_before: now,
-                expires_at: now + chrono::TimeDelta::minutes(5),
+                expires_at: now + TimeDelta::minutes(5),
             },
             memberships: BTreeSet::new(),
         }
     }
 
-    /// A caller in `tenant` who is a member of `group` at `role`, mirroring what
-    /// [`Principal::group_memberships`] produces from a signed identity.
-    fn group_caller(principal: &str, tenant: &str, group: &str, role: AccessLevel) -> PlaneCaller {
-        use veoveo_mcp_contract::access::GroupMembership;
-        use veoveo_mcp_contract::gateway::GroupId;
-        let mut c = caller(principal, tenant, &[]);
-        let group = GroupId::new(group).unwrap();
-        c.identity.principal.groups = BTreeSet::from([group.clone()]);
-        if role != AccessLevel::Read {
-            c.identity.principal.group_roles = BTreeSet::from([GroupMembership {
-                group: group.clone(),
-                role,
-            }]);
+    fn service() -> (
+        ArtifactService<InMemoryRepository, InMemoryBlobStore>,
+        InMemoryRepository,
+    ) {
+        let repository = InMemoryRepository::default();
+        (
+            ArtifactService::with_options(
+                repository.clone(),
+                InMemoryBlobStore::default(),
+                "https://artifacts.example.com",
+                1024,
+                8,
+            ),
+            repository,
+        )
+    }
+
+    #[tokio::test]
+    async fn put_rejects_transport_invalid_presentation_metadata() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &[]);
+        for request in [
+            PutArtifactRequest {
+                mime_type: Some("not-a-media-type".into()),
+                ..PutArtifactRequest::default()
+            },
+            PutArtifactRequest {
+                filename: Some("../escape.bin".into()),
+                ..PutArtifactRequest::default()
+            },
+            PutArtifactRequest {
+                metadata: serde_json::json!({"value": "x".repeat(5_000)}),
+                ..PutArtifactRequest::default()
+            },
+        ] {
+            assert!(matches!(
+                service.put(&alice, request, b"data".to_vec()).await,
+                Err(ArtifactPlaneError::InvalidRequest(_))
+            ));
         }
-        c.memberships = c.identity.principal.group_memberships();
-        c
-    }
-
-    fn service() -> ArtifactService<InMemoryLedger, InMemoryBlobStore> {
-        ArtifactService::new(InMemoryLedger::default(), InMemoryBlobStore::default())
     }
 
     #[tokio::test]
-    async fn group_grant_lets_a_member_read() {
-        let svc = service();
+    async fn identical_bytes_create_distinct_occurrences_and_tenants_remain_isolated() {
+        let (service, repository) = service();
         let alice = caller("alice", "acme", &[]);
-        let meta = svc
-            .put(&alice, PutArtifactRequest::default(), b"shared".to_vec())
+        let first = service
+            .put(&alice, PutArtifactRequest::default(), b"same".to_vec())
             .await
             .unwrap();
-        let sha = ArtifactSha256::new(meta.sha256).unwrap();
-        // Share the artifact with a group at read level.
-        svc.grant(
-            &alice,
-            &sha,
-            Subject::Group(veoveo_mcp_contract::gateway::GroupId::new("eng").unwrap()),
-            AccessLevel::Read,
-        )
-        .await
-        .unwrap();
-
-        // A member of eng (bare membership => Read) in the same tenant can read.
-        let bob = group_caller("bob", "acme", "eng", AccessLevel::Read);
-        let obj = svc.get(&bob, &sha, AccessLevel::Read).await.unwrap();
-        assert_eq!(obj.bytes, b"shared");
-
-        // A non-member is still denied need-to-know.
-        let carol = caller("carol", "acme", &[]);
+        let second = service
+            .put(&alice, PutArtifactRequest::default(), b"same".to_vec())
+            .await
+            .unwrap();
+        assert_ne!(first.artifact_id, second.artifact_id);
+        assert_eq!(first.artifact_uri, first.artifact_id.plane_uri());
+        assert_eq!(first.download_url, None);
         assert_eq!(
-            svc.get(&carol, &sha, AccessLevel::Read).await,
-            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
+            service
+                .get(&alice, &first.artifact_id, AccessLevel::Read)
+                .await
+                .unwrap()
+                .bytes,
+            b"same"
         );
-    }
 
-    #[tokio::test]
-    async fn group_read_grant_does_not_confer_write() {
-        let svc = service();
-        let alice = caller("alice", "acme", &[]);
-        let meta = svc
-            .put(&alice, PutArtifactRequest::default(), b"data".to_vec())
-            .await
-            .unwrap();
-        let sha = ArtifactSha256::new(meta.sha256).unwrap();
-        svc.grant(
-            &alice,
-            &sha,
-            Subject::Group(veoveo_mcp_contract::gateway::GroupId::new("eng").unwrap()),
-            AccessLevel::Read,
-        )
-        .await
-        .unwrap();
-        // Even an admin-in-group member is capped by the grant level (min).
-        let bob = group_caller("bob", "acme", "eng", AccessLevel::Admin);
+        let other_tenant = caller("alice", "beta", &[]);
         assert_eq!(
-            svc.get(&bob, &sha, AccessLevel::Admin).await,
-            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
-        );
-        // ...but read still works.
-        assert!(svc.get(&bob, &sha, AccessLevel::Read).await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn put_then_owner_get_roundtrips_bytes() {
-        let svc = service();
-        let alice = caller("alice", "acme", &[]);
-        let meta = svc
-            .put(&alice, PutArtifactRequest::default(), b"payload".to_vec())
-            .await
-            .unwrap();
-        let sha = ArtifactSha256::new(meta.sha256.clone()).unwrap();
-        assert_eq!(meta.compliance.tenant_id.unwrap().as_str(), "acme");
-        let obj = svc.get(&alice, &sha, AccessLevel::Read).await.unwrap();
-        assert_eq!(obj.bytes, b"payload");
-    }
-
-    #[tokio::test]
-    async fn cross_tenant_get_is_denied() {
-        let svc = service();
-        let alice = caller("alice", "acme", &[]);
-        let meta = svc
-            .put(&alice, PutArtifactRequest::default(), b"x".to_vec())
-            .await
-            .unwrap();
-        let sha = ArtifactSha256::new(meta.sha256).unwrap();
-        // grant mallory by id, but she is in another tenant.
-        svc.grant(
-            &alice,
-            &sha,
-            Subject::User(PrincipalId::new("mallory").unwrap()),
-            AccessLevel::Read,
-        )
-        .await
-        .unwrap();
-        let mallory = caller("mallory", "evil", &[]);
-        assert_eq!(
-            svc.get(&mallory, &sha, AccessLevel::Read).await,
+            service
+                .get(&other_tenant, &first.artifact_id, AccessLevel::Read)
+                .await,
             Err(ArtifactPlaneError::Denied(AccessDecision::DenyTenant))
         );
+        assert!(repository.audit_count() >= 4);
     }
 
     #[tokio::test]
-    async fn mac_denies_uncleared_reader() {
-        let svc = service();
-        let alice = caller("alice", "acme", &["cui"]);
-        let req = PutArtifactRequest {
-            classification: Some(DataLabelId::new("cui").unwrap()),
-            ..Default::default()
-        };
-        let meta = svc.put(&alice, req, b"secret".to_vec()).await.unwrap();
-        let sha = ArtifactSha256::new(meta.sha256).unwrap();
-        svc.grant(
-            &alice,
-            &sha,
-            Subject::User(PrincipalId::new("erin").unwrap()),
-            AccessLevel::Read,
-        )
-        .await
-        .unwrap();
-        let erin = caller("erin", "acme", &[]);
-        assert_eq!(
-            svc.get(&erin, &sha, AccessLevel::Read).await,
-            Err(ArtifactPlaneError::Denied(AccessDecision::DenyClearance))
+    async fn discovery_is_grant_filtered_and_keyset_paginated() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &[]);
+        let bob = caller("bob", "acme", &[]);
+        let first = service
+            .put(&alice, PutArtifactRequest::default(), b"first".to_vec())
+            .await
+            .unwrap();
+        let second = service
+            .put(&alice, PutArtifactRequest::default(), b"second".to_vec())
+            .await
+            .unwrap();
+        let third = service
+            .put(&alice, PutArtifactRequest::default(), b"third".to_vec())
+            .await
+            .unwrap();
+
+        assert!(
+            service
+                .list(&bob, ListArtifactsRequest::default())
+                .await
+                .unwrap()
+                .artifacts
+                .is_empty()
         );
-    }
-
-    #[tokio::test]
-    async fn identical_bytes_dedup_to_same_sha() {
-        let svc = service();
-        let alice = caller("alice", "acme", &[]);
-        let a = svc
-            .put(&alice, PutArtifactRequest::default(), b"dup".to_vec())
-            .await
-            .unwrap();
-        let b = svc
-            .put(&alice, PutArtifactRequest::default(), b"dup".to_vec())
-            .await
-            .unwrap();
-        assert_eq!(a.sha256, b.sha256);
-    }
-
-    #[tokio::test]
-    async fn non_admin_cannot_grant() {
-        let svc = service();
-        let alice = caller("alice", "acme", &[]);
-        let meta = svc
-            .put(&alice, PutArtifactRequest::default(), b"z".to_vec())
-            .await
-            .unwrap();
-        let sha = ArtifactSha256::new(meta.sha256).unwrap();
-        svc.grant(
-            &alice,
-            &sha,
-            Subject::User(PrincipalId::new("carol").unwrap()),
-            AccessLevel::Read,
-        )
-        .await
-        .unwrap();
-        let carol = caller("carol", "acme", &[]);
-        assert_eq!(
-            svc.grant(
-                &carol,
-                &sha,
-                Subject::User(PrincipalId::new("dave").unwrap()),
-                AccessLevel::Read
+        service
+            .grant(
+                &alice,
+                &first.artifact_id,
+                Subject::User(bob.identity.principal.id.clone()),
+                AccessLevel::Read,
             )
-            .await,
-            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
+            .await
+            .unwrap();
+        let bob_page = service
+            .list(&bob, ListArtifactsRequest::default())
+            .await
+            .unwrap();
+        assert_eq!(
+            bob_page
+                .artifacts
+                .iter()
+                .map(|artifact| artifact.artifact_id)
+                .collect::<Vec<_>>(),
+            vec![first.artifact_id]
         );
+
+        let first_page = service
+            .list(
+                &alice,
+                ListArtifactsRequest {
+                    cursor: None,
+                    limit: Some(2),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(first_page.artifacts.len(), 2);
+        let next = first_page.next_cursor.expect("full page has a cursor");
+        let second_page = service
+            .list(
+                &alice,
+                ListArtifactsRequest {
+                    cursor: Some(next),
+                    limit: Some(2),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(second_page.artifacts.len(), 1);
+        let all = first_page
+            .artifacts
+            .iter()
+            .chain(&second_page.artifacts)
+            .map(|artifact| artifact.artifact_id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            all,
+            BTreeSet::from([first.artifact_id, second.artifact_id, third.artifact_id])
+        );
+    }
+
+    #[tokio::test]
+    async fn capability_redemption_is_task_label_byte_and_count_bound() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &["cui"]);
+        let task_id = uuid::Uuid::now_v7().to_string();
+        let issued = service
+            .issue_write_capability(
+                &alice,
+                IssueArtifactWriteCapabilityRequest {
+                    task_id: task_id.clone(),
+                    expires_at: Utc::now() + TimeDelta::minutes(10),
+                    max_artifact_count: NonZeroU32::new(1).unwrap(),
+                    max_total_bytes: NonZeroU64::new(4).unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+        let request = RedeemArtifactWriteCapabilityRequest {
+            capability_id: issued.capability_id,
+            task_id: uuid::Uuid::now_v7().to_string(),
+            idempotency_key: ArtifactWriteIdempotencyKey::new("media-output-0").unwrap(),
+            artifact: PutArtifactRequest::default(),
+        };
+        assert_eq!(
+            service
+                .redeem_write_capability(issued.secret.expose_secret(), request, b"data".to_vec())
+                .await,
+            Err(ArtifactPlaneError::Unauthenticated)
+        );
+
+        let request = RedeemArtifactWriteCapabilityRequest {
+            capability_id: issued.capability_id,
+            task_id,
+            idempotency_key: ArtifactWriteIdempotencyKey::new("media-output-0").unwrap(),
+            artifact: PutArtifactRequest::default(),
+        };
+        let metadata = service
+            .redeem_write_capability(
+                issued.secret.expose_secret(),
+                request.clone(),
+                b"data".to_vec(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            metadata.compliance.owner_id,
+            Some(alice.identity.principal.id)
+        );
+        assert_eq!(
+            service
+                .redeem_write_capability("wrong-secret", request.clone(), b"data".to_vec())
+                .await,
+            Err(ArtifactPlaneError::Unauthenticated)
+        );
+        let mut wrong_task = request.clone();
+        wrong_task.task_id = uuid::Uuid::now_v7().to_string();
+        assert_eq!(
+            service
+                .redeem_write_capability(
+                    issued.secret.expose_secret(),
+                    wrong_task,
+                    b"data".to_vec(),
+                )
+                .await,
+            Err(ArtifactPlaneError::Unauthenticated)
+        );
+        let mut wrong_labels = request.clone();
+        wrong_labels
+            .artifact
+            .data_labels
+            .insert(DataLabelId::new("restricted").unwrap());
+        assert_eq!(
+            service
+                .redeem_write_capability(
+                    issued.secret.expose_secret(),
+                    wrong_labels,
+                    b"data".to_vec(),
+                )
+                .await,
+            Err(ArtifactPlaneError::Unauthenticated)
+        );
+        let retry = service
+            .redeem_write_capability(issued.secret.expose_secret(), request, b"data".to_vec())
+            .await
+            .unwrap();
+        assert_eq!(retry.artifact_id, metadata.artifact_id);
+
+        let exhausted = RedeemArtifactWriteCapabilityRequest {
+            capability_id: issued.capability_id,
+            task_id: issued.task_id.clone(),
+            idempotency_key: ArtifactWriteIdempotencyKey::new("media-output-1").unwrap(),
+            artifact: PutArtifactRequest::default(),
+        };
+        assert_eq!(
+            service
+                .redeem_write_capability(
+                    issued.secret.expose_secret(),
+                    exhausted,
+                    b"data".to_vec(),
+                )
+                .await,
+            Err(ArtifactPlaneError::Unauthenticated)
+        );
+    }
+
+    #[tokio::test]
+    async fn staged_capability_write_recovers_after_occurrence_before_finalize() {
+        let (service, repository) = service();
+        let alice = caller("alice", "acme", &["cui"]);
+        let task_id = uuid::Uuid::now_v7().to_string();
+        let issued = service
+            .issue_write_capability(
+                &alice,
+                IssueArtifactWriteCapabilityRequest {
+                    task_id: task_id.clone(),
+                    expires_at: Utc::now() + TimeDelta::minutes(10),
+                    max_artifact_count: NonZeroU32::new(1).unwrap(),
+                    max_total_bytes: NonZeroU64::new(4).unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+        let artifact = PutArtifactRequest::default();
+        let bytes = b"data".to_vec();
+        let sha = compute_sha(&bytes);
+        let request_hash = artifact_write_request_hash(&artifact, &sha).unwrap();
+        let labels = artifact.effective_labels();
+        let reserved = repository
+            .reserve_write_capability(WriteCapabilityReservation {
+                capability_id: issued.capability_id,
+                token_hash: secret_hash(b"veoveo.artifact-write.v1", issued.secret.expose_secret()),
+                task_id: task_id.clone(),
+                idempotency_key: "media:task:output:0".into(),
+                request_hash,
+                byte_len: bytes.len() as u64,
+                requested_labels: labels,
+                proposed_artifact_id: ArtifactId::new(),
+            })
+            .await
+            .unwrap()
+            .unwrap();
+
+        // This is the crash boundary: object bytes and occurrence committed,
+        // while the redemption remains reserved.
+        let staged = service
+            .store_occurrence(
+                reserved.artifact_id,
+                reserved.actor,
+                &reserved.labels,
+                artifact.clone(),
+                bytes.clone(),
+            )
+            .await
+            .unwrap();
+        let request = RedeemArtifactWriteCapabilityRequest {
+            capability_id: issued.capability_id,
+            task_id,
+            idempotency_key: ArtifactWriteIdempotencyKey::new("media:task:output:0").unwrap(),
+            artifact,
+        };
+        let recovered = service
+            .redeem_write_capability(
+                issued.secret.expose_secret(),
+                request.clone(),
+                b"DIFF".to_vec(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(recovered.artifact_id, staged.metadata.artifact_id);
+        let response_lost_retry = service
+            .redeem_write_capability(issued.secret.expose_secret(), request, b"MORE".to_vec())
+            .await
+            .unwrap();
+        assert_eq!(response_lost_retry.artifact_id, recovered.artifact_id);
+    }
+
+    #[tokio::test]
+    async fn unstaged_reservation_rebinds_to_nondeterministic_retry() {
+        let (service, repository) = service();
+        let alice = caller("alice", "acme", &[]);
+        let task_id = uuid::Uuid::now_v7().to_string();
+        let issued = service
+            .issue_write_capability(
+                &alice,
+                IssueArtifactWriteCapabilityRequest {
+                    task_id: task_id.clone(),
+                    expires_at: Utc::now() + TimeDelta::minutes(10),
+                    max_artifact_count: NonZeroU32::new(1).unwrap(),
+                    max_total_bytes: NonZeroU64::new(16).unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+        let artifact = PutArtifactRequest::default();
+        let first_bytes = b"first".to_vec();
+        let first_sha = compute_sha(&first_bytes);
+        let first_hash = artifact_write_request_hash(&artifact, &first_sha).unwrap();
+        repository
+            .reserve_write_capability(WriteCapabilityReservation {
+                capability_id: issued.capability_id,
+                token_hash: secret_hash(b"veoveo.artifact-write.v1", issued.secret.expose_secret()),
+                task_id: task_id.clone(),
+                idempotency_key: "optimization:task:artifact:0".into(),
+                request_hash: first_hash,
+                byte_len: first_bytes.len() as u64,
+                requested_labels: BTreeSet::new(),
+                proposed_artifact_id: ArtifactId::new(),
+            })
+            .await
+            .unwrap()
+            .unwrap();
+
+        // No occurrence was staged before the process died. A regenerated
+        // byte stream may differ, so the pending reservation is rebound and
+        // the one reserved occurrence is completed with the retry bytes.
+        let retry_bytes = b"second-version".to_vec();
+        let completed = service
+            .redeem_write_capability(
+                issued.secret.expose_secret(),
+                RedeemArtifactWriteCapabilityRequest {
+                    capability_id: issued.capability_id,
+                    task_id,
+                    idempotency_key: ArtifactWriteIdempotencyKey::new(
+                        "optimization:task:artifact:0",
+                    )
+                    .unwrap(),
+                    artifact,
+                },
+                retry_bytes.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(completed.byte_len, retry_bytes.len() as u64);
+        assert_eq!(
+            service
+                .store
+                .get_bounded(
+                    &repository
+                        .get_artifact(completed.artifact_id)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .object_key,
+                    64,
+                )
+                .await
+                .unwrap(),
+            retry_bytes
+        );
+    }
+
+    #[tokio::test]
+    async fn public_links_require_release_and_enforce_atomic_download_limits_and_revocation() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &[]);
+        let metadata = service
+            .put(
+                &alice,
+                PutArtifactRequest::default(),
+                b"public-data".to_vec(),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            service
+                .create_share_link(
+                    &alice,
+                    &metadata.artifact_id,
+                    CreateArtifactShareLinkRequest::default(),
+                )
+                .await,
+            Err(ArtifactPlaneError::Conflict(_))
+        ));
+        service
+            .set_release_state(
+                &alice,
+                &metadata.artifact_id,
+                ArtifactReleaseState::Releasable,
+            )
+            .await
+            .unwrap();
+        let link = service
+            .create_share_link(
+                &alice,
+                &metadata.artifact_id,
+                CreateArtifactShareLinkRequest {
+                    expires_at: None,
+                    max_downloads: NonZeroU64::new(1),
+                },
+            )
+            .await
+            .unwrap();
+        let token = link.url.rsplit('/').next().unwrap();
+        let first = service.redeem_public_share(token).await.unwrap();
+        assert_eq!(first.metadata.artifact_id, metadata.artifact_id);
+        assert!(matches!(
+            service.redeem_public_share(token).await,
+            Err(ArtifactPlaneError::NotFound)
+        ));
+
+        let revocable = service
+            .create_share_link(
+                &alice,
+                &metadata.artifact_id,
+                CreateArtifactShareLinkRequest::default(),
+            )
+            .await
+            .unwrap();
+        let token = revocable.url.rsplit('/').next().unwrap().to_owned();
+        service
+            .revoke_share_link(&alice, &metadata.artifact_id, &revocable.link_id)
+            .await
+            .unwrap();
+        assert!(matches!(
+            service.redeem_public_share(&token).await,
+            Err(ArtifactPlaneError::NotFound)
+        ));
+    }
+
+    #[tokio::test]
+    async fn owner_admin_grant_cannot_be_lowered_or_revoked() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &[]);
+        let artifact = service
+            .put(&alice, PutArtifactRequest::default(), b"owned".to_vec())
+            .await
+            .unwrap();
+        let owner = Subject::User(alice.identity.principal.id.clone());
+        assert!(matches!(
+            service
+                .grant(
+                    &alice,
+                    &artifact.artifact_id,
+                    owner.clone(),
+                    AccessLevel::Read
+                )
+                .await,
+            Err(ArtifactPlaneError::Conflict(_))
+        ));
+        assert!(matches!(
+            service.revoke(&alice, &artifact.artifact_id, &owner).await,
+            Err(ArtifactPlaneError::Conflict(_))
+        ));
     }
 }

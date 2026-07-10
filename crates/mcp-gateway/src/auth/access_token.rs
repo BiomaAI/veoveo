@@ -11,7 +11,10 @@ use super::{
     claims::{JwtClaims, StringListClaim},
     config::{BearerToken, JwtAuthConfig},
     principal::principal_assurances,
-    support::{AuthError, allowed_algorithms_for_header, unix_timestamp, validate_jwk_algorithm},
+    support::{
+        AuthError, allowed_algorithms_for_header, ensure_jwt_crypto_provider, unix_timestamp,
+        validate_jwk_algorithm,
+    },
     verified::AuthenticatedSubject,
 };
 
@@ -27,6 +30,7 @@ impl JwtVerifier {
     }
 
     pub fn verify(&self, token: &BearerToken) -> Result<AuthenticatedSubject, AuthError> {
+        ensure_jwt_crypto_provider();
         let header = decode_header(token.as_str()).map_err(AuthError::Jwt)?;
         if !self.config.algorithms.contains(&header.alg) {
             return Err(AuthError::DisallowedAlgorithm(header.alg));

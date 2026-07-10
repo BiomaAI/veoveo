@@ -1,6 +1,6 @@
-use veoveo_mcp_contract::ServerResourceUris;
+use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
-pub const ARTIFACT_TEMPLATE: &str = "optimization://artifact/{sha256}";
+pub const ARTIFACT_TEMPLATE: &str = "optimization://artifact/{artifact_id}";
 pub const USAGE_ROOT_URI: &str = "optimization://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "optimization://usage/task/{task_id}";
 
@@ -8,15 +8,15 @@ fn optimization_uris() -> ServerResourceUris {
     ServerResourceUris::new("optimization")
 }
 
-pub fn artifact_uri(sha256: &str) -> String {
-    optimization_uris().artifact_uri(sha256)
+pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+    optimization_uris().artifact_uri(artifact_id)
 }
 
 pub fn usage_task_uri(task_id: &str) -> String {
     optimization_uris().usage_task_uri(task_id)
 }
 
-pub fn parse_artifact_uri(uri: &str) -> Option<&str> {
+pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
     optimization_uris().parse_artifact_uri(uri)
 }
 
@@ -30,10 +30,10 @@ mod tests {
 
     #[test]
     fn artifact_uri_round_trips() {
-        let sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let uri = artifact_uri(sha);
-        assert_eq!(uri, format!("optimization://artifact/{sha}"));
-        assert_eq!(parse_artifact_uri(&uri), Some(sha));
+        let artifact_id = ArtifactId::new();
+        let uri = artifact_uri(artifact_id);
+        assert_eq!(uri, format!("optimization://artifact/{artifact_id}"));
+        assert_eq!(parse_artifact_uri(&uri), Some(artifact_id));
         assert_eq!(parse_artifact_uri("optimization://artifact/nope"), None);
     }
 

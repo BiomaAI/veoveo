@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{DataLabelId, SecretSource, ServerSlug};
+use crate::ServerSlug;
 
 macro_rules! deployment_id {
     ($name:ident, $doc:literal) => {
@@ -28,8 +28,8 @@ macro_rules! deployment_id {
         }
 
         impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str(&self.0)
             }
         }
 
@@ -51,11 +51,11 @@ macro_rules! deployment_id {
 
 deployment_id!(
     DeploymentProfileId,
-    "Self-hosted deployment profile id, such as `local`, `enterprise`, or `regulated`."
+    "Stable identifier for one canonical self-hosted installation profile."
 );
 deployment_id!(
     DeploymentRequirementId,
-    "Stable id for a deployment requirement entry."
+    "Stable identifier for one deployment requirement."
 );
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,38 +75,65 @@ pub struct SelfHostedDeploymentPlan {
     pub profiles: Vec<SelfHostedDeploymentProfile>,
 }
 
+/// An autonomous Veoveo installation owned by one enterprise.
+///
+/// Tenants are internal isolation boundaries inside this installation. This is
+/// deliberately not a vendor-hosted or multi-customer control-plane model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SelfHostedDeploymentProfile {
     pub id: DeploymentProfileId,
-    pub kind: DeploymentProfileKind,
-    #[serde(default)]
-    pub required_services: BTreeSet<DeploymentServiceKind>,
+    pub installation_scope: InstallationScope,
+    pub installation_form: InstallationForm,
+    pub connectivity: ConnectivityMode,
+    pub tenant_model: TenantModel,
+    pub platform_store: PlatformStoreDeployment,
+    pub object_store: ObjectStoreDeployment,
+    pub analytical_runtime: AnalyticalRuntimeDeployment,
+    pub ingress: IngressDeployment,
+    pub identity_provider: IdentityProviderDeployment,
+    pub secret_manager: SecretManagerDeployment,
     pub service_to_service: ServiceToServiceSecurity,
+    pub telemetry: TelemetryDeployment,
     #[serde(default)]
-    pub secret_sources: BTreeSet<SecretSource>,
-    #[serde(default)]
-    pub object_stores: Vec<ObjectStoreDeployment>,
-    #[serde(default)]
-    pub state_stores: Vec<StateStoreDeployment>,
-    #[serde(default)]
-    pub telemetry_sinks: Vec<TelemetrySinkDeployment>,
-    #[serde(default)]
-    pub ingress: Vec<NetworkBoundaryRule>,
-    #[serde(default)]
-    pub egress: Vec<NetworkBoundaryRule>,
+    pub services: BTreeSet<DeploymentServiceKind>,
     pub retention: DataRetentionPolicy,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub regulated_controls: Option<RegulatedDataControls>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum InstallationScope {
+    OneEnterprise,
 }
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
-pub enum DeploymentProfileKind {
-    Local,
-    Enterprise,
-    Regulated,
+pub enum InstallationForm {
+    Compose,
+    Helm,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectivityMode {
+    Connected,
+    Offline,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TenantModel {
+    pub kind: TenantModelKind,
+    pub tenant_keys_are_installation_local: bool,
+    pub cross_tenant_access_denied_by_default: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TenantModelKind {
+    InternalTenants,
 }
 
 #[derive(
@@ -115,14 +142,160 @@ pub enum DeploymentProfileKind {
 #[serde(rename_all = "snake_case")]
 pub enum DeploymentServiceKind {
     Gateway,
+    ConsoleBff,
+    Console,
+    ArtifactService,
+    ArtifactMcp,
+    RecordingHub,
+    RecordingMcp,
     HostedMcpServer,
+    PlatformStore,
     ObjectStore,
-    StateStore,
-    SecretManager,
-    IdentityProvider,
-    AuthorizationServer,
     TelemetryCollector,
-    TunnelOrIngress,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PlatformStoreDeployment {
+    pub engine: PlatformStoreEngine,
+    pub version: SurrealDbVersion,
+    pub storage_engine: SurrealStorageEngine,
+    pub topology: DatabaseTopology,
+    pub database_ha: DatabaseHighAvailability,
+    pub durable_volume_required: bool,
+    pub changefeed_source_of_truth: ChangefeedSourceOfTruth,
+    pub live_queries: LiveQueryRole,
+    pub endpoint: DeploymentEndpoint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PlatformStoreEngine {
+    SurrealDb,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum SurrealDbVersion {
+    #[serde(rename = "3.2.0")]
+    #[schemars(rename = "3.2.0")]
+    V3_2_0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SurrealStorageEngine {
+    RocksDb,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DatabaseTopology {
+    SingleNode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DatabaseHighAvailability {
+    OutOfScope,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ChangefeedSourceOfTruth {
+    DurableOutbox,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveQueryRole {
+    BestEffortLatencyPath,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ObjectStoreDeployment {
+    pub kind: ObjectStoreKind,
+    pub endpoint: DeploymentEndpoint,
+    pub bucket: String,
+    pub server_side_encryption_required: bool,
+    pub customer_managed_keys_supported: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ObjectStoreKind {
+    RustFs,
+    ExternalS3Compatible,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AnalyticalRuntimeDeployment {
+    pub engine: AnalyticalRuntimeEngine,
+    pub purpose: AnalyticalRuntimePurpose,
+    pub arbitrary_sql: bool,
+    pub owner_scoped_workspaces: bool,
+    pub durable_platform_state: bool,
+    pub external_data_access: ExternalDataAccess,
+    pub container_sandbox_required: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyticalRuntimeEngine {
+    DuckDb,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalyticalRuntimePurpose {
+    IsolatedAnalyticalWorkspace,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalDataAccess {
+    GovernedIngestArtifactOrAttach,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct IngressDeployment {
+    pub kind: IngressKind,
+    pub public_base_url: DeploymentEndpoint,
+    pub tls_terminated: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum IngressKind {
+    ComposePublishedPort,
+    KubernetesIngress,
+    ExternalReverseProxy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct IdentityProviderDeployment {
+    pub kind: IdentityProviderKind,
+    pub issuer: DeploymentEndpoint,
+    pub discovery_available_offline: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentityProviderKind {
+    ExternalOidc,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SecretManagerDeployment {
+    pub kind: SecretManagerKind,
+    pub existing_secret_name: String,
+    pub rotation_owned_by_operator: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretManagerKind {
+    ComposeSecretFiles,
+    KubernetesExistingSecret,
+    ExternalSecretManager,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -131,98 +304,33 @@ pub struct ServiceToServiceSecurity {
     pub transport: ServiceToServiceTransport,
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GatewayToServerIdentity {
-    GatewaySignedJwt,
+    GatewaySignedEd25519Jwt,
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ServiceToServiceTransport {
     PrivateNetworkPlaintext,
-    Tls,
     MutualTls,
     ServiceMeshMtls,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ObjectStoreDeployment {
-    pub id: DeploymentRequirementId,
-    pub kind: ObjectStoreKind,
-    #[serde(default)]
-    pub servers: BTreeSet<ServerSlug>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<DeploymentEndpoint>,
-    pub server_side_encryption_required: bool,
-    pub customer_managed_keys_required: bool,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum ObjectStoreKind {
-    S3Compatible,
-    AwsS3,
-    CloudflareR2,
-    AzureBlob,
-    Gcs,
-    EnterpriseManaged,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct StateStoreDeployment {
-    pub id: DeploymentRequirementId,
-    pub kind: StateStoreKind,
-    #[serde(default)]
-    pub owners: BTreeSet<StateStoreOwner>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<DeploymentEndpoint>,
-    pub durable_volume_required: bool,
-    pub encrypted_at_rest_required: bool,
-    pub customer_managed_keys_required: bool,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum StateStoreKind {
-    #[serde(rename = "duckdb")]
-    DuckDb,
-    EnterpriseManaged,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "kind")]
-pub enum StateStoreOwner {
-    Gateway,
-    Server { server: ServerSlug },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct TelemetrySinkDeployment {
-    pub id: DeploymentRequirementId,
-    pub kind: TelemetrySinkKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<DeploymentEndpoint>,
+pub struct TelemetryDeployment {
+    pub collector: TelemetryCollectorKind,
+    pub endpoint: DeploymentEndpoint,
     #[serde(default)]
     pub signals: BTreeSet<TelemetrySignal>,
+    pub siem_export_supported: bool,
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum TelemetrySinkKind {
+pub enum TelemetryCollectorKind {
     OpenTelemetryCollector,
-    Siem,
-    EnterpriseManaged,
 }
 
 #[derive(
@@ -237,49 +345,12 @@ pub enum TelemetrySignal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct NetworkBoundaryRule {
-    pub id: DeploymentRequirementId,
-    pub target_kind: NetworkTargetKind,
-    pub target: NetworkTarget,
-    #[serde(default)]
-    pub ports: BTreeSet<u16>,
-    pub tls_required: bool,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum NetworkTargetKind {
-    Gateway,
-    HostedMcpServer,
-    ObjectStore,
-    StateStore,
-    SecretManager,
-    IdentityProvider,
-    AuthorizationServer,
-    TelemetryCollector,
-    TunnelOrIngress,
-    ExternalProviderApi,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DataRetentionPolicy {
     pub task_metadata_days: u32,
     pub artifact_metadata_days: u32,
     pub artifact_bytes_days: u32,
     pub usage_analytics_days: u32,
     pub audit_event_days: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct RegulatedDataControls {
-    #[serde(default)]
-    pub allowed_labels: BTreeSet<DataLabelId>,
-    pub require_us_person: bool,
-    pub require_private_network: bool,
-    pub require_customer_managed_keys: bool,
-    pub require_audit_export: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
@@ -308,36 +379,6 @@ impl TryFrom<String> for DeploymentEndpoint {
 
 impl From<DeploymentEndpoint> for String {
     fn from(value: DeploymentEndpoint) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-pub struct NetworkTarget(String);
-
-impl NetworkTarget {
-    pub fn new(value: impl Into<String>) -> Result<Self> {
-        let value = value.into();
-        validate_network_target(&value)?;
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl TryFrom<String> for NetworkTarget {
-    type Error = anyhow::Error;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<NetworkTarget> for String {
-    fn from(value: NetworkTarget) -> Self {
         value.0
     }
 }
@@ -379,15 +420,31 @@ impl SelfHostedDeploymentPlan {
     }
 
     pub fn validate(&self) -> Result<()> {
+        if self.profiles.is_empty() {
+            bail!("deployment plan must define at least one profile");
+        }
         let mut ids = BTreeSet::new();
+        let mut shapes = BTreeSet::new();
         for profile in &self.profiles {
             if !ids.insert(profile.id.clone()) {
                 bail!("duplicate deployment profile `{}`", profile.id);
             }
+            shapes.insert((profile.installation_form, profile.connectivity));
             profile.validate()?;
         }
-        if self.profiles.is_empty() {
-            bail!("deployment plan must define at least one profile");
+        for shape in [
+            (InstallationForm::Compose, ConnectivityMode::Connected),
+            (InstallationForm::Compose, ConnectivityMode::Offline),
+            (InstallationForm::Helm, ConnectivityMode::Connected),
+            (InstallationForm::Helm, ConnectivityMode::Offline),
+        ] {
+            if !shapes.contains(&shape) {
+                bail!(
+                    "deployment plan must include canonical `{:?}` `{:?}` installation profile",
+                    shape.0,
+                    shape.1
+                );
+            }
         }
         Ok(())
     }
@@ -395,410 +452,224 @@ impl SelfHostedDeploymentPlan {
 
 impl SelfHostedDeploymentProfile {
     pub fn validate(&self) -> Result<()> {
-        require_nonempty(
-            !self.required_services.is_empty(),
-            &self.id,
-            "required_services",
-        )?;
-        require_nonempty(!self.secret_sources.is_empty(), &self.id, "secret_sources")?;
-        self.validate_secret_sources()?;
-        require_nonempty(!self.object_stores.is_empty(), &self.id, "object_stores")?;
-        require_nonempty(!self.state_stores.is_empty(), &self.id, "state_stores")?;
-        require_nonempty(
-            !self.telemetry_sinks.is_empty(),
-            &self.id,
-            "telemetry_sinks",
-        )?;
-        require_nonempty(!self.ingress.is_empty(), &self.id, "ingress")?;
-        require_nonempty(!self.egress.is_empty(), &self.id, "egress")?;
+        if self.installation_scope != InstallationScope::OneEnterprise {
+            bail!(
+                "deployment profile `{}` must be one enterprise installation",
+                self.id
+            );
+        }
+        if self.tenant_model.kind != TenantModelKind::InternalTenants
+            || !self.tenant_model.tenant_keys_are_installation_local
+            || !self.tenant_model.cross_tenant_access_denied_by_default
+        {
+            bail!(
+                "deployment profile `{}` must use installation-local internal tenants with deny-by-default isolation",
+                self.id
+            );
+        }
+        self.platform_store.validate(&self.id)?;
+        self.object_store.validate(&self.id)?;
+        self.analytical_runtime.validate(&self.id)?;
+        self.ingress.validate(&self.id, self.installation_form)?;
+        self.identity_provider
+            .validate(&self.id, self.connectivity)?;
+        self.secret_manager
+            .validate(&self.id, self.installation_form)?;
+        self.service_to_service.validate(&self.id)?;
+        self.telemetry.validate(&self.id)?;
         self.retention.validate(&self.id)?;
-        self.validate_required_services()?;
 
-        for object_store in &self.object_stores {
-            object_store.validate(&self.id)?;
-        }
-        for state_store in &self.state_stores {
-            state_store.validate(&self.id)?;
-        }
-        self.validate_state_store_coverage()?;
-        for telemetry_sink in &self.telemetry_sinks {
-            telemetry_sink.validate(&self.id)?;
-        }
-        for rule in self.ingress.iter().chain(&self.egress) {
-            rule.validate(&self.id)?;
-        }
-        self.validate_network_coverage()?;
-        self.service_to_service.validate(&self.id, self.kind)?;
-
-        match self.kind {
-            DeploymentProfileKind::Local => {}
-            DeploymentProfileKind::Enterprise | DeploymentProfileKind::Regulated => {
-                self.validate_enterprise_boundary()?;
-                if self.secret_sources.contains(&SecretSource::Env) {
-                    bail!(
-                        "deployment profile `{}` cannot use env secrets for {:?}",
-                        self.id,
-                        self.kind
-                    );
-                }
-                if !self.secret_sources.iter().any(enterprise_secret_source) {
-                    bail!(
-                        "deployment profile `{}` must declare an enterprise secret source",
-                        self.id
-                    );
-                }
-            }
-        }
-
-        if self.kind == DeploymentProfileKind::Regulated {
-            let controls = self.regulated_controls.as_ref().ok_or_else(|| {
-                anyhow!(
-                    "deployment profile `{}` must declare regulated controls",
-                    self.id
-                )
-            })?;
-            controls.validate(&self.id)?;
-        }
-
-        Ok(())
-    }
-
-    fn validate_required_services(&self) -> Result<()> {
-        for service in [
+        let required = BTreeSet::from([
             DeploymentServiceKind::Gateway,
+            DeploymentServiceKind::ConsoleBff,
+            DeploymentServiceKind::Console,
+            DeploymentServiceKind::ArtifactService,
+            DeploymentServiceKind::ArtifactMcp,
+            DeploymentServiceKind::RecordingHub,
+            DeploymentServiceKind::RecordingMcp,
             DeploymentServiceKind::HostedMcpServer,
+            DeploymentServiceKind::PlatformStore,
             DeploymentServiceKind::ObjectStore,
-            DeploymentServiceKind::StateStore,
             DeploymentServiceKind::TelemetryCollector,
-            DeploymentServiceKind::TunnelOrIngress,
-        ] {
-            self.require_service(service)?;
+        ]);
+        if self.services != required {
+            bail!(
+                "deployment profile `{}` services must exactly describe the canonical autonomous installation",
+                self.id
+            );
         }
-
-        if matches!(
-            self.kind,
-            DeploymentProfileKind::Enterprise | DeploymentProfileKind::Regulated
-        ) {
-            for service in [
-                DeploymentServiceKind::SecretManager,
-                DeploymentServiceKind::IdentityProvider,
-                DeploymentServiceKind::AuthorizationServer,
-            ] {
-                self.require_service(service)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn validate_secret_sources(&self) -> Result<()> {
-        for source in &self.secret_sources {
-            if !implemented_secret_source(source) {
-                bail!(
-                    "deployment profile `{}` uses secret source `{source:?}` that is not implemented by the gateway resolver",
-                    self.id
-                );
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_enterprise_boundary(&self) -> Result<()> {
-        for rule in self.ingress.iter().chain(&self.egress) {
-            if !rule.tls_required {
-                bail!(
-                    "deployment profile `{}` network rule `{}` must require TLS",
-                    self.id,
-                    rule.id
-                );
-            }
-        }
-
-        for object_store in &self.object_stores {
-            if !object_store.server_side_encryption_required {
-                bail!(
-                    "deployment profile `{}` object store `{}` must require server-side encryption",
-                    self.id,
-                    object_store.id
-                );
-            }
-            if !object_store.customer_managed_keys_required {
-                bail!(
-                    "deployment profile `{}` object store `{}` must require customer-managed keys",
-                    self.id,
-                    object_store.id
-                );
-            }
-        }
-
-        for state_store in &self.state_stores {
-            if !state_store.durable_volume_required {
-                bail!(
-                    "deployment profile `{}` state store `{}` must require durable storage",
-                    self.id,
-                    state_store.id
-                );
-            }
-            if !state_store.encrypted_at_rest_required {
-                bail!(
-                    "deployment profile `{}` state store `{}` must require encryption at rest",
-                    self.id,
-                    state_store.id
-                );
-            }
-            if !state_store.customer_managed_keys_required {
-                bail!(
-                    "deployment profile `{}` state store `{}` must require customer-managed keys",
-                    self.id,
-                    state_store.id
-                );
-            }
-        }
-
-        if !self
-            .telemetry_sinks
-            .iter()
-            .any(|sink| sink.signals.contains(&TelemetrySignal::AuditEvents))
+        if self.connectivity == ConnectivityMode::Offline
+            && !self.identity_provider.discovery_available_offline
         {
             bail!(
-                "deployment profile `{}` must export audit events to a telemetry sink",
+                "offline deployment profile `{}` requires an identity provider reachable inside the offline boundary",
                 self.id
             );
         }
-
         Ok(())
     }
+}
 
-    fn validate_network_coverage(&self) -> Result<()> {
-        for rule in self.ingress.iter().chain(&self.egress) {
-            if let Some(service) = rule.target_kind.service_kind()
-                && !self.required_services.contains(&service)
-            {
-                bail!(
-                    "deployment profile `{}` network rule `{}` targets service `{service:?}` that is not declared in required_services",
-                    self.id,
-                    rule.id
-                );
-            }
-        }
-
-        if !self.ingress.iter().any(|rule| {
-            matches!(
-                rule.target_kind,
-                NetworkTargetKind::Gateway
-                    | NetworkTargetKind::AuthorizationServer
-                    | NetworkTargetKind::TunnelOrIngress
-            )
-        }) {
-            bail!(
-                "deployment profile `{}` must declare ingress for gateway, authorization server, or tunnel/ingress",
-                self.id
-            );
-        }
-
-        for kind in [
-            NetworkTargetKind::HostedMcpServer,
-            NetworkTargetKind::ObjectStore,
-            NetworkTargetKind::TelemetryCollector,
-        ] {
-            self.require_egress_target(kind)?;
-        }
-
-        if self.secret_sources.iter().any(enterprise_secret_source) {
-            self.require_egress_target(NetworkTargetKind::SecretManager)?;
-        }
-
-        if self
-            .required_services
-            .contains(&DeploymentServiceKind::IdentityProvider)
+impl PlatformStoreDeployment {
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
+        if self.engine != PlatformStoreEngine::SurrealDb
+            || self.version != SurrealDbVersion::V3_2_0
+            || self.storage_engine != SurrealStorageEngine::RocksDb
+            || self.topology != DatabaseTopology::SingleNode
+            || self.database_ha != DatabaseHighAvailability::OutOfScope
+            || !self.durable_volume_required
+            || self.changefeed_source_of_truth != ChangefeedSourceOfTruth::DurableOutbox
+            || self.live_queries != LiveQueryRole::BestEffortLatencyPath
         {
-            self.require_egress_target(NetworkTargetKind::IdentityProvider)?;
+            bail!(
+                "deployment profile `{profile}` must use required SurrealDB 3.2.0 single-node RocksDB; database HA is out of scope, durable outbox is authoritative, and LIVE is latency-only"
+            );
         }
-
-        if self
-            .state_stores
-            .iter()
-            .any(|store| store.kind == StateStoreKind::EnterpriseManaged)
+        if !(self.endpoint.as_str().starts_with("ws://")
+            || self.endpoint.as_str().starts_with("wss://"))
         {
-            self.require_egress_target(NetworkTargetKind::StateStore)?;
+            bail!("deployment profile `{profile}` SurrealDB endpoint must use ws or wss");
         }
-
         Ok(())
-    }
-
-    fn require_egress_target(&self, kind: NetworkTargetKind) -> Result<()> {
-        if self.egress.iter().any(|rule| rule.target_kind == kind) {
-            Ok(())
-        } else {
-            bail!(
-                "deployment profile `{}` must declare egress for `{kind:?}`",
-                self.id
-            )
-        }
-    }
-
-    fn validate_state_store_coverage(&self) -> Result<()> {
-        let has_gateway = self.state_stores.iter().any(|store| {
-            store
-                .owners
-                .iter()
-                .any(|owner| matches!(owner, StateStoreOwner::Gateway))
-        });
-        if !has_gateway {
-            bail!(
-                "deployment profile `{}` must declare a state store owned by the gateway",
-                self.id
-            );
-        }
-
-        let deployed_servers = self
-            .object_stores
-            .iter()
-            .flat_map(|store| store.servers.iter().cloned())
-            .collect::<BTreeSet<_>>();
-        let state_store_servers = self
-            .state_stores
-            .iter()
-            .flat_map(|store| store.owners.iter())
-            .filter_map(|owner| match owner {
-                StateStoreOwner::Gateway => None,
-                StateStoreOwner::Server { server } => Some(server.clone()),
-            })
-            .collect::<BTreeSet<_>>();
-        if state_store_servers.is_empty() {
-            bail!(
-                "deployment profile `{}` must declare at least one hosted-server state store",
-                self.id
-            );
-        }
-        for server in &state_store_servers {
-            if !deployed_servers.contains(server) {
-                bail!(
-                    "deployment profile `{}` state store owner references undeployed hosted server `{server}`",
-                    self.id
-                );
-            }
-        }
-        for server in deployed_servers {
-            if !state_store_servers.contains(&server) {
-                bail!(
-                    "deployment profile `{}` must declare a state store for hosted server `{server}`",
-                    self.id
-                );
-            }
-        }
-
-        Ok(())
-    }
-
-    fn require_service(&self, service: DeploymentServiceKind) -> Result<()> {
-        if self.required_services.contains(&service) {
-            Ok(())
-        } else {
-            bail!(
-                "deployment profile `{}` must declare required service `{service:?}`",
-                self.id
-            )
-        }
     }
 }
 
 impl ObjectStoreDeployment {
     fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
-        require_nonempty(!self.servers.is_empty(), profile, "object_stores.servers")?;
-        if self.customer_managed_keys_required && !self.server_side_encryption_required {
+        if self.bucket.is_empty() || self.bucket.chars().any(char::is_whitespace) {
+            bail!("deployment profile `{profile}` object-store bucket is invalid");
+        }
+        if self.kind == ObjectStoreKind::ExternalS3Compatible
+            && !self.endpoint.as_str().starts_with("https://")
+        {
+            bail!("deployment profile `{profile}` external object store must use HTTPS");
+        }
+        Ok(())
+    }
+}
+
+impl AnalyticalRuntimeDeployment {
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
+        if self.engine != AnalyticalRuntimeEngine::DuckDb
+            || self.purpose != AnalyticalRuntimePurpose::IsolatedAnalyticalWorkspace
+            || !self.arbitrary_sql
+            || !self.owner_scoped_workspaces
+            || self.durable_platform_state
+            || self.external_data_access != ExternalDataAccess::GovernedIngestArtifactOrAttach
+            || !self.container_sandbox_required
+        {
             bail!(
-                "deployment profile `{profile}` object store `{}` requires customer-managed keys without server-side encryption",
-                self.id
+                "deployment profile `{profile}` must keep DuckDB as a sandboxed arbitrary-SQL analytical workspace and never as the durable platform store"
             );
         }
         Ok(())
     }
 }
 
-impl StateStoreDeployment {
-    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
-        require_nonempty(!self.owners.is_empty(), profile, "state_stores.owners")?;
-        if self.customer_managed_keys_required && !self.encrypted_at_rest_required {
-            bail!(
-                "deployment profile `{profile}` state store `{}` requires customer-managed keys without encryption at rest",
-                self.id
-            );
+impl IngressDeployment {
+    fn validate(&self, profile: &DeploymentProfileId, form: InstallationForm) -> Result<()> {
+        if !self.tls_terminated {
+            bail!("deployment profile `{profile}` ingress must terminate TLS");
         }
-        if matches!(self.kind, StateStoreKind::DuckDb) && self.endpoint.is_some() {
-            bail!(
-                "deployment profile `{profile}` DuckDB state store `{}` must not declare an endpoint",
-                self.id
-            );
+        if !self.public_base_url.as_str().starts_with("https://") {
+            bail!("deployment profile `{profile}` public ingress must use HTTPS");
         }
-        Ok(())
-    }
-}
-
-impl TelemetrySinkDeployment {
-    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
-        require_nonempty(!self.signals.is_empty(), profile, "telemetry_sinks.signals")
-    }
-}
-
-impl NetworkBoundaryRule {
-    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
-        require_nonempty(!self.ports.is_empty(), profile, "network.ports")?;
-        if self.ports.contains(&0) {
+        let valid_for_form = matches!(
+            (form, self.kind),
+            (
+                InstallationForm::Compose,
+                IngressKind::ComposePublishedPort | IngressKind::ExternalReverseProxy
+            ) | (
+                InstallationForm::Helm,
+                IngressKind::KubernetesIngress | IngressKind::ExternalReverseProxy
+            )
+        );
+        if !valid_for_form {
             bail!(
-                "deployment profile `{profile}` network rule `{}` cannot use port 0",
-                self.id
-            );
-        }
-        if self.target_kind == NetworkTargetKind::ExternalProviderApi && !self.tls_required {
-            bail!(
-                "deployment profile `{profile}` external provider network rule `{}` must require TLS",
-                self.id
+                "deployment profile `{profile}` ingress choice does not match its installation form"
             );
         }
         Ok(())
     }
 }
 
-impl NetworkTargetKind {
-    fn service_kind(self) -> Option<DeploymentServiceKind> {
-        match self {
-            Self::Gateway => Some(DeploymentServiceKind::Gateway),
-            Self::HostedMcpServer => Some(DeploymentServiceKind::HostedMcpServer),
-            Self::ObjectStore => Some(DeploymentServiceKind::ObjectStore),
-            Self::StateStore => Some(DeploymentServiceKind::StateStore),
-            Self::SecretManager => Some(DeploymentServiceKind::SecretManager),
-            Self::IdentityProvider => Some(DeploymentServiceKind::IdentityProvider),
-            Self::AuthorizationServer => Some(DeploymentServiceKind::AuthorizationServer),
-            Self::TelemetryCollector => Some(DeploymentServiceKind::TelemetryCollector),
-            Self::TunnelOrIngress => Some(DeploymentServiceKind::TunnelOrIngress),
-            Self::ExternalProviderApi => None,
+impl IdentityProviderDeployment {
+    fn validate(
+        &self,
+        profile: &DeploymentProfileId,
+        connectivity: ConnectivityMode,
+    ) -> Result<()> {
+        if self.kind != IdentityProviderKind::ExternalOidc {
+            bail!("deployment profile `{profile}` must use an external OIDC provider");
         }
+        if !self.issuer.as_str().starts_with("https://") {
+            bail!("deployment profile `{profile}` OIDC issuer must use HTTPS");
+        }
+        if connectivity == ConnectivityMode::Offline && !self.discovery_available_offline {
+            bail!("deployment profile `{profile}` cannot depend on online OIDC discovery");
+        }
+        Ok(())
+    }
+}
+
+impl SecretManagerDeployment {
+    fn validate(&self, profile: &DeploymentProfileId, form: InstallationForm) -> Result<()> {
+        if self.existing_secret_name.is_empty()
+            || self.existing_secret_name.chars().any(char::is_whitespace)
+        {
+            bail!("deployment profile `{profile}` must name an existing secret");
+        }
+        let valid_for_form = matches!(
+            (form, self.kind),
+            (
+                InstallationForm::Compose,
+                SecretManagerKind::ComposeSecretFiles
+            ) | (
+                InstallationForm::Compose,
+                SecretManagerKind::ExternalSecretManager
+            ) | (
+                InstallationForm::Helm,
+                SecretManagerKind::KubernetesExistingSecret
+            ) | (
+                InstallationForm::Helm,
+                SecretManagerKind::ExternalSecretManager
+            )
+        );
+        if !valid_for_form {
+            bail!(
+                "deployment profile `{profile}` secret-manager choice does not match its installation form"
+            );
+        }
+        if !self.rotation_owned_by_operator {
+            bail!("deployment profile `{profile}` secret rotation must be operator-owned");
+        }
+        Ok(())
     }
 }
 
 impl ServiceToServiceSecurity {
-    fn validate(&self, profile: &DeploymentProfileId, kind: DeploymentProfileKind) -> Result<()> {
-        match self.gateway_identity {
-            GatewayToServerIdentity::GatewaySignedJwt => {}
-        }
-
-        if matches!(
-            kind,
-            DeploymentProfileKind::Enterprise | DeploymentProfileKind::Regulated
-        ) && !self.transport.is_authenticated_transport()
-        {
-            bail!(
-                "deployment profile `{profile}` requires mTLS or service-mesh mTLS for gateway-to-server transport"
-            );
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
+        if self.gateway_identity != GatewayToServerIdentity::GatewaySignedEd25519Jwt {
+            bail!("deployment profile `{profile}` requires gateway-signed Ed25519 JWT identity");
         }
         Ok(())
     }
 }
 
-impl ServiceToServiceTransport {
-    fn is_authenticated_transport(self) -> bool {
-        matches!(self, Self::MutualTls | Self::ServiceMeshMtls)
+impl TelemetryDeployment {
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
+        let required = BTreeSet::from([
+            TelemetrySignal::Logs,
+            TelemetrySignal::Traces,
+            TelemetrySignal::Metrics,
+            TelemetrySignal::AuditEvents,
+        ]);
+        if self.signals != required || !self.siem_export_supported {
+            bail!(
+                "deployment profile `{profile}` telemetry must collect logs, traces, metrics, audit events, and support SIEM export"
+            );
+        }
+        Ok(())
     }
 }
 
@@ -817,50 +688,6 @@ impl DataRetentionPolicy {
         }
         Ok(())
     }
-}
-
-impl RegulatedDataControls {
-    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
-        require_nonempty(
-            !self.allowed_labels.is_empty(),
-            profile,
-            "regulated.allowed_labels",
-        )?;
-        if !self.require_us_person {
-            bail!("deployment profile `{profile}` regulated controls require US-person gating");
-        }
-        if !self.require_private_network {
-            bail!("deployment profile `{profile}` regulated controls require private networking");
-        }
-        if !self.require_customer_managed_keys {
-            bail!(
-                "deployment profile `{profile}` regulated controls require customer-managed keys"
-            );
-        }
-        if !self.require_audit_export {
-            bail!("deployment profile `{profile}` regulated controls require audit export");
-        }
-        Ok(())
-    }
-}
-
-fn require_nonempty(condition: bool, profile: &DeploymentProfileId, field: &str) -> Result<()> {
-    if condition {
-        Ok(())
-    } else {
-        bail!("deployment profile `{profile}` must declare `{field}`")
-    }
-}
-
-fn enterprise_secret_source(source: &SecretSource) -> bool {
-    matches!(source, SecretSource::Vault | SecretSource::HcpVault)
-}
-
-fn implemented_secret_source(source: &SecretSource) -> bool {
-    matches!(
-        source,
-        SecretSource::Env | SecretSource::Vault | SecretSource::HcpVault
-    )
 }
 
 impl ServerPublicEndpoint {
@@ -928,6 +755,7 @@ fn normalize_base_url(input: &str) -> Result<(String, String)> {
 fn normalize_server_slug(input: &str) -> Result<String> {
     let value = input.trim();
     validate_path_segment(value, "server slug")?;
+    ServerSlug::new(value)?;
     Ok(value.to_string())
 }
 
@@ -935,10 +763,9 @@ fn validate_path_segment(value: &str, name: &str) -> Result<()> {
     if value.is_empty() {
         return Err(anyhow!("{name} must not be empty"));
     }
-    if !value
-        .bytes()
-        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
-    {
+    if !value.bytes().all(|byte| {
+        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
+    }) {
         return Err(anyhow!(
             "{name} must contain only lowercase ASCII letters, digits, hyphen, or underscore"
         ));
@@ -950,15 +777,12 @@ fn validate_endpoint(value: &str) -> Result<()> {
     if value.is_empty() || value.chars().any(char::is_whitespace) {
         bail!("deployment endpoint must not be empty or contain whitespace");
     }
-    if !(value.starts_with("http://") || value.starts_with("https://")) {
-        bail!("deployment endpoint must start with http:// or https://");
-    }
-    Ok(())
-}
-
-fn validate_network_target(value: &str) -> Result<()> {
-    if value.is_empty() || value.chars().any(char::is_whitespace) {
-        bail!("network target must not be empty or contain whitespace");
+    if !(value.starts_with("http://")
+        || value.starts_with("https://")
+        || value.starts_with("ws://")
+        || value.starts_with("wss://"))
+    {
+        bail!("deployment endpoint must use http, https, ws, or wss");
     }
     Ok(())
 }

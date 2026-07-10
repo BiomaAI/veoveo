@@ -1,9 +1,7 @@
 # syntax=docker/dockerfile:1.7
-# One image, two roles: the spooler (embedded proxy + durable writer) and the
-# catalog (`rerun server`). Both need the `rerun` CLI — the spooler for
-# freeze-time optimize/verify, the catalog to serve. The CLI ships in the
-# rerun-sdk wheel, pinned to the same 0.34 line as the workspace crates.
-FROM rust:1.96-slim AS builder
+# Internal durable spooler image. The governed recording-mcp process is the
+# only public protocol reader; this image exposes raw Rerun ingest internally.
+FROM rust:1.96.1-slim AS builder
 
 WORKDIR /app
 RUN apt-get update \
@@ -12,6 +10,7 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo ./.cargo
 COPY crates ./crates
+COPY showcase/sumo/mcp ./showcase/sumo/mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
@@ -41,7 +40,7 @@ RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 COPY --from=builder /out/spooler /out/sensor-sim /out/hub-query /usr/local/bin/
 
 USER veoveo
-# Proxy ingest (spooler) and redap catalog (catalog) — internal network only.
-EXPOSE 9876 51234
+# Raw proxy ingest is internal-network only.
+EXPOSE 9876
 ENTRYPOINT []
 CMD ["spooler", "--help"]

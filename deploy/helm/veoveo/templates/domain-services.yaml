@@ -1,0 +1,138 @@
+{{- range $service := .Values.domainServices }}
+{{- if and $service.duckdbSandbox $service.persistence }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $service.name }}-workspace
+  labels:
+    {{- include "veoveo.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $service.name }}
+spec:
+  accessModes:
+    {{- toYaml $service.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ $service.persistence.size }}
+  {{- if $service.persistence.storageClass }}
+  storageClassName: {{ $service.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "veoveo.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $service.name }}
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $service.name }}
+  ports:
+    - name: http
+      port: {{ $service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "veoveo.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $service.name }}
+spec:
+  replicas: {{ default 2 $service.replicas }}
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $service.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $service.name }}
+      annotations:
+        {{- include "veoveo.podAnnotations" $ | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" $ }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml $.Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" $ | nindent 8 }}
+      containers:
+        - name: {{ $service.name }}
+          image: {{ include "veoveo.image" (list $ $service.image) }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          workingDir: /var/lib/veoveo/runtime
+          args:
+            {{- toYaml $service.args | nindent 12 }}
+          env:
+            {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
+            {{- include "veoveo.commonEnv" $ | nindent 12 }}
+            {{- else }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4318
+            {{- end }}
+            - name: PUBLIC_BASE_URL
+              value: {{ $.Values.global.publicBaseUrl | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ printf "veoveo-%s" $service.name | quote }}
+            {{- if eq $service.name "media-mcp" }}
+            - name: MEDIA_PROVIDER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.global.existingSecret }}
+                  key: media-provider-api-key
+            - name: MEDIA_PROVIDER_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.global.existingSecret }}
+                  key: media-provider-webhook-secret
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $service.port }}
+          readinessProbe:
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" $ | nindent 12 }}
+          resources:
+            {{- toYaml (default $.Values.gateway.resources $service.resources) | nindent 12 }}
+          volumeMounts:
+            - name: runtime
+              mountPath: /var/lib/veoveo/runtime
+            - name: tmp
+              mountPath: /tmp
+            {{- if $service.duckdbSandbox }}
+            - name: workspace
+              mountPath: /var/lib/veoveo/duckdb
+            {{- end }}
+      volumes:
+        - name: runtime
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir: {}
+        {{- if $service.duckdbSandbox }}
+        - name: workspace
+          {{- if $service.persistence }}
+          persistentVolumeClaim:
+            claimName: {{ $service.name }}-workspace
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+{{- end }}

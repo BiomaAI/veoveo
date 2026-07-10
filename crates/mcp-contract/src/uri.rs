@@ -3,6 +3,8 @@ use std::{error::Error, fmt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::ArtifactId;
+
 /// Server URI conventions for MCP resources.
 ///
 /// A Veoveo MCP server owns a URI scheme, then exposes stable catalog resources,
@@ -36,7 +38,7 @@ impl ServerResourceUris {
     }
 
     pub fn artifact_template(&self) -> String {
-        format!("{}://artifact/{{sha256}}", self.scheme)
+        format!("{}://artifact/{{artifact_id}}", self.scheme)
     }
 
     pub fn usage_root_uri(&self) -> String {
@@ -55,8 +57,8 @@ impl ServerResourceUris {
         format!("{}://prediction/{id}", self.scheme)
     }
 
-    pub fn artifact_uri(&self, sha256: &str) -> String {
-        format!("{}://artifact/{sha256}", self.scheme)
+    pub fn artifact_uri(&self, artifact_id: ArtifactId) -> String {
+        format!("{}://artifact/{artifact_id}", self.scheme)
     }
 
     pub fn usage_task_uri(&self, task_id: &str) -> String {
@@ -73,23 +75,15 @@ impl ServerResourceUris {
             .filter(|s| !s.is_empty() && !s.contains('/'))
     }
 
-    pub fn parse_artifact_uri<'a>(&self, uri: &'a str) -> Option<&'a str> {
-        uri.strip_prefix(&format!("{}://artifact/", self.scheme))
-            .filter(|s| is_sha256(s))
+    pub fn parse_artifact_uri(&self, uri: &str) -> Option<ArtifactId> {
+        let value = uri.strip_prefix(&format!("{}://artifact/", self.scheme))?;
+        ArtifactId::parse(value).ok()
     }
 
     pub fn parse_usage_task_uri<'a>(&self, uri: &'a str) -> Option<&'a str> {
         uri.strip_prefix(&format!("{}://usage/task/", self.scheme))
             .filter(|s| !s.is_empty() && !s.contains('/'))
     }
-}
-
-pub fn artifact_object_key(sha256: &str) -> String {
-    format!("artifact/{sha256}")
-}
-
-pub fn is_sha256(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Strongly typed resource shapes shared by Veoveo MCP servers.
@@ -99,13 +93,32 @@ pub fn is_sha256(value: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ServerResourceUri {
-    Models { scheme: String },
-    Model { scheme: String, model_id: String },
-    Prediction { scheme: String, id: String },
-    Artifact { scheme: String, sha256: String },
-    UsageRoot { scheme: String },
-    UsageTask { scheme: String, task_id: String },
-    Other { scheme: String, path: String },
+    Models {
+        scheme: String,
+    },
+    Model {
+        scheme: String,
+        model_id: String,
+    },
+    Prediction {
+        scheme: String,
+        id: String,
+    },
+    Artifact {
+        scheme: String,
+        artifact_id: ArtifactId,
+    },
+    UsageRoot {
+        scheme: String,
+    },
+    UsageTask {
+        scheme: String,
+        task_id: String,
+    },
+    Other {
+        scheme: String,
+        path: String,
+    },
 }
 
 impl ServerResourceUri {
@@ -149,16 +162,13 @@ impl ServerResourceUri {
                 }
             }
             path if path.starts_with("artifact/") => {
-                let sha256 = path.trim_start_matches("artifact/");
-                if !is_sha256(sha256) {
-                    return Err(ServerResourceUriError::new(
-                        uri,
-                        "artifact id must be a sha256 hex digest",
-                    ));
-                }
+                let artifact_id =
+                    ArtifactId::parse(path.trim_start_matches("artifact/")).map_err(|_| {
+                        ServerResourceUriError::new(uri, "artifact id must be a UUIDv7")
+                    })?;
                 Self::Artifact {
                     scheme: scheme.to_string(),
-                    sha256: sha256.to_string(),
+                    artifact_id,
                 }
             }
             path if path.starts_with("usage/task/") => {
@@ -225,7 +235,12 @@ impl fmt::Display for ServerResourceUri {
             Self::Models { scheme } => write!(f, "{scheme}://models"),
             Self::Model { scheme, model_id } => write!(f, "{scheme}://model/{model_id}"),
             Self::Prediction { scheme, id } => write!(f, "{scheme}://prediction/{id}"),
-            Self::Artifact { scheme, sha256 } => write!(f, "{scheme}://artifact/{sha256}"),
+            Self::Artifact {
+                scheme,
+                artifact_id,
+            } => {
+                write!(f, "{scheme}://artifact/{artifact_id}")
+            }
             Self::UsageRoot { scheme } => write!(f, "{scheme}://usage"),
             Self::UsageTask { scheme, task_id } => write!(f, "{scheme}://usage/task/{task_id}"),
             Self::Other { scheme, path } => write!(f, "{scheme}://{path}"),
@@ -313,7 +328,7 @@ mod tests {
         assert_eq!(uris.models_uri(), "example://models");
         assert_eq!(uris.model_template(), "example://model/{model_id}");
         assert_eq!(uris.prediction_template(), "example://prediction/{id}");
-        assert_eq!(uris.artifact_template(), "example://artifact/{sha256}");
+        assert_eq!(uris.artifact_template(), "example://artifact/{artifact_id}");
         assert_eq!(uris.usage_root_uri(), "example://usage");
         assert_eq!(uris.usage_task_template(), "example://usage/task/{task_id}");
         assert_eq!(
@@ -331,11 +346,19 @@ mod tests {
         );
         assert_eq!(uris.parse_prediction_uri("example://prediction/a/b"), None);
 
-        let sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        assert_eq!(uris.artifact_uri(sha), format!("example://artifact/{sha}"));
-        assert_eq!(uris.parse_artifact_uri(&uris.artifact_uri(sha)), Some(sha));
-        assert_eq!(uris.parse_artifact_uri("example://artifact/not-sha"), None);
-        assert_eq!(artifact_object_key(sha), format!("artifact/{sha}"));
+        let artifact_id = ArtifactId::new();
+        assert_eq!(
+            uris.artifact_uri(artifact_id),
+            format!("example://artifact/{artifact_id}")
+        );
+        assert_eq!(
+            uris.parse_artifact_uri(&uris.artifact_uri(artifact_id)),
+            Some(artifact_id)
+        );
+        assert_eq!(
+            uris.parse_artifact_uri("example://artifact/not-an-id"),
+            None
+        );
 
         assert_eq!(uris.usage_task_uri("task-1"), "example://usage/task/task-1");
         assert_eq!(
@@ -359,13 +382,11 @@ mod tests {
                 model_id: "provider/model".into()
             }
         );
+        let artifact_id = ArtifactId::new();
+        let artifact_uri = format!("media://artifact/{artifact_id}");
         assert_eq!(
-            ServerResourceUri::parse(
-                "media://artifact/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            )
-            .unwrap()
-            .to_string(),
-            "media://artifact/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ServerResourceUri::parse(&artifact_uri).unwrap().to_string(),
+            artifact_uri
         );
         assert_eq!(
             ServerResourceUri::parse("media://usage/task/gateway-task-1")

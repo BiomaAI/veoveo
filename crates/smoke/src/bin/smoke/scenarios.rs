@@ -13,6 +13,8 @@ mod gateway;
 mod media;
 #[path = "scenarios/secrets.rs"]
 mod secrets;
+#[path = "scenarios/sumo.rs"]
+mod sumo;
 
 pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
@@ -20,6 +22,7 @@ pub(crate) use coordinates::*;
 pub(crate) use gateway::*;
 pub(crate) use media::*;
 pub(crate) use secrets::*;
+pub(crate) use sumo::*;
 
 pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Path) -> Result<()> {
     let conformance = Path::new("target/debug/conformance");
@@ -84,8 +87,8 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
         [],
     )?;
 
-    suite_step("gateway Postgres control-plane seed");
-    gateway_control_db(gateway, smoke_control_plane).await?;
+    suite_step("gateway SurrealDB platform bootstrap");
+    gateway_platform_store(gateway, smoke_control_plane).await?;
 
     suite_step("self-hosted deployment validation");
     run_checked(

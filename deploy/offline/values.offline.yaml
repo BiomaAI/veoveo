@@ -1,0 +1,10 @@
+global:
+  offline: true
+  imagePullPolicy: Never
+
+networkPolicy:
+  externalEgressCidrs: []
+
+# Offline installations must point the gateway control plane at an OIDC issuer
+# reachable inside the installation boundary and mirror every image from
+# images.lock.json into the cluster runtime before Helm install/upgrade.

@@ -11,7 +11,10 @@ use super::{
     claims::{IdJagClaims, StringListClaim},
     config::IdJagConfig,
     principal::principal_assurances,
-    support::{AuthError, allowed_algorithms_for_header, unix_timestamp, validate_jwk_algorithm},
+    support::{
+        AuthError, allowed_algorithms_for_header, ensure_jwt_crypto_provider, unix_timestamp,
+        validate_jwk_algorithm,
+    },
     verified::VerifiedIdJag,
 };
 
@@ -27,6 +30,7 @@ impl IdJagVerifier {
     }
 
     pub fn verify(&self, assertion: &str) -> Result<VerifiedIdJag, AuthError> {
+        ensure_jwt_crypto_provider();
         if assertion.is_empty() || assertion.chars().any(char::is_whitespace) {
             return Err(AuthError::InvalidIdentityAssertion);
         }

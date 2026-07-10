@@ -4,25 +4,108 @@ use rmcp::{
     service::{RequestContext, RoleServer},
 };
 use veoveo_mcp_contract::{
-    AuditEvent, CompatibilityHelperId, GatewayAction, GatewayResourceProjection, GatewayTaskId,
-    GatewayTaskMapping, LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision,
-    PolicyEffect, PolicyReasonCode, PolicyTarget, PrincipalAuditAttributes, PrincipalId,
-    PromptName, ServerResourceUri, ServerSlug, TaskIdProjection, TraceId,
+    AuditEvent, CanonicalTaskId, CompatibilityHelperId, GatewayAction, GatewayResourceProjection,
+    LocalToolName, OAuthClientRegistration, OAuthClientSurface, PolicyDecision, PolicyEffect,
+    PolicyReasonCode, PolicyTarget, PrincipalAuditAttributes, PromptName, ServerSlug, TenantId,
+    TraceId,
 };
+use veoveo_mcp_task_extension::ProtocolTaskId;
+use veoveo_platform_store::TaskRecord;
+use veoveo_task_runtime::TaskSnapshot;
 
 use crate::{
     AuthenticatedSubject, PolicyRequest,
     mcp_support::{
         audit_method_name, gateway_resource_uri, mcp_internal, mcp_invalid_params,
-        mcp_invalid_request, project_upstream_resource_for_owner, resource_policy_target,
-        task_mapping_allows_principal,
+        mcp_invalid_request, project_upstream_resource, resource_policy_target,
     },
     principal_audit_metadata,
 };
 
 use super::GatewayMcp;
 
+pub(super) struct CanonicalTaskRoute {
+    pub(super) task_id: ProtocolTaskId,
+    pub(super) server: ServerSlug,
+    pub(super) subject: AuthenticatedSubject,
+}
+
 impl GatewayMcp {
+    pub(super) async fn authorize_canonical_task(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        task_id: &str,
+    ) -> Result<CanonicalTaskRoute, McpError> {
+        let task_id = task_id
+            .parse::<ProtocolTaskId>()
+            .map_err(|error| mcp_invalid_params(format!("invalid canonical task id: {error}")))?;
+        let mut response = self
+            .platform_store
+            .client()
+            .query("SELECT * FROM ONLY $task;")
+            .bind(("task", task_id.task_id().record_id()))
+            .await
+            .map_err(|error| mcp_internal(format!("failed to read canonical task: {error}")))?
+            .check()
+            .map_err(|error| mcp_internal(format!("canonical task query failed: {error}")))?;
+        let record: Option<TaskRecord> = response
+            .take(0)
+            .map_err(|error| mcp_internal(format!("failed to decode canonical task: {error}")))?;
+        let snapshot = record
+            .map(TaskSnapshot::try_from)
+            .transpose()
+            .map_err(|error| mcp_internal(format!("invalid canonical task record: {error}")))?
+            .ok_or_else(|| mcp_invalid_params("unknown task id"))?;
+        let subject = self.authenticated(context)?;
+        let labels = subject
+            .principal
+            .data_labels
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        if !snapshot.owner.allows(
+            subject.principal.id.as_str(),
+            self.profile_id.as_str(),
+            subject.principal.tenant.as_ref().map(TenantId::as_str),
+            &labels,
+        ) {
+            return Err(mcp_invalid_params("unknown task id"));
+        }
+        let server = ServerSlug::new(snapshot.server)
+            .map_err(|error| mcp_internal(format!("task has invalid server: {error}")))?;
+        let exposed = self
+            .catalog
+            .current()
+            .profile_servers(&self.profile_id)
+            .into_iter()
+            .any(|(exposure, manifest)| {
+                manifest.slug == server
+                    && exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled
+                    && manifest.capabilities.tasks
+            });
+        if !exposed {
+            return Err(mcp_invalid_params("unknown task id"));
+        }
+        let canonical_task_id = CanonicalTaskId::new(task_id.to_string())
+            .map_err(|error| mcp_internal(format!("invalid canonical task id: {error}")))?;
+        let subject = self
+            .authorize(
+                context,
+                action,
+                PolicyTarget::Task {
+                    server: server.clone(),
+                    task_id: canonical_task_id,
+                },
+            )
+            .await?;
+        Ok(CanonicalTaskRoute {
+            task_id,
+            server,
+            subject,
+        })
+    }
+
     pub(super) fn authenticated(
         &self,
         context: &RequestContext<RoleServer>,
@@ -76,16 +159,6 @@ impl GatewayMcp {
         Ok(client.allowed_compatibility_helpers.contains(&helper))
     }
 
-    pub(super) fn client_allows_gateway_compatibility_helper(
-        &self,
-        subject: &AuthenticatedSubject,
-        helper: &CompatibilityHelperId,
-    ) -> Result<bool, McpError> {
-        let client = self.authenticated_oauth_client(subject)?;
-        Ok(client.client_surface == OAuthClientSurface::ToolsCompat
-            && client.allowed_compatibility_helpers.contains(helper))
-    }
-
     pub(super) fn client_allows_direct_task_adapter(
         &self,
         subject: &AuthenticatedSubject,
@@ -95,13 +168,13 @@ impl GatewayMcp {
             && client.direct_task_call_adapter)
     }
 
-    pub(super) fn authorize(
+    pub(super) async fn authorize(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<AuthenticatedSubject, McpError> {
-        let (subject, decision) = self.evaluate_policy(context, action, target)?;
+        let (subject, decision) = self.evaluate_policy(context, action, target).await?;
         if decision.effect == PolicyEffect::Allow {
             Ok(subject)
         } else {
@@ -119,17 +192,17 @@ impl GatewayMcp {
         }
     }
 
-    pub(super) fn allows(
+    pub(super) async fn allows(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<bool, McpError> {
-        let (_subject, decision) = self.evaluate_policy(context, action, target)?;
+        let (_subject, decision) = self.evaluate_policy(context, action, target).await?;
         Ok(decision.effect == PolicyEffect::Allow)
     }
 
-    pub(super) fn evaluate_policy(
+    pub(super) async fn evaluate_policy(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -165,11 +238,12 @@ impl GatewayMcp {
                 latency_ms: None,
                 metadata: principal_audit_metadata(&subject.principal),
             })
+            .await
             .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
         Ok((subject, decision))
     }
 
-    pub(super) fn authorize_tool(
+    pub(super) async fn authorize_tool(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -177,9 +251,10 @@ impl GatewayMcp {
         tool: LocalToolName,
     ) -> Result<AuthenticatedSubject, McpError> {
         self.authorize(context, action, PolicyTarget::Tool { server, tool })
+            .await
     }
 
-    pub(super) fn allows_tool(
+    pub(super) async fn allows_tool(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -187,9 +262,10 @@ impl GatewayMcp {
         tool: LocalToolName,
     ) -> Result<bool, McpError> {
         self.allows(context, action, PolicyTarget::Tool { server, tool })
+            .await
     }
 
-    pub(super) fn authorize_resource(
+    pub(super) async fn authorize_resource(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -197,41 +273,25 @@ impl GatewayMcp {
         uri: &str,
     ) -> Result<AuthenticatedSubject, McpError> {
         let target = resource_policy_target(server, uri)?;
-        self.authorize(context, action, target)
+        self.authorize(context, action, target).await
     }
 
-    pub(super) fn authorize_projected_resource(
+    pub(super) async fn authorize_projected_resource(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
         projection: &GatewayResourceProjection,
     ) -> Result<AuthenticatedSubject, McpError> {
-        let Some(task) = &projection.task else {
-            return self.authorize_resource(
-                context,
-                action,
-                projection.server.clone(),
-                projection.gateway_uri.as_str(),
-            );
-        };
-        let subject = self.authenticated(context)?;
-        let target =
-            resource_policy_target(projection.server.clone(), projection.gateway_uri.as_str())?;
-        if task.upstream_server != projection.server {
-            return Err(mcp_internal("invalid gateway resource projection"));
-        }
-        let mapping = self.task_mapping(task.gateway_task_id.as_str())?;
-        if mapping.upstream_server != projection.server
-            || mapping.upstream_task_id != task.upstream_task_id
-            || !task_mapping_allows_principal(&self.profile_id, &mapping, &subject.principal.id)
-        {
-            self.record_policy_denial(&subject, action, target, PolicyReasonCode::UnknownTask)?;
-            return Err(mcp_invalid_params("unknown gateway task id"));
-        }
-        self.authorize(context, action, target)
+        self.authorize_resource(
+            context,
+            action,
+            projection.server.clone(),
+            projection.gateway_uri.as_str(),
+        )
+        .await
     }
 
-    pub(super) fn allows_resource(
+    pub(super) async fn allows_resource(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -239,10 +299,10 @@ impl GatewayMcp {
         uri: &str,
     ) -> Result<bool, McpError> {
         let target = resource_policy_target(server, uri)?;
-        self.allows(context, action, target)
+        self.allows(context, action, target).await
     }
 
-    pub(super) fn authorize_prompt(
+    pub(super) async fn authorize_prompt(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -250,9 +310,10 @@ impl GatewayMcp {
         prompt: PromptName,
     ) -> Result<AuthenticatedSubject, McpError> {
         self.authorize(context, action, PolicyTarget::Prompt { server, prompt })
+            .await
     }
 
-    pub(super) fn allows_prompt(
+    pub(super) async fn allows_prompt(
         &self,
         context: &RequestContext<RoleServer>,
         action: GatewayAction,
@@ -260,27 +321,10 @@ impl GatewayMcp {
         prompt: PromptName,
     ) -> Result<bool, McpError> {
         self.allows(context, action, PolicyTarget::Prompt { server, prompt })
+            .await
     }
 
-    pub(super) fn authorize_mapped_task(
-        &self,
-        context: &RequestContext<RoleServer>,
-        action: GatewayAction,
-        mapping: &GatewayTaskMapping,
-    ) -> Result<AuthenticatedSubject, McpError> {
-        let subject = self.authenticated(context)?;
-        let target = PolicyTarget::Task {
-            server: mapping.upstream_server.clone(),
-            gateway_task_id: mapping.gateway_task_id.clone(),
-        };
-        if !task_mapping_allows_principal(&self.profile_id, mapping, &subject.principal.id) {
-            self.record_policy_denial(&subject, action, target, PolicyReasonCode::UnknownTask)?;
-            return Err(mcp_invalid_params("unknown gateway task id"));
-        }
-        self.authorize(context, action, target)
-    }
-
-    pub(super) fn record_policy_denial(
+    pub(super) async fn record_policy_denial(
         &self,
         subject: &AuthenticatedSubject,
         action: GatewayAction,
@@ -326,17 +370,9 @@ impl GatewayMcp {
                 latency_ms: None,
                 metadata: principal_audit_metadata(&subject.principal),
             })
+            .await
             .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
         Ok(())
-    }
-
-    pub(super) fn task_mapping(&self, task_id: &str) -> Result<GatewayTaskMapping, McpError> {
-        let gateway_task_id = GatewayTaskId::new(task_id.to_string())
-            .map_err(|err| mcp_invalid_params(format!("invalid gateway task id: {err}")))?;
-        self.state
-            .task_mapping(&gateway_task_id)
-            .map_err(|err| mcp_internal(format!("failed to read gateway task mapping: {err}")))?
-            .ok_or_else(|| mcp_invalid_params("unknown gateway task id"))
     }
 
     pub(super) fn server_for_resource(&self, uri: &str) -> Result<ServerSlug, McpError> {
@@ -352,45 +388,23 @@ impl GatewayMcp {
         uri: &str,
     ) -> Result<GatewayResourceProjection, McpError> {
         let server = self.server_for_resource(uri)?;
-        let parsed = ServerResourceUri::parse(uri)
-            .map_err(|err| mcp_invalid_params(format!("invalid resource URI: {err}")))?;
-        let Some(task_id) = parsed.usage_task_id() else {
-            return Ok(GatewayResourceProjection {
-                server,
-                gateway_uri: gateway_resource_uri(uri)?,
-                upstream_uri: gateway_resource_uri(uri)?,
-                task: None,
-            });
-        };
-        let mapping = self.task_mapping(task_id)?;
-        if mapping.upstream_server != server {
-            return Err(mcp_invalid_params(
-                "usage task id belongs to another server",
-            ));
-        }
-        let upstream_uri = parsed
-            .with_usage_task_id(mapping.upstream_task_id.as_str())
-            .map_err(|err| mcp_internal(format!("failed to project usage URI: {err}")))?
-            .to_string();
         Ok(GatewayResourceProjection {
             server,
             gateway_uri: gateway_resource_uri(uri)?,
-            upstream_uri: gateway_resource_uri(&upstream_uri)?,
-            task: Some(TaskIdProjection::from(&mapping)),
+            upstream_uri: gateway_resource_uri(uri)?,
         })
     }
 
-    pub(super) fn project_upstream_resource_for_owner(
+    pub(super) fn project_upstream_resource(
         &self,
         server: &ServerSlug,
-        owner: &PrincipalId,
         uri: &str,
-    ) -> Result<Option<GatewayResourceProjection>, McpError> {
+    ) -> Result<GatewayResourceProjection, McpError> {
         let catalog = self.catalog.current();
         let manifest = catalog
             .server(server)
             .ok_or_else(|| mcp_internal(format!("unknown upstream server `{server}`")))?;
-        project_upstream_resource_for_owner(&self.state, &self.profile_id, owner, manifest, uri)
+        project_upstream_resource(manifest, uri)
     }
 
     pub(super) fn server_for_prompt(&self, prompt: &str) -> Result<ServerSlug, McpError> {

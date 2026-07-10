@@ -13,22 +13,24 @@ path = "src/bin/gateway.rs"
 
 [dependencies]
 anyhow.workspace = true
+async-stream = "0.3.6"
 axum.workspace = true
 base64.workspace = true
 chrono.workspace = true
+chacha20poly1305.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
-duckdb.workspace = true
+futures.workspace = true
+getrandom.workspace = true
 jsonwebtoken.workspace = true
 parking_lot.workspace = true
-reqwest = { workspace = true, features = ["json", "rustls-no-provider"] }
+reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest-tls-no-provider"] }
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
-sqlx.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tower-http.workspace = true
@@ -36,7 +38,11 @@ tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
 vaultrs.workspace = true
+veoveo-artifact-client = { path = "../artifact-client" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+veoveo-mcp-task-extension = { path = "../mcp-task-extension" }
+veoveo-platform-store = { path = "../platform-store" }
+veoveo-task-runtime = { path = "../task-runtime" }
 
 [dev-dependencies]
 base64.workspace = true

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "bundle_version": "0.1.0",
+  "external_images": [
+    {
+      "ref": "surrealdb/surrealdb:v3.2.0",
+      "source": "surrealdb/surrealdb@sha256:cd2b5ef11e77c00c59808ca8bb68a868a836c5bc6aba7af71f718cd6e73acb04"
+    },
+    {
+      "ref": "rustfs/rustfs:1.0.0-beta.8",
+      "source": "rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3"
+    },
+    {
+      "ref": "alpine:3.20.3",
+      "source": "alpine@sha256:1e42bbe2508154c9126d48c2b8a75420c3544343bf86fd041fb7527e017a4b4a"
+    },
+    {
+      "ref": "amazon/aws-cli:2.17.45",
+      "source": "amazon/aws-cli@sha256:66bc04ecab82ac8aff739b87973e77a84f42bc4b971e84d6f4ffbcabb0260d56"
+    },
+    {
+      "ref": "caddy:2.11.2",
+      "source": "caddy@sha256:25cdc846626b62d05f6b633b9b40c2c9f6ef89b515dc76133cefd920f7dbe562"
+    },
+    {
+      "ref": "otel/opentelemetry-collector:0.155.0",
+      "source": "otel/opentelemetry-collector@sha256:140cdb56eeea12ebc33bb4f7109fd4eef90391933f8d85b33384fcfe1cf040c4"
+    }
+  ],
+  "veoveo_images": [
+    {"ref": "veoveo/agent-kernel:0.1.0", "dockerfile": "crates/agent-kernel/Dockerfile"},
+    {"ref": "veoveo/artifact-mcp:0.1.0", "dockerfile": "crates/artifact-mcp/Dockerfile"},
+    {"ref": "veoveo/artifact-service:0.1.0", "dockerfile": "crates/artifact-service/Dockerfile"},
+    {"ref": "veoveo/chart-mcp:0.1.0", "dockerfile": "containers/chart-mcp/Dockerfile"},
+    {"ref": "veoveo/console-bff:0.1.0", "dockerfile": "crates/console-bff/Dockerfile"},
+    {"ref": "veoveo/coordinates-mcp:0.1.0", "dockerfile": "crates/coordinates-mcp/Dockerfile"},
+    {"ref": "veoveo/duckdb-mcp:0.1.0", "dockerfile": "crates/duckdb-mcp/Dockerfile"},
+    {"ref": "veoveo/mcp-gateway:0.1.0", "dockerfile": "crates/mcp-gateway/Dockerfile"},
+    {"ref": "veoveo/mcp-stdio-bridge:0.1.0", "dockerfile": "crates/mcp-stdio-bridge/Dockerfile"},
+    {"ref": "veoveo/media-mcp:0.1.0", "dockerfile": "crates/media-mcp/Dockerfile"},
+    {"ref": "veoveo/optimization-mcp:0.1.0", "dockerfile": "crates/optimization-mcp/Dockerfile"},
+    {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "crates/recording-hub/Dockerfile"},
+    {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "crates/recording-mcp/Dockerfile"},
+    {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "crates/timeseries-mcp/Dockerfile"}
+  ]
+}

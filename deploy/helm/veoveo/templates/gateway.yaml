@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-gateway
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  ports:
+    - name: http
+      port: 8788
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-gateway
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: gateway
+          image: {{ include "veoveo.image" (list . .Values.gateway.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - serve
+            - --port
+            - "8788"
+            - --public-base-url
+            - {{ .Values.global.publicBaseUrl | quote }}
+            - --artifact-service-url
+            - http://artifact-service:8790
+          env:
+            {{- include "veoveo.surrealEnv" . | nindent 12 }}
+            - name: VEOVEO_INTERNAL_SIGNING_KEY_DER_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: internal-signing-key-der-b64
+            - name: VEOVEO_INTERNAL_SIGNING_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: internal-signing-key-id
+            - name: VEOVEO_IDP_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: oidc-client-secret
+            - name: VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: authorization-server-private-key-der-b64
+            - name: VEOVEO_REFRESH_DELIVERY_KEY_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: refresh-delivery-key-b64
+            - name: VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS
+              value: {{ .Values.gateway.refreshDeliveryWindowSeconds | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-mcp-gateway
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4318
+          ports:
+            - name: http
+              containerPort: 8788
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,17 @@
+{{- if .Values.global.serviceMesh.enabled }}
+{{- if ne .Values.global.serviceMesh.provider "istio" }}
+{{- fail "global.serviceMesh.provider must be istio when service mesh mTLS is enabled" }}
+{{- end }}
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "veoveo.fullname" . }}-strict-mtls
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+  mtls:
+    mode: STRICT
+{{- end }}

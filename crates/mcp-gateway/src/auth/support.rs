@@ -3,6 +3,10 @@ use std::fmt;
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, jwk::KeyAlgorithm};
 
+pub(super) fn ensure_jwt_crypto_provider() {
+    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
+}
+
 #[derive(Debug)]
 pub enum AuthError {
     MissingAllowedAlgorithms,

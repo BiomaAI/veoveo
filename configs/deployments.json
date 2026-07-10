@@ -1,364 +1,335 @@
 {
   "profiles": [
     {
-      "id": "local",
-      "kind": "local",
-      "required_services": [
-        "gateway",
-        "hosted_mcp_server",
-        "object_store",
-        "state_store",
-        "telemetry_collector",
-        "tunnel_or_ingress"
-      ],
+      "id": "compose-connected",
+      "installation_scope": "one_enterprise",
+      "installation_form": "compose",
+      "connectivity": "connected",
+      "tenant_model": {
+        "kind": "internal_tenants",
+        "tenant_keys_are_installation_local": true,
+        "cross_tenant_access_denied_by_default": true
+      },
+      "platform_store": {
+        "engine": "surreal_db",
+        "version": "3.2.0",
+        "storage_engine": "rocks_db",
+        "topology": "single_node",
+        "database_ha": "out_of_scope",
+        "durable_volume_required": true,
+        "changefeed_source_of_truth": "durable_outbox",
+        "live_queries": "best_effort_latency_path",
+        "endpoint": "ws://surrealdb:8000"
+      },
+      "object_store": {
+        "kind": "rust_fs",
+        "endpoint": "http://rustfs:9000",
+        "bucket": "artifact-plane",
+        "server_side_encryption_required": false,
+        "customer_managed_keys_supported": false
+      },
+      "analytical_runtime": {
+        "engine": "duck_db",
+        "purpose": "isolated_analytical_workspace",
+        "arbitrary_sql": true,
+        "owner_scoped_workspaces": true,
+        "durable_platform_state": false,
+        "external_data_access": "governed_ingest_artifact_or_attach",
+        "container_sandbox_required": true
+      },
+      "ingress": {
+        "kind": "compose_published_port",
+        "public_base_url": "https://veoveo.enterprise.example",
+        "tls_terminated": true
+      },
+      "identity_provider": {
+        "kind": "external_oidc",
+        "issuer": "https://idp.enterprise.example",
+        "discovery_available_offline": false
+      },
+      "secret_manager": {
+        "kind": "compose_secret_files",
+        "existing_secret_name": "veoveo-installation-secrets",
+        "rotation_owned_by_operator": true
+      },
       "service_to_service": {
-        "gateway_identity": "gateway_signed_jwt",
+        "gateway_identity": "gateway_signed_ed25519_jwt",
         "transport": "private_network_plaintext"
       },
-      "secret_sources": ["env"],
-      "object_stores": [
-        {
-          "id": "rustfs",
-          "kind": "s3_compatible",
-          "servers": ["media"],
-          "endpoint": "http://rustfs:9000",
-          "server_side_encryption_required": false,
-          "customer_managed_keys_required": false
-        }
-      ],
-      "state_stores": [
-        {
-          "id": "gateway-duckdb",
-          "kind": "duckdb",
-          "owners": [
-            {
-              "kind": "gateway"
-            }
-          ],
-          "durable_volume_required": true,
-          "encrypted_at_rest_required": false,
-          "customer_managed_keys_required": false
-        },
-        {
-          "id": "media-duckdb",
-          "kind": "duckdb",
-          "owners": [
-            {
-              "kind": "server",
-              "server": "media"
-            }
-          ],
-          "durable_volume_required": true,
-          "encrypted_at_rest_required": false,
-          "customer_managed_keys_required": false
-        }
-      ],
-      "telemetry_sinks": [
-        {
-          "id": "otel-local",
-          "kind": "open_telemetry_collector",
-          "endpoint": "http://otel-collector:4318",
-          "signals": ["logs", "traces", "audit_events"]
-        }
-      ],
-      "ingress": [
-        {
-          "id": "gateway-public",
-          "target_kind": "gateway",
-          "target": "mcp-gateway",
-          "ports": [443, 8788],
-          "tls_required": true
-        }
-      ],
-      "egress": [
-        {
-          "id": "hosted-media-mcp",
-          "target_kind": "hosted_mcp_server",
-          "target": "media-mcp",
-          "ports": [8787],
-          "tls_required": false
-        },
-        {
-          "id": "artifact-store",
-          "target_kind": "object_store",
-          "target": "rustfs",
-          "ports": [9000],
-          "tls_required": false
-        },
-        {
-          "id": "telemetry",
-          "target_kind": "telemetry_collector",
-          "target": "otel-collector",
-          "ports": [4318],
-          "tls_required": false
-        },
-        {
-          "id": "media-provider",
-          "target_kind": "external_provider_api",
-          "target": "media-provider-api",
-          "ports": [443],
-          "tls_required": true
-        }
-      ],
-      "retention": {
-        "task_metadata_days": 30,
-        "artifact_metadata_days": 30,
-        "artifact_bytes_days": 30,
-        "usage_analytics_days": 365,
-        "audit_event_days": 365
-      }
-    },
-    {
-      "id": "enterprise",
-      "kind": "enterprise",
-      "required_services": [
-        "gateway",
-        "hosted_mcp_server",
-        "object_store",
-        "state_store",
-        "secret_manager",
-        "identity_provider",
-        "authorization_server",
-        "telemetry_collector",
-        "tunnel_or_ingress"
-      ],
-      "service_to_service": {
-        "gateway_identity": "gateway_signed_jwt",
-        "transport": "service_mesh_mtls"
+      "telemetry": {
+        "collector": "open_telemetry_collector",
+        "endpoint": "http://otel-collector:4318",
+        "signals": ["logs", "traces", "metrics", "audit_events"],
+        "siem_export_supported": true
       },
-      "secret_sources": ["vault", "hcp_vault"],
-      "object_stores": [
-        {
-          "id": "enterprise-object-store",
-          "kind": "enterprise_managed",
-          "servers": ["media"],
-          "server_side_encryption_required": true,
-          "customer_managed_keys_required": true
-        }
-      ],
-      "state_stores": [
-        {
-          "id": "enterprise-gateway-duckdb",
-          "kind": "duckdb",
-          "owners": [
-            {
-              "kind": "gateway"
-            }
-          ],
-          "durable_volume_required": true,
-          "encrypted_at_rest_required": true,
-          "customer_managed_keys_required": true
-        },
-        {
-          "id": "enterprise-media-duckdb",
-          "kind": "duckdb",
-          "owners": [
-            {
-              "kind": "server",
-              "server": "media"
-            }
-          ],
-          "durable_volume_required": true,
-          "encrypted_at_rest_required": true,
-          "customer_managed_keys_required": true
-        }
-      ],
-      "telemetry_sinks": [
-        {
-          "id": "enterprise-otel",
-          "kind": "enterprise_managed",
-          "signals": ["logs", "traces", "metrics", "audit_events"]
-        }
-      ],
-      "ingress": [
-        {
-          "id": "enterprise-gateway",
-          "target_kind": "tunnel_or_ingress",
-          "target": "enterprise-ingress",
-          "ports": [443],
-          "tls_required": true
-        }
-      ],
-      "egress": [
-        {
-          "id": "enterprise-hosted-mcp",
-          "target_kind": "hosted_mcp_server",
-          "target": "enterprise-hosted-mcp-services",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "enterprise-object-store",
-          "target_kind": "object_store",
-          "target": "enterprise-object-store",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "enterprise-secret-manager",
-          "target_kind": "secret_manager",
-          "target": "enterprise-vault",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "enterprise-identity-provider",
-          "target_kind": "identity_provider",
-          "target": "enterprise-idp",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "enterprise-telemetry",
-          "target_kind": "telemetry_collector",
-          "target": "enterprise-telemetry",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "media-provider",
-          "target_kind": "external_provider_api",
-          "target": "media-provider-api",
-          "ports": [443],
-          "tls_required": true
-        }
+      "services": [
+        "gateway",
+        "console_bff",
+        "console",
+        "artifact_service",
+        "artifact_mcp",
+        "recording_hub",
+        "recording_mcp",
+        "hosted_mcp_server",
+        "platform_store",
+        "object_store",
+        "telemetry_collector"
       ],
       "retention": {
         "task_metadata_days": 90,
         "artifact_metadata_days": 90,
         "artifact_bytes_days": 90,
-        "usage_analytics_days": 2555,
-        "audit_event_days": 2555
+        "usage_analytics_days": 365,
+        "audit_event_days": 365
       }
     },
     {
-      "id": "regulated",
-      "kind": "regulated",
-      "required_services": [
-        "gateway",
-        "hosted_mcp_server",
-        "object_store",
-        "state_store",
-        "secret_manager",
-        "identity_provider",
-        "authorization_server",
-        "telemetry_collector",
-        "tunnel_or_ingress"
-      ],
+      "id": "compose-offline",
+      "installation_scope": "one_enterprise",
+      "installation_form": "compose",
+      "connectivity": "offline",
+      "tenant_model": {
+        "kind": "internal_tenants",
+        "tenant_keys_are_installation_local": true,
+        "cross_tenant_access_denied_by_default": true
+      },
+      "platform_store": {
+        "engine": "surreal_db",
+        "version": "3.2.0",
+        "storage_engine": "rocks_db",
+        "topology": "single_node",
+        "database_ha": "out_of_scope",
+        "durable_volume_required": true,
+        "changefeed_source_of_truth": "durable_outbox",
+        "live_queries": "best_effort_latency_path",
+        "endpoint": "ws://surrealdb:8000"
+      },
+      "object_store": {
+        "kind": "rust_fs",
+        "endpoint": "http://rustfs:9000",
+        "bucket": "artifact-plane",
+        "server_side_encryption_required": false,
+        "customer_managed_keys_supported": false
+      },
+      "analytical_runtime": {
+        "engine": "duck_db",
+        "purpose": "isolated_analytical_workspace",
+        "arbitrary_sql": true,
+        "owner_scoped_workspaces": true,
+        "durable_platform_state": false,
+        "external_data_access": "governed_ingest_artifact_or_attach",
+        "container_sandbox_required": true
+      },
+      "ingress": {
+        "kind": "external_reverse_proxy",
+        "public_base_url": "https://veoveo.airgap.example",
+        "tls_terminated": true
+      },
+      "identity_provider": {
+        "kind": "external_oidc",
+        "issuer": "https://idp.airgap.example",
+        "discovery_available_offline": true
+      },
+      "secret_manager": {
+        "kind": "compose_secret_files",
+        "existing_secret_name": "veoveo-installation-secrets",
+        "rotation_owned_by_operator": true
+      },
       "service_to_service": {
-        "gateway_identity": "gateway_signed_jwt",
+        "gateway_identity": "gateway_signed_ed25519_jwt",
         "transport": "mutual_tls"
       },
-      "secret_sources": ["vault", "hcp_vault"],
-      "object_stores": [
-        {
-          "id": "regulated-object-store",
-          "kind": "enterprise_managed",
-          "servers": ["media"],
-          "server_side_encryption_required": true,
-          "customer_managed_keys_required": true
-        }
-      ],
-      "state_stores": [
-        {
-          "id": "regulated-gateway-duckdb",
-          "kind": "duckdb",
-          "owners": [
-            {
-              "kind": "gateway"
-            }
-          ],
-          "durable_volume_required": true,
-          "encrypted_at_rest_required": true,
-          "customer_managed_keys_required": true
-        },
-        {
-          "id": "regulated-media-duckdb",
-          "kind": "duckdb",
-          "owners": [
-            {
-              "kind": "server",
-              "server": "media"
-            }
-          ],
-          "durable_volume_required": true,
-          "encrypted_at_rest_required": true,
-          "customer_managed_keys_required": true
-        }
-      ],
-      "telemetry_sinks": [
-        {
-          "id": "regulated-siem",
-          "kind": "siem",
-          "signals": ["logs", "traces", "metrics", "audit_events"]
-        }
-      ],
-      "ingress": [
-        {
-          "id": "regulated-gateway",
-          "target_kind": "tunnel_or_ingress",
-          "target": "regulated-private-ingress",
-          "ports": [443],
-          "tls_required": true
-        }
-      ],
-      "egress": [
-        {
-          "id": "regulated-hosted-mcp",
-          "target_kind": "hosted_mcp_server",
-          "target": "regulated-hosted-mcp-services",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "regulated-object-store",
-          "target_kind": "object_store",
-          "target": "regulated-object-store",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "regulated-secret-manager",
-          "target_kind": "secret_manager",
-          "target": "regulated-vault",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "regulated-identity-provider",
-          "target_kind": "identity_provider",
-          "target": "regulated-idp",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "regulated-siem",
-          "target_kind": "telemetry_collector",
-          "target": "regulated-siem",
-          "ports": [443],
-          "tls_required": true
-        },
-        {
-          "id": "media-provider",
-          "target_kind": "external_provider_api",
-          "target": "approved-media-provider-api",
-          "ports": [443],
-          "tls_required": true
-        }
+      "telemetry": {
+        "collector": "open_telemetry_collector",
+        "endpoint": "http://otel-collector:4318",
+        "signals": ["logs", "traces", "metrics", "audit_events"],
+        "siem_export_supported": true
+      },
+      "services": [
+        "gateway",
+        "console_bff",
+        "console",
+        "artifact_service",
+        "artifact_mcp",
+        "recording_hub",
+        "recording_mcp",
+        "hosted_mcp_server",
+        "platform_store",
+        "object_store",
+        "telemetry_collector"
       ],
       "retention": {
-        "task_metadata_days": 365,
-        "artifact_metadata_days": 365,
-        "artifact_bytes_days": 365,
-        "usage_analytics_days": 2555,
-        "audit_event_days": 2555
+        "task_metadata_days": 90,
+        "artifact_metadata_days": 90,
+        "artifact_bytes_days": 90,
+        "usage_analytics_days": 365,
+        "audit_event_days": 365
+      }
+    },
+    {
+      "id": "helm-connected",
+      "installation_scope": "one_enterprise",
+      "installation_form": "helm",
+      "connectivity": "connected",
+      "tenant_model": {
+        "kind": "internal_tenants",
+        "tenant_keys_are_installation_local": true,
+        "cross_tenant_access_denied_by_default": true
       },
-      "regulated_controls": {
-        "allowed_labels": ["cui", "itar", "pii"],
-        "require_us_person": true,
-        "require_private_network": true,
-        "require_customer_managed_keys": true,
-        "require_audit_export": true
+      "platform_store": {
+        "engine": "surreal_db",
+        "version": "3.2.0",
+        "storage_engine": "rocks_db",
+        "topology": "single_node",
+        "database_ha": "out_of_scope",
+        "durable_volume_required": true,
+        "changefeed_source_of_truth": "durable_outbox",
+        "live_queries": "best_effort_latency_path",
+        "endpoint": "ws://veoveo-surrealdb:8000"
+      },
+      "object_store": {
+        "kind": "external_s3_compatible",
+        "endpoint": "https://s3.enterprise.example",
+        "bucket": "veoveo-artifacts",
+        "server_side_encryption_required": true,
+        "customer_managed_keys_supported": true
+      },
+      "analytical_runtime": {
+        "engine": "duck_db",
+        "purpose": "isolated_analytical_workspace",
+        "arbitrary_sql": true,
+        "owner_scoped_workspaces": true,
+        "durable_platform_state": false,
+        "external_data_access": "governed_ingest_artifact_or_attach",
+        "container_sandbox_required": true
+      },
+      "ingress": {
+        "kind": "kubernetes_ingress",
+        "public_base_url": "https://veoveo.enterprise.example",
+        "tls_terminated": true
+      },
+      "identity_provider": {
+        "kind": "external_oidc",
+        "issuer": "https://idp.enterprise.example",
+        "discovery_available_offline": false
+      },
+      "secret_manager": {
+        "kind": "kubernetes_existing_secret",
+        "existing_secret_name": "veoveo-installation-secrets",
+        "rotation_owned_by_operator": true
+      },
+      "service_to_service": {
+        "gateway_identity": "gateway_signed_ed25519_jwt",
+        "transport": "service_mesh_mtls"
+      },
+      "telemetry": {
+        "collector": "open_telemetry_collector",
+        "endpoint": "http://veoveo-otel-collector:4318",
+        "signals": ["logs", "traces", "metrics", "audit_events"],
+        "siem_export_supported": true
+      },
+      "services": [
+        "gateway",
+        "console_bff",
+        "console",
+        "artifact_service",
+        "artifact_mcp",
+        "recording_hub",
+        "recording_mcp",
+        "hosted_mcp_server",
+        "platform_store",
+        "object_store",
+        "telemetry_collector"
+      ],
+      "retention": {
+        "task_metadata_days": 90,
+        "artifact_metadata_days": 90,
+        "artifact_bytes_days": 90,
+        "usage_analytics_days": 365,
+        "audit_event_days": 365
+      }
+    },
+    {
+      "id": "helm-offline",
+      "installation_scope": "one_enterprise",
+      "installation_form": "helm",
+      "connectivity": "offline",
+      "tenant_model": {
+        "kind": "internal_tenants",
+        "tenant_keys_are_installation_local": true,
+        "cross_tenant_access_denied_by_default": true
+      },
+      "platform_store": {
+        "engine": "surreal_db",
+        "version": "3.2.0",
+        "storage_engine": "rocks_db",
+        "topology": "single_node",
+        "database_ha": "out_of_scope",
+        "durable_volume_required": true,
+        "changefeed_source_of_truth": "durable_outbox",
+        "live_queries": "best_effort_latency_path",
+        "endpoint": "ws://veoveo-surrealdb:8000"
+      },
+      "object_store": {
+        "kind": "rust_fs",
+        "endpoint": "http://veoveo-rustfs:9000",
+        "bucket": "artifact-plane",
+        "server_side_encryption_required": false,
+        "customer_managed_keys_supported": false
+      },
+      "analytical_runtime": {
+        "engine": "duck_db",
+        "purpose": "isolated_analytical_workspace",
+        "arbitrary_sql": true,
+        "owner_scoped_workspaces": true,
+        "durable_platform_state": false,
+        "external_data_access": "governed_ingest_artifact_or_attach",
+        "container_sandbox_required": true
+      },
+      "ingress": {
+        "kind": "kubernetes_ingress",
+        "public_base_url": "https://veoveo.airgap.example",
+        "tls_terminated": true
+      },
+      "identity_provider": {
+        "kind": "external_oidc",
+        "issuer": "https://idp.airgap.example",
+        "discovery_available_offline": true
+      },
+      "secret_manager": {
+        "kind": "kubernetes_existing_secret",
+        "existing_secret_name": "veoveo-installation-secrets",
+        "rotation_owned_by_operator": true
+      },
+      "service_to_service": {
+        "gateway_identity": "gateway_signed_ed25519_jwt",
+        "transport": "service_mesh_mtls"
+      },
+      "telemetry": {
+        "collector": "open_telemetry_collector",
+        "endpoint": "http://veoveo-otel-collector:4318",
+        "signals": ["logs", "traces", "metrics", "audit_events"],
+        "siem_export_supported": true
+      },
+      "services": [
+        "gateway",
+        "console_bff",
+        "console",
+        "artifact_service",
+        "artifact_mcp",
+        "recording_hub",
+        "recording_mcp",
+        "hosted_mcp_server",
+        "platform_store",
+        "object_store",
+        "telemetry_collector"
+      ],
+      "retention": {
+        "task_metadata_days": 90,
+        "artifact_metadata_days": 90,
+        "artifact_bytes_days": 90,
+        "usage_analytics_days": 365,
+        "audit_event_days": 365
       }
     }
   ]

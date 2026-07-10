@@ -9,6 +9,27 @@
 		format console
 	}
 
+	handle /console* {
+		reverse_proxy console-bff:8786
+	}
+
+	handle /auth* {
+		reverse_proxy console-bff:8786
+	}
+
+	# Public bearer links redeem at the private artifact service. Authorized
+	# downloads enter through the gateway and are checked against profile policy.
+	handle /s/* {
+		# The path contains a bearer secret. Redemption is audited by the
+		# artifact service without recording the raw token.
+		log_skip
+		reverse_proxy artifact-service:8790
+	}
+
+	handle /artifacts/* {
+		reverse_proxy mcp-gateway:8788
+	}
+
 	handle /mcp* {
 		reverse_proxy mcp-gateway:8788
 	}
@@ -39,46 +60,6 @@
 
 	handle /media/files* {
 		reverse_proxy media-mcp:8787
-	}
-
-	handle /media/artifacts* {
-		reverse_proxy media-mcp:8787
-	}
-
-	handle /media/healthz {
-		reverse_proxy media-mcp:8787
-	}
-
-	handle /timeseries/artifacts* {
-		reverse_proxy timeseries-mcp:8789
-	}
-
-	handle /timeseries/healthz {
-		reverse_proxy timeseries-mcp:8789
-	}
-
-	handle /optimization/artifacts* {
-		reverse_proxy optimization-mcp:8792
-	}
-
-	handle /optimization/healthz {
-		reverse_proxy optimization-mcp:8792
-	}
-
-	handle /coordinates/artifacts* {
-		reverse_proxy coordinates-mcp:8793
-	}
-
-	handle /coordinates/healthz {
-		reverse_proxy coordinates-mcp:8793
-	}
-
-	handle /duckdb/artifacts* {
-		reverse_proxy duckdb-mcp:8791
-	}
-
-	handle /duckdb/healthz {
-		reverse_proxy duckdb-mcp:8791
 	}
 
 	respond /media/mcp* 404

@@ -1,0 +1,24 @@
+[package]
+name = "veoveo-platform-store"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_platform_store"
+path = "src/lib.rs"
+
+[dependencies]
+chrono.workspace = true
+futures.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+surrealdb = { version = "=3.2.0", default-features = false, features = ["protocol-ws", "rustls"] }
+thiserror = "2.0.18"
+tokio = { workspace = true, features = ["time"] }
+url.workspace = true
+uuid = { workspace = true, features = ["serde", "v5", "v7"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

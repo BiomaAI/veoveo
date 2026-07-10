@@ -1,795 +1,311 @@
-# Technical Design: Veoveo's all-in MCP architecture
+# Veoveo Technical Design
 
-This document explains Veoveo's MCP architecture: the shared contract crate, the
-production gateway, and hosted domain servers such as `veoveo-media-mcp`. Media is the
-first reference server, so many examples use `media://` resources, but the design applies
-to future simulation, RL, optimization, and other Veoveo MCP servers.
+This document explains how the self-hosted Veoveo components implement the
+boundaries in `ARCHITECTURE_DECISIONS.md`. The architecture is protocol-first,
+typed, durable, and installation-owned.
 
-## The premise: protocol-first, not lowest-common-denominator
+## Capability Model
 
-Most MCP servers are written defensively, for the lowest common denominator of clients.
-Because typical hosts only reliably surface *tools*, servers compensate by flattening
-everything into tools: `search_models`, `get_schema`, `check_status`, `get_result`,
-`list_jobs`... The protocol's richer surfaces — resources, templates, completions,
-subscriptions, tasks, notifications — sit unused because "clients don't support them."
+Veoveo does not flatten MCP into a collection of convenience tools. Each hosted
+server uses the protocol surface that matches its domain:
 
-We reject that premise. **We define the required MCP capability profile and test it.**
-That inverts the design pressure: instead of dumbing the server down to weak clients, we
-push every concern to the protocol feature that was designed for it. Veoveo-compatible
-clients should consume the full protocol surface. The conformance CLI and Rust smoke
-harness in this repo are not product clients; they are contract enforcement. If a
-protocol surface exists on the server or gateway, tests exercise it end to end against
-real process boundaries.
+| Need | Canonical MCP surface |
+|---|---|
+| action | tool with typed input/output schema |
+| durable action | task-required tool through the final task extension |
+| addressable state | resource or resource template |
+| discovery | resource list/template plus completion |
+| reusable interaction | prompt |
+| live condition | resource subscription and notification |
+| progress/result wake | task subscription |
+| cross-server identity | typed URI and resource link |
 
-The payoff is a server whose canonical generation action is one tool, yet loses nothing:
+The gateway discovers these surfaces from upstream servers and projects them into a
+profile. It prefixes tool names only at the aggregation boundary, for example local
+`run` becomes `media__run`. Resource URIs keep their owning scheme.
 
-| Concern | Weak-client answer | Our answer |
-|---|---|---|
-| "what models exist?" | `search_models` tool | resource `media://models` |
-| "what are this model's params?" | `get_schema` tool | resource template `media://model/{model_id}` |
-| "autocomplete a model id" | fuzzy tool + prompt engineering | `completion/complete` on the template argument |
-| "is my job done?" | `check_status` tool, agent poll-spam | MCP tasks: `tasks/get`, `tasks/result` |
-| "tell me when it's done" | impossible; poll | `resources/subscribe` → `notifications/resources/updated` |
-| "show progress" | log lines in tool output | `notifications/progress` + task `statusMessage` |
-| "abort it" | `cancel_job` tool | `tasks/cancel` |
-| namespacing | `media_run`, `media_search`... | direct server identity (`serverInfo.name = media`) + `media://` URI scheme; local tool is `run`, while the gateway projects it to `media__run` only when aggregating servers |
+Some registered clients are explicitly `tools_compat`. Their narrow projections are
+implemented over the same typed upstream operation, task ID, policy decision, audit
+path, subscription, artifact identity, and result. They are additive client features,
+not a second protocol or source of truth. Full-MCP clients never receive compatibility
+helper clutter.
 
-Nothing above is exotic. It's all in the spec. Being "all in" simply means using it.
+## Component Boundaries
 
-## One tool: `run(model, input)`
+```text
+edge
+  +-- console-bff -> gateway admin and artifact download routes
+  +-- mcp-gateway -> hosted MCP servers
+  +-- artifact-service -> public share redemption only
+  +-- media-mcp -> signed provider webhooks and curated provider input files
 
-The media provider exposes ~1000 models (image, video, audio, 3D, LLM), each with its own input
-schema. The classic failure modes for wrapping such a catalog:
+mcp-gateway
+  +-- external OAuth/OIDC and gateway authorization server
+  +-- profile catalog, policy, protocol projection, audit
+  +-- short-lived internal identity issuer
+  +-- SurrealDB control/runtime state
 
-- **988 generated tools** — blows every context window, makes `tools/list` useless.
-- **A mega-tool with a union schema** — unvalidatable, undiscoverable.
-- **A vague pass-through** — "input: object, see docs" — pushes schema discovery out of band.
+hosted MCP server
+  +-- server-local typed domain contracts
+  +-- shared task runtime when operations are durable
+  +-- forwarded internal identity for artifact/recording operations
+  +-- no private control database or byte route
 
-Our answer is a single task-required tool whose *discovery story lives in the protocol*:
+artifact-service
+  +-- byte policy-enforcement point
+  +-- SurrealDB occurrence/grant/share/capability records
+  +-- S3-compatible blob storage
 
-1. `run`'s description points at `media://models` and the model template.
-2. The provider registry publishes a real JSON Schema per model.
-   We re-publish it, verbatim, as a resource. The client reads the schema and builds input.
-3. The server validates `input` against that same schema **before** submitting — precise,
-   immediate errors ("`quality` must be one of low|medium|high") instead of a burned
-   round-trip or wasted credits. Validation at the boundary is correctness, not client
-   babysitting; the client still owns schema-driven construction.
-
-New provider model? Zero code changes anywhere. The registry is cached (1h TTL) and the
-same cache backs the catalog resource, the per-model resources, and completions.
-
-## Long-running work: tasks + webhooks
-
-Generation takes seconds to minutes (gpt-image-2 edits run ~2 minutes). Blocking a
-`tools/call` for that long fights every transport timeout in the chain. Two async systems
-solve the two halves of the problem, and the server fuses them:
-
-- **MCP tasks (SEP-1319)** solve *client ↔ server* async: `tools/call` with `task`
-  metadata returns a durable `CreateTaskResult` immediately; the client polls `tasks/get`
-  (honoring the server's `pollInterval`), fetches the payload via `tasks/result`, can
-  `tasks/cancel` at any time, and survives disconnects because the task id is durable.
-- **Provider webhooks** solve *provider -> server* async: we submit with
-  `?webhook=<public-url>/webhooks/{provider}`; the provider POSTs the terminal prediction,
-  HMAC-SHA256-signed (`{webhook-id}.{webhook-timestamp}.{body}`, `v3,<hex>` header,
-  constant-time verified against the account secret).
-
-The fuse is a oneshot channel keyed by prediction id: the tool's task future awaits it,
-the webhook handler fires it. When the callback lands, the task completes and the client
-learns about it through *protocol events*, not polling luck:
-
-```
-Provider ──POST /webhooks (signed)──▶ ingest_prediction()
-                                          ├─ resolve oneshot ─▶ task future completes
-                                          │     ├─ notifications/tasks/status (Completed)
-                                          │     └─ tasks/result payload ready
-                                          └─ notifications/resources/updated ─▶ subscribers
+recording-hub
+  +-- private Rerun gRPC ingest
+  +-- crash-decodable RRD segments
+  +-- SurrealDB recording/segment catalog
 ```
 
-There is no provider polling path. Missing webhook delivery is an operational failure:
-the task eventually fails rather than silently switching to a second provider-status path.
-
-We implement the `tasks/*` handlers manually against our own task store rather than using
-rmcp's stock `OperationProcessor`, because we key tasks to provider prediction ids and
-want mid-flight `statusMessage` updates ("submitted; prediction X; subscribe
-media://prediction/X for updates"). That message is load-bearing: it's how the client
-learns the prediction URI to subscribe to *while the task is still running*.
-
-## The URI scheme is the namespace
-
-```
-media://models                          catalog index (id, type, description, price)
-media://model/{model_id}                full input schema + pricing   (completable)
-media://prediction/{id}                 live prediction state         (subscribable)
-media://artifact/{sha256}               server-owned output artifact
-media://usage                           usage resource index
-media://usage/task/{task_id}            estimates/actuals for one task
-```
-
-Tool names are scoped per-connection in MCP; hosts that aggregate servers do their own
-prefixing (`mcp__media__run`). Prefixing tool names server-side just stutters. The
-`media://` scheme is where the namespace actually belongs, and it gives every noun in
-the system a stable, linkable identity: task status messages reference prediction URIs,
-tool results carry `ResourceLink` blocks, subscriptions target them.
-
-## Results are structured, twice
-
-A completed `run` returns a `CallToolResult` carrying:
-
-- a human-readable text block (model, output count, timing),
-- one `ResourceLink` per output (`media://artifact/{sha256}` + mime type) — outputs are
-  addressable without exposing provider CDN URLs,
-- `structuredContent`: the provider prediction summary plus redacted artifact metadata for
-  programmatic consumers.
-
-Provider output URLs are copied once into the server-owned artifact store, then redacted
-from every client-facing result. Artifact metadata keeps `media://artifact/{sha256}` as
-the canonical identity; `download_url` is omitted unless a future deployment deliberately
-issues a short-lived, user-authorized content URL. Inputs the provider must fetch are
-served from the media server's `/files/*` route through the public origin. That route,
-provider webhooks, and artifact byte plumbing are provider/content infrastructure, not
-client discovery APIs.
-
-## The client surface is MCP, only MCP
-
-The deployed client entrypoint is the Veoveo gateway profile path,
-`/mcp/{profile}`. Hosted domain servers such as media still have direct MCP endpoints for
-internal testing and service composition, but external clients should normally connect to
-the gateway. One public origin can serve multiple routes, but only MCP is a client
-contract:
-
-- `/mcp/{profile}` — the protocol transport exposed by the gateway. This is the client
-  surface.
-- hosted-server MCP routes such as `/media/mcp` — internal/test contract targets, blocked
-  at the public edge in the reference deployment.
-- `/media/webhooks/{provider}`, `/media/files/*`, `/media/artifacts/*` — internal
-  necessities for parties that cannot speak
-  MCP: providers must POST callbacks somewhere and GET input media from somewhere. These
-  routes are plumbing, undocumented for clients, and never carry anything client-facing.
-- `/healthz` — ops.
-
-There is deliberately **no client-facing REST API** — no endpoints that list, query, or
-mutate anything. Anything a client needs to *know* is reachable through the protocol:
-artifacts via `resources/read`, usage via resources, chaining by passing resource URIs in
-tool input (the server rewrites them to provider-fetchable URLs internally). Two ways to
-learn the same facts means two contracts to version, secure, and keep consistent — and
-the HTTP one always wins by convenience until the protocol surface rots. It's the
-tool-flattening failure mode wearing a different hat.
-
-**A content host is not a REST API.** MCP is not built for large binaries: SDK transports
-cap messages around 4MB, embedded/blob resources are guided to ~1MB, base64 adds 33%, and
-the core protocol has no ranged reads, chunking, or resume (SEP-1597/1708/2356 are open
-precisely because of this). The spec's own idiom for large content is link-not-blob:
-`ResourceLink` blocks may carry any URI, including custom schemes. Artifact results carry
-`media://artifact/{sha256}` as the canonical, protocol-readable identity (blob via
-`resources/read`). Deployments may also issue short-lived, user-authorized gateway content
-URLs for bulk retrieval when a client needs browser-style download behavior. Raw
-server-owned artifact plumbing such as `/media/artifacts/{sha256}` is not itself a public
-client contract. Any user-facing content URL must be immutable, content-addressed, scoped
-to the authenticated principal, audited, and derived from an MCP result or resource read.
-The moment it grows a second verb, a listing, or any fact not already in the protocol, it
-has become an API and broken the rule.
-
-## Compatibility helpers must not dilute the contract
-
-Some real MCP hosts can authenticate and call tools, but still do not expose resources,
-tasks, prompts, completions, subscriptions, or binary/resource handling well enough for
-users to operate a rich server. Veoveo should make those clients useful without reducing
-the server contract to common mediocrity.
-
-The rule is: canonical behavior stays on the correct MCP surface, and compatibility
-helpers are additive projections of that same behavior.
-
-- Resources remain authoritative for catalogs, schemas, artifacts, usage, and live state.
-- Tasks remain authoritative for long-running work, task ownership, result retrieval, and
-  cancellation.
-- Prompts, completions, subscriptions, and notifications remain first-class protocol
-  features and must be covered by conformance.
-- Helper tools may expose narrow, read-only or action-oriented projections for clients
-  that cannot browse resources or manage tasks correctly.
-- Helpers must be backed by the same typed models, policy checks, audit path, state, and
-  URI identities as the canonical protocol surface.
-- Helpers must not introduce a second source of truth, second naming scheme, provider
-  polling path, unaudited download path, or unauthenticated content URL.
-
-Generic compatibility belongs at the gateway boundary. The gateway may expose a direct
-tool-call adapter for task-required tools: it creates the upstream MCP task, waits briefly,
-returns the final payload if the task completes quickly, or returns a Veoveo task handle
-and `veoveo://task/{task_id}` status resource when the task is still running. The gateway
-also forwards `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel` for clients
-that do support tasks. Tools-only clients can be granted the product-owned
-`veoveo.task_result` helper, exposed as `task_result`, so they can retrieve task status or
-final output through the same task mapping, policy checks, and audit path.
-
-Domain-specific compatibility can live with the server that owns the domain knowledge,
-then be projected through the gateway by policy. Media currently exposes `models` and
-`model_schema` helper tools so tools-only clients can discover exact model ids and input
-schemas even if their host does not surface `media://models`, `media://model/{model_id}`,
-or `completion/complete`. Media also exposes an `artifact` helper for authorized small
-artifact reads when a host cannot consume `resources/read` blob content. Those helpers are
-not separate APIs; they are tool-shaped views over the same cached provider registry,
-schemas, artifact store, URI identities, and authorization checks used by the canonical
-resource and completion surfaces.
-
-Compatibility helpers are selected per OAuth client registration through a typed client
-surface:
-
-- `full_mcp` clients see the canonical MCP surface and no compatibility helper clutter.
-- `tools_compat` clients may receive only the helper ids explicitly listed in
-  `allowed_compatibility_helpers`, such as `media.models`, `media.model_schema`,
-  `media.artifact`, or `veoveo.task_result`.
-- `direct_task_call_adapter` is valid only for `tools_compat` clients and requires
-  `veoveo.task_result`, so a client that can submit adapted long-running work also has a
-  tool-shaped way to retrieve the result.
-
-A fully compliant client should see and use the richer MCP surfaces. A tools-only client
-may receive helper tools, but that does not lower conformance requirements for Veoveo
-servers or the gateway.
-
-Implemented compatibility behavior:
-
-- Full-MCP clients such as `operator-local-public` see canonical tools and no helper
-  clutter; `media__run` remains task-required.
-- Tools-compatible hosted clients such as `operator-hosted-public` see only explicitly
-  allowed helpers: media model discovery, media schema lookup, authorized artifact read,
-  and the Veoveo `task_result` helper.
-- The direct task-call adapter creates a real upstream MCP task, records a gateway task
-  mapping, waits briefly, returns final output when ready, or returns
-  `veoveo://task/{task_id}` plus structured task state when still running.
-- Small authorized image artifacts can be returned as MCP image content blocks for weak
-  clients; large artifacts stay resource-addressed.
-- Rust smoke tests exercise both paths: full-protocol clients and tools-compatible helper
-  clients.
-
-Remaining improvements:
-
-1. Extend paged/searchable catalog helper semantics beyond the current `query`, `type`,
-   and `limit` support with cursor/offset, provider, price, and capability filters while
-   keeping `media://models` and `completion/complete` canonical.
-2. Add short-lived, user-authorized browser download URLs only when a deployment needs
-   browser-style downloads, without replacing MCP resource reads or helper-mediated blob
-   results.
-
-## What "all in" costs, and why it's worth it
-
-The honest trade-off: a direct hosted server remains a poor citizen in a
-lowest-common-denominator host. A client that only does `tools/list` + `tools/call`
-cannot directly invoke media `run` without task metadata; task-required direct calls
-return an MCP error. The gateway may adapt that call for weak clients, but the direct
-server contract still makes protocol support non-optional for Veoveo-compatible clients,
-so the capabilities we rely on can never silently rot.
-
-What we get in return:
-
-- **Tiny, stable tool surface.** One tool forever, regardless of catalog growth.
-- **Push, not poll.** The webhook's arrival propagates to the client as protocol events
-  in the same second.
-- **Self-describing.** Schemas, pricing, and live state are all readable, completable,
-  and subscribable resources — no out-of-band docs required to drive any model.
-- **Symmetric conformance.** The generic contract conformance CLI exercises the same
-  protocol contract every Veoveo server is expected to expose.
-
-## Standardization layer: rmcp below, Veoveo policy above
-
-`rmcp` remains the MCP protocol SDK. It gives us protocol types, handler traits,
-transport implementation, routing, task request/response models, resources, templates,
-and notifications. We do not hide that behind a second generic MCP framework.
-
-The reusable `veoveo-mcp-contract` crate has a narrower job: encode Veoveo's policy layer for
-resilient provider-backed generation servers. That layer should standardize the parts
-`rmcp` deliberately does not own:
-
-- provider webhook completion,
-- durable task recovery across restarts,
-- consistent task lifecycle for long-running provider jobs,
-- artifact ingestion into a server-owned store,
-- `{scheme}://artifact/{sha256}` plus optional content plumbing for authorized byte
-  transfer,
-- usage estimates, actuals, and usage resources,
-- URI conventions across providers,
-- TTL/GC policy,
-- JSON Schema export for external Rust, Python, and TypeScript server implementations,
-- feature extension names such as `ai.veoveo/artifacts` and `ai.veoveo/usage`.
-
-### Shared types versus server-local contracts
-
-Veoveo has three different contract layers, and keeping them separate prevents the
-gateway from compiling in knowledge of every MCP server's tools:
-
-- `rmcp` owns the MCP protocol surface: protocol types, handler traits, transports,
-  request/response envelopes, resources, templates, tasks, notifications, and tool
-  discovery.
-- `veoveo-mcp-contract` owns platform-wide Veoveo types and semantics that are shared
-  across servers: gateway profiles, server manifests, principals, tenants, scopes,
-  data labels, policy/audit records, internal identities, artifact metadata, usage
-  records, URI conventions, task ownership, and other cross-server policy surfaces.
-- `veoveo-rrd` owns the canonical Rerun/RRD spacetime shapes for overlapping frame,
-  geospatial point, local geometry, and time-selection concepts, plus adapters into
-  Rerun SDK types.
-
-Tool request/response schemas, tool-specific resources, and domain-local result shapes
-belong in the MCP crate that owns the server, for example `coordinates-mcp`,
-`duckdb-mcp`, `optimization-mcp`, `timeseries-mcp`, or `media-mcp`. Those schemas are
-published through that server's MCP surface (`tools/list`, resources, templates, and
-completions) and may be exported by the conformance CLI for non-Rust clients, but the
-owning crate remains the source of truth.
-
-The hard rule is: do not add a tool schema to `veoveo-mcp-contract` merely because it is
-first-party. Promote a type into `veoveo-mcp-contract` only when it is genuinely shared
-platform vocabulary or policy. Promote an overlapping spacetime type into `veoveo-rrd`
-when Rerun already provides the canonical model. Otherwise, leave the type in the server
-crate and let MCP discovery expose it.
-
-This is not a rule that every MCP server must use tasks. It is a rule that any Veoveo MCP
-server wrapping long-lived provider jobs must expose those jobs through MCP tasks, and any
-server creating durable artifacts or billable usage must use the standard artifact and
-usage surfaces. Fast metadata, search, config, or read-only resource servers can remain
-plain `rmcp` tools/resources.
-
-## Veoveo production gateway
-
-The Veoveo platform should provide a first-class MCP gateway inspired by the way larger
-MCP platforms assemble registry, auth, policy, hosted runtimes, and observability around
-individual servers. The gateway is our product boundary, not a dependency on an external
-orchestrator. The first shipped gateway must be dynamic, self-hosted, and secure by
-default; "first slice" does not mean anonymous, static, tool-only, or local-dev-only.
-
-The gateway speaks MCP outward and MCP inward: external MCP clients connect to one gateway
-profile, while the gateway connects only to hosted Veoveo MCP servers in the first shipped
-version.
-
-```
-MCP client
-  |
-  |  MCP over streamable HTTP
-  v
-Veoveo gateway profile (/mcp/{profile})
-  |-- media-mcp
-  |-- simulation-mcp
-  |-- rl-mcp
-  |-- optimization-mcp
-```
-
-The first shipped version explicitly excludes third-party or remote MCP servers. Every
-upstream server is a Veoveo-hosted server with a typed server manifest, a known URI scheme,
-a known mount path, and conformance coverage from `veoveo-mcp-contract`. Direct server
-endpoints such as `/media/mcp` remain valid contract targets for internal testing and
-service composition, but external clients should normally use the gateway profile endpoint.
-
-The gateway must preserve the full MCP contract. It is not a tool-only aggregator. It must
-forward or aggregate the protocol surfaces our servers rely on:
-
-- `tools/list` and `tools/call`,
-- `resources/list`, `resources/templates/list`, `resources/read`, and
-  `resources/subscribe`/`resources/unsubscribe`,
-- `prompts/list` and `prompts/get`,
-- `completion/complete`,
-- `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel`,
-- server notifications such as `tasks/status`, `progress`, `resources/updated`,
-  and list-changed notifications.
-
-Profiles and policies serve different jobs. A gateway profile is a curated static MCP
-access surface such as `operator` or `admin`; it is not named after a hosted server. The
-profile decides which hosted servers, tools, resources, prompts, and schemes are even
-exposed. Policy is the runtime decision layer; it decides whether a specific principal may
-perform a specific action on a specific tool, task, resource, artifact, or data label at
-request time. Unknown servers, tools, resources, prompts, profiles, principals, or data
-labels are denied.
-
-The first shipped public profiles are `operator` and `admin`. Both may expose hosted MCP
-servers such as `media`; `admin` additionally exposes gateway administration operations.
-Server slugs such as `media`, `simulation`, or `rl` stay internal server identities and
-resource namespaces, not public profile names.
-
-Because the gateway collapses multiple MCP servers into one outward MCP server, gateway
-tool names must be namespaced at the gateway boundary. Direct servers should keep concise
-local names such as `run`; the gateway can expose canonical names such as `media__run`.
-Resource URIs stay server-owned (`media://artifact/{sha256}`, `media://usage/task/{task_id}`)
-because URI schemes are already the resource namespace.
-
-Authentication and authorization are part of the first shipped gateway, not a later add-on.
-The gateway must implement MCP-compatible HTTP authorization:
-
-- OAuth 2.0 Protected Resource Metadata for each gateway profile.
-- `WWW-Authenticate` challenges that point clients at the profile's protected-resource
-  metadata and requested scopes.
-- A deployment-level Veoveo authorization server by default: `/oauth/authorize`,
-  `/oauth/token`, `/oauth/callback`, and `/oauth/jwks.json`. Enterprise IdPs should see a
-  stable callback such as `https://veoveo.bioma.ai/oauth/callback`, not one callback per
-  gateway profile.
-- OAuth 2.1/OIDC authorization-code + PKCE for browser-based enterprise SSO.
-- MCP Enterprise-Managed Authorization using the
-  `io.modelcontextprotocol/enterprise-managed-authorization` extension and ID-JAG exchange.
-- MCP OAuth Client Credentials for headless/service principals, preferably with
-  private-key JWT client authentication.
-- Audience/resource-bound access tokens scoped to one gateway profile.
-
-OAuth client registrations are named by trust boundary, not by vendor, demo, or internal
-architecture. For the operator profile, the reference deployment should register:
-`operator-hosted-public` for browser-hosted MCP connectors, `operator-local-public` for
-loopback clients such as desktop tools and CLI inspectors, and `operator-service` for
-headless automation with private-key JWT client credentials. Admin automation uses
-`admin-service`; the admin browser surface uses `admin-console`. Add a vendor-specific
-client only when that vendor needs a distinct redirect, client-auth method, approval,
-secret, revocation, or audit boundary. Otherwise, reuse the boundary-level registration.
-
-Provider callbacks are separate from OAuth callbacks. Routes such as `/media/webhooks`
-remain owned by the media MCP server for provider job completion and must not be folded
-into the gateway OAuth callback design.
-
-Reference: [Enterprise-Managed Authorization: Zero-touch OAuth for MCP](https://blog.modelcontextprotocol.io/posts/enterprise-managed-auth/)
-announces the stable MCP Enterprise-Managed Authorization extension and frames the IdP as
-the centralized policy and audit authority for enterprise MCP access.
-
-The gateway maps authenticated claims to strongly typed Veoveo principals, tenants,
-groups, roles, scopes, data labels, and principal assurances such as `us_person`.
-Hosted servers should receive a short-lived
-gateway-issued internal token or signed identity assertion, not raw external IdP tokens by
-default. Servers remain responsible for enforcing the Veoveo contract on task ownership,
-artifact reads, usage reads, and regulated-data labels; gateway policy reduces exposure but
-does not replace server-side checks.
-
-Gateway data must be split by sensitivity and lifecycle:
-
-- **Control data**: hosted server manifests, gateway profiles, profile assignments,
-  policy sets, environment definitions, tenant records, identity-provider metadata,
-  resource authorization server metadata, OAuth client registrations, data-label
-  definitions, and secret references. This data is dynamic and durable. Postgres is the
-  authoritative control-plane store for self-hosted gateway deployments; typed JSON files
-  are seed/import artifacts and local validation fixtures, not runtime authority. The
-  gateway process always loads the active Postgres revision. Profile
-  routes are data-driven under `/mcp/{profile}`, so adding or removing a profile is an
-  authenticated control-plane change, not a new public domain or edge-route change.
-  Server manifests declare typed upstream transport security next to each upstream URL:
-  `loopback_http` for local tests, `compose_internal_http` for Docker Compose service-name
-  routes, and `tls`, `mutual_tls`, or `service_mesh_mtls` for production deployments.
-  Public plaintext HTTP upstreams are rejected by contract validation.
-  OAuth client registrations are typed control data: each advertised profile auth mode must
-  have a matching registered client grant, and each client must explicitly allow the scopes
-  required by the profile and its policy rules. The gateway must reject OAuth client auth
-  method combinations it does not actually implement; the current supported combinations
-  are public `none` auth for browser authorization-code and enterprise-managed
-  authorization clients, and `private_key_jwt` for headless client-credentials clients.
-  The enterprise identity provider and the MCP resource authorization server are separate
-  control-plane objects: the IdP handles SSO and ID-JAG issuance, while the resource
-  authorization server is the issuer/JWKS authority for profile-scoped MCP access tokens.
-- **Secret data**: provider API keys, webhook secrets, OAuth client secrets, gateway
-  signing keys, JWKS private keys, and token-exchange credentials. Store secret references
-  in control data, never secret values. Local development may use `.env`; enterprise
-  deployments should use Vault or HCP Vault today. Cloud secret managers, KMS-backed
-  stores, and enterprise-managed secret infrastructure should be added as explicit resolver
-  implementations before deployment profiles are allowed to declare them.
-  The gateway has a typed secret resolver boundary. `env` secrets resolve from the named
-  variable, and `vault`/`hcp_vault` secrets resolve from HashiCorp Vault KV v2 locators in
-  the form `kv2://{mount}/{path}#field` with optional `?version={n}`. Vault-backed
-  resolution requires explicit `VAULT_ADDR` and `VAULT_TOKEN`; no local Vault default is
-  accepted. Secret-manager sources that are not implemented fail closed.
-- **Runtime state**: gateway task id to upstream task id mapping, subscription ownership,
-  request correlation ids, token revocation entries, replay-protection ids, OAuth state,
-  ID-JAG exchange state, and short-lived session metadata. This state is operationally
-  durable and must survive process restarts. DuckDB owns this gateway runtime/audit state;
-  it is not a control-plane source.
-- **Audit and evidence**: authentication outcomes, policy decisions, tool calls,
-  resource reads, task reads/results/cancels, artifact reads, usage reads, admin changes,
-  credential resolution outcomes, and security-relevant failures. Audit records must carry
-  principal, tenant, profile, method, target server, action, decision, reason code, policy
-  version, trace id, and timestamp. They must not contain raw prompts, provider payloads,
-  bearer tokens, secrets, signed URLs, artifact bytes, or webhook bodies.
-  Principal authorization context must be captured as typed audit evidence, not only
-  ad hoc strings: kind, groups, roles, scopes, data labels, assurances, and
-  authentication time belong in `PrincipalAuditAttributes`. Analytics-friendly metadata
-  summaries may duplicate those values for DuckDB grouping, but the typed event payload is
-  the source of evidence.
-- **Analytics**: usage, cost, latency, error rates, policy-denial rates, and access
-  patterns. DuckDB is appropriate for local/server analytics and exportable reporting; it
-  is not the secret store.
-
-Regulated-data support is a design requirement. Policy must be able to express and enforce
-access for CUI, ITAR, PII, customer-confidential data, export-control labels, tenant
-boundaries, project boundaries, user/service principals, group membership, and typed
-principal assurances. US-person gating is expressed as the canonical
-`principal_assurances: ["us_person"]` claim and `required_assurances: ["us_person"]`
-policy rule field. Classified deployments require an accredited deployment environment,
-approved identity provider, approved cryptography, approved storage, approved network
-boundary, and approved operations process; the Veoveo software must provide the hooks and
-enforcement model, while the deployment proves the classification boundary.
-
-The shipped gateway must enforce these hard requirements:
-
-- fail closed for unknown profiles, servers, tools, resources, prompts, tasks, artifacts,
-  principals, scopes, policy versions, labels, and token issuers,
-- authenticate every gateway request except explicitly documented health/readiness probes,
-- validate JWT signature, issuer, audience/resource, expiration, not-before, scopes, and
-  replay identifiers where applicable,
-- bind access tokens to exactly one gateway profile resource,
-- use per-method policy checks for `tools/*`, `resources/*`, `prompts/*`, `completion/*`,
-  `tasks/*`, artifact reads, usage reads, and admin operations,
-- require server-side policy checks inside hosted MCP servers for task ownership, artifact
-  access, usage access, and regulated labels,
-- issue short-lived internal gateway-to-server tokens or signed assertions; do not pass raw
-  external IdP tokens to hosted servers by default,
-- support internal mTLS or equivalent authenticated service-to-service transport in
-  enterprise deployments; gateway-managed `mutual_tls` upstreams must declare typed client
-  certificate and private-key secret references and the runtime must inject them into
-  RMCP's streamable HTTP client rather than treating mTLS as documentation,
-- export audit and telemetry to platform logs/OpenTelemetry/SIEM without leaking protected
-  content,
-- support secret rotation by reference, not by redeploying code,
-- keep provider completion webhook-only for long-running provider jobs.
-
-The current production-gateway foundation is:
-
-1. `veoveo-mcp-contract` owns typed server manifests, gateway profiles, principals,
-   tenants, scopes, data labels, secret references, policies, policy decisions, audit
-   events, token subjects, runtime state, and compatibility client-surface controls.
-2. `veoveo-mcp-gateway` loads dynamic typed control data from Postgres revisions and
-   connects to the hosted upstreams enabled for a profile. Media is the first upstream,
-   but server identity is manifest-driven and not hard-coded into profile naming.
-3. Postgres is authoritative for dynamic control-plane revisions. DuckDB owns gateway
-   runtime task mappings, subscription ownership, audit evidence, auth state, revocation
-   state, and analytics. Secret values stay out of both stores.
-4. The reference Compose edge routes `/mcp/{profile}`, `/oauth/*`, `.well-known` auth
-   metadata, and `/admin/*` to the gateway, while routing provider plumbing such as
-   `/media/webhooks`, `/media/files`, and `/media/artifacts` to the owning media server.
-   Direct hosted-server MCP routes such as `/media/mcp` remain internal/testing targets
-   and are not public client routes. Published local development ports bind to loopback
-   only; public ingress goes through the managed tunnel or enterprise edge.
-5. The gateway implements protected-resource metadata, `WWW-Authenticate` challenges,
-   JWT/JWKS validation, audience/resource binding, profile-scoped policy, OAuth/OIDC
-   authorization-code + PKCE, MCP Enterprise-Managed Authorization / ID-JAG, MCP OAuth
-   Client Credentials, and structured auth/policy audit events.
-6. Access tokens are bound to one OAuth client id and one gateway profile resource. Old
-   token shapes without `client_id` are invalid by design.
-7. Hosted servers receive short-lived gateway-to-server signed assertions. Media verifies
-   those assertions and enforces server-side task ownership, artifact ownership, usage
-   access, and regulated labels.
-8. Conformance and Rust smoke modes cover direct servers and gateway profiles. They
-   exercise tools, resources, prompts, completions, tasks, usage, artifacts,
-   notifications, auth failures, policy denials, helper-client surfaces, and audit
-   emission.
-9. Self-hosted deployment profiles must declare required external services, secret
-   sources, object stores, DuckDB state stores, telemetry sinks, typed ingress/egress
-   target kinds, service-to-service transport, and data-retention behavior.
-
-## Access control model: layered, not a single ACL
-
-Veoveo access control is **several distinct models composed**, not one access control
-list. Each layer does the job it is actually good at, and each is already backed by a
-typed field on `Principal`, `PolicyRule`, or artifact `ComplianceMetadata`:
-
-- **Discretionary access (DAC / ACL).** The artifact grant ledger — `(artifact, subject,
-  level)`, where `subject` is a user or a group and `level` is read/write/admin — is a
-  per-object access control list. It is owner-managed and discretionary; this is the layer
-  that expresses "share this with those people." An ACL is exactly the right tool here, and
-  the grant ledger is one. What we build is *not* "an ACL" only because an ACL is one of its
-  layers, not the whole.
-- **Groups as subject aggregation.** A group is a named set of principals (the "who"), not
-  a set of permissions and not a container of resources. `Principal.groups` already travels
-  inside the gateway-signed identity. The only new modeling the sharing feature needs is to
-  pair membership with a role — `(GroupId, GroupRole)` — so "write in Eng, read in Ops" is
-  expressible and admin of one group never leaks into another.
-- **Mandatory access (MAC).** Data labels / classification and principal clearance form a
-  lattice that is checked independently of any grant and **cannot be widened by a
-  discretionary share**. This is the non-negotiable backstop that makes DAC safe for
-  regulated data: a group admin who adds an uncleared member to a group holding a CUI
-  artifact still cannot leak it, because `artifact.data_labels ⊆ caller.data_labels` is
-  enforced separately. `required_data_labels` and principal `data_labels` already carry this.
-- **Role- and attribute-based policy (RBAC / ABAC).** Gateway `PolicyRule` decides which
-  *actions, tools, resources, and profiles* a principal may reach, keyed on roles, groups,
-  tenants, assurances, and labels. This governs "may you invoke this at all," which is
-  orthogonal to "which bytes may you read"; an ACL is the wrong shape for it.
-- **Tenancy as isolation.** Tenant separation is a hard partition with per-tenant
-  encryption, not a permission expressed as absent ACL entries. Cross-tenant sharing, if
-  ever needed, is a separate explicit audited construct, never an emergent side effect of
-  adding a member.
-- **Capabilities between services.** Hosted servers hold a short-lived gateway-signed
-  identity (a capability), never raw store credentials, so a compromised server can reach
-  only what its identity is granted.
-
-Because clearance (MAC) and need-to-know (DAC/ACL) are both present, this is, in classical
-terms, a multi-level security model with an ACL as its discretionary layer — the correct
-shape for regulated multi-tenant data, and strictly more expressive than a flat ACL. A
-decision composes the discretionary and mandatory layers and never lets the first override
-the second:
-
-```
-dac   = min( member_role_in(group), grant_level_for(group) )   // need-to-know (DAC)
-mac   = artifact.data_labels ⊆ caller.data_labels              // clearance   (MAC)
-allow = dac ≥ requested_level  &&  mac
-```
-
-Two invariants keep the composition honest: a **group lives inside exactly one tenant**
-(`group ⊆ tenant`), and **group admin is not resource admin** — managing a group's
-membership and grants is a distinct capability from administering the resources those
-grants reach. Conflating them turns every group admin into an admin of everything the
-group can touch.
-
-### Naming: groups, not "shared spaces"
-
-"Group" is the correct security term for what this primitive is — an aggregation of
-subjects — and it is what the identity token already carries, so we keep it. A *shared
-space* is the **effect** of granting an artifact to a group, not a separate object: this
-iteration deliberately does not introduce a resource-owning container. Two neighboring
-nouns are reserved so the vocabulary stays precise if we ever need them:
-
-- a **project / workspace** would be a DAC container that resources *belong to* (owned-by-
-  space, membership-scoped) — heavier, and a step toward relationship-based access control
-  (ReBAC). The regulated-data requirements above already reserve "project boundaries" for
-  this.
-- a **compartment** would be a MAC need-to-know category expressed as a data-label facet,
-  paired with clearance level — non-discretionary, unlike a group.
-
-Group-as-grant-subject is sufficient today and is the simpler, auditable choice. If groups
-later grow nesting, inheritance, or resource ownership, that is the deliberate moment to
-adopt a relation-tuple (ReBAC / Zanzibar-style) model rather than bolting recursion onto
-the ACL — a conscious fork, not a drift.
-
-## Enterprise deployment and pluggable infrastructure
-
-Enterprise deployments should be able to bring their own object store, state store, and
-observability stack without changing MCP server code. The server depends on narrow
-infrastructure ports, not on a specific local service:
-
-```
-Client
-  |
-MCP over streamable HTTP
-  |
-MCP server container
-  |-- rmcp protocol handlers
-  |-- veoveo-mcp-contract policy: tasks, artifacts, usage, recovery
-  |-- provider adapter: current media provider, Replicate, OpenAI media, ...
-  |
-  |-- per-server SQL durable state
-  |-- S3-compatible artifact store
-  |-- structured logs / OpenTelemetry sink
-```
-
-The contract layer should define shared data models and protocol semantics, not duplicate
-backend traits already owned by focused crates. Artifact bytes use
-`object_store::ObjectStore`; the media server layers Veoveo content addressing, artifact
-URIs, DuckDB metadata, and compliance labels over `Arc<dyn ObjectStore>`.
-
-The contract layer should define shared types/services such as:
-
-```rust
-trait UsageLedger {
-    async fn record_estimate(...);
-    async fn record_actual(...);
-    async fn query(...);
-}
-
-trait EventSink {
-    fn emit_task_event(...);
-    fn emit_artifact_event(...);
-    fn emit_usage_event(...);
-}
-```
-
-The artifact store contract should target S3-compatible APIs so deployments can use
-RustFS locally, AWS S3, Cloudflare R2, Ceph/RGW, MinIO, or another compatible service
-without changing MCP behavior.
-
-For regulated data, the important separation is bytes vs. metadata. Artifact bytes live
-behind the injected object store; task, prediction, artifact, and usage metadata live in
-per-server DuckDB by default. The shared contract owns the DuckDB usage analytics schema
-so every MCP server records estimates and actual billing rows the same way. Artifact metadata already has optional classification,
-tenant, owner, and retention fields. Server logs must avoid prompts, webhook bodies,
-provider output URLs, signed URLs, and raw provider payloads; log only correlation ids
-such as `task_id`, `prediction_id`, `artifact_sha256`, `model_id`, and future `tenant_id`.
-
-For logging and observability, MCP servers should emit structured JSON logs to stdout and
-OpenTelemetry traces/metrics/logs where configured. Events must carry stable correlation
-fields: `task_id`, `prediction_id`, `artifact_sha256`, `provider`, `model_id`, and
-eventually `tenant_id`. Enterprise operators can route those signals into Datadog,
-Splunk, ELK, Loki, Honeycomb, CloudWatch, or another collector without server changes.
-
-Docker Compose is the local and self-hosted reference deployment, not a hard dependency.
-Each MCP server runs as its own container. Shared crates such as `veoveo-mcp-contract` are
-compiled into those servers, not deployed as a runtime service. The default Compose stack
-should include batteries-included infrastructure:
-
-- one container per MCP server (`veoveo-media-mcp`, future provider servers),
-- typed DuckDB state-store declarations for the gateway and each hosted server, backed
-  locally by mounted DuckDB volumes for durable task/prediction metadata and shared usage
-  analytics,
-- RustFS as the default S3-compatible artifact store,
-- an OpenTelemetry collector,
-- optional Loki/Grafana or equivalent local log UI.
-
-Enterprise deployments replace defaults by configuration: omit RustFS and point S3
-settings at the enterprise object store; omit local logging UI and point OTEL export at
-the enterprise collector; provide secrets through their secret manager instead of `.env`.
-Each deployment profile must also declare gateway-to-server service-to-service security.
-Local Compose may use private-network plaintext transport because every hosted server still
-requires a short-lived gateway-signed JWT. Enterprise and regulated profiles must declare
-`mutual_tls` or `service_mesh_mtls` transport in addition to gateway-signed assertions.
-Compose profiles should make that explicit:
-
-- `default`: MCP servers plus bundled RustFS, state store, OTEL collector, and local logs UI,
-- `enterprise`: MCP servers only, expecting external state/object/observability endpoints,
-- `dev`: local helpers such as static input files, tunnels, and test fixtures.
-
-The design rule is simple: MCP servers may depend on per-server SQL durability,
-S3-compatible artifact storage, and standard telemetry. They must not depend specifically
-on RustFS, Loki, or any other default Compose service.
-
-## Smoke test architecture
-
-All smoke tests live in Rust. The smoke suite is product code for verifying the Veoveo
-contract under realistic process boundaries, not ad hoc shell glue.
-
-The Rust smoke harness owns:
-
-- starting and stopping gateway, hosted MCP servers, provider fixtures, IdP fixtures,
-  OTLP fixtures, and edge fixtures,
-- readiness checks, timeouts, retries, and cleanup,
-- HTTP/MCP calls through typed helpers,
-- JSON parsing and strongly typed assertions where the schema is known,
-- temporary filesystem fixtures and artifact inspection,
-- audit, policy-denial, notification, task, artifact, and usage assertions.
-
-The Justfile stays as a human command dispatcher. A smoke recipe may build the required
-binaries and invoke the Rust smoke harness, but it must not contain process orchestration,
-curl/jq assertions, retry loops, or cleanup traps. Deterministic CLI transcript tests may
-use CLI-focused crates where useful, but gateway/media smoke behavior should be exercised
-through the Rust harness so failures are typed, debuggable, and maintainable.
-
-Docker is allowed in smoke tests when it is testing a real deployment boundary or an
-external dependency shape: edge proxy routing, S3-compatible object storage, OpenTelemetry
-collectors, container networking, image startup, or Compose-rendered configuration. Docker
-containers must be started, checked, and cleaned up by the Rust smoke harness or a
-maintained Rust Docker test crate when that crate provides clear value. Docker must not
-become a shell-script escape hatch inside the Justfile.
-
-Smoke-test dependencies are allowed only when they are current, maintained, and remove
-real complexity from our actual tests. Crates such as CLI assertion or snapshot tools are
-not adopted by default; they must improve the gateway/media smoke suite rather than force
-dynamic multi-service checks into transcript testing. When a crate does not materially
-improve process lifecycle, fixture setup, typed assertions, cleanup, or diagnostics, the
-in-repo Rust harness remains the right solution.
-
-## Verified behavior
-
-The production media path has been proven through a real cloudflared tunnel:
-
-1. `openai/gpt-image-2/edit` — input image served via `/files`, 122.9s inference,
-   completed by provider webhook.
-2. a text-to-image model — webhook **verified and pushed**,
-   task completed in ~2s; client received `resources/updated` and `tasks/status`
-   notifications live, then downloaded outputs from the resource links.
-
-Plus: schema validation rejects bad input before submission, `tasks/cancel` aborts
-in-flight work, and completions rank prefix matches across the full provider registry.
-
-The Rust smoke suite now verifies the gateway contract under realistic local process
-boundaries:
-
-- full-MCP clients see canonical protocol surfaces and no compatibility helper clutter,
-- tools-compatible hosted clients see only explicitly allowed helpers,
-- direct task adaptation creates real upstream tasks and returns `veoveo://task/{task_id}`,
-- `task_result` retrieves final task output through the same task mapping and policy path,
-- `media__artifact` reads authorized small image artifacts as MCP image content blocks,
-- artifact `download_url` is redacted from client-facing structured content,
-- auth, policy, task, resource, artifact, usage, notification, and audit paths are checked.
-
-The local workspace tests cover the current artifact/usage URI contract, DuckDB-backed
-state and analytics helpers, webhook signature verification, schema extraction, control
-plane validation, OAuth client surfaces, gateway auth/token binding, and the separate
-conformance CLI crate build.
-
-Media server retention is enforced locally: terminal task metadata, provider prediction
-rows, usage analytics rows, artifact metadata, artifact owners, and artifact bytes are
-pruned by configured non-zero retention windows on startup and hourly thereafter. Artifact
-metadata records carry `retention_expires_at` evidence, and object bytes are deleted
-through the configured `object_store` backend. Gateway audit retention is enforced on the
-same startup/hourly cadence for auth audit rows, policy audit rows, expired authorization
-records, and expired JWT revocations.
-
-## Known gaps
-
-- **Provider billing timing is asynchronous.** The usage ledger records estimates at submit
-  time and provider-confirmed actual billing rows after completion through billing
-  reconciliation keyed by the completed prediction id.
-- **Tasks are an evolving extension.** SEP-1319 (2025-11-25) is what rmcp 2.0 ships; the
-  2026-07-28 spec moves tasks to an extension with `tasks/update` for mid-flight input.
-  Owning both ends means we migrate both sides in one commit when rmcp does.
+Binary entrypoints parse configuration, initialize dependencies, assemble routers, and
+delegate behavior to focused modules. Shared crates own platform vocabulary; domain
+tool schemas stay in the server that owns them.
+
+## Durable Platform Store
+
+SurrealDB `3.2.0` is the only platform coordination store. The canonical release uses
+one RocksDB-backed node. Installation bootstrap connects at root scope, applies ordered
+migrations, creates or rotates the database runtime user, and publishes the initial
+gateway control revision. Long-running services connect at database scope and never run
+migrations themselves.
+
+`veoveo-platform-store` owns typed records and persistence APIs for:
+
+- tenants, principals, groups, server/profile identities, and policies;
+- immutable gateway control revisions and the active revision pointer;
+- access tokens, refresh families/tokens, authorization state, ID-JAG replay state, and
+  JWT revocations;
+- tasks, owners, leases, results, retention pins, provider jobs/events, and usage;
+- artifact blobs, occurrences, grants, share links, and write capabilities;
+- coordinate frames/operations, recordings/segments, agents/episodes/wakes;
+- audit events and the transactional outbox.
+
+Cross-process state changes write their domain record and outbox event in one
+transaction. Consumers checkpoint an outbox cursor. SurrealDB LIVE delivery may reduce
+latency, but reconnect always reconciles from the durable cursor because LIVE ordering
+and delivery are not the authority.
+
+DuckDB is not used for platform coordination. It remains the domain runtime for
+arbitrary analytical SQL and local agent analysis.
+
+## Durable Task Runtime
+
+`veoveo-task-runtime` is protocol-neutral. It owns UUIDv7 task creation, idempotency,
+leases, claims, progress, input requests, cancellation, terminal results, retention,
+recovery, and outbox transitions. Tenant, principal, profile, server, and operation are
+part of idempotency scope.
+
+`veoveo-mcp-task-extension` implements the final `2026-06-30` extension wire contract:
+discovery, task-required tool invocation, get, update, cancel, list, and SSE task
+subscriptions. It projects the shared runtime's typed snapshots; it does not persist a
+parallel task model. Traits use native Rust return-position `impl Future`; the workspace
+does not require `async-trait` for controlled async contracts.
+
+Each durable operation declares one recovery class:
+
+- `Resume`: deterministic and side-effect-safe. A new worker may reclaim an expired
+  lease and continue from persisted request/capability state.
+- `WebhookWait`: an external provider job was durably submitted and now waits for its
+  signed callback.
+- `InterruptedIndeterminate`: execution may have caused a mutation. Recovery marks the
+  task failed and never repeats the operation.
+
+Long-running servers use this same runtime: media, timeseries, optimization, coordinates,
+DuckDB, and SUMO. There is no server-local in-memory task registry and no alternate task
+URI.
+
+## Provider Completion
+
+The media server keeps client/server async and provider/server async separate:
+
+1. A live gateway identity creates a durable task and bounded artifact write capability.
+2. Provider submission and the provider-job binding commit before the server reports
+   successful detachment.
+3. The task enters `WebhookWait`.
+4. The provider sends a signed terminal webhook.
+5. The server durably records the unique event, redeems the preissued artifact
+   capability, stores usage, commits the terminal task result, and emits outbox events.
+
+Any replica can receive a callback. Duplicate signed events are idempotent. Provider CDN
+URLs and opaque payloads are not returned to clients. Missing webhook delivery is an
+operational failure; no timeout path queries provider status.
+
+Cancellation is intentionally asymmetric. `tasks/cancel` commits the local cancellation
+first, then durably records a best-effort provider deletion request and its accepted,
+not-deleted, failed, or timed-out outcome. Provider deletion acknowledgement is not treated
+as proof of compute stoppage or a refund. If a signed terminal webhook arrives later, it is
+authoritative for the provider-job state and triggers actual billing reconciliation. The
+cancelled task remains terminal: webhook processing does not fetch provider outputs, redeem
+the artifact write capability, create artifacts, or replace the task result. Completion
+still has no provider-status polling path.
+
+## Artifact Plane
+
+An artifact occurrence has a fresh opaque UUIDv7 and canonical `artifact://{id}` URI.
+The content hash verifies integrity and enables tenant-local deduplication. Storage keys
+include tenant identity, so equal content across tenants never aliases.
+
+The artifact service composes:
+
+- hard tenant isolation;
+- mandatory data-label clearance;
+- user/group discretionary grants with ordered `read < write < admin` levels;
+- retention and release state;
+- gateway policy at the external route;
+- service-side authorization using the forwarded gateway identity.
+
+Domain servers cannot mint background identities. Async output uses a capability issued
+while the live principal was present. The capability is task-bound, size-bounded,
+expiring, single-purpose, and redeemed with an idempotency key.
+
+Sharing modes are intentionally separate:
+
+- Authorized sharing creates a user or group grant. Group role caps grant level, and
+  label clearance can never be widened by a grant.
+- Public sharing first requires `releasable` or `released`, then creates a read-only
+  random bearer. Only its hash is stored. Expiry is at most thirty days, optional
+  download limits are atomic, and revocation is immediate.
+
+Authorized browser downloads enter through
+`/artifacts/{profile}/{artifact_id}/download`. The gateway evaluates policy, records
+audit evidence, issues a short-lived internal assertion, and proxies the service's
+sixty-second object-store redirect. Public bearer redemption is the only `/s/{token}`
+route. Domain-specific artifact byte paths do not exist.
+
+Because the public path contains a bearer, edge access/APM/WAF logs must suppress
+`/s/*`. Compose enforces this with route-local Caddy `log_skip`. Helm renders `/s`
+as a dedicated Ingress whose default ingress-nginx annotation disables access
+logging; installations using another controller must replace it with that
+controller's equivalent. Application audit events never record the raw token.
+
+## DuckDB Runtime
+
+DuckDB accepts arbitrary SQL for `query` and `execute`; a restricted query builder would
+remove the intended analytical value. Isolation is applied around the engine:
+
+- database files are derived from authenticated owner identity;
+- the server has one serialized owner/workspace boundary and a persistent singleton PVC
+  in Helm;
+- configuration and extension loading are locked before user SQL;
+- memory, threads, spill, execution time, result rows, and result bytes are bounded;
+- external sources require governed ingest, artifact resolution, or explicitly allowed
+  HTTPS attachment;
+- export bytes enter the shared artifact plane through a task capability;
+- container capabilities, writable paths, process count, and network reach are limited.
+
+Read-only query and export tasks use `Resume`. Mutating execute and ingest tasks use
+`InterruptedIndeterminate` once execution may have started. This preserves flexibility
+without pretending mutations can be replayed safely.
+
+## Gateway Identity And Policy
+
+External identity is provider-independent. A typed control plane describes OIDC issuer,
+JWKS, claim mapping, tenant mapping, authorization endpoints, clients, profiles, scopes,
+server exposure, and policy rules. Keycloak is used for real integration tests; Entra is
+shown in the Bioma example.
+
+The gateway supports:
+
+- protected-resource and authorization-server metadata;
+- authorization code with PKCE;
+- client credentials and client assertions;
+- MCP Enterprise-Managed Authorization / ID-JAG;
+- profile/resource-bound signed access tokens;
+- durable rotating refresh tokens, bounded duplicate delivery, family replay detection,
+  revocation, audit, and GC;
+- per-method and target-aware policy checks;
+- Ed25519 internal assertions with `kid`, issuer, audience, principal, tenant, labels,
+  scopes, and short expiry.
+
+Unknown profiles, servers, methods, resources, task IDs, artifact IDs, issuers, keys, or
+policy targets fail closed. Audit records carry typed principal attributes and decision
+context but exclude prompts, artifact bytes, provider payloads, tokens, link bearers,
+webhook bodies, and signed URLs.
+
+Refresh rotation is a durable compare-and-swap. The winner stores only an
+XChaCha20-Poly1305 successor envelope for the configured short delivery window. Its AAD
+binds the authorization server, profile, OAuth client, token family, and generation. A
+concurrent request using the just-consumed token receives that exact successor and a
+typed duplicate-delivery audit outcome. Once the window expires, reuse is delayed replay
+and revokes the whole family. The delivery key is a separate base64-encoded 32-byte
+installation secret; plaintext tokens and delivery envelopes never enter logs, audit
+payloads, outbox events, or console snapshots. The envelope becomes ineligible for
+delivery at the configured deadline. Consuming that successor clears its envelope in
+the same transaction; otherwise a dedicated one-minute GC removes expired ciphertext.
+
+Gateway runtime and admin modules use the same policy/audit path. Console task
+cancellation calls the owning server's final task extension; it never edits task rows.
+Artifact release/grant/link mutations call the artifact service; the console snapshot is
+only a safe projection and never includes token hashes or reusable link URLs.
+
+## Console Browser Boundary
+
+`console-bff` is the only browser session boundary. It performs gateway OAuth login with
+PKCE, stores access and rotating refresh tokens in an XChaCha20-Poly1305 encrypted,
+HttpOnly, SameSite cookie, and uses a separate encrypted authorization cookie during
+login. Unsafe requests require a constant-time CSRF token match.
+
+The React application receives installation projections and one-time share URLs, never a
+gateway bearer. CSP, frame denial, MIME sniff prevention, same-origin referrer policy,
+and no-store API responses are applied by the BFF.
+
+## Recordings And Agents
+
+The Recording Hub is a push-based durability service. Producers stream typed Rerun log
+messages into a private gRPC proxy. The spooler routes by application prefix, fsyncs open
+segments, keeps crash-decodable siblings, verifies frozen segments before replacement,
+and writes governed recording/segment catalog records. Raw ingest and files are not
+public ingress surfaces.
+
+`recording-mcp` applies tenant/label authorization to discovery, query, subscription,
+and artifact publication. SUMO uses the same path: one serialized TraCI owner publishes
+typed world frames and exposes traffic controls/resources/tasks.
+
+The agent kernel runs bounded episodes and persists scheduling through
+`veoveo-agent-runtime`. Tool tasks detach at episode end; durable descriptors, watcher
+leases, retry schedules, retention pins, results, and wakes survive process restart.
+Outbox/changefeed events wake the next episode. DuckDB and RRD are analytical memory
+planes; chat history is not the source of truth.
+
+## Deployment
+
+Compose and Helm instantiate the same service graph.
+
+Compose is the canonical local/single-host deployment. Published ports bind to loopback;
+the Caddy edge exposes only gateway/console routes, public share redemption, and required
+provider plumbing. No tunnel is part of the canonical stack.
+
+Helm separates bootstrap and runtime database Secrets, emits default-deny network policy,
+supports an existing object store and SIEM credentials, can require strict Istio mTLS,
+uses persistent RWO storage for the singleton DuckDB server, and keeps recording ingest
+internal. SurrealDB HA is not claimed.
+
+The offline builder resolves digest-pinned external images, builds exact-tag Veoveo
+images, exports configuration schemas, records image identities, emits SPDX SBOMs and
+checksums, and packages Compose/Helm/configuration. The loader verifies all files before
+import, verifies image references after import, retains evidence, and performs no network
+operation.
+
+## Verification
+
+All smoke orchestration is Rust. The harness owns child/container lifecycle, readiness,
+timeouts, cleanup, typed calls, and assertions. The Justfile only dispatches it.
+
+Coverage includes:
+
+- real SurrealDB 3.2 migration/runtime credentials and multi-process durability;
+- gateway OAuth, Keycloak login, refresh rotation/replay, internal assertions, policy,
+  admin operations, audit, task and artifact projection;
+- webhook-only media completion across process restart and replica boundaries;
+- task recovery classes, deterministic resume output, capability redemption, quotas;
+- arbitrary DuckDB SQL and interruption classification;
+- recording crash recovery, rollover, catalog rebuild, and SUMO push readback;
+- Compose/Caddy, Helm/schema, offline manifest/loader, and console build contracts.
+
+The complete behavior matrix is executable from `crates/smoke` and the focused crate
+tests; documentation is not used as evidence in place of those checks.

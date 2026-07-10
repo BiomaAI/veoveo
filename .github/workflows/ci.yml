@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal --component clippy,rustfmt
+      - name: Select Rust toolchain
+        run: rustup default 1.96.1
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Lint all targets
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test workspace
+        run: cargo test --workspace --all-features
+
+  surrealdb:
+    name: SurrealDB 3.2 integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal
+      - name: Exercise migrations and durable primitives
+        run: cargo +1.96.1 run -p veoveo-smoke -- surreal-integration
+
+  identity-keycloak:
+    name: Keycloak OIDC/OAuth integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal
+      - name: Select Rust toolchain
+        run: rustup default 1.96.1
+      - name: Build identity integration binaries
+        run: |
+          cargo build -p veoveo-mcp-conformance --bin conformance
+          cargo build -p veoveo-mcp-gateway --bin gateway
+      - name: Exercise HTTPS OIDC, PKCE, and refresh replay defense
+        run: >-
+          cargo run -p veoveo-smoke --bin smoke --
+          gateway-keycloak
+          --conformance-bin target/debug/conformance
+          --gateway-bin target/debug/gateway
+          --control-plane configs/gateway.smoke.json
+          --realm configs/keycloak/veoveo-ci-realm.json
+
+  console:
+    name: Operations console
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  sumo-mcp:
+    name: SUMO MCP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: 1.96.1
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - run: cargo fmt -p veoveo-sumo-mcp --check
+      - run: cargo clippy -p veoveo-sumo-mcp --all-targets -- -D warnings
+      - run: cargo test -p veoveo-sumo-mcp
+      - run: cargo run -p veoveo-smoke -- sumo-push
+      - name: Build and execute the pinned SUMO runtime images
+        run: |
+          docker build --platform linux/amd64 \
+            -f showcase/sumo/mcp/Dockerfile -t veoveo/sumo-mcp:ci .
+          docker run --rm --platform linux/amd64 \
+            veoveo/sumo-mcp:ci --help >/dev/null
+          docker run --rm --platform linux/amd64 --entrypoint sh \
+            veoveo/sumo-mcp:ci -c \
+            'test "$(id -u)" = 10001 && command -v curl && command -v netgenerate && command -v duarouter && command -v sumo'
+          docker build --platform linux/amd64 \
+            -t veoveo/sumo-sim:ci showcase/sumo/sim
+          docker run --rm --platform linux/amd64 --read-only --tmpfs /tmp --entrypoint sh \
+            veoveo/sumo-sim:ci -c \
+            'test "$(id -u)" = 10001 && test -r dua.actuated.sumocfg && test ! -w . && sumo --version >/dev/null'
+
+  compose:
+    name: Deployment contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: 1.96.1
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Exercise Compose and Caddy contracts through the Rust harness
+        run: cargo run -p veoveo-smoke -- compose-config
+      - name: Validate Helm schema and rendered resources
+        run: |
+          docker run --rm -v "$PWD:/work:ro" -w /work \
+            alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
+            lint deploy/helm/veoveo
+          docker run --rm -v "$PWD:/work:ro" -w /work \
+            alpine/helm@sha256:e7ecbf4a200dea73d64bfb8cb0936829164945f2b4d02a0274093073ee8d264f \
+            template veoveo deploy/helm/veoveo >/dev/null
+      - name: Verify offline bundle contract
+        run: cargo test -p veoveo-smoke --test offline_contract

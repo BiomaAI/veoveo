@@ -27,7 +27,7 @@ pub enum PlanInput {
     DuckDbOptions {
         source: DuckDbSource,
         #[serde(default)]
-        mapping: PlanningTableMapping,
+        mapping: Box<PlanningTableMapping>,
         agents: Vec<PlanningAgent>,
         tasks: Vec<PlanningTask>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]

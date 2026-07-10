@@ -8,7 +8,10 @@ use crate::{
     audit::{AuthAuditRecord, auth_audit_error_response, record_token_auth_audit},
     http_util::oauth_error_response,
     oauth_client_credentials::token_endpoint_client_credentials,
-    oauth_grants::{TokenRequest, token_endpoint_authorization_code, token_endpoint_id_jag},
+    oauth_grants::{
+        TokenRequest, token_endpoint_authorization_code, token_endpoint_id_jag,
+        token_endpoint_refresh_token,
+    },
     runtime::{AppState, current_catalog},
 };
 
@@ -16,9 +19,12 @@ use crate::{
 mod authorize;
 #[path = "oauth/callback.rs"]
 mod callback;
+#[path = "oauth/revoke.rs"]
+mod revoke;
 
 pub(super) use authorize::authorize_endpoint;
 pub(super) use callback::authorization_callback;
+pub(super) use revoke::revoke_refresh_token;
 
 const JWT_BEARER_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 
@@ -34,7 +40,7 @@ pub(super) async fn token_endpoint(
         request.resource.as_deref(),
     ) {
         Ok(profile) => profile,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let Some(authorization_server) = catalog.authorization_server(&profile.authorization_server)
     else {
@@ -50,7 +56,9 @@ pub(super) async fn token_endpoint(
                 reason: AuthReasonCode::UnknownAuthorizationServer,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -84,6 +92,18 @@ pub(super) async fn token_endpoint(
         .await;
     }
 
+    if request.grant_type == "refresh_token" {
+        return token_endpoint_refresh_token(
+            &state,
+            &catalog,
+            profile,
+            authorization_server,
+            request,
+            started_at,
+        )
+        .await;
+    }
+
     token_endpoint_client_credentials(
         &state,
         &catalog,
@@ -99,20 +119,20 @@ pub(super) fn resolve_oauth_profile<'a>(
     catalog: &'a GatewayCatalog,
     raw_client_id: &str,
     raw_resource: Option<&str>,
-) -> Result<&'a GatewayProfile, axum::response::Response> {
+) -> Result<&'a GatewayProfile, Box<axum::response::Response>> {
     let client_id = OAuthClientId::new(raw_client_id.trim()).map_err(|_| {
-        oauth_error_response(
+        Box::new(oauth_error_response(
             StatusCode::UNAUTHORIZED,
             "invalid_client",
             "client is not registered for this authorization server",
-        )
+        ))
     })?;
     let client = catalog.oauth_client(&client_id).ok_or_else(|| {
-        oauth_error_response(
+        Box::new(oauth_error_response(
             StatusCode::UNAUTHORIZED,
             "invalid_client",
             "client is not registered for this authorization server",
-        )
+        ))
     })?;
     let profile = match raw_resource
         .map(str::trim)
@@ -121,28 +141,28 @@ pub(super) fn resolve_oauth_profile<'a>(
         Some(resource) => catalog
             .profile_by_protected_resource(resource)
             .ok_or_else(|| {
-                oauth_error_response(
+                Box::new(oauth_error_response(
                     StatusCode::BAD_REQUEST,
                     "invalid_target",
                     "requested resource is not a registered gateway profile",
-                )
+                ))
             })?,
         None => catalog.client_single_profile(client).ok_or_else(|| {
-            oauth_error_response(
+            Box::new(oauth_error_response(
                 StatusCode::BAD_REQUEST,
                 "invalid_request",
                 "resource is required when an OAuth client can access multiple profiles",
-            )
+            ))
         })?,
     };
     if client.authorization_server != profile.authorization_server
         || !client.allowed_profiles.contains(&profile.id)
     {
-        return Err(oauth_error_response(
+        return Err(Box::new(oauth_error_response(
             StatusCode::UNAUTHORIZED,
             "invalid_client",
             "client is not allowed for this gateway profile",
-        ));
+        )));
     }
     Ok(profile)
 }

@@ -4,7 +4,7 @@
 
 use std::{
     collections::BTreeSet,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -22,19 +22,34 @@ use veoveo_duckdb_mcp::{
     engine::{self, AttachSpec, FileExchange},
     state::TaskOwner,
 };
+use veoveo_duckdb_runtime::{
+    AuthorizedArtifact, materialize_authorized_artifact, materialize_https_source,
+};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ComplianceMetadata, DuckDbSource, GatewayInternalIdentity,
-    PlaneCaller, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
-    duckdb_read_options_sql,
+    ArtifactMetadata, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, DuckDbSource,
+    GatewayInternalIdentity, IssuedArtifactWriteCapability, PlaneCaller, duckdb_quote_identifier,
+    duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
 };
 
 use super::{
     app_state::AppState,
-    ownership::{database_writable, resolve_readable_database, resolve_writable_database},
+    ownership::{resolve_readable_database, resolve_writable_database},
 };
 
-const MAX_INGEST_FETCH_BYTES: usize = 256 * 1024 * 1024;
-const INTERRUPT_UNWIND_TIMEOUT: Duration = Duration::from_secs(10);
+#[derive(Clone)]
+pub(super) enum ArtifactWriteContext {
+    Caller(Box<PlaneCaller>),
+    Capability {
+        capability: IssuedArtifactWriteCapability,
+        idempotency_key: ArtifactWriteIdempotencyKey,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EngineOperation {
+    Read,
+    Mutating,
+}
 
 /// Lets blocking engine work publish its interrupt handle so a timeout can
 /// cancel the running statement instead of abandoning the thread.
@@ -52,10 +67,11 @@ impl EngineWatch {
 
 async fn run_engine_blocking<T: Send + 'static>(
     label: &'static str,
+    operation: EngineOperation,
     timeout_ms: u64,
     work: impl FnOnce(&EngineWatch) -> Result<T> + Send + 'static,
 ) -> Result<T, McpError> {
-    let (sender, mut receiver) = tokio::sync::oneshot::channel();
+    let (sender, receiver) = tokio::sync::oneshot::channel();
     let watch = Arc::new(EngineWatch {
         sender: Mutex::new(Some(sender)),
     });
@@ -66,13 +82,29 @@ async fn run_engine_blocking<T: Send + 'static>(
             .map_err(|err| McpError::internal_error(format!("{label} worker failed: {err}"), None))?
             .map_err(|err| McpError::invalid_params(format!("{label} failed: {err:#}"), None)),
         Err(_) => {
-            if let Ok(handle) = receiver.try_recv() {
+            // The connection may still be opening when the deadline fires.
+            // Wait until its interrupt handle is registered (or the worker
+            // exits), then never release a database write lock until the
+            // blocking worker has actually terminated.
+            if let Ok(handle) = receiver.await {
                 handle.interrupt();
             }
-            let _ = tokio::time::timeout(INTERRUPT_UNWIND_TIMEOUT, join).await;
+            let _ = join.await;
+            let (code, message) = match operation {
+                EngineOperation::Read => (
+                    "interrupted",
+                    format!("{label} exceeded {timeout_ms}ms and was interrupted"),
+                ),
+                EngineOperation::Mutating => (
+                    "interrupted_indeterminate",
+                    format!(
+                        "{label} exceeded {timeout_ms}ms; the worker stopped but commit state is indeterminate"
+                    ),
+                ),
+            };
             Err(McpError::invalid_params(
-                format!("{label} exceeded {timeout_ms}ms and was interrupted"),
-                None,
+                message,
+                Some(json!({"code": code, "timeout_ms": timeout_ms})),
             ))
         }
     }
@@ -94,10 +126,10 @@ fn fresh_exchange_dir(state: &AppState) -> PathBuf {
     state
         .dirs
         .exchange_dir
-        .join(uuid::Uuid::new_v4().to_string())
+        .join(uuid::Uuid::now_v7().to_string())
 }
 
-async fn cleanup_exchange_dir(dir: &PathBuf) {
+async fn cleanup_exchange_dir(dir: &Path) {
     if let Err(err) = tokio::fs::remove_dir_all(dir).await {
         tracing::warn!(dir = %dir.display(), "failed to clean exchange dir: {err}");
     }
@@ -105,7 +137,7 @@ async fn cleanup_exchange_dir(dir: &PathBuf) {
 
 pub(super) async fn put_op_artifact(
     state: &AppState,
-    caller: &PlaneCaller,
+    writer: &ArtifactWriteContext,
     owner: &TaskOwner,
     bytes: Vec<u8>,
     mime_type: &str,
@@ -123,11 +155,19 @@ pub(super) async fn put_op_artifact(
         ..Default::default()
     };
     put.metadata = metadata;
-    state
-        .artifacts
-        .put(caller, put)
-        .await
-        .map_err(|err| McpError::internal_error(format!("artifact write failed: {err:#}"), None))
+    let result = match writer {
+        ArtifactWriteContext::Caller(caller) => state.artifacts.put(caller, put).await,
+        ArtifactWriteContext::Capability {
+            capability,
+            idempotency_key,
+        } => {
+            state
+                .artifacts
+                .put_with_capability(capability, idempotency_key.clone(), put)
+                .await
+        }
+    };
+    result.map_err(|err| McpError::internal_error(format!("artifact write failed: {err:#}"), None))
 }
 
 fn export_file_details(format: DuckDbExportFormat) -> (&'static str, &'static str, &'static str) {
@@ -150,12 +190,22 @@ fn single_statement_sql(label: &str, sql: &str) -> Result<String, McpError> {
             None,
         ));
     }
+    veoveo_duckdb_runtime::validate_single_statement(trimmed)
+        .map_err(|error| McpError::invalid_params(format!("invalid {label} SQL: {error}"), None))?;
     Ok(trimmed.to_string())
+}
+
+fn validate_embedded_query(conn: &duckdb::Connection, sql: &str) -> Result<()> {
+    // Preparing the standalone statement before interpolating it into COPY
+    // makes unmatched-parenthesis and non-query injection fail in DuckDB's
+    // parser. The lexical guard has already excluded statement chaining.
+    let _statement = conn.prepare(sql).context("validating embedded query")?;
+    Ok(())
 }
 
 pub(super) async fn query_op(
     state: &Arc<AppState>,
-    caller: &PlaneCaller,
+    artifact_writer: &ArtifactWriteContext,
     identity: &GatewayInternalIdentity,
     owner: &TaskOwner,
     request: DuckDbQueryRequest,
@@ -190,18 +240,19 @@ pub(super) async fn query_op(
                 .max(1);
             let byte_cap = state.caps.max_inline_bytes;
             let sql = request.sql.clone();
-            let rows = run_engine_blocking("query", timeout_ms, move |watch| {
-                let conn = engine::open_connection(
-                    &db_path,
-                    true,
-                    &attach,
-                    &FileExchange::Denied,
-                    &settings,
-                )?;
-                watch.register(&conn);
-                engine::run_query(&conn, &sql, row_cap, byte_cap)
-            })
-            .await?;
+            let rows =
+                run_engine_blocking("query", EngineOperation::Read, timeout_ms, move |watch| {
+                    let conn = engine::open_connection(
+                        &db_path,
+                        true,
+                        &attach,
+                        &FileExchange::Denied,
+                        &settings,
+                    )?;
+                    watch.register(&conn);
+                    engine::run_query(&conn, &sql, row_cap, byte_cap)
+                })
+                .await?;
             Ok(DuckDbQueryOutput {
                 columns: rows.columns,
                 rows: rows.rows,
@@ -229,20 +280,26 @@ pub(super) async fn query_op(
                 engine::quote_sql_literal(out_path.to_string_lossy().as_ref())
             );
             let exchange_for_engine = exchange.clone();
-            let row_count = run_engine_blocking("query export", timeout_ms, move |watch| {
-                let conn = engine::open_connection(
-                    &db_path,
-                    true,
-                    &attach,
-                    &FileExchange::ExchangeDir(exchange_for_engine),
-                    &settings,
-                )?;
-                watch.register(&conn);
-                let rows = conn
-                    .execute(&copy_sql, [])
-                    .context("copying query result")?;
-                Ok(rows as u64)
-            })
+            let row_count = run_engine_blocking(
+                "query export",
+                EngineOperation::Read,
+                timeout_ms,
+                move |watch| {
+                    let conn = engine::open_connection(
+                        &db_path,
+                        true,
+                        &attach,
+                        &FileExchange::ExchangeDir(exchange_for_engine),
+                        &settings,
+                    )?;
+                    watch.register(&conn);
+                    validate_embedded_query(&conn, &select_sql)?;
+                    let rows = conn
+                        .execute(&copy_sql, [])
+                        .context("copying query result")?;
+                    Ok(rows as u64)
+                },
+            )
             .await
             .inspect_err(|_| {
                 let exchange = exchange.clone();
@@ -254,7 +311,7 @@ pub(super) async fn query_op(
             cleanup_exchange_dir(&exchange).await;
             let artifact = put_op_artifact(
                 state,
-                caller,
+                artifact_writer,
                 owner,
                 bytes,
                 mime_type,
@@ -296,18 +353,18 @@ pub(super) async fn execute_op(
     let settings = state.engine.clone();
     let timeout_ms = state.clamp_timeout_ms(request.timeout_ms);
     let sql = request.sql.clone();
-    let (statements, rows_changed) = run_engine_blocking("execute", timeout_ms, move |watch| {
-        let conn = engine::open_connection(&db_path, false, &[], &FileExchange::Denied, &settings)?;
-        watch.register(&conn);
-        execute_sql(&conn, &sql)
-    })
+    let (statements, rows_changed) = run_engine_blocking(
+        "execute",
+        EngineOperation::Mutating,
+        timeout_ms,
+        move |watch| {
+            let conn =
+                engine::open_connection(&db_path, false, &[], &FileExchange::Denied, &settings)?;
+            watch.register(&conn);
+            execute_sql(&conn, &sql)
+        },
+    )
     .await?;
-    if created {
-        state
-            .durable
-            .record_database(&db)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    }
     Ok(DuckDbExecuteOutput {
         db: request.db,
         statements,
@@ -383,37 +440,36 @@ pub(super) async fn ingest_op(
     let timeout_ms = state.clamp_timeout_ms(None);
     let exchange_for_engine = exchange.clone();
     let count_ident = table_ident.clone();
-    let result = run_engine_blocking("ingest", timeout_ms, move |watch| {
-        let conn = engine::open_connection(
-            &db_path,
-            false,
-            &[],
-            &FileExchange::ExchangeDir(exchange_for_engine),
-            &settings,
-        )?;
-        watch.register(&conn);
-        let changed = conn.execute(&ingest_sql, []).context("ingesting source")?;
-        // `CREATE TABLE AS SELECT` reports no change count, so read the table
-        // size for create/replace; append already reports its inserted rows.
-        let rows = if matches!(request.mode, DuckDbIngestMode::Append) {
-            changed as u64
-        } else {
-            conn.query_row(&format!("SELECT count(*) FROM {count_ident}"), [], |row| {
-                row.get::<_, i64>(0)
-            })
-            .context("counting ingested rows")? as u64
-        };
-        Ok(rows)
-    })
+    let result = run_engine_blocking(
+        "ingest",
+        EngineOperation::Mutating,
+        timeout_ms,
+        move |watch| {
+            let conn = engine::open_connection(
+                &db_path,
+                false,
+                &[],
+                &FileExchange::ExchangeDir(exchange_for_engine),
+                &settings,
+            )?;
+            watch.register(&conn);
+            let changed = conn.execute(&ingest_sql, []).context("ingesting source")?;
+            // `CREATE TABLE AS SELECT` reports no change count, so read the table
+            // size for create/replace; append already reports its inserted rows.
+            let rows = if matches!(request.mode, DuckDbIngestMode::Append) {
+                changed as u64
+            } else {
+                conn.query_row(&format!("SELECT count(*) FROM {count_ident}"), [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .context("counting ingested rows")? as u64
+            };
+            Ok(rows)
+        },
+    )
     .await;
     cleanup_exchange_dir(&exchange).await;
     let rows_ingested = result?;
-    if created {
-        state
-            .durable
-            .record_database(&db)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    }
     Ok(DuckDbIngestOutput {
         db: request.db,
         table: table.to_string(),
@@ -426,7 +482,7 @@ async fn materialize_source(
     state: &AppState,
     caller: &PlaneCaller,
     source: &DuckDbSource,
-    exchange: &PathBuf,
+    exchange: &Path,
 ) -> Result<String, McpError> {
     match source {
         DuckDbSource::Artifact {
@@ -441,10 +497,23 @@ async fn materialize_source(
                 state.artifacts.resolve(caller, uri).await.map_err(|err| {
                     McpError::invalid_params(format!("artifact source: {err}"), None)
                 })?;
-            let path = exchange.join(format!("artifact-{}", object.metadata.sha256));
-            tokio::fs::write(&path, &object.bytes)
-                .await
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?;
+            let exchange = exchange.to_path_buf();
+            let filename = format!("artifact-{}", object.metadata.artifact_id);
+            let bytes = object.bytes;
+            let max_bytes = state.source_policy.max_bytes;
+            let path = tokio::task::spawn_blocking(move || {
+                materialize_authorized_artifact(
+                    &exchange,
+                    AuthorizedArtifact {
+                        bytes: &bytes,
+                        filename: &filename,
+                    },
+                    max_bytes,
+                )
+            })
+            .await
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?
+            .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
             duckdb_read_function_sql(
                 &duckdb_quote_literal(path.to_string_lossy().as_ref()),
                 format,
@@ -499,59 +568,29 @@ async fn materialize_source(
     }
 }
 
-/// The server, not the SQL engine, fetches ingest URIs: HTTPS only, host
-/// allowlisted by configuration, size-capped.
+/// The service, not SQL, materializes remote data under the canonical HTTPS
+/// policy. DNS and every redirect are revalidated and the response streams
+/// into the request-local directory under a hard byte cap.
 async fn fetch_ingest_uri(
     state: &AppState,
     uri: &str,
-    exchange: &PathBuf,
+    exchange: &Path,
     index: usize,
 ) -> Result<PathBuf, McpError> {
-    let url = reqwest::Url::parse(uri).map_err(|err| {
-        McpError::invalid_params(format!("invalid source uri `{uri}`: {err}"), None)
-    })?;
-    if url.scheme() != "https" {
-        return Err(McpError::invalid_params(
-            format!("source uri `{uri}` must use https"),
-            None,
-        ));
-    }
-    let host = url
-        .host_str()
-        .ok_or_else(|| McpError::invalid_params(format!("source uri `{uri}` has no host"), None))?;
-    if !state.ingest_allowlist.iter().any(|allowed| allowed == host) {
-        return Err(McpError::invalid_params(
-            format!("source host `{host}` is not in the ingest allowlist"),
-            None,
-        ));
-    }
-    let response = state
-        .http
-        .get(url)
-        .send()
-        .await
-        .and_then(|response| response.error_for_status())
-        .map_err(|err| McpError::invalid_params(format!("fetching `{uri}` failed: {err}"), None))?;
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|err| McpError::invalid_params(format!("reading `{uri}` failed: {err}"), None))?;
-    if bytes.len() > MAX_INGEST_FETCH_BYTES {
-        return Err(McpError::invalid_params(
-            format!("source `{uri}` exceeds the {MAX_INGEST_FETCH_BYTES} byte ingest cap"),
-            None,
-        ));
-    }
-    let path = exchange.join(format!("source-{index}"));
-    tokio::fs::write(&path, &bytes)
-        .await
-        .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    Ok(path)
+    let uri = uri.to_string();
+    let exchange = exchange.to_path_buf();
+    let policy = state.source_policy.clone();
+    tokio::task::spawn_blocking(move || {
+        materialize_https_source(&exchange, &uri, &format!("source-{index}"), &policy)
+    })
+    .await
+    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+    .map_err(|err| McpError::invalid_params(err.to_string(), None))
 }
 
 pub(super) async fn export_op(
     state: &Arc<AppState>,
-    caller: &PlaneCaller,
+    artifact_writer: &ArtifactWriteContext,
     identity: &GatewayInternalIdentity,
     owner: &TaskOwner,
     request: DuckDbExportRequest,
@@ -566,38 +605,37 @@ pub(super) async fn export_op(
                 ));
             }
             let db = resolve_readable_database(state, identity, &request.db)?;
-            if !database_writable(&db, identity) {
-                return Err(McpError::invalid_request(
-                    "database snapshots require ownership",
-                    None,
-                ));
-            }
             let db_path = require_data_file(&request.db, &db.file_path)?;
             let lock = state.write_lock(&db.file_path).await;
             let _guard = lock.lock().await;
             let settings = state.engine.clone();
             let timeout_ms = state.clamp_timeout_ms(None);
             let checkpoint_path = db_path.clone();
-            run_engine_blocking("snapshot checkpoint", timeout_ms, move |watch| {
-                let conn = engine::open_connection(
-                    &checkpoint_path,
-                    false,
-                    &[],
-                    &FileExchange::Denied,
-                    &settings,
-                )?;
-                watch.register(&conn);
-                conn.execute_batch("CHECKPOINT;")
-                    .context("checkpointing database")?;
-                Ok(())
-            })
+            run_engine_blocking(
+                "snapshot checkpoint",
+                EngineOperation::Mutating,
+                timeout_ms,
+                move |watch| {
+                    let conn = engine::open_connection(
+                        &checkpoint_path,
+                        false,
+                        &[],
+                        &FileExchange::Denied,
+                        &settings,
+                    )?;
+                    watch.register(&conn);
+                    conn.execute_batch("CHECKPOINT;")
+                        .context("checkpointing database")?;
+                    Ok(())
+                },
+            )
             .await?;
             let bytes = tokio::fs::read(&db_path)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?;
             let artifact = put_op_artifact(
                 state,
-                caller,
+                artifact_writer,
                 owner,
                 bytes,
                 mime_type,
@@ -648,19 +686,21 @@ pub(super) async fn export_op(
             let settings = state.engine.clone();
             let timeout_ms = state.clamp_timeout_ms(None);
             let exchange_for_engine = exchange.clone();
-            let result = run_engine_blocking("export", timeout_ms, move |watch| {
-                let conn = engine::open_connection(
-                    &db_path,
-                    true,
-                    &[],
-                    &FileExchange::ExchangeDir(exchange_for_engine),
-                    &settings,
-                )?;
-                watch.register(&conn);
-                let rows = conn.execute(&copy_sql, []).context("copying export")?;
-                Ok(rows as u64)
-            })
-            .await;
+            let result =
+                run_engine_blocking("export", EngineOperation::Read, timeout_ms, move |watch| {
+                    let conn = engine::open_connection(
+                        &db_path,
+                        true,
+                        &[],
+                        &FileExchange::ExchangeDir(exchange_for_engine),
+                        &settings,
+                    )?;
+                    watch.register(&conn);
+                    validate_embedded_query(&conn, &select_sql)?;
+                    let rows = conn.execute(&copy_sql, []).context("copying export")?;
+                    Ok(rows as u64)
+                })
+                .await;
             let rows_exported = match result {
                 Ok(rows) => rows,
                 Err(err) => {
@@ -679,7 +719,7 @@ pub(super) async fn export_op(
             };
             let artifact = put_op_artifact(
                 state,
-                caller,
+                artifact_writer,
                 owner,
                 bytes,
                 mime_type,
@@ -699,5 +739,64 @@ pub(super) async fn export_op(
                 artifact: artifact.without_download_url(),
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn execute_sql_preserves_multi_statement_ddl_and_dml() {
+        let conn = duckdb::Connection::open_in_memory().unwrap();
+        let (statements, rows_changed) = execute_sql(
+            &conn,
+            "CREATE TABLE readings(value INTEGER); \
+             INSERT INTO readings VALUES (1), (2); \
+             UPDATE readings SET value = value * 10;",
+        )
+        .unwrap();
+        assert_eq!(statements, 3);
+        assert_eq!(rows_changed, 0, "batch mode has no per-statement count");
+        let values = conn
+            .prepare("SELECT value FROM readings ORDER BY value")
+            .unwrap()
+            .query_map([], |row| row.get::<_, i64>(0))
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, duckdb::Error>>()
+            .unwrap();
+        assert_eq!(values, [10, 20]);
+    }
+
+    #[test]
+    fn embedded_query_validation_rejects_chaining_and_parenthesis_escape() {
+        assert!(single_statement_sql("query", "SELECT 1; DROP TABLE secret").is_err());
+        let sql = single_statement_sql(
+            "query",
+            "WITH rows AS (SELECT 1 AS value) SELECT value FROM rows;",
+        )
+        .unwrap();
+        let conn = duckdb::Connection::open_in_memory().unwrap();
+        assert!(validate_embedded_query(&conn, &sql).is_ok());
+        assert!(validate_embedded_query(&conn, "SELECT 1) TO '/tmp/escape' --").is_err());
+    }
+
+    #[tokio::test]
+    async fn mutating_timeout_waits_for_worker_and_reports_indeterminate() {
+        let started = std::time::Instant::now();
+        let error = run_engine_blocking("execute", EngineOperation::Mutating, 1, |watch| {
+            let conn = duckdb::Connection::open_in_memory()?;
+            watch.register(&conn);
+            std::thread::sleep(Duration::from_millis(25));
+            Ok(())
+        })
+        .await
+        .unwrap_err();
+        assert!(started.elapsed() >= Duration::from_millis(20));
+        assert!(error.message.contains("indeterminate"));
+        assert_eq!(
+            error.data.as_ref().and_then(|data| data["code"].as_str()),
+            Some("interrupted_indeterminate")
+        );
     }
 }

@@ -1,22 +1,10 @@
-use std::collections::{BTreeSet, HashMap};
-
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
-use veoveo_mcp_contract::{
-    DataLabelId, GatewayInternalIdentity, GatewayProfileId, PlaneCaller, PrincipalId, TenantId,
-};
+use veoveo_coordinates_mcp::state::CoordinateScope;
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PrincipalKind};
+use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
+use veoveo_task_runtime::TaskOwner;
 
 use super::app_state::AppState;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct TaskOwner {
-    pub(super) task_id: String,
-    pub(super) principal_id: PrincipalId,
-    pub(super) profile: GatewayProfileId,
-    pub(super) tenant: Option<TenantId>,
-    pub(super) data_labels: BTreeSet<DataLabelId>,
-}
-
-pub(super) type TaskOwnerMap = HashMap<String, TaskOwner>;
 
 pub(super) fn internal_identity(
     context: &RequestContext<RoleServer>,
@@ -47,7 +35,7 @@ pub(super) fn internal_caller(
     let bearer = parts
         .extensions
         .get::<super::internal_auth::ForwardedBearer>()
-        .map(|b| b.0.clone())
+        .map(|bearer| bearer.0.clone())
         .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
     Ok(caller_from(identity, bearer))
 }
@@ -61,21 +49,67 @@ pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> 
     }
 }
 
-pub(super) fn task_owner_from_identity(
-    task_id: &str,
-    identity: &GatewayInternalIdentity,
-) -> TaskOwner {
+pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
-        task_id: task_id.to_string(),
-        principal_id: identity.principal.id.clone(),
-        profile: identity.profile.clone(),
-        tenant: identity.principal.tenant.clone(),
-        data_labels: identity.principal.data_labels.clone(),
+        principal_key: identity.principal.id.to_string(),
+        principal_kind: match identity.principal.kind {
+            PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
+            PrincipalKind::Service => veoveo_task_runtime::PrincipalKind::Service,
+        },
+        issuer: identity.principal.issuer.to_string(),
+        subject: identity.principal.subject.to_string(),
+        profile: identity.profile.to_string(),
+        tenant_key: identity.principal.tenant.as_ref().map(ToString::to_string),
+        data_labels: identity
+            .principal
+            .data_labels
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
     }
 }
 
-pub(super) async fn optional_task_owner(state: &AppState, task_id: &str) -> Option<TaskOwner> {
-    state.task_owners.read().await.get(task_id).cloned()
+pub(super) async fn coordinate_scope_from_identity(
+    state: &AppState,
+    identity: &GatewayInternalIdentity,
+) -> Result<CoordinateScope, McpError> {
+    coordinate_scope_from_runtime(state, &runtime_owner(identity)).await
+}
+
+pub(super) async fn coordinate_scope_from_runtime(
+    state: &AppState,
+    owner: &TaskOwner,
+) -> Result<CoordinateScope, McpError> {
+    let identity = state
+        .tasks
+        .platform_store()
+        .ensure_identity(
+            owner.tenant_key(),
+            &owner.principal_key,
+            &owner.issuer,
+            &owner.subject,
+            match owner.principal_kind {
+                veoveo_task_runtime::PrincipalKind::User => StorePrincipalKind::User,
+                veoveo_task_runtime::PrincipalKind::Service => StorePrincipalKind::Service,
+            },
+        )
+        .await
+        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+    Ok(CoordinateScope {
+        identity,
+        data_labels: owner.data_labels.clone(),
+    })
+}
+
+pub(super) async fn optional_task_owner(
+    state: &AppState,
+    task_id: &str,
+) -> Result<Option<TaskOwner>, McpError> {
+    state
+        .tasks
+        .owner(task_id)
+        .await
+        .map_err(|error| McpError::internal_error(error.to_string(), None))
 }
 
 pub(super) async fn require_task_owner(
@@ -85,7 +119,7 @@ pub(super) async fn require_task_owner(
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
     let owner = optional_task_owner(state, task_id)
-        .await
+        .await?
         .ok_or_else(|| McpError::invalid_request("task ownership record missing", None))?;
     if task_owner_allows(&owner, &identity) {
         Ok(identity)
@@ -98,8 +132,11 @@ pub(super) async fn require_task_owner(
 }
 
 pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.principal.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.principal.tenant
-        && owner.data_labels.is_subset(&identity.principal.data_labels)
+    let caller = runtime_owner(identity);
+    owner.allows(
+        &caller.principal_key,
+        &caller.profile,
+        caller.tenant_key.as_deref(),
+        &caller.data_labels,
+    )
 }

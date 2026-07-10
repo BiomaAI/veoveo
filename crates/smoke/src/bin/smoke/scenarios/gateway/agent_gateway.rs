@@ -32,7 +32,6 @@ pub(crate) async fn agent_gateway(
     let duckdb_base = format!("http://127.0.0.1:{duckdb_port}");
     let gateway_base = format!("http://127.0.0.1:{gateway_port}");
     let generated_control_plane = tmpdir.join("gateway.agent.json");
-    let gateway_state_db = tmpdir.join("gateway-state.duckdb");
     let duckdb_data_dir = tmpdir.join("duckdb");
     let duckdb_log = tmpdir.join("duckdb.log");
     let gateway_log = tmpdir.join("gateway.log");
@@ -46,6 +45,7 @@ pub(crate) async fn agent_gateway(
         &duckdb_base,
         &duckdb_data_dir,
         &plane.url,
+        &plane.platform,
         &duckdb_log,
     )?;
     wait_for_http(&format!("{duckdb_base}/duckdb/healthz")).await?;
@@ -75,12 +75,15 @@ pub(crate) async fn agent_gateway(
     contains(&validation, "ok: 1 server(s)")?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let control_db = spawn_gateway_control_db(gateway, &generated_control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.trim().into(),
@@ -204,7 +207,7 @@ pub(crate) async fn agent_gateway(
 }
 
 /// `tools/call` with task augmentation, expecting the server to accept the
-/// call as a task (SEP-1686).
+/// call through the configured task compatibility projection.
 async fn call_tool_as_task(
     session: &SmokeMcpSession,
     tool_name: &str,

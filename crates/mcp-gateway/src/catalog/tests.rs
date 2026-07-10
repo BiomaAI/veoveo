@@ -1,13 +1,11 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use chrono::{DateTime, Utc};
-use rmcp::handler::server::ServerHandler;
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    AuthMode, AuthorizationServerId, CompletionExposure, DataLabelDefinition, DataLabelId,
-    Exposure, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAction, GatewayControlPlaneError,
-    GatewayInternalTokenIssuer, GatewayTaskId, GroupId, HttpsUrl, IdentityProvider,
-    IdentityProviderId, IdentityProviderOidcClientRegistration, InternalTokenSecret, JwksSource,
+    AuthMode, AuthorizationServerId, CanonicalTaskId, CompletionExposure, DataLabelDefinition,
+    DataLabelId, Exposure, GatewayAction, GatewayControlPlaneError, GroupId, HttpsUrl,
+    IdentityProvider, IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource,
     JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
     MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
     OAuthClientRegistration, OAuthClientSurface, OAuthGrantType, OAuthRedirectUri,
@@ -22,7 +20,7 @@ use veoveo_mcp_contract::{
 };
 
 use super::*;
-use crate::{GatewayMcp, GatewayState, PolicyRequest, www_authenticate_challenge};
+use crate::{PolicyRequest, www_authenticate_challenge};
 
 fn identity_provider() -> IdentityProvider {
     IdentityProvider {
@@ -47,18 +45,18 @@ fn identity_provider() -> IdentityProvider {
 fn authorization_server() -> ResourceAuthorizationServer {
     ResourceAuthorizationServer {
         id: AuthorizationServerId::new("veoveo").unwrap(),
-        issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
+        issuer: TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
         jwks: JwksSource::Remote {
-            jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/jwks.json").unwrap(),
+            jwks_uri: HttpsUrl::new("https://veoveo.example/oauth/jwks.json").unwrap(),
         },
         access_token_key_id: JwtId::new("test-key").unwrap(),
         access_token_signing_key: SecretReferenceId::new("veoveo_access_token_private_key")
             .unwrap(),
         identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://veoveo.bioma.ai/oauth/authorize").unwrap(),
+            HttpsUrl::new("https://veoveo.example/oauth/authorize").unwrap(),
         ),
-        token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/token").unwrap(),
+        token_endpoint: HttpsUrl::new("https://veoveo.example/oauth/token").unwrap(),
         metadata: Value::Null,
     }
 }
@@ -189,7 +187,7 @@ fn profile() -> GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-        protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/operator")
+        protected_resource: ProtectedResourceId::new("https://veoveo.example/mcp/operator")
             .unwrap(),
         policy_version: PolicyVersion::new("2026-07-02").unwrap(),
         auth_modes: BTreeSet::from([
@@ -224,11 +222,12 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([
                 OAuthGrantType::AuthorizationCodePkce,
+                OAuthGrantType::RefreshToken,
                 OAuthGrantType::EnterpriseManagedAuthorization,
             ]),
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::None]),
             redirect_uris: vec![
-                OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+                OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
                 OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").unwrap(),
             ],
             allowed_scopes: BTreeSet::from([
@@ -275,7 +274,7 @@ fn oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
         allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
         client_id: OidcClientId::new("veoveo").unwrap(),
-        redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+        redirect_uri: OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
         credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
         scopes: BTreeSet::from([
@@ -324,11 +323,6 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
         metadata: Value::Null,
     })
     .unwrap()
-}
-
-fn temp_path(name: &str) -> std::path::PathBuf {
-    let unique = uuid::Uuid::new_v4();
-    std::env::temp_dir().join(format!("veoveo-lib-{name}-{unique}.duckdb"))
 }
 
 fn principal(scopes: &[&str]) -> Principal {
@@ -426,27 +420,6 @@ fn policy_allows_template_exposed_resource_uri() {
     });
     assert_eq!(decision.effect, PolicyEffect::Deny);
     assert_eq!(decision.reason, PolicyReasonCode::PolicyDeny);
-}
-
-#[test]
-fn policy_allows_task_list_without_fake_task_id() {
-    let mut policy = policy();
-    policy.rules[0].actions = BTreeSet::from([GatewayAction::TasksList]);
-    policy.rules[0].tools = BTreeSet::new();
-    let catalog = catalog_with_policy(policy);
-    let principal = principal(&["operator:use"]);
-    let decision = catalog.decide(PolicyRequest {
-        principal: &principal,
-        profile: &GatewayProfileId::new("default").unwrap(),
-        action: GatewayAction::TasksList,
-        target: &PolicyTarget::TaskList {
-            server: ServerSlug::new("media").unwrap(),
-        },
-        trace_id: &TraceId::new("trace-task-list").unwrap(),
-    });
-
-    assert_eq!(decision.effect, PolicyEffect::Allow);
-    assert_eq!(decision.reason, PolicyReasonCode::PolicyAllow);
 }
 
 #[test]
@@ -846,44 +819,16 @@ fn catalog_handle_reads_replaced_catalog_with_new_generation() {
 }
 
 #[test]
-fn gateway_mcp_reads_replaced_catalog_from_existing_handler() {
-    let initial_catalog = Arc::new(catalog());
-    let mut replacement_control_plane = initial_catalog.control_plane().clone();
-    replacement_control_plane.profiles[0].servers.clear();
-    replacement_control_plane.policies[0].rules.clear();
-    let replacement_catalog =
-        Arc::new(GatewayCatalog::from_control_plane(replacement_control_plane).unwrap());
-    let handle = GatewayCatalogHandle::new(initial_catalog);
-    let state = GatewayState::open(temp_path("live-catalog")).unwrap();
-    let internal_token_issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-        InternalTokenSecret::new("local-dev-internal-token-secret-32-bytes-minimum").unwrap(),
-    );
-    let mcp = GatewayMcp::new(
-        handle.clone(),
-        GatewayProfileId::new("default").unwrap(),
-        state,
-        internal_token_issuer,
-    );
-
-    assert!(mcp.get_info().capabilities.tools.is_some());
-
-    handle.replace(replacement_catalog);
-
-    assert!(mcp.get_info().capabilities.tools.is_none());
-}
-
-#[test]
 fn builds_protected_resource_metadata_for_profile() {
     let catalog = catalog();
     let metadata = catalog
         .protected_resource_metadata(&GatewayProfileId::new("default").unwrap())
         .unwrap();
 
-    assert_eq!(metadata.resource, "https://veoveo.bioma.ai/mcp/operator");
+    assert_eq!(metadata.resource, "https://veoveo.example/mcp/operator");
     assert_eq!(
         metadata.authorization_servers,
-        vec!["https://veoveo.bioma.ai/oauth".to_string()]
+        vec!["https://veoveo.example/oauth".to_string()]
     );
     assert_eq!(metadata.scopes_supported, vec!["operator:use".to_string()]);
     assert_eq!(
@@ -909,18 +854,22 @@ fn builds_authorization_server_metadata_for_profile() {
         .authorization_server_metadata(&GatewayProfileId::new("default").unwrap())
         .unwrap();
 
-    assert_eq!(metadata.issuer, "https://veoveo.bioma.ai/oauth");
+    assert_eq!(metadata.issuer, "https://veoveo.example/oauth");
     assert_eq!(
         metadata.authorization_endpoint.as_deref(),
-        Some("https://veoveo.bioma.ai/oauth/authorize")
+        Some("https://veoveo.example/oauth/authorize")
     );
     assert_eq!(
         metadata.token_endpoint,
-        "https://veoveo.bioma.ai/oauth/token"
+        "https://veoveo.example/oauth/token"
+    );
+    assert_eq!(
+        metadata.revocation_endpoint.as_deref(),
+        Some("https://veoveo.example/oauth/revoke")
     );
     assert_eq!(
         metadata.jwks_uri.as_deref(),
-        Some("https://veoveo.bioma.ai/oauth/jwks.json")
+        Some("https://veoveo.example/oauth/jwks.json")
     );
     assert_eq!(metadata.scopes_supported, vec!["operator:use".to_string()]);
     assert_eq!(metadata.response_types_supported, vec!["code".to_string()]);
@@ -928,6 +877,11 @@ fn builds_authorization_server_metadata_for_profile() {
         metadata
             .grant_types_supported
             .contains(&"authorization_code".to_string())
+    );
+    assert!(
+        metadata
+            .grant_types_supported
+            .contains(&"refresh_token".to_string())
     );
     assert!(
         metadata
@@ -957,6 +911,10 @@ fn builds_authorization_server_metadata_for_profile() {
         metadata
             .token_endpoint_auth_signing_alg_values_supported
             .contains(&"RS256".to_string())
+    );
+    assert_eq!(
+        metadata.revocation_endpoint_auth_methods_supported,
+        vec!["none".to_string()]
     );
     assert_eq!(
         metadata.authorization_grant_profiles_supported,
@@ -1025,13 +983,13 @@ fn gateway_policy_target_ignores_filtered_admin_rules() {
 #[test]
 fn builds_www_authenticate_challenge_with_scope() {
     let challenge = www_authenticate_challenge(
-        "https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator",
+        "https://veoveo.example/.well-known/oauth-protected-resource/mcp/operator",
         &[ScopeName::new("operator:use").unwrap()],
     );
 
     assert_eq!(
         challenge,
-        "Bearer resource_metadata=\"https://veoveo.bioma.ai/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use\""
+        "Bearer resource_metadata=\"https://veoveo.example/.well-known/oauth-protected-resource/mcp/operator\", scope=\"operator:use\""
     );
 }
 
@@ -1066,7 +1024,8 @@ fn keeps_contract_validation_errors_visible() {
 }
 
 #[test]
-fn task_id_type_is_available_for_runtime_state() {
-    let task = GatewayTaskId::new("gateway-task-1").unwrap();
-    assert_eq!(task.as_str(), "gateway-task-1");
+fn canonical_task_id_requires_uuid_v7() {
+    let value = uuid::Uuid::now_v7().to_string();
+    let task = CanonicalTaskId::new(value.clone()).unwrap();
+    assert_eq!(task.as_str(), value);
 }

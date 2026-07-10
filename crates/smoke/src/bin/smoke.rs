@@ -63,8 +63,10 @@ enum Cmd {
     },
     /// Smoke-test Compose edge routing and published-port shape.
     ComposeConfig,
-    /// Smoke-test gateway Postgres control-plane seed and active revision validation.
-    GatewayControlDb {
+    /// Run every live SurrealDB integration target against an isolated 3.2.0 container.
+    SurrealIntegration,
+    /// Smoke-test gateway platform bootstrap and active revision validation.
+    GatewayPlatformStore {
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
         gateway_bin: PathBuf,
@@ -137,6 +139,21 @@ enum Cmd {
         /// Base gateway control-plane JSON.
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
+    },
+    /// Verify browser OAuth against a pinned, real HTTPS Keycloak identity provider.
+    GatewayKeycloak {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Base gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+        /// Keycloak realm import fixture.
+        #[arg(long, default_value = "configs/keycloak/veoveo-ci-realm.json")]
+        realm: PathBuf,
     },
     /// Smoke-test authenticated gateway-to-media forwarding and policy/admin flows.
     GatewayAuthenticated {
@@ -316,6 +333,16 @@ enum Cmd {
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
     },
+    /// Prove typed SUMO world frames survive the Recording Hub durability boundary.
+    SumoPush {
+        #[arg(long, default_value_t = 40)]
+        steps: u32,
+    },
+    /// Run the real LuST/SUMO container and verify its authenticated MCP and durable recording.
+    SumoVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+    },
 }
 
 #[tokio::main]
@@ -328,10 +355,11 @@ async fn main() -> Result<()> {
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::ComposeConfig => compose_config().await,
-        Cmd::GatewayControlDb {
+        Cmd::SurrealIntegration => surreal_integration().await,
+        Cmd::GatewayPlatformStore {
             gateway_bin,
             control_plane,
-        } => gateway_control_db(&gateway_bin, &control_plane).await,
+        } => gateway_platform_store(&gateway_bin, &control_plane).await,
         Cmd::ContractSchemas { conformance_bin } => contract_schemas(&conformance_bin),
         Cmd::Otel {
             conformance_bin,
@@ -358,6 +386,12 @@ async fn main() -> Result<()> {
             gateway_bin,
             control_plane,
         } => gateway_http(&conformance_bin, &gateway_bin, &control_plane).await,
+        Cmd::GatewayKeycloak {
+            conformance_bin,
+            gateway_bin,
+            control_plane,
+            realm,
+        } => gateway_keycloak(&conformance_bin, &gateway_bin, &control_plane, &realm).await,
         Cmd::GatewayAuthenticated {
             conformance_bin,
             media_bin,
@@ -496,5 +530,7 @@ async fn main() -> Result<()> {
             gateway_bin,
             control_plane,
         } => gateway_vault_secrets(&gateway_bin, &control_plane).await,
+        Cmd::SumoPush { steps } => sumo_push(steps).await,
+        Cmd::SumoVerify { conformance_bin } => sumo_verify(&conformance_bin).await,
     }
 }

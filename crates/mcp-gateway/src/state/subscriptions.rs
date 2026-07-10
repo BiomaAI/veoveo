@@ -1,100 +1,98 @@
-use anyhow::Result;
-use duckdb::{OptionalExt, params};
+use anyhow::{Context, Result};
 use veoveo_mcp_contract::{
     GatewayProfileId, GatewayResourceSubscription, PrincipalId, ResourceUri, ServerSlug,
+};
+use veoveo_platform_store::{
+    GatewayResourceSubscriptionRecord, OpenObject, gateway_resource_subscription_record_id,
 };
 
 use super::GatewayState;
 
 impl GatewayState {
-    pub fn record_resource_subscription(
+    pub async fn record_resource_subscription(
         &self,
         subscription: &GatewayResourceSubscription,
     ) -> Result<()> {
-        let subscription_json = serde_json::to_string(subscription)?;
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            INSERT INTO gateway_resource_subscriptions (
-                profile, owner, upstream_server, resource_uri,
-                created_at, updated_at, subscription_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-            ON CONFLICT(profile, owner, upstream_server, resource_uri) DO UPDATE SET
-                updated_at = excluded.updated_at,
-                subscription_json = excluded.subscription_json
-            "#,
-            params![
-                subscription.profile.as_str(),
-                subscription.owner.as_str(),
-                subscription.upstream_server.as_str(),
-                subscription.resource_uri.as_str(),
-                subscription.created_at,
-                subscription.updated_at,
-                subscription_json,
-            ],
-        )?;
-        Ok(())
+        let id = subscription_record_id(
+            &subscription.profile,
+            &subscription.owner,
+            &subscription.upstream_server,
+            &subscription.resource_uri,
+        );
+        self.platform
+            .upsert_gateway_resource_subscription(GatewayResourceSubscriptionRecord {
+                id,
+                profile: subscription.profile.to_string(),
+                owner: subscription.owner.to_string(),
+                upstream_server: subscription.upstream_server.to_string(),
+                resource_uri: subscription.resource_uri.to_string(),
+                created_at: subscription.created_at,
+                updated_at: subscription.updated_at,
+                payload: serialize_subscription(subscription)?,
+            })
+            .await
+            .context("failed to persist gateway resource subscription")
     }
 
-    pub fn resource_subscription(
+    pub async fn resource_subscription(
         &self,
         profile: &GatewayProfileId,
         owner: &PrincipalId,
         upstream_server: &ServerSlug,
         resource_uri: &ResourceUri,
     ) -> Result<Option<GatewayResourceSubscription>> {
-        self.query_subscription(
-            r#"
-            SELECT subscription_json
-            FROM gateway_resource_subscriptions
-            WHERE profile = ?1 AND owner = ?2 AND upstream_server = ?3 AND resource_uri = ?4
-            "#,
-            params![
-                profile.as_str(),
-                owner.as_str(),
-                upstream_server.as_str(),
-                resource_uri.as_str()
-            ],
-        )
+        self.platform
+            .gateway_resource_subscription(subscription_record_id(
+                profile,
+                owner,
+                upstream_server,
+                resource_uri,
+            ))
+            .await
+            .context("failed to read gateway resource subscription")?
+            .map(|record| {
+                serde_json::from_value(serde_json::to_value(record.payload)?).map_err(Into::into)
+            })
+            .transpose()
     }
 
-    pub fn delete_resource_subscription(
+    pub async fn delete_resource_subscription(
         &self,
         profile: &GatewayProfileId,
         owner: &PrincipalId,
         upstream_server: &ServerSlug,
         resource_uri: &ResourceUri,
     ) -> Result<()> {
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            DELETE FROM gateway_resource_subscriptions
-            WHERE profile = ?1 AND owner = ?2 AND upstream_server = ?3 AND resource_uri = ?4
-            "#,
-            params![
-                profile.as_str(),
-                owner.as_str(),
-                upstream_server.as_str(),
-                resource_uri.as_str()
-            ],
-        )?;
-        Ok(())
+        self.platform
+            .delete_gateway_resource_subscription(subscription_record_id(
+                profile,
+                owner,
+                upstream_server,
+                resource_uri,
+            ))
+            .await
+            .context("failed to delete gateway resource subscription")
     }
+}
 
-    fn query_subscription<P>(
-        &self,
-        sql: &str,
-        params: P,
-    ) -> Result<Option<GatewayResourceSubscription>>
-    where
-        P: duckdb::Params,
-    {
-        let conn = self.conn.lock();
-        let subscription_json = conn
-            .query_row(sql, params, |row| row.get::<_, String>(0))
-            .optional()?;
-        Ok(subscription_json
-            .map(|json| serde_json::from_str(&json))
-            .transpose()?)
-    }
+fn subscription_record_id(
+    profile: &GatewayProfileId,
+    owner: &PrincipalId,
+    upstream_server: &ServerSlug,
+    resource_uri: &ResourceUri,
+) -> veoveo_platform_store::RecordId {
+    gateway_resource_subscription_record_id(
+        profile.as_str(),
+        owner.as_str(),
+        upstream_server.as_str(),
+        resource_uri.as_str(),
+    )
+}
+
+fn serialize_subscription(subscription: &GatewayResourceSubscription) -> Result<OpenObject> {
+    let value = serde_json::to_value(subscription)?;
+    let serde_json::Value::Object(object) = value else {
+        anyhow::bail!("gateway resource subscription did not serialize as an object");
+    };
+    Ok(OpenObject::new(object.into_iter().collect()))
 }

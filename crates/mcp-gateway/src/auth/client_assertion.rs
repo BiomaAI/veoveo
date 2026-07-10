@@ -4,7 +4,10 @@ use veoveo_mcp_contract::JwtId;
 use super::{
     claims::ClientAssertionClaims,
     config::ClientAssertionConfig,
-    support::{AuthError, allowed_algorithms_for_header, unix_timestamp, validate_jwk_algorithm},
+    support::{
+        AuthError, allowed_algorithms_for_header, ensure_jwt_crypto_provider, unix_timestamp,
+        validate_jwk_algorithm,
+    },
     verified::VerifiedClientAssertion,
 };
 
@@ -20,6 +23,7 @@ impl ClientAssertionVerifier {
     }
 
     pub fn verify(&self, assertion: &str) -> Result<VerifiedClientAssertion, AuthError> {
+        ensure_jwt_crypto_provider();
         if assertion.is_empty() || assertion.chars().any(char::is_whitespace) {
             return Err(AuthError::InvalidClientAssertion);
         }

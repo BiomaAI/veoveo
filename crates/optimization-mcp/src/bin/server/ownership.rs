@@ -1,12 +1,8 @@
-use std::collections::HashMap;
-
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_optimization_mcp::state::TaskOwner;
 
 use super::app_state::AppState;
-
-pub(super) type TaskOwnerMap = HashMap<String, TaskOwner>;
 
 pub(super) fn internal_identity(
     context: &RequestContext<RoleServer>,
@@ -68,26 +64,84 @@ pub(super) fn task_owner_from_identity(
     }
 }
 
+pub(super) fn task_owner_from_runtime(
+    task_id: &str,
+    owner: &veoveo_task_runtime::TaskOwner,
+) -> Result<TaskOwner, String> {
+    Ok(TaskOwner {
+        task_id: task_id.to_owned(),
+        principal_id: veoveo_mcp_contract::PrincipalId::new(owner.principal_key.clone())
+            .map_err(|error| error.to_string())?,
+        profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile.clone())
+            .map_err(|error| error.to_string())?,
+        tenant: owner
+            .tenant_key
+            .clone()
+            .map(veoveo_mcp_contract::TenantId::new)
+            .transpose()
+            .map_err(|error| error.to_string())?,
+        data_labels: owner
+            .data_labels
+            .iter()
+            .cloned()
+            .map(veoveo_mcp_contract::DataLabelId::new)
+            .collect::<Result<_, _>>()
+            .map_err(|error| error.to_string())?,
+    })
+}
+
 pub(super) async fn optional_task_owner(
     state: &AppState,
     task_id: &str,
 ) -> Result<Option<TaskOwner>, McpError> {
-    if let Some(owner) = state.task_owners.read().await.get(task_id).cloned() {
-        return Ok(Some(owner));
-    }
     let Some(owner) = state
-        .durable
-        .task_owner(task_id)
+        .tasks
+        .owner(task_id)
+        .await
         .map_err(|err| McpError::internal_error(err.to_string(), None))?
     else {
         return Ok(None);
     };
-    state
-        .task_owners
-        .write()
-        .await
-        .insert(task_id.to_string(), owner.clone());
-    Ok(Some(owner))
+    Ok(Some(TaskOwner {
+        task_id: task_id.to_owned(),
+        principal_id: veoveo_mcp_contract::PrincipalId::new(owner.principal_key)
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
+        profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile)
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
+        tenant: owner
+            .tenant_key
+            .map(veoveo_mcp_contract::TenantId::new)
+            .transpose()
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
+        data_labels: owner
+            .data_labels
+            .into_iter()
+            .map(veoveo_mcp_contract::DataLabelId::new)
+            .collect::<Result<_, _>>()
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
+    }))
+}
+
+pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_runtime::TaskOwner {
+    veoveo_task_runtime::TaskOwner {
+        principal_key: identity.principal.id.to_string(),
+        principal_kind: match identity.principal.kind {
+            veoveo_mcp_contract::PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
+            veoveo_mcp_contract::PrincipalKind::Service => {
+                veoveo_task_runtime::PrincipalKind::Service
+            }
+        },
+        issuer: identity.principal.issuer.to_string(),
+        subject: identity.principal.subject.to_string(),
+        profile: identity.profile.to_string(),
+        tenant_key: identity.principal.tenant.as_ref().map(ToString::to_string),
+        data_labels: identity
+            .principal
+            .data_labels
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    }
 }
 
 pub(super) async fn require_task_owner(

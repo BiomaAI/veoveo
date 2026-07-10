@@ -12,8 +12,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::{
-    ledger::{KernelLedger, MemoryWrite},
     manifest::AgentManifest,
+    memory::{MemoryStore, MemoryWrite},
     timeline::{TimelineQuery, query_segments},
 };
 
@@ -29,9 +29,9 @@ pub fn replay_domain(manifest: &AgentManifest, data_dir: &Path) -> Result<Replay
     if output_path.exists() {
         std::fs::remove_file(&output_path)?;
     }
-    let ledger = KernelLedger::open(&output_path)?;
+    let memory = MemoryStore::open(&output_path)?;
     if let Some(dir) = &manifest.migrations_dir {
-        ledger.run_migrations(dir)?;
+        memory.run_migrations(dir)?;
     }
 
     let rows = query_segments(
@@ -72,7 +72,7 @@ pub fn replay_domain(manifest: &AgentManifest, data_dir: &Path) -> Result<Replay
         };
         for write in writes {
             let table = write.table().to_string();
-            match ledger.write(&write, std::slice::from_ref(&table)) {
+            match memory.write(&write, std::slice::from_ref(&table)) {
                 Ok(_) => applied += 1,
                 Err(err) => {
                     tracing::warn!(%err, table, "replayed write failed");

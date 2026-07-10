@@ -47,7 +47,9 @@ pub(super) async fn token_endpoint_client_credentials(
                 reason: AuthReasonCode::UnsupportedGrantType,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -72,7 +74,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::InvalidClient,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -95,7 +99,9 @@ pub(super) async fn token_endpoint_client_credentials(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -125,7 +131,9 @@ pub(super) async fn token_endpoint_client_credentials(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -148,7 +156,9 @@ pub(super) async fn token_endpoint_client_credentials(
                 reason: AuthReasonCode::InvalidClientAssertion,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -170,7 +180,9 @@ pub(super) async fn token_endpoint_client_credentials(
                 reason: AuthReasonCode::InvalidClientAssertion,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -194,7 +206,9 @@ pub(super) async fn token_endpoint_client_credentials(
                 reason: AuthReasonCode::InvalidAuthConfig,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -220,7 +234,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::AuthorizationServerUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -250,7 +266,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::InvalidAuthConfig,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -277,7 +295,9 @@ pub(super) async fn token_endpoint_client_credentials(
                         reason: AuthReasonCode::InvalidClientAssertion,
                         started_at,
                     },
-                ) {
+                )
+                .await
+                {
                     return auth_audit_error_response(err);
                 }
                 return oauth_error_response(
@@ -287,13 +307,17 @@ pub(super) async fn token_endpoint_client_credentials(
                 );
             }
         };
-    match state.gateway_state.record_client_assertion_jti(
-        &authorization_server.id,
-        &client_id,
-        &verified_assertion.jwt_id,
-        verified_assertion.expires_at,
-        Utc::now(),
-    ) {
+    match state
+        .gateway_state
+        .record_client_assertion_jti(
+            &authorization_server.id,
+            &client_id,
+            &verified_assertion.jwt_id,
+            verified_assertion.expires_at,
+            Utc::now(),
+        )
+        .await
+    {
         Ok(true) => {}
         Ok(false) => {
             tracing::warn!(
@@ -313,7 +337,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::ClientAssertionReplay,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -336,7 +362,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::AuthStateUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -359,7 +387,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::InvalidScope,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -395,7 +425,9 @@ pub(super) async fn token_endpoint_client_credentials(
                     reason: AuthReasonCode::TokenSigningKeyUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -417,7 +449,9 @@ pub(super) async fn token_endpoint_client_credentials(
             reason: AuthReasonCode::AuthAllow,
             started_at,
         },
-    ) {
+    )
+    .await
+    {
         return auth_audit_error_response(err);
     }
 
@@ -430,5 +464,7 @@ pub(super) async fn token_endpoint_client_credentials(
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(" "),
+        refresh_token: None,
+        refresh_token_expires_in: None,
     })
 }

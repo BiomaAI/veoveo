@@ -1,35 +1,29 @@
 //! Timeseries MCP server.
 //!
 //! MCP surface:
-//!   tool `forecast(source, mapping, horizon)` — task-required
-//!   template `timeseries://artifact/{sha256}` — Rerun RRD artifact bytes
+//!   tool `forecast(source, mapping, horizon)` — final task-extension execution
+//!   template `timeseries://artifact/{artifact_id}` — Rerun RRD artifact bytes
 //!   template `timeseries://usage/task/{task_id}` — task usage rows
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
-use axum::{
-    Router,
-    extract::{Path as AxumPath, State},
-    http::{
-        HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
-    },
-    middleware,
-    response::IntoResponse,
-    routing::get,
+use std::{
+    collections::BTreeSet,
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::Duration,
 };
+
+use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResult, CancelTaskParams, CancelTaskResult,
-        CreateTaskResult, GetTaskParams, GetTaskPayloadParams, GetTaskPayloadResult, GetTaskResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, ListToolsResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, Task, TaskStatus,
-        TasksCapability,
+        CallToolResult, ContentBlock, ListResourceTemplatesResult, ListResourcesResult,
+        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
+        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -37,19 +31,29 @@ use rmcp::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
 };
-use serde_json::{Value, json};
-use tokio::sync::RwLock;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use veoveo_duckdb_runtime::HttpsSourcePolicy;
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
-    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
-    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
+    TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
+    public_allowed_hosts,
+};
+use veoveo_mcp_task_extension::{
+    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
+    task_extension_middleware,
+};
+use veoveo_task_runtime::{
+    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
+    TaskPayloadState, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 use veoveo_timeseries_mcp::{
     artifacts::ArtifactRepository,
     contract::{TimeseriesForecastOutput, TimeseriesForecastRequest},
     forecast::{RRD_MIME_TYPE, run_forecast},
-    state::DuckdbState,
     uris,
 };
 
@@ -65,22 +69,33 @@ mod internal_auth;
 mod outputs;
 #[path = "server/ownership.rs"]
 mod ownership;
+#[path = "server/task_extension.rs"]
+mod task_extension;
 
 use app_state::{AppState, update_task};
 use config::Args;
 use host::validate_host;
-use internal_auth::{
-    InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
-};
-use outputs::forecast_result;
+use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
+use outputs::{forecast_result, usage_record};
 use ownership::{
-    internal_caller, internal_identity, optional_task_owner, require_task_owner, task_owner_allows,
-    task_owner_from_identity,
+    internal_caller, internal_identity, optional_task_owner, require_task_owner, runtime_owner,
+    task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
 };
+use task_extension::TimeseriesTaskExtension;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
+const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
+const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
+const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
+const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "timeseries";
 const LIST_PAGE_SIZE: usize = 100;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ForecastTaskRequest {
+    input: TimeseriesForecastRequest,
+    artifact_write_capability: IssuedArtifactWriteCapability,
+}
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -104,24 +119,68 @@ impl TimeseriesMcp {
 
     #[tool(
         title = "Forecast timeseries",
-        description = "Ingest a DuckDB-readable time-series source, compute a forecast, and return one timeseries://artifact/{sha256} Rerun RRD artifact. Must be invoked as an MCP task; read tasks/result for the final RRD resource link and timeseries://usage/task/{task_id} for usage.",
+        description = "Ingest a DuckDB-readable time-series source, compute a forecast, and return one timeseries://artifact/{artifact_id} Rerun RRD artifact.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TimeseriesForecastOutput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
             open_world_hint = true
-        ),
-        execution(task_support = "required")
+        )
     )]
     async fn forecast(
         &self,
-        Parameters(_args): Parameters<TimeseriesForecastRequest>,
+        Parameters(args): Parameters<TimeseriesForecastRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        Err(McpError::invalid_request(
-            "forecast requires task-based invocation",
-            None,
-        ))
+        let caller = internal_caller(&context)?;
+        let identity = internal_identity(&context)?;
+        let snapshot = start_forecast_task(
+            self.state.clone(),
+            identity,
+            caller,
+            args,
+            Some(TaskProgress {
+                peer: context.peer.clone(),
+                token: context.meta.get_progress_token(),
+            }),
+            BTreeSet::new(),
+        )
+        .await
+        .map_err(|err| McpError::internal_error(err, None))?;
+        let task_id = snapshot.task_id.to_string();
+
+        match self
+            .state
+            .tasks
+            .await_payload_state(&task_id)
+            .await
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?
+        {
+            TaskPayloadState::Completed(payload) => {
+                serde_json::from_value(payload).map_err(|err| {
+                    McpError::internal_error(
+                        format!("invalid persisted forecast task result: {err}"),
+                        None,
+                    )
+                })
+            }
+            TaskPayloadState::Failed(error) => Err(McpError::internal_error(
+                error.message,
+                Some(json!({"code": error.code, "details": error.details})),
+            )),
+            TaskPayloadState::Cancelled => {
+                Err(McpError::invalid_request("forecast was cancelled", None))
+            }
+            TaskPayloadState::Running => Err(McpError::internal_error(
+                "forecast task wait ended while still running",
+                None,
+            )),
+            TaskPayloadState::Unknown => Err(McpError::internal_error(
+                "forecast task disappeared before completion",
+                None,
+            )),
+        }
     }
 }
 
@@ -139,16 +198,14 @@ impl ServerHandler for TimeseriesMcp {
         let caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
-            .enable_tasks_with(TasksCapability::server_default())
             .build();
         let mut info = ServerInfo::default();
         info.capabilities = caps;
         info.server_info =
             rmcp::model::Implementation::new("timeseries", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Timeseries forecasting server. Workflow: call `forecast` as a task with a typed \
-             DuckDB source and table mapping; read tasks/get until completed; then read \
-             tasks/result for the timeseries://artifact/{sha256} Rerun RRD output."
+            "Timeseries forecasting server. Call `forecast` with a typed DuckDB source and table \
+             mapping; the result contains a timeseries://artifact/{artifact_id} Rerun RRD output."
                 .into(),
         );
         info
@@ -169,144 +226,6 @@ impl ServerHandler for TimeseriesMcp {
         })
     }
 
-    async fn enqueue_task(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CreateTaskResult, McpError> {
-        let caller = internal_caller(&context)?;
-        let identity = internal_identity(&context)?;
-        if request.name != "forecast" {
-            return Err(McpError::method_not_found::<
-                rmcp::model::CallToolRequestMethod,
-            >());
-        }
-        let args: TimeseriesForecastRequest =
-            serde_json::from_value(Value::Object(request.arguments.clone().unwrap_or_default()))
-                .map_err(|err| {
-                    McpError::invalid_params(format!("invalid forecast arguments: {err}"), None)
-                })?;
-        let progress_token = context.meta.get_progress_token();
-        let ttl = request.task.as_ref().and_then(|task| task.ttl);
-        let task_id = uuid::Uuid::new_v4().to_string();
-        let now = now_iso();
-        let mut task = Task::new(task_id.clone(), TaskStatus::Working, now.clone(), now)
-            .with_status_message("accepted; materializing source")
-            .with_poll_interval(MCP_TASK_POLL_INTERVAL_MS);
-        task.ttl = ttl;
-
-        self.state.tasks.insert(task.clone(), None).await;
-        let owner = task_owner_from_identity(&task_id, &identity);
-        self.state
-            .durable
-            .record_task_owner(&owner)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-        self.state
-            .task_owners
-            .write()
-            .await
-            .insert(task_id.clone(), owner.clone());
-        if let Err(err) = self.state.durable.record_task(&task, None, None) {
-            tracing::warn!(task_id, "failed to persist task creation: {err}");
-        }
-
-        let join = tokio::spawn(run_task(
-            self.state.clone(),
-            context.peer.clone(),
-            task_id.clone(),
-            caller,
-            owner,
-            args,
-            progress_token,
-        ));
-        self.state.tasks.set_join(&task_id, join).await;
-        Ok(CreateTaskResult::new(task).with_meta(related_task_meta(task_id)))
-    }
-
-    async fn list_tasks(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListTasksResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let owners = self.state.task_owners.read().await;
-        let tasks = self
-            .state
-            .tasks
-            .list()
-            .await
-            .into_iter()
-            .filter(|task| {
-                owners
-                    .get(&task.task_id)
-                    .map(|owner| task_owner_allows(owner, &identity))
-                    .unwrap_or(false)
-            })
-            .collect();
-        let page = mcp_page(tasks, request.as_ref())?;
-        let mut result = ListTasksResult::new(page.items);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
-    async fn get_task_info(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .get(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        Ok(GetTaskResult::new(task))
-    }
-
-    async fn get_task_result(
-        &self,
-        request: GetTaskPayloadParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskPayloadResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        match self.state.tasks.await_payload_state(&request.task_id).await {
-            TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
-            TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
-            TaskPayloadState::Cancelled => {
-                Err(McpError::invalid_request("task was cancelled", None))
-            }
-            // await_payload_state blocks until terminal per MCP 2025-11-25;
-            // Running here means the wait logic itself broke.
-            TaskPayloadState::Running => Err(McpError::internal_error(
-                "task payload wait ended while still running",
-                None,
-            )),
-            TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
-        }
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CancelTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .cancel(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        if let Err(err) = self.state.durable.record_task(&task, None, None) {
-            tracing::warn!(
-                task_id = request.task_id,
-                "failed to persist task cancellation: {err}"
-            );
-        }
-        Ok(CancelTaskResult::new(task))
-    }
-
     async fn list_resources(
         &self,
         request: Option<PaginatedRequestParams>,
@@ -324,10 +243,13 @@ impl ServerHandler for TimeseriesMcp {
         // artifact URI through resources/read, which resolves against the plane.
         for task_id in self
             .state
-            .durable
-            .usage_task_ids()
+            .tasks
+            .platform_store()
+            .domain_usage_task_ids(SERVER_SLUG)
+            .await
             .map_err(|err| McpError::internal_error(err.to_string(), None))?
         {
+            let task_id = task_id.to_string();
             let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
                 continue;
             };
@@ -360,7 +282,9 @@ impl ServerHandler for TimeseriesMcp {
         let templates = vec![
             ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
                 .with_title("Timeseries artifact")
-                .with_description("Server-owned immutable Rerun RRD artifact, addressed by sha256.")
+                .with_description(
+                    "Server-owned immutable Rerun RRD artifact, addressed by occurrence id.",
+                )
                 .with_mime_type(RRD_MIME_TYPE),
             ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
                 .with_title("Timeseries task usage")
@@ -386,10 +310,13 @@ impl ServerHandler for TimeseriesMcp {
             let mut entries = Vec::new();
             for task_id in self
                 .state
-                .durable
-                .usage_task_ids()
+                .tasks
+                .platform_store()
+                .domain_usage_task_ids(SERVER_SLUG)
+                .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
             {
+                let task_id = task_id.to_string();
                 let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
                     continue;
                 };
@@ -407,11 +334,19 @@ impl ServerHandler for TimeseriesMcp {
         }
         if let Some(task_id) = uris::parse_usage_task_uri(uri) {
             require_task_owner(&self.state, &context, task_id).await?;
+            let durable_task_id = task_id
+                .parse::<TaskId>()
+                .map_err(|err| McpError::invalid_params(format!("invalid task id: {err}"), None))?;
             let records = self
                 .state
-                .durable
-                .usage_records(task_id)
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?;
+                .tasks
+                .platform_store()
+                .domain_usage_for_task(SERVER_SLUG, durable_task_id)
+                .await
+                .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                .into_iter()
+                .map(|record| usage_record(task_id, record))
+                .collect::<Vec<_>>();
             if records.is_empty() {
                 return Err(McpError::resource_not_found(
                     format!("unknown usage task '{task_id}'"),
@@ -424,17 +359,17 @@ impl ServerHandler for TimeseriesMcp {
                     .with_mime_type("application/json"),
             ]));
         }
-        if let Some(sha256) = uris::parse_artifact_uri(uri) {
+        if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
             // The plane enforces access with the caller's identity.
             let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(&caller, sha256)
+                .get(&caller, &artifact_id)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
                 .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
+                    McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
                 })?;
             let blob = BASE64_STANDARD.encode(&artifact.bytes);
             let mut content = ResourceContents::blob(blob, uri);
@@ -453,38 +388,173 @@ impl ServerHandler for TimeseriesMcp {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+struct TaskProgress {
+    peer: rmcp::service::Peer<RoleServer>,
+    token: Option<rmcp::model::ProgressToken>,
+}
+
+async fn start_forecast_task(
+    state: Arc<AppState>,
+    identity: veoveo_mcp_contract::GatewayInternalIdentity,
+    caller: veoveo_mcp_contract::PlaneCaller,
+    args: TimeseriesForecastRequest,
+    progress: Option<TaskProgress>,
+    retention_pins: BTreeSet<veoveo_task_runtime::TaskRetentionPin>,
+) -> Result<TaskSnapshot, String> {
+    let task_id = TaskId::new();
+    let artifact_write_capability = state
+        .artifacts
+        .issue_write_capability(
+            &caller,
+            &IssueArtifactWriteCapabilityRequest {
+                task_id: task_id.to_string(),
+                expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
+                max_artifact_count: NonZeroU32::new(1).expect("one artifact is non-zero"),
+                max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)
+                    .ok_or_else(|| "max artifact bytes must be non-zero".to_owned())?,
+            },
+        )
+        .await
+        .map_err(|err| err.to_string())?;
+    let request = ForecastTaskRequest {
+        input: args,
+        artifact_write_capability,
+    };
+    let created = state
+        .tasks
+        .create(DurableCreateTask {
+            task_id,
+            owner: runtime_owner(&identity),
+            server: SERVER_SLUG.to_owned(),
+            task_type: "forecast".to_owned(),
+            request: serde_json::to_value(&request).map_err(|err| err.to_string())?,
+            recovery_class: RecoveryClass::Resume,
+            idempotency_key: None,
+            ttl_ms: Some(MCP_TASK_TTL_MS),
+            poll_interval_ms: Some(MCP_TASK_POLL_INTERVAL_MS),
+            retention_pins,
+        })
+        .await
+        .map_err(|err| err.to_string())?;
+    schedule_forecast_task(
+        state,
+        created.snapshot,
+        request,
+        task_owner_from_identity(&task_id.to_string(), &identity),
+        progress,
+    )
+    .await
+    .map_err(|err| err.to_string())
+}
+
+async fn schedule_forecast_task(
+    state: Arc<AppState>,
+    snapshot: TaskSnapshot,
+    request: ForecastTaskRequest,
+    owner: veoveo_timeseries_mcp::state::TaskOwner,
+    progress: Option<TaskProgress>,
+) -> anyhow::Result<TaskSnapshot> {
+    let task_id = snapshot.task_id.to_string();
+    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let cancellation = CancellationToken::new();
+    let join = tokio::spawn(run_task(
+        state.clone(),
+        task_id.clone(),
+        request,
+        owner,
+        progress,
+        cancellation.clone(),
+    ));
+    state
+        .tasks
+        .register_worker(&task_id, cancellation, join)
+        .await?;
+    Ok(claimed.snapshot)
+}
+
+async fn resume_forecast_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> anyhow::Result<()> {
+    let request: ForecastTaskRequest = serde_json::from_value(snapshot.request.clone())?;
+    let task_id = snapshot.task_id.to_string();
+    let owner = task_owner_from_runtime(&task_id, &snapshot.owner).map_err(anyhow::Error::msg)?;
+    schedule_forecast_task(state, snapshot, request, owner, None)
+        .await
+        .map(|_| ())
+}
+
+async fn notify_task_progress(progress: &Option<TaskProgress>, value: f64, message: &str) {
+    if let Some(progress) = progress {
+        veoveo_mcp_contract::notify_progress(&progress.peer, &progress.token, value, message).await;
+    }
+}
+
+async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+    let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
+    let transition = match serde_json::to_value(result) {
+        Ok(result) => TaskTransition::Succeeded { message, result },
+        Err(error) => TaskTransition::Failed(TaskFailure::new(
+            "result_serialization_failed",
+            error.to_string(),
+        )),
+    };
+    update_task(state, task_id, transition).await;
+}
+
 async fn run_task(
     state: Arc<AppState>,
-    peer: rmcp::service::Peer<RoleServer>,
     task_id: String,
-    caller: veoveo_mcp_contract::PlaneCaller,
+    request: ForecastTaskRequest,
     owner: veoveo_timeseries_mcp::state::TaskOwner,
-    args: TimeseriesForecastRequest,
-    progress_token: Option<rmcp::model::ProgressToken>,
+    progress: Option<TaskProgress>,
+    cancellation: CancellationToken,
+) {
+    let work = run_task_inner(
+        state.clone(),
+        task_id.clone(),
+        request,
+        owner,
+        progress,
+        cancellation.clone(),
+    );
+    tokio::pin!(work);
+    let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    loop {
+        tokio::select! {
+            () = &mut work => break,
+            _ = heartbeat.tick() => {
+                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(task_id, "task lease heartbeat failed: {error}");
+                    cancellation.cancel();
+                    break;
+                }
+            }
+        }
+    }
+}
+
+async fn run_task_inner(
+    state: Arc<AppState>,
+    task_id: String,
+    request: ForecastTaskRequest,
+    owner: veoveo_timeseries_mcp::state::TaskOwner,
+    progress: Option<TaskProgress>,
+    cancellation: CancellationToken,
 ) {
     macro_rules! fail {
         ($msg:expr) => {{
             let msg: String = $msg;
             tracing::warn!(task_id, "timeseries task failed: {msg}");
-            update_task(
-                &state,
-                &peer,
-                &task_id,
-                TaskStatus::Failed,
-                msg.clone(),
-                None,
-                Some(msg),
-            )
-            .await;
+            complete_tool_error(&state, &task_id, msg).await;
             return;
         }};
     }
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.1, "materializing source").await;
+    notify_task_progress(&progress, 0.1, "materializing source").await;
     let artifact = match tokio::task::spawn_blocking({
         let task_id = task_id.clone();
-        let args = args.clone();
-        move || run_forecast(&task_id, &args)
+        let input = request.input.clone();
+        let source_policy = state.source_policy.clone();
+        move || run_forecast(&task_id, &input, &source_policy)
     })
     .await
     {
@@ -492,75 +562,37 @@ async fn run_task(
         Ok(Err(err)) => fail!(format!("forecast failed: {err}")),
         Err(err) => fail!(format!("forecast worker failed: {err}")),
     };
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.8, "writing artifact").await;
-    let result = match forecast_result(&state, &caller, &task_id, &owner, artifact).await {
+    if cancellation.is_cancelled() {
+        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        return;
+    }
+    notify_task_progress(&progress, 0.8, "writing artifact").await;
+    let result = match forecast_result(
+        &state,
+        &request.artifact_write_capability,
+        &task_id,
+        &owner,
+        artifact,
+    )
+    .await
+    {
         Ok(result) => result,
         Err(err) => fail!(format!("artifact write failed: {err}")),
     };
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 1.0, "completed").await;
+    notify_task_progress(&progress, 1.0, "completed").await;
+    let payload = match serde_json::to_value(&result) {
+        Ok(payload) => payload,
+        Err(err) => fail!(format!("serializing forecast result failed: {err}")),
+    };
     update_task(
         &state,
-        &peer,
         &task_id,
-        TaskStatus::Completed,
-        "completed; RRD artifact available",
-        serde_json::to_value(&result).ok(),
-        None,
+        TaskTransition::Succeeded {
+            message: "completed; RRD artifact available".to_owned(),
+            result: payload,
+        },
     )
     .await;
-}
-
-async fn artifact_download(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    AxumPath(sha256): AxumPath<String>,
-) -> impl IntoResponse {
-    if !is_sha256(&sha256) {
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let identity = match verify_internal_authorization(&state.internal_token_verifier, &headers) {
-        Ok(identity) => identity,
-        Err(message) => {
-            tracing::warn!(
-                artifact_sha256 = sha256,
-                "rejected timeseries artifact download: {message}"
-            );
-            return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-        }
-    };
-    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
-        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-    };
-    let caller = ownership::caller_from(identity, bearer);
-    // The plane enforces access; a denial reads as not-found here.
-    let artifact = match state.artifacts.get(&caller, &sha256).await {
-        Ok(Some(artifact)) => artifact,
-        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
-        Err(err) => {
-            tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {err}");
-            return (StatusCode::NOT_FOUND, "not found").into_response();
-        }
-    };
-
-    let mut headers = HeaderMap::new();
-    let mime = artifact
-        .metadata
-        .mime_type
-        .as_deref()
-        .unwrap_or(RRD_MIME_TYPE);
-    if let Ok(value) = HeaderValue::from_str(mime) {
-        headers.insert(CONTENT_TYPE, value);
-    }
-    let filename = artifact
-        .metadata
-        .filename
-        .as_deref()
-        .unwrap_or("forecast.rrd")
-        .replace(['"', '\r', '\n'], "_");
-    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{filename}\"")) {
-        headers.insert(CONTENT_DISPOSITION, value);
-    }
-    (StatusCode::OK, headers, artifact.bytes).into_response()
 }
 
 #[tokio::main]
@@ -572,37 +604,44 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let durable = DuckdbState::open(&args.state_db)?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         ServerSlug::new(SERVER_SLUG)?,
-        InternalTokenSecret::new(args.internal_token_secret.clone())?,
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
-    let tasks = TaskStore::new();
-    for persisted in durable.load_tasks()? {
-        tasks
-            .insert_record(
-                persisted.task,
-                persisted.payload,
-                persisted.error,
-                None,
-                None,
-            )
-            .await;
-    }
-    let task_owners = durable
-        .load_task_owners()?
-        .into_iter()
-        .map(|owner| (owner.task_id.clone(), owner))
-        .collect::<HashMap<_, _>>();
+    let tasks = TaskRuntime::connect(
+        TaskRuntimeConfig::new(
+            args.surreal_endpoint.clone(),
+            args.surreal_namespace.clone(),
+            args.surreal_database.clone(),
+            args.surreal_auth_level,
+            args.surreal_username.clone(),
+            args.surreal_password.clone(),
+        ),
+        SERVER_SLUG,
+        format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
+    )
+    .await?;
+    let recovery = tasks.recover().await?;
+    let mut source_policy = HttpsSourcePolicy::new(args.allow_source_hosts.clone());
+    source_policy.max_bytes = args.max_source_bytes;
     let state = Arc::new(AppState {
         tasks,
-        durable,
         artifacts,
-        internal_token_verifier: internal_token_verifier.clone(),
-        task_owners: RwLock::new(task_owners),
+        source_policy,
+        max_artifact_bytes: args.max_artifact_bytes,
     });
+    for snapshot in recovery.resumable {
+        if let Err(error) = resume_forecast_task(state.clone(), snapshot).await {
+            match error.downcast_ref::<TaskError>() {
+                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
+                    tracing::info!(task_id, "another replica claimed recovered forecast task");
+                }
+                _ => return Err(error),
+            }
+        }
+    }
 
     let ct = tokio_util::sync::CancellationToken::new();
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
@@ -619,18 +658,40 @@ async fn main() -> anyhow::Result<()> {
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
+            .with_stateful_mode(false)
+            .with_json_response(true)
             .with_cancellation_token(ct.child_token()),
     );
+    let task_extension = Arc::new(TaskExtensionAdapter::new(
+        Arc::new(TimeseriesTaskExtension::new(state.clone())),
+        ServerDiscovery::new(
+            std::collections::BTreeMap::from([
+                ("tools".to_owned(), json!({})),
+                ("resources".to_owned(), json!({})),
+            ]),
+            TaskExtensionImplementation {
+                name: "timeseries".to_owned(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            Some(
+                "Timeseries forecasting with durable asynchronous tasks and immutable Rerun artifacts."
+                    .to_owned(),
+            ),
+        ),
+    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn_with_state(
+            task_extension,
+            task_extension_middleware::<TimeseriesTaskExtension>,
+        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state,
             authenticate_internal_mcp,
         ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route("/artifacts/{sha256}", get(artifact_download))
         .with_state(state.clone())
         .nest("/mcp", mcp_router);
     let router = Router::new()

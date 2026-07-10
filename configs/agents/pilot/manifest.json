@@ -1,5 +1,6 @@
 {
   "agent": {
+    "tenant": "default",
     "id": "pilot",
     "display_name": "AI Pilot"
   },
@@ -13,8 +14,8 @@
     "url": "${PILOT_GATEWAY_URL}",
     "profile": "operator",
     "client_id": "pilot-agent",
-    "audience": "https://veoveo.bioma.ai/oauth/token",
-    "resource": "https://veoveo.bioma.ai/mcp/operator",
+    "audience": "${PILOT_GATEWAY_AUDIENCE}",
+    "resource": "${PILOT_GATEWAY_RESOURCE}",
     "scopes": [
       "operator:use"
     ],
@@ -23,8 +24,7 @@
   },
   "episode": {
     "max_turns": 12,
-    "task_deadline_s": 900,
-    "task_poll_interval_ms": 1000
+    "task_deadline_s": 900
   },
   "memory": {
     "memory_write_tables": [
@@ -56,7 +56,7 @@
       {
         "name": "Recent episodes",
         "priority": 4,
-        "sql": "SELECT seq, summary FROM kernel.episodes ORDER BY seq DESC LIMIT 8"
+        "sql": "SELECT seq, summary FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 8"
       }
     ]
   },

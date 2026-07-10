@@ -20,7 +20,7 @@ use veoveo_mcp_gateway::{
 
 use crate::runtime::{AdminState, ProfileAuthState, current_catalog};
 
-pub(super) fn authorize_admin_request(
+pub(super) async fn authorize_admin_request(
     state: &AdminState,
     profile_id: &GatewayProfileId,
     subject: AuthenticatedSubject,
@@ -28,6 +28,36 @@ pub(super) fn authorize_admin_request(
     audit_method: &str,
     audit_metadata: BTreeMap<String, String>,
     started_at: Instant,
+) -> std::result::Result<(Arc<GatewayCatalog>, GatewayProfile, AuthenticatedSubject), Box<Response>>
+{
+    authorize_admin_target_request(
+        state,
+        profile_id,
+        subject,
+        AdminAuthorizationRequest {
+            action,
+            target: PolicyTarget::Gateway,
+            method: audit_method,
+            metadata: audit_metadata,
+            started_at,
+        },
+    )
+    .await
+}
+
+pub(super) struct AdminAuthorizationRequest<'a> {
+    pub(super) action: GatewayAction,
+    pub(super) target: PolicyTarget,
+    pub(super) method: &'a str,
+    pub(super) metadata: BTreeMap<String, String>,
+    pub(super) started_at: Instant,
+}
+
+pub(super) async fn authorize_admin_target_request(
+    state: &AdminState,
+    profile_id: &GatewayProfileId,
+    subject: AuthenticatedSubject,
+    request: AdminAuthorizationRequest<'_>,
 ) -> std::result::Result<(Arc<GatewayCatalog>, GatewayProfile, AuthenticatedSubject), Box<Response>>
 {
     let catalog = current_catalog(&state.catalog);
@@ -38,12 +68,11 @@ pub(super) fn authorize_admin_request(
         Ok(trace_id) => trace_id,
         Err(err) => return Err(Box::new(internal_error_response(err))),
     };
-    let target = PolicyTarget::Gateway;
     let decision = catalog.decide(PolicyRequest {
         principal: &subject.principal,
         profile: profile_id,
-        action,
-        target: &target,
+        action: request.action,
+        target: &request.target,
         trace_id: &trace_id,
     });
     if let Err(err) = record_admin_audit(
@@ -51,21 +80,23 @@ pub(super) fn authorize_admin_request(
         &profile,
         &subject,
         AdminAuditRecord {
-            action,
-            target,
+            action: request.action,
+            target: request.target,
             decision: decision.clone(),
-            method: audit_method,
-            metadata: audit_metadata,
-            started_at,
+            method: request.method,
+            metadata: request.metadata,
+            started_at: request.started_at,
         },
-    ) {
+    )
+    .await
+    {
         return Err(Box::new(internal_error_response(err)));
     }
     if decision.effect != PolicyEffect::Allow {
         tracing::warn!(
             profile = %profile_id,
             principal = %subject.principal.id,
-            action = ?action,
+            action = ?request.action,
             reason = ?decision.reason,
             "gateway admin request denied"
         );
@@ -112,29 +143,49 @@ impl AdminOperationStatus {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum AdminOperationFailure {
+    ArtifactGrant,
+    ArtifactGrantRevoke,
+    ArtifactReleaseState,
+    ArtifactShareLink,
+    ArtifactShareLinkRevoke,
     BuildHttpClient,
+    CancelTask,
+    ConnectFinalTaskExtension,
     ControlPlaneSha,
     ExpiredRevocation,
     InvalidControlPlane,
+    IssueInternalToken,
     LatestRevisionRead,
     PersistControlPlaneRevision,
     PersistJwtRevocation,
     PruneJwtRevocations,
     RevisionId,
+    TaskOwnership,
+    TaskRoute,
 }
 
 impl AdminOperationFailure {
     fn as_str(self) -> &'static str {
         match self {
+            Self::ArtifactGrant => "artifact_grant",
+            Self::ArtifactGrantRevoke => "artifact_grant_revoke",
+            Self::ArtifactReleaseState => "artifact_release_state",
+            Self::ArtifactShareLink => "artifact_share_link",
+            Self::ArtifactShareLinkRevoke => "artifact_share_link_revoke",
             Self::BuildHttpClient => "build_http_client",
+            Self::CancelTask => "cancel_task",
+            Self::ConnectFinalTaskExtension => "connect_final_task_extension",
             Self::ControlPlaneSha => "control_plane_sha",
             Self::ExpiredRevocation => "expired_revocation",
             Self::InvalidControlPlane => "invalid_control_plane",
+            Self::IssueInternalToken => "issue_internal_token",
             Self::LatestRevisionRead => "latest_revision_read",
             Self::PersistControlPlaneRevision => "persist_control_plane_revision",
             Self::PersistJwtRevocation => "persist_jwt_revocation",
             Self::PruneJwtRevocations => "prune_jwt_revocations",
             Self::RevisionId => "revision_id",
+            Self::TaskOwnership => "task_ownership",
+            Self::TaskRoute => "task_route",
         }
     }
 }
@@ -163,10 +214,21 @@ pub(super) fn admin_revocation_metadata(
     metadata
 }
 
-pub(super) fn record_admin_operation_audit(
+pub(super) async fn record_admin_operation_audit(
     state: &AdminState,
     profile: &GatewayProfile,
     subject: &AuthenticatedSubject,
+    record: AdminOperationAuditRecord<'_>,
+) -> anyhow::Result<()> {
+    record_admin_target_operation_audit(state, profile, subject, PolicyTarget::Gateway, record)
+        .await
+}
+
+pub(super) async fn record_admin_target_operation_audit(
+    state: &AdminState,
+    profile: &GatewayProfile,
+    subject: &AuthenticatedSubject,
+    target: PolicyTarget,
     record: AdminOperationAuditRecord<'_>,
 ) -> anyhow::Result<()> {
     let mut metadata = record.metadata;
@@ -182,7 +244,6 @@ pub(super) fn record_admin_operation_audit(
     }
 
     let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
-    let target = PolicyTarget::Gateway;
     let decision = PolicyDecision {
         effect: PolicyEffect::Allow,
         reason: PolicyReasonCode::PolicyAllow,
@@ -209,9 +270,10 @@ pub(super) fn record_admin_operation_audit(
             started_at: record.started_at,
         },
     )
+    .await
 }
 
-fn record_admin_audit(
+async fn record_admin_audit(
     gateway_state: &GatewayState,
     profile: &GatewayProfile,
     subject: &AuthenticatedSubject,
@@ -219,26 +281,28 @@ fn record_admin_audit(
 ) -> anyhow::Result<()> {
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
-    gateway_state.record_audit_event(&AuditEvent {
-        event_id,
-        timestamp: record.decision.evaluated_at,
-        trace_id: record.decision.trace_id.clone(),
-        profile: profile.id.clone(),
-        method: McpMethodName::new(record.method)?,
-        action: record.action,
-        target: record.target,
-        decision: record.decision,
-        principal: Some(subject.principal.id.clone()),
-        principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
-        tenant: subject.principal.tenant.clone(),
-        token_issuer: Some(subject.access_token.issuer.clone()),
-        latency_ms: Some(latency_ms),
-        metadata: merge_principal_audit_metadata(record.metadata, &subject.principal),
-    })?;
+    gateway_state
+        .record_audit_event(&AuditEvent {
+            event_id,
+            timestamp: record.decision.evaluated_at,
+            trace_id: record.decision.trace_id.clone(),
+            profile: profile.id.clone(),
+            method: McpMethodName::new(record.method)?,
+            action: record.action,
+            target: record.target,
+            decision: record.decision,
+            principal: Some(subject.principal.id.clone()),
+            principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
+            tenant: subject.principal.tenant.clone(),
+            token_issuer: Some(subject.access_token.issuer.clone()),
+            latency_ms: Some(latency_ms),
+            metadata: merge_principal_audit_metadata(record.metadata, &subject.principal),
+        })
+        .await?;
     Ok(())
 }
 
-pub(super) fn record_auth_audit(
+pub(super) async fn record_auth_audit(
     state: &ProfileAuthState,
     profile: &GatewayProfile,
     outcome: AuthOutcome,
@@ -277,6 +341,7 @@ pub(super) fn record_auth_audit(
                 .map(|value| principal_audit_metadata(&value.principal))
                 .unwrap_or_default(),
         })
+        .await
 }
 
 pub(super) struct AuthAuditRecord<'a> {
@@ -289,7 +354,7 @@ pub(super) struct AuthAuditRecord<'a> {
     pub(super) started_at: Instant,
 }
 
-pub(super) fn record_token_auth_audit(
+pub(super) async fn record_token_auth_audit(
     gateway_state: &GatewayState,
     profile: &GatewayProfile,
     record: AuthAuditRecord<'_>,
@@ -311,30 +376,32 @@ pub(super) fn record_token_auth_audit(
         _ => None,
     };
     let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
-    gateway_state.record_auth_audit_event(&AuthAuditEvent {
-        event_id,
-        timestamp: Utc::now(),
-        trace_id,
-        profile: profile.id.clone(),
-        protected_resource: profile.protected_resource.clone(),
-        outcome: record.outcome,
-        reason: record.reason,
-        method: AuthMethod::ClientCredentialsPrivateKeyJwt,
-        principal,
-        principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
-        tenant: None,
-        token_issuer,
-        token_subject,
-        jwt_id: record.jwt_id.cloned(),
-        latency_ms: Some(latency_ms),
-        metadata: record
-            .principal
-            .map(principal_audit_metadata)
-            .unwrap_or_default(),
-    })
+    gateway_state
+        .record_auth_audit_event(&AuthAuditEvent {
+            event_id,
+            timestamp: Utc::now(),
+            trace_id,
+            profile: profile.id.clone(),
+            protected_resource: profile.protected_resource.clone(),
+            outcome: record.outcome,
+            reason: record.reason,
+            method: AuthMethod::ClientCredentialsPrivateKeyJwt,
+            principal,
+            principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
+            tenant: None,
+            token_issuer,
+            token_subject,
+            jwt_id: record.jwt_id.cloned(),
+            latency_ms: Some(latency_ms),
+            metadata: record
+                .principal
+                .map(principal_audit_metadata)
+                .unwrap_or_default(),
+        })
+        .await
 }
 
-pub(super) fn record_id_jag_auth_audit(
+pub(super) async fn record_id_jag_auth_audit(
     gateway_state: &GatewayState,
     profile: &GatewayProfile,
     record: AuthAuditRecord<'_>,
@@ -363,34 +430,76 @@ pub(super) fn record_id_jag_auth_audit(
     };
     let tenant = record.principal.and_then(|value| value.tenant.clone());
     let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
-    gateway_state.record_auth_audit_event(&AuthAuditEvent {
-        event_id,
-        timestamp: Utc::now(),
-        trace_id,
-        profile: profile.id.clone(),
-        protected_resource: profile.protected_resource.clone(),
-        outcome: record.outcome,
-        reason: record.reason,
-        method: AuthMethod::EnterpriseManagedIdJag,
-        principal: principal_id,
-        principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
-        tenant,
-        token_issuer,
-        token_subject,
-        jwt_id: record.jwt_id.cloned(),
-        latency_ms: Some(latency_ms),
-        metadata: record
-            .principal
-            .map(principal_audit_metadata)
-            .unwrap_or_default(),
-    })
+    gateway_state
+        .record_auth_audit_event(&AuthAuditEvent {
+            event_id,
+            timestamp: Utc::now(),
+            trace_id,
+            profile: profile.id.clone(),
+            protected_resource: profile.protected_resource.clone(),
+            outcome: record.outcome,
+            reason: record.reason,
+            method: AuthMethod::EnterpriseManagedIdJag,
+            principal: principal_id,
+            principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
+            tenant,
+            token_issuer,
+            token_subject,
+            jwt_id: record.jwt_id.cloned(),
+            latency_ms: Some(latency_ms),
+            metadata: record
+                .principal
+                .map(principal_audit_metadata)
+                .unwrap_or_default(),
+        })
+        .await
 }
 
-pub(super) fn record_oidc_auth_audit(
+pub(super) async fn record_oidc_auth_audit(
     gateway_state: &GatewayState,
     profile: &GatewayProfile,
     record: AuthAuditRecord<'_>,
 ) -> anyhow::Result<()> {
+    record_user_grant_auth_audit(
+        gateway_state,
+        profile,
+        record,
+        AuthMethod::OidcAuthorizationCodePkce,
+    )
+    .await
+}
+
+pub(super) async fn record_refresh_auth_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    record: AuthAuditRecord<'_>,
+) -> anyhow::Result<()> {
+    let event = refresh_auth_audit_event(profile, record)?;
+    gateway_state.record_auth_audit_event(&event).await
+}
+
+pub(super) fn refresh_auth_audit_event(
+    profile: &GatewayProfile,
+    record: AuthAuditRecord<'_>,
+) -> anyhow::Result<AuthAuditEvent> {
+    user_grant_auth_audit_event(profile, record, AuthMethod::RefreshToken)
+}
+
+async fn record_user_grant_auth_audit(
+    gateway_state: &GatewayState,
+    profile: &GatewayProfile,
+    record: AuthAuditRecord<'_>,
+    method: AuthMethod,
+) -> anyhow::Result<()> {
+    let event = user_grant_auth_audit_event(profile, record, method)?;
+    gateway_state.record_auth_audit_event(&event).await
+}
+
+fn user_grant_auth_audit_event(
+    profile: &GatewayProfile,
+    record: AuthAuditRecord<'_>,
+    method: AuthMethod,
+) -> anyhow::Result<AuthAuditEvent> {
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let token_issuer = record
@@ -415,7 +524,7 @@ pub(super) fn record_oidc_auth_audit(
     };
     let tenant = record.principal.and_then(|value| value.tenant.clone());
     let latency_ms = u64::try_from(record.started_at.elapsed().as_millis())?;
-    gateway_state.record_auth_audit_event(&AuthAuditEvent {
+    Ok(AuthAuditEvent {
         event_id,
         timestamp: Utc::now(),
         trace_id,
@@ -423,7 +532,7 @@ pub(super) fn record_oidc_auth_audit(
         protected_resource: profile.protected_resource.clone(),
         outcome: record.outcome,
         reason: record.reason,
-        method: AuthMethod::OidcAuthorizationCodePkce,
+        method,
         principal: principal_id,
         principal_attributes: record.principal.map(PrincipalAuditAttributes::from),
         tenant,

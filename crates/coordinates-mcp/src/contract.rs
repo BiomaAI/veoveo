@@ -129,8 +129,6 @@ pub enum CoordinatePoint {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ConvertFrameRequest {
     pub target_frame: FrameId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub origin: Option<Wgs84Position>,
     pub points: Vec<CoordinatePoint>,
     #[serde(default)]
     pub allow_approximation: bool,

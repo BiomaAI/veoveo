@@ -20,6 +20,22 @@ pub(crate) async fn wait_for_file(file: &Path) -> Result<()> {
     bail!("timed out waiting for {}", file.display());
 }
 
+pub(crate) async fn wait_for_file_text(file: &Path, expected: &str) -> Result<()> {
+    for _ in 0..100 {
+        if let Ok(contents) = fs::read_to_string(file)
+            && contents.contains(expected)
+        {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let contents = fs::read_to_string(file).unwrap_or_default();
+    bail!(
+        "timed out waiting for `{expected}` in {}\ncontents:\n{contents}",
+        file.display()
+    );
+}
+
 pub(crate) async fn wait_for_file_contains(file: &Path, first: &str, second: &str) -> Result<()> {
     for _ in 0..80 {
         if let Ok(contents) = fs::read_to_string(file)
@@ -137,22 +153,35 @@ pub(crate) fn redirect_location(
     Ok(location)
 }
 
+pub(crate) struct GatewayBrowserAuthorization<'a> {
+    pub gateway_base: &'a str,
+    pub idp_base: &'a str,
+    pub client_id: &'a str,
+    pub redirect_uri: &'a str,
+    pub code_challenge: &'a str,
+    pub client_state: &'a str,
+}
+
 pub(crate) async fn gateway_browser_authorization_code(
     http: &reqwest::Client,
     idp_client: &reqwest::Client,
-    gateway_base: &str,
-    idp_base: &str,
-    client_id: &str,
-    redirect_uri: &str,
-    code_challenge: &str,
-    client_state: &str,
+    authorization: GatewayBrowserAuthorization<'_>,
 ) -> Result<(String, String)> {
+    let GatewayBrowserAuthorization {
+        gateway_base,
+        idp_base,
+        client_id,
+        redirect_uri,
+        code_challenge,
+        client_state,
+    } = authorization;
+    let operator_resource = format!("{PUBLIC_BASE_URL}/mcp/operator");
     let authorize_query = form_urlencoded(&[
         ("response_type", "code"),
         ("client_id", client_id),
         ("redirect_uri", redirect_uri),
         ("scope", "operator:use"),
-        ("resource", "https://veoveo.bioma.ai/mcp/operator"),
+        ("resource", &operator_resource),
         ("code_challenge", code_challenge),
         ("code_challenge_method", "S256"),
         ("state", client_state),
@@ -168,7 +197,7 @@ pub(crate) async fn gateway_browser_authorization_code(
 
     let idp_authorize = idp_client.get(&authorize_location).send().await?;
     let idp_callback = redirect_location(idp_authorize, StatusCode::FOUND)?;
-    if !idp_callback.starts_with("https://veoveo.bioma.ai/oauth/callback") {
+    if !idp_callback.starts_with(&format!("{PUBLIC_BASE_URL}/oauth/callback")) {
         bail!("unexpected IdP callback redirect: {idp_callback}");
     }
     let callback_query = idp_callback

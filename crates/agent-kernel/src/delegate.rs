@@ -1,15 +1,13 @@
 //! The gateway notification delegate: MCP events become wakes.
 //!
-//! rig consumes what it understands (task-status wakeups, tool-list refresh)
-//! and forwards everything else here after its own handling. Resource updates
-//! wake episodes directly; terminal task-status notifications are a
-//! belt-and-braces second signal next to the watchers — the wake receiver's
-//! dedup makes the double delivery harmless.
+//! rig consumes task status itself. Resource updates create durable wakes.
+//! Terminal task notifications never create result wakes: only the transaction
+//! that stores the terminal result may do that.
 
 use rig_core::tool::rmcp::McpNotificationDelegate;
 use rig_core::wasm_compat::WasmBoxedFuture;
 
-use crate::wake::{WakeBus, WakeEvent};
+use crate::wake::{WakeBus, resource_updated};
 
 #[derive(Clone)]
 pub struct KernelNotificationDelegate {
@@ -28,9 +26,9 @@ impl McpNotificationDelegate for KernelNotificationDelegate {
         params: rmcp::model::ResourceUpdatedNotificationParam,
     ) -> WasmBoxedFuture<'_, ()> {
         Box::pin(async move {
-            self.bus
-                .send(WakeEvent::resource_updated(params.uri.as_str()))
-                .await;
+            if let Err(error) = self.bus.send(resource_updated(params.uri.as_str())).await {
+                tracing::error!(%error, uri = %params.uri, "persisting resource wake failed");
+            }
         })
     }
 
@@ -52,11 +50,9 @@ impl McpNotificationDelegate for KernelNotificationDelegate {
                 terminal,
                 "task status notification received"
             );
-            if terminal {
-                self.bus
-                    .send(WakeEvent::task_settled(&params.task.task_id))
-                    .await;
-            }
+            // The watcher/subscription persists the payload before waking the
+            // scheduler. A status-only notification is only a latency signal
+            // for that protocol machinery.
         })
     }
 }

@@ -120,9 +120,9 @@ mod tests {
             })
         );
         assert_eq!(
-            parse_request_host_authority("veoveo.bioma.ai"),
+            parse_request_host_authority("veoveo.example"),
             Some(HostAuthority {
-                host: "veoveo.bioma.ai".to_string(),
+                host: "veoveo.example".to_string(),
                 port: None,
             })
         );
@@ -147,33 +147,33 @@ mod tests {
         assert_eq!(parse_request_host_authority("::1"), None);
         assert_eq!(parse_request_host_authority("[::1"), None);
         assert_eq!(parse_request_host_authority("[::1]:not-a-port"), None);
-        assert_eq!(parse_request_host_authority("veoveo.bioma.ai/path"), None);
-        assert_eq!(parse_request_host_authority("veoveo.bioma.ai?x=1"), None);
-        assert_eq!(parse_request_host_authority("user@veoveo.bioma.ai"), None);
+        assert_eq!(parse_request_host_authority("veoveo.example/path"), None);
+        assert_eq!(parse_request_host_authority("veoveo.example?x=1"), None);
+        assert_eq!(parse_request_host_authority("user@veoveo.example"), None);
         assert_eq!(parse_request_host_authority("veoveo .bioma.ai"), None);
     }
 
     #[test]
     fn allowed_authority_with_port_requires_same_port() {
-        let allowed = vec!["veoveo.bioma.ai:8443".to_string()];
+        let allowed = vec!["veoveo.example:8443".to_string()];
 
         assert!(host_authority_is_allowed(
             &HostAuthority {
-                host: "veoveo.bioma.ai".to_string(),
+                host: "veoveo.example".to_string(),
                 port: Some(8443),
             },
             &allowed
         ));
         assert!(!host_authority_is_allowed(
             &HostAuthority {
-                host: "veoveo.bioma.ai".to_string(),
+                host: "veoveo.example".to_string(),
                 port: Some(443),
             },
             &allowed
         ));
         assert!(!host_authority_is_allowed(
             &HostAuthority {
-                host: "veoveo.bioma.ai".to_string(),
+                host: "veoveo.example".to_string(),
                 port: None,
             },
             &allowed
@@ -213,15 +213,15 @@ mod tests {
 
     #[test]
     fn public_host_allowlist_uses_loopback_only_when_explicit() {
-        let deployment = PublicDeployment::new("https://veoveo.bioma.ai").expect("valid URL");
+        let deployment = PublicDeployment::new("https://veoveo.example").expect("valid URL");
 
         assert_eq!(
             public_allowed_hosts(&deployment, false),
-            vec!["veoveo.bioma.ai"]
+            vec!["veoveo.example"]
         );
         assert_eq!(
             public_allowed_hosts(&deployment, true),
-            vec!["veoveo.bioma.ai", "localhost", "127.0.0.1", "::1"]
+            vec!["veoveo.example", "localhost", "127.0.0.1", "::1"]
         );
     }
 }

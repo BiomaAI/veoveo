@@ -1,11 +1,11 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
-compose := "docker compose -f compose.yaml -f compose.tunnel.yaml --profile dev --profile tunnel"
+compose := "docker compose -f compose.yaml"
 mcp-url := "http://localhost:8780/mcp/operator"
 gateway-token-url := "http://localhost:8780/oauth/token"
 gateway-admin-url := "http://localhost:8780/admin"
-gateway-control-plane := "configs/gateway.bioma.json"
+gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-conformance --bin conformance --"
 smoke := "DYLD_LIBRARY_PATH=\"$PWD/target/debug/deps${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}\" target/debug/smoke"
@@ -42,10 +42,27 @@ gateway-validate:
 deployments-validate:
     {{conformance}} deployment-validate --file configs/deployments.json
 
+# Validate and render the canonical Helm installation.
+helm-check:
+    helm lint deploy/helm/veoveo
+    helm template veoveo deploy/helm/veoveo >/dev/null
+
+# Create a content-verified offline installation bundle.
+offline-bundle output='output/veoveo-offline-0.1.0.tar.gz' platform='linux/amd64':
+    deploy/offline/create-bundle.sh --output '{{output}}' --platform '{{platform}}'
+
+# Verify and install an offline bundle into Docker or containerd.
+offline-load bundle runtime='docker' install_dir='veoveo-offline':
+    deploy/offline/load-bundle.sh --bundle '{{bundle}}' --runtime '{{runtime}}' --install-dir '{{install_dir}}'
+
 # Smoke-test Compose edge routing and published-port shape.
 smoke-compose-config:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} compose-config
+
+# Run all live SurrealDB 3.2 integration targets in an isolated container.
+smoke-surreal:
+    cargo run -p veoveo-smoke -- surreal-integration
 
 # Unit + integration tests for the Recording Hub (spooler, sensor-sim, query).
 test-hub:
@@ -53,24 +70,19 @@ test-hub:
 
 # Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
 smoke-hub-spool:
-    bash crates/recording-hub/scripts/hub_spool_smoke.sh
+    cargo run -p veoveo-recording-hub --bin hub-smoke -- restart-kill
 
-# Provision the Python env for the catalog cross-check (rerun-sdk + datafusion).
-hub-python-env:
-    bash crates/recording-hub/scripts/hub_python_env.sh
-
-# Recording Hub catalog smoke: freeze+optimize, serve, real redap query cross-check.
+# Recording Hub catalog rebuild rejects corruption and fails closed.
 smoke-hub-catalog:
-    HUB_PYTHON="$(bash crates/recording-hub/scripts/hub_python_env.sh)" \
-        bash crates/recording-hub/scripts/hub_catalog_smoke.sh
+    cargo run -p veoveo-recording-hub --bin hub-smoke -- catalog-rebuild
 
 # Recording Hub agent+world smoke: two producers, one hub, dataset routing.
 smoke-hub-agent-world:
-    bash crates/recording-hub/scripts/hub_agent_world_smoke.sh
+    cargo run -p veoveo-recording-hub --bin hub-smoke -- agent-world
 
 # Recording Hub performance bench: burst fleet, assert spooler counters.
-bench-hub burst='8' duration='5':
-    bash crates/recording-hub/scripts/hub_bench.sh {{burst}} {{duration}}
+bench-hub messages='1500':
+    cargo run -p veoveo-recording-hub --bin hub-smoke -- rollover-burst --messages {{messages}}
 
 # All Recording Hub checks: crate tests + all process smokes.
 smoke-hub: test-hub smoke-hub-spool smoke-hub-agent-world smoke-hub-catalog
@@ -85,7 +97,7 @@ smoke-contract-schemas:
     {{smoke}} contract-schemas --conformance-bin target/debug/conformance
 
 # Revoke one gateway JWT id for a target profile until its original token expiration.
-gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.bioma.ai/oauth' admin_profile='admin' target_profile='operator' reason='operator_request':
+gateway-revoke-jwt jwt_id expires_at issuer='https://veoveo.enterprise.example/oauth' admin_profile='admin' target_profile='operator' reason='operator_request':
     token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --client-id admin-service --scope operator:use --scope admin:manage)"; payload="$(jq -n --arg profile '{{target_profile}}' --arg issuer '{{issuer}}' --arg jwt_id '{{jwt_id}}' --arg expires_at '{{expires_at}}' --arg reason '{{reason}}' '{profile: $profile, issuer: $issuer, jwt_id: $jwt_id, expires_at: $expires_at, reason: $reason}')"; curl -fsS -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data "${payload}" "{{gateway-admin-url}}/{{admin_profile}}/jwt-revocations"
 
 # Remove expired gateway JWT revocation entries.
@@ -97,10 +109,10 @@ smoke-gateway:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} gateway-suite --control-plane {{gateway-control-plane}} --smoke-control-plane {{gateway-smoke-control-plane}}
 
-# Smoke-test gateway control-plane seeding against real Postgres.
-smoke-gateway-control-db:
+# Smoke-test gateway bootstrap against the real platform store.
+smoke-gateway-platform-store:
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
-    {{smoke}} gateway-control-db --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
+    {{smoke}} gateway-platform-store --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test the gateway HTTP boundary and auth challenge.
 smoke-gateway-http:
@@ -186,11 +198,11 @@ smoke-agent-live:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
     {{smoke}} agent-sleep-wake --live --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
-# Build MCP images.
+# Build canonical Compose images.
 compose-build:
-    {{compose}} build media-mcp chart-mcp mcp-gateway mcp-gateway-seed
+    {{compose}} build
 
-# Build and start RustFS, Postgres, media-mcp, mcp-gateway, and the managed Cloudflare tunnel.
+# Build and start the autonomous self-hosted Compose installation.
 compose-up:
     {{compose}} up --build -d
 
@@ -210,90 +222,7 @@ compose-ps:
 logs service='mcp-gateway':
     {{compose}} logs -f --tail=200 {{service}}
 
-# Print the hostname from PUBLIC_BASE_URL.
-public-host:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
-    host="${PUBLIC_BASE_URL#https://}"
-    host="${host#http://}"
-    host="${host%%/*}"
-    printf '%s\n' "${host}"
-
-# Configure the managed Cloudflare tunnel to route the public host to Compose edge.
-tunnel-configure:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID}"
-    : "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}"
-    : "${CLOUDFLARED_TUNNEL_TOKEN:?set CLOUDFLARED_TUNNEL_TOKEN}"
-    : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
-    host="${PUBLIC_BASE_URL#https://}"
-    host="${host#http://}"
-    host="${host%%/*}"
-    service="http://edge:8080"
-    decode_token() {
-        printf '%s' "${CLOUDFLARED_TUNNEL_TOKEN}" | base64 --decode 2>/dev/null \
-            || printf '%s' "${CLOUDFLARED_TUNNEL_TOKEN}" | base64 -D
-    }
-    tunnel_id="$(decode_token | jq -r '.t')"
-    config_url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${tunnel_id}/configurations"
-    tmp_current="$(mktemp -t veoveo-cf-config-current.XXXXXX.json)"
-    tmp_payload="$(mktemp -t veoveo-cf-config-payload.XXXXXX.json)"
-    cleanup() {
-        rm -f "${tmp_current}" "${tmp_payload}"
-    }
-    trap cleanup EXIT
-    curl -fsS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${config_url}" >"${tmp_current}"
-    current_service="$(jq -r --arg host "${host}" '.result.config.ingress[]? | select(.hostname == $host) | .service' "${tmp_current}" | head -n 1)"
-    if [ "${current_service}" = "${service}" ]; then
-        jq '{success, errors, tunnel_id: .result.tunnel_id, source: .result.source, version: .result.version, ingress: (.result.config.ingress // [] | map({hostname, path, service}))}' "${tmp_current}"
-        exit 0
-    fi
-    jq --arg host "${host}" --arg service "${service}" '
-        {
-            config: (
-                .result.config
-                | .ingress = (
-                    (.ingress // [])
-                    | if any(.hostname == $host) then
-                        map(if .hostname == $host then .service = $service else . end)
-                    else
-                        [{hostname: $host, service: $service}] + .
-                    end
-                )
-            )
-        }
-    ' "${tmp_current}" >"${tmp_payload}"
-    curl -fsS -X PUT \
-        -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-        -H "Content-Type: application/json" \
-        --data @"${tmp_payload}" \
-        "${config_url}" \
-        | jq '{success, errors, tunnel_id: .result.tunnel_id, source: .result.source, version: .result.version, ingress: (.result.config.ingress // [] | map({hostname, path, service}))}'
-
-# Verify the public hostname reaches edge, not a direct MCP server.
-tunnel-verify:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}"
-    check() {
-        path="$1"
-        expected="$2"
-        code="$(curl -sS -o /tmp/veoveo-tunnel-verify.out -w "%{http_code}" "${PUBLIC_BASE_URL}${path}")"
-        if [ "${code}" != "${expected}" ]; then
-            printf 'expected %s for %s, got %s\n' "${expected}" "${path}" "${code}" >&2
-            head -c 400 /tmp/veoveo-tunnel-verify.out >&2 || true
-            exit 1
-        fi
-        printf '%s %s\n' "${path}" "${code}"
-    }
-    check /healthz 200
-    check /readyz 200
-    check /media/healthz 200
-    check /media/mcp 404
-
-# Check local health and, optionally, public tunnel health.
+# Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':
     curl -fsS http://localhost:8780/healthz
     @echo
@@ -309,35 +238,35 @@ gateway-token scope='operator:use':
 
 # Show gateway MCP server info and resource templates.
 info:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} info
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} info
 
 # List models through the gateway, optionally with a local query string.
 models query='':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; if [ -n '{{query}}' ]; then env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models; fi
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; if [ -n '{{query}}' ]; then env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models; fi
 
 # Complete model ids by prefix through the gateway.
 complete prefix:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
 
 # Read one model schema through the gateway.
 schema model:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} schema '{{model}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} schema '{{model}}'
 
 # Run an arbitrary model through the gateway with a raw JSON input object.
 run model input output_dir='output':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{model}}' --tool-name media__run --input '{{input}}' --output-dir '{{output_dir}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{model}}' --tool-name media__run --input '{{input}}' --output-dir '{{output_dir}}'
 
 # Run the default image edit e2e against the public base URL and save returned artifacts.
 run-edit public_base_url output_dir='output/e2e':
-    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --tool-name media__run --input "$input" --output-dir '{{output_dir}}'
+    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --tool-name media__run --input "$input" --output-dir '{{output_dir}}'
 
 # Read one gateway task usage report.
 usage task_id:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
 
-# Read and save one artifact by sha256 through the gateway.
-artifact sha256 output_dir='output':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_TOKEN_SECRET MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} artifact '{{sha256}}' --output-dir '{{output_dir}}'
+# Read and save one artifact occurrence through the gateway.
+artifact artifact_id output_dir='output':
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} artifact '{{artifact_id}}' --output-dir '{{output_dir}}'
 
 # Start the stack, check health, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':
@@ -348,22 +277,16 @@ e2e public_base_url output_dir='output/e2e':
 
 # Unit-test the SUMO showcase MCP server (fake driver, no SUMO needed).
 showcase-sumo-test:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    pkg=showcase/sumo/mcp
-    venv="${SUMO_MCP_VENV:-/tmp/veoveo-sumo-venv}"
-    [ -x "$venv/bin/python3" ] || uv venv "$venv" --python 3.11 >&2
-    uv pip install --python "$venv/bin/python3" -e "$pkg[dev]" >&2
-    "$venv/bin/python3" -m pytest "$pkg" -q
+    cargo test -p veoveo-sumo-mcp
 
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:
-    bash showcase/sumo/mcp/scripts/sumo_push_smoke.sh
+    cargo run -p veoveo-smoke -- sumo-push
 
 # Bring up the full SUMO showcase (SUMO + sumo-mcp + hub).
 showcase-sumo-up:
-    docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml --profile hub --profile showcase up --build
+    docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml --profile showcase up --build
 
 # End-to-end verify: full SUMO showcase up, world durable in hub, served MCP driven e2e.
 showcase-sumo-verify:
-    bash showcase/sumo/scripts/verify_e2e.sh
+    cargo run -p veoveo-smoke -- sumo-verify

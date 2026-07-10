@@ -23,18 +23,18 @@ fn identity_provider() -> IdentityProvider {
 fn authorization_server() -> ResourceAuthorizationServer {
     ResourceAuthorizationServer {
         id: AuthorizationServerId::new("veoveo").unwrap(),
-        issuer: TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
+        issuer: TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
         jwks: JwksSource::Remote {
-            jwks_uri: HttpsUrl::new("https://veoveo.bioma.ai/oauth/jwks.json").unwrap(),
+            jwks_uri: HttpsUrl::new("https://veoveo.example/oauth/jwks.json").unwrap(),
         },
         access_token_key_id: JwtId::new("test-key").unwrap(),
         access_token_signing_key: SecretReferenceId::new("veoveo_access_token_private_key")
             .unwrap(),
         identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://veoveo.bioma.ai/oauth/authorize").unwrap(),
+            HttpsUrl::new("https://veoveo.example/oauth/authorize").unwrap(),
         ),
-        token_endpoint: HttpsUrl::new("https://veoveo.bioma.ai/oauth/token").unwrap(),
+        token_endpoint: HttpsUrl::new("https://veoveo.example/oauth/token").unwrap(),
         metadata: Value::Null,
     }
 }
@@ -212,7 +212,7 @@ fn default_profile() -> GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-        protected_resource: ProtectedResourceId::new("https://veoveo.bioma.ai/mcp/operator")
+        protected_resource: ProtectedResourceId::new("https://veoveo.example/mcp/operator")
             .unwrap(),
         policy_version: PolicyVersion::new("2026-07-02").unwrap(),
         auth_modes: BTreeSet::from([
@@ -247,11 +247,12 @@ fn default_oauth_clients() -> Vec<OAuthClientRegistration> {
             allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
             grant_types: BTreeSet::from([
                 OAuthGrantType::AuthorizationCodePkce,
+                OAuthGrantType::RefreshToken,
                 OAuthGrantType::EnterpriseManagedAuthorization,
             ]),
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::None]),
             redirect_uris: vec![
-                OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+                OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
                 OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").unwrap(),
             ],
             allowed_scopes: BTreeSet::from([
@@ -296,7 +297,7 @@ fn default_oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
         allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
         client_id: OidcClientId::new("veoveo").unwrap(),
-        redirect_uri: OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap(),
+        redirect_uri: OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
         credential_secret: SecretReferenceId::new("enterprise_oidc_client_secret").unwrap(),
         scopes: BTreeSet::from([
@@ -339,7 +340,7 @@ fn identifiers_reject_invalid_wire_values() {
     assert!(GatewayProfileId::new("default/profile").is_err());
     assert!(ResourceScheme::new("1media").is_err());
     assert!(MountPath::new("media").is_err());
-    assert!(OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").is_ok());
+    assert!(OAuthRedirectUri::new("https://veoveo.example/oauth/callback").is_ok());
     assert!(OAuthRedirectUri::new("http://127.0.0.1:8789/oauth/callback").is_ok());
     assert!(OAuthRedirectUri::new("http://[::1]:8789/oauth/callback").is_ok());
     assert!(OAuthRedirectUri::new("http://example.com/oauth/callback").is_err());
@@ -1355,6 +1356,30 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     ));
 
     let mut clients = default_oauth_clients();
+    clients[0].grant_types = BTreeSet::from([OAuthGrantType::RefreshToken]);
+    let config = GatewayControlPlane {
+        identity_providers: vec![identity_provider()],
+        authorization_servers: vec![authorization_server()],
+        servers: vec![media_manifest()],
+        profiles: vec![default_profile()],
+        tenants: default_tenants(),
+        policies: vec![default_policy()],
+        data_labels: default_data_labels(),
+        oauth_clients: clients,
+        oidc_clients: default_oidc_clients(),
+        secrets: default_secrets(),
+        metadata: Value::Null,
+    };
+
+    let err = config
+        .validate()
+        .expect_err("refresh tokens require an authorization-code grant on the same client");
+    assert!(matches!(
+        err,
+        GatewayControlPlaneError::OAuthClientUnsupportedAuthConfiguration { .. }
+    ));
+
+    let mut clients = default_oauth_clients();
     clients[1].auth_methods = BTreeSet::from([OAuthClientAuthMethod::ClientSecretPost]);
     clients[1].credential_secret =
         Some(SecretReferenceId::new("enterprise_oidc_client_secret").unwrap());
@@ -1387,7 +1412,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         OAuthGrantType::ClientCredentials,
     ]);
     clients[1].redirect_uris =
-        vec![OAuthRedirectUri::new("https://veoveo.bioma.ai/oauth/callback").unwrap()];
+        vec![OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap()];
     let config = GatewayControlPlane {
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
@@ -1792,33 +1817,23 @@ fn policy_decision_defaults_to_explicit_deny() {
 }
 
 #[test]
-fn tools_compat_client_accepts_gateway_task_result_helper() {
-    let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
-    config.oauth_clients.push(hosted_compat_oauth_client(
-        BTreeSet::from([
-            CompatibilityHelperId::new(VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID).unwrap(),
-        ]),
-        true,
-    ));
-
-    config
-        .validate()
-        .expect("gateway-owned task result helper should be valid");
-}
-
-#[test]
-fn direct_task_adapter_requires_task_result_helper() {
+fn tools_compat_client_accepts_task_projection_without_a_helper_tool() {
     let mut config = control_plane_with_server_and_secrets(media_manifest(), default_secrets());
     config
         .oauth_clients
         .push(hosted_compat_oauth_client(BTreeSet::new(), true));
 
-    let err = config
+    config
         .validate()
-        .expect_err("direct task adapter without task_result helper must fail");
+        .expect("internal task projection should not require a public helper tool");
+}
 
-    assert!(matches!(
-        err,
-        GatewayControlPlaneError::OAuthClientDirectTaskAdapterMissingTaskResultHelper { .. }
-    ));
+#[test]
+fn refresh_tokens_are_redacted_from_diagnostics_but_serialize_on_the_wire() {
+    let raw = "R".repeat(43);
+    let token = OAuthRefreshToken::new(raw.clone()).unwrap();
+
+    assert_eq!(token.to_string(), "[REDACTED]");
+    assert!(!format!("{token:?}").contains(&raw));
+    assert_eq!(serde_json::to_value(token).unwrap(), serde_json::json!(raw));
 }

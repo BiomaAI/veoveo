@@ -1,0 +1,55 @@
+//! Authoritative SurrealDB-backed platform state for Veoveo installations.
+//!
+//! Domain services own their behavior. This crate owns the shared typed records,
+//! schema migrations, durable outbox, changefeed replay, and LIVE subscriptions
+//! used to coordinate those services.
+
+mod administration;
+mod artifacts;
+mod changefeed;
+mod config;
+mod coordinates;
+mod error;
+mod gateway_runtime;
+mod identity;
+mod ids;
+mod migrations;
+mod models;
+mod outbox;
+mod recordings;
+mod store;
+mod table;
+mod usage;
+
+pub use artifacts::{
+    ArtifactAggregate, ArtifactAuditDraft, ArtifactGrantDraft, ArtifactOccurrenceDraft,
+    ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteReservation,
+    PublicShareRedemption,
+};
+pub use changefeed::{ChangefeedBatch, ChangefeedCursor, LiveStream};
+pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
+pub use coordinates::{CoordinateFrameDraft, CoordinateOperationDraft};
+pub use error::{MigrationError, StoreConfigError, StoreError};
+pub use gateway_runtime::{
+    GatewayAuditKind, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,
+    GatewayRefreshRotation, GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,
+    gateway_authorization_request_record_id, gateway_jwt_revocation_record_id,
+    gateway_refresh_family_record_id, gateway_refresh_token_record_id, gateway_replay_record_id,
+    gateway_resource_subscription_record_id,
+};
+pub use identity::{
+    PlatformIdentity, deterministic_enterprise_id, deterministic_group_id,
+    deterministic_principal_id, deterministic_tenant_id,
+};
+pub use ids::*;
+pub use migrations::{
+    AppliedMigration, Migration, MigrationReport, SchemaStatus, migrations, schema_sql,
+    validate_catalog,
+};
+pub use models::*;
+pub use outbox::{OutboxDraft, OutboxPage};
+pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
+pub use store::{PlatformClient, PlatformStore};
+pub use surrealdb::types::{RecordId, RecordIdKey};
+pub use table::PlatformTable;
+pub use usage::DomainUsageDraft;

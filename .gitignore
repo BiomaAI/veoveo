@@ -3,7 +3,7 @@
 .env
 .DS_Store
 
-# Python (showcase MCP servers)
+# Local development caches
 __pycache__/
 *.pyc
 .pytest_cache/

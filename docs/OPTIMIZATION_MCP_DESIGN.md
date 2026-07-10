@@ -85,25 +85,24 @@ optimization__plan
 Resource URIs remain server-owned and are not renamed by the gateway:
 
 ```text
-optimization://artifact/{sha256}
-artifact://{sha256}
+optimization://artifact/{artifact_id}
+artifact://{artifact_id}
 optimization://usage/task/{task_id}
 ```
 
-`optimization://artifact/{sha256}` is the optimization server's presentation
-URI for a shared-plane artifact. The neutral `artifact://{sha256}` form is the
+`optimization://artifact/{artifact_id}` is the optimization server's presentation
+URI for a shared-plane occurrence. The neutral `artifact://{artifact_id}` form is the
 cross-server identity accepted by the artifact plane and by servers that resolve
 artifact inputs.
 
 ## Server Surface
 
 The server binds one Axum listener. MCP is the client contract. HTTP routes below
-the mount path are limited to protocol, health, and artifact byte plumbing.
+the mount path are limited to protocol and health.
 
 ```text
 /optimization/mcp                 internal MCP over streamable HTTP
 /optimization/healthz             ops health
-/optimization/artifacts/{sha256}  authorized bulk byte transfer for shared-plane artifacts
 ```
 
 `/optimization/mcp` requires the same gateway-signed internal identity assertion
@@ -112,9 +111,9 @@ gateway profile such as `/mcp/default`, `/mcp/research`, or `/mcp/ops`.
 
 Artifact bytes are stored in `artifact-service`, not a private optimization
 bucket. The optimization server passes the caller's `PlaneCaller` to the shared
-artifact plane, presents returned metadata as `optimization://artifact/{sha256}`,
-and may serve authorized bytes from `/optimization/artifacts/{sha256}` as
-content plumbing. The MCP resource and result identity remains the
+artifact plane and presents returned metadata as `optimization://artifact/{artifact_id}`.
+Large authorized bytes use the gateway artifact download route; the domain server has
+no byte route. The MCP resource and result identity remains the
 server-presented artifact URI; the neutral plane URI remains valid for
 cross-server inputs.
 
@@ -138,7 +137,7 @@ inside a transport timeout.
 
 | Tool | Purpose | Result |
 |---|---|---|
-| `plan` | Select task-completion options for one or many agents under typed constraints. | `PlanOutput` plus optional `optimization://artifact/{sha256}` DuckDB and Rerun RRD artifacts. |
+| `plan` | Select task-completion options for one or many agents under typed constraints. | `PlanOutput` plus optional `optimization://artifact/{artifact_id}` DuckDB and Rerun RRD artifacts. |
 
 `PlanRequest` supports two input modes:
 
@@ -238,7 +237,7 @@ termination reason, and diagnostic summary. This is not a provider status path;
 it is local durable solver evidence indexed back to recording events.
 
 ```text
-optimization://artifact/{sha256}
+optimization://artifact/{artifact_id}
 ```
 
 Large immutable bytes. This includes canonical RRD segments when addressed by
@@ -535,8 +534,8 @@ Optional later backends:
 
 - `coin_cbc` for MILP comparison or environments where it is easier to package.
 - `clarabel` for convex optimization cases where it matches the model.
-- A pure Rust or lightweight fallback only for deterministic test fixtures, not
-  for production planning quality.
+- An explicit deterministic fixture backend for tests only, never selected by
+  production configuration.
 
 The solver module should not expose backend-specific raw request JSON. It should
 take typed domain requests and compile them into solver variables, constraints,
@@ -636,7 +635,7 @@ Recommended first version:
 - Rotate the recording into immutable `.rrd` segments for storage and
   retention.
 - Store segment bytes as `optimization://segment/{segment_id}` and
-  `optimization://artifact/{sha256}`.
+  `optimization://artifact/{artifact_id}`.
 - Return recording and time cursor metadata in every plan, snapshot, scenario,
   validation, and simulation result.
 
@@ -686,12 +685,7 @@ Add an `optimization` server manifest to gateway control data:
     "plan"
   ],
   "required_scopes": ["operator:use"],
-  "owned_routes": [
-    {
-      "path": "/optimization/artifacts",
-      "purpose": "artifact_bytes"
-    }
-  ],
+  "owned_routes": [],
   "metadata": {}
 }
 ```
@@ -703,9 +697,8 @@ Policy should grant only the actions a profile needs:
 - `resources_list`
 - `resources_templates_list`
 - `resources_read`
-- `tasks_list`
 - `tasks_get`
-- `tasks_result`
+- final task get/listen
 - `tasks_cancel`
 - `artifact_read`
 - `usage_read`
@@ -765,9 +758,9 @@ First tests:
   task id is projected, resources read through `optimization://...`, and a
   principal without `operator:use` is denied.
 - Artifact smoke: DuckDB and RRD outputs are written through
-  `artifact-service`, returned as `optimization://artifact/{sha256}`, readable
+  `artifact-service`, returned as `optimization://artifact/{artifact_id}`, readable
   only by an authorized principal, and resolvable from the neutral
-  `artifact://{sha256}` form for cross-server workflows.
+  `artifact://{artifact_id}` form for cross-server workflows.
 
 The first implementation uses the pure-Rust `microlp` backend so local checks do
 not depend on native solver libraries.

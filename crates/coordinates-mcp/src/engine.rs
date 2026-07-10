@@ -5,9 +5,11 @@ use crate::contract::{
     ProjectedPosition, TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput,
     ValidateGeofenceRequest, Wgs84Position,
 };
+use std::collections::{HashMap, HashSet};
+
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
-use geo::{Contains, Intersects};
+use geo::{Contains, Covers, Intersects, Validation};
 use geo_types::{Coord, LineString, Point, Polygon};
 use geographiclib_rs::{DirectGeodesic, Geodesic, InverseGeodesic};
 use proj::Proj;
@@ -28,6 +30,27 @@ const WGS84_F: f64 = 1.0 / WGS84_INV_F;
 const WGS84_E2: f64 = WGS84_F * (2.0 - WGS84_F);
 const WGS84_B: f64 = WGS84_A * (1.0 - WGS84_F);
 const WGS84_EP2: f64 = (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_B * WGS84_B);
+
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedFrameOrigins {
+    origins: HashMap<FrameId, Wgs84Position>,
+}
+
+impl ResolvedFrameOrigins {
+    pub fn insert(&mut self, frame_id: FrameId, origin: Wgs84Position) -> Result<()> {
+        origin.validate()?;
+        if self.origins.insert(frame_id.clone(), origin).is_some() {
+            bail!("origin for frame `{frame_id}` was resolved more than once");
+        }
+        Ok(())
+    }
+
+    fn require(&self, frame_id: &FrameId) -> Result<&Wgs84Position> {
+        self.origins
+            .get(frame_id)
+            .ok_or_else(|| anyhow!("local frame `{frame_id}` has no resolved WGS84 origin"))
+    }
+}
 
 pub fn builtin_crs_metadata() -> serde_json::Value {
     serde_json::json!([
@@ -99,27 +122,35 @@ pub fn derive_local_frame(request: DeriveLocalFrameRequest) -> Result<DeriveLoca
 pub fn convert_frame(
     request: ConvertFrameRequest,
     target_frame: &RrdFrameDefinition,
-    origin: Option<Wgs84Position>,
+    source_origins: &ResolvedFrameOrigins,
 ) -> Result<ConvertFrameOutput> {
     if request.points.is_empty() {
         bail!("convert_frame requires at least one point");
     }
-    if !request.allow_approximation {
-        // The MVP frame math is exact for WGS84/ECEF/local tangent plane.
+    if request.allow_approximation {
+        bail!("approximate local-frame conversion is not supported");
     }
-    let origin = origin.or(request.origin);
-    if let Some(origin) = &origin {
-        origin.validate()?;
-    }
+    let target_origin = target_frame
+        .origin
+        .clone()
+        .map(Wgs84Position::try_from)
+        .transpose()?;
     let output_points: Vec<_> = request
         .points
         .par_iter()
         .map(|point| {
-            let ecef = point_to_ecef(point, origin.as_ref())?;
-            ecef_to_target(&ecef, target_frame, origin.as_ref())
+            let ecef = point_to_ecef(point, source_origins)?;
+            ecef_to_target(&ecef, target_frame, target_origin.as_ref())
         })
         .collect::<Result<Vec<_>>>()?;
-    let source_frame = request.points.first().and_then(frame_for_position);
+    let source_frames = request
+        .points
+        .iter()
+        .filter_map(frame_for_position)
+        .collect::<HashSet<_>>();
+    let source_frame = (source_frames.len() == 1)
+        .then(|| source_frames.into_iter().next())
+        .flatten();
     let provenance = provenance(
         CoordinateOperationKind::FrameConversion,
         source_frame,
@@ -139,6 +170,16 @@ pub fn transform_crs(request: TransformCrsRequest) -> Result<TransformCrsOutput>
     if request.points.is_empty() {
         bail!("transform_crs requires at least one point");
     }
+    if request.source_crs.as_str() == "EPSG:4978" || request.target_crs.as_str() == "EPSG:4978" {
+        bail!(
+            "transform_crs is two-dimensional and does not support geocentric EPSG:4978; use convert_frame for WGS84/ECEF conversion"
+        );
+    }
+    if request.points.iter().any(|point| point.z.is_some()) {
+        bail!(
+            "transform_crs does not support Z coordinates; refusing to copy an untransformed height"
+        );
+    }
     let transformer = Proj::new_known_crs(
         request.source_crs.as_str(),
         request.target_crs.as_str(),
@@ -150,6 +191,14 @@ pub fn transform_crs(request: TransformCrsRequest) -> Result<TransformCrsOutput>
             request.source_crs, request.target_crs
         )
     })?;
+    let transform_info = transformer.proj_info();
+    let is_ballpark = transform_info
+        .description
+        .as_deref()
+        .is_some_and(|description| description.to_ascii_lowercase().contains("ballpark"));
+    if is_ballpark && !request.allow_approximation {
+        bail!("PROJ selected a ballpark transformation; set allow_approximation=true to accept it");
+    }
     let points = request
         .points
         .iter()
@@ -161,6 +210,7 @@ pub fn transform_crs(request: TransformCrsRequest) -> Result<TransformCrsOutput>
                     request.source_crs
                 );
             }
+            ensure_finite(&[point.x, point.y])?;
             let converted = transformer.convert((point.x, point.y)).with_context(|| {
                 format!(
                     "converting point from {} to {}",
@@ -171,19 +221,28 @@ pub fn transform_crs(request: TransformCrsRequest) -> Result<TransformCrsOutput>
                 crs: request.target_crs.clone(),
                 x: converted.0,
                 y: converted.1,
-                z: point.z,
+                z: None,
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let provenance = provenance(
+    let mut warnings = Vec::new();
+    if is_ballpark {
+        warnings.push("PROJ selected a ballpark transformation".to_string());
+    }
+    let mut provenance = provenance(
         CoordinateOperationKind::CrsTransform,
         None,
         None,
         Some(request.source_crs),
         Some(request.target_crs),
-        Some("PROJ".to_string()),
-        Vec::new(),
+        transform_info
+            .description
+            .clone()
+            .or_else(|| Some("PROJ".to_string())),
+        warnings,
     );
+    provenance.approximation_used = is_ballpark;
+    provenance.accuracy_m = (transform_info.accuracy >= 0.0).then_some(transform_info.accuracy);
     Ok(TransformCrsOutput { points, provenance })
 }
 
@@ -263,8 +322,24 @@ pub fn validate_geofence(request: ValidateGeofenceRequest) -> Result<ValidateGeo
             reason: "path must contain at least one point".to_string(),
         });
     }
+    if request.geofence.polygon.frame_id != request.path.frame_id {
+        bail!(
+            "geofence frame `{}` does not match path frame `{}`",
+            request.geofence.polygon.frame_id,
+            request.path.frame_id
+        );
+    }
     if violations.is_empty() {
         let polygon = polygon_from_contract(&request.geofence.polygon)?;
+        if !polygon.is_valid() {
+            let reasons = polygon
+                .validation_errors()
+                .into_iter()
+                .map(|error| error.to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+            bail!("invalid geofence polygon: {reasons}");
+        }
         let path = path_from_contract(&request.path)?;
         for (index, point) in request.path.coordinates.iter().enumerate() {
             let point_geo = Point::new(point[0], point[1]);
@@ -285,6 +360,20 @@ pub fn validate_geofence(request: ValidateGeofenceRequest) -> Result<ValidateGeo
                     .to_string(),
                 });
             }
+        }
+        if request.geofence.rule == GeofenceRule::MustStayInside
+            && violations.is_empty()
+            && !polygon.covers(&path)
+        {
+            let segment_index = path
+                .lines()
+                .position(|segment| !polygon.covers(&segment))
+                .unwrap_or(0);
+            violations.push(GeofenceViolation {
+                index: segment_index,
+                point: request.path.coordinates[segment_index],
+                reason: "path leaves required geofence between vertices".to_string(),
+            });
         }
         if request.geofence.rule == GeofenceRule::MustStayOutside && polygon.intersects(&path) {
             violations.push(GeofenceViolation {
@@ -311,7 +400,10 @@ pub fn validate_geofence(request: ValidateGeofenceRequest) -> Result<ValidateGeo
     })
 }
 
-fn point_to_ecef(point: &CoordinatePoint, origin: Option<&Wgs84Position>) -> Result<EcefPosition> {
+fn point_to_ecef(
+    point: &CoordinatePoint,
+    source_origins: &ResolvedFrameOrigins,
+) -> Result<EcefPosition> {
     match point {
         CoordinatePoint::Wgs84(position) => {
             position.validate()?;
@@ -322,12 +414,12 @@ fn point_to_ecef(point: &CoordinatePoint, origin: Option<&Wgs84Position>) -> Res
             Ok(position.clone())
         }
         CoordinatePoint::Enu(position) => {
-            let origin = origin.ok_or_else(|| anyhow!("ENU conversion requires a WGS84 origin"))?;
+            let origin = source_origins.require(&position.frame_id)?;
             ensure_finite(&[position.east_m, position.north_m, position.up_m])?;
             Ok(enu_to_ecef(position, origin))
         }
         CoordinatePoint::Ned(position) => {
-            let origin = origin.ok_or_else(|| anyhow!("NED conversion requires a WGS84 origin"))?;
+            let origin = source_origins.require(&position.frame_id)?;
             ensure_finite(&[position.north_m, position.east_m, position.down_m])?;
             let enu = EnuPosition {
                 frame_id: position.frame_id.clone(),
@@ -536,7 +628,7 @@ fn provenance(
     warnings: Vec<String>,
 ) -> CoordinateOperationProvenance {
     let operation_id =
-        CoordinateOperationId::new(format!("op-{}", uuid::Uuid::new_v4())).expect("valid op id");
+        CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7())).expect("valid op id");
     let created_at = Utc::now();
     let operation_uri = uris::operation_uri(operation_id.as_str());
     CoordinateOperationProvenance {
@@ -561,6 +653,27 @@ fn provenance(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn operation_ids_are_uuid_v7_derived() {
+        let operation = provenance(
+            CoordinateOperationKind::GeodesicInverse,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Vec::new(),
+        );
+        let uuid = operation
+            .operation
+            .operation_id
+            .as_str()
+            .strip_prefix("op-")
+            .and_then(|value| uuid::Uuid::parse_str(value).ok())
+            .expect("operation id must carry a UUID");
+        assert_eq!(uuid.get_version_num(), 7);
+    }
 
     fn wgs84(lat: f64, lon: f64, height: f64) -> Wgs84Position {
         Wgs84Position {
@@ -598,13 +711,73 @@ mod tests {
     }
 
     #[test]
+    fn mixed_local_frames_use_their_own_origins() {
+        let first_frame = FrameId::new("ENU:first").unwrap();
+        let second_frame = FrameId::new("ENU:second").unwrap();
+        let first_origin = wgs84(37.0, -122.0, 10.0);
+        let second_origin = wgs84(48.0, 2.0, 20.0);
+        let mut origins = ResolvedFrameOrigins::default();
+        origins
+            .insert(first_frame.clone(), first_origin.clone())
+            .unwrap();
+        origins
+            .insert(second_frame.clone(), second_origin.clone())
+            .unwrap();
+        let target = RrdFrameDefinition {
+            frame_id: RrdFrameId::new("WGS84").unwrap(),
+            kind: FrameKind::Wgs84,
+            view_coordinates: None,
+            parent: None,
+            origin: None,
+            crs: Some(CrsId::new("EPSG:4326").unwrap()),
+            datum: None,
+            ellipsoid: None,
+            epoch: None,
+            description: None,
+            metadata: Default::default(),
+        };
+        let output = convert_frame(
+            ConvertFrameRequest {
+                target_frame: FrameId::new("WGS84").unwrap(),
+                points: vec![
+                    CoordinatePoint::Enu(EnuPosition {
+                        frame_id: first_frame,
+                        east_m: 0.0,
+                        north_m: 0.0,
+                        up_m: 0.0,
+                    }),
+                    CoordinatePoint::Enu(EnuPosition {
+                        frame_id: second_frame,
+                        east_m: 0.0,
+                        north_m: 0.0,
+                        up_m: 0.0,
+                    }),
+                ],
+                allow_approximation: false,
+            },
+            &target,
+            &origins,
+        )
+        .unwrap();
+
+        for (actual, expected) in output.points.iter().zip([first_origin, second_origin]) {
+            let CoordinatePoint::Wgs84(actual) = actual else {
+                panic!("expected WGS84 output");
+            };
+            assert!((actual.latitude_deg - expected.latitude_deg).abs() < 1e-8);
+            assert!((actual.longitude_deg - expected.longitude_deg).abs() < 1e-8);
+            assert!((actual.height_m - expected.height_m).abs() < 1e-4);
+        }
+    }
+
+    #[test]
     fn geodesic_inverse_matches_known_range() {
         let output = geodesic_inverse(GeodesicInverseRequest {
             start: wgs84(34.095925, -118.2884237, 0.0),
             end: wgs84(59.4323439, 24.7341649, 0.0),
         })
         .unwrap();
-        assert!((output.distance_m - 9_094_718.7275).abs() < 0.01);
+        assert!((output.distance_m - 9_094_718.727_5).abs() < 0.01);
     }
 
     #[test]
@@ -633,5 +806,81 @@ mod tests {
         .unwrap();
         assert!(!output.valid);
         assert_eq!(output.violations[0].index, 1);
+    }
+
+    #[test]
+    fn geofence_detects_segment_that_leaves_concave_polygon() {
+        let output = validate_geofence(ValidateGeofenceRequest {
+            geofence: veoveo_rrd::RrdGeofenceGeometry {
+                geofence_id: None,
+                rule: GeofenceRule::MustStayInside,
+                polygon: veoveo_rrd::RrdLocalPolygon2 {
+                    frame_id: RrdFrameId::new("ENU:test").unwrap(),
+                    exterior: vec![
+                        [0.0, 0.0],
+                        [4.0, 0.0],
+                        [4.0, 4.0],
+                        [3.0, 4.0],
+                        [3.0, 1.0],
+                        [1.0, 1.0],
+                        [1.0, 4.0],
+                        [0.0, 4.0],
+                        [0.0, 0.0],
+                    ],
+                    holes: Vec::new(),
+                },
+            },
+            path: RrdLocalLineString2 {
+                frame_id: RrdFrameId::new("ENU:test").unwrap(),
+                coordinates: vec![[0.5, 3.0], [3.5, 3.0]],
+            },
+        })
+        .unwrap();
+
+        assert!(!output.valid);
+        assert!(
+            output
+                .violations
+                .iter()
+                .any(|violation| violation.reason.contains("between vertices"))
+        );
+    }
+
+    #[test]
+    fn geofence_rejects_frame_mismatch() {
+        let result = validate_geofence(ValidateGeofenceRequest {
+            geofence: veoveo_rrd::RrdGeofenceGeometry {
+                geofence_id: None,
+                rule: GeofenceRule::MustStayInside,
+                polygon: veoveo_rrd::RrdLocalPolygon2 {
+                    frame_id: RrdFrameId::new("ENU:first").unwrap(),
+                    exterior: vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]],
+                    holes: Vec::new(),
+                },
+            },
+            path: RrdLocalLineString2 {
+                frame_id: RrdFrameId::new("ENU:second").unwrap(),
+                coordinates: vec![[0.5, 0.5]],
+            },
+        });
+
+        assert!(result.unwrap_err().to_string().contains("does not match"));
+    }
+
+    #[test]
+    fn transform_crs_rejects_untransformed_z() {
+        let result = transform_crs(TransformCrsRequest {
+            source_crs: CrsId::new("EPSG:4326").unwrap(),
+            target_crs: CrsId::new("EPSG:3857").unwrap(),
+            points: vec![ProjectedPosition {
+                crs: CrsId::new("EPSG:4326").unwrap(),
+                x: -122.0,
+                y: 37.0,
+                z: Some(10.0),
+            }],
+            allow_approximation: false,
+        });
+
+        assert!(result.unwrap_err().to_string().contains("Z coordinates"));
     }
 }

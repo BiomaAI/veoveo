@@ -100,11 +100,6 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
-        "gateway-task-mapping.schema.json",
-        GatewayTaskMapping
-    );
-    add_schema!(
-        schemas,
         "gateway-resource-subscription.schema.json",
         GatewayResourceSubscription
     );
@@ -150,28 +145,35 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
-        "state-store-deployment.schema.json",
-        StateStoreDeployment
+        "platform-store-deployment.schema.json",
+        PlatformStoreDeployment
     );
     add_schema!(
         schemas,
-        "telemetry-sink-deployment.schema.json",
-        TelemetrySinkDeployment
+        "analytical-runtime-deployment.schema.json",
+        AnalyticalRuntimeDeployment
+    );
+    add_schema!(schemas, "ingress-deployment.schema.json", IngressDeployment);
+    add_schema!(
+        schemas,
+        "identity-provider-deployment.schema.json",
+        IdentityProviderDeployment
     );
     add_schema!(
         schemas,
-        "network-boundary-rule.schema.json",
-        NetworkBoundaryRule
+        "secret-manager-deployment.schema.json",
+        SecretManagerDeployment
     );
+    add_schema!(
+        schemas,
+        "telemetry-deployment.schema.json",
+        TelemetryDeployment
+    );
+    add_schema!(schemas, "tenant-model.schema.json", TenantModel);
     add_schema!(
         schemas,
         "data-retention-policy.schema.json",
         DataRetentionPolicy
-    );
-    add_schema!(
-        schemas,
-        "regulated-data-controls.schema.json",
-        RegulatedDataControls
     );
     add_schema!(
         schemas,

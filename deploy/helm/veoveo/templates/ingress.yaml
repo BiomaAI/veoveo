@@ -1,0 +1,108 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "veoveo.fullname" . }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+        {{- if eq .Values.objectStore.mode "rustfs" }}
+        - {{ .Values.ingress.objectStoreHost }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /console
+            pathType: Prefix
+            backend:
+              service:
+                name: console-bff
+                port:
+                  number: 8786
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: console-bff
+                port:
+                  number: 8786
+          - path: /media/webhooks
+            pathType: Prefix
+            backend:
+              service:
+                name: media-mcp
+                port:
+                  number: 8787
+          - path: /media/files
+            pathType: Prefix
+            backend:
+              service:
+                name: media-mcp
+                port:
+                  number: 8787
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mcp-gateway
+                port:
+                  number: 8788
+    {{- if eq .Values.objectStore.mode "rustfs" }}
+    - host: {{ .Values.ingress.objectStoreHost }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rustfs
+                port:
+                  number: 9000
+    {{- end }}
+---
+# Bearer share URLs use a dedicated Ingress so its controller can suppress the
+# request path without disabling access logs for the rest of the installation.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-public-share" (include "veoveo.fullname" .) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.publicShareAnnotations | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /s
+            pathType: Prefix
+            backend:
+              service:
+                name: artifact-service
+                port:
+                  number: 8790
+{{- end }}

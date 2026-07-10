@@ -2,12 +2,11 @@
 //!
 //! One axum process exposing:
 //!   /media/mcp             — MCP over streamable HTTP (rmcp)
-//!   /media/webhooks        — internal provider callback receiver (HMAC-verified)
+//!   /media/webhooks/{task} — provider callback receiver (HMAC-verified)
 //!   /media/files/*         — optional static media dir so providers can fetch inputs by URL
-//!   /media/artifacts/*     — immutable artifact bytes already surfaced by MCP
 //!
 //! MCP surface (protocol-maximal):
-//!   tool `run(model, input)`         — task-required (SEP-1319)
+//!   tool `run(model, input)`         — durable final task extension
 //!   tool `models(query?, type?, limit?)` — catalog search for tools-only clients
 //!   tool `model_schema(model)`       — exact input schema for tools-only clients
 //!   tool `artifact(artifact_uri)`     — artifact image blocks for tools-only clients
@@ -15,35 +14,36 @@
 //!   template `media://model/{model_id}`       — full input schema + pricing
 //!   template `media://prediction/{id}`        — live prediction state, subscribable
 //!   completion/complete over {model_id}
-//!   notifications: tasks/status, progress, resources/updated, resources/list_changed
+//!   notifications: task updates and resources/updated
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     Router,
     extract::{Path as AxumPath, State},
-    http::{
-        HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
-    },
+    http::{HeaderMap, StatusCode},
     middleware,
     response::IntoResponse,
     routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResult, CancelTaskParams, CancelTaskResult,
-        CompleteRequestParams, CompleteResult, CompletionInfo, CreateTaskResult,
-        GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
-        GetTaskPayloadResult, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListTasksResult, ListToolsResult, PaginatedRequestParams, Prompt,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo,
+        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams, Task, TaskStatus,
-        TasksCapability, UnsubscribeRequestParams,
+        ResourceTemplate, ServerCapabilities, ServerInfo, SubscribeRequestParams,
+        UnsubscribeRequestParams,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -51,20 +51,29 @@ use rmcp::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
 };
+use secrecy::ExposeSecret;
 use serde_json::{Value, json};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
-    GenerationRunOutput, InternalTokenSecret, Page, ServerSlug, SubscriptionHub, TaskPayloadState,
-    TaskStore, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, is_sha256, now_iso,
-    paginate, public_allowed_hosts, related_task_meta,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+    GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ServerSlug, SubscriptionHub,
+    TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
+    public_allowed_hosts,
+};
+use veoveo_mcp_task_extension::{
+    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
+    task_extension_middleware,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
     provider::{ModelEntry, Prediction, ProviderClient},
-    state::DuckdbState,
+    state::MediaState,
     uris, webhook,
+};
+use veoveo_task_runtime::{
+    CreateTask as DurableCreateTask, RecoveryClass, TaskRetentionPin, TaskRuntime,
+    TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
 #[path = "server/app_state.rs"]
@@ -89,25 +98,26 @@ mod ownership;
 mod prompts;
 #[path = "server/retention.rs"]
 mod retention;
+#[path = "server/task_extension.rs"]
+mod task_extension;
 #[path = "server/usage.rs"]
 mod usage;
 
-use app_state::AppState;
+use app_state::{AppState, spawn_provider_event_reconciliation, spawn_subscription_projection};
 use artifact_tools::ArtifactArgs;
 use config::Args;
-use generation_task::{RunArgs, run_task};
+use generation_task::{RunArgs, submit_task};
 use host::validate_host;
-use internal_auth::{
-    InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
-};
+use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use model_tools::{ModelSchemaArgs, ModelsArgs};
 use outputs::public_prediction;
 use ownership::{
     internal_caller, internal_identity, optional_prediction_owner, optional_task_owner,
-    prediction_owner, require_task_owner, task_owner_allows, task_owner_from_identity,
+    prediction_owner, require_task_owner, runtime_owner, task_owner_allows,
 };
 use prompts::MediaPrompt;
 use retention::{run_retention_gc, spawn_retention_gc_loop};
+use task_extension::MediaTaskExtension;
 use usage::spawn_missing_actual_usage_reconciliations;
 
 fn install_rustls_provider() {
@@ -115,10 +125,14 @@ fn install_rustls_provider() {
 }
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
+const ARTIFACT_WRITE_CAPABILITY_TTL_HOURS: i64 = 23;
+const ARTIFACT_WRITE_CAPABILITY_MAX_ARTIFACTS: u32 = 64;
+const ARTIFACT_WRITE_CAPABILITY_MAX_TOTAL_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const BILLING_RECONCILE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const BILLING_RECONCILE_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 const SERVER_SLUG: &str = "media";
 const LIST_PAGE_SIZE: usize = 100;
+const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
 
 #[derive(Clone)]
 struct MediaMcp {
@@ -136,20 +150,18 @@ impl MediaMcp {
         }
     }
 
-    /// Never executed synchronously: task_support = required routes all
-    /// invocations through `enqueue_task`. This body only exists so the
-    /// router publishes the tool with its schema.
+    /// The final task-extension middleware intercepts task-bearing calls.
+    /// Direct synchronous invocation is intentionally unsupported.
     #[tool(
         title = "Run media model",
-        description = "Run any media model asynchronously. Must be invoked as an MCP task; read tasks/get and fetch media://artifact/{sha256} outputs via tasks/result. Discover models via media://models, input schemas via media://model/{model_id}, and usage via media://usage/task/{task_id}. While running, subscribe to media://prediction/{id} (id is surfaced in the task statusMessage) for push updates.",
+        description = "Run any media model as a durable asynchronous task. Read tasks/get for status and the terminal typed result. Discover models through media://models, schemas through media://model/{model_id}, and billing through media://usage/task/{task_id}.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
             open_world_hint = true
-        ),
-        execution(task_support = "required")
+        )
     )]
     async fn run(
         &self,
@@ -218,7 +230,7 @@ impl MediaMcp {
 
     #[tool(
         title = "Get media artifact",
-        description = "Return an authorized media artifact as MCP image content when possible. Use this when the MCP client cannot read media://artifact/{sha256} resources.",
+        description = "Return an authorized media artifact as MCP image content when possible. Use this when the MCP client cannot read media://artifact/{artifact_id} resources.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<artifact_tools::ArtifactOutput>(),
         annotations(
             read_only_hint = true,
@@ -273,7 +285,6 @@ impl ServerHandler for MediaMcp {
             .enable_resources_subscribe()
             .enable_resources_list_changed()
             .enable_completions()
-            .enable_tasks_with(TasksCapability::server_default())
             .build();
         let mut info = ServerInfo::default();
         info.capabilities = caps;
@@ -283,10 +294,10 @@ impl ServerHandler for MediaMcp {
              (1) read media://models (or use completion/complete on media://model/{model_id}) to pick a model; \
              (2) optionally use prompts/list and prompts/get to draft model selection or media-specific briefs; \
              (3) read media://model/{model_id} for its exact input JSON Schema; \
-             (4) call the `run` tool as a task (SEP-1319) with {model, input}; \
-             (5) the task statusMessage carries the prediction id — subscribe to media://prediction/{id} for push updates; \
-             (6) read tasks/get until completed, then tasks/result returns media://artifact/{sha256} links; \
-             (7) read media://usage/task/{task_id} for usage estimates/actuals."
+             (4) call the `run` tool through the negotiated task extension with {model, input}; \
+             (5) read tasks/get or subscribe through subscriptions/listen; \
+             (6) the completed task result contains media://artifact/{artifact_id} links; \
+             (7) read media://usage/task/{task_id} for usage estimates and actual billing."
                 .into(),
         );
         info
@@ -338,143 +349,6 @@ impl ServerHandler for MediaMcp {
         prompt.render(request.arguments)
     }
 
-    async fn enqueue_task(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CreateTaskResult, McpError> {
-        let identity = internal_identity(&context)?;
-        if request.name != "run" {
-            return Err(McpError::method_not_found::<
-                rmcp::model::CallToolRequestMethod,
-            >());
-        }
-        let args: RunArgs =
-            serde_json::from_value(Value::Object(request.arguments.clone().unwrap_or_default()))
-                .map_err(|e| {
-                    McpError::invalid_params(format!("invalid run arguments: {e}"), None)
-                })?;
-
-        let progress_token = context.meta.get_progress_token();
-        let ttl = request.task.as_ref().and_then(|t| t.ttl);
-        let task_id = uuid::Uuid::new_v4().to_string();
-        let now = now_iso();
-        let mut task = Task::new(task_id.clone(), TaskStatus::Working, now.clone(), now)
-            .with_status_message("accepted; validating input")
-            .with_poll_interval(MCP_TASK_POLL_INTERVAL_MS);
-        task.ttl = ttl;
-
-        self.state.tasks.insert(task.clone(), None).await;
-        let owner = task_owner_from_identity(&task_id, &identity);
-        self.state
-            .durable
-            .record_task_owner(&owner)
-            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-        self.state
-            .task_owners
-            .write()
-            .await
-            .insert(task_id.clone(), owner.clone());
-        if let Err(e) = self.state.durable.record_task(&task, None, None, None) {
-            tracing::warn!(task_id, "failed to persist task creation: {e}");
-        }
-        let join = tokio::spawn(run_task(
-            self.state.clone(),
-            context.peer.clone(),
-            task_id.clone(),
-            owner,
-            args,
-            progress_token,
-        ));
-        self.state.tasks.set_join(&task_id, join).await;
-        Ok(CreateTaskResult::new(task).with_meta(related_task_meta(task_id)))
-    }
-
-    async fn list_tasks(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListTasksResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let all_tasks = self.state.tasks.list().await;
-        let owners = self.state.task_owners.read().await;
-        let tasks: Vec<Task> = all_tasks
-            .into_iter()
-            .filter(|task| {
-                owners
-                    .get(&task.task_id)
-                    .map(|owner| task_owner_allows(owner, &identity))
-                    .unwrap_or(false)
-            })
-            .collect();
-        let page = mcp_page(tasks, request.as_ref())?;
-        let mut result = ListTasksResult::new(page.items);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
-    async fn get_task_info(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .get(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        Ok(GetTaskResult::new(task))
-    }
-
-    async fn get_task_result(
-        &self,
-        request: GetTaskPayloadParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskPayloadResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        match self.state.tasks.await_payload_state(&request.task_id).await {
-            TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
-            TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
-            TaskPayloadState::Cancelled => {
-                Err(McpError::invalid_request("task was cancelled", None))
-            }
-            // await_payload_state blocks until terminal per MCP 2025-11-25;
-            // Running here means the wait logic itself broke.
-            TaskPayloadState::Running => Err(McpError::internal_error(
-                "task payload wait ended while still running",
-                None,
-            )),
-            TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
-        }
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CancelTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let provider_job_id = self.state.tasks.provider_job_id(&request.task_id).await;
-        let task = self
-            .state
-            .tasks
-            .cancel(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        if let Some(pid) = provider_job_id {
-            self.state.pending.lock().await.remove(&pid);
-        }
-        if let Err(e) = self.state.durable.record_task(&task, None, None, None) {
-            tracing::warn!(
-                task_id = request.task_id,
-                "failed to persist task cancellation: {e}"
-            );
-        }
-        Ok(CancelTaskResult::new(task))
-    }
-
     async fn list_resources(
         &self,
         request: Option<PaginatedRequestParams>,
@@ -493,15 +367,15 @@ impl ServerHandler for MediaMcp {
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
-        let predictions: Vec<(String, Prediction)> = self
+        let predictions = self
             .state
-            .predictions
-            .read()
+            .durable
+            .provider_jobs()
             .await
-            .iter()
-            .map(|(id, prediction)| (id.clone(), prediction.clone()))
-            .collect();
-        for (id, p) in predictions {
+            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+        for job in predictions {
+            let id = job.external_job_id;
+            let p = job.prediction;
             let Some(owner) = optional_prediction_owner(&self.state, &id).await? else {
                 continue;
             };
@@ -521,6 +395,7 @@ impl ServerHandler for MediaMcp {
             .state
             .durable
             .usage_task_ids()
+            .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
         for task_id in usage_task_ids {
             let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
@@ -569,7 +444,9 @@ impl ServerHandler for MediaMcp {
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
                 .with_title("Media artifact")
-                .with_description("Server-owned immutable output artifact, addressed by sha256."),
+                .with_description(
+                    "Server-owned immutable output artifact, addressed by occurrence id.",
+                ),
             ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
                 .with_title("Media task usage")
                 .with_description("Usage estimates and actuals for one task, addressed by task id.")
@@ -602,6 +479,7 @@ impl ServerHandler for MediaMcp {
                 .state
                 .durable
                 .usage_task_ids()
+                .await
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
             let mut entries: Vec<Value> = Vec::new();
             for task_id in task_ids {
@@ -642,11 +520,11 @@ impl ServerHandler for MediaMcp {
             }
             let prediction = self
                 .state
-                .predictions
-                .read()
+                .durable
+                .provider_job_for_external(id)
                 .await
-                .get(id)
-                .cloned()
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                .map(|job| job.prediction)
                 .ok_or_else(|| {
                     McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
                 })?;
@@ -658,6 +536,7 @@ impl ServerHandler for MediaMcp {
                 .state
                 .durable
                 .usage_records(task_id)
+                .await
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?;
             if records.is_empty() {
                 return Err(McpError::resource_not_found(
@@ -668,17 +547,17 @@ impl ServerHandler for MediaMcp {
             let report = UsageReport::new(task_id, uri).with_records(records);
             serde_json::to_string(&report)
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
-        } else if let Some(sha256) = uris::parse_artifact_uri(uri) {
+        } else if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
             // The plane enforces access with the caller's identity.
             let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(&caller, sha256)
+                .get(&caller, &artifact_id)
                 .await
                 .map_err(|e| McpError::internal_error(e.to_string(), None))?
                 .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
+                    McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
                 })?;
             let blob = BASE64_STANDARD.encode(&artifact.bytes);
             let mut content = ResourceContents::blob(blob, uri);
@@ -787,12 +666,87 @@ impl ServerHandler for MediaMcp {
     }
 }
 
+async fn start_media_task(
+    state: Arc<AppState>,
+    identity: veoveo_mcp_contract::GatewayInternalIdentity,
+    caller: veoveo_mcp_contract::PlaneCaller,
+    args: RunArgs,
+    retention_pins: std::collections::BTreeSet<TaskRetentionPin>,
+) -> Result<TaskSnapshot, String> {
+    let task_id = veoveo_task_runtime::TaskId::new();
+    let task_id_text = task_id.to_string();
+    let capability = state
+        .artifacts
+        .issue_write_capability(
+            &caller,
+            &IssueArtifactWriteCapabilityRequest {
+                task_id: task_id_text.clone(),
+                expires_at: Utc::now() + TimeDelta::hours(ARTIFACT_WRITE_CAPABILITY_TTL_HOURS),
+                max_artifact_count: NonZeroU32::new(ARTIFACT_WRITE_CAPABILITY_MAX_ARTIFACTS)
+                    .expect("artifact count limit is non-zero"),
+                max_total_bytes: NonZeroU64::new(ARTIFACT_WRITE_CAPABILITY_MAX_TOTAL_BYTES)
+                    .expect("artifact byte limit is non-zero"),
+            },
+        )
+        .await
+        .map_err(|error| format!("issuing media task artifact capability: {error}"))?;
+    let owner = runtime_owner(&identity);
+    state
+        .durable
+        .persist_preallocated_task_context(task_id, &owner, &capability)
+        .await
+        .map_err(|error| format!("persisting media task write context: {error}"))?;
+    state
+        .tasks
+        .create(DurableCreateTask {
+            task_id,
+            owner,
+            server: SERVER_SLUG.to_owned(),
+            task_type: "run".to_owned(),
+            request: serde_json::to_value(&args).map_err(|error| error.to_string())?,
+            recovery_class: RecoveryClass::WebhookWait,
+            idempotency_key: None,
+            ttl_ms: Some(state.retention.task_ttl_ms()),
+            poll_interval_ms: Some(MCP_TASK_POLL_INTERVAL_MS),
+            retention_pins,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    let claimed = state
+        .tasks
+        .claim(&task_id_text, TASK_LEASE_DURATION)
+        .await
+        .map_err(|error| error.to_string())?;
+    let cancellation = tokio_util::sync::CancellationToken::new();
+    let join = tokio::spawn({
+        let state = state.clone();
+        let cancellation = cancellation.clone();
+        async move {
+            tokio::select! {
+                () = submit_task(state.clone(), task_id_text.clone(), args) => {}
+                () = cancellation.cancelled() => {
+                    if let Err(error) = state.tasks.transition(&task_id_text, TaskTransition::Cancelled).await {
+                        tracing::warn!(task_id = task_id_text, "failed to persist cancelled media submission: {error}");
+                    }
+                }
+            }
+        }
+    });
+    state
+        .tasks
+        .register_worker(&claimed.snapshot.task_id.to_string(), cancellation, join)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(claimed.snapshot)
+}
+
 // ---------------------------------------------------------------------------
 // Webhook + HTTP plumbing
 // ---------------------------------------------------------------------------
 
 async fn media_webhook(
     State(state): State<Arc<AppState>>,
+    AxumPath(task_id): AxumPath<String>,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
@@ -803,16 +757,21 @@ async fn media_webhook(
             .unwrap_or_default()
             .to_string()
     };
-    if let Some(secret) = &state.webhook_secret {
-        let (id, ts, sig) = (
-            header("webhook-id"),
-            header("webhook-timestamp"),
-            header("webhook-signature"),
-        );
-        if let Err(e) = webhook::verify(secret, &id, &ts, &body, &sig, Some(300)) {
-            tracing::warn!("rejected webhook: {e}");
-            return (StatusCode::UNAUTHORIZED, "invalid signature").into_response();
-        }
+    let (id, ts, sig) = (
+        header("webhook-id"),
+        header("webhook-timestamp"),
+        header("webhook-signature"),
+    );
+    if let Err(e) = webhook::verify(
+        state.webhook_secret.expose_secret(),
+        &id,
+        &ts,
+        &body,
+        &sig,
+        Some(300),
+    ) {
+        tracing::warn!("rejected webhook: {e}");
+        return (StatusCode::UNAUTHORIZED, "invalid signature").into_response();
     }
     let prediction: Prediction = match serde_json::from_slice(&body) {
         Ok(p) => p,
@@ -827,77 +786,19 @@ async fn media_webhook(
         prediction.status,
         prediction.outputs.len()
     );
-    state.ingest_prediction(prediction).await;
-    (StatusCode::OK, "ok").into_response()
-}
-
-async fn artifact_download(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    AxumPath(sha256): AxumPath<String>,
-) -> impl IntoResponse {
-    if !is_sha256(&sha256) {
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let identity = match verify_internal_authorization(&state.internal_token_verifier, &headers) {
-        Ok(identity) => identity,
-        Err(message) => {
-            tracing::warn!(
-                artifact_sha256 = sha256,
-                "rejected artifact download: {message}"
-            );
-            return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
+    match state.receive_webhook(&task_id, &id, prediction).await {
+        Ok(receipt) => {
+            let status = if receipt.event.processed_at.is_some() {
+                StatusCode::OK
+            } else {
+                StatusCode::ACCEPTED
+            };
+            (status, "accepted").into_response()
         }
-    };
-    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
-        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-    };
-    let caller = ownership::caller_from(identity, bearer);
-    // The plane enforces access; a denial reads as not-found here.
-    let artifact = match state.artifacts.get(&caller, &sha256).await {
-        Ok(Some(artifact)) => artifact,
-        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
-        Err(e) => {
-            tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {e}");
-            return (StatusCode::NOT_FOUND, "not found").into_response();
+        Err(error) => {
+            tracing::error!(task_id, "failed to durably accept signed webhook: {error}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "durable receipt failed").into_response()
         }
-    };
-
-    let mut headers = HeaderMap::new();
-    if let Some(mime) = &artifact.metadata.mime_type
-        && let Ok(value) = HeaderValue::from_str(mime)
-    {
-        headers.insert(CONTENT_TYPE, value);
-    }
-    if let Some(filename) = &artifact.metadata.filename {
-        let safe = filename.replace(['"', '\r', '\n'], "_");
-        if let Ok(value) = HeaderValue::from_str(&format!("inline; filename=\"{safe}\"")) {
-            headers.insert(CONTENT_DISPOSITION, value);
-        }
-    }
-    (StatusCode::OK, headers, artifact.bytes).into_response()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn run_tool_annotations_match_additive_open_world_behavior() {
-        let tools = MediaMcp::tool_router().list_all();
-        let run = tools
-            .iter()
-            .find(|tool| tool.name.as_ref() == "run")
-            .expect("run tool should be registered");
-        assert_eq!(run.title.as_deref(), Some("Run media model"));
-        let annotations = run
-            .annotations
-            .as_ref()
-            .expect("run tool should publish MCP safety annotations");
-        assert_eq!(annotations.read_only_hint, Some(false));
-        assert_eq!(annotations.destructive_hint, Some(false));
-        assert_eq!(annotations.idempotent_hint, Some(false));
-        assert_eq!(annotations.open_world_hint, Some(true));
     }
 }
 
@@ -911,63 +812,52 @@ async fn main() -> anyhow::Result<()> {
     let retention = args.retention_policy();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let durable = DuckdbState::open(&args.state_db)?;
-    let internal_token_issuer_name = TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?;
-    let internal_token_secret = InternalTokenSecret::new(args.internal_token_secret.clone())?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
-        internal_token_issuer_name.clone(),
+        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         ServerSlug::new(SERVER_SLUG)?,
-        internal_token_secret.clone(),
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
-    // Media mints owner-scoped tokens for async (webhook) artifact writes.
-    let internal_token_issuer =
-        GatewayInternalTokenIssuer::new(internal_token_issuer_name.clone(), internal_token_secret);
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
-    let tasks = TaskStore::new();
-    for persisted in durable.load_tasks()? {
-        tasks
-            .insert_record(
-                persisted.task,
-                persisted.payload,
-                persisted.error,
-                persisted.provider_job_id,
-                None,
-            )
-            .await;
+    let tasks = TaskRuntime::connect(
+        TaskRuntimeConfig::new(
+            args.surreal_endpoint.clone(),
+            args.surreal_namespace.clone(),
+            args.surreal_database.clone(),
+            args.surreal_auth_level,
+            args.surreal_username.clone(),
+            args.surreal_password(),
+        ),
+        SERVER_SLUG,
+        format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
+    )
+    .await?;
+    let recovery = tasks.recover().await?;
+    if !recovery.webhook_waiting.is_empty() {
+        tracing::info!(
+            count = recovery.webhook_waiting.len(),
+            "recovered media tasks remain waiting for signed provider webhooks"
+        );
     }
-    let predictions = durable
-        .load_predictions()?
-        .into_iter()
-        .map(|p| (p.id.clone(), p))
-        .collect();
-    let task_owners = durable
-        .load_task_owners()?
-        .into_iter()
-        .map(|owner| (owner.task_id.clone(), owner))
-        .collect();
+    let durable = MediaState::new(tasks.platform_store().clone());
 
     let state = Arc::new(AppState {
         provider: ProviderClient::new(args.provider_api_key()?)
             .with_base(args.provider_base_url.clone()),
         http: reqwest::Client::new(),
         public_endpoint: public_endpoint.clone(),
-        webhook_secret: args.provider_webhook_secret(),
+        webhook_secret: args.provider_webhook_secret()?,
         registry: RwLock::new(None),
         tasks,
         durable,
         artifacts,
-        internal_token_verifier: internal_token_verifier.clone(),
-        internal_token_issuer,
-        internal_token_issuer_name,
-        pending: Mutex::new(HashMap::new()),
-        predictions: RwLock::new(predictions),
-        task_owners: RwLock::new(task_owners),
         retention,
         subscribers: SubscriptionHub::new(),
     });
 
     run_retention_gc(&state).await?;
     spawn_retention_gc_loop(state.clone());
+    spawn_provider_event_reconciliation(state.clone());
+    spawn_subscription_projection(state.clone());
     spawn_missing_actual_usage_reconciliations(state.clone()).await;
 
     // Warm the registry so first completions/reads are instant.
@@ -996,11 +886,34 @@ async fn main() -> anyhow::Result<()> {
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
+            .with_stateful_mode(true)
+            .with_json_response(true)
             .with_cancellation_token(ct.child_token()),
     );
+    let task_extension = Arc::new(TaskExtensionAdapter::new(
+        Arc::new(MediaTaskExtension::new(state.clone())),
+        ServerDiscovery::new(
+            std::collections::BTreeMap::from([
+                ("tools".to_owned(), json!({})),
+                ("resources".to_owned(), json!({})),
+            ]),
+            TaskExtensionImplementation {
+                name: "media".to_owned(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            Some(
+                "Webhook-completed media generation with durable tasks and immutable artifacts."
+                    .to_owned(),
+            ),
+        ),
+    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn_with_state(
+            task_extension,
+            task_extension_middleware::<MediaTaskExtension>,
+        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state,
             authenticate_internal_mcp,
@@ -1008,8 +921,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route("/webhooks", post(media_webhook))
-        .route("/artifacts/{sha256}", get(artifact_download))
+        .route("/webhooks/{task_id}", post(media_webhook))
         .with_state(state.clone())
         .nest("/mcp", mcp_router);
     if let Some(dir) = &args.static_dir {
@@ -1048,4 +960,27 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_tool_annotations_match_additive_open_world_behavior() {
+        let tools = MediaMcp::tool_router().list_all();
+        let run = tools
+            .iter()
+            .find(|tool| tool.name.as_ref() == "run")
+            .expect("run tool should be registered");
+        assert_eq!(run.title.as_deref(), Some("Run media model"));
+        let annotations = run
+            .annotations
+            .as_ref()
+            .expect("run tool should publish MCP safety annotations");
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.destructive_hint, Some(false));
+        assert_eq!(annotations.idempotent_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
+    }
 }

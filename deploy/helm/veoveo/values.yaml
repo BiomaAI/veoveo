@@ -1,0 +1,326 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  imagePullPolicy: IfNotPresent
+  existingSecret: veoveo-installation-secrets
+  publicBaseUrl: https://veoveo.enterprise.example
+  offline: false
+  podAnnotations: {}
+  podLabels: {}
+  serviceMesh:
+    enabled: false
+    provider: istio
+    podAnnotations: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+surrealdb:
+  image:
+    repository: surrealdb/surrealdb
+    tag: v3.2.0
+    digest: ""
+  namespace: veoveo
+  database: platform
+  adminExistingSecret: veoveo-surreal-admin
+  runtimeExistingSecret: veoveo-surreal-runtime
+  persistence:
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+objectStore:
+  mode: rustfs
+  bucketInitImage:
+    repository: amazon/aws-cli
+    tag: 2.17.45
+    digest: ""
+  rustfs:
+    image:
+      repository: rustfs/rustfs
+      tag: 1.0.0-beta.8
+      digest: ""
+    bucket: artifact-plane
+    publicEndpoint: https://objects.enterprise.example
+    persistence:
+      size: 50Gi
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  externalS3:
+    endpoint: ""
+    publicEndpoint: ""
+    bucket: ""
+    region: us-east-1
+    allowHttp: false
+
+gateway:
+  image:
+    repository: veoveo/mcp-gateway
+    tag: 0.1.0
+    digest: ""
+  replicas: 2
+  existingControlPlaneConfigMap: veoveo-gateway-control-plane
+  controlPlaneKey: gateway.json
+  refreshDeliveryWindowSeconds: 5
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+artifactService:
+  image:
+    repository: veoveo/artifact-service
+    tag: 0.1.0
+    digest: ""
+  replicas: 2
+  allowedAudiences: artifact,media,timeseries,optimization,duckdb,coordinates,recording
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+recording:
+  enabled: true
+  tenantKey: enterprise
+  classification: unclassified
+  labels: []
+  route: world=
+  persistence:
+    size: 100Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+  hubImage:
+    repository: veoveo/recording-hub
+    tag: 0.1.0
+    digest: ""
+  mcpImage:
+    repository: veoveo/recording-mcp
+    tag: 0.1.0
+    digest: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+consoleBff:
+  image:
+    repository: veoveo/console-bff
+    tag: 0.1.0
+    digest: ""
+  replicas: 2
+  oauthClientId: admin-console
+  oauthResource: https://veoveo.enterprise.example/mcp/admin
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+domainServices:
+  - name: artifact-mcp
+    image:
+      repository: veoveo/artifact-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8794
+    healthPath: /artifact/healthz
+    args:
+      - --port
+      - "8794"
+      - --allowed-host
+      - artifact-mcp:8794
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+  - name: media-mcp
+    image:
+      repository: veoveo/media-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8787
+    healthPath: /media/healthz
+    args:
+      - --port
+      - "8787"
+      - --allowed-host
+      - media-mcp:8787
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+  - name: timeseries-mcp
+    image:
+      repository: veoveo/timeseries-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8789
+    healthPath: /timeseries/healthz
+    args:
+      - --port
+      - "8789"
+      - --allowed-host
+      - timeseries-mcp:8789
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+      - --max-artifact-bytes
+      - "536870912"
+  - name: optimization-mcp
+    image:
+      repository: veoveo/optimization-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8792
+    healthPath: /optimization/healthz
+    args:
+      - --port
+      - "8792"
+      - --allowed-host
+      - optimization-mcp:8792
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+  - name: coordinates-mcp
+    image:
+      repository: veoveo/coordinates-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8793
+    healthPath: /coordinates/healthz
+    args:
+      - --port
+      - "8793"
+      - --allowed-host
+      - coordinates-mcp:8793
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+      - --max-artifact-bytes
+      - "67108864"
+  - name: duckdb-mcp
+    replicas: 1
+    image:
+      repository: veoveo/duckdb-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8791
+    healthPath: /duckdb/healthz
+    args:
+      - --port
+      - "8791"
+      - --allowed-host
+      - duckdb-mcp:8791
+      - --database-dir
+      - /var/lib/veoveo/duckdb/databases
+      - --exchange-dir
+      - /var/lib/veoveo/duckdb/exchange
+      - --spill-dir
+      - /var/lib/veoveo/duckdb/spill
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+      - --max-artifact-bytes
+      - "536870912"
+    duckdbSandbox: true
+    persistence:
+      size: 20Gi
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
+  - name: chart-mcp
+    image:
+      repository: veoveo/chart-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8795
+    healthPath: /health
+    platformStore: false
+    args:
+      - --transport
+      - http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8795"
+      - --path
+      - /mcp
+      - --allowed-hosts
+      - chart-mcp:8795
+      - --disable-file-reference
+  - name: rerun-bridge
+    image:
+      repository: veoveo/mcp-stdio-bridge
+      tag: 0.1.0
+      digest: ""
+    port: 8790
+    healthPath: /healthz
+    platformStore: false
+    args:
+      - --listen
+      - 0.0.0.0:8790
+      - --allowed-host
+      - rerun-bridge:8790
+      - --
+      - rerun
+      - viewer-mcp
+
+telemetry:
+  enabled: true
+  image:
+    repository: otel/opentelemetry-collector
+    tag: 0.155.0
+    digest: ""
+  existingConfigMap: veoveo-otel-collector
+  configKey: config.yaml
+  credentialExistingSecret: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  # The /s path is rendered as a separate Ingress so bearer URLs never enter
+  # ingress access logs. Replace this annotation for non-ingress-nginx classes.
+  publicShareAnnotations:
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+  host: veoveo.enterprise.example
+  objectStoreHost: objects.enterprise.example
+  tls:
+    enabled: true
+    secretName: veoveo-ingress-tls
+
+networkPolicy:
+  enabled: true
+  dnsNamespaceSelector:
+    kubernetes.io/metadata.name: kube-system
+  externalEgressCidrs: []
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

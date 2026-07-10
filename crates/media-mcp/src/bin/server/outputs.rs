@@ -1,12 +1,15 @@
 use axum::http::header::CONTENT_TYPE;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, GenerationPredictionSummary, GenerationRunOutput, now_utc,
-    set_related_task_meta,
+    ArtifactMetadata, ArtifactPut, ArtifactWriteIdempotencyKey, GenerationPredictionSummary,
+    GenerationRunOutput, now_utc, set_related_task_meta,
 };
-use veoveo_media_mcp::{provider::Prediction, state::TaskOwner};
+use veoveo_media_mcp::{
+    provider::Prediction,
+    state::{MediaTaskContext, data_labels},
+};
 
-use super::{AppState, ownership::plane_caller_for_owner};
+use super::AppState;
 
 fn guess_mime(url: &str) -> Option<&'static str> {
     let path = url.split('?').next()?;
@@ -58,7 +61,7 @@ async fn ingest_output_artifact(
     state: &AppState,
     prediction: &Prediction,
     task_id: &str,
-    owner: &TaskOwner,
+    context: &MediaTaskContext,
     url: &str,
     index: usize,
 ) -> anyhow::Result<ArtifactMetadata> {
@@ -78,9 +81,9 @@ async fn ingest_output_artifact(
     let mut artifact = ArtifactPut::new(bytes);
     artifact.mime_type = header_mime.or_else(|| guess_mime(url).map(str::to_string));
     artifact.filename = Some(filename_from_url(url, index));
-    // The plane stamps tenant + owner from the minted owner token and records
-    // the owner grant; carry the caller's labels + retention as put fields.
-    artifact.compliance.data_labels = owner.data_labels.clone();
+    // The plane stamps tenant + owner from the task-bound write capability and
+    // records the owner grant; carry labels + retention as put fields.
+    artifact.compliance.data_labels = data_labels(&context.owner)?;
     artifact.compliance.retention_expires_at =
         Some(state.retention.artifact_expires_at(now_utc())?);
     artifact.metadata = serde_json::to_value(OutputArtifactMetadata {
@@ -89,10 +92,16 @@ async fn ingest_output_artifact(
         model_id: prediction.model.as_str(),
         output_index: index,
     })?;
-    // Async completion: no live bearer, so act on behalf of the persisted owner.
-    let caller = plane_caller_for_owner(state, owner)
-        .map_err(|e| anyhow::anyhow!("building owner artifact caller: {e}"))?;
-    let metadata = state.artifacts.put(&caller, artifact).await?;
+    // Async completion has no live gateway bearer. Redeem only the capability
+    // issued for this task; media cannot mint or reconstruct an identity.
+    let metadata = state
+        .artifacts
+        .put_with_capability(
+            &context.artifact_write_capability,
+            ArtifactWriteIdempotencyKey::new(format!("media:{task_id}:output:{index}"))?,
+            artifact,
+        )
+        .await?;
     Ok(metadata)
 }
 
@@ -100,11 +109,11 @@ pub(super) async fn prediction_result(
     state: &AppState,
     prediction: &Prediction,
     task_id: &str,
-    owner: &TaskOwner,
+    context: &MediaTaskContext,
 ) -> anyhow::Result<CallToolResult> {
     let mut artifacts = Vec::new();
     for (i, url) in prediction.outputs.iter().enumerate() {
-        artifacts.push(ingest_output_artifact(state, prediction, task_id, owner, url, i).await?);
+        artifacts.push(ingest_output_artifact(state, prediction, task_id, context, url, i).await?);
     }
     let artifacts = artifacts
         .into_iter()

@@ -81,6 +81,9 @@ pub struct SpoolerConfig {
     /// Flush buffered writes to the OS at most this often (milliseconds).
     #[serde(default = "default_flush_interval_ms")]
     pub flush_interval_ms: u64,
+    /// Call `fsync` after each scheduled flush and final segment close.
+    #[serde(default = "default_fsync_on_flush")]
+    pub fsync_on_flush: bool,
     /// In-memory replay-buffer limit for late-joining live viewers (bytes).
     #[serde(default = "default_live_queue_limit_bytes")]
     pub live_queue_limit_bytes: u64,
@@ -90,13 +93,16 @@ pub struct SpoolerConfig {
 }
 
 fn default_segment_max_bytes() -> u64 {
-    256 * 1024 * 1024
+    192 * 1024 * 1024
 }
 fn default_segment_max_age_s() -> u64 {
     3600
 }
 fn default_flush_interval_ms() -> u64 {
     250
+}
+fn default_fsync_on_flush() -> bool {
+    true
 }
 fn default_live_queue_limit_bytes() -> u64 {
     1024 * 1024 * 1024
@@ -108,6 +114,10 @@ impl SpoolerConfig {
         ensure!(
             self.segment_max_bytes >= 4096,
             "segment_max_bytes must be at least 4096"
+        );
+        ensure!(
+            self.segment_max_bytes <= 240 * 1024 * 1024,
+            "segment_max_bytes must not exceed 240 MiB so a frozen segment fits the governed artifact upload limit"
         );
         ensure!(
             self.segment_max_age_s >= 1,
@@ -166,6 +176,7 @@ mod tests {
             segment_max_bytes: default_segment_max_bytes(),
             segment_max_age_s: default_segment_max_age_s(),
             flush_interval_ms: default_flush_interval_ms(),
+            fsync_on_flush: default_fsync_on_flush(),
             live_queue_limit_bytes: default_live_queue_limit_bytes(),
             rerun_bin: None,
         }

@@ -1,0 +1,15 @@
+Veoveo is installed as one autonomous enterprise boundary in namespace {{ .Release.Namespace }}.
+
+Required existing resources:
+  - Secret {{ .Values.surrealdb.adminExistingSecret }} with username/password (bootstrap only)
+  - Secret {{ .Values.surrealdb.runtimeExistingSecret }} with username/password (database runtime user)
+  - Secret {{ .Values.global.existingSecret }} with application and object-store credentials
+  - ConfigMap {{ .Values.gateway.existingControlPlaneConfigMap }} with {{ .Values.gateway.controlPlaneKey }}
+  - ConfigMap {{ .Values.telemetry.existingConfigMap }} with {{ .Values.telemetry.configKey }}
+
+SurrealDB is exactly one 3.2.0 RocksDB node. Database HA is out of scope.
+Back up the SurrealDB and object-store PVCs according to your recovery objectives.
+
+{{- if and (not .Values.global.offline) (not .Values.networkPolicy.externalEgressCidrs) }}
+Connected mode is fail-closed: configure networkPolicy.externalEgressCidrs for the external OIDC and provider endpoints.
+{{- end }}

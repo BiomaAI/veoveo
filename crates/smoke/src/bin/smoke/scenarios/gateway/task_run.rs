@@ -26,8 +26,6 @@ pub(crate) async fn gateway_task_run(
     let media_log = tmpdir.join("media.log");
     let gateway_log = tmpdir.join("gateway.log");
     let provider_ready = tmpdir.join("provider.ready");
-    let media_state_db = tmpdir.join("media-state.duckdb");
-    let gateway_state_db = tmpdir.join("gateway-state.duckdb");
     let output_dir = tmpdir.join("outputs");
 
     let mut provider = spawn_fake_media_provider(
@@ -46,7 +44,7 @@ pub(crate) async fn gateway_task_run(
         media,
         media_port,
         &media_base,
-        &media_state_db,
+        &plane.platform,
         &provider_base,
         &plane.url,
         &media_log,
@@ -54,12 +52,15 @@ pub(crate) async fn gateway_task_run(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.trim().into(),
@@ -432,7 +433,10 @@ pub(crate) async fn gateway_task_run(
         conformance,
         &media_mcp_url,
         ["--internal-profile".into(), "admin".into(), "tasks".into()],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )?;
     contains(&other_profile_tasks, "0 task(s)")?;
 
@@ -445,7 +449,10 @@ pub(crate) async fn gateway_task_run(
             "usage".into(),
             task_id.clone().into(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )?;
 
     assert_direct_mcp_denied(
@@ -455,27 +462,21 @@ pub(crate) async fn gateway_task_run(
             "--internal-profile".into(),
             "admin".into(),
             "artifact".into(),
-            structured.artifacts[0].sha256.clone().into(),
+            structured.artifacts[0].artifact_id.clone().into(),
             "--output-dir".into(),
             tmpdir
                 .join("denied-gateway-artifacts")
                 .as_os_str()
                 .to_os_string(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [(
+            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+            INTERNAL_SIGNING_KEY_DER_B64.into(),
+        )],
     )?;
 
     gateway_child.stop();
-    let audit_summary = run_checked(
-        gateway,
-        [
-            "audit-method-summary".into(),
-            "--state-db".into(),
-            gateway_state_db.as_os_str().to_os_string(),
-        ],
-        [],
-    )?;
-    let audit_summary: Value = serde_json::from_str(&audit_summary)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
     assert_no_audit_denies(&audit_summary)?;
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
     assert_audit_method(&audit_summary, "tools/call", 6, 0)?;

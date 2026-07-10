@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM rust:1.96-slim AS builder
+FROM rust:1.96.1-slim AS builder
 
 WORKDIR /app
 RUN apt-get update \
@@ -8,6 +8,7 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo ./.cargo
 COPY crates ./crates
+COPY showcase/sumo/mcp ./showcase/sumo/mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
