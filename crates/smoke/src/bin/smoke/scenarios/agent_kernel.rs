@@ -40,8 +40,6 @@ pub(crate) async fn agent_kernel_detach_resume(
 
     let provider_ready = tmpdir.join("provider.ready");
     let llm_ready = tmpdir.join("llm.ready");
-    let media_state_db = tmpdir.join("media-state.duckdb");
-    let gateway_state_db = tmpdir.join("gateway-state.duckdb");
     let agent_data_dir = tmpdir.join("agent");
     let ledger_path = agent_data_dir.join("memory.duckdb");
 
@@ -75,7 +73,7 @@ pub(crate) async fn agent_kernel_detach_resume(
         media,
         media_port,
         &media_base,
-        &media_state_db,
+        &plane.platform,
         &provider_base,
         &plane.url,
         &tmpdir.join("media.log"),
@@ -84,12 +82,15 @@ pub(crate) async fn agent_kernel_detach_resume(
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
@@ -111,7 +112,7 @@ pub(crate) async fn agent_kernel_detach_resume(
     fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&serde_json::json!({
-            "agent": { "id": "smoke-agent", "display_name": "Smoke Agent" },
+            "agent": { "tenant": "smoke", "id": "smoke-agent", "display_name": "Smoke Agent" },
             "model": {
                 "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
                 "api_key_env": "SMOKE_LLM_API_KEY",
@@ -129,8 +130,7 @@ pub(crate) async fn agent_kernel_detach_resume(
             },
             "episode": {
                 "max_turns": 6,
-                "task_deadline_s": 120,
-                "task_poll_interval_ms": 300
+                "task_deadline_s": 120
             },
             "memory": {
                 "memory_write_tables": ["notes"]
@@ -139,7 +139,7 @@ pub(crate) async fn agent_kernel_detach_resume(
                 "sections": [{
                     "name": "Recent episodes",
                     "priority": 1,
-                    "sql": "SELECT seq, summary FROM kernel.episodes ORDER BY seq DESC LIMIT 5"
+                    "sql": "SELECT seq, summary FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 5"
                 }]
             },
             "migrations_dir": "migrations",
@@ -147,13 +147,15 @@ pub(crate) async fn agent_kernel_detach_resume(
         }))?,
     )?;
     let agent_envs = || {
-        [
+        let mut env = platform_store.runtime_env();
+        env.extend([
             ("SMOKE_LLM_API_KEY", "fake".into()),
             (
                 "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
             ),
-        ]
+        ]);
+        env
     };
 
     // Phase 1: one episode dispatches the media task and halts; the
@@ -191,7 +193,9 @@ pub(crate) async fn agent_kernel_detach_resume(
             );
         }
         let episodes: i64 =
-            ledger.query_row("SELECT COUNT(*) FROM kernel.episodes", [], |row| row.get(0))?;
+            ledger.query_row("SELECT COUNT(*) FROM agent_memory.episode_log", [], |row| {
+                row.get(0)
+            })?;
         if episodes != 1 {
             bail!("phase 1 recorded {episodes} episodes, expected 1");
         }
@@ -225,7 +229,7 @@ pub(crate) async fn agent_kernel_detach_resume(
             bail!("resume left the task ({state}, consumed: {consumed:?})");
         }
         let (episodes, completed): (i64, i64) = ledger.query_row(
-            "SELECT COUNT(*), COUNT(*) FILTER (outcome = 'completed') FROM kernel.episodes",
+            "SELECT COUNT(*), COUNT(*) FILTER (outcome = 'completed') FROM agent_memory.episode_log",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
@@ -233,7 +237,7 @@ pub(crate) async fn agent_kernel_detach_resume(
             bail!("expected 2 completed episodes, found {completed}/{episodes}");
         }
         let final_output: String = ledger.query_row(
-            "SELECT final_output FROM kernel.episodes ORDER BY seq DESC LIMIT 1",
+            "SELECT final_output FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 1",
             [],
             |row| row.get(0),
         )?;
@@ -245,7 +249,7 @@ pub(crate) async fn agent_kernel_detach_resume(
             bail!("memory_write recorded {notes} notes, expected 1");
         }
         let summaries: i64 = ledger.query_row(
-            "SELECT COUNT(*) FROM kernel.episodes WHERE summary IS NOT NULL",
+            "SELECT COUNT(*) FROM agent_memory.episode_log WHERE summary IS NOT NULL",
             [],
             |row| row.get(0),
         )?;
@@ -345,7 +349,7 @@ pub(crate) async fn agent_kernel_scheduler(
         media,
         media_port,
         &media_base,
-        &tmpdir.join("media-state.duckdb"),
+        &plane.platform,
         &provider_base,
         &plane.url,
         &tmpdir.join("media.log"),
@@ -353,16 +357,15 @@ pub(crate) async fn agent_kernel_scheduler(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(
-            gateway_port,
-            &control_db.url,
-            &tmpdir.join("gw-state.duckdb"),
-        ),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
@@ -375,7 +378,7 @@ pub(crate) async fn agent_kernel_scheduler(
 
     let write_manifest = |name: &str, extra: serde_json::Value| -> Result<std::path::PathBuf> {
         let mut manifest = serde_json::json!({
-            "agent": { "id": "smoke-scheduler", "display_name": "Scheduler Smoke Agent" },
+            "agent": { "tenant": "smoke", "id": "smoke-scheduler", "display_name": "Scheduler Smoke Agent" },
             "model": {
                 "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
                 "api_key_env": "SMOKE_LLM_API_KEY",
@@ -391,7 +394,7 @@ pub(crate) async fn agent_kernel_scheduler(
                 "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
                 "private_key_kid": "test-key"
             },
-            "episode": { "max_turns": 6, "task_deadline_s": 60, "task_poll_interval_ms": 300 },
+            "episode": { "max_turns": 6, "task_deadline_s": 60 },
             "schedule": { "heartbeat_interval_s": 2, "wake_coalesce_window_ms": 100 },
             "preamble": "You operate hosted tools through a gateway. Follow instructions exactly."
         });
@@ -405,13 +408,15 @@ pub(crate) async fn agent_kernel_scheduler(
         Ok(path)
     };
     let agent_envs = || {
-        [
+        let mut env = platform_store.runtime_env();
+        env.extend([
             ("SMOKE_LLM_API_KEY", "fake".into()),
             (
                 "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
             ),
-        ]
+        ]);
+        env
     };
 
     // Fail-closed boot: an unknown manifest field must refuse to start.
@@ -461,7 +466,7 @@ pub(crate) async fn agent_kernel_scheduler(
     {
         let ledger = duckdb::Connection::open(budget_data_dir.join("memory.duckdb"))?;
         let outcome: String = ledger.query_row(
-            "SELECT outcome FROM kernel.episodes ORDER BY seq DESC LIMIT 1",
+            "SELECT outcome FROM agent_memory.episode_log ORDER BY seq DESC LIMIT 1",
             [],
             |row| row.get(0),
         )?;
@@ -519,7 +524,7 @@ pub(crate) async fn agent_kernel_scheduler(
     {
         let ledger = duckdb::Connection::open(scheduler_data_dir.join("memory.duckdb"))?;
         let heartbeat_episodes: i64 = ledger.query_row(
-            "SELECT COUNT(*) FROM kernel.episodes WHERE wake_note LIKE '%heartbeat%'",
+            "SELECT COUNT(*) FROM agent_memory.episode_log WHERE wake_note LIKE '%heartbeat%'",
             [],
             |row| row.get(0),
         )?;
@@ -527,7 +532,7 @@ pub(crate) async fn agent_kernel_scheduler(
             bail!("no heartbeat episodes ran");
         }
         let operator_output: String = ledger.query_row(
-            "SELECT final_output FROM kernel.episodes WHERE wake_note LIKE '%operator%'
+            "SELECT final_output FROM agent_memory.episode_log WHERE wake_note LIKE '%operator%'
              ORDER BY seq DESC LIMIT 1",
             [],
             |row| row.get(0),
@@ -601,6 +606,7 @@ pub(crate) async fn agent_pilot_mission(
         coordinates_port,
         &coordinates_base,
         &plane.url,
+        &plane.platform,
         &tmpdir.join("coordinates.log"),
     )?;
     let mut optimization_child = spawn_optimization_smoke(
@@ -666,16 +672,15 @@ pub(crate) async fn agent_pilot_mission(
     )?;
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let control_db = spawn_gateway_control_db(gateway, &generated_control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(
-            gateway_port,
-            &control_db.url,
-            &tmpdir.join("gw-state.duckdb"),
-        ),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
@@ -692,7 +697,7 @@ pub(crate) async fn agent_pilot_mission(
     fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&serde_json::json!({
-            "agent": { "id": "pilot-smoke", "display_name": "Pilot Smoke Agent" },
+            "agent": { "tenant": "smoke", "id": "pilot-smoke", "display_name": "Pilot Smoke Agent" },
             "model": {
                 "base_url": format!("http://127.0.0.1:{llm_port}/v1"),
                 "api_key_env": "SMOKE_LLM_API_KEY",
@@ -708,7 +713,7 @@ pub(crate) async fn agent_pilot_mission(
                 "private_key_env": "SMOKE_AGENT_PRIVATE_KEY_DER_B64",
                 "private_key_kid": "test-key"
             },
-            "episode": { "max_turns": 8, "task_deadline_s": 120, "task_poll_interval_ms": 300 },
+            "episode": { "max_turns": 8, "task_deadline_s": 120 },
             "schedule": { "heartbeat_interval_s": 30, "wake_coalesce_window_ms": 100 },
             "memory": {
                 "memory_write_tables": ["targets", "missions", "waypoints", "constraints", "beliefs"]
@@ -774,7 +779,7 @@ pub(crate) async fn agent_pilot_mission(
             bail!("plan task was ({task_tool}, {task_state}, consumed: {consumed:?})");
         }
         let planned: i64 = ledger.query_row(
-            "SELECT COUNT(*) FROM kernel.episodes WHERE final_output LIKE '%MISSION PLANNED%'",
+            "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%MISSION PLANNED%'",
             [],
             |row| row.get(0),
         )?;
@@ -944,7 +949,7 @@ pub(crate) async fn agent_sleep_wake(
         media,
         media_port,
         &media_base,
-        &tmpdir.join("media-state.duckdb"),
+        &plane.platform,
         &provider_base,
         &plane.url,
         &tmpdir.join("media.log"),
@@ -952,16 +957,15 @@ pub(crate) async fn agent_sleep_wake(
     wait_for_http(&format!("{media_base}/media/healthz")).await?;
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let auth_private_key = auth_private_key.trim().to_string();
-    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(
-            gateway_port,
-            &control_db.url,
-            &tmpdir.join("gw-state.duckdb"),
-        ),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.clone().into(),
@@ -981,7 +985,7 @@ pub(crate) async fn agent_sleep_wake(
     fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&serde_json::json!({
-            "agent": { "id": "sleep-wake", "display_name": "Sleep/Wake Agent" },
+            "agent": { "tenant": "smoke", "id": "sleep-wake", "display_name": "Sleep/Wake Agent" },
             "model": {
                 "base_url": model_base_url,
                 "api_key_env": api_key_env,
@@ -1000,8 +1004,7 @@ pub(crate) async fn agent_sleep_wake(
             },
             "episode": {
                 "max_turns": 8,
-                "task_deadline_s": 120,
-                "task_poll_interval_ms": 60_000
+                "task_deadline_s": 120
             },
             "schedule": { "heartbeat_interval_s": 600, "wake_coalesce_window_ms": 250 },
             "budgets": { "per_episode": { "max_completion_calls": 12, "max_tool_calls": 8 } },
@@ -1062,7 +1065,9 @@ pub(crate) async fn agent_sleep_wake(
     {
         let ledger = duckdb::Connection::open(agent_data_dir.join("memory.duckdb"))?;
         let episodes: i64 =
-            ledger.query_row("SELECT COUNT(*) FROM kernel.episodes", [], |row| row.get(0))?;
+            ledger.query_row("SELECT COUNT(*) FROM agent_memory.episode_log", [], |row| {
+                row.get(0)
+            })?;
         if episodes != 2 {
             bail!("expected exactly 2 episodes (dispatch + wake), found {episodes}");
         }
@@ -1078,7 +1083,7 @@ pub(crate) async fn agent_sleep_wake(
         // episode starting. Woke promptly: the gap is bounded near the task
         // duration — unreachable for the 60s poll or the 600s heartbeat.
         let (sleep_gap_s, dispatch_s, wake_s): (f64, f64, f64) = ledger.query_row(
-            "WITH ordered AS (SELECT seq, started_at, finished_at FROM kernel.episodes)
+            "WITH ordered AS (SELECT seq, started_at, finished_at FROM agent_memory.episode_log)
              SELECT
                  epoch(o2.started_at) - epoch(o1.finished_at),
                  epoch(o1.finished_at) - epoch(o1.started_at),
@@ -1103,13 +1108,13 @@ pub(crate) async fn agent_sleep_wake(
         }
         if live {
             let delivered: i64 = ledger.query_row(
-                "SELECT COUNT(*) FROM kernel.episodes WHERE final_output LIKE '%DELIVERED%'",
+                "SELECT COUNT(*) FROM agent_memory.episode_log WHERE final_output LIKE '%DELIVERED%'",
                 [],
                 |row| row.get(0),
             )?;
             if delivered < 1 {
                 let outputs = ledger
-                    .prepare("SELECT seq, final_output FROM kernel.episodes ORDER BY seq")?
+                    .prepare("SELECT seq, final_output FROM agent_memory.episode_log ORDER BY seq")?
                     .query_map([], |row| {
                         Ok(format!(
                             "  episode {}: {}",

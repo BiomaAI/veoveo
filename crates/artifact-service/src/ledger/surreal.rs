@@ -1,0 +1,592 @@
+//! SurrealDB implementation of the authoritative artifact repository.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use veoveo_mcp_contract::ArtifactShareLinkId;
+use veoveo_mcp_contract::access::{AccessLevel, ArtifactId, Grant, Subject};
+use veoveo_mcp_contract::gateway::{
+    DataLabelId, GatewayProfileId, GroupId, PrincipalId, PrincipalKind, ServerSlug, TenantId,
+    TokenIssuer, TokenSubject,
+};
+use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactReleaseState, ComplianceMetadata};
+use veoveo_platform_store as platform;
+use veoveo_platform_store::{RecordIdKey, StoreError as PlatformStoreError};
+
+use super::{
+    ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository, AuditOutcome, BlobSha256,
+    NewArtifact, RedeemedWriteCapability, RepositoryActor, RepositoryError, ShareLinkDraft,
+    StoredArtifact, WriteCapabilityDraft, WriteCapabilityReservation,
+};
+
+#[derive(Clone, Debug)]
+pub struct SurrealArtifactRepository {
+    store: platform::PlatformStore,
+}
+
+impl SurrealArtifactRepository {
+    pub fn new(store: platform::PlatformStore) -> Self {
+        Self { store }
+    }
+
+    pub fn store(&self) -> &platform::PlatformStore {
+        &self.store
+    }
+
+    async fn identity(
+        &self,
+        actor: &RepositoryActor,
+    ) -> Result<platform::PlatformIdentity, RepositoryError> {
+        self.store
+            .ensure_identity(
+                actor.tenant.as_str(),
+                actor.principal.as_str(),
+                actor.issuer.as_str(),
+                actor.subject.as_str(),
+                principal_kind(actor.kind),
+            )
+            .await
+            .map_err(repository_error)
+    }
+
+    async fn map_aggregate(
+        &self,
+        artifact_id: ArtifactId,
+        aggregate: platform::ArtifactAggregate,
+    ) -> Result<StoredArtifact, RepositoryError> {
+        let tenant = TenantId::new(aggregate.tenant.slug)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
+        let owner = PrincipalId::new(aggregate.owner.display_name)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
+        let labels = parse_labels(aggregate.occurrence.labels)?;
+        let classification = if aggregate.occurrence.classification.is_empty() {
+            None
+        } else {
+            Some(
+                DataLabelId::new(aggregate.occurrence.classification)
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+            )
+        };
+        let mut data_labels = labels.clone();
+        if let Some(classification) = &classification {
+            data_labels.remove(classification);
+        }
+        let retention_expires_at = aggregate.occurrence.retention_expires_at;
+        let grants = aggregate
+            .grants
+            .into_iter()
+            .map(|edge| {
+                let subject = match edge.subject_kind {
+                    platform::ArtifactGrantSubjectKind::User => Subject::User(
+                        PrincipalId::new(edge.subject_key)
+                            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                    ),
+                    platform::ArtifactGrantSubjectKind::Group => Subject::Group(
+                        GroupId::new(edge.subject_key)
+                            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                    ),
+                };
+                Ok(Grant {
+                    artifact: artifact_id,
+                    subject,
+                    level: access_level(edge.permission),
+                    tenant: tenant.clone(),
+                    data_labels: parse_labels(edge.labels)?,
+                    retention_expires_at: edge.expires_at,
+                })
+            })
+            .collect::<Result<Vec<_>, RepositoryError>>()?;
+        let metadata = ArtifactMetadata {
+            artifact_id,
+            byte_len: u64::try_from(aggregate.blob.byte_len)
+                .map_err(|_| RepositoryError::Corrupt("negative artifact byte length".into()))?,
+            mime_type: (!aggregate.occurrence.media_type.is_empty())
+                .then_some(aggregate.occurrence.media_type),
+            filename: aggregate.occurrence.filename,
+            artifact_uri: artifact_id.plane_uri(),
+            download_url: None,
+            created_at: aggregate.occurrence.created_at,
+            release_state: release_state(aggregate.occurrence.release_state),
+            compliance: ComplianceMetadata {
+                classification,
+                tenant_id: Some(tenant.clone()),
+                owner_id: Some(owner),
+                data_labels,
+                retention_expires_at,
+            },
+            metadata: serde_json::Value::Object(
+                aggregate
+                    .occurrence
+                    .metadata
+                    .into_map()
+                    .into_iter()
+                    .collect(),
+            ),
+        };
+        Ok(StoredArtifact {
+            metadata,
+            tenant,
+            labels,
+            grants,
+            blob_sha256: BlobSha256::new(aggregate.blob.sha256)
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+            object_key: aggregate.blob.object_key,
+        })
+    }
+}
+
+impl ArtifactRepository for SurrealArtifactRepository {
+    async fn create_artifact(
+        &self,
+        artifact: NewArtifact,
+    ) -> Result<StoredArtifact, RepositoryError> {
+        let identity = self.identity(&artifact.actor).await?;
+        let metadata = match artifact.stored.metadata.metadata.clone() {
+            serde_json::Value::Null => BTreeMap::new(),
+            serde_json::Value::Object(values) => values.into_iter().collect(),
+            _ => {
+                return Err(RepositoryError::Corrupt(
+                    "artifact metadata must be an object or null".into(),
+                ));
+            }
+        };
+        let draft = platform::ArtifactOccurrenceDraft {
+            artifact_id: platform::ArtifactId::from_uuid(
+                artifact.stored.metadata.artifact_id.as_uuid(),
+            ),
+            identity,
+            sha256: artifact.stored.blob_sha256.as_str().to_owned(),
+            byte_len: i64::try_from(artifact.stored.metadata.byte_len)
+                .map_err(|_| RepositoryError::Corrupt("artifact is too large".into()))?,
+            object_key: artifact.stored.object_key,
+            media_type: artifact
+                .stored
+                .metadata
+                .mime_type
+                .clone()
+                .unwrap_or_default(),
+            filename: artifact.stored.metadata.filename.clone(),
+            classification: artifact
+                .stored
+                .metadata
+                .compliance
+                .classification
+                .as_ref()
+                .map_or_else(String::new, |label| label.as_str().to_owned()),
+            labels: labels_to_strings(&artifact.stored.labels),
+            metadata,
+            retention_expires_at: artifact.stored.metadata.compliance.retention_expires_at,
+        };
+        let aggregate = self
+            .store
+            .create_artifact_occurrence(draft)
+            .await
+            .map_err(repository_error)?;
+        self.map_aggregate(artifact.stored.metadata.artifact_id, aggregate)
+            .await
+    }
+
+    async fn get_artifact(
+        &self,
+        artifact_id: ArtifactId,
+    ) -> Result<Option<StoredArtifact>, RepositoryError> {
+        let aggregate = self
+            .store
+            .artifact_aggregate(platform::ArtifactId::from_uuid(artifact_id.as_uuid()))
+            .await
+            .map_err(repository_error)?;
+        match aggregate {
+            Some(aggregate) => self.map_aggregate(artifact_id, aggregate).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    async fn list_artifacts(
+        &self,
+        query: ArtifactListQuery,
+    ) -> Result<Vec<StoredArtifact>, RepositoryError> {
+        let identity = self.identity(&query.actor).await?;
+        let mut subjects = vec![identity.principal_id.record_id()];
+        for group in &query.groups {
+            subjects.push(
+                platform::deterministic_group_id(&identity.tenant_key, group.as_str())
+                    .map_err(repository_error)?
+                    .record_id(),
+            );
+        }
+        let ids = self
+            .store
+            .artifact_ids_for_subjects(
+                identity.tenant_id,
+                subjects,
+                query
+                    .cursor
+                    .map(|id| platform::ArtifactId::from_uuid(id.as_uuid())),
+                query.limit,
+            )
+            .await
+            .map_err(repository_error)?;
+        let mut artifacts = Vec::with_capacity(ids.len());
+        for id in ids {
+            let contract_id = ArtifactId::parse(id.to_string())
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
+            let aggregate = self
+                .store
+                .artifact_aggregate(id)
+                .await
+                .map_err(repository_error)?
+                .ok_or_else(|| {
+                    RepositoryError::Corrupt(
+                        "artifact disappeared while building discovery page".into(),
+                    )
+                })?;
+            artifacts.push(self.map_aggregate(contract_id, aggregate).await?);
+        }
+        Ok(artifacts)
+    }
+
+    async fn upsert_grant(
+        &self,
+        actor: &RepositoryActor,
+        grant: Grant,
+    ) -> Result<(), RepositoryError> {
+        let creator = self.identity(actor).await?;
+        let (subject_record, subject_kind, subject_key) = match &grant.subject {
+            Subject::User(user) => {
+                let target =
+                    platform::deterministic_principal_id(grant.tenant.as_str(), user.as_str())
+                        .map_err(repository_error)?;
+                (
+                    target.record_id(),
+                    platform::ArtifactGrantSubjectKind::User,
+                    user.as_str().to_owned(),
+                )
+            }
+            Subject::Group(group) => {
+                let group_id = self
+                    .store
+                    .ensure_group(&creator, group.as_str())
+                    .await
+                    .map_err(repository_error)?;
+                (
+                    group_id.record_id(),
+                    platform::ArtifactGrantSubjectKind::Group,
+                    group.as_str().to_owned(),
+                )
+            }
+        };
+        self.store
+            .upsert_artifact_grant(platform::ArtifactGrantDraft {
+                artifact_id: platform::ArtifactId::from_uuid(grant.artifact.as_uuid()),
+                subject: subject_record,
+                subject_kind,
+                subject_key,
+                permission: grant_permission(grant.level),
+                labels: labels_to_strings(&grant.data_labels),
+                expires_at: grant.retention_expires_at,
+                created_by: creator.principal_id,
+            })
+            .await
+            .map_err(repository_error)
+    }
+
+    async fn remove_grant(
+        &self,
+        artifact_id: ArtifactId,
+        subject: &Subject,
+    ) -> Result<(), RepositoryError> {
+        let (kind, key) = match subject {
+            Subject::User(id) => (platform::ArtifactGrantSubjectKind::User, id.as_str()),
+            Subject::Group(id) => (platform::ArtifactGrantSubjectKind::Group, id.as_str()),
+        };
+        self.store
+            .remove_artifact_grant(
+                platform::ArtifactId::from_uuid(artifact_id.as_uuid()),
+                kind,
+                key,
+            )
+            .await
+            .map_err(repository_error)
+    }
+
+    async fn set_release_state(
+        &self,
+        artifact_id: ArtifactId,
+        state: ArtifactReleaseState,
+    ) -> Result<Option<StoredArtifact>, RepositoryError> {
+        let updated = self
+            .store
+            .set_artifact_release_state(
+                platform::ArtifactId::from_uuid(artifact_id.as_uuid()),
+                platform_release_state(state),
+            )
+            .await
+            .map_err(repository_error)?;
+        if updated.is_none() {
+            return Ok(None);
+        }
+        self.get_artifact(artifact_id).await
+    }
+
+    async fn create_write_capability(
+        &self,
+        draft: WriteCapabilityDraft,
+    ) -> Result<(), RepositoryError> {
+        let identity = self.identity(&draft.actor).await?;
+        self.store
+            .create_artifact_write_capability(platform::ArtifactWriteCapabilityDraft {
+                capability_id: platform::ArtifactWriteCapabilityId::from_uuid(
+                    draft.capability_id.as_uuid(),
+                ),
+                identity,
+                profile_key: draft.profile.as_str().to_owned(),
+                server_key: draft.server.as_str().to_owned(),
+                task_id: draft.task_id,
+                owner_kind: principal_kind(draft.actor.kind),
+                owner_issuer: draft.actor.issuer.as_str().to_owned(),
+                owner_subject: draft.actor.subject.as_str().to_owned(),
+                token_hash: draft.token_hash,
+                labels: labels_to_strings(&draft.labels),
+                max_artifact_count: i64::from(draft.max_artifact_count),
+                max_total_bytes: i64::try_from(draft.max_total_bytes).map_err(|_| {
+                    RepositoryError::Corrupt("capability byte limit is too large".into())
+                })?,
+                expires_at: draft.expires_at,
+            })
+            .await
+            .map(|_| ())
+            .map_err(repository_error)
+    }
+
+    async fn reserve_write_capability(
+        &self,
+        request: WriteCapabilityReservation,
+    ) -> Result<Option<RedeemedWriteCapability>, RepositoryError> {
+        let redemption = self
+            .store
+            .reserve_artifact_write_capability(
+                platform::ArtifactWriteCapabilityId::from_uuid(request.capability_id.as_uuid()),
+                &request.token_hash,
+                &request.task_id,
+                &request.idempotency_key,
+                &request.request_hash,
+                i64::try_from(request.byte_len)
+                    .map_err(|_| RepositoryError::Corrupt("artifact is too large".into()))?,
+                &labels_to_strings(&request.requested_labels),
+                platform::ArtifactId::from_uuid(request.proposed_artifact_id.as_uuid()),
+            )
+            .await;
+        let redemption = match redemption {
+            Ok(redemption) => redemption,
+            Err(PlatformStoreError::ArtifactWriteDenied) => return Ok(None),
+            Err(error) => return Err(repository_error(error)),
+        };
+        let capability = redemption.capability;
+        Ok(Some(RedeemedWriteCapability {
+            redemption_id: record_uuid(&redemption.redemption.id)?,
+            artifact_id: ArtifactId::parse(
+                record_uuid(&redemption.redemption.artifact)?.to_string(),
+            )
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+            actor: RepositoryActor {
+                tenant: TenantId::new(capability.tenant_key)
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                principal: PrincipalId::new(capability.owner_key)
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                kind: contract_principal_kind(capability.owner_kind),
+                issuer: TokenIssuer::new(capability.owner_issuer)
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                subject: TokenSubject::new(capability.owner_subject)
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+            },
+            labels: parse_labels(capability.labels)?,
+            profile: GatewayProfileId::new(capability.profile_key)
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+            server: ServerSlug::new(capability.server_key)
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+            task_id: capability.task_id,
+            finalized: redemption.redemption.state
+                == platform::ArtifactWriteRedemptionState::Finalized,
+            request_matches: redemption.request_matches,
+        }))
+    }
+
+    async fn finalize_write_capability(
+        &self,
+        redemption_id: uuid::Uuid,
+        artifact_id: ArtifactId,
+    ) -> Result<bool, RepositoryError> {
+        self.store
+            .finalize_artifact_write_capability(
+                platform::ArtifactWriteRedemptionId::from_uuid(redemption_id),
+                platform::ArtifactId::from_uuid(artifact_id.as_uuid()),
+            )
+            .await
+            .map_err(repository_error)
+    }
+
+    async fn create_share_link(&self, draft: ShareLinkDraft) -> Result<(), RepositoryError> {
+        let identity = self.identity(&draft.actor).await?;
+        self.store
+            .create_artifact_share_link(platform::ArtifactShareLinkDraft {
+                link_id: platform::ShareLinkId::from_uuid(draft.link_id.as_uuid()),
+                artifact_id: platform::ArtifactId::from_uuid(draft.artifact_id.as_uuid()),
+                identity,
+                token_hash: draft.token_hash,
+                expires_at: draft.expires_at,
+                max_downloads: draft.max_downloads.map(i64::try_from).transpose().map_err(
+                    |_| RepositoryError::Corrupt("share download limit is too large".into()),
+                )?,
+            })
+            .await
+            .map(|_| ())
+            .map_err(repository_error)
+    }
+
+    async fn revoke_share_link(
+        &self,
+        artifact_id: ArtifactId,
+        link_id: ArtifactShareLinkId,
+    ) -> Result<bool, RepositoryError> {
+        self.store
+            .revoke_artifact_share_link(
+                platform::ShareLinkId::from_uuid(link_id.as_uuid()),
+                platform::ArtifactId::from_uuid(artifact_id.as_uuid()),
+            )
+            .await
+            .map_err(repository_error)
+    }
+
+    async fn redeem_share_link(
+        &self,
+        token_hash: &str,
+    ) -> Result<Option<ArtifactId>, RepositoryError> {
+        self.store
+            .redeem_public_share_link(token_hash)
+            .await
+            .map_err(repository_error)?
+            .map(|redemption| {
+                ArtifactId::parse(redemption.artifact_id.to_string())
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))
+            })
+            .transpose()
+    }
+
+    async fn append_audit(&self, event: ArtifactAuditEvent) -> Result<(), RepositoryError> {
+        let identity = match &event.actor {
+            Some(actor) => Some(self.identity(actor).await?),
+            None => match &event.tenant {
+                Some(tenant) => Some(
+                    self.store
+                        .ensure_identity(
+                            tenant.as_str(),
+                            "artifact-public-reader",
+                            "veoveo-artifact-service",
+                            "public-share",
+                            platform::PrincipalKind::Service,
+                        )
+                        .await
+                        .map_err(repository_error)?,
+                ),
+                None => None,
+            },
+        };
+        self.store
+            .append_artifact_audit(platform::ArtifactAuditDraft {
+                tenant: identity.as_ref().map(|identity| identity.tenant_id),
+                actor: event
+                    .actor
+                    .as_ref()
+                    .and_then(|_| identity.as_ref().map(|identity| identity.principal_id)),
+                action: event.action,
+                resource_id: event.artifact_id.map(|id| id.to_string()),
+                outcome: match event.outcome {
+                    AuditOutcome::Allowed => platform::AuditOutcome::Allowed,
+                    AuditOutcome::Denied => platform::AuditOutcome::Denied,
+                    AuditOutcome::Failed => platform::AuditOutcome::Failed,
+                },
+                details: event.details.into_iter().collect(),
+            })
+            .await
+            .map_err(repository_error)
+    }
+}
+
+fn labels_to_strings(labels: &BTreeSet<DataLabelId>) -> Vec<String> {
+    labels
+        .iter()
+        .map(|label| label.as_str().to_owned())
+        .collect()
+}
+
+fn parse_labels(values: Vec<String>) -> Result<BTreeSet<DataLabelId>, RepositoryError> {
+    values
+        .into_iter()
+        .map(|value| {
+            DataLabelId::new(value).map_err(|error| RepositoryError::Corrupt(error.to_string()))
+        })
+        .collect()
+}
+
+fn principal_kind(kind: PrincipalKind) -> platform::PrincipalKind {
+    match kind {
+        PrincipalKind::User => platform::PrincipalKind::User,
+        PrincipalKind::Service => platform::PrincipalKind::Service,
+    }
+}
+
+fn contract_principal_kind(kind: platform::PrincipalKind) -> PrincipalKind {
+    match kind {
+        platform::PrincipalKind::User => PrincipalKind::User,
+        platform::PrincipalKind::Service => PrincipalKind::Service,
+    }
+}
+
+fn grant_permission(level: AccessLevel) -> platform::GrantPermission {
+    match level {
+        AccessLevel::Read => platform::GrantPermission::Read,
+        AccessLevel::Write => platform::GrantPermission::Write,
+        AccessLevel::Admin => platform::GrantPermission::Admin,
+    }
+}
+
+fn access_level(permission: platform::GrantPermission) -> AccessLevel {
+    match permission {
+        platform::GrantPermission::Read => AccessLevel::Read,
+        platform::GrantPermission::Write => AccessLevel::Write,
+        platform::GrantPermission::Admin => AccessLevel::Admin,
+    }
+}
+
+fn platform_release_state(state: ArtifactReleaseState) -> platform::ArtifactReleaseState {
+    match state {
+        ArtifactReleaseState::Private => platform::ArtifactReleaseState::Private,
+        ArtifactReleaseState::Releasable => platform::ArtifactReleaseState::Releasable,
+        ArtifactReleaseState::Released => platform::ArtifactReleaseState::Released,
+    }
+}
+
+fn release_state(state: platform::ArtifactReleaseState) -> ArtifactReleaseState {
+    match state {
+        platform::ArtifactReleaseState::Private => ArtifactReleaseState::Private,
+        platform::ArtifactReleaseState::Releasable => ArtifactReleaseState::Releasable,
+        platform::ArtifactReleaseState::Released => ArtifactReleaseState::Released,
+    }
+}
+
+fn repository_error(error: platform::StoreError) -> RepositoryError {
+    match error {
+        platform::StoreError::ArtifactWriteConflict { .. } => {
+            RepositoryError::Conflict(error.to_string())
+        }
+        other => RepositoryError::Backend(other.to_string()),
+    }
+}
+
+fn record_uuid(record: &platform::RecordId) -> Result<uuid::Uuid, RepositoryError> {
+    match &record.key {
+        RecordIdKey::Uuid(value) => Ok(**value),
+        _ => Err(RepositoryError::Corrupt(
+            "artifact write reservation has a non-UUID identity".into(),
+        )),
+    }
+}

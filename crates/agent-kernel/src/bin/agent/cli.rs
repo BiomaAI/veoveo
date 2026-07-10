@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use secrecy::SecretString;
 
 #[derive(Parser, Debug)]
 #[command(name = "agent", about = "Veoveo agent kernel")]
@@ -17,10 +18,6 @@ pub(crate) enum Cmd {
     Timeline(TimelineArgs),
     /// Rebuild domain tables from the decision log into memory.replayed.duckdb.
     Replay(ReplayArgs),
-    /// Wake a running agent with an operator message.
-    Ask(AskArgs),
-    /// Show a running agent's status.
-    Status(StatusArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -53,7 +50,7 @@ pub(crate) struct RunArgs {
     #[arg(long)]
     pub(crate) prompt: Option<String>,
     /// Exit after the boot episode instead of watching detached tasks; the
-    /// next boot resumes them from the ledger. Single-shot operation, and the
+    /// next boot resumes them from the memory. Single-shot operation, and the
     /// deterministic way to exercise resume-across-processes.
     #[arg(long, default_value_t = false)]
     pub(crate) halt_after_episode: bool,
@@ -61,10 +58,23 @@ pub(crate) struct RunArgs {
     /// rerun+http://127.0.0.1:9876/proxy.
     #[arg(long)]
     pub(crate) viewer_tee: Option<String>,
-    /// Fixed operator endpoint port (default: ephemeral, written to
-    /// {data-dir}/operator.port).
-    #[arg(long)]
-    pub(crate) operator_port: Option<u16>,
+    #[arg(long, env = "VEOVEO_SURREAL_ENDPOINT")]
+    pub(crate) surreal_endpoint: String,
+    #[arg(long, env = "VEOVEO_SURREAL_NAMESPACE")]
+    pub(crate) surreal_namespace: String,
+    #[arg(long, env = "VEOVEO_SURREAL_DATABASE")]
+    pub(crate) surreal_database: String,
+    #[arg(long, env = "VEOVEO_SURREAL_AUTH_LEVEL")]
+    pub(crate) surreal_auth_level: String,
+    #[arg(long, env = "VEOVEO_SURREAL_USERNAME")]
+    pub(crate) surreal_username: String,
+    #[arg(
+        long,
+        env = "VEOVEO_SURREAL_PASSWORD",
+        hide_env_values = true,
+        value_parser = parse_secret
+    )]
+    pub(crate) surreal_password: SecretString,
 }
 
 #[derive(Parser, Debug)]
@@ -77,18 +87,8 @@ pub(crate) struct ReplayArgs {
     pub(crate) data_dir: PathBuf,
 }
 
-#[derive(Parser, Debug)]
-pub(crate) struct AskArgs {
-    /// Directory holding the agent's durable memory files.
-    #[arg(long)]
-    pub(crate) data_dir: PathBuf,
-    /// The message to wake the agent with.
-    pub(crate) text: String,
-}
-
-#[derive(Parser, Debug)]
-pub(crate) struct StatusArgs {
-    /// Directory holding the agent's durable memory files.
-    #[arg(long)]
-    pub(crate) data_dir: PathBuf,
+fn parse_secret(value: &str) -> Result<SecretString, String> {
+    (!value.is_empty())
+        .then(|| SecretString::from(value))
+        .ok_or_else(|| "secret must not be empty".to_owned())
 }

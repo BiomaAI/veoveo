@@ -1,160 +1,154 @@
-//! Task watchers: the kernel side of a detached MCP task.
+//! Durable watchers for detached MCP tasks.
 //!
-//! A watcher owns one ledger task from detach to settlement. It rehydrates a
-//! live handle from the persisted descriptor via the current connection
-//! epoch's `McpTaskResumer` — the same path whether the task detached seconds
-//! ago or before a process restart — awaits the result, records it, and
-//! signals the wake loop. Transport-class failures (network, timeout,
-//! cancellation from a dying connection) wait for the next connection epoch
-//! and re-resume; terminal failures settle the ledger row.
+//! Every attempt owns a SurrealDB lease. Transient transport failures persist
+//! a retry schedule and release that lease; retry count is diagnostic only and
+//! never expires a task. A terminal result and its wake commit atomically.
 
 use std::time::Duration;
 
+use chrono::{TimeDelta, Utc};
 use rig_core::tool::{TaskResumer, ToolFailureKind, ToolTaskDescriptor};
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
+use veoveo_agent_runtime::{AgentRuntime, ClaimedAgentTask, json_object, wrapped_json};
 
-use crate::{
-    connection::ConnectionEpoch,
-    ledger::{KernelLedger, TaskState, WatchableTask},
-    wake::{WakeBus, WakeEvent},
-};
+use crate::{connection::ConnectionEpoch, wake::WakeBus};
 
-const MAX_ATTEMPTS_PER_EPOCH: u32 = 8;
+const TASK_CLAIM_RENEW_INTERVAL: Duration = Duration::from_secs(20);
+const TASK_CLAIM_DURATION: Duration = Duration::from_secs(60);
 
 pub fn arm_watcher(
-    ledger: KernelLedger,
+    runtime: AgentRuntime,
     bus: WakeBus,
     epoch_rx: watch::Receiver<ConnectionEpoch>,
-    task: WatchableTask,
-) {
-    tokio::spawn(watch_task(ledger, bus, epoch_rx, task));
+    task: ClaimedAgentTask,
+) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        if let Err(error) = watch_task(runtime, bus, epoch_rx, task).await {
+            tracing::error!(%error, "durable task watcher stopped");
+        }
+    })
 }
 
 async fn watch_task(
-    ledger: KernelLedger,
+    runtime: AgentRuntime,
     bus: WakeBus,
     mut epoch_rx: watch::Receiver<ConnectionEpoch>,
-    task: WatchableTask,
-) {
-    let task_id = task.task_id.clone();
-    let mut descriptor: ToolTaskDescriptor = match serde_json::from_str(&task.descriptor_json) {
+    task: ClaimedAgentTask,
+) -> anyhow::Result<()> {
+    let descriptor_value =
+        serde_json::Value::Object(task.descriptor.clone().into_map().into_iter().collect());
+    let descriptor: ToolTaskDescriptor = match serde_json::from_value(descriptor_value) {
         Ok(descriptor) => descriptor,
-        Err(err) => {
-            tracing::error!(task_id, %err, "task descriptor is unreadable; expiring");
-            settle_expired(&ledger, &bus, &task_id, "unreadable descriptor").await;
-            return;
+        Err(error) => {
+            let wake_id = runtime
+                .fail_task(
+                    &task,
+                    wrapped_json(serde_json::json!({
+                        "error": "unreadable task descriptor",
+                        "detail": error.to_string(),
+                    })),
+                )
+                .await?;
+            bus.hint(wake_id);
+            return Ok(());
         }
     };
 
-    let mut stripped_server_key = false;
-    let mut attempts: u32 = 0;
-    loop {
-        let epoch = epoch_rx.borrow_and_update().clone();
-        let Some(resumer) = epoch.resumer else {
-            if epoch_rx.changed().await.is_err() {
-                return;
-            }
-            continue;
-        };
+    let epoch = epoch_rx.borrow_and_update().clone();
+    let Some(resumer) = epoch.resumer else {
+        runtime
+            .retry_task(
+                &task,
+                Utc::now() + retry_delay(task.attempt_count),
+                "gateway connection has no task resumer",
+            )
+            .await?;
+        return Ok(());
+    };
 
-        match resumer.resume(&descriptor).await {
-            Ok(Some(handle)) => {
-                if let Err(err) = ledger.set_task_state(&task_id, TaskState::Watching) {
-                    tracing::error!(task_id, %err, "marking task watching failed");
-                }
-                let result = handle.wait().await;
-                let outcome = result.outcome();
-                let transport_failure = outcome.is_error_kind(ToolFailureKind::Network)
-                    || outcome.is_error_kind(ToolFailureKind::Timeout)
-                    || outcome.is_error_kind(ToolFailureKind::Cancelled);
-                if transport_failure {
-                    attempts += 1;
-                    tracing::warn!(
-                        task_id,
-                        attempts,
-                        output = result.model_output(),
-                        "task wait hit a transport failure; will re-resume"
-                    );
-                    if wait_for_retry(&mut epoch_rx, &mut attempts).await.is_err() {
-                        return;
+    match resumer.resume(&descriptor).await {
+        Ok(Some(handle)) => {
+            let mut wait = Box::pin(handle.wait());
+            let result = loop {
+                tokio::select! {
+                    result = &mut wait => break result,
+                    () = tokio::time::sleep(TASK_CLAIM_RENEW_INTERVAL) => {
+                        runtime
+                            .renew_task_claim(task.agent_task_id, TASK_CLAIM_DURATION)
+                            .await?;
                     }
-                    continue;
                 }
-                if outcome.is_error_kind(ToolFailureKind::NotFound) {
-                    settle_expired(&ledger, &bus, &task_id, result.model_output()).await;
-                    return;
-                }
-                let result_json = serde_json::json!({
+            };
+            let outcome = result.outcome();
+            let transient = outcome.is_error_kind(ToolFailureKind::Network)
+                || outcome.is_error_kind(ToolFailureKind::Timeout)
+                || outcome.is_error_kind(ToolFailureKind::Cancelled);
+            if transient {
+                runtime
+                    .retry_task(
+                        &task,
+                        Utc::now() + retry_delay(task.attempt_count),
+                        result.model_output(),
+                    )
+                    .await?;
+                return Ok(());
+            }
+            let payload = json_object(
+                serde_json::json!({
                     "output": result.model_output(),
                     "delivered": "watcher",
-                })
-                .to_string();
-                if let Err(err) = ledger.resolve_task(&task_id, &result_json, outcome.is_error()) {
-                    tracing::error!(task_id, %err, "recording task result failed");
-                }
-                tracing::info!(task_id, is_error = outcome.is_error(), "task settled");
-                bus.send(WakeEvent::task_settled(&task_id)).await;
-                return;
-            }
-            Ok(None) => {
-                // The resumer declined the descriptor. A server_key minted by
-                // an older server build is the benign cause: strip it once and
-                // let the gateway's task-id routing decide.
-                if !stripped_server_key && descriptor.server_key.is_some() {
-                    stripped_server_key = true;
-                    descriptor.server_key = None;
-                    continue;
-                }
-                settle_expired(&ledger, &bus, &task_id, "no resumer accepted the task").await;
-                return;
-            }
-            Err(err) => {
-                attempts += 1;
-                tracing::warn!(task_id, attempts, %err, "task resume failed");
-                if attempts >= MAX_ATTEMPTS_PER_EPOCH {
-                    settle_expired(&ledger, &bus, &task_id, &err.to_string()).await;
-                    return;
-                }
-                if wait_for_retry(&mut epoch_rx, &mut attempts).await.is_err() {
-                    return;
-                }
-            }
+                }),
+                "task result",
+            )?;
+            let wake_id = if outcome.is_error_kind(ToolFailureKind::NotFound) {
+                runtime.fail_task(&task, payload).await?
+            } else {
+                runtime
+                    .resolve_task(&task, payload, outcome.is_error())
+                    .await?
+            };
+            bus.hint(wake_id);
+        }
+        Ok(None) => {
+            let wake_id = runtime
+                .fail_task(
+                    &task,
+                    wrapped_json(serde_json::json!({
+                        "error": "no task resumer accepted the canonical descriptor",
+                    })),
+                )
+                .await?;
+            bus.hint(wake_id);
+        }
+        Err(error) => {
+            runtime
+                .retry_task(
+                    &task,
+                    Utc::now() + retry_delay(task.attempt_count),
+                    &error.to_string(),
+                )
+                .await?;
         }
     }
+    Ok(())
 }
 
-/// Back off, but wake immediately (and reset the attempt budget) when the
-/// connection rotates — a fresh sink is the most likely fix.
-async fn wait_for_retry(
-    epoch_rx: &mut watch::Receiver<ConnectionEpoch>,
-    attempts: &mut u32,
-) -> Result<(), ()> {
-    if *attempts >= MAX_ATTEMPTS_PER_EPOCH {
-        match epoch_rx.changed().await {
-            Ok(()) => {
-                *attempts = 0;
-                Ok(())
-            }
-            Err(_) => Err(()),
-        }
-    } else {
-        let backoff = Duration::from_secs(u64::from(2u32.saturating_pow((*attempts).min(5))));
-        tokio::select! {
-            changed = epoch_rx.changed() => match changed {
-                Ok(()) => {
-                    *attempts = 0;
-                    Ok(())
-                }
-                Err(_) => Err(()),
-            },
-            () = tokio::time::sleep(backoff) => Ok(()),
-        }
-    }
+fn retry_delay(attempt_count: i64) -> TimeDelta {
+    let exponent = u32::try_from(attempt_count.max(0))
+        .unwrap_or(u32::MAX)
+        .min(6);
+    TimeDelta::seconds(i64::from(2u32.saturating_pow(exponent)))
 }
 
-async fn settle_expired(ledger: &KernelLedger, bus: &WakeBus, task_id: &str, reason: &str) {
-    if let Err(err) = ledger.expire_task(task_id, reason) {
-        tracing::error!(task_id, %err, "expiring task failed");
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_backoff_caps_without_terminal_attempt_budget() {
+        assert_eq!(retry_delay(0), TimeDelta::seconds(1));
+        assert_eq!(retry_delay(1), TimeDelta::seconds(2));
+        assert_eq!(retry_delay(100_000), TimeDelta::seconds(64));
     }
-    bus.send(WakeEvent::task_settled(task_id)).await;
 }

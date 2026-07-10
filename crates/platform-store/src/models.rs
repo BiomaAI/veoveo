@@ -1,0 +1,1055 @@
+use std::collections::BTreeMap;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use surrealdb::types as surrealdb_types;
+use surrealdb::types::{RecordId, SurrealValue};
+
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, SurrealValue)]
+#[serde(transparent)]
+pub struct RedactedSecret(String);
+
+impl RedactedSecret {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub fn expose_secret(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for RedactedSecret {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("<redacted>")
+    }
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::RedactedSecret;
+
+    #[test]
+    fn debug_never_exposes_secret_value() {
+        let secret = RedactedSecret::new("sensitive-capability-secret");
+        assert_eq!(format!("{secret:?}"), "<redacted>");
+        assert_eq!(secret.expose_secret(), "sensitive-capability-secret");
+    }
+}
+
+macro_rules! string_enum {
+    ($(#[$meta:meta])* pub enum $name:ident { $($variant:ident => $value:literal),+ $(,)? }) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, SurrealValue)]
+        #[surreal(untagged)]
+        pub enum $name {
+            $(
+                #[serde(rename = $value)]
+                #[surreal(value = $value)]
+                $variant,
+            )+
+        }
+    };
+}
+
+/// A genuinely open-ended JSON object used only at provider/configuration boundaries.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, SurrealValue)]
+#[serde(transparent)]
+pub struct OpenObject(BTreeMap<String, serde_json::Value>);
+
+impl OpenObject {
+    pub fn new(values: BTreeMap<String, serde_json::Value>) -> Self {
+        Self(values)
+    }
+
+    pub fn as_map(&self) -> &BTreeMap<String, serde_json::Value> {
+        &self.0
+    }
+
+    pub fn into_map(self) -> BTreeMap<String, serde_json::Value> {
+        self.0
+    }
+}
+
+impl From<BTreeMap<String, serde_json::Value>> for OpenObject {
+    fn from(value: BTreeMap<String, serde_json::Value>) -> Self {
+        Self(value)
+    }
+}
+
+string_enum! {
+    pub enum PrincipalKind {
+        User => "user",
+        Service => "service",
+    }
+}
+
+string_enum! {
+    pub enum OauthClientKind {
+        Public => "public",
+        Confidential => "confidential",
+    }
+}
+
+string_enum! {
+    pub enum ServerTransport {
+        StreamableHttp => "streamable_http",
+        Sse => "sse",
+        Stdio => "stdio",
+    }
+}
+
+string_enum! {
+    pub enum PolicyState {
+        Draft => "draft",
+        Active => "active",
+        Retired => "retired",
+    }
+}
+
+string_enum! {
+    pub enum GatewayControlRevisionSource {
+        AdminApi => "admin_api",
+        SeedFile => "seed_file",
+    }
+}
+
+string_enum! {
+    pub enum TaskStatus {
+        Queued => "queued",
+        Running => "running",
+        Waiting => "waiting",
+        Succeeded => "succeeded",
+        Failed => "failed",
+        CancelRequested => "cancel_requested",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
+    pub enum RecoveryClass {
+        Resume => "resume",
+        WebhookWait => "webhook_wait",
+        InterruptedIndeterminate => "interrupted_indeterminate",
+    }
+}
+
+string_enum! {
+    pub enum ProviderJobState {
+        Submitted => "submitted",
+        Waiting => "waiting",
+        Succeeded => "succeeded",
+        Failed => "failed",
+        CancelRequested => "cancel_requested",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
+    pub enum ArtifactWriteRedemptionState {
+        Reserved => "reserved",
+        Finalized => "finalized",
+    }
+}
+
+string_enum! {
+    pub enum MediaUsageKind {
+        Estimate => "estimate",
+        Actual => "actual",
+    }
+}
+
+string_enum! {
+    pub enum DomainUsageKind {
+        Estimate => "estimate",
+        Actual => "actual",
+    }
+}
+
+string_enum! {
+    pub enum ArtifactReleaseState {
+        Private => "private",
+        Releasable => "releasable",
+        Released => "released",
+    }
+}
+
+string_enum! {
+    pub enum GrantPermission {
+        Read => "read",
+        Write => "write",
+        Admin => "admin",
+    }
+}
+
+string_enum! {
+    pub enum ArtifactGrantSubjectKind {
+        User => "user",
+        Group => "group",
+    }
+}
+
+string_enum! {
+    pub enum RecordingState {
+        Open => "open",
+        Sealing => "sealing",
+        Sealed => "sealed",
+        Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum SegmentState {
+        Writing => "writing",
+        Frozen => "frozen",
+        Sealed => "sealed",
+        Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum AgentState {
+        Idle => "idle",
+        Running => "running",
+        Waiting => "waiting",
+        Disabled => "disabled",
+        Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum WakeKind {
+        TaskResult => "task_result",
+        ResourceChanged => "resource_changed",
+        Timer => "timer",
+        OperatorMessage => "operator_message",
+        Elicitation => "elicitation",
+    }
+}
+
+string_enum! {
+    pub enum WakeState {
+        Pending => "pending",
+        Claimed => "claimed",
+        Acked => "acked",
+        Coalesced => "coalesced",
+        Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum AgentEpisodeState {
+        Running => "running",
+        Completed => "completed",
+        BudgetTerminated => "budget_terminated",
+        Failed => "failed",
+        Crashed => "crashed",
+    }
+}
+
+string_enum! {
+    pub enum AgentTaskWatchState {
+        Pending => "pending",
+        Watching => "watching",
+        Resolved => "resolved",
+        Failed => "failed",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
+    pub enum AgentElicitationState {
+        Parked => "parked",
+        Answered => "answered",
+        Declined => "declined",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
+    pub enum AuditOutcome {
+        Allowed => "allowed",
+        Denied => "denied",
+        Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum GatewayReplayKind {
+        ClientAssertion => "client_assertion",
+        IdJag => "id_jag",
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct EnterpriseRecord {
+    pub id: RecordId,
+    pub slug: String,
+    pub name: String,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TenantRecord {
+    pub id: RecordId,
+    pub enterprise: RecordId,
+    pub slug: String,
+    pub name: String,
+    pub classification_ceiling: String,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct PrincipalRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub kind: PrincipalKind,
+    pub issuer: String,
+    pub subject: String,
+    pub display_name: String,
+    pub email: Option<String>,
+    pub claims_hash: String,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GroupRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub external_id: String,
+    pub display_name: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct OauthClientRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub client_id: String,
+    pub kind: OauthClientKind,
+    pub display_name: String,
+    pub secret_hash: Option<String>,
+    pub redirect_uris: Vec<String>,
+    pub grant_types: Vec<String>,
+    pub scopes: Vec<String>,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct McpServerRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub server_key: String,
+    pub display_name: String,
+    pub endpoint: String,
+    pub transport: ServerTransport,
+    pub manifest: OpenObject,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ProfileRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub profile_key: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct PolicyRevisionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub policy_key: String,
+    pub revision: i64,
+    pub state: PolicyState,
+    pub content_hash: String,
+    pub document: OpenObject,
+    pub created_by: RecordId,
+    pub created_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayControlRevisionRecord {
+    pub id: RecordId,
+    pub revision_id: String,
+    pub sha256: String,
+    pub source: GatewayControlRevisionSource,
+    pub applied_at: DateTime<Utc>,
+    pub applied_by: String,
+    pub tenant: Option<String>,
+    pub control_plane: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayControlRevisionContent {
+    pub revision_id: String,
+    pub sha256: String,
+    pub source: GatewayControlRevisionSource,
+    pub applied_at: DateTime<Utc>,
+    pub applied_by: String,
+    pub tenant: Option<String>,
+    pub control_plane: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayControlObjectRecord {
+    pub id: RecordId,
+    pub revision: RecordId,
+    pub tenant: Option<String>,
+    pub object_kind: String,
+    pub object_id: String,
+    pub document: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayControlObjectContent {
+    pub revision: RecordId,
+    pub tenant: Option<String>,
+    pub object_kind: String,
+    pub object_id: String,
+    pub document: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayControlActiveRecord {
+    pub id: RecordId,
+    pub revision: RecordId,
+    pub revision_id: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TaskRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub profile: RecordId,
+    pub server: RecordId,
+    pub task_type: String,
+    pub status: TaskStatus,
+    pub recovery_class: RecoveryClass,
+    pub request: OpenObject,
+    pub progress: f64,
+    pub result: Option<OpenObject>,
+    pub error: Option<OpenObject>,
+    pub result_artifact: Option<RecordId>,
+    pub idempotency_key: Option<String>,
+    pub lease_owner: Option<String>,
+    pub lease_expires_at: Option<DateTime<Utc>>,
+    pub cancel_requested_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub retention_expires_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub retention_pins: Vec<String>,
+    pub search_text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TaskIdempotencyRecord {
+    pub id: RecordId,
+    pub task: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub server: RecordId,
+    pub key: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TaskInputRecord {
+    pub id: RecordId,
+    pub task: RecordId,
+    pub request_key: String,
+    pub request: OpenObject,
+    pub response: Option<OpenObject>,
+    pub created_at: DateTime<Utc>,
+    pub responded_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ProviderJobRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub task: RecordId,
+    pub provider: String,
+    pub external_job_id: String,
+    pub state: ProviderJobState,
+    pub provider_payload: OpenObject,
+    pub submitted_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ProviderEventRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub provider_job: RecordId,
+    pub provider: String,
+    pub event_id: String,
+    pub signing_key_id: Option<String>,
+    pub payload: OpenObject,
+    pub received_at: DateTime<Utc>,
+    pub processed_at: Option<DateTime<Utc>>,
+    pub processing_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ArtifactBlobRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub sha256: String,
+    pub byte_len: i64,
+    pub object_key: String,
+    pub content_type: String,
+    pub encryption: OpenObject,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ArtifactOccurrenceRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub blob: RecordId,
+    pub owner: RecordId,
+    pub task: Option<RecordId>,
+    pub filename: Option<String>,
+    pub media_type: String,
+    pub classification: String,
+    pub labels: Vec<String>,
+    pub metadata: OpenObject,
+    pub release_state: ArtifactReleaseState,
+    pub retention_expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub search_text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ShareLinkRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub artifact: RecordId,
+    pub created_by: RecordId,
+    pub token_hash: String,
+    pub permission: GrantPermission,
+    pub expires_at: DateTime<Utc>,
+    pub max_downloads: Option<i64>,
+    pub download_count: i64,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ArtifactWriteCapabilityRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub tenant_key: String,
+    pub owner_key: String,
+    pub owner_kind: PrincipalKind,
+    pub owner_issuer: String,
+    pub owner_subject: String,
+    pub profile_key: String,
+    pub server_key: String,
+    pub task_id: String,
+    pub token_hash: String,
+    pub labels: Vec<String>,
+    pub max_artifact_count: i64,
+    pub max_total_bytes: i64,
+    pub used_artifact_count: i64,
+    pub used_total_bytes: i64,
+    pub expires_at: DateTime<Utc>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ArtifactWriteRedemptionRecord {
+    pub id: RecordId,
+    pub capability: RecordId,
+    pub tenant: RecordId,
+    pub task: RecordId,
+    pub task_id: String,
+    pub idempotency_key: String,
+    pub request_hash: String,
+    pub byte_len: i64,
+    pub artifact: RecordId,
+    pub state: ArtifactWriteRedemptionState,
+    pub reserved_at: DateTime<Utc>,
+    pub finalized_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MediaTaskContextRecord {
+    pub id: RecordId,
+    pub task: RecordId,
+    pub tenant: RecordId,
+    pub capability: RecordId,
+    pub capability_secret: RedactedSecret,
+    pub capability_expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MediaUsageRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub task: RecordId,
+    pub provider_job: Option<RecordId>,
+    pub source_id: Option<String>,
+    pub model_id: String,
+    pub kind: MediaUsageKind,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub amount: Option<f64>,
+    pub currency: Option<String>,
+    pub metadata: OpenObject,
+    pub recorded_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct DomainUsageRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub task: RecordId,
+    pub server: RecordId,
+    pub source_id: Option<String>,
+    pub provider_job_id: Option<String>,
+    pub model_id: String,
+    pub kind: DomainUsageKind,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub amount: Option<f64>,
+    pub currency: Option<String>,
+    pub metadata: OpenObject,
+    pub recorded_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct FrameRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub frame_key: String,
+    pub display_name: String,
+    pub definition: OpenObject,
+    pub proj_pipeline: Option<String>,
+    pub classification: String,
+    pub labels: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct CoordinateOperationRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub task: Option<RecordId>,
+    pub operation_key: String,
+    pub kind: String,
+    pub provenance: OpenObject,
+    pub classification: String,
+    pub labels: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub dataset: String,
+    pub application_id: String,
+    pub recording_key: String,
+    pub state: RecordingState,
+    pub classification: String,
+    pub labels: Vec<String>,
+    pub metadata: OpenObject,
+    pub manifest_artifact: Option<RecordId>,
+    pub seal_task: Option<RecordId>,
+    pub failure_reason: Option<String>,
+    pub started_at: DateTime<Utc>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct SegmentRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub recording: RecordId,
+    pub segment_key: String,
+    pub ordinal: i64,
+    pub relative_path: String,
+    pub artifact: Option<RecordId>,
+    pub state: SegmentState,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub byte_len: i64,
+    pub message_count: i64,
+    pub sha256: Option<String>,
+    pub failure_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct AgentRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub agent_key: String,
+    pub display_name: String,
+    pub profile: RecordId,
+    pub state: AgentState,
+    pub manifest: OpenObject,
+    pub memory_database: String,
+    pub last_episode: Option<RecordId>,
+    pub next_episode_sequence: i64,
+    pub lease_owner: Option<String>,
+    pub lease_expires_at: Option<DateTime<Utc>>,
+    pub heartbeat_at: Option<DateTime<Utc>>,
+    pub fence: i64,
+    pub revision: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WakeRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub agent: RecordId,
+    pub kind: WakeKind,
+    pub state: WakeState,
+    pub dedupe_key: Option<String>,
+    pub payload: OpenObject,
+    pub available_at: DateTime<Utc>,
+    pub claimed_by: Option<String>,
+    pub claimed_at: Option<DateTime<Utc>>,
+    pub claim_expires_at: Option<DateTime<Utc>>,
+    pub claim_fence: Option<i64>,
+    pub attempts: i64,
+    pub acked_at: Option<DateTime<Utc>>,
+    pub acked_by_episode: Option<RecordId>,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: i64,
+    pub coalesced_into: Option<RecordId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct AgentEpisodeRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub agent: RecordId,
+    pub sequence: i64,
+    pub retention_pin: String,
+    pub wake_note: String,
+    pub state: AgentEpisodeState,
+    pub final_output: Option<String>,
+    pub summary: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub completion_calls: i64,
+    pub tool_calls: i64,
+    pub error: Option<String>,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct AgentTaskRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub agent: RecordId,
+    pub task: RecordId,
+    pub tool_name: String,
+    pub descriptor: OpenObject,
+    pub descriptor_complete: bool,
+    pub state: AgentTaskWatchState,
+    pub result: Option<OpenObject>,
+    pub result_is_error: bool,
+    pub result_wake: Option<RecordId>,
+    pub retention_pin: String,
+    pub retention_pin_active: bool,
+    pub attempt_count: i64,
+    pub next_retry_at: DateTime<Utc>,
+    pub lease_owner: Option<String>,
+    pub lease_expires_at: Option<DateTime<Utc>>,
+    pub started_by_episode: RecordId,
+    pub consumed_by_episode: Option<RecordId>,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct AgentElicitationRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub agent: RecordId,
+    pub related_task: Option<RecordId>,
+    pub message: String,
+    pub requested_schema: Option<OpenObject>,
+    pub state: AgentElicitationState,
+    pub answer: Option<OpenObject>,
+    pub answered_by: Option<String>,
+    pub requested_at: DateTime<Utc>,
+    pub answered_at: Option<DateTime<Utc>>,
+    pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayResourceSubscriptionRecord {
+    pub id: RecordId,
+    pub profile: String,
+    pub owner: String,
+    pub upstream_server: String,
+    pub resource_uri: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub payload: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayJwtRevocationRecord {
+    pub id: RecordId,
+    pub profile: String,
+    pub issuer: String,
+    pub jwt_id: String,
+    pub revoked_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub reason: Option<String>,
+    pub payload: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayReplayRecord {
+    pub id: RecordId,
+    pub kind: GatewayReplayKind,
+    pub authorization_server: String,
+    pub client_id: String,
+    pub jwt_id: String,
+    pub seen_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayAuthorizationRequestRecord {
+    pub id: RecordId,
+    pub idp_state: String,
+    pub profile: String,
+    pub oauth_client_id: String,
+    pub oidc_client: String,
+    pub redirect_uri: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub payload: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayAuthorizationCodeStateRecord {
+    pub id: RecordId,
+    pub code: String,
+    pub profile: String,
+    pub oauth_client_id: String,
+    pub oidc_client: String,
+    pub principal: String,
+    pub redirect_uri: String,
+    pub issued_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub consumed_at: Option<DateTime<Utc>>,
+    pub payload: OpenObject,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayRefreshFamilyRecord {
+    pub id: RecordId,
+    pub authorization_server: String,
+    pub profile: String,
+    pub oauth_client_id: String,
+    pub principal_id: String,
+    pub tenant: Option<String>,
+    pub scopes: Vec<String>,
+    pub principal: OpenObject,
+    pub current_generation: i64,
+    pub issued_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub revocation_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct GatewayRefreshTokenRecord {
+    pub id: RecordId,
+    pub family: RecordId,
+    pub token_hash: String,
+    pub generation: i64,
+    pub issued_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub consumed_at: Option<DateTime<Utc>>,
+    pub replacement: Option<RecordId>,
+    pub replay_detected_at: Option<DateTime<Utc>>,
+    pub delivery_envelope: Option<RedactedSecret>,
+    pub delivery_expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct AuditEventRecord {
+    pub id: RecordId,
+    pub tenant: Option<RecordId>,
+    pub actor: Option<RecordId>,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: Option<String>,
+    pub outcome: AuditOutcome,
+    pub request_id: Option<String>,
+    pub trace_id: Option<String>,
+    pub source_ip: Option<String>,
+    pub details: OpenObject,
+    pub occurred_at: DateTime<Utc>,
+    pub search_text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct OutboxEventRecord {
+    pub id: RecordId,
+    pub sequence: i64,
+    pub tenant: Option<RecordId>,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub event_type: String,
+    pub schema_version: i64,
+    pub payload: OpenObject,
+    pub occurred_at: DateTime<Utc>,
+    pub available_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MembershipEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub role: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ArtifactGrantEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub subject_kind: ArtifactGrantSubjectKind,
+    pub subject_key: String,
+    pub permission: GrantPermission,
+    pub labels: Vec<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_by: RecordId,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ProfileServerEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub namespace: String,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct NamedProvenanceEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct DerivationEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub relation: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingSegmentEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub ordinal: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct AgentOwnerEdge {
+    pub id: RecordId,
+    pub r#in: RecordId,
+    pub out: RecordId,
+    pub role: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod tests {
+    use surrealdb::types::{SurrealValue, Value};
+
+    use super::*;
+
+    #[test]
+    fn enum_wire_values_match_schema_literals() {
+        assert_eq!(
+            TaskStatus::CancelRequested.into_value(),
+            Value::String("cancel_requested".to_owned())
+        );
+        assert_eq!(
+            RecoveryClass::InterruptedIndeterminate.into_value(),
+            Value::String("interrupted_indeterminate".to_owned())
+        );
+        assert_eq!(
+            serde_json::to_string(&WakeKind::OperatorMessage).unwrap(),
+            "\"operator_message\""
+        );
+    }
+
+    #[test]
+    fn open_object_rejects_non_objects() {
+        assert!(serde_json::from_str::<OpenObject>(r#"{"key":"value"}"#).is_ok());
+        assert!(serde_json::from_str::<OpenObject>("[]").is_err());
+    }
+}

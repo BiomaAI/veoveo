@@ -180,8 +180,8 @@ GeoJSON/WKT exports, validation reports, Rerun RRD recordings, and other
 durable binary outputs should be stored through the shared artifact plane:
 
 ```text
-artifact://{sha256}                 neutral cross-server artifact identity
-coordinates://artifact/{sha256}     coordinates-presented resource identity
+artifact://{artifact_id}                 neutral cross-server occurrence identity
+coordinates://artifact/{artifact_id}     coordinates-presented resource identity
 ```
 
 The shared artifact plane remains the byte-level policy enforcement point. It
@@ -203,8 +203,8 @@ Implementation implications:
 - Put coordinate-specific provenance in artifact metadata: operation ids,
   source/target frames, source CRS, target CRS, grid package ids, tolerance, and
   approximation status.
-- Accept neutral `artifact://{sha256}` and server-presented
-  `{scheme}://artifact/{sha256}` inputs only through the artifact-plane resolver
+- Accept neutral `artifact://{artifact_id}` and server-presented
+  `{scheme}://artifact/{artifact_id}` inputs only through the artifact-plane resolver
   and normal authorization path.
 - Do not add a coordinates-specific grant ledger or sidecar artifact database.
 
@@ -663,12 +663,12 @@ coordinates://operation/{operation_id}
 Recorded transform operation provenance for a reusable or task-produced result.
 
 ```text
-coordinates://artifact/{sha256}
+coordinates://artifact/{artifact_id}
 ```
 
 Coordinates-presented artifact URI for immutable bytes produced by a task. The
 bytes and grants live in the shared artifact plane; the neutral cross-server
-form is `artifact://{sha256}`.
+form is `artifact://{artifact_id}`.
 
 ```text
 coordinates://usage/task/{task_id}
@@ -745,7 +745,7 @@ The MVP should publish templates for:
 coordinates://frame/{frame_id}
 coordinates://crs/{authority}/{code}
 coordinates://operation/{operation_id}
-coordinates://artifact/{sha256}
+coordinates://artifact/{artifact_id}
 coordinates://usage/task/{task_id}
 ```
 
@@ -806,7 +806,7 @@ Implemented smoke tests cover:
 - `derive_local_frame`, `convert_frame`, `transform_crs`,
   `geodesic_inverse`, `geodesic_direct`, and `validate_geofence`
 - `batch_transform` as an MCP task
-- artifact-plane write/read through `coordinates://artifact/{sha256}`
+- artifact-plane write/read through `coordinates://artifact/{artifact_id}`
 - artifact denial for another principal and another tenant
 - usage reporting through `coordinates://usage/task/{task_id}`
 
@@ -815,7 +815,7 @@ should start the hosted MCP server, connect with the conformance client, list
 resources/templates/prompts/completions/tools, call the direct tools, and run at
 least one task-based batch transform. Artifact smoke coverage should prove that
 bulk outputs are written through `artifact-service`, returned as
-`coordinates://artifact/{sha256}`, and readable only by an authorized principal.
+`coordinates://artifact/{artifact_id}`, and readable only by an authorized principal.
 
 Follow-on tests should add golden fixtures for UTM transforms, grid-backed datum
 operations, FRD/body-frame orientation handling, simulation-world transforms,
@@ -860,6 +860,5 @@ After the MVP proves the contract, likely additions are:
 - Rerun artifact output for transform chains, trajectories, geofence failures,
   and operator visual review.
 - Live frame resources or subscriptions for robot state integration.
-- Compatibility helper tools for clients that cannot surface resources,
-  completions, prompts, or tasks, implemented only as projections over the
-  canonical protocol surfaces.
+- Additional domain tools only when they preserve the canonical typed frame,
+  operation, task, policy, audit, and artifact identities.

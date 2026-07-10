@@ -30,6 +30,8 @@ pub struct AuthorizationServerMetadata {
     pub authorization_endpoint: Option<String>,
     pub token_endpoint: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revocation_endpoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jwks_uri: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes_supported: Vec<String>,
@@ -43,6 +45,8 @@ pub struct AuthorizationServerMetadata {
     pub token_endpoint_auth_methods_supported: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub token_endpoint_auth_signing_alg_values_supported: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub revocation_endpoint_auth_methods_supported: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub authorization_grant_profiles_supported: Vec<String>,
 }
@@ -130,11 +134,9 @@ impl GatewayCatalog {
             .flat_map(|client| client.auth_methods.iter().copied())
             .map(oauth_client_auth_method_name)
             .collect::<BTreeSet<_>>();
-        let grant_types = profile
-            .auth_modes
+        let grant_types = clients
             .iter()
-            .copied()
-            .map(OAuthGrantType::from)
+            .flat_map(|client| client.grant_types.iter().copied())
             .map(oauth_grant_type_name)
             .collect::<BTreeSet<_>>();
         let supports_authorization_code = profile
@@ -145,6 +147,10 @@ impl GatewayCatalog {
                 .auth_methods
                 .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
         });
+        let supports_public_refresh_revocation = clients.iter().any(|client| {
+            client.grant_types.contains(&OAuthGrantType::RefreshToken)
+                && client.auth_methods.contains(&OAuthClientAuthMethod::None)
+        });
 
         Ok(AuthorizationServerMetadata {
             issuer: authorization_server.issuer.to_string(),
@@ -153,6 +159,12 @@ impl GatewayCatalog {
                 .as_ref()
                 .map(ToString::to_string),
             token_endpoint: authorization_server.token_endpoint.to_string(),
+            revocation_endpoint: supports_public_refresh_revocation.then(|| {
+                format!(
+                    "{}/revoke",
+                    authorization_server.issuer.as_str().trim_end_matches('/')
+                )
+            }),
             jwks_uri: match &authorization_server.jwks {
                 JwksSource::Remote { jwks_uri } => Some(jwks_uri.to_string()),
                 JwksSource::File { .. } => None,
@@ -192,6 +204,11 @@ impl GatewayCatalog {
             } else {
                 Vec::new()
             },
+            revocation_endpoint_auth_methods_supported: if supports_public_refresh_revocation {
+                vec!["none".to_string()]
+            } else {
+                Vec::new()
+            },
             authorization_grant_profiles_supported: if profile
                 .auth_modes
                 .contains(&AuthMode::EnterpriseManagedAuthorization)
@@ -223,10 +240,9 @@ impl GatewayCatalog {
             .iter()
             .flat_map(|profile| profile.auth_modes.iter().copied())
             .collect::<BTreeSet<_>>();
-        let grant_types = auth_modes
+        let grant_types = clients
             .iter()
-            .copied()
-            .map(OAuthGrantType::from)
+            .flat_map(|client| client.grant_types.iter().copied())
             .map(oauth_grant_type_name)
             .collect::<BTreeSet<_>>();
         let scopes = profiles
@@ -239,6 +255,10 @@ impl GatewayCatalog {
                 .auth_methods
                 .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
         });
+        let supports_public_refresh_revocation = clients.iter().any(|client| {
+            client.grant_types.contains(&OAuthGrantType::RefreshToken)
+                && client.auth_methods.contains(&OAuthClientAuthMethod::None)
+        });
 
         Ok(AuthorizationServerMetadata {
             issuer: authorization_server.issuer.to_string(),
@@ -247,6 +267,12 @@ impl GatewayCatalog {
                 .as_ref()
                 .map(ToString::to_string),
             token_endpoint: authorization_server.token_endpoint.to_string(),
+            revocation_endpoint: supports_public_refresh_revocation.then(|| {
+                format!(
+                    "{}/revoke",
+                    authorization_server.issuer.as_str().trim_end_matches('/')
+                )
+            }),
             jwks_uri: match &authorization_server.jwks {
                 JwksSource::Remote { jwks_uri } => Some(jwks_uri.to_string()),
                 JwksSource::File { .. } => None,
@@ -279,6 +305,11 @@ impl GatewayCatalog {
                     "ES384".to_string(),
                     "EdDSA".to_string(),
                 ]
+            } else {
+                Vec::new()
+            },
+            revocation_endpoint_auth_methods_supported: if supports_public_refresh_revocation {
+                vec!["none".to_string()]
             } else {
                 Vec::new()
             },
@@ -341,6 +372,7 @@ fn authorization_extensions(
 fn oauth_grant_type_name(grant_type: OAuthGrantType) -> &'static str {
     match grant_type {
         OAuthGrantType::AuthorizationCodePkce => "authorization_code",
+        OAuthGrantType::RefreshToken => "refresh_token",
         OAuthGrantType::ClientCredentials => "client_credentials",
         OAuthGrantType::EnterpriseManagedAuthorization => {
             "urn:ietf:params:oauth:grant-type:jwt-bearer"

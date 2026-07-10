@@ -1,0 +1,104 @@
+-- Installation, identity, hosted MCP server, profile, and policy state.
+
+DEFINE TABLE IF NOT EXISTS enterprise SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE enterprise TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS slug ON TABLE enterprise TYPE string;
+DEFINE FIELD IF NOT EXISTS name ON TABLE enterprise TYPE string;
+DEFINE FIELD IF NOT EXISTS enabled ON TABLE enterprise TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE enterprise TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE enterprise TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS enterprise_slug_unique ON TABLE enterprise FIELDS slug UNIQUE;
+
+DEFINE TABLE IF NOT EXISTS tenant SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE tenant TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS enterprise ON TABLE tenant TYPE record<enterprise>;
+DEFINE FIELD IF NOT EXISTS slug ON TABLE tenant TYPE string;
+DEFINE FIELD IF NOT EXISTS name ON TABLE tenant TYPE string;
+DEFINE FIELD IF NOT EXISTS classification_ceiling ON TABLE tenant TYPE string;
+DEFINE FIELD IF NOT EXISTS enabled ON TABLE tenant TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE tenant TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE tenant TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS tenant_enterprise_slug_unique ON TABLE tenant FIELDS enterprise, slug UNIQUE;
+DEFINE INDEX IF NOT EXISTS tenant_enterprise_enabled ON TABLE tenant FIELDS enterprise, enabled;
+
+DEFINE TABLE IF NOT EXISTS principal SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE principal TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE principal TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS kind ON TABLE principal TYPE "user" | "service";
+DEFINE FIELD IF NOT EXISTS issuer ON TABLE principal TYPE string;
+DEFINE FIELD IF NOT EXISTS subject ON TABLE principal TYPE string;
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE principal TYPE string;
+DEFINE FIELD IF NOT EXISTS email ON TABLE principal TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS claims_hash ON TABLE principal TYPE string;
+DEFINE FIELD IF NOT EXISTS enabled ON TABLE principal TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE principal TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE principal TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS principal_external_identity_unique ON TABLE principal FIELDS tenant, issuer, subject UNIQUE;
+DEFINE INDEX IF NOT EXISTS principal_tenant_enabled ON TABLE principal FIELDS tenant, enabled;
+
+DEFINE TABLE IF NOT EXISTS principal_group SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE principal_group TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE principal_group TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS external_id ON TABLE principal_group TYPE string;
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE principal_group TYPE string;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE principal_group TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE principal_group TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS principal_group_external_unique ON TABLE principal_group FIELDS tenant, external_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS principal_group_tenant_name ON TABLE principal_group FIELDS tenant, display_name;
+
+DEFINE TABLE IF NOT EXISTS oauth_client SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE oauth_client TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE oauth_client TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS client_id ON TABLE oauth_client TYPE string;
+DEFINE FIELD IF NOT EXISTS kind ON TABLE oauth_client TYPE "public" | "confidential";
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE oauth_client TYPE string;
+DEFINE FIELD IF NOT EXISTS secret_hash ON TABLE oauth_client TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS redirect_uris ON TABLE oauth_client TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS grant_types ON TABLE oauth_client TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS scopes ON TABLE oauth_client TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS enabled ON TABLE oauth_client TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE oauth_client TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE oauth_client TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS oauth_client_tenant_client_unique ON TABLE oauth_client FIELDS tenant, client_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS oauth_client_tenant_enabled ON TABLE oauth_client FIELDS tenant, enabled;
+
+DEFINE TABLE IF NOT EXISTS mcp_server SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE mcp_server TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE mcp_server TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS server_key ON TABLE mcp_server TYPE string;
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE mcp_server TYPE string;
+DEFINE FIELD IF NOT EXISTS endpoint ON TABLE mcp_server TYPE string;
+DEFINE FIELD IF NOT EXISTS transport ON TABLE mcp_server TYPE "streamable_http" | "sse" | "stdio";
+DEFINE FIELD IF NOT EXISTS manifest ON TABLE mcp_server TYPE object FLEXIBLE DEFAULT {};
+DEFINE FIELD IF NOT EXISTS enabled ON TABLE mcp_server TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE mcp_server TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE mcp_server TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS mcp_server_tenant_key_unique ON TABLE mcp_server FIELDS tenant, server_key UNIQUE;
+DEFINE INDEX IF NOT EXISTS mcp_server_tenant_enabled ON TABLE mcp_server FIELDS tenant, enabled;
+
+DEFINE TABLE IF NOT EXISTS profile SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE profile TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE profile TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS profile_key ON TABLE profile TYPE string;
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE profile TYPE string;
+DEFINE FIELD IF NOT EXISTS description ON TABLE profile TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS enabled ON TABLE profile TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE profile TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE profile TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS profile_tenant_key_unique ON TABLE profile FIELDS tenant, profile_key UNIQUE;
+DEFINE INDEX IF NOT EXISTS profile_tenant_enabled ON TABLE profile FIELDS tenant, enabled;
+
+DEFINE TABLE IF NOT EXISTS policy_revision SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE policy_revision TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE policy_revision TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS policy_key ON TABLE policy_revision TYPE string;
+DEFINE FIELD IF NOT EXISTS revision ON TABLE policy_revision TYPE int ASSERT $value > 0;
+DEFINE FIELD IF NOT EXISTS state ON TABLE policy_revision TYPE "draft" | "active" | "retired";
+DEFINE FIELD IF NOT EXISTS content_hash ON TABLE policy_revision TYPE string;
+DEFINE FIELD IF NOT EXISTS document ON TABLE policy_revision TYPE object FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS created_by ON TABLE policy_revision TYPE record<principal>;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE policy_revision TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS published_at ON TABLE policy_revision TYPE option<datetime>;
+DEFINE INDEX IF NOT EXISTS policy_revision_unique ON TABLE policy_revision FIELDS tenant, policy_key, revision UNIQUE;
+DEFINE INDEX IF NOT EXISTS policy_revision_active ON TABLE policy_revision FIELDS tenant, policy_key, state;
+DEFINE INDEX IF NOT EXISTS policy_revision_content_hash ON TABLE policy_revision FIELDS content_hash;

@@ -43,7 +43,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::UnsupportedGrantType,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -68,7 +70,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::InvalidClient,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -91,7 +95,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -119,7 +125,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -142,7 +150,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::InvalidIdentityAssertion,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -165,7 +175,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::InvalidAuthConfig,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -188,7 +200,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::UnknownIdentityProvider,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -214,7 +228,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::IdentityProviderUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -245,7 +261,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::InvalidAuthConfig,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -271,7 +289,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::InvalidIdentityAssertion,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -299,7 +319,9 @@ pub(crate) async fn token_endpoint_id_jag(
                 reason: AuthReasonCode::InvalidIdentityAssertion,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -308,13 +330,17 @@ pub(crate) async fn token_endpoint_id_jag(
             "identity assertion could not be validated",
         );
     }
-    match state.gateway_state.record_id_jag_jti(
-        &authorization_server.id,
-        &client_id,
-        &verified_id_jag.jwt_id,
-        verified_id_jag.expires_at,
-        Utc::now(),
-    ) {
+    match state
+        .gateway_state
+        .record_id_jag_jti(
+            &authorization_server.id,
+            &client_id,
+            &verified_id_jag.jwt_id,
+            verified_id_jag.expires_at,
+            Utc::now(),
+        )
+        .await
+    {
         Ok(true) => {}
         Ok(false) => {
             tracing::warn!(
@@ -334,7 +360,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::IdentityAssertionReplay,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -357,7 +385,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::AuthStateUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -386,7 +416,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::InvalidScope,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -424,7 +456,9 @@ pub(crate) async fn token_endpoint_id_jag(
                     reason: AuthReasonCode::TokenSigningKeyUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -446,7 +480,9 @@ pub(crate) async fn token_endpoint_id_jag(
             reason: AuthReasonCode::AuthAllow,
             started_at,
         },
-    ) {
+    )
+    .await
+    {
         return auth_audit_error_response(err);
     }
 
@@ -459,5 +495,7 @@ pub(crate) async fn token_endpoint_id_jag(
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(" "),
+        refresh_token: None,
+        refresh_token_expires_in: None,
     })
 }

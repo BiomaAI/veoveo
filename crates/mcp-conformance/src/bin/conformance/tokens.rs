@@ -58,7 +58,7 @@ struct IdJagClaims {
     principal_assurances: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct TokenEndpointResponse {
     access_token: String,
     token_type: String,

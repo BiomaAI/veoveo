@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: artifact-service
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: artifact-service
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: artifact-service
+  ports:
+    - name: http
+      port: 8790
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: artifact-service
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: artifact-service
+spec:
+  replicas: {{ .Values.artifactService.replicas }}
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: artifact-service
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: artifact-service
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: artifact-service
+          image: {{ include "veoveo.image" (list . .Values.artifactService.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: ARTIFACT_SERVICE_BIND
+              value: 0.0.0.0:8790
+            - name: ARTIFACT_PUBLIC_BASE_URL
+              value: {{ .Values.global.publicBaseUrl | trimSuffix "/" | quote }}
+            - name: ARTIFACT_ALLOWED_AUDIENCES
+              value: {{ .Values.artifactService.allowedAudiences | quote }}
+            - name: ARTIFACT_STORE
+              value: s3
+            {{- if eq .Values.objectStore.mode "rustfs" }}
+            - name: ARTIFACT_S3_ENDPOINT
+              value: http://rustfs:9000
+            - name: ARTIFACT_S3_PUBLIC_ENDPOINT
+              value: {{ required "objectStore.rustfs.publicEndpoint is required" .Values.objectStore.rustfs.publicEndpoint | quote }}
+            - name: ARTIFACT_S3_BUCKET
+              value: {{ .Values.objectStore.rustfs.bucket | quote }}
+            - name: ARTIFACT_S3_REGION
+              value: us-east-1
+            - name: ARTIFACT_S3_ALLOW_HTTP
+              value: "true"
+            {{- else }}
+            - name: ARTIFACT_S3_ENDPOINT
+              value: {{ required "objectStore.externalS3.endpoint is required" .Values.objectStore.externalS3.endpoint | quote }}
+            - name: ARTIFACT_S3_PUBLIC_ENDPOINT
+              value: {{ required "objectStore.externalS3.publicEndpoint is required" .Values.objectStore.externalS3.publicEndpoint | quote }}
+            - name: ARTIFACT_S3_BUCKET
+              value: {{ required "objectStore.externalS3.bucket is required" .Values.objectStore.externalS3.bucket | quote }}
+            - name: ARTIFACT_S3_REGION
+              value: {{ .Values.objectStore.externalS3.region | quote }}
+            - name: ARTIFACT_S3_ALLOW_HTTP
+              value: {{ .Values.objectStore.externalS3.allowHttp | quote }}
+            {{- end }}
+            - name: ARTIFACT_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: object-store-access-key
+            - name: ARTIFACT_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: object-store-secret-key
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-artifact-service
+          ports:
+            - name: http
+              containerPort: 8790
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.artifactService.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

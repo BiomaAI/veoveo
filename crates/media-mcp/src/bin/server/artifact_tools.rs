@@ -14,7 +14,7 @@ const MAX_INLINE_ARTIFACT_BYTES: u64 = 3 * 1024 * 1024;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub(super) struct ArtifactArgs {
-    /// Canonical artifact resource URI, e.g. media://artifact/{sha256}.
+    /// Canonical artifact resource URI, e.g. media://artifact/{artifact_id}.
     pub(super) artifact_uri: String,
 }
 
@@ -29,18 +29,18 @@ pub(super) async fn artifact_result(
     args: ArtifactArgs,
     context: &RequestContext<RoleServer>,
 ) -> Result<CallToolResult, McpError> {
-    let sha256 = uris::parse_artifact_uri(&args.artifact_uri).ok_or_else(|| {
-        McpError::invalid_params("artifact_uri must be media://artifact/{sha256}", None)
+    let artifact_id = uris::parse_artifact_uri(&args.artifact_uri).ok_or_else(|| {
+        McpError::invalid_params("artifact_uri must be media://artifact/{artifact_id}", None)
     })?;
     // The plane enforces access with the caller's identity.
     let caller = internal_caller(context)?;
     let artifact = state
         .artifacts
-        .get(&caller, sha256)
+        .get(&caller, &artifact_id)
         .await
         .map_err(|err| McpError::internal_error(err.to_string(), None))?
         .ok_or_else(|| {
-            McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
+            McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
         })?;
 
     let metadata = artifact.metadata.without_download_url();
@@ -78,7 +78,7 @@ pub(super) async fn artifact_result(
 #[cfg(test)]
 mod tests {
     use rmcp::model::ContentBlock;
-    use veoveo_mcp_contract::{ArtifactMetadata, now_utc};
+    use veoveo_mcp_contract::{ArtifactId, ArtifactMetadata, ArtifactReleaseState, now_utc};
 
     use super::ArtifactOutput;
 
@@ -86,13 +86,14 @@ mod tests {
     fn artifact_output_redacts_download_url() {
         let output = ArtifactOutput {
             artifact: ArtifactMetadata {
-                sha256: "a".repeat(64),
+                artifact_id: ArtifactId::new(),
                 byte_len: 1,
                 mime_type: Some("image/png".to_string()),
                 filename: None,
-                artifact_uri: format!("media://artifact/{}", "a".repeat(64)),
+                artifact_uri: ArtifactId::new().plane_uri(),
                 download_url: Some("https://example.com/internal".to_string()),
                 created_at: now_utc(),
+                release_state: ArtifactReleaseState::Private,
                 compliance: Default::default(),
                 metadata: serde_json::Value::Null,
             }

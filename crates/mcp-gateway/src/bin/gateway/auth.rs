@@ -112,7 +112,9 @@ pub(super) async fn authenticate_mcp(
             AuthReasonCode::UnknownAuthorizationServer,
             None,
             started_at,
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return unauthorized(&state, profile, "unknown authorization server");
@@ -130,7 +132,9 @@ pub(super) async fn authenticate_mcp(
             AuthReasonCode::MissingAuthorizationHeader,
             None,
             started_at,
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return unauthorized(&state, profile, "missing authorization header");
@@ -146,7 +150,9 @@ pub(super) async fn authenticate_mcp(
                 AuthReasonCode::InvalidAuthorizationHeader,
                 None,
                 started_at,
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return unauthorized(&state, profile, "invalid authorization header");
@@ -165,7 +171,9 @@ pub(super) async fn authenticate_mcp(
                 AuthReasonCode::AuthorizationServerUnavailable,
                 None,
                 started_at,
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return unauthorized(&state, profile, "authorization server unavailable");
@@ -187,7 +195,9 @@ pub(super) async fn authenticate_mcp(
                 AuthReasonCode::InvalidAuthConfig,
                 None,
                 started_at,
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -204,19 +214,25 @@ pub(super) async fn authenticate_mcp(
                 AuthReasonCode::InvalidBearerToken,
                 None,
                 started_at,
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return unauthorized(&state, profile, "invalid bearer token");
         }
     };
     if let Some(jwt_id) = &subject.access_token.jwt_id {
-        match state.gateway_state.jwt_revocation(
-            &profile.id,
-            &subject.access_token.issuer,
-            jwt_id,
-            Utc::now(),
-        ) {
+        match state
+            .gateway_state
+            .jwt_revocation(
+                &profile.id,
+                &subject.access_token.issuer,
+                jwt_id,
+                Utc::now(),
+            )
+            .await
+        {
             Ok(Some(_revocation)) => {
                 tracing::warn!(
                     profile = %profile.id,
@@ -231,7 +247,9 @@ pub(super) async fn authenticate_mcp(
                     AuthReasonCode::TokenRevoked,
                     Some(&subject),
                     started_at,
-                ) {
+                )
+                .await
+                {
                     return auth_audit_error_response(err);
                 }
                 return unauthorized(&state, profile, "token revoked");
@@ -246,7 +264,9 @@ pub(super) async fn authenticate_mcp(
                     AuthReasonCode::AuthStateUnavailable,
                     Some(&subject),
                     started_at,
-                ) {
+                )
+                .await
+                {
                     return auth_audit_error_response(err);
                 }
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -260,7 +280,9 @@ pub(super) async fn authenticate_mcp(
         AuthReasonCode::AuthAllow,
         Some(&subject),
         started_at,
-    ) {
+    )
+    .await
+    {
         return auth_audit_error_response(err);
     }
 

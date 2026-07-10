@@ -16,7 +16,7 @@ use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
 
 pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 struct AccessTokenClaims {
     iss: String,
     sub: String,
@@ -41,10 +41,19 @@ struct AccessTokenClaims {
     principal_assurances: Vec<String>,
 }
 
-#[derive(Debug)]
 pub(super) struct IssuedAccessToken {
     pub(super) access_token: String,
     pub(super) jwt_id: JwtId,
+}
+
+impl std::fmt::Debug for IssuedAccessToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("IssuedAccessToken")
+            .field("access_token", &"[REDACTED]")
+            .field("jwt_id", &self.jwt_id)
+            .finish()
+    }
 }
 
 pub(super) async fn issue_client_credentials_access_token(
@@ -196,4 +205,20 @@ async fn access_token_signing_key(
 
 fn unix_seconds(value: i64) -> anyhow::Result<u64> {
     u64::try_from(value).map_err(|_| anyhow!("timestamp before Unix epoch"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn issued_access_token_debug_redacts_bearer_value() {
+        let issued = IssuedAccessToken {
+            access_token: "sensitive-access-token".to_owned(),
+            jwt_id: JwtId::new("test-jwt-id").unwrap(),
+        };
+        let debug = format!("{issued:?}");
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("sensitive-access-token"));
+    }
 }

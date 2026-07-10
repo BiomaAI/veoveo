@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM rust:1.96-slim AS builder
+FROM rust:1.96.1-slim AS builder
 
 WORKDIR /app
 RUN apt-get update \
@@ -8,6 +8,7 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo ./.cargo
 COPY crates ./crates
+COPY showcase/sumo/mcp ./showcase/sumo/mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
@@ -20,7 +21,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM debian:trixie-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so

@@ -7,15 +7,19 @@
 //! datasets. Files are the record, the proxy is the bus, the catalog is the
 //! reading room.
 
+pub mod catalog;
 pub mod config;
 pub mod query;
 pub mod sim;
 pub mod spool;
 
+pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
-pub use query::{QueryResult, collect_segments, query_tree};
+pub use query::{QueryResult, collect_segments, query_segments, query_tree};
 pub use sim::{
-    StackReport, Generator, LatLon, Sample, SensorStack, SensorId, SensorKind, SensorReport,
-    SensorSpec, TrackPattern, Wave,
+    Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,
+    StackReport, TrackPattern, Wave,
 };
-pub use spool::{Counters, SegmentKey, Spooler, run_blocking};
+pub use spool::{
+    Counters, FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey, Spooler, run_blocking,
+};

@@ -1,216 +1,260 @@
-//! Artifact byte storage: tenant-scoped keys over an S3-compatible object store,
-//! with per-tenant encryption applied transparently.
+//! Artifact byte storage and controlled bulk-download delivery.
 
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
-use object_store::{ObjectStore, ObjectStoreExt, PutPayload, path::Path};
-use veoveo_mcp_contract::{ArtifactSha256, TenantId, tenant_scoped_object_key};
+use axum::body::Bytes;
+use futures::{Stream, StreamExt};
+use object_store::signer::Signer;
+use object_store::{Attribute, Attributes, ObjectStore, ObjectStoreExt, PutPayload, path::Path};
 
-use crate::crypto::{CryptoError, TenantCipher};
+pub const SIGNED_DOWNLOAD_TTL: Duration = Duration::from_secs(60);
 
-/// Byte-level storage keyed by `(tenant, sha)`. The trait keeps the service
-/// testable without a real object store or S3.
+pub type BlobStream = Pin<Box<dyn Stream<Item = Result<Bytes, BlobStoreError>> + Send + 'static>>;
+
+pub enum BlobDownload {
+    SignedRedirect(String),
+    Stream(BlobStream),
+}
+
+/// Storage is addressed only by opaque internal object keys. Public callers
+/// never supply a key and never receive one in artifact metadata.
 pub trait BlobStore: Send + Sync {
     fn put(
         &self,
-        tenant: &TenantId,
-        sha: &ArtifactSha256,
-        plaintext: Vec<u8>,
+        object_key: &str,
+        bytes: Vec<u8>,
     ) -> impl std::future::Future<Output = Result<(), BlobStoreError>> + Send;
 
-    fn get(
+    fn get_bounded(
         &self,
-        tenant: &TenantId,
-        sha: &ArtifactSha256,
+        object_key: &str,
+        max_bytes: u64,
     ) -> impl std::future::Future<Output = Result<Vec<u8>, BlobStoreError>> + Send;
+
+    fn download(
+        &self,
+        object_key: &str,
+    ) -> impl std::future::Future<Output = Result<BlobDownload, BlobStoreError>> + Send;
 
     fn delete(
         &self,
-        tenant: &TenantId,
-        sha: &ArtifactSha256,
+        object_key: &str,
     ) -> impl std::future::Future<Output = Result<(), BlobStoreError>> + Send;
 }
 
 #[derive(Debug)]
 pub enum BlobStoreError {
     NotFound,
-    Crypto(CryptoError),
+    TooLarge { actual: u64, limit: u64 },
     Backend(String),
 }
 
 impl std::fmt::Display for BlobStoreError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NotFound => f.write_str("artifact bytes not found"),
-            Self::Crypto(e) => write!(f, "crypto error: {e}"),
-            Self::Backend(m) => write!(f, "object store error: {m}"),
+            Self::NotFound => formatter.write_str("artifact bytes not found"),
+            Self::TooLarge { actual, limit } => {
+                write!(
+                    formatter,
+                    "artifact is {actual} bytes; bounded read limit is {limit}"
+                )
+            }
+            Self::Backend(message) => write!(formatter, "object store error: {message}"),
         }
     }
 }
 
 impl std::error::Error for BlobStoreError {}
 
-/// The production store: encrypt per tenant, then write to the object store at
-/// the tenant-scoped key.
+/// Object-store implementation. S3-compatible stores provide a signer;
+/// filesystem/memory stores stream the object in bounded chunks.
 #[derive(Clone)]
-pub struct EncryptedObjectStore {
+pub struct ArtifactObjectStore {
     inner: Arc<dyn ObjectStore>,
-    cipher: TenantCipher,
+    signer: Option<Arc<dyn Signer>>,
 }
 
-impl EncryptedObjectStore {
-    pub fn new(inner: Arc<dyn ObjectStore>, cipher: TenantCipher) -> Self {
-        Self { inner, cipher }
+impl ArtifactObjectStore {
+    pub fn new(inner: Arc<dyn ObjectStore>) -> Self {
+        Self {
+            inner,
+            signer: None,
+        }
     }
 
-    fn path(tenant: &TenantId, sha: &ArtifactSha256) -> Path {
-        Path::from(tenant_scoped_object_key(tenant, sha))
+    pub fn with_signer(inner: Arc<dyn ObjectStore>, signer: Arc<dyn Signer>) -> Self {
+        Self {
+            inner,
+            signer: Some(signer),
+        }
     }
-}
 
-impl BlobStore for EncryptedObjectStore {
-    async fn put(
-        &self,
-        tenant: &TenantId,
-        sha: &ArtifactSha256,
-        plaintext: Vec<u8>,
-    ) -> Result<(), BlobStoreError> {
-        let blob = self
-            .cipher
-            .encrypt(tenant, &plaintext)
-            .map_err(BlobStoreError::Crypto)?;
+    fn path(object_key: &str) -> Result<Path, BlobStoreError> {
+        Path::parse(object_key).map_err(|error| BlobStoreError::Backend(error.to_string()))
+    }
+
+    async fn get(&self, object_key: &str) -> Result<object_store::GetResult, BlobStoreError> {
         self.inner
-            .put(&Self::path(tenant, sha), PutPayload::from(blob))
+            .get(&Self::path(object_key)?)
             .await
-            .map_err(|e| BlobStoreError::Backend(e.to_string()))?;
+            .map_err(map_store_error)
+    }
+}
+
+impl BlobStore for ArtifactObjectStore {
+    async fn put(&self, object_key: &str, bytes: Vec<u8>) -> Result<(), BlobStoreError> {
+        let path = Self::path(object_key)?;
+        let payload = PutPayload::from(bytes);
+        if self.signer.is_some() {
+            let attributes = Attributes::from_iter([
+                (Attribute::CacheControl, "no-store"),
+                (Attribute::ContentDisposition, "attachment"),
+                (Attribute::ContentType, "application/octet-stream"),
+            ]);
+            self.inner
+                .put_opts(&path, payload, attributes.into())
+                .await
+                .map_err(map_store_error)?;
+        } else {
+            self.inner
+                .put(&path, payload)
+                .await
+                .map_err(map_store_error)?;
+        }
         Ok(())
     }
 
-    async fn get(
+    async fn get_bounded(
         &self,
-        tenant: &TenantId,
-        sha: &ArtifactSha256,
+        object_key: &str,
+        max_bytes: u64,
     ) -> Result<Vec<u8>, BlobStoreError> {
-        let path = Self::path(tenant, sha);
-        let get = self.inner.get(&path).await.map_err(|e| match e {
-            object_store::Error::NotFound { .. } => BlobStoreError::NotFound,
-            other => BlobStoreError::Backend(other.to_string()),
-        })?;
-        let bytes = get
+        let result = self.get(object_key).await?;
+        if result.meta.size > max_bytes {
+            return Err(BlobStoreError::TooLarge {
+                actual: result.meta.size,
+                limit: max_bytes,
+            });
+        }
+        result
             .bytes()
             .await
-            .map_err(|e| BlobStoreError::Backend(e.to_string()))?;
-        self.cipher
-            .decrypt(tenant, &bytes)
-            .map_err(BlobStoreError::Crypto)
+            .map(|bytes| bytes.to_vec())
+            .map_err(map_store_error)
     }
 
-    async fn delete(&self, tenant: &TenantId, sha: &ArtifactSha256) -> Result<(), BlobStoreError> {
-        match self.inner.delete(&Self::path(tenant, sha)).await {
-            Ok(()) => Ok(()),
-            Err(object_store::Error::NotFound { .. }) => Ok(()),
-            Err(other) => Err(BlobStoreError::Backend(other.to_string())),
+    async fn download(&self, object_key: &str) -> Result<BlobDownload, BlobStoreError> {
+        let path = Self::path(object_key)?;
+        if let Some(signer) = &self.signer {
+            let url = signer
+                .signed_url(axum::http::Method::GET, &path, SIGNED_DOWNLOAD_TTL)
+                .await
+                .map_err(map_store_error)?;
+            return Ok(BlobDownload::SignedRedirect(url.to_string()));
         }
+        let stream = self
+            .inner
+            .get(&path)
+            .await
+            .map_err(map_store_error)?
+            .into_stream()
+            .map(|result| result.map_err(map_store_error));
+        Ok(BlobDownload::Stream(Box::pin(stream)))
+    }
+
+    async fn delete(&self, object_key: &str) -> Result<(), BlobStoreError> {
+        match self.inner.delete(&Self::path(object_key)?).await {
+            Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(()),
+            Err(error) => Err(map_store_error(error)),
+        }
+    }
+}
+
+fn map_store_error(error: object_store::Error) -> BlobStoreError {
+    match error {
+        object_store::Error::NotFound { .. } => BlobStoreError::NotFound,
+        other => BlobStoreError::Backend(other.to_string()),
     }
 }
 
 #[cfg(test)]
 pub(crate) mod testing {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
-
     use super::*;
 
-    /// In-memory blob store for unit tests (no encryption seam needed since the
-    /// crypto layer is tested separately).
-    #[derive(Default)]
+    #[derive(Clone, Default)]
     pub struct InMemoryBlobStore {
-        blobs: Mutex<HashMap<String, Vec<u8>>>,
+        inner: ArtifactObjectStore,
     }
 
-    impl InMemoryBlobStore {
-        fn key(tenant: &TenantId, sha: &ArtifactSha256) -> String {
-            tenant_scoped_object_key(tenant, sha)
+    impl Default for ArtifactObjectStore {
+        fn default() -> Self {
+            Self::new(Arc::new(object_store::memory::InMemory::new()))
         }
     }
 
     impl BlobStore for InMemoryBlobStore {
-        async fn put(
-            &self,
-            tenant: &TenantId,
-            sha: &ArtifactSha256,
-            plaintext: Vec<u8>,
-        ) -> Result<(), BlobStoreError> {
-            self.blobs
-                .lock()
-                .unwrap()
-                .insert(Self::key(tenant, sha), plaintext);
-            Ok(())
+        async fn put(&self, object_key: &str, bytes: Vec<u8>) -> Result<(), BlobStoreError> {
+            self.inner.put(object_key, bytes).await
         }
 
-        async fn get(
+        async fn get_bounded(
             &self,
-            tenant: &TenantId,
-            sha: &ArtifactSha256,
+            object_key: &str,
+            max_bytes: u64,
         ) -> Result<Vec<u8>, BlobStoreError> {
-            self.blobs
-                .lock()
-                .unwrap()
-                .get(&Self::key(tenant, sha))
-                .cloned()
-                .ok_or(BlobStoreError::NotFound)
+            self.inner.get_bounded(object_key, max_bytes).await
         }
 
-        async fn delete(
-            &self,
-            tenant: &TenantId,
-            sha: &ArtifactSha256,
-        ) -> Result<(), BlobStoreError> {
-            self.blobs.lock().unwrap().remove(&Self::key(tenant, sha));
-            Ok(())
+        async fn download(&self, object_key: &str) -> Result<BlobDownload, BlobStoreError> {
+            self.inner.download(object_key).await
+        }
+
+        async fn delete(&self, object_key: &str) -> Result<(), BlobStoreError> {
+            self.inner.delete(object_key).await
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use futures::TryStreamExt;
+
     use super::testing::InMemoryBlobStore;
     use super::*;
-    use crate::crypto::MasterKey;
-    use object_store::memory::InMemory;
-
-    fn sha() -> ArtifactSha256 {
-        ArtifactSha256::new("b".repeat(64)).unwrap()
-    }
 
     #[tokio::test]
-    async fn encrypted_store_round_trips_and_isolates_tenants() {
-        let cipher = TenantCipher::new(
-            MasterKey::new(b"a-32-byte-master-key-for-testing".to_vec()).unwrap(),
-        );
-        let store = EncryptedObjectStore::new(Arc::new(InMemory::new()), cipher);
-        let acme = TenantId::new("acme").unwrap();
-        store.put(&acme, &sha(), b"payload".to_vec()).await.unwrap();
-        assert_eq!(store.get(&acme, &sha()).await.unwrap(), b"payload");
-
-        // Another tenant has nothing at its (distinct) key.
-        let other = TenantId::new("beta").unwrap();
-        assert!(matches!(
-            store.get(&other, &sha()).await,
-            Err(BlobStoreError::NotFound)
-        ));
-    }
-
-    #[tokio::test]
-    async fn in_memory_store_round_trips() {
+    async fn bounded_reads_and_streaming_are_separate_paths() {
         let store = InMemoryBlobStore::default();
-        let acme = TenantId::new("acme").unwrap();
-        store.put(&acme, &sha(), b"x".to_vec()).await.unwrap();
-        assert_eq!(store.get(&acme, &sha()).await.unwrap(), b"x");
-        store.delete(&acme, &sha()).await.unwrap();
+        store
+            .put("tenants/acme/blobs/opaque", vec![7; 32])
+            .await
+            .unwrap();
+        assert_eq!(
+            store
+                .get_bounded("tenants/acme/blobs/opaque", 32)
+                .await
+                .unwrap()
+                .len(),
+            32
+        );
         assert!(matches!(
-            store.get(&acme, &sha()).await,
-            Err(BlobStoreError::NotFound)
+            store.get_bounded("tenants/acme/blobs/opaque", 31).await,
+            Err(BlobStoreError::TooLarge { .. })
         ));
+        let BlobDownload::Stream(stream) =
+            store.download("tenants/acme/blobs/opaque").await.unwrap()
+        else {
+            panic!("memory store must use streaming fallback")
+        };
+        let bytes = stream
+            .try_fold(Vec::new(), |mut all, chunk| async move {
+                all.extend_from_slice(&chunk);
+                Ok(all)
+            })
+            .await
+            .unwrap();
+        assert_eq!(bytes, vec![7; 32]);
     }
 }

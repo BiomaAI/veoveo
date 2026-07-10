@@ -1,6 +1,7 @@
 //! Minimal provider API client: model registry and prediction submit.
 
 use chrono::{DateTime, Utc};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -102,6 +103,16 @@ pub struct BillingPrediction {
     pub status: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProviderCancellationReceipt {
+    pub deleted_count: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct ProviderCancellationRequest<'a> {
+    ids: [&'a str; 1],
+}
+
 /// One entry from `GET /api/v3/models`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelEntry {
@@ -136,16 +147,18 @@ impl ModelEntry {
 #[derive(Debug)]
 pub enum ProviderError {
     Http(reqwest::Error),
-    Api { code: i64, message: String },
+    HttpStatus { status: reqwest::StatusCode },
+    Api { code: i64 },
 }
 
 impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProviderError::Http(e) => write!(f, "http error: {e}"),
-            ProviderError::Api { code, message } => {
-                write!(f, "provider api error (code {code}): {message}")
+            ProviderError::HttpStatus { status } => {
+                write!(f, "provider http error (status {status})")
             }
+            ProviderError::Api { code } => write!(f, "provider api error (code {code})"),
         }
     }
 }
@@ -160,11 +173,21 @@ impl From<reqwest::Error> for ProviderError {
 pub struct ProviderClient {
     http: reqwest::Client,
     base: String,
-    api_key: String,
+    api_key: SecretString,
+}
+
+impl std::fmt::Debug for ProviderClient {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProviderClient")
+            .field("base", &self.base)
+            .field("api_key", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
 }
 
 impl ProviderClient {
-    pub fn new(api_key: impl Into<String>) -> Self {
+    pub fn new(api_key: impl Into<SecretString>) -> Self {
         Self {
             http: reqwest::Client::new(),
             base: DEFAULT_BASE_URL.to_string(),
@@ -182,18 +205,11 @@ impl ProviderClient {
     ) -> Result<T, ProviderError> {
         let status = resp.status();
         if !status.is_success() {
-            let message = resp.text().await.unwrap_or_default();
-            return Err(ProviderError::Api {
-                code: status.as_u16() as i64,
-                message,
-            });
+            return Err(ProviderError::HttpStatus { status });
         }
         let env: Envelope<T> = resp.json().await?;
         if env.code != 200 {
-            return Err(ProviderError::Api {
-                code: env.code,
-                message: env.message,
-            });
+            return Err(ProviderError::Api { code: env.code });
         }
         Ok(env.data)
     }
@@ -203,7 +219,7 @@ impl ProviderClient {
         let resp = self
             .http
             .get(format!("{}/api/v3/models", self.base))
-            .bearer_auth(&self.api_key)
+            .bearer_auth(self.api_key.expose_secret())
             .send()
             .await?;
         Self::unwrap_envelope(resp).await
@@ -225,7 +241,7 @@ impl ProviderClient {
         let resp = self
             .http
             .post(url)
-            .bearer_auth(&self.api_key)
+            .bearer_auth(self.api_key.expose_secret())
             .json(input)
             .send()
             .await?;
@@ -241,7 +257,7 @@ impl ProviderClient {
         let resp = self
             .http
             .post(format!("{}/api/v3/billings/search", self.base))
-            .bearer_auth(&self.api_key)
+            .bearer_auth(self.api_key.expose_secret())
             .json(&serde_json::json!({
                 "page": 1,
                 "page_size": 100,
@@ -252,6 +268,25 @@ impl ProviderClient {
             .await?;
         let result: BillingSearchResult = Self::unwrap_envelope(resp).await?;
         Ok(result.items)
+    }
+
+    /// Ask the configured provider to delete one prediction. The provider
+    /// documents deletion, not a compute-stop or billing-refund guarantee, so
+    /// callers must treat the returned count as a best-effort acknowledgement.
+    pub async fn request_cancellation(
+        &self,
+        prediction_id: &str,
+    ) -> Result<ProviderCancellationReceipt, ProviderError> {
+        let resp = self
+            .http
+            .post(format!("{}/api/v3/predictions/delete", self.base))
+            .bearer_auth(self.api_key.expose_secret())
+            .json(&ProviderCancellationRequest {
+                ids: [prediction_id],
+            })
+            .send()
+            .await?;
+        Self::unwrap_envelope(resp).await
     }
 }
 
@@ -271,6 +306,57 @@ fn urlencode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn install_rustls_provider() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
+    #[test]
+    fn provider_client_debug_redacts_api_key() {
+        install_rustls_provider();
+        let client = ProviderClient::new("provider-api-key-sentinel");
+        let debug = format!("{client:?}");
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("provider-api-key-sentinel"));
+    }
+
+    #[tokio::test]
+    async fn provider_http_error_does_not_include_response_body() {
+        use axum::{Router, http::StatusCode, routing::get};
+
+        install_rustls_provider();
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    "/api/v3/models",
+                    get(|| async {
+                        (
+                            StatusCode::UNAUTHORIZED,
+                            "provider-response-secret-sentinel",
+                        )
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let error = ProviderClient::new("request-secret")
+            .with_base(format!("http://{address}"))
+            .list_models()
+            .await
+            .unwrap_err();
+        server.abort();
+
+        let display = error.to_string();
+        let debug = format!("{error:?}");
+        assert!(!display.contains("provider-response-secret-sentinel"));
+        assert!(!debug.contains("provider-response-secret-sentinel"));
+    }
 
     #[test]
     fn urlencode_reserves() {

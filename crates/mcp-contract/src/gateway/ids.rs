@@ -66,6 +66,69 @@ macro_rules! typed_id {
     };
 }
 
+macro_rules! secret_typed_id {
+    ($name:ident, $validator:ident, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(
+            Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+        )]
+        #[serde(try_from = "String", into = "String")]
+        pub struct $name(String);
+
+        impl $name {
+            pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+                let value = value.into();
+                $validator(&value)?;
+                Ok(Self(value))
+            }
+
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str(concat!(stringify!($name), "([REDACTED])"))
+            }
+        }
+
+        impl AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                self.as_str()
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("[REDACTED]")
+            }
+        }
+
+        impl TryFrom<String> for $name {
+            type Error = IdentifierError;
+
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                Self::new(value)
+            }
+        }
+
+        impl FromStr for $name {
+            type Err = IdentifierError;
+
+            fn from_str(value: &str) -> Result<Self, Self::Err> {
+                Self::new(value.to_owned())
+            }
+        }
+
+        impl From<$name> for String {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdentifierError {
     value: String,
@@ -88,6 +151,15 @@ impl fmt::Display for IdentifierError {
 }
 
 impl std::error::Error for IdentifierError {}
+
+fn validate_uuid_v7(value: &str) -> Result<(), IdentifierError> {
+    let uuid = uuid::Uuid::parse_str(value)
+        .map_err(|_| IdentifierError::new(value, "must be a UUIDv7"))?;
+    if uuid.get_version_num() != 7 {
+        return Err(IdentifierError::new(value, "must be a UUIDv7"));
+    }
+    Ok(())
+}
 
 typed_id!(
     ServerSlug,
@@ -229,6 +301,11 @@ typed_id!(
     validate_oauth_authorization_code,
     "Gateway-issued OAuth authorization code exchanged once for a profile access token."
 );
+secret_typed_id!(
+    OAuthRefreshToken,
+    validate_oauth_authorization_code,
+    "Opaque, rotating OAuth refresh token. Only its SHA-256 digest is persisted."
+);
 typed_id!(
     PkceCodeChallenge,
     validate_pkce_code_token,
@@ -245,9 +322,14 @@ typed_id!(
     "Request trace/correlation id used in audit and runtime state."
 );
 typed_id!(
-    GatewayTaskId,
+    CanonicalTaskId,
+    validate_uuid_v7,
+    "Canonical UUIDv7 task id shared by the task authority and every MCP projection."
+);
+typed_id!(
+    ProviderTaskId,
     validate_token_text,
-    "Gateway task id visible to MCP clients."
+    "Provider-server task identifier used by the pre-extension in-process task runtime."
 );
 typed_id!(
     GatewayControlPlaneRevisionId,
@@ -255,9 +337,9 @@ typed_id!(
     "Durable gateway control-plane revision id."
 );
 typed_id!(
-    UpstreamTaskId,
-    validate_token_text,
-    "Task id owned by one hosted upstream MCP server."
+    GatewayRefreshFamilyId,
+    validate_uuid_v7,
+    "Canonical UUIDv7 identity for one rotating OAuth refresh-token family."
 );
 typed_id!(
     McpMethodName,

@@ -9,6 +9,6 @@ path = "src/lib.rs"
 
 [dependencies]
 base64.workspace = true
-reqwest = { workspace = true, features = ["rustls-no-provider", "json"] }
+reqwest = { workspace = true, features = ["rustls-no-provider", "json", "query"] }
 serde_json.workspace = true
 veoveo-mcp-contract = { workspace = true, default-features = false }

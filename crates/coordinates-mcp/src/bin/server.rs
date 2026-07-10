@@ -5,32 +5,27 @@
 //!   task-required `batch_transform`
 //!   templates for frames, CRS metadata, operations, artifacts, and usage
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
-use axum::{
-    Router,
-    extract::{Path as AxumPath, State},
-    http::{
-        HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
-    },
-    middleware,
-    response::IntoResponse,
-    routing::get,
+use std::{
+    collections::BTreeSet,
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::Duration,
 };
+
+use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResult, CancelTaskParams, CancelTaskResult,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock, CreateTaskResult,
-        GetPromptRequestParams, GetPromptResult, GetTaskParams, GetTaskPayloadParams,
-        GetTaskPayloadResult, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListTasksResult, ListToolsResult, PaginatedRequestParams, Prompt,
+        CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
+        GetPromptRequestParams, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
         ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerInfo, Task, TaskStatus, TasksCapability,
+        ResourceTemplate, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -38,9 +33,9 @@ use rmcp::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
 };
-use serde::Serialize;
-use serde_json::{Value, json};
-use tokio::sync::RwLock;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_coordinates_mcp::{
     artifacts::ArtifactRepository,
@@ -48,18 +43,26 @@ use veoveo_coordinates_mcp::{
         BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
         CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput,
-        TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest, Wgs84Position,
+        TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
     },
     engine,
-    state::CoordinatesState,
+    state::{CoordinateScope, CoordinatesState},
     uris,
 };
 use veoveo_mcp_contract::{
-    FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret,
-    Page, ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
-    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
+    CoordinateOperationId, FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
+    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+    Page, ServerSlug, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
+    public_allowed_hosts,
 };
-use veoveo_rrd::RrdFrameDefinition;
+use veoveo_mcp_task_extension::{
+    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
+    task_extension_middleware,
+};
+use veoveo_task_runtime::{
+    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
+    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+};
 
 #[path = "server/app_state.rs"]
 mod app_state;
@@ -75,20 +78,26 @@ mod outputs;
 mod ownership;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/task_extension.rs"]
+mod task_extension;
 
 use app_state::{AppState, update_task};
 use config::Args;
 use host::validate_host;
-use internal_auth::{
-    InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
-};
+use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
+use outputs::usage_record;
 use ownership::{
-    caller_from, internal_caller, internal_identity, require_task_owner, task_owner_allows,
-    task_owner_from_identity,
+    coordinate_scope_from_identity, coordinate_scope_from_runtime, internal_caller,
+    internal_identity, optional_task_owner, require_task_owner, runtime_owner, task_owner_allows,
 };
 use prompts::CoordinatesPrompt;
+use task_extension::CoordinatesTaskExtension;
 
-const MCP_TASK_POLL_INTERVAL_MS: u64 = 1000;
+const MCP_TASK_POLL_INTERVAL_MS: u64 = 3_000;
+const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
+const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
+const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
+const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "coordinates";
 const LIST_PAGE_SIZE: usize = 100;
 const BATCH_ARTIFACT_MIME: &str = "application/json";
@@ -115,7 +124,7 @@ impl CoordinatesMcp {
 
     #[tool(
         title = "Convert coordinate frame",
-        description = "Convert WGS84, ECEF, ENU, and NED coordinates with explicit target frame and origin. Use transform_crs for projected CRS conversion.",
+        description = "Convert WGS84, ECEF, ENU, and NED coordinates using registered frame definitions. Use transform_crs for projected CRS conversion.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ConvertFrameOutput>(),
         annotations(
             read_only_hint = true,
@@ -127,19 +136,20 @@ impl CoordinatesMcp {
     async fn convert_frame(
         &self,
         Parameters(args): Parameters<ConvertFrameRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let target = self
             .state
             .coordinates
-            .require_frame(&args.target_frame)
+            .require_frame(&scope, &args.target_frame)
             .await
             .map_err(invalid_params)?;
-        let origin = resolve_origin(&self.state, &args, &target).await?;
-        let output = engine::convert_frame(args, &target, origin).map_err(invalid_params)?;
-        self.state
-            .coordinates
-            .record_operation(output.provenance.clone())
-            .await;
+        let source_origins = resolve_source_origins(&self.state, &scope, &args).await?;
+        let output =
+            engine::convert_frame(args, &target, &source_origins).map_err(invalid_params)?;
+        record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(
             format!("converted {} point(s)", output.points.len()),
             &output,
@@ -160,12 +170,12 @@ impl CoordinatesMcp {
     async fn transform_crs(
         &self,
         Parameters(args): Parameters<TransformCrsRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let output = engine::transform_crs(args).map_err(invalid_params)?;
-        self.state
-            .coordinates
-            .record_operation(output.provenance.clone())
-            .await;
+        record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(
             format!("transformed {} point(s)", output.points.len()),
             &output,
@@ -186,17 +196,17 @@ impl CoordinatesMcp {
     async fn derive_local_frame(
         &self,
         Parameters(args): Parameters<DeriveLocalFrameRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let output = engine::derive_local_frame(args).map_err(invalid_params)?;
         self.state
             .coordinates
-            .insert_frame(output.frame.clone())
+            .insert_frame(&scope, output.frame.clone())
             .await
             .map_err(invalid_params)?;
-        self.state
-            .coordinates
-            .record_operation(output.provenance.clone())
-            .await;
+        record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(format!("derived frame {}", output.frame.frame_id), &output)
     }
 
@@ -214,12 +224,12 @@ impl CoordinatesMcp {
     async fn geodesic_inverse(
         &self,
         Parameters(args): Parameters<GeodesicInverseRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let output = engine::geodesic_inverse(args).map_err(invalid_params)?;
-        self.state
-            .coordinates
-            .record_operation(output.provenance.clone())
-            .await;
+        record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(format!("distance {:.3} m", output.distance_m), &output)
     }
 
@@ -237,12 +247,12 @@ impl CoordinatesMcp {
     async fn geodesic_direct(
         &self,
         Parameters(args): Parameters<GeodesicDirectRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let output = engine::geodesic_direct(args).map_err(invalid_params)?;
-        self.state
-            .coordinates
-            .record_operation(output.provenance.clone())
-            .await;
+        record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(
             format!(
                 "destination {:.8}, {:.8}",
@@ -266,12 +276,12 @@ impl CoordinatesMcp {
     async fn validate_geofence(
         &self,
         Parameters(args): Parameters<ValidateGeofenceRequest>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let output = engine::validate_geofence(args).map_err(invalid_params)?;
-        self.state
-            .coordinates
-            .record_operation(output.provenance.clone())
-            .await;
+        record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(
             if output.valid {
                 "geofence valid".to_string()
@@ -294,8 +304,7 @@ impl CoordinatesMcp {
             destructive_hint = false,
             idempotent_hint = false,
             open_world_hint = false
-        ),
-        execution(task_support = "required")
+        )
     )]
     async fn batch_transform(
         &self,
@@ -321,39 +330,62 @@ fn invalid_params(err: impl std::fmt::Display) -> McpError {
     McpError::invalid_params(err.to_string(), None)
 }
 
-async fn resolve_origin(
+async fn record_direct_operation(
     state: &AppState,
+    scope: &CoordinateScope,
+    provenance: &veoveo_mcp_contract::CoordinateOperationProvenance,
+) -> Result<(), McpError> {
+    state
+        .coordinates
+        .record_operation(scope, None, provenance)
+        .await
+        .map_err(|error| McpError::internal_error(error.to_string(), None))
+}
+
+async fn resolve_source_origins(
+    state: &AppState,
+    scope: &CoordinateScope,
     request: &ConvertFrameRequest,
-    target: &RrdFrameDefinition,
-) -> Result<Option<Wgs84Position>, McpError> {
-    if let Some(origin) = &request.origin {
-        return Ok(Some(origin.clone()));
-    }
-    if let Some(origin) = &target.origin {
-        return Wgs84Position::try_from(origin.clone())
-            .map(Some)
-            .map_err(|err| McpError::invalid_params(err.to_string(), None));
-    }
+) -> Result<engine::ResolvedFrameOrigins, McpError> {
+    let mut resolved = engine::ResolvedFrameOrigins::default();
+    let mut seen = std::collections::HashSet::new();
     for point in &request.points {
-        let frame_id = match point {
-            CoordinatePoint::Enu(point) => Some(&point.frame_id),
-            CoordinatePoint::Ned(point) => Some(&point.frame_id),
+        let local_frame = match point {
+            CoordinatePoint::Enu(point) => {
+                Some((&point.frame_id, veoveo_mcp_contract::FrameKind::Enu))
+            }
+            CoordinatePoint::Ned(point) => {
+                Some((&point.frame_id, veoveo_mcp_contract::FrameKind::Ned))
+            }
             _ => None,
         };
-        if let Some(frame_id) = frame_id {
+        if let Some((frame_id, expected_kind)) = local_frame
+            && seen.insert(frame_id.clone())
+        {
             let frame = state
                 .coordinates
-                .require_frame(frame_id)
+                .require_frame(scope, frame_id)
                 .await
                 .map_err(invalid_params)?;
-            if let Some(origin) = frame.origin {
-                return Wgs84Position::try_from(origin)
-                    .map(Some)
-                    .map_err(|err| McpError::invalid_params(err.to_string(), None));
+            if frame.kind != expected_kind {
+                return Err(invalid_params(format!(
+                    "point frame `{frame_id}` has kind {:?}, expected {:?}",
+                    frame.kind, expected_kind
+                )));
             }
+            let origin = frame.origin.ok_or_else(|| {
+                invalid_params(format!("local frame `{frame_id}` has no WGS84 origin"))
+            })?;
+            resolved
+                .insert(
+                    frame_id.clone(),
+                    veoveo_coordinates_mcp::contract::Wgs84Position::try_from(origin)
+                        .map_err(invalid_params)?,
+                )
+                .map_err(invalid_params)?;
         }
     }
-    Ok(None)
+    Ok(resolved)
 }
 
 fn mcp_page<T>(
@@ -372,7 +404,6 @@ impl ServerHandler for CoordinatesMcp {
             .enable_prompts()
             .enable_resources()
             .enable_completions()
-            .enable_tasks_with(TasksCapability::server_default())
             .build();
         let mut info = ServerInfo::default();
         info.capabilities = caps;
@@ -402,140 +433,13 @@ impl ServerHandler for CoordinatesMcp {
         })
     }
 
-    async fn enqueue_task(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CreateTaskResult, McpError> {
-        let caller = internal_caller(&context)?;
-        let identity = internal_identity(&context)?;
-        if request.name != "batch_transform" {
-            return Err(McpError::method_not_found::<
-                rmcp::model::CallToolRequestMethod,
-            >());
-        }
-        let args: BatchTransformRequest =
-            serde_json::from_value(Value::Object(request.arguments.clone().unwrap_or_default()))
-                .map_err(|err| {
-                    McpError::invalid_params(
-                        format!("invalid batch_transform arguments: {err}"),
-                        None,
-                    )
-                })?;
-        let progress_token = context.meta.get_progress_token();
-        let ttl = request.task.as_ref().and_then(|task| task.ttl);
-        let task_id = uuid::Uuid::new_v4().to_string();
-        let now = now_iso();
-        let mut task = Task::new(task_id.clone(), TaskStatus::Working, now.clone(), now)
-            .with_status_message("accepted; preparing batch transform")
-            .with_poll_interval(MCP_TASK_POLL_INTERVAL_MS);
-        task.ttl = ttl;
-
-        self.state.tasks.insert(task.clone(), None).await;
-        let owner = task_owner_from_identity(&task_id, &identity);
-        self.state
-            .task_owners
-            .write()
-            .await
-            .insert(task_id.clone(), owner.clone());
-
-        let join = tokio::spawn(run_task(
-            self.state.clone(),
-            context.peer.clone(),
-            task_id.clone(),
-            caller,
-            owner,
-            args,
-            progress_token,
-        ));
-        self.state.tasks.set_join(&task_id, join).await;
-        Ok(CreateTaskResult::new(task).with_meta(related_task_meta(task_id)))
-    }
-
-    async fn list_tasks(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListTasksResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let owners = self.state.task_owners.read().await;
-        let tasks = self
-            .state
-            .tasks
-            .list()
-            .await
-            .into_iter()
-            .filter(|task| {
-                owners
-                    .get(&task.task_id)
-                    .map(|owner| task_owner_allows(owner, &identity))
-                    .unwrap_or(false)
-            })
-            .collect();
-        let page = mcp_page(tasks, request.as_ref())?;
-        let mut result = ListTasksResult::new(page.items);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
-    async fn get_task_info(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .get(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        Ok(GetTaskResult::new(task))
-    }
-
-    async fn get_task_result(
-        &self,
-        request: GetTaskPayloadParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskPayloadResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        match self.state.tasks.await_payload_state(&request.task_id).await {
-            TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
-            TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
-            TaskPayloadState::Cancelled => {
-                Err(McpError::invalid_request("task was cancelled", None))
-            }
-            // await_payload_state blocks until terminal per MCP 2025-11-25;
-            // Running here means the wait logic itself broke.
-            TaskPayloadState::Running => Err(McpError::internal_error(
-                "task payload wait ended while still running",
-                None,
-            )),
-            TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
-        }
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CancelTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .cancel(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        Ok(CancelTaskResult::new(task))
-    }
-
     async fn list_resources(
         &self,
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         let mut resources = vec![
             Resource::new(uris::FRAMES_URI, "frames")
                 .with_title("Coordinate frames")
@@ -550,7 +454,13 @@ impl ServerHandler for CoordinatesMcp {
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
-        for frame in self.state.coordinates.list_frames().await {
+        for frame in self
+            .state
+            .coordinates
+            .list_frames(&scope)
+            .await
+            .map_err(|error| McpError::internal_error(error.to_string(), None))?
+        {
             resources.push(
                 Resource::new(
                     uris::frame_uri(frame.frame_id.as_str()),
@@ -564,22 +474,29 @@ impl ServerHandler for CoordinatesMcp {
                 .with_mime_type("application/json"),
             );
         }
-        let owners = self.state.task_owners.read().await;
-        for task in self.state.tasks.list().await {
-            if owners
-                .get(&task.task_id)
-                .map(|owner| task_owner_allows(owner, &identity))
-                .unwrap_or(false)
-            {
-                resources.push(
-                    Resource::new(
-                        uris::usage_task_uri(&task.task_id),
-                        format!("usage for task {}", task.task_id),
-                    )
-                    .with_description("Usage rows for one coordinates task.")
-                    .with_mime_type("application/json"),
-                );
+        for task_id in self
+            .state
+            .tasks
+            .platform_store()
+            .domain_usage_task_ids(SERVER_SLUG)
+            .await
+            .map_err(|error| McpError::internal_error(error.to_string(), None))?
+        {
+            let task_id = task_id.to_string();
+            let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                continue;
+            };
+            if !task_owner_allows(&owner, &identity) {
+                continue;
             }
+            resources.push(
+                Resource::new(
+                    uris::usage_task_uri(&task_id),
+                    format!("usage for task {task_id}"),
+                )
+                .with_description("Usage rows for one coordinates task.")
+                .with_mime_type("application/json"),
+            );
         }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
@@ -635,26 +552,38 @@ impl ServerHandler for CoordinatesMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
+        let identity = internal_identity(&context)?;
+        let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
         if uri == uris::FRAMES_URI {
-            let frames = self.state.coordinates.list_frames().await;
+            let frames = self
+                .state
+                .coordinates
+                .list_frames(&scope)
+                .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?;
             return json_resource(uri, &frames);
         }
         if uri == uris::CRS_ROOT_URI {
             return json_resource(uri, &engine::builtin_crs_metadata());
         }
         if uri == uris::USAGE_ROOT_URI {
-            let identity = internal_identity(&context)?;
-            let owners = self.state.task_owners.read().await;
             let mut entries = Vec::new();
-            for task in self.state.tasks.list().await {
-                if owners
-                    .get(&task.task_id)
-                    .map(|owner| task_owner_allows(owner, &identity))
-                    .unwrap_or(false)
-                {
+            for task_id in self
+                .state
+                .tasks
+                .platform_store()
+                .domain_usage_task_ids(SERVER_SLUG)
+                .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
+            {
+                let task_id = task_id.to_string();
+                let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
+                    continue;
+                };
+                if task_owner_allows(&owner, &identity) {
                     entries.push(json!({
-                        "task_id": task.task_id,
-                        "usage_uri": uris::usage_task_uri(&task.task_id),
+                        "task_id": task_id,
+                        "usage_uri": uris::usage_task_uri(&task_id),
                     }));
                 }
             }
@@ -666,8 +595,9 @@ impl ServerHandler for CoordinatesMcp {
             let frame = self
                 .state
                 .coordinates
-                .get_frame(&frame_id)
+                .get_frame(&scope, &frame_id)
                 .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 .ok_or_else(|| {
                     McpError::resource_not_found(format!("unknown frame `{frame_id}`"), None)
                 })?;
@@ -677,13 +607,14 @@ impl ServerHandler for CoordinatesMcp {
             return json_resource(uri, &engine::crs_metadata(authority, code));
         }
         if let Some(operation_id) = uris::parse_operation_uri(uri) {
-            let operation_id = veoveo_mcp_contract::CoordinateOperationId::new(operation_id)
+            let operation_id = CoordinateOperationId::new(operation_id)
                 .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
             let operation = self
                 .state
                 .coordinates
-                .get_operation(&operation_id)
+                .get_operation(&scope, &operation_id)
                 .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 .ok_or_else(|| {
                     McpError::resource_not_found(
                         format!("unknown operation `{operation_id}`"),
@@ -694,7 +625,23 @@ impl ServerHandler for CoordinatesMcp {
         }
         if let Some(task_id) = uris::parse_usage_task_uri(uri) {
             require_task_owner(&self.state, &context, task_id).await?;
-            let report: UsageReport = self.state.coordinates.usage_report(task_id).await;
+            let task_uuid = task_id
+                .parse::<veoveo_platform_store::TaskId>()
+                .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+            let records = self
+                .state
+                .tasks
+                .platform_store()
+                .domain_usage_for_task(SERVER_SLUG, task_uuid)
+                .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+            let report: UsageReport = UsageReport::new(task_id, uris::usage_task_uri(task_id))
+                .with_records(
+                    records
+                        .into_iter()
+                        .map(|record| usage_record(task_id, record))
+                        .collect(),
+                );
             if report.records.is_empty() {
                 return Err(McpError::resource_not_found(
                     format!("unknown usage task `{task_id}`"),
@@ -703,16 +650,16 @@ impl ServerHandler for CoordinatesMcp {
             }
             return json_resource(uri, &report);
         }
-        if let Some(sha256) = uris::parse_artifact_uri(uri) {
+        if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
             let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(&caller, sha256)
+                .get(&caller, &artifact_id)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
                 .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact `{sha256}`"), None)
+                    McpError::resource_not_found(format!("unknown artifact `{artifact_id}`"), None)
                 })?;
             let blob = BASE64_STANDARD.encode(&artifact.bytes);
             let mut content = ResourceContents::blob(blob, uri);
@@ -761,17 +708,20 @@ impl ServerHandler for CoordinatesMcp {
     async fn complete(
         &self,
         request: CompleteRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
         let Reference::Resource(res_ref) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
         let values = if res_ref.uri == uris::FRAME_TEMPLATE && request.argument.name == "frame_id" {
             let needle = request.argument.value.to_lowercase();
+            let identity = internal_identity(&context)?;
+            let scope = coordinate_scope_from_identity(&self.state, &identity).await?;
             self.state
                 .coordinates
-                .list_frames()
+                .list_frames(&scope)
                 .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 .into_iter()
                 .map(|frame| frame.frame_id.to_string())
                 .filter(|frame| frame.to_lowercase().contains(&needle))
@@ -808,136 +758,260 @@ fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResul
     ]))
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct BatchTaskRequest {
+    args: BatchTransformRequest,
+    operation_id: CoordinateOperationId,
+    operation_created_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artifact_write_capability: Option<IssuedArtifactWriteCapability>,
+}
+
+fn stamp_batch_provenance(
+    result: &mut ConvertFrameOutput,
+    operation_id: CoordinateOperationId,
+    created_at: DateTime<Utc>,
+) {
+    result.provenance.operation.operation_id = operation_id;
+    result.provenance.operation.operation_uri =
+        uris::operation_uri(result.provenance.operation.operation_id.as_str());
+    result.provenance.operation.created_at = created_at;
+}
+
+async fn start_batch_task(
+    state: Arc<AppState>,
+    identity: veoveo_mcp_contract::GatewayInternalIdentity,
+    caller: veoveo_mcp_contract::PlaneCaller,
+    args: BatchTransformRequest,
+    retention_pins: BTreeSet<TaskRetentionPin>,
+) -> Result<TaskSnapshot, String> {
+    let task_id = TaskId::new();
+    let artifact_write_capability = if args.artifact {
+        Some(
+            state
+                .artifacts
+                .issue_write_capability(
+                    &caller,
+                    &IssueArtifactWriteCapabilityRequest {
+                        task_id: task_id.to_string(),
+                        expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
+                        max_artifact_count: NonZeroU32::new(1).expect("one artifact is non-zero"),
+                        max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)
+                            .ok_or_else(|| "max artifact bytes must be non-zero".to_owned())?,
+                    },
+                )
+                .await
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
+    let request = BatchTaskRequest {
+        args,
+        operation_id: CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7()))
+            .map_err(|error| error.to_string())?,
+        operation_created_at: Utc::now(),
+        artifact_write_capability,
+    };
+    let created = state
+        .tasks
+        .create(DurableCreateTask {
+            task_id,
+            owner: runtime_owner(&identity),
+            server: SERVER_SLUG.to_owned(),
+            task_type: "batch_transform".to_owned(),
+            request: serde_json::to_value(&request).map_err(|error| error.to_string())?,
+            recovery_class: RecoveryClass::Resume,
+            idempotency_key: None,
+            ttl_ms: Some(MCP_TASK_TTL_MS),
+            poll_interval_ms: Some(MCP_TASK_POLL_INTERVAL_MS),
+            retention_pins,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    schedule_batch_task(state, created.snapshot, request)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+async fn schedule_batch_task(
+    state: Arc<AppState>,
+    snapshot: TaskSnapshot,
+    request: BatchTaskRequest,
+) -> anyhow::Result<TaskSnapshot> {
+    let task_id = snapshot.task_id.to_string();
+    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let owner = snapshot.owner.clone();
+    let cancellation = CancellationToken::new();
+    let join = tokio::spawn(run_task(
+        state.clone(),
+        task_id.clone(),
+        owner,
+        request,
+        cancellation.clone(),
+    ));
+    state
+        .tasks
+        .register_worker(&task_id, cancellation, join)
+        .await?;
+    Ok(claimed.snapshot)
+}
+
+async fn resume_batch_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> anyhow::Result<()> {
+    let request: BatchTaskRequest = serde_json::from_value(snapshot.request.clone())?;
+    schedule_batch_task(state, snapshot, request)
+        .await
+        .map(|_| ())
+}
+
+async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+    let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
+    let transition = match serde_json::to_value(result) {
+        Ok(result) => TaskTransition::Succeeded { message, result },
+        Err(error) => TaskTransition::Failed(TaskFailure::new(
+            "result_serialization_failed",
+            error.to_string(),
+        )),
+    };
+    update_task(state, task_id, transition).await;
+}
+
 async fn run_task(
     state: Arc<AppState>,
-    peer: rmcp::service::Peer<RoleServer>,
     task_id: String,
-    caller: veoveo_mcp_contract::PlaneCaller,
-    owner: ownership::TaskOwner,
-    args: BatchTransformRequest,
-    progress_token: Option<rmcp::model::ProgressToken>,
+    owner: veoveo_task_runtime::TaskOwner,
+    request: BatchTaskRequest,
+    cancellation: CancellationToken,
+) {
+    let work = run_task_inner(
+        state.clone(),
+        task_id.clone(),
+        owner,
+        request,
+        cancellation.clone(),
+    );
+    tokio::pin!(work);
+    let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    loop {
+        tokio::select! {
+            () = &mut work => break,
+            _ = heartbeat.tick() => {
+                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(task_id, "task lease heartbeat failed: {error}");
+                    cancellation.cancel();
+                    break;
+                }
+            }
+        }
+    }
+}
+
+async fn run_task_inner(
+    state: Arc<AppState>,
+    task_id: String,
+    owner: veoveo_task_runtime::TaskOwner,
+    request: BatchTaskRequest,
+    cancellation: CancellationToken,
 ) {
     macro_rules! fail {
         ($msg:expr) => {{
             let msg: String = $msg;
             tracing::warn!(task_id, "coordinates task failed: {msg}");
-            update_task(
-                &state,
-                &peer,
-                &task_id,
-                TaskStatus::Failed,
-                msg.clone(),
-                None,
-                Some(msg),
-            )
-            .await;
+            complete_tool_error(&state, &task_id, msg).await;
             return;
         }};
     }
-
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.1, "resolving frames").await;
+    update_task(
+        &state,
+        &task_id,
+        TaskTransition::Running {
+            message: "running batch coordinate transform".to_owned(),
+            progress: 0.1,
+        },
+    )
+    .await;
+    let scope = match coordinate_scope_from_runtime(&state, &owner).await {
+        Ok(scope) => scope,
+        Err(error) => fail!(format!("coordinate identity failed: {error}")),
+    };
     let target = match state
         .coordinates
-        .require_frame(&args.convert.target_frame)
+        .require_frame(&scope, &request.args.convert.target_frame)
         .await
     {
         Ok(target) => target,
-        Err(err) => fail!(format!("target frame error: {err}")),
+        Err(error) => fail!(format!("target frame error: {error}")),
     };
-    let origin = match resolve_origin(&state, &args.convert, &target).await {
-        Ok(origin) => origin,
-        Err(err) => fail!(format!("origin resolution failed: {err}")),
+    let source_origins = match resolve_source_origins(&state, &scope, &request.args.convert).await {
+        Ok(origins) => origins,
+        Err(error) => fail!(format!("origin resolution failed: {error}")),
     };
-    let convert_args = args.convert.clone();
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.4, "converting coordinates")
-        .await;
-    let result = match tokio::task::spawn_blocking(move || {
-        engine::convert_frame(convert_args, &target, origin)
+    let convert_args = request.args.convert.clone();
+    let mut converted = match tokio::task::spawn_blocking(move || {
+        engine::convert_frame(convert_args, &target, &source_origins)
     })
     .await
     {
         Ok(Ok(output)) => output,
-        Ok(Err(err)) => fail!(format!("batch transform failed: {err}")),
-        Err(err) => fail!(format!("batch worker failed: {err}")),
+        Ok(Err(error)) => fail!(format!("batch transform failed: {error}")),
+        Err(error) => fail!(format!("batch worker failed: {error}")),
     };
-    state
+    if cancellation.is_cancelled() {
+        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        return;
+    }
+    stamp_batch_provenance(
+        &mut converted,
+        request.operation_id,
+        request.operation_created_at,
+    );
+    let platform_task_id = match task_id.parse::<veoveo_platform_store::TaskId>() {
+        Ok(task_id) => task_id,
+        Err(error) => fail!(format!("invalid durable task id: {error}")),
+    };
+    if let Err(error) = state
         .coordinates
-        .record_operation(result.provenance.clone())
-        .await;
+        .record_operation(&scope, Some(platform_task_id), &converted.provenance)
+        .await
+    {
+        fail!(format!("operation provenance write failed: {error}"));
+    }
     let output = BatchTransformOutput {
-        result,
+        result: converted,
         artifact: None,
     };
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.8, "writing artifacts").await;
-    let result =
-        match outputs::batch_result(&state, &caller, &task_id, &owner, output, args.artifact).await
-        {
-            Ok(result) => result,
-            Err(err) => fail!(format!("artifact write failed: {err}")),
-        };
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 1.0, "completed").await;
+    let result = match outputs::batch_result(
+        &state,
+        request.artifact_write_capability.as_ref(),
+        &task_id,
+        &owner,
+        output,
+        request.args.artifact,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(error) => fail!(format!("batch output failed: {error}")),
+    };
+    if cancellation.is_cancelled() {
+        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        return;
+    }
+    let payload = match serde_json::to_value(&result) {
+        Ok(payload) => payload,
+        Err(error) => fail!(format!("serializing batch result failed: {error}")),
+    };
     update_task(
         &state,
-        &peer,
         &task_id,
-        TaskStatus::Completed,
-        "completed; batch transform available",
-        serde_json::to_value(&result).ok(),
-        None,
+        TaskTransition::Succeeded {
+            message: "batch coordinate transform completed".to_owned(),
+            result: payload,
+        },
     )
     .await;
-}
-
-async fn artifact_download(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    AxumPath(sha256): AxumPath<String>,
-) -> impl IntoResponse {
-    if !is_sha256(&sha256) {
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let identity = match verify_internal_authorization(&state.internal_token_verifier, &headers) {
-        Ok(identity) => identity,
-        Err(message) => {
-            tracing::warn!(
-                artifact_sha256 = sha256,
-                "rejected coordinates artifact download: {message}"
-            );
-            return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-        }
-    };
-    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
-        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-    };
-    let caller = caller_from(identity, bearer);
-    let artifact = match state.artifacts.get(&caller, &sha256).await {
-        Ok(Some(artifact)) => artifact,
-        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
-        Err(err) => {
-            tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {err}");
-            return (StatusCode::NOT_FOUND, "not found").into_response();
-        }
-    };
-
-    let mut headers = HeaderMap::new();
-    let mime = artifact
-        .metadata
-        .mime_type
-        .as_deref()
-        .unwrap_or(BATCH_ARTIFACT_MIME);
-    if let Ok(value) = HeaderValue::from_str(mime) {
-        headers.insert(CONTENT_TYPE, value);
-    }
-    let filename = artifact
-        .metadata
-        .filename
-        .as_deref()
-        .unwrap_or("coordinates.artifact")
-        .replace(['"', '\r', '\n'], "_");
-    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{filename}\"")) {
-        headers.insert(CONTENT_DISPOSITION, value);
-    }
-    (StatusCode::OK, headers, artifact.bytes).into_response()
 }
 
 #[tokio::main]
@@ -954,15 +1028,42 @@ async fn main() -> anyhow::Result<()> {
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         ServerSlug::new(SERVER_SLUG)?,
-        InternalTokenSecret::new(args.internal_token_secret.clone())?,
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
+    let tasks = TaskRuntime::connect(
+        TaskRuntimeConfig::new(
+            args.surreal_endpoint.clone(),
+            args.surreal_namespace.clone(),
+            args.surreal_database.clone(),
+            args.surreal_auth_level,
+            args.surreal_username.clone(),
+            args.surreal_password.clone(),
+        ),
+        SERVER_SLUG,
+        format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
+    )
+    .await?;
+    let recovery = tasks.recover().await?;
+    let coordinates = CoordinatesState::new(tasks.platform_store().clone());
     let state = Arc::new(AppState {
-        tasks: TaskStore::new(),
-        coordinates: CoordinatesState::new(),
+        tasks,
+        coordinates,
         artifacts: ArtifactRepository::new(args.artifact_service_url.clone()),
-        internal_token_verifier: internal_token_verifier.clone(),
-        task_owners: RwLock::new(HashMap::new()),
+        max_artifact_bytes: args.max_artifact_bytes,
     });
+    for snapshot in recovery.resumable {
+        if let Err(error) = resume_batch_task(state.clone(), snapshot).await {
+            match error.downcast_ref::<TaskError>() {
+                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
+                    tracing::info!(
+                        task_id,
+                        "another replica claimed recovered coordinates task"
+                    );
+                }
+                _ => return Err(error),
+            }
+        }
+    }
 
     let ct = tokio_util::sync::CancellationToken::new();
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
@@ -979,18 +1080,41 @@ async fn main() -> anyhow::Result<()> {
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
+            .with_stateful_mode(false)
+            .with_json_response(true)
             .with_cancellation_token(ct.child_token()),
     );
+    let task_extension = Arc::new(TaskExtensionAdapter::new(
+        Arc::new(CoordinatesTaskExtension::new(state.clone())),
+        ServerDiscovery::new(
+            std::collections::BTreeMap::from([
+                ("tools".to_owned(), json!({})),
+                ("resources".to_owned(), json!({})),
+                ("prompts".to_owned(), json!({})),
+            ]),
+            TaskExtensionImplementation {
+                name: "coordinates".to_owned(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            Some(
+                "Durable coordinate frames, provenance, batch transforms, and shared artifacts."
+                    .to_owned(),
+            ),
+        ),
+    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn_with_state(
+            task_extension,
+            task_extension_middleware::<CoordinatesTaskExtension>,
+        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state,
             authenticate_internal_mcp,
         ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route("/artifacts/{sha256}", get(artifact_download))
         .with_state(state.clone())
         .nest("/mcp", mcp_router);
     let router = Router::new()
@@ -1020,4 +1144,74 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod task_tests {
+    use super::*;
+    use veoveo_mcp_contract::FrameKind;
+    use veoveo_rrd::{RrdFrameDefinition, RrdFrameId, RrdViewCoordinates};
+
+    fn ecef_frame() -> RrdFrameDefinition {
+        RrdFrameDefinition {
+            frame_id: RrdFrameId::new("ECEF").unwrap(),
+            kind: FrameKind::Ecef,
+            view_coordinates: Some(RrdViewCoordinates::xyz_meters()),
+            parent: Some(RrdFrameId::new("WGS84").unwrap()),
+            origin: None,
+            crs: Some(veoveo_mcp_contract::CrsId::new("EPSG:4978").unwrap()),
+            datum: Some(veoveo_mcp_contract::DatumId::new("WGS84").unwrap()),
+            ellipsoid: Some(veoveo_mcp_contract::EllipsoidId::new("WGS84").unwrap()),
+            epoch: None,
+            description: None,
+            metadata: Default::default(),
+        }
+    }
+
+    #[test]
+    fn resumed_batch_output_is_byte_deterministic() {
+        let request = ConvertFrameRequest {
+            target_frame: FrameId::new("ECEF").unwrap(),
+            points: vec![CoordinatePoint::Wgs84(
+                veoveo_coordinates_mcp::contract::Wgs84Position {
+                    latitude_deg: 37.421_999_9,
+                    longitude_deg: -122.084_057_5,
+                    height_m: 10.0,
+                },
+            )],
+            allow_approximation: false,
+        };
+        let target = ecef_frame();
+        let mut first = engine::convert_frame(
+            request.clone(),
+            &target,
+            &engine::ResolvedFrameOrigins::default(),
+        )
+        .unwrap();
+        let mut replay =
+            engine::convert_frame(request, &target, &engine::ResolvedFrameOrigins::default())
+                .unwrap();
+        assert_ne!(
+            first.provenance.operation.operation_id,
+            replay.provenance.operation.operation_id
+        );
+
+        let operation_id =
+            CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7())).unwrap();
+        let created_at = Utc::now();
+        stamp_batch_provenance(&mut first, operation_id.clone(), created_at);
+        stamp_batch_provenance(&mut replay, operation_id, created_at);
+        let first = BatchTransformOutput {
+            result: first,
+            artifact: None,
+        };
+        let replay = BatchTransformOutput {
+            result: replay,
+            artifact: None,
+        };
+        assert_eq!(
+            serde_json::to_vec_pretty(&first).unwrap(),
+            serde_json::to_vec_pretty(&replay).unwrap()
+        );
+    }
 }

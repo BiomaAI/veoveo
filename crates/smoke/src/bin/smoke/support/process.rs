@@ -93,7 +93,11 @@ pub(crate) fn run_raw(
     configure_binary_runtime(&mut command, program);
     command
         .args(args)
-        .env_remove("VEOVEO_INTERNAL_TOKEN_SECRET")
+        .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")
+        .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_ID")
+        .env_remove("VEOVEO_INTERNAL_TRUST_JWKS")
+        .env_remove("VEOVEO_REFRESH_DELIVERY_KEY_B64")
+        .env_remove("VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS")
         .envs(envs)
         .output()
         .with_context(|| format!("failed to run {}", program.display()))

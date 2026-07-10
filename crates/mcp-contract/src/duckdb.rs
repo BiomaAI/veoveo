@@ -162,7 +162,7 @@ pub enum DuckDbSource {
         #[serde(default)]
         options: DuckDbReadOptions,
     },
-    /// A neutral `artifact://{sha}` reference resolved through the shared
+    /// A neutral `artifact://{artifact_id}` reference resolved through the shared
     /// artifact plane under the caller's identity — the cross-server input path.
     /// Any artifact produced by any hosted server (a media output, a timeseries
     /// RRD, an optimization DuckDB snapshot) can be read here, gated by the same
@@ -195,13 +195,14 @@ mod tests {
 
     #[test]
     fn artifact_source_wire_shape() {
-        let sha = "a".repeat(64);
-        let json = format!(r#"{{"kind":"artifact","uri":"artifact://{sha}","format":"parquet"}}"#);
+        let artifact_id = crate::ArtifactId::new();
+        let json =
+            format!(r#"{{"kind":"artifact","uri":"artifact://{artifact_id}","format":"parquet"}}"#);
         let source: DuckDbSource = serde_json::from_str(&json).unwrap();
         let DuckDbSource::Artifact { uri, format, .. } = &source else {
             panic!("expected artifact source");
         };
-        assert_eq!(uri, &format!("artifact://{sha}"));
+        assert_eq!(uri, &format!("artifact://{artifact_id}"));
         assert_eq!(format, &DuckDbFormat::Parquet);
         // round-trips
         let back: DuckDbSource =

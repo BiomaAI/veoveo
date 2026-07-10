@@ -10,8 +10,8 @@ use clap::Parser;
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::{GeoPoints, Scalars};
 use veoveo_recording_hub::sim::{
-    StackReport, Generator, LatLon, Sample, SensorStack, SensorId, SensorKind, SensorReport,
-    SensorSpec, TrackPattern, Wave,
+    Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,
+    StackReport, TrackPattern, Wave,
 };
 
 const SIM_TIMELINE: &str = "tick";

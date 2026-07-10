@@ -1,6 +1,6 @@
 pub mod auth;
 mod catalog;
-mod control_db;
+mod control_store;
 pub mod mcp;
 mod mcp_support;
 mod metadata;
@@ -16,8 +16,11 @@ pub use auth::{
     VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
 pub use catalog::{GatewayCatalog, GatewayCatalogHandle, GatewayCatalogSnapshot};
-pub use control_db::GatewayControlDb;
-pub use mcp::GatewayMcp;
+pub use control_store::{GatewayControlStore, new_gateway_control_plane_revision_id};
+pub use mcp::{
+    FinalTaskClient, GatewayMcp, GatewayServerHealth, GatewayServerHealthState,
+    probe_gateway_server_health,
+};
 pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,
     ProtectedResourceMetadata, www_authenticate_challenge,
@@ -27,6 +30,8 @@ pub use principal_audit::{merge_principal_audit_metadata, principal_audit_metada
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 pub use state::{
     GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
-    GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary, GatewayState,
+    GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary, GatewayRefreshDeliveryWindow,
+    GatewayRefreshExchange, GatewayRefreshRotationRequest, GatewayState, IssuedGatewayRefreshToken,
+    REFRESH_TOKEN_TTL_SECONDS, RefreshTokenDeliveryCipher,
 };
 pub use tool_name::{GatewayNameError, GatewayToolProjection};

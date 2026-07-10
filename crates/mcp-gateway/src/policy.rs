@@ -303,23 +303,7 @@ impl GatewayCatalog {
                     Err(PolicyReasonCode::PolicyDeny)
                 }
             }
-            PolicyTarget::TaskList { server } => {
-                let _manifest = self.server(server).ok_or(PolicyReasonCode::UnknownServer)?;
-                let exposure = profile
-                    .servers
-                    .iter()
-                    .find(|exposure| &exposure.server == server)
-                    .ok_or(PolicyReasonCode::PolicyDeny)?;
-                if exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled {
-                    Ok(())
-                } else {
-                    Err(PolicyReasonCode::PolicyDeny)
-                }
-            }
-            PolicyTarget::Task {
-                server,
-                gateway_task_id: _,
-            } => {
+            PolicyTarget::Task { server, task_id: _ } => {
                 let _manifest = self.server(server).ok_or(PolicyReasonCode::UnknownServer)?;
                 let exposure = profile
                     .servers
@@ -563,11 +547,7 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
         PolicyTarget::Prompt { server, prompt } => {
             filter_matches(&rule.servers, server) && filter_matches(&rule.prompts, prompt)
         }
-        PolicyTarget::TaskList { server } => filter_matches(&rule.servers, server),
-        PolicyTarget::Task {
-            server,
-            gateway_task_id: _,
-        } => filter_matches(&rule.servers, server),
+        PolicyTarget::Task { server, task_id: _ } => filter_matches(&rule.servers, server),
     }
 }
 

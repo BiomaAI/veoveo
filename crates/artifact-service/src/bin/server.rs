@@ -3,11 +3,9 @@
 use anyhow::Context;
 use tracing_subscriber::EnvFilter;
 use veoveo_artifact_service::config::Config;
-use veoveo_artifact_service::crypto::TenantCipher;
 use veoveo_artifact_service::http::{AppState, router};
-use veoveo_artifact_service::{
-    ArtifactService, EncryptedObjectStore, PlaneAuthenticator, PostgresGrantLedger,
-};
+use veoveo_artifact_service::{ArtifactService, PlaneAuthenticator, SurrealArtifactRepository};
+use veoveo_platform_store::PlatformStore;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,19 +23,21 @@ async fn main() -> anyhow::Result<()> {
         .object_store
         .build()
         .context("building object store")?;
-    let cipher = TenantCipher::new(config.master_key.clone());
-    let store = EncryptedObjectStore::new(object_store, cipher);
-
-    let ledger =
-        PostgresGrantLedger::connect(&config.database_url, config.db_max_connections).await?;
-    ledger.migrate().await.context("running migrations")?;
-    tracing::info!("grant ledger migrations applied");
-
-    let service = ArtifactService::new(ledger, store);
+    let platform_store = PlatformStore::connect(config.platform_store.clone())
+        .await
+        .context("connecting platform store")?;
+    let repository = SurrealArtifactRepository::new(platform_store);
+    let service = ArtifactService::with_options(
+        repository,
+        object_store,
+        &config.public_base_url,
+        config.max_internal_read_bytes,
+        config.redirect_threshold_bytes,
+    );
     let auth = PlaneAuthenticator::new(
         config.internal_token_issuer.clone(),
         config.allowed_audiences.clone(),
-        config.internal_token_secret.clone(),
+        config.internal_trust_bundle.clone(),
     );
 
     let app = router(AppState::new(service, auth));

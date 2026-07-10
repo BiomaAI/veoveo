@@ -87,6 +87,35 @@ pub struct GatewayAuthorizationCodeRecord {
     pub consumed_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayRefreshGrant {
+    pub family_id: GatewayRefreshFamilyId,
+    pub authorization_server: AuthorizationServerId,
+    pub profile: GatewayProfileId,
+    pub oauth_client_id: OAuthClientId,
+    pub principal: Principal,
+    pub scopes: BTreeSet<ScopeName>,
+    pub generation: u64,
+    pub issued_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthTokenTypeHint {
+    RefreshToken,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayRefreshRevocationRequest {
+    pub token: OAuthRefreshToken,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_type_hint: Option<OAuthTokenTypeHint>,
+    pub client_id: OAuthClientId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource: Option<ProtectedResourceId>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum PkceCodeChallengeMethod {
     #[serde(rename = "S256")]
@@ -94,40 +123,10 @@ pub enum PkceCodeChallengeMethod {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct GatewayTaskMapping {
-    pub gateway_task_id: GatewayTaskId,
-    pub upstream_server: ServerSlug,
-    pub upstream_task_id: UpstreamTaskId,
-    pub profile: GatewayProfileId,
-    pub owner: PrincipalId,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct TaskIdProjection {
-    pub gateway_task_id: GatewayTaskId,
-    pub upstream_server: ServerSlug,
-    pub upstream_task_id: UpstreamTaskId,
-}
-
-impl From<&GatewayTaskMapping> for TaskIdProjection {
-    fn from(mapping: &GatewayTaskMapping) -> Self {
-        Self {
-            gateway_task_id: mapping.gateway_task_id.clone(),
-            upstream_server: mapping.upstream_server.clone(),
-            upstream_task_id: mapping.upstream_task_id.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayResourceProjection {
     pub server: ServerSlug,
     pub gateway_uri: ResourceUri,
     pub upstream_uri: ResourceUri,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub task: Option<TaskIdProjection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

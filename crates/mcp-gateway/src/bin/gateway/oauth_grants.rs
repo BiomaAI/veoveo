@@ -4,10 +4,10 @@ use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
     AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, OAuthAuthorizationCode, OAuthClientId,
-    OAuthRedirectUri, PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind,
+    OAuthGrantType, OAuthRedirectUri, PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind,
     ResourceAuthorizationServer,
 };
-use veoveo_mcp_gateway::GatewayCatalog;
+use veoveo_mcp_gateway::{GatewayCatalog, REFRESH_TOKEN_TTL_SECONDS};
 
 use crate::{
     audit::{
@@ -22,12 +22,15 @@ use crate::{
 
 #[path = "oauth_grants/id_jag.rs"]
 mod id_jag;
+#[path = "oauth_grants/refresh.rs"]
+mod refresh;
 #[path = "oauth_grants/request.rs"]
 mod request;
 #[path = "oauth_grants/scopes.rs"]
 mod scopes;
 
 pub(super) use id_jag::token_endpoint_id_jag;
+pub(super) use refresh::token_endpoint_refresh_token;
 pub(super) use request::TokenRequest;
 pub(super) use scopes::{authorization_code_client_allowed, requested_token_scopes};
 
@@ -55,7 +58,9 @@ pub(super) async fn token_endpoint_authorization_code(
                 reason: AuthReasonCode::UnsupportedGrantType,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -79,7 +84,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::InvalidClient,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -102,7 +109,9 @@ pub(super) async fn token_endpoint_authorization_code(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -124,7 +133,9 @@ pub(super) async fn token_endpoint_authorization_code(
                 reason: AuthReasonCode::InvalidClient,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -146,7 +157,9 @@ pub(super) async fn token_endpoint_authorization_code(
                 reason: AuthReasonCode::InvalidScope,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -176,7 +189,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::InvalidAuthorizationCode,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -207,7 +222,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::InvalidAuthorizationRequest,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -238,7 +255,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::InvalidPkce,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -251,6 +270,7 @@ pub(super) async fn token_endpoint_authorization_code(
     let code_record = match state
         .gateway_state
         .consume_authorization_code(&code, Utc::now())
+        .await
     {
         Ok(Some(record)) => record,
         Ok(None) => {
@@ -266,7 +286,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::InvalidAuthorizationCode,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -289,7 +311,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::AuthStateUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -317,7 +341,9 @@ pub(super) async fn token_endpoint_authorization_code(
                 reason: AuthReasonCode::InvalidPkce,
                 started_at,
             },
-        ) {
+        )
+        .await
+        {
             return auth_audit_error_response(err);
         }
         return oauth_error_response(
@@ -354,7 +380,9 @@ pub(super) async fn token_endpoint_authorization_code(
                     reason: AuthReasonCode::TokenSigningKeyUnavailable,
                     started_at,
                 },
-            ) {
+            )
+            .await
+            {
                 return auth_audit_error_response(err);
             }
             return oauth_error_response(
@@ -363,6 +391,49 @@ pub(super) async fn token_endpoint_authorization_code(
                 "token signing key is unavailable",
             );
         }
+    };
+    let refresh = if client.grant_types.contains(&OAuthGrantType::RefreshToken) {
+        match state
+            .gateway_state
+            .issue_refresh_token(
+                &authorization_server.id,
+                &profile.id,
+                &client_id,
+                &code_record.principal,
+                &code_record.scopes,
+                Utc::now(),
+            )
+            .await
+        {
+            Ok(refresh) => Some(refresh),
+            Err(err) => {
+                tracing::error!("failed to issue browser refresh token: {err:#}");
+                if let Err(err) = record_oidc_auth_audit(
+                    &state.gateway_state,
+                    profile,
+                    AuthAuditRecord {
+                        authorization_server: Some(authorization_server),
+                        client_id: Some(&client_id),
+                        principal: Some(&code_record.principal),
+                        jwt_id: None,
+                        outcome: AuthOutcome::Deny,
+                        reason: AuthReasonCode::AuthStateUnavailable,
+                        started_at,
+                    },
+                )
+                .await
+                {
+                    return auth_audit_error_response(err);
+                }
+                return oauth_error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "refresh-token state is unavailable",
+                );
+            }
+        }
+    } else {
+        None
     };
     if let Err(err) = record_oidc_auth_audit(
         &state.gateway_state,
@@ -376,7 +447,9 @@ pub(super) async fn token_endpoint_authorization_code(
             reason: AuthReasonCode::AuthAllow,
             started_at,
         },
-    ) {
+    )
+    .await
+    {
         return auth_audit_error_response(err);
     }
     token_response(TokenResponse {
@@ -384,5 +457,9 @@ pub(super) async fn token_endpoint_authorization_code(
         token_type: "Bearer",
         expires_in: ACCESS_TOKEN_TTL_SECONDS as u64,
         scope: scope_string(&code_record.scopes),
+        refresh_token: refresh
+            .as_ref()
+            .map(|refresh| refresh.token.as_str().to_owned()),
+        refresh_token_expires_in: refresh.map(|_| REFRESH_TOKEN_TTL_SECONDS as u64),
     })
 }

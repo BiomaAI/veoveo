@@ -1,0 +1,22 @@
+[package]
+name = "veoveo-agent-runtime"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_agent_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+surrealdb = { version = "=3.2.0", default-features = false, features = ["protocol-ws", "rustls"] }
+thiserror = "2.0.18"
+uuid.workspace = true
+veoveo-platform-store.workspace = true
+veoveo-task-runtime = { path = "../task-runtime" }
+
+[dev-dependencies]
+secrecy.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

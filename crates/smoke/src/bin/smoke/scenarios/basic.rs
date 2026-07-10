@@ -1,5 +1,85 @@
 use super::*;
 
+pub(crate) async fn surreal_integration() -> Result<()> {
+    let port = std::net::TcpListener::bind("127.0.0.1:0")?
+        .local_addr()?
+        .port();
+    let name = format!("veoveo-surreal-smoke-{}", uuid::Uuid::new_v4().simple());
+    run_checked(
+        Path::new("docker"),
+        [
+            "run".into(),
+            "--detach".into(),
+            "--rm".into(),
+            "--name".into(),
+            name.clone().into(),
+            "--publish".into(),
+            format!("127.0.0.1:{port}:8000").into(),
+            "--tmpfs".into(),
+            "/data:rw,size=1073741824,uid=65532,gid=65532,mode=0700".into(),
+            "surrealdb/surrealdb:v3.2.0".into(),
+            "start".into(),
+            "--bind".into(),
+            "0.0.0.0:8000".into(),
+            "--user".into(),
+            "root".into(),
+            "--pass".into(),
+            "root".into(),
+            "rocksdb:/data/veoveo.db".into(),
+        ],
+        [],
+    )?;
+    let _container = ContainerGuard::new(name);
+    let ready_url = format!("http://127.0.0.1:{port}/ready");
+    let mut ready = false;
+    for _ in 0..120 {
+        if http_ok(&ready_url).await? {
+            ready = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    if !ready {
+        bail!("timed out waiting for SurrealDB 3.2.0 at {ready_url}");
+    }
+
+    let endpoint = format!("ws://127.0.0.1:{port}");
+    let environment = [
+        ("VEOVEO_SURREAL_INTEGRATION", "1".into()),
+        ("VEOVEO_SURREAL_URL", endpoint.clone().into()),
+        ("VEOVEO_SURREAL_ENDPOINT", endpoint.into()),
+        ("VEOVEO_SURREAL_USER", "root".into()),
+        ("VEOVEO_SURREAL_USERNAME", "root".into()),
+        ("VEOVEO_SURREAL_PASSWORD", "root".into()),
+    ];
+    for (package, test) in [
+        ("veoveo-platform-store", "surreal_integration"),
+        ("veoveo-task-runtime", "surreal_integration"),
+        ("veoveo-agent-runtime", "surreal_integration"),
+        ("veoveo-mcp-gateway", "control_store"),
+        ("veoveo-mcp-gateway", "gateway_state"),
+        ("veoveo-media-mcp", "surreal_integration"),
+    ] {
+        println!("==> live SurrealDB test: {package}/{test}");
+        run_checked(
+            Path::new("cargo"),
+            [
+                "test".into(),
+                "-p".into(),
+                package.into(),
+                "--test".into(),
+                test.into(),
+                "--".into(),
+                "--nocapture".into(),
+                "--test-threads=1".into(),
+            ],
+            environment.clone(),
+        )?;
+    }
+    println!("surreal integration smoke ok");
+    Ok(())
+}
+
 pub(crate) async fn compose_config() -> Result<()> {
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -11,12 +91,6 @@ pub(crate) async fn compose_config() -> Result<()> {
             "compose".into(),
             "-f".into(),
             "compose.yaml".into(),
-            "-f".into(),
-            "compose.tunnel.yaml".into(),
-            "--profile".into(),
-            "dev".into(),
-            "--profile".into(),
-            "tunnel".into(),
             "config".into(),
         ],
         [
@@ -26,17 +100,33 @@ pub(crate) async fn compose_config() -> Result<()> {
                 "whsec_0Wn4SW+lD1zrRtFhb1r4fGHt6XZLSkX5y2EK+lSbA+E=".into(),
             ),
             (
-                "VEOVEO_INTERNAL_TOKEN_SECRET",
-                "local-development-secret-at-least-32-bytes".into(),
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
             ),
-            ("VEOVEO_ARTIFACT_MASTER_KEY", ARTIFACT_MASTER_KEY.into()),
+            (
+                "VEOVEO_REFRESH_DELIVERY_KEY_B64",
+                REFRESH_DELIVERY_KEY_B64.into(),
+            ),
+            ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
+            ("VEOVEO_SURREAL_ADMIN_PASSWORD", "admin-secret".into()),
+            ("VEOVEO_SURREAL_RUNTIME_USERNAME", "veoveo-runtime".into()),
+            ("VEOVEO_SURREAL_RUNTIME_PASSWORD", "runtime-secret".into()),
+            ("VEOVEO_OBJECT_STORE_ACCESS_KEY", "rustfs-access".into()),
+            ("VEOVEO_OBJECT_STORE_SECRET_KEY", "rustfs-secret".into()),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 "dummy".into(),
             ),
             ("VEOVEO_IDP_OIDC_CLIENT_SECRET", "dummy".into()),
+            (
+                "VEOVEO_CONSOLE_SESSION_KEY",
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+            ),
+            (
+                "VEOVEO_CONSOLE_OAUTH_RESOURCE",
+                "https://veoveo.enterprise.example/mcp/admin".into(),
+            ),
             ("PUBLIC_BASE_URL", PUBLIC_BASE_URL.into()),
-            ("CLOUDFLARED_TUNNEL_TOKEN", "dummy".into()),
         ],
     )?;
     let host_ip_count = compose_output.matches("host_ip: 127.0.0.1").count();
@@ -45,17 +135,22 @@ pub(crate) async fn compose_config() -> Result<()> {
     }
     for expected in [
         "image: caddy:2.11.2",
-        "image: postgres:18-alpine",
+        "image: surrealdb/surrealdb:v3.2.0",
         "image: rustfs/rustfs:1.0.0-beta.8",
-        "gateway.bioma.json",
+        "gateway.local.json",
+        "rocksdb:/data/veoveo.db",
+        "VEOVEO_SURREAL_AUTH_LEVEL: database",
+        "VEOVEO_SURREAL_ENDPOINT: ws://surrealdb:8000",
+        "VEOVEO_REFRESH_DELIVERY_KEY_B64:",
+        "VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS: \"5\"",
+        "ARTIFACT_S3_PUBLIC_ENDPOINT",
         "target: /etc/caddy/Caddyfile",
-        "target: /var/lib/postgresql",
-        "postgresql://veoveo_gateway:veoveo_gateway@gateway-control-db:5432/veoveo_gateway",
         "http://rustfs:9000",
         "target: 8080",
         "published: \"8780\"",
         "edge:",
-        "gateway-control-db:",
+        "installation-bootstrap:",
+        "console-bff:",
         "rustfs:",
         "chart-mcp:",
         "target: 8795",
@@ -66,6 +161,11 @@ pub(crate) async fn compose_config() -> Result<()> {
     if compose_output.to_ascii_lowercase().contains("minio") {
         bail!("compose config must use RustFS/S3-compatible storage, not MinIO");
     }
+    for forbidden in ["postgres", "cloudflared", "artifact_master_key"] {
+        if compose_output.to_ascii_lowercase().contains(forbidden) {
+            bail!("canonical compose config must not contain `{forbidden}`");
+        }
+    }
 
     let gateway_dockerfile = fs::read_to_string("crates/mcp-gateway/Dockerfile")?;
     contains(&gateway_dockerfile, "find /app/target -name 'libduckdb.so'")?;
@@ -73,6 +173,25 @@ pub(crate) async fn compose_config() -> Result<()> {
         &gateway_dockerfile,
         "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
     )?;
+    for entry in fs::read_dir("crates")? {
+        let dockerfile = entry?.path().join("Dockerfile");
+        if !dockerfile.is_file() {
+            continue;
+        }
+        let contents = fs::read_to_string(&dockerfile)?;
+        if contents.contains("COPY crates ./crates") {
+            contains(&contents, "COPY showcase/sumo/mcp ./showcase/sumo/mcp").with_context(
+                || {
+                    format!(
+                        "{} must copy every non-crates workspace member",
+                        dockerfile.display()
+                    )
+                },
+            )?;
+        }
+    }
+    let dockerignore = fs::read_to_string(".dockerignore")?;
+    contains(&dockerignore, "**/.venv")?;
 
     let caddyfile = env::current_dir()?.join("configs/Caddyfile");
     let caddyfile_text = fs::read_to_string(&caddyfile)?;
@@ -81,7 +200,25 @@ pub(crate) async fn compose_config() -> Result<()> {
     contains(&caddyfile_text, "respond /charts/mcp* 404")?;
     contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
     contains(&caddyfile_text, "reverse_proxy media-mcp:8787")?;
-    contains(&caddyfile_text, "reverse_proxy coordinates-mcp:8793")?;
+    contains(&caddyfile_text, "reverse_proxy console-bff:8786")?;
+    contains(&caddyfile_text, "reverse_proxy artifact-service:8790")?;
+    let public_share_route = caddyfile_text
+        .split_once("handle /s/* {")
+        .and_then(|(_, route)| route.split_once('}').map(|(route, _)| route))
+        .context("Caddy config is missing a dedicated /s/* route")?;
+    contains(public_share_route, "log_skip")?;
+    contains(public_share_route, "reverse_proxy artifact-service:8790")?;
+    for forbidden in [
+        "/media/artifacts",
+        "/timeseries/artifacts",
+        "/optimization/artifacts",
+        "/coordinates/artifacts",
+        "/duckdb/artifacts",
+    ] {
+        if caddyfile_text.contains(forbidden) {
+            bail!("edge config must not expose obsolete domain byte route `{forbidden}`");
+        }
+    }
     run_checked(
         Path::new("docker"),
         [
@@ -105,27 +242,23 @@ pub(crate) async fn compose_config() -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn gateway_control_db(gateway: &Path, control_plane: &Path) -> Result<()> {
+pub(crate) async fn gateway_platform_store(gateway: &Path, control_plane: &Path) -> Result<()> {
     assert_executable(gateway)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
     println!("smoke workspace: {}", tmpdir.display());
 
-    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
     let validate = run_checked(
         gateway,
-        [
-            "validate-db".into(),
-            "--control-db-url".into(),
-            control_db.url.clone().into(),
-        ],
-        [],
+        ["control-plane-validate".into()],
+        platform_store.runtime_env(),
     )?;
     contains(&validate, "ok: revision")?;
-    contains(&validate, "1 server(s), 1 profile(s)")?;
+    contains(&validate, "1 server(s), 2 profile(s)")?;
 
     cleanup.remove_on_drop();
-    println!("gateway control DB smoke ok");
+    println!("gateway platform store smoke ok");
     Ok(())
 }
 
@@ -170,10 +303,6 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
     assert_schema_title(
         &schemas.join("oauth-client-registration.schema.json"),
         "OAuthClientRegistration",
-    )?;
-    assert_schema_title(
-        &schemas.join("gateway-task-mapping.schema.json"),
-        "GatewayTaskMapping",
     )?;
     assert_schema_title(
         &schemas.join("gateway-resource-subscription.schema.json"),
@@ -223,7 +352,13 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         &schemas.join("self-hosted-deployment-profile.schema.json"),
         "SelfHostedDeploymentProfile",
     )?;
-    for property in ["service_to_service", "state_stores", "telemetry_sinks"] {
+    for property in [
+        "service_to_service",
+        "platform_store",
+        "analytical_runtime",
+        "telemetry",
+        "tenant_model",
+    ] {
         if !deployment_profile
             .get("properties")
             .and_then(|properties| properties.get(property))
@@ -232,17 +367,24 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
             bail!("deployment profile schema has no object `{property}` property");
         }
     }
-    let network_boundary = assert_schema_title(
-        &schemas.join("network-boundary-rule.schema.json"),
-        "NetworkBoundaryRule",
+    let platform_store = assert_schema_title(
+        &schemas.join("platform-store-deployment.schema.json"),
+        "PlatformStoreDeployment",
     )?;
-    for property in ["target_kind", "target", "ports", "tls_required"] {
-        if !network_boundary
+    for property in [
+        "engine",
+        "version",
+        "storage_engine",
+        "topology",
+        "database_ha",
+        "changefeed_source_of_truth",
+    ] {
+        if !platform_store
             .get("properties")
             .and_then(|properties| properties.get(property))
             .is_some_and(Value::is_object)
         {
-            bail!("network boundary schema has no object `{property}` property");
+            bail!("platform store schema has no object `{property}` property");
         }
     }
     let artifact = assert_schema_title(
@@ -324,7 +466,6 @@ pub(crate) async fn otel(conformance: &Path, gateway: &Path, control_plane: &Pat
     let otlp_log = tmpdir.join("otlp.log");
     let otlp_ready = tmpdir.join("otlp.ready");
     let otlp_hits = tmpdir.join("otlp.hits");
-    let state_db = tmpdir.join("gateway-state.duckdb");
 
     let mut otlp = ChildGuard::spawn(
         conformance,
@@ -343,13 +484,16 @@ pub(crate) async fn otel(conformance: &Path, gateway: &Path, control_plane: &Pat
     wait_for_file(&otlp_ready).await?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let control_db = spawn_gateway_control_db(gateway, control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &state_db),
+        gateway_serve_args(gateway_port, &platform_store),
         [
             ("OTEL_EXPORTER_OTLP_ENDPOINT", otlp_base.into()),
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.trim().into(),

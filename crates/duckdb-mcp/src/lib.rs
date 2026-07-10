@@ -2,7 +2,7 @@
 //!
 //! Owner-scoped mutable database files, a hardened in-process DuckDB engine
 //! (no external access from SQL), immutable artifact exports, and durable
-//! ownership/usage state.
+//! task and usage state in the shared platform store.
 
 pub mod artifacts;
 pub mod contract;

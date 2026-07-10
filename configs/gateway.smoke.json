@@ -16,7 +16,7 @@
   "authorization_servers": [
     {
       "id": "veoveo",
-      "issuer": "https://veoveo.bioma.ai/oauth",
+      "issuer": "https://veoveo.example/oauth",
       "jwks": {
         "source": "file",
         "path": "configs/jwks.smoke.json"
@@ -24,8 +24,8 @@
       "access_token_key_id": "test-key",
       "access_token_signing_key": "veoveo_access_token_private_key",
       "identity_provider": "enterprise",
-      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/authorize",
-      "token_endpoint": "https://veoveo.bioma.ai/oauth/token",
+      "authorization_endpoint": "https://veoveo.example/oauth/authorize",
+      "token_endpoint": "https://veoveo.example/oauth/token",
       "metadata": {}
     }
   ],
@@ -78,10 +78,6 @@
         {
           "path": "/media/files",
           "purpose": "provider_fetchable_files"
-        },
-        {
-          "path": "/media/artifacts",
-          "purpose": "artifact_bytes"
         }
       ],
       "metadata": {}
@@ -92,7 +88,7 @@
       "id": "operator",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/operator",
+      "protected_resource": "https://veoveo.example/mcp/operator",
       "policy_version": "2026-07-02",
       "auth_modes": [
         "enterprise_managed_authorization",
@@ -136,7 +132,7 @@
       "id": "admin",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/admin",
+      "protected_resource": "https://veoveo.example/mcp/admin",
       "policy_version": "2026-07-02",
       "auth_modes": [
         "enterprise_managed_authorization",
@@ -196,7 +192,6 @@
             "prompts_list",
             "prompts_get",
             "completion_complete",
-            "tasks_list",
             "tasks_get",
             "tasks_result",
             "tasks_cancel",
@@ -243,7 +238,6 @@
             "prompts_list",
             "prompts_get",
             "completion_complete",
-            "tasks_list",
             "tasks_get",
             "tasks_result",
             "tasks_cancel",
@@ -333,6 +327,7 @@
       ],
       "grant_types": [
         "authorization_code_pkce",
+        "refresh_token",
         "enterprise_managed_authorization"
       ],
       "auth_methods": [
@@ -363,8 +358,7 @@
       "allowed_compatibility_helpers": [
         "media.artifact",
         "media.model_schema",
-        "media.models",
-        "veoveo.task_result"
+        "media.models"
       ],
       "direct_task_call_adapter": true,
       "allowed_profiles": [
@@ -372,6 +366,7 @@
       ],
       "grant_types": [
         "authorization_code_pkce",
+        "refresh_token",
         "enterprise_managed_authorization"
       ],
       "auth_methods": [
@@ -398,6 +393,7 @@
       ],
       "grant_types": [
         "authorization_code_pkce",
+        "refresh_token",
         "enterprise_managed_authorization"
       ],
       "auth_methods": [
@@ -411,7 +407,7 @@
         "client_boundary": "admin_console"
       },
       "redirect_uris": [
-        "https://bioma.ai/veoveo/admin/callback"
+        "https://veoveo.example/admin/callback"
       ]
     },
     {
@@ -478,7 +474,7 @@
         "admin"
       ],
       "client_id": "veoveo",
-      "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",
+      "redirect_uri": "https://veoveo.example/oauth/callback",
       "auth_method": "client_secret_post",
       "credential_secret": "enterprise_oidc_client_secret",
       "scopes": [
@@ -511,10 +507,10 @@
       "metadata": {}
     },
     {
-      "id": "gateway_internal_token_secret",
+      "id": "gateway_internal_signing_private_key",
       "source": "env",
       "purpose": "gateway_signing_key",
-      "locator": "VEOVEO_INTERNAL_TOKEN_SECRET",
+      "locator": "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
       "owner": {
         "kind": "gateway"
       },

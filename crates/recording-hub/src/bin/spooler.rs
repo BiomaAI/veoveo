@@ -13,10 +13,13 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use clap::Parser;
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
+use secrecy::SecretString;
+use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
+use veoveo_recording_hub::{CatalogPolicy, PlatformCatalog};
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[command(name = "spooler", about = "Recording Hub durable spooler + gRPC proxy")]
 struct Args {
     /// gRPC ingest bind address (the embedded proxy).
@@ -29,12 +32,15 @@ struct Args {
     /// prefix (`dataset=`) is the catch-all.
     #[arg(long = "route")]
     routes: Vec<String>,
-    #[arg(long, default_value_t = 256 * 1024 * 1024)]
+    #[arg(long, default_value_t = 192 * 1024 * 1024)]
     segment_max_bytes: u64,
     #[arg(long, default_value_t = 3600)]
     segment_max_age_s: u64,
     #[arg(long, default_value_t = 250)]
     flush_interval_ms: u64,
+    /// Fsync live segments on every scheduled flush.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    fsync_on_flush: bool,
     #[arg(long, default_value_t = 1024 * 1024 * 1024)]
     live_queue_limit_bytes: u64,
     /// Path to the `rerun` CLI used to verify frozen segments.
@@ -46,6 +52,49 @@ struct Args {
     /// Log aggregate counters every N seconds.
     #[arg(long, default_value_t = 10)]
     counters_interval_s: u64,
+    /// Required database-scoped SurrealDB runtime connection. Schema migration
+    /// is deliberately unavailable in this process.
+    #[arg(long, env = "VEOVEO_SURREAL_ENDPOINT")]
+    surreal_endpoint: String,
+    #[arg(long, env = "VEOVEO_SURREAL_NAMESPACE")]
+    surreal_namespace: String,
+    #[arg(long, env = "VEOVEO_SURREAL_DATABASE")]
+    surreal_database: String,
+    #[arg(long, env = "VEOVEO_SURREAL_USERNAME")]
+    surreal_username: String,
+    #[arg(
+        long,
+        env = "VEOVEO_SURREAL_PASSWORD",
+        hide_env_values = true,
+        value_parser = parse_secret
+    )]
+    surreal_password: SecretString,
+    #[arg(long, env = "RECORDING_TENANT_KEY")]
+    recording_tenant_key: String,
+    #[arg(long, env = "RECORDING_OWNER_KEY", default_value = "recording-hub")]
+    recording_owner_key: String,
+    #[arg(
+        long,
+        env = "RECORDING_OWNER_ISSUER",
+        default_value = "https://veoveo.local/services"
+    )]
+    recording_owner_issuer: String,
+    #[arg(long, env = "RECORDING_OWNER_SUBJECT", default_value = "recording-hub")]
+    recording_owner_subject: String,
+    #[arg(long, env = "RECORDING_CLASSIFICATION")]
+    recording_classification: String,
+    #[arg(
+        long = "recording-label",
+        env = "RECORDING_LABELS",
+        value_delimiter = ','
+    )]
+    recording_labels: Vec<String>,
+}
+
+fn parse_secret(value: &str) -> Result<SecretString, String> {
+    (!value.is_empty())
+        .then(|| SecretString::from(value))
+        .ok_or_else(|| "secret must not be empty".to_owned())
 }
 
 fn parse_route(raw: &str) -> Result<DatasetRoute> {
@@ -73,13 +122,19 @@ fn main() -> Result<()> {
         .map(|r| parse_route(r))
         .collect::<Result<Vec<_>>>()?;
 
+    let spool_dir = if args.spool_dir.is_absolute() {
+        args.spool_dir.clone()
+    } else {
+        std::env::current_dir()?.join(&args.spool_dir)
+    };
     let config = SpoolerConfig {
         bind: args.bind,
-        spool_dir: args.spool_dir.clone(),
+        spool_dir,
         datasets,
         segment_max_bytes: args.segment_max_bytes,
         segment_max_age_s: args.segment_max_age_s,
         flush_interval_ms: args.flush_interval_ms,
+        fsync_on_flush: args.fsync_on_flush,
         live_queue_limit_bytes: args.live_queue_limit_bytes,
         rerun_bin: args.rerun_bin.clone(),
     };
@@ -95,6 +150,34 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
     let flush_interval = config.flush_interval();
     let counters_interval = Duration::from_secs(args.counters_interval_s.max(1));
 
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &args.surreal_endpoint,
+            &args.surreal_namespace,
+            &args.surreal_database,
+            StoreCredentials::database(&args.surreal_username, args.surreal_password.clone()),
+        )
+        .build()?,
+    )
+    .await
+    .context("connecting recording catalog with database-scoped credentials")?;
+    let catalog = PlatformCatalog::new(
+        store,
+        config.spool_dir.clone(),
+        CatalogPolicy {
+            tenant_key: args.recording_tenant_key.clone(),
+            owner_key: args.recording_owner_key.clone(),
+            owner_issuer: args.recording_owner_issuer.clone(),
+            owner_subject: args.recording_owner_subject.clone(),
+            classification: args.recording_classification.clone(),
+            labels: args.recording_labels.clone(),
+        },
+        tokio::runtime::Handle::current(),
+    )
+    .await?;
+    let reconciled = catalog.reconcile().await?;
+    tracing::info!(reconciled, "recording catalog reconciled");
+
     let (signal, shutdown) = shutdown::shutdown();
     let options = ServerOptions {
         memory_limit: MemoryLimit::from_bytes(config.live_queue_limit_bytes),
@@ -108,36 +191,46 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
             .with_context(|| format!("writing ready file {}", ready.display()))?;
     }
 
-    // Trip the shutdown flag on Ctrl-C / SIGTERM.
     let stopping = Arc::new(AtomicBool::new(false));
-    {
-        let stopping = stopping.clone();
-        tokio::spawn(async move {
-            wait_for_shutdown().await;
-            stopping.store(true, Ordering::SeqCst);
-        });
-    }
 
     // The receiver is a synchronous channel; drain it on a blocking thread so
     // the async runtime stays free for the tonic server.
     let stopping_drain = stopping.clone();
-    let drain = tokio::task::spawn_blocking(move || -> Result<veoveo_recording_hub::Counters> {
-        let spooler = Spooler::new(config)?;
-        run_blocking(
-            spooler,
-            receiver,
-            stopping_drain,
-            flush_interval,
-            counters_interval,
-        )
-    });
+    let mut drain =
+        tokio::task::spawn_blocking(move || -> Result<veoveo_recording_hub::Counters> {
+            let spooler = Spooler::new(config)?.with_catalog(catalog);
+            run_blocking(
+                spooler,
+                receiver,
+                stopping_drain,
+                flush_interval,
+                counters_interval,
+            )
+        });
 
-    // Wait for shutdown, then tear the proxy down and join the drain.
-    while !stopping.load(Ordering::SeqCst) {
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    signal.stop();
-    let counters = drain.await.context("drain task panicked")??;
+    // The durable drain is part of readiness. If it exits before an operator
+    // shutdown, stop accepting traffic and fail the process immediately.
+    let counters = tokio::select! {
+        _ = wait_for_shutdown() => {
+            stopping.store(true, Ordering::SeqCst);
+            signal.stop();
+            if let Some(ready) = &args.ready_file {
+                let _ = std::fs::remove_file(ready);
+            }
+            drain.await.context("drain task panicked")??
+        }
+        result = &mut drain => {
+            signal.stop();
+            if let Some(ready) = &args.ready_file {
+                let _ = std::fs::remove_file(ready);
+            }
+            let counters = result.context("drain task panicked")??;
+            anyhow::bail!(
+                "durable drain exited before shutdown after {} messages",
+                counters.messages
+            );
+        }
+    };
     tracing::info!(
         messages = counters.messages,
         segments_frozen = counters.segments_frozen,

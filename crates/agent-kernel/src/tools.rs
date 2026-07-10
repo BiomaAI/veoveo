@@ -12,7 +12,7 @@ use rig_core::{completion::ToolDefinition, tool::Tool};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ledger::{KernelLedger, MemoryWrite},
+    memory::{MemoryStore, MemoryWrite},
     rrd::RrdRecorder,
     timeline::{TimelineQuery, query_segments},
 };
@@ -51,12 +51,12 @@ pub struct MemoryQueryOutput {
 }
 
 pub struct MemoryQueryTool {
-    ledger: KernelLedger,
+    memory: MemoryStore,
 }
 
 impl MemoryQueryTool {
-    pub fn new(ledger: KernelLedger) -> Self {
-        Self { ledger }
+    pub fn new(memory: MemoryStore) -> Self {
+        Self { memory }
     }
 }
 
@@ -86,7 +86,7 @@ impl Tool for MemoryQueryTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let max_rows = args.max_rows.unwrap_or(50).min(MAX_QUERY_ROWS);
-        let rows = self.ledger.query_json(&args.sql, max_rows)?;
+        let rows = self.memory.query_json(&args.sql, max_rows)?;
         Ok(MemoryQueryOutput {
             row_count: rows.len(),
             rows,
@@ -100,15 +100,15 @@ pub struct MemoryWriteOutput {
 }
 
 pub struct MemoryWriteTool {
-    ledger: KernelLedger,
+    memory: MemoryStore,
     rrd: Arc<RrdRecorder>,
     allowed_tables: Vec<String>,
 }
 
 impl MemoryWriteTool {
-    pub fn new(ledger: KernelLedger, rrd: Arc<RrdRecorder>, allowed_tables: Vec<String>) -> Self {
+    pub fn new(memory: MemoryStore, rrd: Arc<RrdRecorder>, allowed_tables: Vec<String>) -> Self {
         Self {
-            ledger,
+            memory,
             rrd,
             allowed_tables,
         }
@@ -144,7 +144,7 @@ impl Tool for MemoryWriteTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let affected_rows = self.ledger.write(&args, &self.allowed_tables)?;
+        let affected_rows = self.memory.write(&args, &self.allowed_tables)?;
         // Mirror the mutation onto the episodic plane so the decision log shows
         // when each durable fact changed.
         self.rrd.log_text(

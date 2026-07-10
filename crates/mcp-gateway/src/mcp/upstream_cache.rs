@@ -109,6 +109,10 @@ impl UpstreamConnectionCache {
 pub(super) struct UpstreamCacheKey {
     pub(super) server: ServerSlug,
     pub(super) principal: PrincipalId,
+    /// SHA-256 over the complete principal authorization context. A refreshed
+    /// token with changed roles, labels, tenant, groups, scopes, or assurance
+    /// must never reuse an upstream identity minted from stale attributes.
+    pub(super) authorization_fingerprint: [u8; 32],
     pub(super) catalog_generation: u64,
 }
 

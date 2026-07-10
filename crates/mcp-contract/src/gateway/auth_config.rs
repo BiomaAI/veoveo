@@ -42,19 +42,14 @@ impl Default for IdentityProviderClaimMapping {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IdentityProviderSubjectClaim {
+    #[default]
     Sub,
     Oid,
     Email,
     PreferredUsername,
-}
-
-impl Default for IdentityProviderSubjectClaim {
-    fn default() -> Self {
-        Self::Sub
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -185,6 +180,7 @@ pub enum OidcClientAuthMethod {
 #[serde(rename_all = "snake_case")]
 pub enum OAuthGrantType {
     AuthorizationCodePkce,
+    RefreshToken,
     ClientCredentials,
     EnterpriseManagedAuthorization,
 }

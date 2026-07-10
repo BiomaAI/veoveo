@@ -49,7 +49,9 @@ impl GatewayMcp {
             }
             _ => return Err(mcp_invalid_params("unsupported completion reference kind")),
         };
-        let subject = self.authorize(&context, GatewayAction::CompletionComplete, target)?;
+        let subject = self
+            .authorize(&context, GatewayAction::CompletionComplete, target)
+            .await?;
         let upstream = self
             .upstream(&server, context.peer.clone(), &subject)
             .await?;

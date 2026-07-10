@@ -19,7 +19,6 @@ pub(crate) async fn gateway_two_servers(
     let simulation_base = format!("http://127.0.0.1:{simulation_port}");
     let gateway_base = format!("http://127.0.0.1:{gateway_port}");
     let generated_control_plane = tmpdir.join("gateway.two-server.json");
-    let gateway_state_db = tmpdir.join("gateway-state.duckdb");
 
     let media_log = tmpdir.join("media-fixture.log");
     let simulation_log = tmpdir.join("simulation-fixture.log");
@@ -77,12 +76,15 @@ pub(crate) async fn gateway_two_servers(
     contains(&validation, "ok: 2 server(s), 1 profile(s)")?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let control_db = spawn_gateway_control_db(gateway, &generated_control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.trim().into(),
@@ -239,16 +241,7 @@ pub(crate) async fn gateway_two_servers(
     }
 
     gateway_child.stop();
-    let audit_summary = run_checked(
-        gateway,
-        [
-            "audit-method-summary".into(),
-            "--state-db".into(),
-            gateway_state_db.as_os_str().to_os_string(),
-        ],
-        [],
-    )?;
-    let audit_summary: Value = serde_json::from_str(&audit_summary)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
     assert_audit_method(&audit_summary, "tools/call", 2, 1)?;
     assert_audit_method(&audit_summary, "resources/read", 1, 0)?;
     assert_audit_method(&audit_summary, "prompts/get", 1, 0)?;

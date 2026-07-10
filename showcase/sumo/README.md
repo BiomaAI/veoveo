@@ -1,149 +1,91 @@
 # SUMO Traffic-World Showcase
 
-The platform on a real simulator. [SUMO](https://eclipse.dev/sumo/) runs a live
-traffic world; a task-native Python MCP server owns the one TraCI connection,
-**pushes** the world into the Recording Hub as typed Rerun streams, and exposes
-SUMO control as governed `sumo__*` tools — the long operations as MCP tasks the
-agent detaches from and wakes on. SUMO is just another hub producer; the hub
-never pulls.
+This showcase connects a real [SUMO](https://eclipse.dev/sumo/) traffic world to
+Veoveo. A Rust MCP server owns the single serialized TraCI connection, publishes
+typed Rerun frames to the Recording Hub, and exposes governed traffic reads,
+actuation, durable tasks, resources, and subscriptions.
 
-```
-┌─ sumo (Docker) ────────────┐      ┌─ sumo-mcp (Python, one process) ─────────┐
-│ eclipse-sumo 1.27 + LuST   │TraCI │ owns TraCI · pushes /world/sumo/** to hub │
-│ real Luxembourg, geo-ref'd │◄────►│ serves sumo__* over streamable HTTP       │
-│ --remote-port 8813         │      │ read:  query_state, describe_scenario     │
-└────────────────────────────┘      │ act:   set_signal_phase, reroute_vehicle, │
-                                     │        set_edge_speed, close/open_lane    │
-   push /world/sumo/vehicles  ───────┤ tasks: run_batch, generate_network,       │
-   (GeoPoints, real lat/lon)  │      │        compute_routes, optimize_signals   │
-             │                       │ events: sim://congestion (subscribe)      │
-             ▼                       └───────────────────────────────────────────┘
-      hub-spooler → world dataset → hub-catalog (redap)   → Rerun viewer (live map)
-```
+The bundled simulation is the MIT-licensed LuST Luxembourg scenario, pinned to a
+specific source revision. TraCI is never published to the host. The loopback MCP
+port requires the same gateway-signed Ed25519 identity assertion as every other
+hosted server.
 
-## The scenario: LuST (real Luxembourg)
+The pinned upstream SUMO 1.27.1 container is published for `linux/amd64`. Both
+showcase images therefore declare that platform explicitly; arm64 Docker hosts
+need binfmt/QEMU emulation enabled.
 
-The SUMO container runs [**LuST — Luxembourg SUMO Traffic**](https://github.com/lcodeca/LuSTScenario)
-(MIT): a validated OpenStreetMap network of Luxembourg City with a full day of
-realistic demand and actuated signals, started at the morning ramp (07:00). Because
-the network is geo-referenced, vehicle positions convert to true lat/lon and land on
-the actual streets — `sumo-mcp` fits the cartesian→lon/lat map once as a full 2D
-affine (rotation-aware, so cars sit squarely on the streets), then reads all vehicles
-per frame in a single TraCI subscription round-trip.
+## Capabilities
 
-### Two views from one frame
+- `query_state` and `describe_scenario` return typed live-world data.
+- `set_signal_phase`, `reroute_vehicle`, `set_edge_speed`, `close_lane`, and
+  `open_lane` mutate the serialized live simulation.
+- `run_batch` is a durable, task-required operation. Because advancing a live
+  simulation cannot be replayed safely after an uncertain interruption, recovery
+  classifies it as `interrupted_indeterminate`.
+- `generate_network`, `compute_routes`, and `optimize_signals` invoke the real
+  SUMO command-line programs as resumable durable tasks. Successful outputs are
+  uploaded through a task-bound write capability to the shared artifact plane;
+  container paths are never returned.
+- `sumo://state` and `sumo://scenario` are typed resources.
+- `sumo://congestion` is subscribable and emits resource-update notifications.
+- `/world/sumo/**` is continuously pushed to the Recording Hub. The hub never
+  polls SUMO.
 
-Each frame publishes complementary layers under `/world/sumo/**`:
+Task state lives in the required SurrealDB 3.2.0 platform store. The server uses
+Veoveo's final task extension and shared task runtime; no deprecated MCP task API,
+provider polling, in-memory task registry, or compatibility path is present.
 
-- **Map view** — vehicles as one `GeoPoints` cloud on the real Luxembourg tiles,
-  plus a batched `GeoLineStrings` **facing chevron** per vehicle showing heading.
-- **3D view** — vehicles as oriented `Boxes3D` sized to their real footprint
-  (a bus is long and tall, a car small — vehicle class carried in silhouette),
-  yawed to their heading, over the road network drawn **once** as static
-  `LineStrips3D`.
+## Run
 
-Speed is colour-coded on both on a **red → amber → green** ramp weighted toward the
-jam end, so stopped and crawling traffic stays vividly red. The subscription carries
-position, speed, road, heading, footprint, and vehicle class in one round-trip; every
-layer is a single batched log call, so a dense city stays smooth. `SUMO_DRAW_NETWORK=0`
-skips the one-time network fetch if you want the fastest possible startup.
-
-## What the agent controls
-
-- **Read** — `query_state` (every vehicle's geo position + speed, signals, mean speed), `describe_scenario`
-- **Act** — `set_signal_phase`, `reroute_vehicle`, `set_edge_speed` (variable-speed sign), `close_lane` / `open_lane` (model an incident)
-- **Time** — `run_batch` (fast-forward, as a detachable MCP task) — the sleep/wake op
-- **Wake** — subscribe `sim://congestion`; a jam pushes `resources/updated`
-- **Offline** — `generate_network` / `compute_routes` / `optimize_signals` shell out to the real SUMO CLIs (netgenerate / duarouter / tlsCoordinator)
-
-## Visualize it live
-
-```bash
-docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml \
-    --profile hub --profile showcase up -d --build
-# then attach a native Rerun viewer to the hub's live proxy on your machine:
-rerun --port auto "rerun+http://127.0.0.1:9877/proxy"
-```
-
-Cars appear moving on the Luxembourg map, coloured red (congested) → green
-(free-flowing), each with a facing chevron. The viewer auto-creates both a Map view
-and a 3D view from the data — arrange them side by side to watch the same traffic as
-oriented boxes over the road network.
-
-## Why Python, and why our own server
-
-The overwhelming majority of MCP servers are Python, so the showcase
-demonstrates a *proper* one: task-native, streamable-HTTP, strongly typed with
-pydantic. The public SUMO MCP servers are inspiration only — we rebuild the
-taxonomy on the SDK's lowlevel server to get the **task API** (the long ops
-return `CreateTaskResult`; the client detaches, polls, and reads the terminal
-result — the exact sleep/wake path the agent kernel drives), gateway
-projection/auth, and resource subscriptions for wakes.
-
-> The task API is pinned to `mcp==1.28.x` (the SEP-1686 line the workspace's
-> Rust gateway/kernel speak) and isolated in `sumo_mcp/tasks_compat.py`, so the
-> future migration to the SEP-2663 tasks extension is a localized change.
-
-> ⚠️ Never use `HypaSMarty/SUMO-MCP-Server` — it is a malware lure. The
-> functional inspiration is `XRDS76354/SUMO-MCP-Server` (arXiv 2506.03548).
-
-## Layout
-
-```
-showcase/sumo/                  # this showcase (siblings can be added under showcase/)
-  compose.showcase.yaml         # sumo + sumo-mcp, layered on the hub profile
-  compose.interim.yaml          # fake-driver runtime, no SUMO image (interim proof)
-  sim/Dockerfile                # headless SUMO + LuST scenario, TraCI :8813
-  mcp/                          # the Python server (package veoveo-sumo-mcp)
-    src/sumo_mcp/
-      sim_driver.py             # SimDriver protocol; Fake (tests) + Traci (live)
-      tools.py                  # pydantic-typed tools; single-owner serialization
-      tasks_compat.py           # the SEP-1686 task seam
-      server.py                 # lowlevel MCP server: sync + task tools + resources
-      streams.py                # push path: /world/sumo/** → hub (map + 3D layers)
-      push.py                   # sumo-sim: standalone push loop
-      runtime.py                # container entry: own TraCI + push + serve
-      resources.py              # congestion watch condition
-    tests/                      # unit tests, fake driver, no SUMO needed
-    scripts/sumo_push_smoke.sh  # S0 push spine smoke (invoked by `just showcase-sumo-smoke`)
-  scripts/
-    verify_e2e.sh               # live end-to-end verify (invoked by `just showcase-sumo-verify`)
-    verify_client.py            # the MCP verification client verify_e2e.sh drives
-```
-
-Task entry points live in the root `Justfile`, namespaced per showcase
-(`just showcase-sumo-test`, `showcase-sumo-smoke`, `showcase-sumo-up`,
-`showcase-sumo-verify`); the heavier smoke and verify orchestration stay as
-scripts the recipes invoke.
-
-## Run it
-
-Tests (no SUMO needed — fake driver):
+Unit tests use the deterministic Rust fake driver and do not require SUMO:
 
 ```bash
 just showcase-sumo-test
 ```
 
-Push spine against the real Rust hub (no SUMO needed — fake driver pushes,
-the hub captures and QueryEngine reads back):
+The push smoke runs the real Recording Hub durability boundary in-process, writes
+typed fake-driver frames, and queries the resulting RRD segments:
 
 ```bash
 just showcase-sumo-smoke
 ```
 
-Full live stack (SUMO + sumo-mcp + hub, Docker):
+Bring up the full self-hosted stack plus the real LuST simulation:
 
 ```bash
-docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml \
-    --profile hub --profile showcase up --build
-# SUMO drives traffic; sumo-mcp pushes /world/sumo/** into the hub and serves
-# sumo__* on 127.0.0.1:8795. Query the world via the hub catalog.
+just showcase-sumo-up
 ```
 
-## The loop it demonstrates
+The authenticated endpoint is `http://127.0.0.1:8895/sumo/mcp`. Port `8795`
+remains the canonical chart MCP port. Normal clients should access SUMO through a
+gateway profile that includes the `sumo` server; the loopback port exists for
+operator verification and still rejects requests without an internal assertion.
 
-SUMO streams the world into the hub → the agent reads its world model → calls a
-task tool (`run_batch`, `optimize_signals`), **detaches and sleeps** → wakes on
-the task result → acts (`set_signal_phase`, `reroute_vehicle`) → a
-`sim://congestion` resource update wakes the next episode. Every arrow is
-machinery that now exists.
+The live verification builds an isolated Compose project, waits for LuST/TraCI,
+asserts the unauthenticated boundary, drives a read, actuation, and durable task,
+queries the recorded world, and tears the project down. Its smoke-only Compose
+projection removes dependency host ports and reserves an available loopback MCP
+port, so it can run beside an operator's installation:
+
+```bash
+just showcase-sumo-verify
+```
+
+Required self-hosted secrets are the same ones documented by the root
+`.env.example`. The Rust smoke harness supplies isolated test credentials for its
+own disposable project.
+
+## Layout
+
+```text
+showcase/sumo/
+  compose.showcase.yaml   # overlay for SUMO and sumo-mcp
+  compose.smoke.yaml      # host-port isolation for the Rust live smoke
+  sim/Dockerfile          # pinned SUMO/LuST TraCI world
+  mcp/Cargo.toml          # veoveo-sumo-mcp crate
+  mcp/Dockerfile          # pinned Rust build and SUMO runtime
+  mcp/src/contract.rs     # typed domain and durable-operation contracts
+  mcp/src/driver.rs       # FakeSimDriver and serialized TraciSimDriver
+  mcp/src/recording.rs    # typed Recording Hub publisher
+  mcp/src/server/         # auth, MCP, task runtime, artifact, and HTTP modules
+```

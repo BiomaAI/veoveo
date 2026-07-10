@@ -1,11 +1,6 @@
-//! The decision recorder hook: every step observed, both planes written.
-//!
-//! Rule of the split: the RRD plane gets everything (append-only, time-indexed
-//! decision log); the DuckDB plane gets only durable kernel facts needed for
-//! crash safety mid-run — a provisional task row the moment a deferred
-//! dispatch is observed, and immediate resolution for tasks that complete
-//! inside the run.
+//! Decision-log hook plus durable task-delivery binding.
 
+use std::str::FromStr;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -16,9 +11,11 @@ use rig_core::{
     completion::CompletionModel,
     tool::ToolTaskDescriptor,
 };
-use uuid::Uuid;
+use veoveo_agent_runtime::{AgentRuntime, NewAgentTask, json_object};
+use veoveo_platform_store::{AgentEpisodeId, TaskId};
+use veoveo_task_runtime::TaskRetentionPin;
 
-use crate::{ledger::KernelLedger, rrd::RrdRecorder};
+use crate::rrd::RrdRecorder;
 
 const RRD_PAYLOAD_CAP: usize = 8 * 1024;
 
@@ -30,28 +27,34 @@ fn capped(text: &str) -> String {
         while !text.is_char_boundary(end) {
             end -= 1;
         }
-        format!("{}… (+{} bytes)", &text[..end], text.len() - end)
+        format!("{}... (+{} bytes)", &text[..end], text.len() - end)
     }
 }
 
 pub struct RecorderHook {
-    ledger: KernelLedger,
+    runtime: AgentRuntime,
     rrd: Arc<RrdRecorder>,
-    episode_id: Uuid,
+    episode_id: AgentEpisodeId,
+    retention_pin: TaskRetentionPin,
     tool_calls: Arc<AtomicU64>,
 }
 
 impl RecorderHook {
-    pub fn new(ledger: KernelLedger, rrd: Arc<RrdRecorder>, episode_id: Uuid) -> Self {
+    pub fn new(
+        runtime: AgentRuntime,
+        rrd: Arc<RrdRecorder>,
+        episode_id: AgentEpisodeId,
+        retention_pin: TaskRetentionPin,
+    ) -> Self {
         Self {
-            ledger,
+            runtime,
             rrd,
             episode_id,
+            retention_pin,
             tool_calls: Arc::new(AtomicU64::new(0)),
         }
     }
 
-    /// Shared counter the episode driver reads after the run.
     pub fn tool_call_counter(&self) -> Arc<AtomicU64> {
         self.tool_calls.clone()
     }
@@ -65,14 +68,21 @@ where
         let episode = self.episode_id;
         match event {
             StepEvent::ToolCall {
-                tool_name, args, ..
+                tool_name,
+                internal_call_id,
+                args,
+                ..
             } => {
                 self.tool_calls.fetch_add(1, Ordering::Relaxed);
                 self.rrd.log_text(
                     &format!("/agent/tools/{tool_name}"),
-                    format!("call {}", capped(args)),
+                    format!(
+                        "call {} [retention_pin={}, call={internal_call_id}]",
+                        capped(args),
+                        self.retention_pin
+                    ),
                 );
-                tracing::info!(%episode, tool_name, turn = ctx.turn(), "tool call");
+                tracing::info!(%episode, tool_name, internal_call_id, turn = ctx.turn(), "tool call");
             }
             StepEvent::ToolResult {
                 tool_name,
@@ -92,12 +102,6 @@ where
                         capped(result)
                     ),
                 );
-                tracing::info!(
-                    %episode,
-                    tool_name,
-                    is_error = outcome.is_error(),
-                    "tool result"
-                );
             }
             StepEvent::ToolTaskStarted {
                 tool_name,
@@ -105,25 +109,37 @@ where
                 immediate_response,
                 ..
             } => {
-                // Crash safety: a minimal descriptor (backend + task id + tool
-                // name) is enough for McpTaskResumer to rehydrate the task if
-                // the process dies before the episode persists the full one.
-                let descriptor =
-                    ToolTaskDescriptor::new(ToolTaskDescriptor::BACKEND_MCP, task_id, tool_name);
-                match serde_json::to_string(&descriptor) {
-                    Ok(descriptor_json) => {
-                        if let Err(err) = self.ledger.record_provisional_task(
-                            task_id,
-                            tool_name,
-                            &descriptor_json,
-                            episode,
-                        ) {
-                            tracing::error!(%episode, task_id, %err, "provisional task row failed");
-                        }
-                    }
-                    Err(err) => {
-                        tracing::error!(%episode, task_id, %err, "descriptor serialization failed");
-                    }
+                let task_id = match canonical_task_id(task_id) {
+                    Ok(task_id) => task_id,
+                    Err(error) => return Flow::terminate(error),
+                };
+                let descriptor = ToolTaskDescriptor::new(
+                    ToolTaskDescriptor::BACKEND_MCP,
+                    task_id.to_string(),
+                    tool_name,
+                );
+                let descriptor = match serde_json::to_value(descriptor)
+                    .ok()
+                    .and_then(|value| json_object(value, "task descriptor").ok())
+                {
+                    Some(descriptor) => descriptor,
+                    None => return Flow::terminate("serializing task descriptor failed"),
+                };
+                if let Err(error) = self
+                    .runtime
+                    .record_task(NewAgentTask {
+                        task_id,
+                        tool_name: tool_name.to_owned(),
+                        descriptor,
+                        descriptor_complete: false,
+                        retention_pin: self.retention_pin.clone(),
+                        started_by_episode: episode,
+                    })
+                    .await
+                {
+                    return Flow::terminate(format!(
+                        "persisting task delivery before detach failed: {error}"
+                    ));
                 }
                 self.rrd.log_text(
                     &format!("/agent/tasks/{task_id}"),
@@ -134,33 +150,38 @@ where
                             .unwrap_or_default()
                     ),
                 );
-                tracing::info!(%episode, tool_name, task_id, "task started");
             }
             StepEvent::ToolTaskStatus {
                 task_id, status, ..
             } => {
                 self.rrd
                     .log_text(&format!("/agent/tasks/{task_id}"), status.as_str());
-                tracing::info!(%episode, task_id, status = status.as_str(), "task status");
             }
             StepEvent::ToolTaskResult {
-                tool_name,
                 task_id,
                 result,
                 outcome,
                 ..
             } => {
-                // The task resolved inside this run; the model already saw the
-                // result, so record and consume it in one step.
-                let result_json =
-                    serde_json::json!({ "output": result, "delivered": "in_run" }).to_string();
-                if let Err(err) =
-                    self.ledger
-                        .resolve_task(task_id, &result_json, outcome.is_error())
+                let task_id = match canonical_task_id(task_id) {
+                    Ok(task_id) => task_id,
+                    Err(error) => return Flow::terminate(error),
+                };
+                let payload = match json_object(
+                    serde_json::json!({ "output": result, "delivered": "in_run" }),
+                    "task result",
+                ) {
+                    Ok(payload) => payload,
+                    Err(error) => return Flow::terminate(error.to_string()),
+                };
+                if let Err(error) = self
+                    .runtime
+                    .resolve_task_in_episode(task_id, episode, payload, outcome.is_error())
+                    .await
                 {
-                    tracing::error!(%episode, task_id, %err, "in-run task resolution failed");
-                } else if let Err(err) = self.ledger.mark_task_consumed(task_id, episode) {
-                    tracing::error!(%episode, task_id, %err, "in-run task consumption failed");
+                    return Flow::terminate(format!(
+                        "persisting in-run task result failed: {error}"
+                    ));
                 }
                 self.rrd.log_text(
                     &format!("/agent/tasks/{task_id}"),
@@ -174,29 +195,24 @@ where
                         capped(result)
                     ),
                 );
-                tracing::info!(
-                    %episode,
-                    tool_name,
-                    task_id,
-                    is_error = outcome.is_error(),
-                    "task resolved in run"
-                );
             }
             StepEvent::ModelTurnFinished { turn, usage, .. } => {
                 self.rrd.log_scalars(
                     "/agent/llm",
                     [usage.input_tokens as f64, usage.output_tokens as f64],
                 );
-                tracing::info!(
-                    %episode,
-                    turn,
-                    input_tokens = usage.input_tokens,
-                    output_tokens = usage.output_tokens,
-                    "model turn finished"
-                );
+                tracing::info!(%episode, turn, input_tokens = usage.input_tokens, output_tokens = usage.output_tokens, "model turn finished");
             }
             _ => {}
         }
         Flow::cont()
     }
+}
+
+fn canonical_task_id(value: &str) -> Result<TaskId, String> {
+    let task_id = TaskId::from_str(value).map_err(|error| format!("invalid task id: {error}"))?;
+    if task_id.as_uuid().get_version_num() != 7 {
+        return Err(format!("task id `{value}` is not UUIDv7"));
+    }
+    Ok(task_id)
 }

@@ -1,6 +1,6 @@
 //! Deterministic episode summaries: cheap, honest, and always available.
 //!
-//! A summary compresses one episode into a single ledger line future context
+//! A summary compresses one episode into a single memory line future context
 //! assembly can afford. The deterministic template needs no model call; an
 //! LLM summarization mode can layer on later with this as its fallback.
 

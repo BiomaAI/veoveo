@@ -21,7 +21,7 @@ pub(crate) fn spawn_fake_hosted_mcp(
             "--ready-file".into(),
             ready_file.as_os_str().to_os_string(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into())],
         log,
     )
 }
@@ -51,10 +51,19 @@ pub(crate) fn spawn_media_s3_smoke(
     media: &Path,
     port: u16,
     public_base_url: &str,
-    state_db: &Path,
+    platform: &PlatformStoreSmoke,
     artifact_service_url: &str,
     log: &Path,
 ) -> Result<ChildGuard> {
+    let mut env = platform.runtime_env();
+    env.extend([
+        ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
+        (
+            "MEDIA_PROVIDER_WEBHOOK_SECRET",
+            "whsec_smoke-webhook-secret".into(),
+        ),
+        ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
+    ]);
     ChildGuard::spawn(
         media,
         [
@@ -63,15 +72,10 @@ pub(crate) fn spawn_media_s3_smoke(
             "--public-base-url".into(),
             public_base_url.into(),
             "--allow-loopback-hosts".into(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
             "--artifact-service-url".into(),
             artifact_service_url.into(),
         ],
-        [
-            ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
-        ],
+        env,
         log,
     )
 }
@@ -80,11 +84,20 @@ pub(crate) fn spawn_media_memory_smoke(
     media: &Path,
     port: u16,
     public_base_url: &str,
-    state_db: &Path,
+    platform: &PlatformStoreSmoke,
     provider_base_url: &str,
     artifact_service_url: &str,
     log: &Path,
 ) -> Result<ChildGuard> {
+    let mut env = platform.runtime_env();
+    env.extend([
+        (
+            "MEDIA_PROVIDER_WEBHOOK_SECRET",
+            "whsec_smoke-webhook-secret".into(),
+        ),
+        ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
+        ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
+    ]);
     ChildGuard::spawn(
         media,
         [
@@ -93,18 +106,12 @@ pub(crate) fn spawn_media_memory_smoke(
             "--public-base-url".into(),
             public_base_url.into(),
             "--allow-loopback-hosts".into(),
-            "--state-db".into(),
-            state_db.as_os_str().to_os_string(),
             "--artifact-service-url".into(),
             artifact_service_url.into(),
             "--provider-base-url".into(),
             provider_base_url.into(),
         ],
-        [
-            ("MEDIA_PROVIDER_WEBHOOK_SECRET", "".into()),
-            ("MEDIA_PROVIDER_API_KEY", "smoke".into()),
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
-        ],
+        env,
         log,
     )
 }
@@ -114,8 +121,11 @@ pub(crate) fn spawn_coordinates_smoke(
     port: u16,
     public_base_url: &str,
     artifact_service_url: &str,
+    platform: &PlatformStoreSmoke,
     log: &Path,
 ) -> Result<ChildGuard> {
+    let mut env = platform.runtime_env();
+    env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
     ChildGuard::spawn(
         coordinates,
         [
@@ -127,7 +137,7 @@ pub(crate) fn spawn_coordinates_smoke(
             "--artifact-service-url".into(),
             artifact_service_url.into(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        env,
         log,
     )
 }
@@ -138,8 +148,11 @@ pub(crate) fn spawn_duckdb_smoke(
     public_base_url: &str,
     data_dir: &Path,
     artifact_service_url: &str,
+    platform: &PlatformStoreSmoke,
     log: &Path,
 ) -> Result<ChildGuard> {
+    let mut env = platform.runtime_env();
+    env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
     ChildGuard::spawn(
         duckdb,
         [
@@ -148,11 +161,6 @@ pub(crate) fn spawn_duckdb_smoke(
             "--public-base-url".into(),
             public_base_url.into(),
             "--allow-loopback-hosts".into(),
-            "--state-db".into(),
-            data_dir
-                .join("duckdb-state.duckdb")
-                .as_os_str()
-                .to_os_string(),
             "--database-dir".into(),
             data_dir.join("databases").as_os_str().to_os_string(),
             "--exchange-dir".into(),
@@ -162,7 +170,7 @@ pub(crate) fn spawn_duckdb_smoke(
             "--artifact-service-url".into(),
             artifact_service_url.into(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        env,
         log,
     )
 }
@@ -188,22 +196,53 @@ pub(crate) fn spawn_optimization_smoke(
             "--artifact-service-url".into(),
             artifact_service_url.into(),
         ],
-        [("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into())],
+        [("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into())],
         log,
     )
 }
 
-pub(crate) struct GatewayControlDbSmoke {
-    pub(crate) url: String,
+const SURREAL_ROOT_USER: &str = "root";
+const SURREAL_ROOT_PASSWORD: &str = "root";
+const SURREAL_RUNTIME_USER: &str = "veoveo_runtime";
+const SURREAL_RUNTIME_PASSWORD: &str = "runtime-secret";
+
+pub(crate) struct PlatformStoreSmoke {
+    pub(crate) endpoint: String,
+    pub(crate) namespace: String,
+    pub(crate) database: String,
     _container: ContainerGuard,
 }
 
-pub(crate) async fn spawn_gateway_control_db(
-    gateway: &Path,
-    control_plane: &Path,
-) -> Result<GatewayControlDbSmoke> {
+impl PlatformStoreSmoke {
+    fn root_env(&self) -> Vec<(&'static str, OsString)> {
+        self.env("root", SURREAL_ROOT_USER, SURREAL_ROOT_PASSWORD)
+    }
+
+    pub(crate) fn runtime_env(&self) -> Vec<(&'static str, OsString)> {
+        self.env("database", SURREAL_RUNTIME_USER, SURREAL_RUNTIME_PASSWORD)
+    }
+
+    fn env(
+        &self,
+        auth_level: &str,
+        username: &str,
+        password: &str,
+    ) -> Vec<(&'static str, OsString)> {
+        vec![
+            ("VEOVEO_SURREAL_ENDPOINT", self.endpoint.clone().into()),
+            ("VEOVEO_SURREAL_NAMESPACE", self.namespace.clone().into()),
+            ("VEOVEO_SURREAL_DATABASE", self.database.clone().into()),
+            ("VEOVEO_SURREAL_AUTH_LEVEL", auth_level.into()),
+            ("VEOVEO_SURREAL_USERNAME", username.into()),
+            ("VEOVEO_SURREAL_PASSWORD", password.into()),
+        ]
+    }
+}
+
+async fn spawn_surreal_platform() -> Result<PlatformStoreSmoke> {
     let host_port = reserve_local_port()?;
-    let container_name = format!("veoveo-smoke-postgres-{}", uuid::Uuid::new_v4());
+    let suffix = uuid::Uuid::now_v7().simple().to_string();
+    let container_name = format!("veoveo-smoke-surreal-{suffix}");
     let container = ContainerGuard::new(container_name.clone());
     run_checked(
         Path::new("docker"),
@@ -211,91 +250,158 @@ pub(crate) async fn spawn_gateway_control_db(
             "run".into(),
             "-d".into(),
             "--name".into(),
-            container_name.clone().into(),
-            "-e".into(),
-            "POSTGRES_DB=veoveo_gateway".into(),
-            "-e".into(),
-            "POSTGRES_USER=veoveo_gateway".into(),
-            "-e".into(),
-            "POSTGRES_PASSWORD=veoveo_gateway".into(),
+            container_name.into(),
             "-p".into(),
-            format!("127.0.0.1:{host_port}:5432").into(),
-            "postgres:18-alpine".into(),
+            format!("127.0.0.1:{host_port}:8000").into(),
+            "surrealdb/surrealdb:v3.2.0".into(),
+            "start".into(),
+            "--log".into(),
+            "warn".into(),
+            "--user".into(),
+            SURREAL_ROOT_USER.into(),
+            "--pass".into(),
+            SURREAL_ROOT_PASSWORD.into(),
+            "memory".into(),
         ],
         [],
     )?;
-    wait_for_postgres_container(&container_name, "veoveo_gateway", "veoveo_gateway").await?;
-
-    let url = format!(
-        "postgresql://veoveo_gateway:veoveo_gateway@127.0.0.1:{host_port}/veoveo_gateway?sslmode=disable"
-    );
-    run_gateway_control_db_command_with_retry(
-        gateway,
-        vec![
-            "control-plane-seed".into(),
-            "--control-db-url".into(),
-            url.clone().into(),
-            "--control-plane".into(),
-            control_plane.as_os_str().to_os_string(),
-            "--applied-by".into(),
-            "smoke#control-db".into(),
-        ],
-    )
-    .await?;
-    run_gateway_control_db_command_with_retry(
-        gateway,
-        vec![
-            "validate-db".into(),
-            "--control-db-url".into(),
-            url.clone().into(),
-        ],
-    )
-    .await?;
-
-    Ok(GatewayControlDbSmoke {
-        url,
+    let endpoint = format!("ws://127.0.0.1:{host_port}");
+    wait_for_http(&format!("http://127.0.0.1:{host_port}/ready")).await?;
+    Ok(PlatformStoreSmoke {
+        endpoint,
+        namespace: "veoveo_smoke".to_owned(),
+        database: format!("platform_{suffix}"),
         _container: container,
     })
 }
 
-async fn run_gateway_control_db_command_with_retry(
+async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()> {
+    use secrecy::SecretString;
+    use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
+
+    let config = StoreConfig::builder(
+        &platform.endpoint,
+        &platform.namespace,
+        &platform.database,
+        StoreCredentials::root(SURREAL_ROOT_USER, SURREAL_ROOT_PASSWORD),
+    )
+    .migrate_on_connect(true)
+    .build()?;
+    let store = PlatformStore::connect(config).await?;
+    store
+        .replace_database_editor(
+            SURREAL_RUNTIME_USER,
+            &SecretString::from(SURREAL_RUNTIME_PASSWORD),
+        )
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn spawn_gateway_platform_store(
     gateway: &Path,
-    args: Vec<OsString>,
-) -> Result<String> {
-    let mut last_output = None;
-    for _ in 0..20 {
-        let output = run_raw(gateway, args.clone(), [])?;
-        if output.status.success() {
-            return Ok(String::from_utf8(output.stdout)?);
-        }
-        if !is_transient_postgres_startup_failure(&output) {
-            return command_failure(gateway, output);
-        }
-        last_output = Some(output);
-        tokio::time::sleep(Duration::from_millis(250)).await;
-    }
-    command_failure(
+    control_plane: &Path,
+) -> Result<PlatformStoreSmoke> {
+    let platform = spawn_surreal_platform().await?;
+    let mut bootstrap_env = platform.root_env();
+    bootstrap_env.extend([
+        (
+            "VEOVEO_SURREAL_RUNTIME_USERNAME",
+            SURREAL_RUNTIME_USER.into(),
+        ),
+        (
+            "VEOVEO_SURREAL_RUNTIME_PASSWORD",
+            SURREAL_RUNTIME_PASSWORD.into(),
+        ),
+    ]);
+    run_checked(
         gateway,
-        last_output.ok_or_else(|| anyhow!("gateway control DB command did not run"))?,
-    )
+        [
+            "installation-bootstrap".into(),
+            "--control-plane".into(),
+            control_plane.as_os_str().to_os_string(),
+            "--applied-by".into(),
+            "smoke-platform-bootstrap".into(),
+        ],
+        bootstrap_env,
+    )?;
+    let validation = run_checked(
+        gateway,
+        ["control-plane-validate".into()],
+        platform.runtime_env(),
+    )?;
+    contains(&validation, "ok: revision")?;
+    Ok(platform)
 }
 
-fn is_transient_postgres_startup_failure(output: &Output) -> bool {
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    stderr.contains("failed to connect to gateway control-plane Postgres")
-        || stderr.contains("error communicating with database")
-        || stderr.contains("unexpected response from SSLRequest")
-        || stderr.contains("got 0 bytes at EOF")
+pub(crate) fn gateway_serve_args(port: u16, platform: &PlatformStoreSmoke) -> Vec<OsString> {
+    vec![
+        "serve".into(),
+        "--port".into(),
+        port.to_string().into(),
+        "--public-base-url".into(),
+        PUBLIC_BASE_URL.into(),
+        "--surreal-endpoint".into(),
+        platform.endpoint.clone().into(),
+        "--surreal-namespace".into(),
+        platform.namespace.clone().into(),
+        "--surreal-database".into(),
+        platform.database.clone().into(),
+        "--surreal-auth-level".into(),
+        "database".into(),
+        "--surreal-username".into(),
+        SURREAL_RUNTIME_USER.into(),
+        "--surreal-password".into(),
+        SURREAL_RUNTIME_PASSWORD.into(),
+        "--refresh-delivery-key-b64".into(),
+        REFRESH_DELIVERY_KEY_B64.into(),
+        "--refresh-delivery-window-seconds".into(),
+        REFRESH_DELIVERY_WINDOW_SECONDS.to_string().into(),
+        "--allow-loopback-hosts".into(),
+    ]
 }
 
-fn command_failure<T>(program: &Path, output: Output) -> Result<T> {
-    bail!(
-        "{} failed with status {}\nstdout:\n{}\nstderr:\n{}",
-        program.display(),
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    )
+pub(crate) fn reserve_local_port() -> Result<u16> {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
+    Ok(listener.local_addr()?.port())
+}
+
+/// A running artifact-service backed by the SurrealDB platform store and an
+/// in-memory object store. Guards tear both down on drop.
+pub(crate) struct ArtifactServiceSmoke {
+    pub(crate) url: String,
+    pub(crate) platform: PlatformStoreSmoke,
+    _child: ChildGuard,
+}
+
+pub(crate) async fn spawn_artifact_service_smoke(
+    artifact_service: &Path,
+    log: &Path,
+) -> Result<ArtifactServiceSmoke> {
+    let platform = spawn_surreal_platform().await?;
+    initialize_surreal_platform(&platform).await?;
+    let bind_port = reserve_local_port()?;
+    let url = format!("http://127.0.0.1:{bind_port}");
+    let mut service_env = platform.runtime_env();
+    service_env.extend([
+        (
+            "ARTIFACT_SERVICE_BIND",
+            format!("127.0.0.1:{bind_port}").into(),
+        ),
+        ("ARTIFACT_PUBLIC_BASE_URL", url.clone().into()),
+        ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
+        ("ARTIFACT_STORE", "memory".into()),
+        (
+            "ARTIFACT_ALLOWED_AUDIENCES",
+            "media,timeseries,optimization,duckdb,coordinates".into(),
+        ),
+    ]);
+    let child = ChildGuard::spawn(artifact_service, Vec::<OsString>::new(), service_env, log)?;
+    wait_for_http(&format!("{url}/healthz")).await?;
+    Ok(ArtifactServiceSmoke {
+        url,
+        platform,
+        _child: child,
+    })
 }
 
 pub(crate) fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u16) -> Result<()> {
@@ -330,9 +436,6 @@ pub(crate) fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u
     handle /media/files* {{
         reverse_proxy host.docker.internal:{media_port}
     }}
-    handle /media/artifacts* {{
-        reverse_proxy host.docker.internal:{media_port}
-    }}
     handle /media/healthz {{
         reverse_proxy host.docker.internal:{media_port}
     }}
@@ -343,120 +446,4 @@ pub(crate) fn write_edge_caddyfile(path: &Path, gateway_port: u16, media_port: u
     );
     fs::write(path, caddyfile)?;
     Ok(())
-}
-
-pub(crate) fn gateway_serve_args(
-    port: u16,
-    control_db_url: &str,
-    state_db: &Path,
-) -> Vec<OsString> {
-    vec![
-        "serve".into(),
-        "--port".into(),
-        port.to_string().into(),
-        "--public-base-url".into(),
-        PUBLIC_BASE_URL.into(),
-        "--control-db-url".into(),
-        control_db_url.into(),
-        "--state-db".into(),
-        state_db.as_os_str().to_os_string(),
-        "--allow-loopback-hosts".into(),
-    ]
-}
-
-pub(crate) fn reserve_local_port() -> Result<u16> {
-    let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
-    Ok(listener.local_addr()?.port())
-}
-
-async fn wait_for_postgres_container(container_name: &str, user: &str, db: &str) -> Result<()> {
-    for _ in 0..150 {
-        let output = run_raw(
-            Path::new("docker"),
-            [
-                "exec".into(),
-                container_name.into(),
-                "pg_isready".into(),
-                "-U".into(),
-                user.into(),
-                "-d".into(),
-                db.into(),
-            ],
-            [],
-        )?;
-        if output.status.success() {
-            return Ok(());
-        }
-        tokio::time::sleep(Duration::from_millis(200)).await;
-    }
-    bail!("timed out waiting for Postgres container {container_name}");
-}
-
-/// A running artifact-service backed by a throwaway Postgres (grant ledger) and
-/// an in-memory object store. Domain servers spawned in smoke point their
-/// `--artifact-service-url` here. Guards tear both down on drop.
-pub(crate) struct ArtifactServiceSmoke {
-    pub(crate) url: String,
-    _container: ContainerGuard,
-    _child: ChildGuard,
-}
-
-pub(crate) async fn spawn_artifact_service_smoke(
-    artifact_service: &Path,
-    log: &Path,
-) -> Result<ArtifactServiceSmoke> {
-    // Postgres grant ledger (the service auto-migrates it on boot).
-    let db_port = reserve_local_port()?;
-    let container_name = format!("veoveo-smoke-artifact-db-{}", uuid::Uuid::new_v4());
-    let container = ContainerGuard::new(container_name.clone());
-    run_checked(
-        Path::new("docker"),
-        [
-            "run".into(),
-            "-d".into(),
-            "--name".into(),
-            container_name.clone().into(),
-            "-e".into(),
-            "POSTGRES_DB=veoveo_artifact".into(),
-            "-e".into(),
-            "POSTGRES_USER=veoveo_artifact".into(),
-            "-e".into(),
-            "POSTGRES_PASSWORD=veoveo_artifact".into(),
-            "-p".into(),
-            format!("127.0.0.1:{db_port}:5432").into(),
-            "postgres:18-alpine".into(),
-        ],
-        [],
-    )?;
-    wait_for_postgres_container(&container_name, "veoveo_artifact", "veoveo_artifact").await?;
-
-    let database_url =
-        format!("postgresql://veoveo_artifact:veoveo_artifact@127.0.0.1:{db_port}/veoveo_artifact");
-    let bind_port = reserve_local_port()?;
-    let url = format!("http://127.0.0.1:{bind_port}");
-    let child = ChildGuard::spawn(
-        artifact_service,
-        Vec::<OsString>::new(),
-        [
-            (
-                "ARTIFACT_SERVICE_BIND",
-                format!("127.0.0.1:{bind_port}").into(),
-            ),
-            ("DATABASE_URL", database_url.into()),
-            ("INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
-            ("ARTIFACT_MASTER_KEY", ARTIFACT_MASTER_KEY.into()),
-            ("ARTIFACT_STORE", "memory".into()),
-            (
-                "ARTIFACT_ALLOWED_AUDIENCES",
-                "media,timeseries,optimization,duckdb,coordinates".into(),
-            ),
-        ],
-        log,
-    )?;
-    wait_for_http(&format!("{url}/healthz")).await?;
-    Ok(ArtifactServiceSmoke {
-        url,
-        _container: container,
-        _child: child,
-    })
 }

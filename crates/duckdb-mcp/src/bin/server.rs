@@ -1,40 +1,34 @@
 //! DuckDB MCP server.
 //!
 //! MCP surface:
-//!   tool `query(db, sql, ...)` — read-only SQL, direct or task
-//!   tool `execute(db, sql, ...)` — DDL/DML on an owned database, direct or task
-//!   tool `ingest(db, table, source, mode)` — task-required source loading
-//!   tool `export(db, selection, format)` — task-required artifact export
+//!   tool `query(db, sql, ...)` — read-only SQL, direct or final task extension
+//!   tool `execute(db, sql, ...)` — arbitrary DDL/DML, direct or final task extension
+//!   tool `ingest(db, table, source, mode)` — final task-extension source loading
+//!   tool `export(db, selection, format)` — final task-extension artifact export
 //!   resource `duckdb://dbs` — databases visible to the caller
 //!   template `duckdb://db/{db_id}` — schema summary for one database
-//!   template `duckdb://artifact/{sha256}` — immutable export artifact bytes
+//!   template `duckdb://artifact/{artifact_id}` — immutable export artifact bytes
 //!   template `duckdb://usage/task/{task_id}` — task usage rows
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
-use axum::{
-    Router,
-    extract::{Path as AxumPath, State},
-    http::{
-        HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
-    },
-    middleware,
-    response::IntoResponse,
-    routing::get,
+use std::{
+    collections::BTreeSet,
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroU64},
+    sync::Arc,
+    time::Duration,
 };
+
+use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResult, CancelTaskParams, CancelTaskResult,
-        CreateTaskResult, GetTaskParams, GetTaskPayloadParams, GetTaskPayloadResult, GetTaskResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListTasksResult, ListToolsResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo, Task, TaskStatus,
-        TasksCapability,
+        CallToolResult, ContentBlock, ListResourceTemplatesResult, ListResourcesResult,
+        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
+        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -42,7 +36,9 @@ use rmcp::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_mcp::{
     artifacts::ArtifactRepository,
@@ -52,13 +48,22 @@ use veoveo_duckdb_mcp::{
         DuckDbQueryRequest,
     },
     engine::{self, EngineSettings, FileExchange},
-    state::{DuckdbState, TaskOwner},
+    state::TaskOwner,
     uris,
 };
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, InternalTokenSecret, Page,
-    ServerSlug, TaskPayloadState, TaskStore, TelemetryGuard, TokenIssuer, UsageReport,
-    init_server_telemetry, is_sha256, now_iso, paginate, public_allowed_hosts, related_task_meta,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
+    TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
+    public_allowed_hosts,
+};
+use veoveo_mcp_task_extension::{
+    Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
+    task_extension_middleware,
+};
+use veoveo_task_runtime::{
+    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
+    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 
 #[path = "server/app_state.rs"]
@@ -75,19 +80,27 @@ mod outputs;
 mod ownership;
 #[path = "server/sql_ops.rs"]
 mod sql_ops;
+#[path = "server/task_extension.rs"]
+mod task_extension;
 
 use app_state::{AppState, Caps, ServerDirs, update_task};
 use config::Args;
 use host::validate_host;
-use internal_auth::{
-    InternalMcpAuthState, authenticate_internal_mcp, verify_internal_authorization,
-};
+use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
+use outputs::usage_record;
 use ownership::{
-    database_readable, internal_caller, internal_identity, optional_task_owner, require_task_owner,
-    resolve_readable_database, task_owner_allows, task_owner_from_identity,
+    databases_for_identity, identity_from_runtime, internal_caller, internal_identity,
+    optional_task_owner, require_task_owner, resolve_readable_database, runtime_owner,
+    task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
 };
+use sql_ops::ArtifactWriteContext;
+use task_extension::DuckdbTaskExtension;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
+const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
+const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);
+const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
+const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "duckdb";
 const LIST_PAGE_SIZE: usize = 100;
 
@@ -96,7 +109,7 @@ fn install_rustls_provider() {
 }
 
 fn direct_call_owner(identity: &veoveo_mcp_contract::GatewayInternalIdentity) -> TaskOwner {
-    task_owner_from_identity(&format!("call-{}", uuid::Uuid::new_v4()), identity)
+    task_owner_from_identity(&format!("call-{}", uuid::Uuid::now_v7()), identity)
 }
 
 #[derive(Clone)]
@@ -117,15 +130,14 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Query a DuckDB database",
-        description = "Run one read-only SQL statement against a database you own. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{sha256} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
+        description = "Run one read-only SQL statement against a database you own. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{artifact_id} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbQueryOutput>(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
             open_world_hint = false
-        ),
-        execution(task_support = "optional")
+        )
     )]
     async fn query(
         &self,
@@ -135,8 +147,9 @@ impl DuckdbMcp {
         let caller = internal_caller(&context)?;
         let identity = internal_identity(&context)?;
         let owner = direct_call_owner(&identity);
-        let output = sql_ops::query_op(&self.state, &caller, &identity, &owner, args).await?;
-        outputs::query_result(&output, None)
+        let writer = ArtifactWriteContext::Caller(Box::new(caller));
+        let output = sql_ops::query_op(&self.state, &writer, &identity, &owner, args).await?;
+        outputs::query_result(&output)
     }
 
     #[tool(
@@ -148,8 +161,7 @@ impl DuckdbMcp {
             destructive_hint = true,
             idempotent_hint = false,
             open_world_hint = false
-        ),
-        execution(task_support = "optional")
+        )
     )]
     async fn execute(
         &self,
@@ -158,49 +170,47 @@ impl DuckdbMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = internal_identity(&context)?;
         let output = sql_ops::execute_op(&self.state, &identity, args).await?;
-        outputs::execute_result(&output, None)
+        outputs::execute_result(&output)
     }
 
     #[tool(
         title = "Ingest data into a DuckDB table",
-        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an artifact:// reference to any hosted server's artifact (media output, timeseries RRD, optimization snapshot), resolved through the shared artifact plane under your identity and gated by its grant + label checks. The server fetches and resolves sources itself; SQL never reaches the network. Must be invoked as an MCP task; read tasks/result for the final row count.",
+        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an authorized artifact:// reference. The server resolves sources itself and SQL never reaches the network. Invoke through the final task extension; the completed task carries the result.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbIngestOutput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
             open_world_hint = true
-        ),
-        execution(task_support = "required")
+        )
     )]
     async fn ingest(
         &self,
         Parameters(_args): Parameters<DuckDbIngestRequest>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "ingest requires task-based invocation",
+            "ingest requires final task-extension invocation",
             None,
         ))
     }
 
     #[tool(
         title = "Export DuckDB data to an artifact",
-        description = "Export a table, a read-only SQL result, or a full owned-database snapshot to one immutable duckdb://artifact/{sha256} artifact (parquet, csv, or duck_db snapshot). Must be invoked as an MCP task; read tasks/result for the artifact link.",
+        description = "Export a table, a read-only SQL result, or a full owned-database snapshot to one immutable duckdb://artifact/{artifact_id} artifact (parquet, csv, or duck_db snapshot). Invoke through the final task extension; the completed task carries the artifact link.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbExportOutput>(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true,
             open_world_hint = false
-        ),
-        execution(task_support = "required")
+        )
     )]
     async fn export(
         &self,
         Parameters(_args): Parameters<DuckDbExportRequest>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "export requires task-based invocation",
+            "export requires final task-extension invocation",
             None,
         ))
     }
@@ -214,6 +224,8 @@ fn mcp_page<T>(
         .map_err(|err| McpError::invalid_params(err.to_string(), None))
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "operation", content = "request", rename_all = "snake_case")]
 enum TaskArgs {
     Query(DuckDbQueryRequest),
     Execute(DuckDbExecuteRequest),
@@ -221,12 +233,16 @@ enum TaskArgs {
     Export(DuckDbExportRequest),
 }
 
-fn parse_task_args(request: &CallToolRequestParams) -> Result<TaskArgs, McpError> {
-    let arguments = Value::Object(request.arguments.clone().unwrap_or_default());
-    let invalid = |err: serde_json::Error| {
-        McpError::invalid_params(format!("invalid {} arguments: {err}", request.name), None)
-    };
-    match request.name.as_ref() {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct DuckdbTaskRequest {
+    args: TaskArgs,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    artifact_write_capability: Option<IssuedArtifactWriteCapability>,
+}
+
+fn parse_task_args(name: &str, arguments: Value) -> Result<TaskArgs, String> {
+    let invalid = |error: serde_json::Error| format!("invalid {name} arguments: {error}");
+    match name {
         "query" => Ok(TaskArgs::Query(
             serde_json::from_value(arguments).map_err(invalid)?,
         )),
@@ -239,9 +255,7 @@ fn parse_task_args(request: &CallToolRequestParams) -> Result<TaskArgs, McpError
         "export" => Ok(TaskArgs::Export(
             serde_json::from_value(arguments).map_err(invalid)?,
         )),
-        _ => Err(McpError::method_not_found::<
-            rmcp::model::CallToolRequestMethod,
-        >()),
+        _ => Err(format!("unknown DuckDB tool {name:?}")),
     }
 }
 
@@ -251,7 +265,6 @@ impl ServerHandler for DuckdbMcp {
         let caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
-            .enable_tasks_with(TasksCapability::server_default())
             .build();
         let mut info = ServerInfo::default();
         info.capabilities = caps;
@@ -283,136 +296,6 @@ impl ServerHandler for DuckdbMcp {
         })
     }
 
-    async fn enqueue_task(
-        &self,
-        request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CreateTaskResult, McpError> {
-        let caller = internal_caller(&context)?;
-        let identity = internal_identity(&context)?;
-        let args = parse_task_args(&request)?;
-        let progress_token = context.meta.get_progress_token();
-        let ttl = request.task.as_ref().and_then(|task| task.ttl);
-        let task_id = uuid::Uuid::new_v4().to_string();
-        let now = now_iso();
-        let mut task = Task::new(task_id.clone(), TaskStatus::Working, now.clone(), now)
-            .with_status_message("accepted")
-            .with_poll_interval(MCP_TASK_POLL_INTERVAL_MS);
-        task.ttl = ttl;
-
-        self.state.tasks.insert(task.clone(), None).await;
-        let owner = task_owner_from_identity(&task_id, &identity);
-        self.state
-            .durable
-            .record_task_owner(&owner)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-        self.state
-            .task_owners
-            .write()
-            .await
-            .insert(task_id.clone(), owner.clone());
-        if let Err(err) = self.state.durable.record_task(&task, None, None) {
-            tracing::warn!(task_id, "failed to persist task creation: {err}");
-        }
-
-        let join = tokio::spawn(run_task(
-            self.state.clone(),
-            context.peer.clone(),
-            task_id.clone(),
-            caller,
-            identity,
-            owner,
-            args,
-            progress_token,
-        ));
-        self.state.tasks.set_join(&task_id, join).await;
-        Ok(CreateTaskResult::new(task).with_meta(related_task_meta(task_id)))
-    }
-
-    async fn list_tasks(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListTasksResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let owners = self.state.task_owners.read().await;
-        let tasks = self
-            .state
-            .tasks
-            .list()
-            .await
-            .into_iter()
-            .filter(|task| {
-                owners
-                    .get(&task.task_id)
-                    .map(|owner| task_owner_allows(owner, &identity))
-                    .unwrap_or(false)
-            })
-            .collect();
-        let page = mcp_page(tasks, request.as_ref())?;
-        let mut result = ListTasksResult::new(page.items);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
-    async fn get_task_info(
-        &self,
-        request: GetTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .get(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        Ok(GetTaskResult::new(task))
-    }
-
-    async fn get_task_result(
-        &self,
-        request: GetTaskPayloadParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<GetTaskPayloadResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        match self.state.tasks.await_payload_state(&request.task_id).await {
-            TaskPayloadState::Completed(payload) => Ok(GetTaskPayloadResult::new(payload)),
-            TaskPayloadState::Failed(error) => Err(McpError::internal_error(error, None)),
-            TaskPayloadState::Cancelled => {
-                Err(McpError::invalid_request("task was cancelled", None))
-            }
-            // await_payload_state blocks until terminal per MCP 2025-11-25;
-            // Running here means the wait logic itself broke.
-            TaskPayloadState::Running => Err(McpError::internal_error(
-                "task payload wait ended while still running",
-                None,
-            )),
-            TaskPayloadState::Unknown => Err(McpError::invalid_params("unknown task id", None)),
-        }
-    }
-
-    async fn cancel_task(
-        &self,
-        request: CancelTaskParams,
-        context: RequestContext<RoleServer>,
-    ) -> Result<CancelTaskResult, McpError> {
-        require_task_owner(&self.state, &context, &request.task_id).await?;
-        let task = self
-            .state
-            .tasks
-            .cancel(&request.task_id)
-            .await
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-        if let Err(err) = self.state.durable.record_task(&task, None, None) {
-            tracing::warn!(
-                task_id = request.task_id,
-                "failed to persist task cancellation: {err}"
-            );
-        }
-        Ok(CancelTaskResult::new(task))
-    }
-
     async fn list_resources(
         &self,
         request: Option<PaginatedRequestParams>,
@@ -429,15 +312,7 @@ impl ServerHandler for DuckdbMcp {
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
-        for database in self
-            .state
-            .durable
-            .databases()
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?
-        {
-            if !database_readable(&database, &identity) {
-                continue;
-            }
+        for database in databases_for_identity(&self.state, &identity)? {
             resources.push(
                 Resource::new(
                     uris::db_uri(database.db_id.as_str()),
@@ -453,10 +328,13 @@ impl ServerHandler for DuckdbMcp {
         // URI through resources/read, which resolves against the plane.
         for task_id in self
             .state
-            .durable
-            .usage_task_ids()
+            .tasks
+            .platform_store()
+            .domain_usage_task_ids(SERVER_SLUG)
+            .await
             .map_err(|err| McpError::internal_error(err.to_string(), None))?
         {
+            let task_id = task_id.to_string();
             let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
                 continue;
             };
@@ -493,7 +371,9 @@ impl ServerHandler for DuckdbMcp {
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
                 .with_title("DuckDB artifact")
-                .with_description("Server-owned immutable export artifact, addressed by sha256."),
+                .with_description(
+                    "Server-owned immutable export artifact, addressed by occurrence id.",
+                ),
             ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
                 .with_title("DuckDB task usage")
                 .with_description("Usage rows for one task, addressed by task id.")
@@ -516,15 +396,7 @@ impl ServerHandler for DuckdbMcp {
         let uri = request.uri.as_str();
         if uri == uris::DBS_ROOT_URI {
             let mut entries = Vec::new();
-            for database in self
-                .state
-                .durable
-                .databases()
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?
-            {
-                if !database_readable(&database, &identity) {
-                    continue;
-                }
+            for database in databases_for_identity(&self.state, &identity)? {
                 entries.push(json!({
                     "db_id": database.db_id.as_str(),
                     "db_uri": uris::db_uri(database.db_id.as_str()),
@@ -540,10 +412,13 @@ impl ServerHandler for DuckdbMcp {
             let mut entries = Vec::new();
             for task_id in self
                 .state
-                .durable
-                .usage_task_ids()
+                .tasks
+                .platform_store()
+                .domain_usage_task_ids(SERVER_SLUG)
+                .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
             {
+                let task_id = task_id.to_string();
                 let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
                     continue;
                 };
@@ -568,11 +443,19 @@ impl ServerHandler for DuckdbMcp {
         }
         if let Some(task_id) = uris::parse_usage_task_uri(uri) {
             require_task_owner(&self.state, &context, task_id).await?;
+            let durable_task_id = task_id
+                .parse::<TaskId>()
+                .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
             let records = self
                 .state
-                .durable
-                .usage_records(task_id)
-                .map_err(|err| McpError::internal_error(err.to_string(), None))?;
+                .tasks
+                .platform_store()
+                .domain_usage_for_task(SERVER_SLUG, durable_task_id)
+                .await
+                .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                .into_iter()
+                .map(|record| usage_record(task_id, record))
+                .collect::<Vec<_>>();
             if records.is_empty() {
                 return Err(McpError::resource_not_found(
                     format!("unknown usage task '{task_id}'"),
@@ -585,18 +468,18 @@ impl ServerHandler for DuckdbMcp {
                     .with_mime_type("application/json"),
             ]));
         }
-        if let Some(sha256) = uris::parse_artifact_uri(uri) {
+        if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
             // The plane enforces access with the caller's identity; a denial
             // surfaces as an error rather than None.
             let caller = internal_caller(&context)?;
             let artifact = self
                 .state
                 .artifacts
-                .get(&caller, sha256)
+                .get(&caller, &artifact_id)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?
                 .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown artifact '{sha256}'"), None)
+                    McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
                 })?;
             let blob = BASE64_STANDARD.encode(&artifact.bytes);
             let mut content = ResourceContents::blob(blob, uri);
@@ -665,90 +548,283 @@ async fn database_schema_document(
     Ok(json!({ "db_id": db_id.as_str(), "tables": tables }))
 }
 
-#[allow(clippy::too_many_arguments)]
+fn task_recovery_class(args: &TaskArgs) -> RecoveryClass {
+    match args {
+        TaskArgs::Query(_) | TaskArgs::Export(_) => RecoveryClass::Resume,
+        TaskArgs::Execute(_) | TaskArgs::Ingest(_) => RecoveryClass::InterruptedIndeterminate,
+    }
+}
+
+fn task_needs_artifact_capability(args: &TaskArgs) -> bool {
+    matches!(args, TaskArgs::Query(_) | TaskArgs::Export(_))
+}
+
+async fn start_duckdb_task(
+    state: Arc<AppState>,
+    identity: veoveo_mcp_contract::GatewayInternalIdentity,
+    caller: veoveo_mcp_contract::PlaneCaller,
+    args: TaskArgs,
+    retention_pins: BTreeSet<TaskRetentionPin>,
+) -> Result<TaskSnapshot, String> {
+    let task_id = TaskId::new();
+    let artifact_write_capability = if task_needs_artifact_capability(&args) {
+        Some(
+            state
+                .artifacts
+                .issue_write_capability(
+                    &caller,
+                    &IssueArtifactWriteCapabilityRequest {
+                        task_id: task_id.to_string(),
+                        expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
+                        max_artifact_count: NonZeroU32::new(1).expect("one artifact is non-zero"),
+                        max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)
+                            .ok_or_else(|| "max artifact bytes must be non-zero".to_owned())?,
+                    },
+                )
+                .await
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
+    let recovery_class = task_recovery_class(&args);
+    let request = DuckdbTaskRequest {
+        args,
+        artifact_write_capability,
+    };
+    let created = state
+        .tasks
+        .create(DurableCreateTask {
+            task_id,
+            owner: runtime_owner(&identity),
+            server: SERVER_SLUG.to_owned(),
+            task_type: request.args.operation_name().to_owned(),
+            request: serde_json::to_value(&request).map_err(|error| error.to_string())?,
+            recovery_class,
+            idempotency_key: None,
+            ttl_ms: Some(MCP_TASK_TTL_MS),
+            poll_interval_ms: Some(MCP_TASK_POLL_INTERVAL_MS),
+            retention_pins,
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    schedule_duckdb_task(state, created.snapshot, request, identity, Some(caller))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+impl TaskArgs {
+    fn operation_name(&self) -> &'static str {
+        match self {
+            Self::Query(_) => "query",
+            Self::Execute(_) => "execute",
+            Self::Ingest(_) => "ingest",
+            Self::Export(_) => "export",
+        }
+    }
+}
+
+async fn schedule_duckdb_task(
+    state: Arc<AppState>,
+    snapshot: TaskSnapshot,
+    request: DuckdbTaskRequest,
+    identity: veoveo_mcp_contract::GatewayInternalIdentity,
+    caller: Option<veoveo_mcp_contract::PlaneCaller>,
+) -> anyhow::Result<TaskSnapshot> {
+    let task_id = snapshot.task_id.to_string();
+    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let owner = task_owner_from_runtime(&task_id, &snapshot.owner).map_err(anyhow::Error::msg)?;
+    let cancellation = CancellationToken::new();
+    let join = tokio::spawn(run_task(
+        state.clone(),
+        task_id.clone(),
+        identity,
+        owner,
+        request,
+        caller,
+        cancellation.clone(),
+    ));
+    state
+        .tasks
+        .register_worker(&task_id, cancellation, join)
+        .await?;
+    Ok(claimed.snapshot)
+}
+
+async fn resume_duckdb_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> anyhow::Result<()> {
+    let request: DuckdbTaskRequest = serde_json::from_value(snapshot.request.clone())?;
+    if !matches!(&request.args, TaskArgs::Query(_) | TaskArgs::Export(_)) {
+        anyhow::bail!("mutation task cannot be resumed");
+    }
+    let identity = identity_from_runtime(&snapshot.owner).map_err(anyhow::Error::msg)?;
+    schedule_duckdb_task(state, snapshot, request, identity, None)
+        .await
+        .map(|_| ())
+}
+
+async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+    let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
+    let transition = match serde_json::to_value(result) {
+        Ok(result) => TaskTransition::Succeeded { message, result },
+        Err(error) => TaskTransition::Failed(TaskFailure::new(
+            "result_serialization_failed",
+            error.to_string(),
+        )),
+    };
+    update_task(state, task_id, transition).await;
+}
+
 async fn run_task(
     state: Arc<AppState>,
-    peer: rmcp::service::Peer<RoleServer>,
     task_id: String,
-    caller: veoveo_mcp_contract::PlaneCaller,
     identity: veoveo_mcp_contract::GatewayInternalIdentity,
     owner: TaskOwner,
-    args: TaskArgs,
-    progress_token: Option<rmcp::model::ProgressToken>,
+    request: DuckdbTaskRequest,
+    caller: Option<veoveo_mcp_contract::PlaneCaller>,
+    cancellation: CancellationToken,
+) {
+    let work = run_task_inner(
+        state.clone(),
+        task_id.clone(),
+        identity,
+        owner,
+        request,
+        caller,
+        cancellation.clone(),
+    );
+    tokio::pin!(work);
+    let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    loop {
+        tokio::select! {
+            () = &mut work => break,
+            _ = heartbeat.tick() => {
+                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
+                    tracing::warn!(task_id, "task lease heartbeat failed: {error}");
+                    cancellation.cancel();
+                    break;
+                }
+            }
+        }
+    }
+}
+
+async fn run_task_inner(
+    state: Arc<AppState>,
+    task_id: String,
+    identity: veoveo_mcp_contract::GatewayInternalIdentity,
+    owner: TaskOwner,
+    request: DuckdbTaskRequest,
+    caller: Option<veoveo_mcp_contract::PlaneCaller>,
+    cancellation: CancellationToken,
 ) {
     macro_rules! fail {
         ($msg:expr) => {{
             let msg: String = $msg;
             tracing::warn!(task_id, "duckdb task failed: {msg}");
-            update_task(
-                &state,
-                &peer,
-                &task_id,
-                TaskStatus::Failed,
-                msg.clone(),
-                None,
-                Some(msg),
-            )
-            .await;
+            complete_tool_error(&state, &task_id, msg).await;
             return;
         }};
     }
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 0.1, "running").await;
-    let result = match args {
+    update_task(
+        &state,
+        &task_id,
+        TaskTransition::Running {
+            message: "running DuckDB operation".to_owned(),
+            progress: 0.1,
+        },
+    )
+    .await;
+    let artifact_write_capability = request.artifact_write_capability;
+    let result = match request.args {
         TaskArgs::Query(request) => {
-            match sql_ops::query_op(&state, &caller, &identity, &owner, request).await {
+            let writer =
+                match task_artifact_writer(artifact_write_capability.as_ref(), &task_id, "query") {
+                    Ok(writer) => writer,
+                    Err(error) => fail!(error),
+                };
+            match sql_ops::query_op(&state, &writer, &identity, &owner, request).await {
                 Ok(output) => {
-                    outputs::record_op_usage(
+                    if let Err(error) = outputs::record_op_usage(
                         &state,
                         &task_id,
                         "query",
                         output.row_count,
                         json!({ "db": output_db_meta(&output) }),
-                    );
-                    outputs::query_result(&output, Some(&task_id))
+                    )
+                    .await
+                    {
+                        fail!(format!("usage write failed: {error}"));
+                    }
+                    outputs::query_result(&output)
                 }
                 Err(err) => fail!(format!("query failed: {}", err.message)),
             }
         }
         TaskArgs::Execute(request) => match sql_ops::execute_op(&state, &identity, request).await {
             Ok(output) => {
-                outputs::record_op_usage(
+                if let Err(error) = outputs::record_op_usage(
                     &state,
                     &task_id,
                     "execute",
                     output.rows_changed,
                     json!({ "db": output.db.as_str(), "statements": output.statements }),
-                );
-                outputs::execute_result(&output, Some(&task_id))
+                )
+                .await
+                {
+                    fail!(format!("usage write failed: {error}"));
+                }
+                outputs::execute_result(&output)
             }
             Err(err) => fail!(format!("execute failed: {}", err.message)),
         },
         TaskArgs::Ingest(request) => {
-            match sql_ops::ingest_op(&state, &caller, &identity, request).await {
+            let caller = match caller.as_ref() {
+                Some(caller) => caller,
+                None => fail!("interrupted ingest cannot be replayed".to_owned()),
+            };
+            match sql_ops::ingest_op(&state, caller, &identity, request).await {
                 Ok(output) => {
-                    outputs::record_op_usage(
+                    if let Err(error) = outputs::record_op_usage(
                         &state,
                         &task_id,
                         "ingest",
                         output.rows_ingested,
                         json!({ "db": output.db.as_str(), "table": output.table }),
-                    );
-                    outputs::ingest_result(&output, Some(&task_id))
+                    )
+                    .await
+                    {
+                        fail!(format!("usage write failed: {error}"));
+                    }
+                    outputs::ingest_result(&output)
                 }
                 Err(err) => fail!(format!("ingest failed: {}", err.message)),
             }
         }
         TaskArgs::Export(request) => {
-            match sql_ops::export_op(&state, &caller, &identity, &owner, request).await {
+            let writer = match task_artifact_writer(
+                artifact_write_capability.as_ref(),
+                &task_id,
+                "export",
+            ) {
+                Ok(writer) => writer,
+                Err(error) => fail!(error),
+            };
+            match sql_ops::export_op(&state, &writer, &identity, &owner, request).await {
                 Ok(output) => {
-                    outputs::record_op_usage(
+                    if let Err(error) = outputs::record_op_usage(
                         &state,
                         &task_id,
                         "export",
                         output.rows_exported,
-                        json!({ "db": output.db.as_str(), "artifact": output.artifact.sha256 }),
-                    );
-                    outputs::export_result(&output, Some(&task_id))
+                        json!({ "db": output.db.as_str(), "artifact": output.artifact.artifact_id }),
+                    )
+                    .await
+                    {
+                        fail!(format!("usage write failed: {error}"));
+                    }
+                    outputs::export_result(&output)
                 }
                 Err(err) => fail!(format!("export failed: {}", err.message)),
             }
@@ -758,75 +834,49 @@ async fn run_task(
         Ok(result) => result,
         Err(err) => fail!(format!("result assembly failed: {}", err.message)),
     };
-    veoveo_mcp_contract::notify_progress(&peer, &progress_token, 1.0, "completed").await;
+    if cancellation.is_cancelled() {
+        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        return;
+    }
+    let payload = match serde_json::to_value(&result) {
+        Ok(payload) => payload,
+        Err(error) => fail!(format!("serializing result failed: {error}")),
+    };
     update_task(
         &state,
-        &peer,
         &task_id,
-        TaskStatus::Completed,
-        "completed",
-        serde_json::to_value(&result).ok(),
-        None,
+        TaskTransition::Succeeded {
+            message: "DuckDB operation completed".to_owned(),
+            result: payload,
+        },
     )
     .await;
+}
+
+fn task_artifact_writer(
+    capability: Option<&IssuedArtifactWriteCapability>,
+    task_id: &str,
+    operation: &str,
+) -> Result<ArtifactWriteContext, String> {
+    let capability = capability
+        .cloned()
+        .ok_or_else(|| "task did not reserve artifact write capability".to_owned())?;
+    let idempotency_key = veoveo_mcp_contract::ArtifactWriteIdempotencyKey::new(format!(
+        "duckdb:{task_id}:{operation}"
+    ))
+    .map_err(|error| error.to_string())?;
+    Ok(ArtifactWriteContext::Capability {
+        capability,
+        idempotency_key,
+    })
 }
 
 fn output_db_meta(output: &DuckDbQueryOutput) -> Value {
     output
         .artifact
         .as_ref()
-        .map(|artifact| json!({ "artifact": artifact.sha256 }))
+        .map(|artifact| json!({ "artifact": artifact.artifact_id }))
         .unwrap_or_else(|| json!({ "inline_rows": output.rows.len() }))
-}
-
-async fn artifact_download(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    AxumPath(sha256): AxumPath<String>,
-) -> impl IntoResponse {
-    if !is_sha256(&sha256) {
-        return (StatusCode::NOT_FOUND, "not found").into_response();
-    }
-    let identity = match verify_internal_authorization(&state.internal_token_verifier, &headers) {
-        Ok(identity) => identity,
-        Err(message) => {
-            tracing::warn!(
-                artifact_sha256 = sha256,
-                "rejected duckdb artifact download: {message}"
-            );
-            return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-        }
-    };
-    let Some(bearer) = internal_auth::bearer_from_headers(&headers) else {
-        return (StatusCode::UNAUTHORIZED, "gateway authorization required").into_response();
-    };
-    let caller = ownership::caller_from(identity, bearer);
-    // The plane enforces access; a denial reads as None (not found) here.
-    let artifact = match state.artifacts.get(&caller, &sha256).await {
-        Ok(Some(artifact)) => artifact,
-        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
-        Err(err) => {
-            tracing::warn!(artifact_sha256 = sha256, "artifact download failed: {err}");
-            return (StatusCode::NOT_FOUND, "not found").into_response();
-        }
-    };
-
-    let mut headers = HeaderMap::new();
-    if let Some(mime) = artifact.metadata.mime_type.as_deref()
-        && let Ok(value) = HeaderValue::from_str(mime)
-    {
-        headers.insert(CONTENT_TYPE, value);
-    }
-    let filename = artifact
-        .metadata
-        .filename
-        .as_deref()
-        .unwrap_or("export.bin")
-        .replace(['"', '\r', '\n'], "_");
-    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{filename}\"")) {
-        headers.insert(CONTENT_DISPOSITION, value);
-    }
-    (StatusCode::OK, headers, artifact.bytes).into_response()
 }
 
 #[tokio::main]
@@ -841,44 +891,37 @@ async fn main() -> anyhow::Result<()> {
     for dir in [&args.database_dir, &args.exchange_dir, &args.spill_dir] {
         std::fs::create_dir_all(dir)?;
     }
-    let durable = DuckdbState::open(&args.state_db)?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         ServerSlug::new(SERVER_SLUG)?,
-        InternalTokenSecret::new(args.internal_token_secret.clone())?,
+        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
     );
     let artifacts = ArtifactRepository::new(args.artifact_service_url.clone());
-    let tasks = TaskStore::new();
-    for persisted in durable.load_tasks()? {
-        tasks
-            .insert_record(
-                persisted.task,
-                persisted.payload,
-                persisted.error,
-                None,
-                None,
-            )
-            .await;
-    }
-    let task_owners = durable
-        .load_task_owners()?
-        .into_iter()
-        .map(|owner| (owner.task_id.clone(), owner))
-        .collect::<HashMap<_, _>>();
+    let tasks = TaskRuntime::connect(
+        TaskRuntimeConfig::new(
+            args.surreal_endpoint.clone(),
+            args.surreal_namespace.clone(),
+            args.surreal_database.clone(),
+            args.surreal_auth_level,
+            args.surreal_username.clone(),
+            args.surreal_password.clone(),
+        ),
+        SERVER_SLUG,
+        format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
+    )
+    .await?;
+    let recovery = tasks.recover().await?;
     let engine_settings = EngineSettings {
         memory_limit: args.engine_memory_limit.clone(),
         threads: args.engine_threads,
         spill_dir: args.spill_dir.clone(),
     };
-    let http = reqwest::Client::builder()
-        .user_agent("veoveo-duckdb-mcp")
-        .build()?;
+    let mut source_policy =
+        veoveo_duckdb_runtime::HttpsSourcePolicy::new(args.allow_source_hosts.clone());
+    source_policy.max_bytes = args.max_source_bytes;
     let state = Arc::new(AppState::new(
         tasks,
-        durable,
         artifacts,
-        internal_token_verifier.clone(),
-        task_owners,
         engine_settings,
         ServerDirs {
             database_dir: args.database_dir.clone(),
@@ -890,9 +933,19 @@ async fn main() -> anyhow::Result<()> {
             default_timeout_ms: args.default_timeout_ms,
             max_timeout_ms: args.max_timeout_ms,
         },
-        args.allow_ingest_hosts.clone(),
-        http,
+        source_policy,
+        args.max_artifact_bytes,
     ));
+    for snapshot in recovery.resumable {
+        if let Err(error) = resume_duckdb_task(state.clone(), snapshot).await {
+            match error.downcast_ref::<TaskError>() {
+                Some(TaskError::LeaseHeld(task_id) | TaskError::Conflict(task_id)) => {
+                    tracing::info!(task_id, "another replica claimed recovered DuckDB task");
+                }
+                _ => return Err(error),
+            }
+        }
+    }
 
     let ct = tokio_util::sync::CancellationToken::new();
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
@@ -909,18 +962,40 @@ async fn main() -> anyhow::Result<()> {
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
+            .with_stateful_mode(false)
+            .with_json_response(true)
             .with_cancellation_token(ct.child_token()),
     );
+    let task_extension = Arc::new(TaskExtensionAdapter::new(
+        Arc::new(DuckdbTaskExtension::new(state.clone())),
+        ServerDiscovery::new(
+            std::collections::BTreeMap::from([
+                ("tools".to_owned(), json!({})),
+                ("resources".to_owned(), json!({})),
+            ]),
+            TaskExtensionImplementation {
+                name: "duckdb".to_owned(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            Some(
+                "Sandboxed arbitrary DuckDB SQL with durable final-extension tasks and shared artifacts."
+                    .to_owned(),
+            ),
+        ),
+    ));
     let mcp_router = Router::new()
         .route_service("/", mcp_service.clone())
         .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn_with_state(
+            task_extension,
+            task_extension_middleware::<DuckdbTaskExtension>,
+        ))
         .layer(middleware::from_fn_with_state(
             internal_auth_state,
             authenticate_internal_mcp,
         ));
     let server_router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
-        .route("/artifacts/{sha256}", get(artifact_download))
         .with_state(state.clone())
         .nest("/mcp", mcp_router);
     let router = Router::new()
@@ -950,4 +1025,50 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod task_tests {
+    use super::*;
+
+    fn task_args(name: &str, arguments: Value) -> TaskArgs {
+        parse_task_args(name, arguments).unwrap()
+    }
+
+    #[test]
+    fn only_read_operations_are_resumable() {
+        let query = task_args("query", json!({"db": "analytics", "sql": "select 1"}));
+        let export = task_args(
+            "export",
+            json!({
+                "db": "analytics",
+                "selection": {"kind": "database"},
+                "format": "duck_db"
+            }),
+        );
+        let execute = task_args(
+            "execute",
+            json!({"db": "analytics", "sql": "create table rows(value int)"}),
+        );
+        let ingest = task_args(
+            "ingest",
+            json!({
+                "db": "analytics",
+                "table": "rows",
+                "source": {"kind": "inline_csv", "csv": "value\n1\n"},
+                "mode": "append"
+            }),
+        );
+
+        assert_eq!(task_recovery_class(&query), RecoveryClass::Resume);
+        assert_eq!(task_recovery_class(&export), RecoveryClass::Resume);
+        assert_eq!(
+            task_recovery_class(&execute),
+            RecoveryClass::InterruptedIndeterminate
+        );
+        assert_eq!(
+            task_recovery_class(&ingest),
+            RecoveryClass::InterruptedIndeterminate
+        );
+    }
 }

@@ -5,7 +5,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::ArtifactId;
 use crate::gateway::{DataLabelId, PrincipalId, TenantId};
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactReleaseState {
+    #[default]
+    Private,
+    Releasable,
+    Released,
+}
 
 /// Compliance and tenancy labels that travel with server-owned artifacts.
 ///
@@ -28,12 +38,12 @@ pub struct ComplianceMetadata {
 
 /// Canonical metadata for an artifact managed by a server-owned store.
 ///
-/// `artifact_uri` is the protocol identity (`{scheme}://artifact/{sha256}`).
+/// `artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).
 /// `download_url` is optional bulk-transfer plumbing for large artifacts and
 /// must not become a discovery API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ArtifactMetadata {
-    pub sha256: String,
+    pub artifact_id: ArtifactId,
     pub byte_len: u64,
     #[serde(default)]
     pub mime_type: Option<String>,
@@ -43,6 +53,8 @@ pub struct ArtifactMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub download_url: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub release_state: ArtifactReleaseState,
     #[serde(default)]
     pub compliance: ComplianceMetadata,
     #[serde(default)]
@@ -56,14 +68,14 @@ impl ArtifactMetadata {
     }
 
     /// Rewrite `artifact_uri` into the given server's scheme
-    /// (`{scheme}://artifact/{sha256}`) for client-facing presentation.
+    /// (`{scheme}://artifact/{artifact_id}`) for client-facing presentation.
     ///
-    /// The artifact service stamps the neutral plane identity `artifact://{sha}`;
+    /// The artifact service stamps the neutral plane identity `artifact://{id}`;
     /// each domain server presents artifacts under its own scheme (matching its
     /// resource templates and read paths), so callers get a URI the same server
     /// can resolve back. The neutral form remains valid cross-server input.
     pub fn presented_under_scheme(mut self, scheme: &str) -> Self {
-        self.artifact_uri = format!("{scheme}://artifact/{}", self.sha256);
+        self.artifact_uri = format!("{scheme}://artifact/{}", self.artifact_id);
         self
     }
 }
@@ -103,28 +115,31 @@ mod presentation_tests {
 
     #[test]
     fn presented_under_scheme_rewrites_uri_to_server_scheme() {
-        let sha = "b".repeat(64);
+        let artifact_id = ArtifactId::new();
         let meta = ArtifactMetadata {
-            sha256: sha.clone(),
+            artifact_id,
             byte_len: 3,
             mime_type: None,
             filename: None,
             // Plane stamps the neutral identity...
-            artifact_uri: format!("artifact://{sha}"),
+            artifact_uri: artifact_id.plane_uri(),
             download_url: None,
             created_at: Utc::now(),
+            release_state: ArtifactReleaseState::Private,
             compliance: ComplianceMetadata::default(),
             metadata: Value::Null,
         };
         // ...and each server re-presents it under its own scheme.
         let presented = meta.presented_under_scheme("media");
-        assert_eq!(presented.artifact_uri, format!("media://artifact/{sha}"));
-        // The neutral form is still recoverable from the sha for cross-server use.
+        assert_eq!(
+            presented.artifact_uri,
+            format!("media://artifact/{artifact_id}")
+        );
         assert_eq!(
             crate::access::parse_artifact_plane_uri(&presented.artifact_uri)
                 .unwrap()
-                .as_str(),
-            sha
+                .to_string(),
+            artifact_id.to_string()
         );
     }
 }

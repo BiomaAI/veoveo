@@ -1,8 +1,12 @@
+use std::collections::BTreeMap;
+
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_mcp_contract::{
-    ArtifactPut, ComplianceMetadata, PlaneCaller, UsageKind, UsageRecord, now_utc,
-    set_related_task_meta,
+    ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, IssuedArtifactWriteCapability,
+    UsageKind, UsageRecord, now_utc,
 };
+use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
+use veoveo_task_runtime::TaskId;
 use veoveo_timeseries_mcp::{
     contract::{TimeseriesForecastOutput, TimeseriesForecastSummary},
     forecast::{ForecastArtifact, RRD_FILENAME, RRD_MIME_TYPE},
@@ -13,7 +17,7 @@ use super::app_state::AppState;
 
 pub(super) async fn forecast_result(
     state: &AppState,
-    caller: &PlaneCaller,
+    capability: &IssuedArtifactWriteCapability,
     task_id: &str,
     owner: &TaskOwner,
     artifact: ForecastArtifact,
@@ -28,8 +32,15 @@ pub(super) async fn forecast_result(
         ..Default::default()
     };
     put.metadata = artifact.metadata;
-    let metadata = state.artifacts.put(caller, put).await?;
-    record_usage(state, task_id, &artifact.summary)?;
+    let metadata = state
+        .artifacts
+        .put_with_capability(
+            capability,
+            ArtifactWriteIdempotencyKey::new(format!("timeseries:{task_id}:forecast"))?,
+            put,
+        )
+        .await?;
+    record_usage(state, task_id, &artifact.summary).await?;
 
     let public_metadata = metadata.clone().without_download_url();
     let mut blocks = vec![ContentBlock::text(format!(
@@ -52,31 +63,57 @@ pub(super) async fn forecast_result(
         forecast: artifact.summary,
         artifact: public_metadata,
     })?);
-    set_related_task_meta(&mut result.meta, task_id);
     Ok(result)
 }
 
-fn record_usage(
+async fn record_usage(
     state: &AppState,
     task_id: &str,
     summary: &TimeseriesForecastSummary,
 ) -> anyhow::Result<()> {
-    state.durable.record_usage(&UsageRecord {
-        task_id: task_id.to_string(),
-        source_id: None,
-        provider_job_id: None,
-        model_id: "timeseries/naive-trend".to_string(),
-        kind: UsageKind::Actual,
-        quantity: Some(summary.source_rows as f64),
-        unit: Some("source_row".to_string()),
-        amount: None,
-        currency: None,
-        recorded_at: now_utc(),
-        metadata: serde_json::json!({
-            "series_count": summary.series.len(),
-            "horizon": summary.horizon,
-            "artifact_format": "rerun_rrd",
-        }),
-    })?;
+    state
+        .tasks
+        .platform_store()
+        .upsert_domain_usage(DomainUsageDraft {
+            task_id: task_id.parse::<TaskId>()?,
+            server: "timeseries".to_owned(),
+            source_id: None,
+            provider_job_id: None,
+            model_id: "timeseries/naive-trend".to_owned(),
+            kind: DomainUsageKind::Actual,
+            quantity: Some(summary.source_rows as f64),
+            unit: Some("source_row".to_owned()),
+            amount: None,
+            currency: None,
+            recorded_at: now_utc(),
+            metadata: OpenObject::new(BTreeMap::from([
+                (
+                    "series_count".into(),
+                    serde_json::json!(summary.series.len()),
+                ),
+                ("horizon".into(), serde_json::json!(summary.horizon)),
+                ("artifact_format".into(), serde_json::json!("rerun_rrd")),
+            ])),
+        })
+        .await?;
     Ok(())
+}
+
+pub(super) fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
+    UsageRecord {
+        task_id: task_id.to_owned(),
+        source_id: record.source_id,
+        provider_job_id: record.provider_job_id,
+        model_id: record.model_id,
+        kind: match record.kind {
+            DomainUsageKind::Estimate => UsageKind::Estimate,
+            DomainUsageKind::Actual => UsageKind::Actual,
+        },
+        quantity: record.quantity,
+        unit: record.unit,
+        amount: record.amount,
+        currency: record.currency,
+        recorded_at: record.recorded_at,
+        metadata: serde_json::Value::Object(record.metadata.into_map().into_iter().collect()),
+    }
 }

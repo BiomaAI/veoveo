@@ -27,15 +27,18 @@ pub mod usage;
 pub mod waiters;
 
 pub use access::{
-    ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactSha256,
-    ArtifactShaError, Grant, GroupMembership, GroupRole, Subject, decide, grant_level_for_caller,
-    mac_satisfied, parse_artifact_plane_uri, role_in_group,
+    ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactId, ArtifactIdError,
+    Grant, GroupMembership, GroupRole, Subject, decide, grant_level_for_caller, mac_satisfied,
+    parse_artifact_plane_uri, role_in_group,
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use artifact_service::{
-    ArtifactPlane, ArtifactPlaneError, GrantList, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    tenant_scoped_object_key,
+    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, ArtifactWriteIdempotencyKey,
+    CreateArtifactShareLinkRequest, GrantList, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
+    PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
 };
 pub use coordinates::{
     CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
@@ -43,13 +46,16 @@ pub use coordinates::{
     FrameKind, GeofenceId, GeofenceRule, GeofenceViolation, TrajectoryId,
 };
 pub use deployment::{
-    DataRetentionPolicy, DeploymentEndpoint, DeploymentProfileId, DeploymentProfileKind,
-    DeploymentRequirementId, DeploymentServiceKind, GatewayToServerIdentity, NetworkBoundaryRule,
-    NetworkTarget, NetworkTargetKind, ObjectStoreDeployment, ObjectStoreKind, PublicDeployment,
-    RegulatedDataControls, SelfHostedDeploymentPlan, SelfHostedDeploymentProfile,
-    ServerPublicEndpoint, ServiceToServiceSecurity, ServiceToServiceTransport,
-    StateStoreDeployment, StateStoreKind, StateStoreOwner, TelemetrySignal,
-    TelemetrySinkDeployment, TelemetrySinkKind,
+    AnalyticalRuntimeDeployment, AnalyticalRuntimeEngine, AnalyticalRuntimePurpose,
+    ChangefeedSourceOfTruth, ConnectivityMode, DataRetentionPolicy, DatabaseHighAvailability,
+    DatabaseTopology, DeploymentEndpoint, DeploymentProfileId, DeploymentRequirementId,
+    DeploymentServiceKind, ExternalDataAccess, GatewayToServerIdentity, IdentityProviderDeployment,
+    IdentityProviderKind, IngressDeployment, IngressKind, InstallationForm, InstallationScope,
+    LiveQueryRole, ObjectStoreDeployment, ObjectStoreKind, PlatformStoreDeployment,
+    PlatformStoreEngine, PublicDeployment, SecretManagerDeployment, SecretManagerKind,
+    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerPublicEndpoint,
+    ServiceToServiceSecurity, ServiceToServiceTransport, SurrealDbVersion, SurrealStorageEngine,
+    TelemetryCollectorKind, TelemetryDeployment, TelemetrySignal, TenantModel, TenantModelKind,
 };
 pub use duckdb::{
     DuckDbFormat, DuckDbReadOptions, DuckDbSource, DuckDbSqlBuildError, duckdb_quote_identifier,
@@ -57,34 +63,34 @@ pub use duckdb::{
 };
 pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
-    AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId,
+    AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
     CertificateAuthorityFilePath, CertificateAuthoritySource, CompatibilityHelperId,
     CompletionExposure, DataLabelDefinition, DataLabelId, Exposure, GatewayAction,
     GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
     GatewayControlPlaneError, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource, GatewayJwtRevocation, GatewayJwtRevocationAdminStatus,
     GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest,
-    GatewayProfile, GatewayProfileId, GatewayResourceProjection, GatewayResourceSubscription,
-    GatewayTaskId, GatewayTaskMapping, GatewayToolName, GroupId, HttpsUrl, IdentifierError,
-    IdentityProvider, IdentityProviderClaimMapping, IdentityProviderEndpoint, IdentityProviderId,
+    GatewayProfile, GatewayProfileId, GatewayRefreshFamilyId, GatewayRefreshGrant,
+    GatewayRefreshRevocationRequest, GatewayResourceProjection, GatewayResourceSubscription,
+    GatewayToolName, GroupId, HttpsUrl, IdentifierError, IdentityProvider,
+    IdentityProviderClaimMapping, IdentityProviderEndpoint, IdentityProviderId,
     IdentityProviderOidcClientRegistration, IdentityProviderSubjectClaim,
     IdentityProviderTenantClaim, IdentityProviderTenantClaimMapping, JwksFilePath, JwksSource,
     JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
     MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, McpMethodName, McpSurfaceCapabilities,
     McpSurfaceCapability, MountPath, OAuthAuthorizationCode, OAuthClientAuthMethod, OAuthClientId,
-    OAuthClientRegistration, OAuthClientSurface, OAuthGrantType, OAuthRedirectUri, OAuthStateValue,
-    OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OidcNonce, OwnedRoute,
-    OwnedRoutePurpose, PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier,
-    PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet,
-    PolicyTarget, PolicyVersion, Principal, PrincipalAssurance, PrincipalAuditAttributes,
-    PrincipalId, PrincipalKind, ProfileServerExposure, PromptName, ProtectedResourceId,
+    OAuthClientRegistration, OAuthClientSurface, OAuthGrantType, OAuthRedirectUri,
+    OAuthRefreshToken, OAuthStateValue, OAuthTokenTypeHint, OidcClientAuthMethod, OidcClientId,
+    OidcClientRegistrationId, OidcNonce, OwnedRoute, OwnedRoutePurpose, PkceCodeChallenge,
+    PkceCodeChallengeMethod, PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode,
+    PolicyRule, PolicyRuleId, PolicySet, PolicyTarget, PolicyVersion, Principal,
+    PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
+    ProfileServerExposure, PromptName, ProtectedResourceId, ProviderTaskId,
     ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme, ResourceSelector,
     ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
     SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
-    ServerSlug, TaskExposure, TaskIdProjection, TenantDefinition, TenantId, TokenIssuer,
-    TokenSubject, TraceId, UpstreamEndpoint, UpstreamTaskId, UpstreamTransport,
-    UpstreamTransportSecurity, UpstreamUrl, VEOVEO_TASK_RESULT_COMPATIBILITY_HELPER_ID,
-    VEOVEO_TASK_RESULT_COMPATIBILITY_TOOL_NAME, is_gateway_compatibility_helper_id,
+    ServerSlug, TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId,
+    UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{
@@ -92,23 +98,23 @@ pub use host::{
     parse_request_host_authority, public_allowed_hosts,
 };
 pub use internal_auth::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenIssuer,
-    GatewayInternalTokenVerifier, InternalTokenError, InternalTokenSecret,
-    IssuedGatewayInternalToken, MIN_INTERNAL_TOKEN_SECRET_BYTES,
+    DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID, GATEWAY_INTERNAL_TOKEN_ISSUER,
+    GatewayInternalIdentity, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
+    GatewayInternalTokenVerifier, GatewayInternalTrustBundle, InternalTokenError,
+    IssuedGatewayInternalToken,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
-pub use storage::{ArtifactMetadata, ArtifactObject, ArtifactPut, ComplianceMetadata};
+pub use storage::{
+    ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactReleaseState, ComplianceMetadata,
+};
 pub use subscriptions::SubscriptionHub;
 pub use tasks::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayTaskStatus, GatewayTaskStatusDocument,
-    GatewayTaskStatusKind, PrunedTask, RELATED_TASK_META_KEY, TaskPayloadState, TaskStore,
-    gateway_task_resource_uri, notify_progress, notify_task_status, now_iso, now_utc,
-    parse_gateway_task_resource_uri, related_task_meta, set_related_task_meta,
+    GatewayTaskStatusKind, RELATED_TASK_META_KEY, gateway_task_resource_uri, notify_progress,
+    now_utc, parse_gateway_task_resource_uri, related_task_meta, set_related_task_meta,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
-pub use uri::{
-    ServerResourceUri, ServerResourceUriError, ServerResourceUris, artifact_object_key, is_sha256,
-};
+pub use uri::{ServerResourceUri, ServerResourceUriError, ServerResourceUris};
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;

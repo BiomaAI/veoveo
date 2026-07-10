@@ -1,0 +1,125 @@
+# Veoveo supports one SurrealDB 3.2.0 RocksDB node. This StatefulSet does not
+# claim database HA; protect the PVC with the operator's backup policy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: surrealdb
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: surrealdb
+spec:
+  clusterIP: None
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: surrealdb
+  ports:
+    - name: rpc
+      port: 8000
+      targetPort: rpc
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: surrealdb
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: surrealdb
+  annotations:
+    veoveo.ai/database-ha: out-of-scope
+spec:
+  serviceName: surrealdb
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: surrealdb
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: surrealdb
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: surrealdb
+          image: {{ include "veoveo.image" (list . .Values.surrealdb.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - start
+            - --bind
+            - 0.0.0.0:8000
+            - --user
+            - $(SURREAL_USER)
+            - --pass
+            - $(SURREAL_PASS)
+            - rocksdb:/data/veoveo.db
+          env:
+            - name: SURREAL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.surrealdb.adminExistingSecret }}
+                  key: username
+            - name: SURREAL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.surrealdb.adminExistingSecret }}
+                  key: password
+          ports:
+            - name: rpc
+              containerPort: 8000
+          readinessProbe:
+            exec:
+              command: ["/surreal", "isready", "--endpoint", "http://127.0.0.1:8000"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command: ["/surreal", "isready", "--endpoint", "http://127.0.0.1:8000"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            {{- toYaml .Values.surrealdb.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.surrealdb.persistence.accessModes | nindent 10 }}
+        {{- with .Values.surrealdb.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.surrealdb.persistence.size }}

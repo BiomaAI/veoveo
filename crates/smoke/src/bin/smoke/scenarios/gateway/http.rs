@@ -18,7 +18,6 @@ pub(crate) async fn gateway_http(
     let idp_base = format!("https://127.0.0.1:{idp_port}");
     let gateway_log = tmpdir.join("gateway.log");
     let idp_log = tmpdir.join("idp.log");
-    let state_db = tmpdir.join("state.duckdb");
     let control_plane = tmpdir.join("gateway.smoke.json");
     let idp_cert = tmpdir.join("idp-cert.pem");
     let idp_key = tmpdir.join("idp-key.pem");
@@ -82,14 +81,45 @@ pub(crate) async fn gateway_http(
         ],
         [],
     )?;
+    let authorization_metadata: Value = reqwest::Client::new()
+        .get(format!(
+            "{base}/.well-known/oauth-authorization-server/oauth"
+        ))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let expected_revocation_endpoint = format!(
+        "{}/revoke",
+        authorization_metadata
+            .get("issuer")
+            .and_then(Value::as_str)
+            .context("authorization metadata omitted issuer")?
+            .trim_end_matches('/')
+    );
+    if authorization_metadata
+        .get("revocation_endpoint")
+        .and_then(Value::as_str)
+        != Some(expected_revocation_endpoint.as_str())
+        || authorization_metadata
+            .get("revocation_endpoint_auth_methods_supported")
+            .and_then(Value::as_array)
+            .is_none_or(|methods| methods.iter().all(|method| method.as_str() != Some("none")))
+    {
+        bail!("authorization metadata omitted public refresh revocation: {authorization_metadata}");
+    }
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let control_db = spawn_gateway_control_db(gateway, &control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, &control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(port, &control_db.url, &state_db),
+        gateway_serve_args(port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             ("VEOVEO_IDP_OIDC_CLIENT_SECRET", oidc_secret.into()),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
@@ -142,6 +172,8 @@ pub(crate) async fn gateway_http(
             "test-key".into(),
             "--required-grant-type".into(),
             "authorization_code".into(),
+            "--required-grant-type".into(),
+            "refresh_token".into(),
             "--required-grant-type".into(),
             "client_credentials".into(),
             "--required-grant-type".into(),
@@ -197,12 +229,14 @@ pub(crate) async fn gateway_http(
     let (gateway_code, callback_query) = gateway_browser_authorization_code(
         &http,
         &idp_client,
-        &base,
-        &idp_base,
-        local_client_id,
-        local_redirect_uri,
-        code_challenge,
-        "smoke-state",
+        GatewayBrowserAuthorization {
+            gateway_base: &base,
+            idp_base: &idp_base,
+            client_id: local_client_id,
+            redirect_uri: local_redirect_uri,
+            code_challenge,
+            client_state: "smoke-state",
+        },
     )
     .await?;
 
@@ -224,6 +258,78 @@ pub(crate) async fn gateway_http(
     if token_response.get("token_type").and_then(Value::as_str) != Some("Bearer") {
         bail!("authorization-code token response was not bearer: {token_response}");
     }
+    let refresh_token = token_response
+        .get("refresh_token")
+        .and_then(Value::as_str)
+        .context("authorization-code token response omitted refresh_token")?;
+    if token_response
+        .get("refresh_token_expires_in")
+        .and_then(Value::as_u64)
+        .is_none_or(|expires_in| expires_in == 0)
+    {
+        bail!("authorization-code token response omitted refresh expiry: {token_response}");
+    }
+    let refresh_response: Value = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", local_client_id),
+            ("refresh_token", refresh_token),
+        ]))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let rotated_refresh_token = refresh_response
+        .get("refresh_token")
+        .and_then(Value::as_str)
+        .context("refresh exchange omitted rotated refresh_token")?;
+    if refresh_response.get("token_type").and_then(Value::as_str) != Some("Bearer")
+        || refresh_response
+            .get("access_token")
+            .and_then(Value::as_str)
+            .is_none()
+        || refresh_response.get("scope").and_then(Value::as_str) != Some("operator:use")
+        || rotated_refresh_token == refresh_token
+    {
+        bail!("refresh exchange returned an invalid token response: {refresh_response}");
+    }
+    let refresh_replay_response = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", local_client_id),
+            ("refresh_token", refresh_token),
+        ]))
+        .send()
+        .await?;
+    if refresh_replay_response.status() != StatusCode::BAD_REQUEST {
+        bail!(
+            "consumed refresh token replay status was {}, expected 400",
+            refresh_replay_response.status()
+        );
+    }
+    let refresh_replay: Value = refresh_replay_response.json().await?;
+    if refresh_replay.get("error").and_then(Value::as_str) != Some("invalid_grant") {
+        bail!("refresh replay did not return invalid_grant: {refresh_replay}");
+    }
+    let revoked_family_status = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", local_client_id),
+            ("refresh_token", rotated_refresh_token),
+        ]))
+        .send()
+        .await?
+        .status();
+    if revoked_family_status != StatusCode::BAD_REQUEST {
+        bail!("replayed refresh family remained usable: {revoked_family_status}");
+    }
     let replay_status = http
         .post(format!("{base}/oauth/token"))
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -244,12 +350,14 @@ pub(crate) async fn gateway_http(
     let (wrong_pkce_code, _) = gateway_browser_authorization_code(
         &http,
         &idp_client,
-        &base,
-        &idp_base,
-        local_client_id,
-        local_redirect_uri,
-        code_challenge,
-        "smoke-wrong-pkce",
+        GatewayBrowserAuthorization {
+            gateway_base: &base,
+            idp_base: &idp_base,
+            client_id: local_client_id,
+            redirect_uri: local_redirect_uri,
+            code_challenge,
+            client_state: "smoke-wrong-pkce",
+        },
     )
     .await?;
     let wrong_pkce_status = http
@@ -296,12 +404,14 @@ pub(crate) async fn gateway_http(
         let (hosted_gateway_code, _) = gateway_browser_authorization_code(
             &http,
             &idp_client,
-            &base,
-            &idp_base,
-            hosted_client_id,
-            hosted_redirect_uri,
-            code_challenge,
-            &format!("smoke-hosted-state-{hosted_redirect_index}"),
+            GatewayBrowserAuthorization {
+                gateway_base: &base,
+                idp_base: &idp_base,
+                client_id: hosted_client_id,
+                redirect_uri: hosted_redirect_uri,
+                code_challenge,
+                client_state: &format!("smoke-hosted-state-{hosted_redirect_index}"),
+            },
         )
         .await?;
         let hosted_token_response: Value = http
@@ -336,13 +446,145 @@ pub(crate) async fn gateway_http(
         "admin",
         &["--scope", "operator:use", "--scope", "admin:manage"],
     )?;
+    let (delivery_code, _) = gateway_browser_authorization_code(
+        &http,
+        &idp_client,
+        GatewayBrowserAuthorization {
+            gateway_base: &base,
+            idp_base: &idp_base,
+            client_id: local_client_id,
+            redirect_uri: local_redirect_uri,
+            code_challenge,
+            client_state: "smoke-refresh-delivery",
+        },
+    )
+    .await?;
+    let delivery_tokens: Value = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", local_client_id),
+            ("code", delivery_code.as_str()),
+            ("redirect_uri", local_redirect_uri),
+            ("code_verifier", code_verifier),
+        ]))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let delivery_refresh_token = delivery_tokens
+        .get("refresh_token")
+        .and_then(Value::as_str)
+        .context("delivery-safety authorization response omitted refresh token")?;
+    let original_control_plane: Value = serde_json::from_str(&fs::read_to_string(&control_plane)?)?;
+    let mut missing_signing_key_control_plane = original_control_plane.clone();
+    let signing_secret = missing_signing_key_control_plane
+        .get_mut("secrets")
+        .and_then(Value::as_array_mut)
+        .and_then(|secrets| {
+            secrets.iter_mut().find(|secret| {
+                secret.get("id").and_then(Value::as_str) == Some("veoveo_access_token_private_key")
+            })
+        })
+        .context("smoke control plane omitted access-token signing secret")?;
+    signing_secret["locator"] = Value::String("VEOVEO_MISSING_SIGNING_KEY".to_owned());
+    http.put(format!("{base}/admin/admin/control-plane"))
+        .bearer_auth(admin_token.trim())
+        .json(&missing_signing_key_control_plane)
+        .send()
+        .await?
+        .error_for_status()?;
+    let signing_failure_status = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", local_client_id),
+            ("refresh_token", delivery_refresh_token),
+        ]))
+        .send()
+        .await?
+        .status();
+    if signing_failure_status != StatusCode::INTERNAL_SERVER_ERROR {
+        bail!("missing signing key refresh status was {signing_failure_status}, expected 500");
+    }
+    http.put(format!("{base}/admin/admin/control-plane"))
+        .bearer_auth(admin_token.trim())
+        .json(&original_control_plane)
+        .send()
+        .await?
+        .error_for_status()?;
+    let delivery_retry: Value = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", local_client_id),
+            ("refresh_token", delivery_refresh_token),
+        ]))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let revocable_refresh_token = delivery_retry
+        .get("refresh_token")
+        .and_then(Value::as_str)
+        .context("delivery retry omitted rotated refresh token")?;
+    for attempt in 0..2 {
+        let revoke_status = http
+            .post(format!("{base}/oauth/revoke"))
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(form_urlencoded(&[
+                ("client_id", local_client_id),
+                ("token", revocable_refresh_token),
+                ("token_type_hint", "refresh_token"),
+                ("resource", "https://veoveo.example/mcp/operator"),
+            ]))
+            .send()
+            .await?
+            .status();
+        if revoke_status != StatusCode::OK {
+            bail!("refresh revocation attempt {attempt} returned {revoke_status}");
+        }
+    }
+    let revoked_by_client_status = http
+        .post(format!("{base}/oauth/token"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", local_client_id),
+            ("refresh_token", revocable_refresh_token),
+        ]))
+        .send()
+        .await?
+        .status();
+    if revoked_by_client_status != StatusCode::BAD_REQUEST {
+        bail!("client-revoked refresh family remained usable: {revoked_by_client_status}");
+    }
+    let unsupported_revocation_status = http
+        .post(format!("{base}/oauth/revoke"))
+        .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(form_urlencoded(&[
+            ("client_id", local_client_id),
+            ("token", revocable_refresh_token),
+            ("token_type_hint", "access_token"),
+        ]))
+        .send()
+        .await?
+        .status();
+    if unsupported_revocation_status != StatusCode::BAD_REQUEST {
+        bail!("unsupported revocation token hint returned {unsupported_revocation_status}");
+    }
     let revocation = post_json(
         &http,
         &format!("{base}/admin/admin/jwt-revocations"),
         Some(admin_token.trim()),
         serde_json::json!({
             "profile": "operator",
-            "issuer": "https://veoveo.bioma.ai/oauth",
+            "issuer": "https://veoveo.example/oauth",
             "jwt_id": "smoke-jwt",
             "expires_at": "2999-01-01T00:00:00Z",
             "reason": "smoke"
@@ -375,7 +617,7 @@ pub(crate) async fn gateway_http(
         .bearer_auth(admin_token.trim())
         .json(&serde_json::json!({
             "profile": "operator",
-            "issuer": "https://veoveo.bioma.ai/oauth",
+            "issuer": "https://veoveo.example/oauth",
             "jwt_id": "expired-smoke-jwt",
             "expires_at": "2000-01-01T00:00:00Z",
             "reason": "smoke-expired"
@@ -388,10 +630,11 @@ pub(crate) async fn gateway_http(
     }
 
     gateway_child.stop();
-    let audit_counts = run_gateway_json(gateway, "audit-counts", &state_db)?;
+    let audit_counts = run_gateway_json(gateway, "audit-counts", &platform_store)?;
     assert_json_u64_at_least(&audit_counts, "auth_events", 1)?;
     assert_json_u64_at_least(&audit_counts, "policy_events", 1)?;
-    let auth_method_summary = run_gateway_json(gateway, "auth-audit-method-summary", &state_db)?;
+    let auth_method_summary =
+        run_gateway_json(gateway, "auth-audit-method-summary", &platform_store)?;
     assert_audit_method(&auth_method_summary, "bearer_jwt", 2, 1)?;
     assert_audit_method(
         &auth_method_summary,
@@ -400,19 +643,25 @@ pub(crate) async fn gateway_http(
         1,
     )?;
     assert_audit_method(&auth_method_summary, "oidc_authorization_code_pkce", 1, 2)?;
-    let auth_reason_summary = run_gateway_json(gateway, "auth-audit-reason-summary", &state_db)?;
+    assert_audit_method(&auth_method_summary, "refresh_token", 4, 5)?;
+    let auth_reason_summary =
+        run_gateway_json(gateway, "auth-audit-reason-summary", &platform_store)?;
     assert_reason_summary_at_least(&auth_reason_summary, "auth_allow", 4)?;
     assert_reason_summary_at_least(&auth_reason_summary, "missing_authorization_header", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "client_assertion_replay", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "invalid_authorization_code", 1)?;
     assert_reason_summary_at_least(&auth_reason_summary, "invalid_pkce", 1)?;
-    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &state_db)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "refresh_token_replay", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "invalid_refresh_token", 1)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "refresh_token_revoked", 2)?;
+    assert_reason_summary_at_least(&auth_reason_summary, "token_signing_key_unavailable", 1)?;
+    let audit_summary = run_gateway_json(gateway, "audit-method-summary", &platform_store)?;
     assert_audit_method(&audit_summary, "admin/jwt-revocations", 2, 0)?;
     assert_audit_method(&audit_summary, "admin/jwt-revocations/prune", 1, 0)?;
     assert_audit_method(&audit_summary, "admin/jwt-revocations/result", 2, 0)?;
     assert_audit_method(&audit_summary, "admin/jwt-revocations/prune/result", 1, 0)?;
     let audit_status_summary =
-        run_gateway_metadata_summary(gateway, &state_db, "operation_status")?;
+        run_gateway_metadata_summary(gateway, &platform_store, "operation_status")?;
     assert_metadata_summary_at_least(&audit_status_summary, "succeeded", 2)?;
     assert_metadata_summary_at_least(&audit_status_summary, "rejected", 1)?;
 

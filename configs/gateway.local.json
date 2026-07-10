@@ -2,31 +2,43 @@
   "identity_providers": [
     {
       "id": "enterprise",
-      "issuer": "https://idp.example.com",
+      "issuer": "https://idp.enterprise.example",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://idp.example.com/.well-known/jwks.json"
+        "jwks_uri": "https://idp.enterprise.example/.well-known/jwks.json"
       },
-      "authorization_endpoint": "https://idp.example.com/oauth2/authorize",
-      "token_endpoint": "https://idp.example.com/oauth2/token",
-      "enterprise_managed_authorization_endpoint": "https://idp.example.com/oauth2/id-jag",
-      "metadata": {}
+      "claim_mapping": {
+        "subject": "sub",
+        "tenant": {
+          "claim": "tenant",
+          "values": {
+            "enterprise": "enterprise"
+          }
+        }
+      },
+      "authorization_endpoint": "https://idp.enterprise.example/oauth2/authorize",
+      "token_endpoint": "https://idp.enterprise.example/oauth2/token",
+      "metadata": {
+        "provider": "external_oidc"
+      }
     }
   ],
   "authorization_servers": [
     {
       "id": "veoveo",
-      "issuer": "https://veoveo.bioma.ai/oauth",
+      "issuer": "https://veoveo.example/oauth",
       "jwks": {
         "source": "remote",
-        "jwks_uri": "https://veoveo.bioma.ai/oauth/jwks.json"
+        "jwks_uri": "https://veoveo.example/oauth/jwks.json"
       },
-      "access_token_key_id": "test-key",
+      "access_token_key_id": "veoveo-self-hosted-2026-07",
       "access_token_signing_key": "veoveo_access_token_private_key",
       "identity_provider": "enterprise",
-      "authorization_endpoint": "https://veoveo.bioma.ai/oauth/authorize",
-      "token_endpoint": "https://veoveo.bioma.ai/oauth/token",
-      "metadata": {}
+      "authorization_endpoint": "https://veoveo.example/oauth/authorize",
+      "token_endpoint": "https://veoveo.example/oauth/token",
+      "metadata": {
+        "deployment": "enterprise"
+      }
     }
   ],
   "servers": [
@@ -51,7 +63,15 @@
         "notifications": true
       },
       "tools": [
+        "artifact",
+        "model_schema",
+        "models",
         "run"
+      ],
+      "compatibility_helpers": [
+        "artifact",
+        "model_schema",
+        "models"
       ],
       "prompts": [
         "media-model-select",
@@ -70,13 +90,276 @@
         {
           "path": "/media/files",
           "purpose": "provider_fetchable_files"
-        },
-        {
-          "path": "/media/artifacts",
-          "purpose": "artifact_bytes"
         }
       ],
       "metadata": {}
+    },
+    {
+      "slug": "timeseries",
+      "uri_scheme": "timeseries",
+      "mount_path": "/timeseries",
+      "mcp_path": "/timeseries/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://timeseries-mcp:8789/timeseries/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "forecast"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
+      "slug": "duckdb",
+      "uri_scheme": "duckdb",
+      "mount_path": "/duckdb",
+      "mcp_path": "/duckdb/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://duckdb-mcp:8791/duckdb/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "query",
+        "execute",
+        "ingest",
+        "export"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
+      "slug": "optimization",
+      "uri_scheme": "optimization",
+      "mount_path": "/optimization",
+      "mcp_path": "/optimization/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://optimization-mcp:8792/optimization/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "plan"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
+      "slug": "coordinates",
+      "uri_scheme": "coordinates",
+      "mount_path": "/coordinates",
+      "mcp_path": "/coordinates/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://coordinates-mcp:8793/coordinates/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "batch_transform",
+        "convert_frame",
+        "derive_local_frame",
+        "geodesic_direct",
+        "geodesic_inverse",
+        "transform_crs",
+        "validate_geofence"
+      ],
+      "prompts": [
+        "coordinates-frame-audit",
+        "coordinates-local-frame-select",
+        "coordinates-geofence-review",
+        "coordinates-transform-explain"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
+      "slug": "artifact",
+      "uri_scheme": "artifact",
+      "mount_path": "/artifact",
+      "mcp_path": "/artifact/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://artifact-mcp:8794/artifact/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": false,
+        "notifications": true
+      },
+      "tools": [
+        "create_share_link",
+        "grant_access",
+        "metadata",
+        "revoke_access",
+        "revoke_share_link",
+        "set_release_state"
+      ],
+      "prompts": [
+        "artifact-access-review",
+        "artifact-share-review"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
+      "slug": "recording",
+      "uri_scheme": "recording",
+      "mount_path": "/recording",
+      "mcp_path": "/recording/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://recording-mcp:8796/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": false,
+        "notifications": true
+      },
+      "tools": [
+        "query_recording",
+        "seal_recording"
+      ],
+      "prompts": [
+        "recording-inspect",
+        "recording-query",
+        "recording-seal"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "raw_ingest": "internal_only"
+      }
+    },
+    {
+      "slug": "charts",
+      "uri_scheme": "charts",
+      "mount_path": "/charts",
+      "mcp_path": "/charts/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://chart-mcp:8795/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": false,
+        "resource_subscriptions": false,
+        "prompts": true,
+        "completions": false,
+        "tasks": false,
+        "notifications": false
+      },
+      "resource_projection": "server_owned",
+      "tools": [
+        "render_chart",
+        "compile_chart",
+        "validate_chart",
+        "list_chart_types",
+        "create_chart_view"
+      ],
+      "prompts": [
+        "author_flint_chart"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "upstream_kind": "external_http",
+        "runtime": "node"
+      }
+    },
+    {
+      "slug": "rerun",
+      "uri_scheme": "rerun",
+      "mount_path": "/rerun",
+      "mcp_path": "/rerun/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://rerun-bridge:8790/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": false,
+        "resource_templates": false,
+        "resource_subscriptions": false,
+        "prompts": false,
+        "completions": false,
+        "tasks": false,
+        "notifications": false
+      },
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "upstream_kind": "stdio_bridge",
+        "child": "rerun viewer-mcp"
+      }
     }
   ],
   "profiles": [
@@ -84,10 +367,9 @@
       "id": "operator",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/operator",
+      "protected_resource": "https://veoveo.example/mcp/operator",
       "policy_version": "2026-07-02",
       "auth_modes": [
-        "enterprise_managed_authorization",
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
@@ -100,6 +382,9 @@
           "tools": {
             "mode": "listed",
             "items": [
+              "artifact",
+              "model_schema",
+              "models",
               "run"
             ]
           },
@@ -117,18 +402,209 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "timeseries",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "forecast"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "timeseries"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "duckdb",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "query",
+              "execute",
+              "ingest",
+              "export"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "duckdb"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "optimization",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "plan"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "optimization"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "coordinates",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "batch_transform",
+              "convert_frame",
+              "derive_local_frame",
+              "geodesic_direct",
+              "geodesic_inverse",
+              "transform_crs",
+              "validate_geofence"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "coordinates"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "artifact",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create_share_link",
+              "grant_access",
+              "metadata",
+              "revoke_access",
+              "revoke_share_link",
+              "set_release_state"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "artifact"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "recording",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "query_recording"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "recording"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "recording-inspect",
+              "recording-query"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "charts",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "render_chart",
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "create_chart_view"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "charts"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://charts/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "author_flint_chart"
+            ]
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
-      "metadata": {}
+      "metadata": {
+        "tenant": "enterprise"
+      }
     },
     {
       "id": "admin",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "protected_resource": "https://veoveo.bioma.ai/mcp/admin",
+      "protected_resource": "https://veoveo.example/mcp/admin",
       "policy_version": "2026-07-02",
       "auth_modes": [
-        "enterprise_managed_authorization",
         "oauth_client_credentials",
         "oidc_authorization_code_pkce"
       ],
@@ -142,6 +618,9 @@
           "tools": {
             "mode": "listed",
             "items": [
+              "artifact",
+              "model_schema",
+              "models",
               "run"
             ]
           },
@@ -159,9 +638,231 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "timeseries",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "forecast"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "timeseries"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "duckdb",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "query",
+              "execute",
+              "ingest",
+              "export"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "duckdb"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "optimization",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "plan"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "optimization"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "coordinates",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "batch_transform",
+              "convert_frame",
+              "derive_local_frame",
+              "geodesic_direct",
+              "geodesic_inverse",
+              "transform_crs",
+              "validate_geofence"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "coordinates"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "artifact",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create_share_link",
+              "grant_access",
+              "metadata",
+              "revoke_access",
+              "revoke_share_link",
+              "set_release_state"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "artifact"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "recording",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "query_recording",
+              "seal_recording"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "recording"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        },
+        {
+          "server": "charts",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "render_chart",
+              "compile_chart",
+              "validate_chart",
+              "list_chart_types",
+              "create_chart_view"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "charts"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://charts/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "author_flint_chart"
+            ]
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
         }
       ],
-      "metadata": {}
+      "metadata": {
+        "tenant": "enterprise"
+      }
+    },
+    {
+      "id": "rerun",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://veoveo.example/mcp/rerun",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oauth_client_credentials",
+        "oidc_authorization_code_pkce"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "servers": [
+        {
+          "server": "rerun",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "none"
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {
+        "tenant": "enterprise"
+      }
     }
   ],
   "policies": [
@@ -182,7 +883,6 @@
             "prompts_list",
             "prompts_get",
             "completion_complete",
-            "tasks_list",
             "tasks_get",
             "tasks_result",
             "tasks_cancel",
@@ -196,6 +896,9 @@
             "media"
           ],
           "tools": [
+            "artifact",
+            "model_schema",
+            "models",
             "run"
           ],
           "resource_schemes": [
@@ -206,6 +909,61 @@
             "media-image-edit",
             "media-video-generate",
             "media-task-review"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "media"
+          ],
+          "tools": [
+            "artifact",
+            "model_schema",
+            "models",
+            "run"
+          ],
+          "resource_schemes": [
+            "media"
+          ],
+          "prompts": [
+            "media-model-select",
+            "media-image-edit",
+            "media-video-generate",
+            "media-task-review"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
           ],
           "required_scopes": [
             "operator:use"
@@ -226,7 +984,6 @@
             "prompts_list",
             "prompts_get",
             "completion_complete",
-            "tasks_list",
             "tasks_get",
             "tasks_result",
             "tasks_cancel",
@@ -240,6 +997,9 @@
             "media"
           ],
           "tools": [
+            "artifact",
+            "model_schema",
+            "models",
             "run"
           ],
           "resource_schemes": [
@@ -250,6 +1010,247 @@
             "media-image-edit",
             "media-video-generate",
             "media-task-review"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "media"
+          ],
+          "tools": [
+            "artifact",
+            "model_schema",
+            "models",
+            "run"
+          ],
+          "resource_schemes": [
+            "media"
+          ],
+          "prompts": [
+            "media-model-select",
+            "media-image-edit",
+            "media-video-generate",
+            "media-task-review"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_artifact_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tools": [
+            "create_share_link",
+            "grant_access",
+            "metadata",
+            "revoke_access",
+            "revoke_share_link",
+            "set_release_state"
+          ],
+          "resource_schemes": [
+            "artifact"
+          ],
+          "prompts": [
+            "artifact-access-review",
+            "artifact-share-review"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_artifact_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tools": [
+            "create_share_link",
+            "grant_access",
+            "metadata",
+            "revoke_access",
+            "revoke_share_link",
+            "set_release_state"
+          ],
+          "resource_schemes": [
+            "artifact"
+          ],
+          "prompts": [
+            "artifact-access-review",
+            "artifact-share-review"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_artifact_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tools": [
+            "create_share_link",
+            "grant_access",
+            "metadata",
+            "revoke_access",
+            "revoke_share_link",
+            "set_release_state"
+          ],
+          "resource_schemes": [
+            "artifact"
+          ],
+          "prompts": [
+            "artifact-access-review",
+            "artifact-share-review"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_artifact_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "artifact"
+          ],
+          "tools": [
+            "create_share_link",
+            "grant_access",
+            "metadata",
+            "revoke_access",
+            "revoke_share_link",
+            "set_release_state"
+          ],
+          "resource_schemes": [
+            "artifact"
+          ],
+          "prompts": [
+            "artifact-access-review",
+            "artifact-share-review"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
           ],
           "required_scopes": [
             "operator:use"
@@ -267,6 +1268,1065 @@
             "admin"
           ],
           "required_scopes": [
+            "admin:manage"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_control_plane",
+          "effect": "allow",
+          "actions": [
+            "admin_read",
+            "admin_write"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "admin:manage"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_rerun_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call"
+          ],
+          "profiles": [
+            "rerun"
+          ],
+          "servers": [
+            "rerun"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_rerun_service_mcp_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call"
+          ],
+          "profiles": [
+            "rerun"
+          ],
+          "servers": [
+            "rerun"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_charts_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "charts"
+          ],
+          "tools": [
+            "render_chart",
+            "compile_chart",
+            "validate_chart",
+            "list_chart_types",
+            "create_chart_view"
+          ],
+          "resource_schemes": [
+            "charts",
+            "ui"
+          ],
+          "prompts": [
+            "author_flint_chart"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_admin_service_timeseries_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "timeseries"
+          ],
+          "tools": [
+            "forecast"
+          ],
+          "resource_schemes": [
+            "timeseries"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ]
+        },
+        {
+          "id": "allow_operator_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_admin_service_optimization_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "optimization"
+          ],
+          "tools": [
+            "plan"
+          ],
+          "resource_schemes": [
+            "optimization"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ]
+        },
+        {
+          "id": "allow_operator_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ]
+        },
+        {
+          "id": "allow_admin_service_coordinates_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "coordinates"
+          ],
+          "tools": [
+            "batch_transform",
+            "convert_frame",
+            "derive_local_frame",
+            "geodesic_direct",
+            "geodesic_inverse",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "resource_schemes": [
+            "coordinates"
+          ],
+          "prompts": [
+            "coordinates-frame-audit",
+            "coordinates-local-frame-select",
+            "coordinates-geofence-review",
+            "coordinates-transform-explain"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ]
+        },
+        {
+          "id": "allow_operator_duckdb_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "duckdb"
+          ],
+          "tools": [
+            "query",
+            "execute",
+            "ingest",
+            "export"
+          ],
+          "resource_schemes": [
+            "duckdb"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_operator_service_duckdb_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "duckdb"
+          ],
+          "tools": [
+            "query",
+            "execute",
+            "ingest",
+            "export"
+          ],
+          "resource_schemes": [
+            "duckdb"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ]
+        },
+        {
+          "id": "allow_admin_duckdb_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "duckdb"
+          ],
+          "tools": [
+            "query",
+            "execute",
+            "ingest",
+            "export"
+          ],
+          "resource_schemes": [
+            "duckdb"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ]
+        },
+        {
+          "id": "allow_admin_service_duckdb_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "duckdb"
+          ],
+          "tools": [
+            "query",
+            "execute",
+            "ingest",
+            "export"
+          ],
+          "resource_schemes": [
+            "duckdb"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {},
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ]
+        },
+        {
+          "id": "allow_operator_recording_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "query_recording"
+          ],
+          "resource_schemes": [
+            "recording"
+          ],
+          "prompts": [
+            "recording-inspect",
+            "recording-query"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_service_recording_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "query_recording"
+          ],
+          "resource_schemes": [
+            "recording"
+          ],
+          "prompts": [
+            "recording-inspect",
+            "recording-query"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_recording_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "query_recording",
+            "seal_recording"
+          ],
+          "resource_schemes": [
+            "recording"
+          ],
+          "prompts": [
+            "recording-inspect",
+            "recording-query",
+            "recording-seal"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "admin:manage"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_admin"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_service_recording_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "query_recording",
+            "seal_recording"
+          ],
+          "resource_schemes": [
+            "recording"
+          ],
+          "prompts": [
+            "recording-inspect",
+            "recording-query",
+            "recording-seal"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use",
             "admin:manage"
           ],
           "metadata": {}
@@ -297,9 +2357,11 @@
   ],
   "tenants": [
     {
-      "id": "tenant-a",
-      "title": "Local tenant",
-      "metadata": {}
+      "id": "enterprise",
+      "title": "Enterprise",
+      "metadata": {
+        "reference_deployment": true
+      }
     }
   ],
   "oauth_clients": [
@@ -307,12 +2369,14 @@
       "id": "operator-local-public",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Local Client",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
-        "operator"
+        "operator",
+        "rerun"
       ],
       "grant_types": [
         "authorization_code_pkce",
-        "enterprise_managed_authorization"
+        "refresh_token"
       ],
       "auth_methods": [
         "none"
@@ -338,11 +2402,19 @@
       "id": "operator-hosted-public",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Hosted Client",
+      "client_surface": "tools_compat",
+      "allowed_compatibility_helpers": [
+        "media.artifact",
+        "media.model_schema",
+        "media.models"
+      ],
+      "direct_task_call_adapter": true,
       "allowed_profiles": [
         "operator"
       ],
       "grant_types": [
-        "authorization_code_pkce"
+        "authorization_code_pkce",
+        "refresh_token"
       ],
       "auth_methods": [
         "none"
@@ -362,12 +2434,14 @@
       "id": "admin-console",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Admin Console",
+      "client_surface": "tools_compat",
+      "direct_task_call_adapter": true,
       "allowed_profiles": [
         "admin"
       ],
       "grant_types": [
         "authorization_code_pkce",
-        "enterprise_managed_authorization"
+        "refresh_token"
       ],
       "auth_methods": [
         "none"
@@ -380,15 +2454,17 @@
         "client_boundary": "admin_console"
       },
       "redirect_uris": [
-        "https://bioma.ai/veoveo/admin/callback"
+        "https://veoveo.example/auth/callback"
       ]
     },
     {
       "id": "operator-service",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Service",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
-        "operator"
+        "operator",
+        "rerun"
       ],
       "grant_types": [
         "client_credentials"
@@ -403,15 +2479,16 @@
         "client_boundary": "operator_service"
       },
       "jwks": {
-        "source": "file",
-        "path": "/etc/veoveo/jwks.smoke.json"
+        "source": "remote",
+        "jwks_uri": "https://services.enterprise.example/.well-known/veoveo-service-jwks.json"
       },
-      "tenant": "tenant-a"
+      "tenant": "enterprise"
     },
     {
       "id": "admin-service",
       "authorization_server": "veoveo",
       "display_name": "Veoveo Admin Service",
+      "client_surface": "full_mcp",
       "allowed_profiles": [
         "admin"
       ],
@@ -429,10 +2506,37 @@
         "client_boundary": "admin_service"
       },
       "jwks": {
-        "source": "file",
-        "path": "/etc/veoveo/jwks.smoke.json"
+        "source": "remote",
+        "jwks_uri": "https://services.enterprise.example/.well-known/veoveo-service-jwks.json"
       },
-      "tenant": "tenant-a"
+      "tenant": "enterprise"
+    },
+    {
+      "id": "pilot-agent",
+      "authorization_server": "veoveo",
+      "display_name": "Veoveo AI Pilot Agent",
+      "client_surface": "full_mcp",
+      "allowed_profiles": [
+        "operator",
+        "rerun"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "agent"
+      },
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://services.enterprise.example/.well-known/veoveo-service-jwks.json"
+      },
+      "tenant": "enterprise"
     }
   ],
   "oidc_clients": [
@@ -442,10 +2546,11 @@
       "authorization_server": "veoveo",
       "allowed_profiles": [
         "operator",
-        "admin"
+        "admin",
+        "rerun"
       ],
-      "client_id": "veoveo",
-      "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",
+      "client_id": "veoveo-self-hosted",
+      "redirect_uri": "https://veoveo.example/oauth/callback",
       "auth_method": "client_secret_post",
       "credential_secret": "enterprise_oidc_client_secret",
       "scopes": [
@@ -453,7 +2558,9 @@
         "profile",
         "email"
       ],
-      "metadata": {}
+      "metadata": {
+        "provider": "external_oidc"
+      }
     }
   ],
   "secrets": [
@@ -478,10 +2585,10 @@
       "metadata": {}
     },
     {
-      "id": "gateway_internal_token_secret",
+      "id": "gateway_internal_signing_private_key",
       "source": "env",
       "purpose": "gateway_signing_key",
-      "locator": "VEOVEO_INTERNAL_TOKEN_SECRET",
+      "locator": "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
       "owner": {
         "kind": "gateway"
       },
@@ -511,6 +2618,7 @@
     }
   ],
   "metadata": {
-    "environment": "local"
+    "deployment": "enterprise",
+    "environment": "live_demo"
   }
 }

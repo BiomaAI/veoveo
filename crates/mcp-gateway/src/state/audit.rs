@@ -1,15 +1,21 @@
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use duckdb::params;
 use serde::Serialize;
+use uuid::Uuid;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, McpMethodName,
-    PolicyDecision, PolicyEffect, PolicyReasonCode,
+    PolicyEffect, PolicyReasonCode,
+};
+use veoveo_platform_store::{
+    AuditEventId, AuditEventRecord, AuditOutcome, GatewayAuditKind, OpenObject,
+    deterministic_principal_id, deterministic_tenant_id,
 };
 
 use super::GatewayState;
+
+const GATEWAY_AUDIT_NAMESPACE: Uuid = Uuid::from_u128(0xf9c572b4_0662_5bfb_9e61_32759dfdf997);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct GatewayAuditCounts {
@@ -65,42 +71,24 @@ pub struct GatewayAuditRetentionSummary {
     pub policy_events_deleted: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GatewayAuditTable {
-    Auth,
-    Policy,
-}
-
-impl GatewayAuditTable {
-    fn count_sql(self) -> &'static str {
-        match self {
-            Self::Auth => "SELECT COUNT(*) FROM gateway_auth_audit_events",
-            Self::Policy => "SELECT COUNT(*) FROM gateway_audit_events",
-        }
-    }
-}
-
 impl GatewayState {
-    pub fn audit_counts(&self) -> Result<GatewayAuditCounts> {
+    pub async fn audit_counts(&self) -> Result<GatewayAuditCounts> {
+        let (auth_events, policy_events) = tokio::try_join!(
+            self.platform
+                .gateway_audit_event_count(GatewayAuditKind::Auth),
+            self.platform
+                .gateway_audit_event_count(GatewayAuditKind::Policy),
+        )
+        .context("failed to count canonical gateway audit events")?;
         Ok(GatewayAuditCounts {
-            auth_events: self.count_rows(GatewayAuditTable::Auth)?,
-            policy_events: self.count_rows(GatewayAuditTable::Policy)?,
+            auth_events,
+            policy_events,
         })
     }
 
-    pub fn auth_audit_method_summary(&self) -> Result<Vec<GatewayAuthAuditMethodSummary>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT event_json
-            FROM gateway_auth_audit_events
-            ORDER BY method, timestamp, event_id
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    pub async fn auth_audit_method_summary(&self) -> Result<Vec<GatewayAuthAuditMethodSummary>> {
         let mut summaries = BTreeMap::<AuthMethod, GatewayAuthAuditMethodSummary>::new();
-        for row in rows {
-            let event: AuthAuditEvent = serde_json::from_str(&row?)?;
+        for event in self.auth_audit_events().await? {
             let entry = summaries
                 .entry(event.method)
                 .or_insert(GatewayAuthAuditMethodSummary {
@@ -118,19 +106,9 @@ impl GatewayState {
         Ok(summaries.into_values().collect())
     }
 
-    pub fn auth_audit_reason_summary(&self) -> Result<Vec<GatewayAuthAuditReasonSummary>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT event_json
-            FROM gateway_auth_audit_events
-            ORDER BY reason, timestamp, event_id
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    pub async fn auth_audit_reason_summary(&self) -> Result<Vec<GatewayAuthAuditReasonSummary>> {
         let mut summaries = BTreeMap::<AuthReasonCode, GatewayAuthAuditReasonSummary>::new();
-        for row in rows {
-            let event: AuthAuditEvent = serde_json::from_str(&row?)?;
+        for event in self.auth_audit_events().await? {
             let entry = summaries
                 .entry(event.reason)
                 .or_insert(GatewayAuthAuditReasonSummary {
@@ -142,22 +120,12 @@ impl GatewayState {
         Ok(summaries.into_values().collect())
     }
 
-    pub fn auth_audit_metadata_summary(
+    pub async fn auth_audit_metadata_summary(
         &self,
         metadata_key: &str,
     ) -> Result<Vec<GatewayAuthAuditMetadataSummary>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT event_json
-            FROM gateway_auth_audit_events
-            ORDER BY timestamp, event_id
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
         let mut summaries = BTreeMap::<String, u64>::new();
-        for row in rows {
-            let event: AuthAuditEvent = serde_json::from_str(&row?)?;
+        for event in self.auth_audit_events().await? {
             if let Some(metadata_value) = event.metadata.get(metadata_key) {
                 *summaries.entry(metadata_value.clone()).or_default() += 1;
             }
@@ -165,39 +133,27 @@ impl GatewayState {
         Ok(summaries
             .into_iter()
             .map(|(metadata_value, events)| GatewayAuthAuditMetadataSummary {
-                metadata_key: metadata_key.to_string(),
+                metadata_key: metadata_key.to_owned(),
                 metadata_value,
                 events,
             })
             .collect())
     }
 
-    pub fn policy_audit_method_summary(&self) -> Result<Vec<GatewayPolicyAuditMethodSummary>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT method, decision_json
-            FROM gateway_audit_events
-            ORDER BY method, timestamp, event_id
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
+    pub async fn policy_audit_method_summary(
+        &self,
+    ) -> Result<Vec<GatewayPolicyAuditMethodSummary>> {
         let mut summaries = BTreeMap::<McpMethodName, GatewayPolicyAuditMethodSummary>::new();
-        for row in rows {
-            let (method, decision_json) = row?;
-            let method = McpMethodName::new(method)?;
-            let decision: PolicyDecision = serde_json::from_str(&decision_json)?;
-            let entry = summaries.entry(method.clone()).or_insert_with(|| {
+        for event in self.policy_audit_events().await? {
+            let entry = summaries.entry(event.method.clone()).or_insert_with(|| {
                 GatewayPolicyAuditMethodSummary {
-                    method,
+                    method: event.method.clone(),
                     allow_events: 0,
                     deny_events: 0,
                     total_events: 0,
                 }
             });
-            match decision.effect {
+            match event.decision.effect {
                 PolicyEffect::Allow => entry.allow_events += 1,
                 PolicyEffect::Deny => entry.deny_events += 1,
             }
@@ -206,24 +162,16 @@ impl GatewayState {
         Ok(summaries.into_values().collect())
     }
 
-    pub fn policy_audit_reason_summary(&self) -> Result<Vec<GatewayPolicyAuditReasonSummary>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT decision_json
-            FROM gateway_audit_events
-            ORDER BY timestamp, event_id
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    pub async fn policy_audit_reason_summary(
+        &self,
+    ) -> Result<Vec<GatewayPolicyAuditReasonSummary>> {
         let mut summaries = BTreeMap::<PolicyReasonCode, GatewayPolicyAuditReasonSummary>::new();
-        for row in rows {
-            let decision: PolicyDecision = serde_json::from_str(&row?)?;
+        for event in self.policy_audit_events().await? {
             let entry =
                 summaries
-                    .entry(decision.reason)
+                    .entry(event.decision.reason)
                     .or_insert(GatewayPolicyAuditReasonSummary {
-                        reason: decision.reason,
+                        reason: event.decision.reason,
                         events: 0,
                     });
             entry.events += 1;
@@ -231,22 +179,12 @@ impl GatewayState {
         Ok(summaries.into_values().collect())
     }
 
-    pub fn policy_audit_metadata_summary(
+    pub async fn policy_audit_metadata_summary(
         &self,
         metadata_key: &str,
     ) -> Result<Vec<GatewayPolicyAuditMetadataSummary>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT event_json
-            FROM gateway_audit_events
-            ORDER BY timestamp, event_id
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
         let mut summaries = BTreeMap::<String, u64>::new();
-        for row in rows {
-            let event: AuditEvent = serde_json::from_str(&row?)?;
+        for event in self.policy_audit_events().await? {
             if let Some(metadata_value) = event.metadata.get(metadata_key) {
                 *summaries.entry(metadata_value.clone()).or_default() += 1;
             }
@@ -255,7 +193,7 @@ impl GatewayState {
             .into_iter()
             .map(
                 |(metadata_value, events)| GatewayPolicyAuditMetadataSummary {
-                    metadata_key: metadata_key.to_string(),
+                    metadata_key: metadata_key.to_owned(),
                     metadata_value,
                     events,
                 },
@@ -263,129 +201,166 @@ impl GatewayState {
             .collect())
     }
 
-    pub fn delete_audit_events_before(
+    pub async fn delete_audit_events_before(
         &self,
         cutoff: DateTime<Utc>,
     ) -> Result<GatewayAuditRetentionSummary> {
-        let conn = self.conn.lock();
-        let policy_events_deleted = conn.execute(
-            "DELETE FROM gateway_audit_events WHERE timestamp < ?1",
-            params![cutoff],
-        )?;
-        let auth_events_deleted = conn.execute(
-            "DELETE FROM gateway_auth_audit_events WHERE timestamp < ?1",
-            params![cutoff],
-        )?;
+        let (auth_events_deleted, policy_events_deleted) = tokio::try_join!(
+            self.platform
+                .delete_gateway_audit_events_before(GatewayAuditKind::Auth, cutoff),
+            self.platform
+                .delete_gateway_audit_events_before(GatewayAuditKind::Policy, cutoff),
+        )
+        .context("failed to apply gateway audit retention")?;
         Ok(GatewayAuditRetentionSummary {
-            auth_events_deleted: u64::try_from(auth_events_deleted)?,
-            policy_events_deleted: u64::try_from(policy_events_deleted)?,
+            auth_events_deleted,
+            policy_events_deleted,
         })
     }
 
-    pub fn record_audit_event(&self, event: &AuditEvent) -> Result<()> {
-        let target_json = serde_json::to_string(&event.target)?;
-        let decision_json = serde_json::to_string(&event.decision)?;
-        let event_json = serde_json::to_string(event)?;
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            INSERT INTO gateway_audit_events (
-                event_id, trace_id, profile, method, action, principal, tenant, token_issuer,
-                timestamp, latency_ms, target_json, decision_json, event_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-            ON CONFLICT(event_id) DO UPDATE SET
-                trace_id = excluded.trace_id,
-                profile = excluded.profile,
-                method = excluded.method,
-                action = excluded.action,
-                principal = excluded.principal,
-                tenant = excluded.tenant,
-                token_issuer = excluded.token_issuer,
-                timestamp = excluded.timestamp,
-                latency_ms = excluded.latency_ms,
-                target_json = excluded.target_json,
-                decision_json = excluded.decision_json,
-                event_json = excluded.event_json
-            "#,
-            params![
-                event.event_id.as_str(),
-                event.trace_id.as_str(),
-                event.profile.as_str(),
-                event.method.as_str(),
-                format!("{:?}", event.action),
-                event.principal.as_ref().map(|value| value.as_str()),
-                event.tenant.as_ref().map(|value| value.as_str()),
-                event.token_issuer.as_ref().map(|value| value.as_str()),
-                event.timestamp,
-                event.latency_ms,
-                target_json,
-                decision_json,
-                event_json,
-            ],
-        )?;
-        Ok(())
+    pub async fn record_audit_event(&self, event: &AuditEvent) -> Result<()> {
+        let record = canonical_policy_record(event)?;
+        self.platform
+            .record_gateway_audit_event(GatewayAuditKind::Policy, record)
+            .await
+            .context("failed to record canonical gateway policy audit event")
     }
 
-    pub fn record_auth_audit_event(&self, event: &AuthAuditEvent) -> Result<()> {
-        let event_json = serde_json::to_string(event)?;
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            INSERT INTO gateway_auth_audit_events (
-                event_id, trace_id, profile, protected_resource, outcome, reason, method,
-                principal, tenant, token_issuer, token_subject, jwt_id, timestamp, latency_ms,
-                event_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
-            ON CONFLICT(event_id) DO UPDATE SET
-                trace_id = excluded.trace_id,
-                profile = excluded.profile,
-                protected_resource = excluded.protected_resource,
-                outcome = excluded.outcome,
-                reason = excluded.reason,
-                method = excluded.method,
-                principal = excluded.principal,
-                tenant = excluded.tenant,
-                token_issuer = excluded.token_issuer,
-                token_subject = excluded.token_subject,
-                jwt_id = excluded.jwt_id,
-                timestamp = excluded.timestamp,
-                latency_ms = excluded.latency_ms,
-                event_json = excluded.event_json
-            "#,
-            params![
-                event.event_id.as_str(),
-                event.trace_id.as_str(),
-                event.profile.as_str(),
-                event.protected_resource.as_str(),
-                event.outcome.as_str(),
-                event.reason.as_str(),
-                event.method.as_str(),
-                event.principal.as_ref().map(|value| value.as_str()),
-                event.tenant.as_ref().map(|value| value.as_str()),
-                event.token_issuer.as_ref().map(|value| value.as_str()),
-                event.token_subject.as_ref().map(|value| value.as_str()),
-                event.jwt_id.as_ref().map(|value| value.as_str()),
-                event.timestamp,
-                event.latency_ms,
-                event_json,
-            ],
-        )?;
-        Ok(())
+    pub async fn record_auth_audit_event(&self, event: &AuthAuditEvent) -> Result<()> {
+        let record = canonical_auth_record(event)?;
+        self.platform
+            .record_gateway_audit_event(GatewayAuditKind::Auth, record)
+            .await
+            .context("failed to record canonical gateway authentication audit event")
     }
 
-    #[cfg(test)]
-    pub(super) fn audit_event_count(&self) -> Result<u64> {
-        self.count_rows(GatewayAuditTable::Policy)
+    async fn policy_audit_events(&self) -> Result<Vec<AuditEvent>> {
+        decode_audit_events(
+            self.platform
+                .gateway_audit_events(GatewayAuditKind::Policy)
+                .await
+                .context("failed to read canonical gateway policy audit events")?,
+        )
     }
 
-    #[cfg(test)]
-    pub(super) fn auth_audit_event_count(&self) -> Result<u64> {
-        self.count_rows(GatewayAuditTable::Auth)
+    async fn auth_audit_events(&self) -> Result<Vec<AuthAuditEvent>> {
+        decode_audit_events(
+            self.platform
+                .gateway_audit_events(GatewayAuditKind::Auth)
+                .await
+                .context("failed to read canonical gateway authentication audit events")?,
+        )
     }
+}
 
-    fn count_rows(&self, table: GatewayAuditTable) -> Result<u64> {
-        let conn = self.conn.lock();
-        let count: i64 = conn.query_row(table.count_sql(), [], |row| row.get(0))?;
-        Ok(u64::try_from(count)?)
-    }
+fn canonical_policy_record(event: &AuditEvent) -> Result<AuditEventRecord> {
+    let action = enum_wire_value(event.action)?;
+    canonical_audit_record(
+        GatewayAuditKind::Policy,
+        event.event_id.as_str(),
+        event.timestamp,
+        event.trace_id.as_str(),
+        event.profile.as_str(),
+        event.principal.as_ref().map(|value| value.as_str()),
+        event.tenant.as_ref().map(|value| value.as_str()),
+        &action,
+        match event.decision.effect {
+            PolicyEffect::Allow => AuditOutcome::Allowed,
+            PolicyEffect::Deny => AuditOutcome::Denied,
+        },
+        event,
+    )
+}
+
+pub(super) fn canonical_auth_record(event: &AuthAuditEvent) -> Result<AuditEventRecord> {
+    canonical_audit_record(
+        GatewayAuditKind::Auth,
+        event.event_id.as_str(),
+        event.timestamp,
+        event.trace_id.as_str(),
+        event.protected_resource.as_str(),
+        event.principal.as_ref().map(|value| value.as_str()),
+        event.tenant.as_ref().map(|value| value.as_str()),
+        event.method.as_str(),
+        match event.outcome {
+            AuthOutcome::Allow => AuditOutcome::Allowed,
+            AuthOutcome::Deny => AuditOutcome::Denied,
+        },
+        event,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn canonical_audit_record(
+    kind: GatewayAuditKind,
+    event_id: &str,
+    timestamp: DateTime<Utc>,
+    trace_id: &str,
+    resource_id: &str,
+    principal: Option<&str>,
+    tenant: Option<&str>,
+    action: &str,
+    outcome: AuditOutcome,
+    event: impl Serialize,
+) -> Result<AuditEventRecord> {
+    let tenant_id = tenant
+        .map(deterministic_tenant_id)
+        .transpose()
+        .context("invalid gateway audit tenant identity")?;
+    let actor = tenant
+        .zip(principal)
+        .map(|(tenant, principal)| deterministic_principal_id(tenant, principal))
+        .transpose()
+        .context("invalid gateway audit actor identity")?;
+    let event_value = serde_json::to_value(event)?;
+    let record_id = AuditEventId::from_uuid(Uuid::new_v5(
+        &GATEWAY_AUDIT_NAMESPACE,
+        format!("{}:{event_id}", kind.resource_type()).as_bytes(),
+    ));
+    Ok(AuditEventRecord {
+        id: record_id.record_id(),
+        tenant: tenant_id.map(|id| id.record_id()),
+        actor: actor.map(|id| id.record_id()),
+        action: action.to_owned(),
+        resource_type: kind.resource_type().to_owned(),
+        resource_id: Some(resource_id.to_owned()),
+        outcome,
+        request_id: Some(event_id.to_owned()),
+        trace_id: Some(trace_id.to_owned()),
+        source_ip: None,
+        details: OpenObject::new(BTreeMap::from([
+            (
+                "gateway_kind".into(),
+                serde_json::json!(kind.resource_type()),
+            ),
+            ("event".into(), event_value),
+        ])),
+        occurred_at: timestamp,
+        search_text: format!("{} {action} {resource_id}", kind.resource_type()),
+    })
+}
+
+fn decode_audit_events<T: serde::de::DeserializeOwned>(
+    records: Vec<AuditEventRecord>,
+) -> Result<Vec<T>> {
+    records
+        .into_iter()
+        .map(|record| {
+            let event = record
+                .details
+                .as_map()
+                .get("event")
+                .cloned()
+                .context("canonical gateway audit record is missing its typed event")?;
+            serde_json::from_value(event).context("canonical gateway audit event is invalid")
+        })
+        .collect()
+}
+
+fn enum_wire_value(value: impl Serialize) -> Result<String> {
+    let value = serde_json::to_value(value)?;
+    value
+        .as_str()
+        .map(ToOwned::to_owned)
+        .context("gateway enum did not serialize as a string")
 }

@@ -58,11 +58,6 @@ impl GatewayMcp {
             if server.capabilities.completions {
                 capabilities.completions.get_or_insert_with(JsonObject::new);
             }
-            if server.capabilities.tasks {
-                capabilities
-                    .tasks
-                    .get_or_insert_with(TasksCapability::server_default);
-            }
         }
         capabilities.extensions = self.auth_extension_capabilities();
 
@@ -81,8 +76,24 @@ impl GatewayMcp {
         request: InitializeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<InitializeResult, McpError> {
-        self.authenticated(&context)?;
+        let subject = self.authenticated(&context)?;
         context.peer.set_peer_info(request);
-        Ok(self.get_info())
+        let mut info = self.get_info();
+        if self.client_allows_direct_task_adapter(&subject)?
+            && self
+                .catalog
+                .current()
+                .profile_servers(&self.profile_id)
+                .into_iter()
+                .any(|(exposure, server)| {
+                    exposure.tasks == veoveo_mcp_contract::TaskExposure::Enabled
+                        && server.capabilities.tasks
+                })
+        {
+            let mut tasks = TasksCapability::server_default();
+            tasks.list = None;
+            info.capabilities.tasks = Some(tasks);
+        }
+        Ok(info)
     }
 }

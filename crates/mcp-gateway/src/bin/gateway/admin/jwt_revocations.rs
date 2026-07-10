@@ -45,7 +45,9 @@ pub(crate) async fn revoke_jwt(
         "admin/jwt-revocations",
         metadata.clone(),
         started_at,
-    ) {
+    )
+    .await
+    {
         Ok(authorized) => authorized,
         Err(response) => return *response,
     };
@@ -67,7 +69,9 @@ pub(crate) async fn revoke_jwt(
                 failure: Some(AdminOperationFailure::ExpiredRevocation),
                 metadata,
             },
-        ) {
+        )
+        .await
+        {
             return internal_error_response(err);
         }
         return (
@@ -84,7 +88,7 @@ pub(crate) async fn revoke_jwt(
         expires_at: request.expires_at,
         reason: request.reason,
     };
-    if let Err(err) = state.gateway_state.record_jwt_revocation(&revocation) {
+    if let Err(err) = state.gateway_state.record_jwt_revocation(&revocation).await {
         tracing::error!("failed to persist gateway JWT revocation: {err}");
         if let Err(audit_err) = record_admin_operation_audit(
             &state,
@@ -98,7 +102,9 @@ pub(crate) async fn revoke_jwt(
                 failure: Some(AdminOperationFailure::PersistJwtRevocation),
                 metadata: metadata.clone(),
             },
-        ) {
+        )
+        .await
+        {
             return internal_error_response(audit_err);
         }
         return internal_error_response(err);
@@ -115,7 +121,9 @@ pub(crate) async fn revoke_jwt(
             failure: None,
             metadata,
         },
-    ) {
+    )
+    .await
+    {
         return internal_error_response(err);
     }
     tracing::info!(
@@ -151,13 +159,16 @@ pub(crate) async fn prune_jwt_revocations(
         "admin/jwt-revocations/prune",
         metadata.clone(),
         started_at,
-    ) {
+    )
+    .await
+    {
         Ok(authorized) => authorized,
         Err(response) => return *response,
     };
     let deleted = match state
         .gateway_state
         .prune_expired_jwt_revocations(Utc::now())
+        .await
     {
         Ok(deleted) => deleted,
         Err(err) => {
@@ -174,7 +185,9 @@ pub(crate) async fn prune_jwt_revocations(
                     failure: Some(AdminOperationFailure::PruneJwtRevocations),
                     metadata,
                 },
-            ) {
+            )
+            .await
+            {
                 return internal_error_response(audit_err);
             }
             return internal_error_response(err);
@@ -196,7 +209,9 @@ pub(crate) async fn prune_jwt_revocations(
                 metadata
             },
         },
-    ) {
+    )
+    .await
+    {
         return internal_error_response(err);
     }
     tracing::info!(

@@ -183,8 +183,8 @@ impl MediaPrompt {
                     self.description(),
                     format!(
                         "Review media task {}.\n\n\
-                         Read tasks/get for current status. If completed, read tasks/result, \
-                         inspect any media://artifact/{{sha256}} links, and read \
+                         Read tasks/get for current status and the terminal result, \
+                         inspect any media://artifact/{{artifact_id}} links, and read \
                          media://usage/task/{} for estimate and actual billing records. Summarize \
                          artifact count, output types, final cost, and any missing actual usage.",
                         args.task_id, args.task_id,

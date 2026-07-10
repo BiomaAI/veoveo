@@ -19,12 +19,14 @@ chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 duckdb.workspace = true
+futures.workspace = true
 hex.workspace = true
 object_store.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rustls.workspace = true
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
 schemars.workspace = true
+secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -34,7 +36,12 @@ tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 veoveo-artifact-client = { path = "../artifact-client" }
-veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
+veoveo-duckdb-runtime = { path = "../duckdb-runtime" }
+veoveo-mcp-contract.workspace = true
+veoveo-mcp-task-extension = { path = "../mcp-task-extension" }
+veoveo-platform-store = { path = "../platform-store" }
+veoveo-task-runtime = { path = "../task-runtime" }
 
 [dev-dependencies]
 tempfile = "3"
+tower = { workspace = true, features = ["util"] }

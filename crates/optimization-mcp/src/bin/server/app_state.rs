@@ -1,42 +1,26 @@
-use rmcp::{RoleServer, model::TaskStatus, service::Peer};
-use serde_json::Value;
-use tokio::sync::RwLock;
-use veoveo_mcp_contract::{GatewayInternalTokenVerifier, TaskStore, notify_task_status};
-use veoveo_optimization_mcp::{artifacts::ArtifactRepository, state::DuckdbState};
-
-use super::ownership::TaskOwnerMap;
+use veoveo_duckdb_runtime::HttpsSourcePolicy;
+use veoveo_optimization_mcp::artifacts::ArtifactRepository;
+use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
 pub(super) struct AppState {
-    pub(super) tasks: TaskStore,
-    pub(super) durable: DuckdbState,
+    pub(super) tasks: TaskRuntime,
     pub(super) artifacts: ArtifactRepository,
-    pub(super) internal_token_verifier: GatewayInternalTokenVerifier,
-    pub(super) task_owners: RwLock<TaskOwnerMap>,
+    pub(super) source_policy: HttpsSourcePolicy,
+    pub(super) max_artifact_bytes: u64,
 }
 
-pub(super) async fn update_task(
-    state: &AppState,
-    peer: &Peer<RoleServer>,
-    task_id: &str,
-    status: TaskStatus,
-    message: impl Into<String>,
-    payload: Option<Value>,
-    error: Option<String>,
-) {
-    let payload_for_store = payload.clone();
-    let error_for_store = error.clone();
-    if let Some(snapshot) = state
+pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {
+    let transition = if state
         .tasks
-        .update(task_id, status, message, payload, error)
+        .is_cancel_requested(task_id)
         .await
+        .unwrap_or(false)
     {
-        if let Err(err) = state.durable.record_task(
-            &snapshot,
-            payload_for_store.as_ref(),
-            error_for_store.as_deref(),
-        ) {
-            tracing::warn!(task_id, "failed to persist task update: {err}");
-        }
-        notify_task_status(peer, snapshot).await;
+        TaskTransition::Cancelled
+    } else {
+        transition
+    };
+    if let Err(err) = state.tasks.transition(task_id, transition).await {
+        tracing::warn!(task_id, "failed to transition durable task: {err}");
     }
 }

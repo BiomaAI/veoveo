@@ -36,7 +36,7 @@ mod tests {
     use super::*;
 
     const ISSUER: &str = "https://idp.example.com";
-    const AUDIENCE: &str = "https://veoveo.bioma.ai/mcp/operator";
+    const AUDIENCE: &str = "https://veoveo.example/mcp/operator";
     const RSA_PRIVATE_KEY_DER_B64: &str = r#"
 MIIEpAIBAAKCAQEAvCUS6tGS9/VE3pGzncb1rDsZt/V/LkPHl2QO9jDlaO/jAEdfPOtCSsSyv7dY
 +nmY61GpXedIpqg6U7gcU/TcOVar0APPbKZ3OERrvrX9w5/oTJyqK42Lwybl9vmFApcRDIexmSQ8
@@ -222,7 +222,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &TestIdJagClaims {
                 iss: ISSUER,
                 sub: "00u123",
-                aud: "https://veoveo.bioma.ai/oauth",
+                aud: "https://veoveo.example/oauth",
                 resource,
                 client_id: "operator-local-public",
                 exp: 4_102_444_800,
@@ -300,6 +300,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     }
 
     fn rsa_encoding_key() -> EncodingKey {
+        support::ensure_jwt_crypto_provider();
         let der_text = RSA_PRIVATE_KEY_DER_B64.lines().collect::<String>();
         let der = BASE64_STANDARD
             .decode(der_text)
@@ -317,7 +318,9 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
     #[test]
     fn bearer_header_parser_is_strict() {
-        assert!(BearerToken::from_authorization_header("Bearer abc.def.ghi").is_ok());
+        let token = BearerToken::from_authorization_header("Bearer abc.def.ghi").unwrap();
+        assert_eq!(format!("{token:?}"), "BearerToken([REDACTED])");
+        assert!(!format!("{token:?}").contains("abc.def.ghi"));
         assert!(BearerToken::from_authorization_header("Basic abc").is_err());
         assert!(BearerToken::from_authorization_header("Bearer").is_err());
         assert!(BearerToken::from_authorization_header("Bearer abc def").is_err());
@@ -423,7 +426,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
                 OAuthClientId::new("operator-service").unwrap(),
-                "https://veoveo.bioma.ai/oauth/token",
+                "https://veoveo.example/oauth/token",
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -432,7 +435,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
         let assertion = client_assertion(
             "operator-service",
-            "https://veoveo.bioma.ai/oauth/token",
+            "https://veoveo.example/oauth/token",
             "client-jti-1",
         );
         let verified = verifier.verify(&assertion).expect("valid assertion");
@@ -446,7 +449,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = ClientAssertionVerifier::new(
             ClientAssertionConfig::new(
                 OAuthClientId::new("operator-service").unwrap(),
-                "https://veoveo.bioma.ai/oauth/token",
+                "https://veoveo.example/oauth/token",
                 vec![Algorithm::RS256],
             )
             .unwrap(),
@@ -455,7 +458,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
 
         let assertion = client_assertion(
             "other-client",
-            "https://veoveo.bioma.ai/oauth/token",
+            "https://veoveo.example/oauth/token",
             "client-jti-2",
         );
         let err = verifier
@@ -470,7 +473,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = IdJagVerifier::new(
             IdJagConfig::new(
                 TokenIssuer::new(ISSUER).unwrap(),
-                TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
+                TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
                 ProtectedResourceId::new(AUDIENCE).unwrap(),
                 vec![Algorithm::RS256],
             )
@@ -508,7 +511,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         let verifier = IdJagVerifier::new(
             IdJagConfig::new(
                 TokenIssuer::new(ISSUER).unwrap(),
-                TokenIssuer::new("https://veoveo.bioma.ai/oauth").unwrap(),
+                TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
                 ProtectedResourceId::new(AUDIENCE).unwrap(),
                 vec![Algorithm::RS256],
             )
@@ -517,7 +520,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
         );
 
         let err = verifier
-            .verify(&id_jag("https://veoveo.bioma.ai/mcp/other", "id-jag-2"))
+            .verify(&id_jag("https://veoveo.example/mcp/other", "id-jag-2"))
             .expect_err("wrong resource should fail");
 
         assert!(matches!(err, AuthError::InvalidIdentityAssertionResource));

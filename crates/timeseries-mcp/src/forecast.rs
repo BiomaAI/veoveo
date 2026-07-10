@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::collections::BTreeMap;
 
 use crate::contract::{
     TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
@@ -7,11 +7,19 @@ use crate::contract::{
 };
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
-use re_sdk::RecordingStreamBuilder;
+use re_log_encoding::Encoder;
+use re_sdk::{
+    AsComponents, StoreId, StoreKind, TimeCell, TimePoint,
+    external::re_log_types::{LogMsg, SetStoreInfo, StoreInfo, StoreSource},
+    log::{Chunk, ChunkId, RowId},
+};
 use re_sdk_types::archetypes::{Scalars, TextDocument};
 use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use veoveo_duckdb_runtime::{
+    EngineSettings, FileAccess, HttpsSourcePolicy, RequestWorkspace, open_in_memory,
+};
 use veoveo_mcp_contract::{
     DuckDbFormat, DuckDbReadOptions, DuckDbSource, duckdb_quote_identifier, duckdb_quote_literal,
     duckdb_read_function_sql, duckdb_read_options_sql,
@@ -85,10 +93,16 @@ enum SourceProvenance {
 pub fn run_forecast(
     task_id: &str,
     request: &TimeseriesForecastRequest,
+    source_policy: &HttpsSourcePolicy,
 ) -> Result<ForecastArtifact> {
     validate_request(request)?;
-    let conn = Connection::open_in_memory().context("opening DuckDB forecast workspace")?;
-    let _inline_file = materialize_source_table(&conn, request)?;
+    let workspace = RequestWorkspace::new("veoveo-timeseries-")?;
+    let conn = open_in_memory(
+        &FileAccess::RequestDirectory(workspace.request_dir().to_path_buf()),
+        &EngineSettings::new(workspace.spill_dir()),
+    )
+    .context("opening DuckDB forecast workspace")?;
+    materialize_source_table(&conn, request, &workspace, source_policy)?;
     let observations = read_observations(&conn, request)?;
     if observations.is_empty() {
         bail!("source produced no usable rows");
@@ -223,18 +237,17 @@ fn validate_filter_group(op: &str, filters: &[TimeseriesRowFilter]) -> Result<()
 fn materialize_source_table(
     conn: &Connection,
     request: &TimeseriesForecastRequest,
-) -> Result<Option<PathBuf>> {
-    let mut inline_file = None;
+    workspace: &RequestWorkspace,
+    source_policy: &HttpsSourcePolicy,
+) -> Result<()> {
     let expression = match &request.source {
         DuckDbSource::InlineCsv { csv, options, .. } => {
-            let path = std::env::temp_dir().join(format!(
-                "veoveo-timeseries-{}-{}.csv",
-                std::process::id(),
-                uuid::Uuid::new_v4()
-            ));
-            fs::write(&path, csv).with_context(|| format!("writing {}", path.display()))?;
+            let path = workspace.materialize_inline(
+                "inline.csv",
+                csv.as_bytes(),
+                source_policy.max_bytes,
+            )?;
             let path_literal = duckdb_quote_literal(path.to_string_lossy().as_ref());
-            inline_file = Some(path);
             format!(
                 "read_csv({path_literal}{})",
                 duckdb_read_options_sql(options)?
@@ -244,7 +257,15 @@ fn materialize_source_table(
             uri,
             format,
             options,
-        } => duckdb_read_function_sql(&duckdb_quote_literal(uri), format, options)?,
+        } => {
+            let filename = source_filename(0, format);
+            let path = workspace.fetch_https(uri, &filename, source_policy)?;
+            duckdb_read_function_sql(
+                &duckdb_quote_literal(path.to_string_lossy().as_ref()),
+                format,
+                options,
+            )?
+        }
         DuckDbSource::Uris {
             uris,
             format,
@@ -252,8 +273,14 @@ fn materialize_source_table(
         } => {
             let list = uris
                 .iter()
-                .map(|uri| duckdb_quote_literal(uri))
-                .collect::<Vec<_>>()
+                .enumerate()
+                .map(|(index, uri)| {
+                    let filename = source_filename(index, format);
+                    workspace
+                        .fetch_https(uri, &filename, source_policy)
+                        .map(|path| duckdb_quote_literal(path.to_string_lossy().as_ref()))
+                })
+                .collect::<Result<Vec<_>>>()?
                 .join(", ");
             duckdb_read_function_sql(&format!("[{list}]"), format, options)?
         }
@@ -271,7 +298,17 @@ fn materialize_source_table(
         "CREATE TEMP TABLE veoveo_source AS SELECT * FROM {expression};"
     ))
     .context("materializing timeseries source through DuckDB")?;
-    Ok(inline_file)
+    Ok(())
+}
+
+fn source_filename(index: usize, format: &DuckDbFormat) -> String {
+    let extension = match format {
+        DuckDbFormat::Auto | DuckDbFormat::Csv => "csv",
+        DuckDbFormat::Parquet => "parquet",
+        DuckDbFormat::Json => "json",
+        DuckDbFormat::Ndjson => "ndjson",
+    };
+    format!("source-{index}.{extension}")
 }
 
 fn read_observations(
@@ -448,81 +485,176 @@ fn write_rrd(
     provenance: &RrdProvenance<'_>,
     series_docs: &[SeriesForecastDocument],
 ) -> Result<Vec<u8>> {
-    let path = std::env::temp_dir().join(format!(
-        "veoveo-timeseries-forecast-{}-{}.rrd",
-        std::process::id(),
-        uuid::Uuid::new_v4()
-    ));
-    let rec = RecordingStreamBuilder::new("veoveo_timeseries_forecast")
-        .recording_name(format!("forecast {task_id}"))
-        .save(&path)
-        .context("opening Rerun RRD sink")?;
+    let mut writer = DeterministicRrdWriter::new(task_id)?;
 
     let provenance_json = serde_json::to_string_pretty(provenance)?;
-    rec.log(
-        "/timeseries/provenance",
-        &TextDocument::new(provenance_json).with_media_type("application/json"),
-    )
-    .context("logging RRD provenance")?;
-    rec.log(
-        "/timeseries/task",
-        &TextDocument::new(serde_json::to_string_pretty(&json!({
-            "task_id": task_id,
-            "horizon": request.horizon,
-            "method": request.method,
-        }))?)
-        .with_media_type("application/json"),
-    )
-    .context("logging RRD task metadata")?;
+    writer
+        .log(
+            "/timeseries/provenance".to_owned(),
+            TimePoint::STATIC,
+            &TextDocument::new(provenance_json).with_media_type("application/json"),
+        )
+        .context("logging RRD provenance")?;
+    writer
+        .log(
+            "/timeseries/task".to_owned(),
+            TimePoint::STATIC,
+            &TextDocument::new(serde_json::to_string_pretty(&json!({
+                "task_id": task_id,
+                "horizon": request.horizon,
+                "method": request.method,
+            }))?)
+            .with_media_type("application/json"),
+        )
+        .context("logging RRD task metadata")?;
 
     for series in series_docs {
         let segment = entity_segment(&series.series_id);
         for row in &series.observed {
-            rec.set_time_sequence("source_row", row.source_row);
-            rec.log(
-                format!("/timeseries/series/{segment}/observed"),
-                &Scalars::single(row.value),
-            )
-            .with_context(|| format!("logging observed series {}", series.series_id))?;
-            if let Some(event_time) = &row.event_time {
-                rec.log(
-                    format!("/timeseries/series/{segment}/event_time"),
-                    &TextDocument::new(event_time.clone()),
+            let source_time =
+                TimePoint::from([("source_row", TimeCell::from_sequence(row.source_row))]);
+            writer
+                .log(
+                    format!("/timeseries/series/{segment}/observed"),
+                    source_time.clone(),
+                    &Scalars::single(row.value),
                 )
-                .with_context(|| format!("logging event time for {}", series.series_id))?;
+                .with_context(|| format!("logging observed series {}", series.series_id))?;
+            if let Some(event_time) = &row.event_time {
+                writer
+                    .log(
+                        format!("/timeseries/series/{segment}/event_time"),
+                        source_time,
+                        &TextDocument::new(event_time.clone()),
+                    )
+                    .with_context(|| format!("logging event time for {}", series.series_id))?;
             }
         }
         for point in &series.forecast {
-            rec.set_time_sequence("forecast_step", i64::from(point.step));
-            rec.log(
-                format!("/timeseries/series/{segment}/forecast/mean"),
-                &Scalars::single(point.mean),
-            )
-            .with_context(|| format!("logging forecast mean for {}", series.series_id))?;
-            rec.log(
-                format!("/timeseries/series/{segment}/forecast/q10"),
-                &Scalars::single(point.q10),
-            )
-            .with_context(|| format!("logging forecast q10 for {}", series.series_id))?;
-            rec.log(
-                format!("/timeseries/series/{segment}/forecast/q90"),
-                &Scalars::single(point.q90),
-            )
-            .with_context(|| format!("logging forecast q90 for {}", series.series_id))?;
+            let forecast_time = TimePoint::from([(
+                "forecast_step",
+                TimeCell::from_sequence(i64::from(point.step)),
+            )]);
+            writer
+                .log(
+                    format!("/timeseries/series/{segment}/forecast/mean"),
+                    forecast_time.clone(),
+                    &Scalars::single(point.mean),
+                )
+                .with_context(|| format!("logging forecast mean for {}", series.series_id))?;
+            writer
+                .log(
+                    format!("/timeseries/series/{segment}/forecast/q10"),
+                    forecast_time.clone(),
+                    &Scalars::single(point.q10),
+                )
+                .with_context(|| format!("logging forecast q10 for {}", series.series_id))?;
+            writer
+                .log(
+                    format!("/timeseries/series/{segment}/forecast/q90"),
+                    forecast_time,
+                    &Scalars::single(point.q90),
+                )
+                .with_context(|| format!("logging forecast q90 for {}", series.series_id))?;
         }
-        rec.log(
-            format!("/timeseries/series/{segment}/summary"),
-            &TextDocument::new(serde_json::to_string_pretty(series)?)
-                .with_media_type("application/json"),
-        )
-        .with_context(|| format!("logging series summary for {}", series.series_id))?;
+        writer
+            .log(
+                format!("/timeseries/series/{segment}/summary"),
+                TimePoint::STATIC,
+                &TextDocument::new(serde_json::to_string_pretty(series)?)
+                    .with_media_type("application/json"),
+            )
+            .with_context(|| format!("logging series summary for {}", series.series_id))?;
     }
 
-    rec.flush_blocking().context("flushing Rerun RRD sink")?;
-    drop(rec);
-    let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-    let _ = fs::remove_file(&path);
-    Ok(bytes)
+    writer.finish()
+}
+
+struct DeterministicRrdWriter {
+    encoder: Encoder<Vec<u8>>,
+    store_id: StoreId,
+    task_id: String,
+    row_sequence: u64,
+}
+
+impl DeterministicRrdWriter {
+    fn new(task_id: &str) -> Result<Self> {
+        let mut encoder = Encoder::local().context("opening deterministic Rerun RRD encoder")?;
+        // Rerun's manifest builder iterates an internal hash map when it emits the optional
+        // footer. The message stream is deterministic, but that manifest column order is not.
+        // Footerless RRD streams remain valid and make task retries byte-for-byte stable.
+        encoder.do_not_emit_footer();
+        let store_id = StoreId::new(
+            StoreKind::Recording,
+            "veoveo_timeseries_forecast",
+            task_id.to_owned(),
+        );
+        let info = StoreInfo::new_unversioned(
+            store_id.clone(),
+            StoreSource::Other("veoveo-timeseries-mcp".to_owned()),
+        );
+        let row_id = deterministic_rerun_id::<RowId>(task_id, 0, "store_info")?;
+        encoder
+            .append(
+                &SetStoreInfo {
+                    row_id: *row_id,
+                    info,
+                }
+                .into(),
+            )
+            .context("encoding deterministic Rerun store info")?;
+        Ok(Self {
+            encoder,
+            store_id,
+            task_id: task_id.to_owned(),
+            row_sequence: 0,
+        })
+    }
+
+    fn log(
+        &mut self,
+        entity_path: String,
+        timepoint: TimePoint,
+        components: &dyn AsComponents,
+    ) -> Result<()> {
+        let sequence = self.row_sequence;
+        let chunk_id = deterministic_rerun_id::<ChunkId>(&self.task_id, sequence, "chunk")?;
+        let row_id = deterministic_rerun_id::<RowId>(&self.task_id, sequence, "row")?;
+        let chunk = Chunk::builder_with_id(chunk_id, entity_path)
+            .with_archetype(row_id, timepoint, components)
+            .build()
+            .context("building deterministic Rerun chunk")?;
+        self.encoder
+            .append(&LogMsg::ArrowMsg(
+                self.store_id.clone(),
+                chunk
+                    .to_arrow_msg()
+                    .context("encoding deterministic Rerun chunk")?,
+            ))
+            .context("writing deterministic Rerun chunk")?;
+        self.row_sequence += 1;
+        Ok(())
+    }
+
+    fn finish(mut self) -> Result<Vec<u8>> {
+        self.encoder
+            .finish()
+            .context("finishing deterministic Rerun RRD encoder")?;
+        self.encoder
+            .into_inner()
+            .context("extracting deterministic Rerun RRD bytes")
+    }
+}
+
+fn deterministic_rerun_id<T>(task_id: &str, sequence: u64, kind: &str) -> Result<T>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    let digest = Sha256::digest(format!("{task_id}:{kind}:{sequence}"));
+    hex::encode(&digest[..16])
+        .parse::<T>()
+        .map_err(|error| anyhow::anyhow!("invalid deterministic Rerun {kind} id: {error}"))
 }
 
 fn source_digest(source: &DuckDbSource) -> Result<String> {
@@ -646,12 +778,52 @@ mod tests {
                 horizon: 3,
                 method: TimeseriesForecastMethod::NaiveTrend,
             },
+            &HttpsSourcePolicy::deny_network(),
         )
         .unwrap();
 
         assert!(!artifact.rrd_bytes.is_empty());
         assert_eq!(artifact.summary.source_rows, 3);
         assert_eq!(artifact.summary.series[0].forecast_rows, 3);
+    }
+
+    #[test]
+    fn resumable_forecast_rrd_is_byte_deterministic() {
+        let request = TimeseriesForecastRequest {
+            source: DuckDbSource::InlineCsv {
+                csv: "ts,series,value\n2026-01-01,a,10\n2026-01-02,a,12\n2026-01-01,b,4\n2026-01-02,b,5\n".into(),
+                filename: Some("input.csv".into()),
+                options: DuckDbReadOptions {
+                    header: Some(true),
+                    ..Default::default()
+                },
+            },
+            mapping: TimeseriesTableMapping {
+                time_column: Some("ts".into()),
+                value_column: "value".into(),
+                series_column: Some("series".into()),
+            },
+            training_filter: None,
+            horizon: 3,
+            method: TimeseriesForecastMethod::NaiveTrend,
+        };
+
+        let first = run_forecast(
+            "019f0000-0000-7000-8000-000000000001",
+            &request,
+            &HttpsSourcePolicy::deny_network(),
+        )
+        .unwrap();
+        let second = run_forecast(
+            "019f0000-0000-7000-8000-000000000001",
+            &request,
+            &HttpsSourcePolicy::deny_network(),
+        )
+        .unwrap();
+
+        assert_eq!(first.summary, second.summary);
+        assert_eq!(first.metadata, second.metadata);
+        assert_eq!(first.rrd_bytes, second.rrd_bytes);
     }
 
     #[test]
@@ -665,12 +837,13 @@ mod tests {
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/timesfm-showcase")
             .join(&example.file);
+        let csv = std::fs::read_to_string(fixture).unwrap();
         let artifact = run_forecast(
             "timesfm-fixture-task",
             &TimeseriesForecastRequest {
-                source: DuckDbSource::Uri {
-                    uri: fixture.to_string_lossy().into_owned(),
-                    format: DuckDbFormat::Csv,
+                source: DuckDbSource::InlineCsv {
+                    csv,
+                    filename: Some(example.file.clone()),
                     options: DuckDbReadOptions {
                         header: Some(true),
                         ..Default::default()
@@ -685,6 +858,7 @@ mod tests {
                 horizon: example.smoke_horizon,
                 method: TimeseriesForecastMethod::NaiveTrend,
             },
+            &HttpsSourcePolicy::deny_network(),
         )
         .unwrap();
 
@@ -737,6 +911,33 @@ mod tests {
             source_digest(&source).unwrap(),
             source_digest(&source).unwrap()
         );
+    }
+
+    #[test]
+    fn remote_source_rejects_private_addresses_before_duckdb() {
+        let policy = HttpsSourcePolicy::new(["127.0.0.1".to_string()]);
+        let error = run_forecast(
+            "task-private-source",
+            &TimeseriesForecastRequest {
+                source: DuckDbSource::Uri {
+                    uri: "https://127.0.0.1/input.csv".to_string(),
+                    format: DuckDbFormat::Csv,
+                    options: DuckDbReadOptions::default(),
+                },
+                mapping: TimeseriesTableMapping {
+                    time_column: None,
+                    value_column: "value".to_string(),
+                    series_column: None,
+                },
+                training_filter: None,
+                horizon: 1,
+                method: TimeseriesForecastMethod::NaiveTrend,
+            },
+            &policy,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("private or reserved address"));
     }
 
     #[test]

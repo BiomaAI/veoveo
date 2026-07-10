@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use crate::contract::{
@@ -20,8 +20,12 @@ use re_sdk_types::archetypes::{Scalars, TextDocument};
 use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use veoveo_duckdb_runtime::{
+    EngineSettings, FileAccess, HttpsSourcePolicy, RequestWorkspace, open_in_memory,
+};
 use veoveo_mcp_contract::{
-    DuckDbSource, duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
+    DuckDbFormat, DuckDbSource, duckdb_quote_literal, duckdb_read_function_sql,
+    duckdb_read_options_sql,
 };
 
 pub const RRD_MIME_TYPE: &str = "application/vnd.veoveo.rerun-rrd";
@@ -63,8 +67,12 @@ struct RrdProvenance<'a> {
     options: usize,
 }
 
-pub fn run_plan(task_id: &str, request: &PlanRequest) -> Result<PlanRun> {
-    let problem = load_problem(request)?;
+pub fn run_plan(
+    task_id: &str,
+    request: &PlanRequest,
+    source_policy: &HttpsSourcePolicy,
+) -> Result<PlanRun> {
+    let problem = load_problem(request, source_policy)?;
     validate_problem(&problem, &request.objective)?;
     let mut output = solve_problem(&problem, &request.objective)?;
 
@@ -124,7 +132,10 @@ pub fn run_plan(task_id: &str, request: &PlanRequest) -> Result<PlanRun> {
     })
 }
 
-fn load_problem(request: &PlanRequest) -> Result<PlanningProblem> {
+fn load_problem(
+    request: &PlanRequest,
+    source_policy: &HttpsSourcePolicy,
+) -> Result<PlanningProblem> {
     match &request.input {
         PlanInput::Inline {
             agents,
@@ -147,7 +158,7 @@ fn load_problem(request: &PlanRequest) -> Result<PlanningProblem> {
         } => Ok(PlanningProblem {
             agents: agents.clone(),
             tasks: tasks.clone(),
-            options: load_options_from_duckdb(source, mapping)?,
+            options: load_options_from_duckdb(source, mapping, source_policy)?,
             constraints: constraints.clone(),
             source_digest: Some(source_digest(source)?),
         }),
@@ -618,12 +629,10 @@ fn option_score(
     task: &PlanningTask,
     objective: &PlanningObjective,
 ) -> f64 {
-    let duration = option
-        .duration
-        .or_else(|| match (option.start, option.end) {
-            (Some(start), Some(end)) => Some(end - start),
-            _ => None,
-        });
+    let duration = option.duration.or(match (option.start, option.end) {
+        (Some(start), Some(end)) => Some(end - start),
+        _ => None,
+    });
     let resource_total: f64 = option.resource_usage.values().sum();
     objective.priority_weight * task.priority + objective.confidence_weight * option.confidence
         - objective.cost_weight * option.cost
@@ -702,6 +711,7 @@ fn capabilities_cover(
 fn load_options_from_duckdb(
     source: &DuckDbSource,
     mapping: &PlanningTableMapping,
+    source_policy: &HttpsSourcePolicy,
 ) -> Result<Vec<PlanningOption>> {
     validate_mapping(mapping)?;
     if let DuckDbSource::Uris { uris, .. } = source
@@ -710,20 +720,18 @@ fn load_options_from_duckdb(
         bail!("source.uris must not be empty");
     }
 
-    let conn = Connection::open_in_memory().context("opening DuckDB planning workspace")?;
-    let temp_dir = std::env::temp_dir().join(format!(
-        "veoveo-optimization-plan-{}-{}",
-        std::process::id(),
-        uuid::Uuid::new_v4()
-    ));
-    fs::create_dir_all(&temp_dir).with_context(|| format!("creating {}", temp_dir.display()))?;
-    let table_sql = source_table_sql(source, &temp_dir)?;
+    let workspace = RequestWorkspace::new("veoveo-optimization-")?;
+    let conn = open_in_memory(
+        &FileAccess::RequestDirectory(workspace.request_dir().to_path_buf()),
+        &EngineSettings::new(workspace.spill_dir()),
+    )
+    .context("opening DuckDB planning workspace")?;
+    let table_sql = source_table_sql(source, &workspace, source_policy)?;
     conn.execute_batch(&format!(
         "CREATE TEMP TABLE options AS SELECT * FROM {table_sql};"
     ))
     .context("materializing planning options source")?;
     let options = read_options_table(&conn, mapping).context("reading planning options")?;
-    let _ = fs::remove_dir_all(&temp_dir);
     Ok(options)
 }
 
@@ -736,11 +744,18 @@ fn validate_mapping(mapping: &PlanningTableMapping) -> Result<()> {
     Ok(())
 }
 
-fn source_table_sql(source: &DuckDbSource, temp_dir: &Path) -> Result<String> {
+fn source_table_sql(
+    source: &DuckDbSource,
+    workspace: &RequestWorkspace,
+    source_policy: &HttpsSourcePolicy,
+) -> Result<String> {
     match source {
         DuckDbSource::InlineCsv { csv, options, .. } => {
-            let path = temp_dir.join("inline.csv");
-            fs::write(&path, csv).with_context(|| format!("writing {}", path.display()))?;
+            let path = workspace.materialize_inline(
+                "inline.csv",
+                csv.as_bytes(),
+                source_policy.max_bytes,
+            )?;
             let options = duckdb_read_options_sql(options)?;
             Ok(format!(
                 "read_csv({}{options})",
@@ -751,8 +766,16 @@ fn source_table_sql(source: &DuckDbSource, temp_dir: &Path) -> Result<String> {
             uri,
             format,
             options,
-        } => duckdb_read_function_sql(&duckdb_quote_literal(uri), format, options)
-            .map_err(Into::into),
+        } => {
+            let filename = source_filename(0, format);
+            let path = workspace.fetch_https(uri, &filename, source_policy)?;
+            duckdb_read_function_sql(
+                &duckdb_quote_literal(path.to_string_lossy().as_ref()),
+                format,
+                options,
+            )
+            .map_err(Into::into)
+        }
         DuckDbSource::Uris {
             uris,
             format,
@@ -760,8 +783,14 @@ fn source_table_sql(source: &DuckDbSource, temp_dir: &Path) -> Result<String> {
         } => {
             let list = uris
                 .iter()
-                .map(|uri| duckdb_quote_literal(uri))
-                .collect::<Vec<_>>()
+                .enumerate()
+                .map(|(index, uri)| {
+                    let filename = source_filename(index, format);
+                    workspace
+                        .fetch_https(uri, &filename, source_policy)
+                        .map(|path| duckdb_quote_literal(path.to_string_lossy().as_ref()))
+                })
+                .collect::<Result<Vec<_>>>()?
                 .join(", ");
             duckdb_read_function_sql(&format!("[{list}]"), format, options).map_err(Into::into)
         }
@@ -775,6 +804,16 @@ fn source_table_sql(source: &DuckDbSource, temp_dir: &Path) -> Result<String> {
             )
         }
     }
+}
+
+fn source_filename(index: usize, format: &DuckDbFormat) -> String {
+    let extension = match format {
+        DuckDbFormat::Auto | DuckDbFormat::Csv => "csv",
+        DuckDbFormat::Parquet => "parquet",
+        DuckDbFormat::Json => "json",
+        DuckDbFormat::Ndjson => "ndjson",
+    };
+    format!("source-{index}.{extension}")
 }
 
 fn read_options_table(
@@ -815,15 +854,15 @@ fn read_options_table(
     let mut options = Vec::new();
     while let Some(row) = rows.next().context("reading options row")? {
         let mut agent_ids = Vec::new();
-        if let Some(index) = agent_id_idx {
-            if let Some(agent_id) = string_at(row, index)? {
-                agent_ids.push(agent_id);
-            }
+        if let Some(index) = agent_id_idx
+            && let Some(agent_id) = string_at(row, index)?
+        {
+            agent_ids.push(agent_id);
         }
-        if let Some(index) = agent_ids_idx {
-            if let Some(raw) = string_at(row, index)? {
-                agent_ids.extend(parse_string_list(&raw)?);
-            }
+        if let Some(index) = agent_ids_idx
+            && let Some(raw) = string_at(row, index)?
+        {
+            agent_ids.extend(parse_string_list(&raw)?);
         }
         agent_ids.sort();
         agent_ids.dedup();
@@ -1054,6 +1093,7 @@ fn write_rrd(
 ) -> Result<Vec<u8>> {
     let path = temp_file("veoveo-optimization-plan", "rrd");
     let rec = RecordingStreamBuilder::new("veoveo_optimization_plan")
+        .recording_id(task_id.to_owned())
         .recording_name(format!("plan {task_id}"))
         .save(&path)
         .context("opening Rerun RRD sink")?;
@@ -1227,7 +1267,7 @@ mod tests {
             },
         };
 
-        let run = run_plan("task-1", &request).unwrap();
+        let run = run_plan("task-1", &request, &HttpsSourcePolicy::deny_network()).unwrap();
         assert_eq!(run.output.status, PlanStatus::Optimal);
         assert_eq!(run.output.selected_options.len(), 1);
         assert_eq!(run.output.selected_options[0].option_id, "careful");
@@ -1247,7 +1287,7 @@ mod tests {
                         ..Default::default()
                     },
                 },
-                mapping: PlanningTableMapping::default(),
+                mapping: Box::new(PlanningTableMapping::default()),
                 agents: vec![PlanningAgent {
                     id: "agent1".to_string(),
                     capabilities: BTreeSet::new(),
@@ -1270,7 +1310,79 @@ mod tests {
             },
         };
 
-        let run = run_plan("task-1", &request).unwrap();
+        let run = run_plan("task-1", &request, &HttpsSourcePolicy::deny_network()).unwrap();
         assert_eq!(run.output.selected_options[0].option_id, "opt1");
+    }
+
+    #[test]
+    fn resumable_plan_is_semantically_deterministic() {
+        let request = PlanRequest {
+            input: PlanInput::Inline {
+                agents: vec![PlanningAgent {
+                    id: "agent1".to_owned(),
+                    capabilities: BTreeSet::new(),
+                    resource_limits: BTreeMap::new(),
+                    max_options: Some(1),
+                }],
+                tasks: vec![PlanningTask {
+                    id: "task1".to_owned(),
+                    required_count: 1,
+                    priority: 1.0,
+                    required_capabilities: BTreeSet::new(),
+                    deadline: None,
+                }],
+                options: vec![PlanningOption {
+                    id: "option1".to_owned(),
+                    task_id: "task1".to_owned(),
+                    agent_ids: vec!["agent1".to_owned()],
+                    cost: 1.0,
+                    risk: 2.0,
+                    confidence: 0.9,
+                    duration: None,
+                    start: None,
+                    end: None,
+                    resource_usage: BTreeMap::new(),
+                    requires: Vec::new(),
+                    excludes: Vec::new(),
+                    tags: BTreeSet::new(),
+                }],
+                constraints: Vec::new(),
+            },
+            objective: PlanningObjective::default(),
+            artifacts: PlanArtifactOptions {
+                duckdb: true,
+                rerun_rrd: true,
+            },
+        };
+
+        let first = run_plan(
+            "019f0000-0000-7000-8000-000000000001",
+            &request,
+            &HttpsSourcePolicy::deny_network(),
+        )
+        .unwrap();
+        let second = run_plan(
+            "019f0000-0000-7000-8000-000000000001",
+            &request,
+            &HttpsSourcePolicy::deny_network(),
+        )
+        .unwrap();
+        assert_eq!(first.output, second.output);
+
+        let first_duckdb = first.duckdb.unwrap();
+        let second_duckdb = second.duckdb.unwrap();
+        assert_eq!(first_duckdb.mime_type, second_duckdb.mime_type);
+        assert_eq!(first_duckdb.filename, second_duckdb.filename);
+        assert_eq!(first_duckdb.metadata, second_duckdb.metadata);
+        assert!(!first_duckdb.bytes.is_empty());
+        assert!(!second_duckdb.bytes.is_empty());
+
+        let first_rrd = first.rrd.unwrap();
+        let second_rrd = second.rrd.unwrap();
+        assert_eq!(first_rrd.mime_type, second_rrd.mime_type);
+        assert_eq!(first_rrd.filename, second_rrd.filename);
+        assert_eq!(first_rrd.metadata, second_rrd.metadata);
+        assert!(!first_rrd.bytes.is_empty());
+        assert!(!second_rrd.bytes.is_empty());
     }
 }

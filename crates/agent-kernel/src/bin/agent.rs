@@ -1,10 +1,7 @@
 //! The agent process: one manifest, one data dir, one long life.
 
-use std::path::Path;
-
-use anyhow::{Context, Result, bail};
+use anyhow::Result;
 use clap::Parser;
-use veoveo_agent_kernel::operator::{OPERATOR_PORT_FILE, OPERATOR_TOKEN_ENV};
 use veoveo_mcp_contract::{TelemetryGuard, init_server_telemetry};
 
 #[path = "agent/cli.rs"]
@@ -38,21 +35,6 @@ async fn main() -> Result<()> {
             );
             Ok(())
         }
-        Cmd::Ask(ask_args) => {
-            let response = operator_client(&ask_args.data_dir)?
-                .post("/v1/prompt")
-                .json(&serde_json::json!({ "text": ask_args.text }))
-                .send()
-                .await?;
-            print_operator_response(response).await
-        }
-        Cmd::Status(status_args) => {
-            let response = operator_client(&status_args.data_dir)?
-                .get("/v1/status")
-                .send()
-                .await?;
-            print_operator_response(response).await
-        }
         Cmd::Timeline(timeline_args) => {
             let query = veoveo_agent_kernel::timeline::TimelineQuery {
                 entities: timeline_args.entities,
@@ -67,53 +49,4 @@ async fn main() -> Result<()> {
             Ok(())
         }
     }
-}
-
-/// A client for the running agent's loopback operator endpoint.
-struct OperatorClient {
-    base: String,
-    http: reqwest::Client,
-    token: Option<String>,
-}
-
-impl OperatorClient {
-    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
-        let mut builder = self.http.request(method, format!("{}{path}", self.base));
-        if let Some(token) = &self.token {
-            builder = builder.bearer_auth(token);
-        }
-        builder
-    }
-
-    fn post(&self, path: &str) -> reqwest::RequestBuilder {
-        self.request(reqwest::Method::POST, path)
-    }
-
-    fn get(&self, path: &str) -> reqwest::RequestBuilder {
-        self.request(reqwest::Method::GET, path)
-    }
-}
-
-fn operator_client(data_dir: &Path) -> Result<OperatorClient> {
-    let port_file = data_dir.join(OPERATOR_PORT_FILE);
-    let port = std::fs::read_to_string(&port_file)
-        .with_context(|| format!("reading {} — is the agent running?", port_file.display()))?
-        .trim()
-        .parse::<u16>()
-        .context("operator port file is malformed")?;
-    Ok(OperatorClient {
-        base: format!("http://127.0.0.1:{port}"),
-        http: reqwest::Client::new(),
-        token: std::env::var(OPERATOR_TOKEN_ENV).ok(),
-    })
-}
-
-async fn print_operator_response(response: reqwest::Response) -> Result<()> {
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        bail!("operator endpoint returned {status}: {body}");
-    }
-    println!("{body}");
-    Ok(())
 }

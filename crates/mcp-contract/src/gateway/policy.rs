@@ -72,7 +72,6 @@ pub enum GatewayAction {
     PromptsList,
     PromptsGet,
     CompletionComplete,
-    TasksList,
     TasksGet,
     TasksResult,
     TasksCancel,
@@ -95,7 +94,6 @@ impl GatewayAction {
             Self::PromptsList => Some("prompts/list"),
             Self::PromptsGet => Some("prompts/get"),
             Self::CompletionComplete => Some("completion/complete"),
-            Self::TasksList => Some("tasks/list"),
             Self::TasksGet => Some("tasks/get"),
             Self::TasksResult => Some("tasks/result"),
             Self::TasksCancel => Some("tasks/cancel"),
@@ -140,7 +138,7 @@ impl Principal {
     /// read-level group access). This is what a [`crate::PlaneCaller`] carries
     /// so the artifact plane can resolve group grants.
     pub fn group_memberships(&self) -> BTreeSet<crate::access::GroupMembership> {
-        use crate::access::{AccessLevel, GroupMembership};
+        use crate::access::{GroupMembership, GroupRole};
         let explicit: BTreeMap<_, _> = self
             .group_roles
             .iter()
@@ -150,7 +148,7 @@ impl Principal {
             .iter()
             .map(|group| GroupMembership {
                 group: group.clone(),
-                role: explicit.get(group).copied().unwrap_or(AccessLevel::Read),
+                role: explicit.get(group).copied().unwrap_or(GroupRole::Read),
             })
             .collect()
     }
@@ -312,12 +310,9 @@ pub enum PolicyTarget {
         server: ServerSlug,
         prompt: PromptName,
     },
-    TaskList {
-        server: ServerSlug,
-    },
     Task {
         server: ServerSlug,
-        gateway_task_id: GatewayTaskId,
+        task_id: CanonicalTaskId,
     },
     Artifact {
         server: ServerSlug,
@@ -404,6 +399,7 @@ impl AuthOutcome {
 pub enum AuthMethod {
     BearerJwt,
     OidcAuthorizationCodePkce,
+    RefreshToken,
     ClientCredentialsPrivateKeyJwt,
     EnterpriseManagedIdJag,
 }
@@ -413,6 +409,7 @@ impl AuthMethod {
         match self {
             Self::BearerJwt => "bearer_jwt",
             Self::OidcAuthorizationCodePkce => "oidc_authorization_code_pkce",
+            Self::RefreshToken => "refresh_token",
             Self::ClientCredentialsPrivateKeyJwt => "client_credentials_private_key_jwt",
             Self::EnterpriseManagedIdJag => "enterprise_managed_id_jag",
         }
@@ -435,6 +432,10 @@ pub enum AuthReasonCode {
     InvalidBearerToken,
     InvalidAuthorizationRequest,
     InvalidAuthorizationCode,
+    InvalidRefreshToken,
+    RefreshTokenDuplicateDelivery,
+    RefreshTokenRevoked,
+    RefreshTokenReplay,
     InvalidPkce,
     InvalidOidcIdToken,
     InvalidClient,
@@ -463,6 +464,10 @@ impl AuthReasonCode {
             Self::InvalidBearerToken => "invalid_bearer_token",
             Self::InvalidAuthorizationRequest => "invalid_authorization_request",
             Self::InvalidAuthorizationCode => "invalid_authorization_code",
+            Self::InvalidRefreshToken => "invalid_refresh_token",
+            Self::RefreshTokenDuplicateDelivery => "refresh_token_duplicate_delivery",
+            Self::RefreshTokenRevoked => "refresh_token_revoked",
+            Self::RefreshTokenReplay => "refresh_token_replay",
             Self::InvalidPkce => "invalid_pkce",
             Self::InvalidOidcIdToken => "invalid_oidc_id_token",
             Self::InvalidClient => "invalid_client",
@@ -482,9 +487,9 @@ impl AuthReasonCode {
 #[cfg(test)]
 mod group_membership_tests {
     use super::*;
-    use crate::access::{AccessLevel, GroupMembership};
+    use crate::access::{GroupMembership, GroupRole};
 
-    fn principal_with(groups: &[&str], group_roles: &[(&str, AccessLevel)]) -> Principal {
+    fn principal_with(groups: &[&str], group_roles: &[(&str, GroupRole)]) -> Principal {
         Principal {
             id: PrincipalId::new("https://idp#u1").unwrap(),
             kind: PrincipalKind::User,
@@ -512,12 +517,12 @@ mod group_membership_tests {
         let p = principal_with(&["eng", "ops"], &[]);
         let m = p.group_memberships();
         assert_eq!(m.len(), 2);
-        assert!(m.iter().all(|gm| gm.role == AccessLevel::Read));
+        assert!(m.iter().all(|gm| gm.role == GroupRole::Read));
     }
 
     #[test]
     fn explicit_role_overrides_default_per_group() {
-        let p = principal_with(&["eng", "ops"], &[("eng", AccessLevel::Write)]);
+        let p = principal_with(&["eng", "ops"], &[("eng", GroupRole::Write)]);
         let m = p.group_memberships();
         let eng = m
             .iter()
@@ -527,14 +532,14 @@ mod group_membership_tests {
             .iter()
             .find(|gm| gm.group == GroupId::new("ops").unwrap())
             .unwrap();
-        assert_eq!(eng.role, AccessLevel::Write);
-        assert_eq!(ops.role, AccessLevel::Read);
+        assert_eq!(eng.role, GroupRole::Write);
+        assert_eq!(ops.role, GroupRole::Read);
     }
 
     #[test]
     fn role_without_membership_is_ignored() {
         // group_roles for a group the principal is not a member of yields nothing.
-        let p = principal_with(&["eng"], &[("secret", AccessLevel::Admin)]);
+        let p = principal_with(&["eng"], &[("secret", GroupRole::Admin)]);
         let m = p.group_memberships();
         assert_eq!(m.len(), 1);
         assert_eq!(m.iter().next().unwrap().group, GroupId::new("eng").unwrap());

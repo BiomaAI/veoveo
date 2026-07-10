@@ -1,66 +1,109 @@
 use std::{
-    collections::HashSet,
+    collections::HashMap,
+    str::FromStr,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use rig_core::tool::server::ToolServer;
 use veoveo_agent_kernel::{
     connection::{ConnectionEpoch, GatewayConnection, KernelHandlers},
     episode::EpisodeDriver,
-    ledger::KernelLedger,
     llm,
     manifest::AgentManifest,
-    operator,
+    memory::MemoryStore,
     rrd::RrdRecorder,
     tasks::arm_watcher,
     tools::{MemoryQueryTool, MemoryWriteTool, TimelineQueryTool},
-    wake::{WakeBatch, WakeBus, WakeEvent, WakeKind, WakeReceiver, mark_batch_handled},
+    wake::{WakeBatch, WakeBus, WakeKindExt, WakeReceiver, heartbeat, is_priority},
+};
+use veoveo_agent_runtime::{
+    AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE, json_object,
+};
+use veoveo_platform_store::{
+    AgentElicitationId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
 };
 
 use crate::cli::RunArgs;
 
 pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
-    let manifest = AgentManifest::load(&args.manifest)?;
-    let agent_id = manifest.agent.id.clone();
-    tracing::info!(agent_id, "agent booting");
-
-    let ledger = KernelLedger::open(&args.data_dir.join("memory.duckdb"))?;
-    let crashed = ledger.mark_inflight_episodes_crashed()?;
-    if crashed > 0 {
-        tracing::warn!(crashed, "recovered from a crash mid-episode");
+    if args.surreal_auth_level != "database" {
+        bail!("agent requires VEOVEO_SURREAL_AUTH_LEVEL=database");
     }
+    let seed_manifest = AgentManifest::load(&args.manifest)?;
+    let store_config = StoreConfig::builder(
+        &args.surreal_endpoint,
+        &args.surreal_namespace,
+        &args.surreal_database,
+        StoreCredentials::database(args.surreal_username, args.surreal_password),
+    )
+    .build()?;
+    let store = PlatformStore::connect(store_config).await?;
+    let manifest_object = json_object(serde_json::to_value(&seed_manifest)?, "agent manifest")?;
+    let runtime = AgentRuntime::register(
+        store,
+        AgentSpec {
+            tenant_key: seed_manifest.agent.tenant.clone(),
+            agent_key: seed_manifest.agent.id.clone(),
+            display_name: seed_manifest.agent.display_name.clone(),
+            profile: seed_manifest.gateway.profile.clone(),
+            manifest: manifest_object,
+            memory_database: "memory.duckdb".to_owned(),
+        },
+        AgentInstanceId::new(),
+    )
+    .await?;
+    let manifest: AgentManifest = serde_json::from_value(serde_json::Value::Object(
+        runtime
+            .active_manifest()
+            .clone()
+            .into_map()
+            .into_iter()
+            .collect(),
+    ))?;
+    manifest.validate()?;
+    let Some(lease) = runtime.acquire_lease(DEFAULT_AGENT_LEASE).await? else {
+        bail!("another replica holds the scheduler lease for this agent");
+    };
+    tracing::info!(
+        agent_id = manifest.agent.id,
+        instance_id = %runtime.instance_id(),
+        fence = lease.fence,
+        "agent scheduler lease acquired"
+    );
+
+    let memory = MemoryStore::open(&args.data_dir.join("memory.duckdb"))?;
     if let Some(dir) = &manifest.migrations_dir {
-        let applied = ledger.run_migrations(dir)?;
-        tracing::info!(applied, "domain migrations applied");
+        let applied = memory.run_migrations(dir)?;
+        tracing::info!(applied, "domain memory migrations applied");
     }
     let rrd = Arc::new(RrdRecorder::open(
         &args.data_dir,
         &manifest.memory.rrd_dir,
         manifest.memory.segment_max_bytes,
-        &agent_id,
-        &ledger,
+        &manifest.agent.id,
+        &memory,
         args.viewer_tee.clone(),
     )?);
 
-    let (bus, wake_rx) = WakeBus::channel(256);
-    let waiters = Arc::new(Mutex::new(std::collections::HashMap::new()));
+    let (bus, wake_rx) = WakeBus::channel(runtime.clone(), 256);
+    let waiters = Arc::new(Mutex::new(HashMap::new()));
     let handlers = KernelHandlers {
         bus: bus.clone(),
-        ledger: ledger.clone(),
-        waiters: waiters.clone(),
+        runtime: runtime.clone(),
+        waiters,
         elicitation_grace: Duration::from_secs(manifest.schedule.elicitation_grace_s),
     };
 
     let tool_server_handle = ToolServer::new().run();
     tool_server_handle
-        .add_tool(MemoryQueryTool::new(ledger.clone()))
+        .add_tool(MemoryQueryTool::new(memory.clone()))
         .await
         .context("registering memory_query")?;
     tool_server_handle
         .add_tool(MemoryWriteTool::new(
-            ledger.clone(),
+            memory.clone(),
             rrd.clone(),
             manifest.memory.memory_write_tables.clone(),
         ))
@@ -78,217 +121,241 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
             .context("connecting to the gateway")?;
     let schedule = manifest.schedule.clone();
     let budgets = manifest.budgets.clone();
-    let driver = EpisodeDriver::new(manifest, agent, ledger.clone(), rrd.clone());
+    let driver = EpisodeDriver::new(manifest, agent, runtime.clone(), memory.clone(), rrd);
 
     if let Some(prompt) = args.prompt {
         driver
-            .run_episode(&mut connection, "boot_prompt", &prompt)
+            .run_episode(&mut connection, "boot_prompt", &prompt, &[])
             .await?;
     }
     if args.halt_after_episode {
-        tracing::info!("halt-after-episode set; detached tasks resume on next boot");
+        runtime.release_lease().await?;
         return Ok(());
     }
 
-    operator::serve(
-        ledger.clone(),
-        bus.clone(),
-        waiters,
-        &args.data_dir,
-        args.operator_port,
-    )
-    .await?;
+    spawn_heartbeat(bus.clone(), schedule.heartbeat_interval_s);
+    let mut receiver = WakeReceiver::new(
+        wake_rx,
+        runtime.clone(),
+        Duration::from_millis(schedule.wake_coalesce_window_ms),
+        Duration::from_secs(schedule.min_wake_interval_s),
+        DEFAULT_CLAIM_LEASE,
+    );
+    let mut task_scan = tokio::time::interval(Duration::from_secs(1));
+    task_scan.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut watchers = HashMap::new();
+    arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers).await?;
 
-    // Heartbeat: bounded silence — every tick wakes an episode.
+    let (lease_lost_tx, mut lease_lost_rx) = tokio::sync::watch::channel(false);
     {
-        let bus = bus.clone();
-        let interval = Duration::from_secs(schedule.heartbeat_interval_s);
+        let runtime = runtime.clone();
         tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(interval);
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-            ticker.tick().await; // the immediate first tick is boot's concern
+            let mut renew = tokio::time::interval(Duration::from_secs(10));
+            renew.tick().await;
             loop {
-                ticker.tick().await;
-                bus.send(WakeEvent::heartbeat()).await;
+                renew.tick().await;
+                if let Err(error) = runtime.renew_lease(DEFAULT_AGENT_LEASE).await {
+                    tracing::error!(%error, "agent scheduler lease renewal failed");
+                    lease_lost_tx.send_replace(true);
+                    break;
+                }
             }
         });
     }
 
-    let mut armed: HashSet<String> = HashSet::new();
-    arm_unwatched(&ledger, &bus, &epoch_rx, &mut armed)?;
-    for resolved in ledger.unconsumed_results()? {
-        bus.send(WakeEvent::task_settled(&resolved.task_id)).await;
-    }
-
-    let mut receiver = WakeReceiver::new(
-        wake_rx,
-        ledger.clone(),
-        Duration::from_millis(schedule.wake_coalesce_window_ms),
-        Duration::from_secs(schedule.min_wake_interval_s),
-    );
-
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
-                tracing::info!("shutdown requested");
+                for (_, watcher) in watchers.drain() {
+                    watcher.abort();
+                }
+                runtime.release_lease().await?;
                 return Ok(());
             }
+            changed = lease_lost_rx.changed() => {
+                if changed.is_err() || *lease_lost_rx.borrow() {
+                    for (_, watcher) in watchers.drain() {
+                        watcher.abort();
+                    }
+                    bail!("agent scheduler lease was lost");
+                }
+            }
+            _ = task_scan.tick() => {
+                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers).await?;
+            }
             batch = receiver.next_batch() => {
-                let Some(batch) = batch else { return Ok(()) };
-                // Window budget: hold low-priority work when the hour is spent.
+                let batch = batch?;
                 if let Some(max) = budgets.hourly_max_episodes
-                    && !batch.wakes.iter().any(|event| event.kind.priority())
+                    && !batch.wakes.iter().any(is_priority)
                 {
-                    let started = ledger.episodes_started_this_hour()?;
+                    let started = runtime
+                        .episodes_started_since(chrono::Utc::now() - chrono::TimeDelta::hours(1))
+                        .await?;
                     if started as u64 >= max {
-                        tracing::warn!(started, max, "hourly episode budget reached; wakes deferred");
-                        for event in &batch.wakes {
-                            bus.send(event.clone()).await;
-                        }
-                        tokio::time::sleep(Duration::from_secs(30)).await;
+                        receiver
+                            .defer_batch(&batch, Duration::from_secs(30), "hourly episode budget reached")
+                            .await?;
                         continue;
                     }
                 }
-                match run_batch_episode(&driver, &mut connection, &ledger, &batch).await {
-                    Ok(episode_id) => {
-                        if let Err(err) = mark_batch_handled(&ledger, &batch, episode_id) {
-                            tracing::error!(%err, "marking wakes handled failed");
-                        }
+                match run_batch_episode(&driver, &mut connection, &runtime, &batch).await {
+                    Ok(()) => receiver.note_episode_finished(),
+                    Err(error) => {
+                        tracing::error!(%error, "wake episode failed; durable wakes requeued");
+                        receiver.retry_batch(&batch, &error.to_string()).await?;
                     }
-                    Err(err) => tracing::error!(%err, "wake episode failed"),
                 }
-                receiver.note_episode_finished();
-                arm_unwatched(&ledger, &bus, &epoch_rx, &mut armed)?;
+                arm_available_tasks(&runtime, &bus, &epoch_rx, &mut watchers).await?;
             }
         }
     }
 }
 
-/// Watchers for every ledger task that has none yet — covers boot recovery,
-/// detach at episode end, and provisional rows from terminated runs.
-fn arm_unwatched(
-    ledger: &KernelLedger,
+fn spawn_heartbeat(bus: WakeBus, interval_s: u64) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_secs(interval_s));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        ticker.tick().await;
+        loop {
+            ticker.tick().await;
+            if let Err(error) = bus.send(heartbeat()).await {
+                tracing::error!(%error, "persisting heartbeat wake failed");
+            }
+        }
+    });
+}
+
+async fn arm_available_tasks(
+    runtime: &AgentRuntime,
     bus: &WakeBus,
     epoch_rx: &tokio::sync::watch::Receiver<ConnectionEpoch>,
-    armed: &mut HashSet<String>,
+    watchers: &mut HashMap<AgentTaskId, tokio::task::JoinHandle<()>>,
 ) -> Result<()> {
-    for task in ledger.tasks_to_watch()? {
-        if armed.insert(task.task_id.clone()) {
-            tracing::info!(
-                task_id = task.task_id,
-                tool_name = task.tool_name,
-                "arming watcher"
-            );
-            arm_watcher(ledger.clone(), bus.clone(), epoch_rx.clone(), task);
-        }
+    watchers.retain(|_, watcher| !watcher.is_finished());
+    for task in runtime.claim_tasks(64, DEFAULT_CLAIM_LEASE).await? {
+        let id = task.agent_task_id;
+        let watcher = arm_watcher(runtime.clone(), bus.clone(), epoch_rx.clone(), task);
+        watchers.insert(id, watcher);
     }
     Ok(())
 }
 
-/// One episode answering a batch of wakes; returns the episode id.
 async fn run_batch_episode(
     driver: &EpisodeDriver,
     connection: &mut GatewayConnection,
-    ledger: &KernelLedger,
+    runtime: &AgentRuntime,
     batch: &WakeBatch,
-) -> Result<uuid::Uuid> {
+) -> Result<()> {
     let wake_note = batch
         .wakes
         .iter()
-        .map(|event| event.kind.as_str())
+        .map(|wake| wake.kind.note_name())
         .collect::<Vec<_>>()
         .join("+");
-    let wake_body = render_wake_body(ledger, batch)?;
-    let report = driver
-        .run_episode(connection, &wake_note, &wake_body)
+    let wake_body = render_wake_body(runtime, batch).await?;
+    driver
+        .run_episode(connection, &wake_note, &wake_body, &batch.ids())
         .await?;
-    for event in &batch.wakes {
-        if event.kind == WakeKind::TaskSettled
-            && let Some(task_id) = event.payload.get("task_id").and_then(|id| id.as_str())
-        {
-            ledger.mark_task_consumed(task_id, report.episode_id)?;
-            tracing::info!(task_id, episode_id = %report.episode_id, "task result consumed");
-        }
-    }
-    Ok(report.episode_id)
+    Ok(())
 }
 
-fn render_wake_body(ledger: &KernelLedger, batch: &WakeBatch) -> Result<String> {
+async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<String> {
     let mut parts = Vec::new();
-    let results = ledger.unconsumed_results()?;
-    for event in &batch.wakes {
-        match event.kind {
-            WakeKind::TaskSettled => {
-                let Some(task_id) = event.payload.get("task_id").and_then(|id| id.as_str()) else {
+    let results = runtime.unconsumed_task_results().await?;
+    for wake in &batch.wakes {
+        match wake.kind {
+            WakeKind::TaskResult => {
+                let Some(task_id) = wake
+                    .payload
+                    .as_map()
+                    .get("task_id")
+                    .and_then(serde_json::Value::as_str)
+                else {
                     continue;
                 };
-                let Some(result) = results.iter().find(|result| result.task_id == task_id) else {
+                let Some(result) = results
+                    .iter()
+                    .find(|result| result.task_id.to_string() == task_id)
+                else {
                     continue;
-                };
-                let status = if result.result_is_error {
-                    "failed"
-                } else {
-                    "completed"
                 };
                 parts.push(format!(
-                    "Background task update: your earlier `{tool}` dispatch (task {task_id}) \
-                     has {status} with this result:\n\n{result}",
-                    tool = result.tool_name,
-                    result = result.result_json,
+                    "Background task update: `{}` task {} {} with result:\n\n{}",
+                    result.tool_name,
+                    result.task_id,
+                    if result.is_error {
+                        "failed"
+                    } else {
+                        "completed"
+                    },
+                    serde_json::to_string(&result.result)?,
                 ));
             }
-            WakeKind::ResourceUpdated => {
-                if let Some(uri) = event.payload.get("uri").and_then(|uri| uri.as_str()) {
+            WakeKind::ResourceChanged => {
+                if let Some(uri) = wake
+                    .payload
+                    .as_map()
+                    .get("uri")
+                    .and_then(serde_json::Value::as_str)
+                {
                     parts.push(format!("Resource updated: {uri}"));
                 }
             }
             WakeKind::Timer => {
-                let name = event
+                let name = wake
                     .payload
+                    .as_map()
                     .get("name")
-                    .and_then(|name| name.as_str())
+                    .and_then(serde_json::Value::as_str)
                     .unwrap_or("timer");
-                parts.push(format!("Scheduled timer `{name}` fired."));
+                if wake
+                    .payload
+                    .as_map()
+                    .get("timer_kind")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("heartbeat")
+                {
+                    parts.push(
+                        "Scheduled heartbeat. Review pending work and act only when needed."
+                            .to_owned(),
+                    );
+                } else {
+                    parts.push(format!("Scheduled timer `{name}` fired."));
+                }
             }
-            WakeKind::Heartbeat => {
-                parts.push(
-                    "Scheduled heartbeat. Review your state and pending work; act only if \
-                     something needs attention, otherwise reply briefly and stop."
-                        .to_string(),
-                );
-            }
-            WakeKind::Operator => {
-                if let Some(text) = event.payload.get("text").and_then(|text| text.as_str()) {
+            WakeKind::OperatorMessage => {
+                if let Some(text) = wake
+                    .payload
+                    .as_map()
+                    .get("text")
+                    .and_then(serde_json::Value::as_str)
+                {
                     parts.push(format!("Operator message: {text}"));
                 }
             }
-            WakeKind::ElicitationPending => {
-                parts.push(
-                    "A background tool asked for operator input; the question is parked for \
-                     the operator (see kernel.elicitations). Continue other work — the answer \
-                     will wake you."
-                        .to_string(),
-                );
-            }
-            WakeKind::ElicitationAnswered => {
-                if let Some(id) = event
+            WakeKind::Elicitation => {
+                if wake
                     .payload
-                    .get("elicitation_id")
-                    .and_then(|id| id.as_str())
+                    .as_map()
+                    .get("phase")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("answered")
                 {
-                    let rows = ledger.query_json(
-                        &format!(
-                            "SELECT message, state, answer_json FROM kernel.elicitations \
-                             WHERE elicitation_id = '{id}'"
-                        ),
-                        1,
-                    )?;
-                    parts.push(format!(
-                        "The operator answered a parked tool question: {}",
-                        rows.first()
-                            .map(|row| row.to_string())
-                            .unwrap_or_else(|| "(answer row missing)".to_string())
-                    ));
+                    if let Some(id) = wake
+                        .payload
+                        .as_map()
+                        .get("elicitation_id")
+                        .and_then(serde_json::Value::as_str)
+                        && let Ok(id) = AgentElicitationId::from_str(id)
+                    {
+                        let elicitation = runtime.elicitation(id).await?;
+                        parts.push(format!(
+                            "Operator answered elicitation `{id}`: {}",
+                            serde_json::to_string(&elicitation.answer)?
+                        ));
+                    }
+                } else {
+                    parts.push("A tool requested operator input. The durable elicitation is awaiting an authorized answer.".to_owned());
                 }
             }
         }

@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-bff
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console-bff
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: console-bff
+  ports:
+    - name: http
+      port: 8786
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-bff
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console-bff
+spec:
+  replicas: {{ .Values.consoleBff.replicas }}
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: console-bff
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: console-bff
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: console-bff
+          image: {{ include "veoveo.image" (list . .Values.consoleBff.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          env:
+            - name: PORT
+              value: "8786"
+            - name: PUBLIC_BASE_URL
+              value: {{ .Values.global.publicBaseUrl | quote }}
+            - name: VEOVEO_GATEWAY_URL
+              value: http://mcp-gateway:8788
+            - name: VEOVEO_CONSOLE_OAUTH_CLIENT_ID
+              value: {{ .Values.consoleBff.oauthClientId | quote }}
+            - name: VEOVEO_CONSOLE_OAUTH_RESOURCE
+              value: {{ .Values.consoleBff.oauthResource | quote }}
+            - name: VEOVEO_CONSOLE_SESSION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret }}
+                  key: console-session-key
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-console-bff
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4318
+          ports:
+            - name: http
+              containerPort: 8786
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.consoleBff.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

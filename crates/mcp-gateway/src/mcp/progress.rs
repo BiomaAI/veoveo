@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
-use rmcp::model::{ProgressToken, TaskStatus};
+use rmcp::model::ProgressToken;
 use tokio::sync::RwLock;
-use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug, UpstreamTaskId};
+use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug};
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct GatewayProgressTokens {
@@ -20,30 +20,8 @@ impl GatewayProgressTokens {
     ) {
         self.inner.write().await.insert(
             GatewayProgressTokenKey::new(profile, principal, upstream_server, upstream_token),
-            GatewayProgressMapping {
-                downstream_token,
-                upstream_task_id: None,
-            },
+            GatewayProgressMapping { downstream_token },
         );
-    }
-
-    pub(super) async fn attach_task(
-        &self,
-        profile: &GatewayProfileId,
-        principal: &PrincipalId,
-        upstream_server: &ServerSlug,
-        upstream_token: &ProgressToken,
-        upstream_task_id: UpstreamTaskId,
-    ) {
-        let mut mappings = self.inner.write().await;
-        if let Some(mapping) = mappings.get_mut(&GatewayProgressTokenKey::new(
-            profile,
-            principal,
-            upstream_server,
-            upstream_token.clone(),
-        )) {
-            mapping.upstream_task_id = Some(upstream_task_id);
-        }
     }
 
     pub(super) async fn translate(
@@ -63,21 +41,6 @@ impl GatewayProgressTokens {
                 upstream_token.clone(),
             ))
             .map(|mapping| mapping.downstream_token.clone())
-    }
-
-    pub(super) async fn remove_task(
-        &self,
-        profile: &GatewayProfileId,
-        principal: &PrincipalId,
-        upstream_server: &ServerSlug,
-        upstream_task_id: &UpstreamTaskId,
-    ) {
-        self.inner.write().await.retain(|key, mapping| {
-            key.profile != *profile
-                || key.principal != *principal
-                || key.upstream_server != *upstream_server
-                || mapping.upstream_task_id.as_ref() != Some(upstream_task_id)
-        });
     }
 
     pub(super) async fn remove_token(
@@ -126,14 +89,6 @@ impl GatewayProgressTokenKey {
 #[derive(Debug, Clone)]
 struct GatewayProgressMapping {
     downstream_token: ProgressToken,
-    upstream_task_id: Option<UpstreamTaskId>,
-}
-
-pub(super) fn is_terminal(status: &TaskStatus) -> bool {
-    matches!(
-        status,
-        TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled
-    )
 }
 
 #[cfg(test)]
@@ -147,12 +102,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn progress_tokens_translate_and_remove_by_task() {
+    async fn progress_tokens_translate_and_remove_by_token() {
         let registry = GatewayProgressTokens::default();
         let profile = GatewayProfileId::new("default").unwrap();
         let principal = PrincipalId::new("issuer#subject").unwrap();
         let server = ServerSlug::new("media").unwrap();
-        let upstream_task_id = UpstreamTaskId::new("upstream-task-1").unwrap();
 
         registry
             .register(&profile, &principal, &server, token(1), token(99))
@@ -165,16 +119,7 @@ mod tests {
         );
 
         registry
-            .attach_task(
-                &profile,
-                &principal,
-                &server,
-                &token(1),
-                upstream_task_id.clone(),
-            )
-            .await;
-        registry
-            .remove_task(&profile, &principal, &server, &upstream_task_id)
+            .remove_token(&profile, &principal, &server, &token(1))
             .await;
         assert_eq!(
             registry

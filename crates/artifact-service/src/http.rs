@@ -1,36 +1,37 @@
-//! Internal HTTP surface for the artifact plane.
-//!
-//! This is service-to-service plumbing, not an MCP client contract: domain
-//! servers call it with a forwarded gateway bearer. Every handler authenticates,
-//! then delegates to an [`ArtifactPlane`] (in production, the `ArtifactService`
-//! PEP). The router is generic over the plane so tests can drive it with the
-//! in-memory reference implementation.
+//! HTTP transport for the artifact plane.
 
 use std::sync::Arc;
 
-use axum::body::Bytes;
-use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::body::{Body, Bytes};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use serde::Deserialize;
-use veoveo_mcp_contract::access::{AccessLevel, ArtifactSha256, Subject};
+use veoveo_mcp_contract::access::{AccessLevel, ArtifactId, Subject};
 use veoveo_mcp_contract::storage::ArtifactMetadata;
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, GrantList, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
+    CreateArtifactShareLinkRequest, GrantList, IssueArtifactWriteCapabilityRequest,
+    ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
 };
 
 use crate::PlaneAuthenticator;
+use crate::ledger::ArtifactRepository;
+use crate::service::{ArtifactDownload, ArtifactService, DownloadDelivery};
+use crate::store::BlobStore;
 
-/// Shared handler state: the plane implementation plus the authenticator.
-pub struct AppState<P> {
-    service: Arc<P>,
+const MAX_UPLOAD_BODY_BYTES: usize = 256 * 1024 * 1024;
+
+pub struct AppState<R: ArtifactRepository, S: BlobStore> {
+    service: Arc<ArtifactService<R, S>>,
     auth: PlaneAuthenticator,
 }
 
-impl<P> Clone for AppState<P> {
+impl<R: ArtifactRepository, S: BlobStore> Clone for AppState<R, S> {
     fn clone(&self) -> Self {
         Self {
             service: Arc::clone(&self.service),
@@ -39,8 +40,8 @@ impl<P> Clone for AppState<P> {
     }
 }
 
-impl<P> AppState<P> {
-    pub fn new(service: P, auth: PlaneAuthenticator) -> Self {
+impl<R: ArtifactRepository, S: BlobStore> AppState<R, S> {
+    pub fn new(service: ArtifactService<R, S>, auth: PlaneAuthenticator) -> Self {
         Self {
             service: Arc::new(service),
             auth,
@@ -48,29 +49,57 @@ impl<P> AppState<P> {
     }
 }
 
-/// Anything the router needs from a plane.
-pub trait PlaneService: ArtifactPlane + Send + Sync + 'static {}
-impl<T: ArtifactPlane + Send + Sync + 'static> PlaneService for T {}
-
-pub fn router<P: PlaneService>(state: AppState<P>) -> Router {
+pub fn router<R, S>(state: AppState<R, S>) -> Router
+where
+    R: ArtifactRepository + 'static,
+    S: BlobStore + 'static,
+{
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(healthz))
-        .route("/artifacts", post(put_artifact::<P>))
-        .route("/artifacts/{sha}", get(get_artifact::<P>))
-        .route("/artifacts/{sha}/meta", get(head_artifact::<P>))
         .route(
-            "/artifacts/{sha}/grants",
-            get(list_grants::<P>)
-                .post(add_grant::<P>)
-                .delete(remove_grant::<P>),
+            "/artifacts",
+            get(list_artifacts::<R, S>).post(put_artifact::<R, S>),
         )
-        .route("/resolve", get(resolve_artifact::<P>))
+        .route("/artifacts/{artifact_id}", get(get_artifact::<R, S>))
+        .route("/artifacts/{artifact_id}/meta", get(head_artifact::<R, S>))
+        .route(
+            "/artifacts/{artifact_id}/download",
+            get(download_artifact::<R, S>),
+        )
+        .route(
+            "/artifacts/{artifact_id}/grants",
+            get(list_grants::<R, S>)
+                .post(add_grant::<R, S>)
+                .delete(remove_grant::<R, S>),
+        )
+        .route(
+            "/artifacts/{artifact_id}/release-state",
+            axum::routing::put(set_release_state::<R, S>),
+        )
+        .route(
+            "/artifacts/{artifact_id}/share-links",
+            post(create_share_link::<R, S>),
+        )
+        .route(
+            "/artifacts/{artifact_id}/share-links/{link_id}",
+            axum::routing::delete(revoke_share_link::<R, S>),
+        )
+        .route(
+            "/artifact-write-capabilities",
+            post(issue_write_capability::<R, S>),
+        )
+        .route(
+            "/artifact-write-capabilities/{capability_id}/redeem",
+            post(redeem_write_capability::<R, S>),
+        )
+        .route("/resolve", get(resolve_artifact::<R, S>))
+        .route("/s/{token}", get(redeem_public_share::<R, S>))
+        .layer(DefaultBodyLimit::max(MAX_UPLOAD_BODY_BYTES))
         .with_state(state)
 }
 
-/// Maps a plane error onto an HTTP status. Bodies are terse: this is internal.
-struct ApiError(ArtifactPlaneError);
+pub struct ApiError(ArtifactPlaneError);
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
@@ -80,10 +109,10 @@ impl IntoResponse for ApiError {
             ArtifactPlaneError::Unauthenticated => (StatusCode::UNAUTHORIZED, self.0.to_string()),
             ArtifactPlaneError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, self.0.to_string()),
             ArtifactPlaneError::Conflict(_) => (StatusCode::CONFLICT, self.0.to_string()),
-            ArtifactPlaneError::Transport(_) => (StatusCode::BAD_GATEWAY, self.0.to_string()),
+            ArtifactPlaneError::Transport(_) => {
+                (StatusCode::SERVICE_UNAVAILABLE, self.0.to_string())
+            }
         };
-        // On a denial, carry the precise decision so the client keeps the reason
-        // chain (tenant / clearance / need-to-know) rather than a coarse 403.
         if let ArtifactPlaneError::Denied(decision) = &self.0
             && let Ok(encoded) = serde_json::to_string(decision)
         {
@@ -94,8 +123,8 @@ impl IntoResponse for ApiError {
 }
 
 impl From<ArtifactPlaneError> for ApiError {
-    fn from(e: ArtifactPlaneError) -> Self {
-        ApiError(e)
+    fn from(error: ArtifactPlaneError) -> Self {
+        Self(error)
     }
 }
 
@@ -103,20 +132,41 @@ async fn healthz() -> &'static str {
     "ok"
 }
 
-fn caller<P>(state: &AppState<P>, headers: &HeaderMap) -> Result<PlaneCaller, ApiError> {
-    let value = headers
+fn bearer(headers: &HeaderMap) -> Result<&str, ApiError> {
+    headers
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .ok_or(ArtifactPlaneError::Unauthenticated)?;
-    let token = value
-        .strip_prefix("Bearer ")
-        .ok_or(ArtifactPlaneError::Unauthenticated)?;
-    Ok(state.auth.authenticate(token)?)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .filter(|value| !value.is_empty())
+        .ok_or(ApiError(ArtifactPlaneError::Unauthenticated))
 }
 
-fn parse_sha(sha: &str) -> Result<ArtifactSha256, ApiError> {
-    ArtifactSha256::new(sha)
-        .map_err(|e| ApiError(ArtifactPlaneError::InvalidRequest(e.to_string())))
+fn caller<R: ArtifactRepository, S: BlobStore>(
+    state: &AppState<R, S>,
+    headers: &HeaderMap,
+) -> Result<PlaneCaller, ApiError> {
+    Ok(state.auth.authenticate(bearer(headers)?)?)
+}
+
+fn parse_artifact_id(value: &str) -> Result<ArtifactId, ApiError> {
+    ArtifactId::parse(value)
+        .map_err(|error| ApiError(ArtifactPlaneError::InvalidRequest(error.to_string())))
+}
+
+fn put_request(headers: &HeaderMap) -> Result<PutArtifactRequest, ApiError> {
+    match headers.get("x-artifact-put") {
+        Some(value) => {
+            let value = value.to_str().map_err(|_| {
+                ArtifactPlaneError::InvalidRequest("x-artifact-put must be UTF-8".into())
+            })?;
+            serde_json::from_str(value).map_err(|error| {
+                ApiError(ArtifactPlaneError::InvalidRequest(format!(
+                    "invalid x-artifact-put: {error}"
+                )))
+            })
+        }
+        None => Ok(PutArtifactRequest::default()),
+    }
 }
 
 #[derive(Deserialize)]
@@ -124,196 +174,397 @@ struct LevelQuery {
     level: Option<String>,
 }
 
-fn parse_level(level: Option<&str>) -> Result<AccessLevel, ApiError> {
-    match level.unwrap_or("read") {
+fn parse_level(value: Option<&str>) -> Result<AccessLevel, ApiError> {
+    match value.unwrap_or("read") {
         "read" => Ok(AccessLevel::Read),
         "write" => Ok(AccessLevel::Write),
         "admin" => Ok(AccessLevel::Admin),
         other => Err(ApiError(ArtifactPlaneError::InvalidRequest(format!(
-            "unknown level `{other}`"
+            "unknown access level `{other}`"
         )))),
     }
 }
 
-/// The canonical HTTP encoding of an artifact read: raw bytes in the body, the
-/// full [`ArtifactMetadata`] as a base64 JSON header so the client rebuilds an
-/// `ArtifactObject` in one round trip.
-fn bytes_with_metadata(metadata: &ArtifactMetadata, bytes: Vec<u8>) -> Response {
-    let mime = metadata
-        .mime_type
-        .clone()
-        .unwrap_or_else(|| "application/octet-stream".to_string());
-    let meta_json = serde_json::to_vec(metadata).unwrap_or_default();
-    let meta_b64 = base64::engine::general_purpose::STANDARD.encode(meta_json);
-    (
-        StatusCode::OK,
-        [
-            (header::CONTENT_TYPE, mime),
-            (
-                "x-artifact-sha256".parse().unwrap(),
-                metadata.sha256.clone(),
-            ),
-            ("x-artifact-metadata".parse().unwrap(), meta_b64),
-        ],
-        bytes,
-    )
-        .into_response()
+fn metadata_headers(metadata: &ArtifactMetadata) -> Result<HeaderMap, ApiError> {
+    let encoded = base64::engine::general_purpose::STANDARD.encode(
+        serde_json::to_vec(metadata)
+            .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(
+            metadata
+                .mime_type
+                .as_deref()
+                .unwrap_or("application/octet-stream"),
+        )
+        .map_err(|_| ArtifactPlaneError::InvalidRequest("invalid artifact mime type".into()))?,
+    );
+    headers.insert(
+        "x-artifact-id",
+        HeaderValue::from_str(&metadata.artifact_id.to_string())
+            .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+    );
+    headers.insert(
+        "x-artifact-metadata",
+        HeaderValue::from_str(&encoded)
+            .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+    );
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'none'; sandbox"),
+    );
+    Ok(headers)
 }
 
-/// `POST /artifacts` — bytes in the body, `PutArtifactRequest` JSON in the
-/// `x-artifact-put` header (tenant/owner are never accepted from the client).
-async fn put_artifact<P: PlaneService>(
-    State(state): State<AppState<P>>,
+fn bytes_with_metadata(metadata: &ArtifactMetadata, bytes: Vec<u8>) -> Result<Response, ApiError> {
+    let mut response = Response::new(Body::from(bytes));
+    *response.status_mut() = StatusCode::OK;
+    *response.headers_mut() = metadata_headers(metadata)?;
+    Ok(response)
+}
+
+fn download_response(download: ArtifactDownload) -> Result<Response, ApiError> {
+    match download.delivery {
+        DownloadDelivery::Bytes(bytes) => bytes_with_metadata(&download.metadata, bytes),
+        DownloadDelivery::SignedRedirect(url) => {
+            let mut response = StatusCode::TEMPORARY_REDIRECT.into_response();
+            response.headers_mut().insert(
+                header::LOCATION,
+                HeaderValue::from_str(&url)
+                    .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
+            );
+            response
+                .headers_mut()
+                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            response.headers_mut().insert(
+                header::REFERRER_POLICY,
+                HeaderValue::from_static("no-referrer"),
+            );
+            Ok(response)
+        }
+        DownloadDelivery::Stream(stream) => {
+            let mut response = Response::new(Body::from_stream(stream));
+            *response.status_mut() = StatusCode::OK;
+            *response.headers_mut() = metadata_headers(&download.metadata)?;
+            Ok(response)
+        }
+    }
+}
+
+async fn put_artifact<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let caller = caller(&state, &headers)?;
-    let request: PutArtifactRequest = match headers.get("x-artifact-put") {
-        Some(v) => {
-            let s = v.to_str().map_err(|_| {
-                ArtifactPlaneError::InvalidRequest("x-artifact-put not utf8".into())
-            })?;
-            serde_json::from_str(s)
-                .map_err(|e| ArtifactPlaneError::InvalidRequest(format!("x-artifact-put: {e}")))?
-        }
-        None => PutArtifactRequest::default(),
-    };
-    let metadata = state.service.put(&caller, request, body.to_vec()).await?;
+    let metadata = state
+        .service
+        .put(&caller, put_request(&headers)?, body.to_vec())
+        .await?;
     Ok((StatusCode::CREATED, Json(metadata)).into_response())
 }
 
-/// `GET /artifacts/{sha}` — returns the raw bytes plus metadata header.
-async fn get_artifact<P: PlaneService>(
-    State(state): State<AppState<P>>,
-    Path(sha): Path<String>,
-    Query(q): Query<LevelQuery>,
+async fn list_artifacts<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Query(request): Query<ListArtifactsRequest>,
+    headers: HeaderMap,
+) -> Result<Json<veoveo_mcp_contract::ArtifactPage>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(state.service.list(&caller, request).await?))
+}
+
+async fn get_artifact<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    Query(query): Query<LevelQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let caller = caller(&state, &headers)?;
-    let sha = parse_sha(&sha)?;
-    let level = parse_level(q.level.as_deref())?;
-    let object = state.service.get(&caller, &sha, level).await?;
-    Ok(bytes_with_metadata(&object.metadata, object.bytes))
+    let artifact_id = parse_artifact_id(&artifact_id)?;
+    let object = state
+        .service
+        .get(&caller, &artifact_id, parse_level(query.level.as_deref())?)
+        .await?;
+    bytes_with_metadata(&object.metadata, object.bytes)
 }
 
-/// `GET /artifacts/{sha}/meta` — metadata only, gated at read.
-async fn head_artifact<P: PlaneService>(
-    State(state): State<AppState<P>>,
-    Path(sha): Path<String>,
+async fn head_artifact<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<ArtifactMetadata>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(
+        state
+            .service
+            .head(&caller, &parse_artifact_id(&artifact_id)?)
+            .await?,
+    ))
+}
+
+async fn download_artifact<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let caller = caller(&state, &headers)?;
-    let sha = parse_sha(&sha)?;
-    let metadata = state.service.head(&caller, &sha).await?;
-    Ok(Json(metadata).into_response())
+    download_response(
+        state
+            .service
+            .download(&caller, parse_artifact_id(&artifact_id)?)
+            .await?,
+    )
 }
 
-/// `GET /resolve?uri=artifact://{sha}` — cross-server input resolution.
 #[derive(Deserialize)]
 struct ResolveQuery {
     uri: String,
 }
 
-async fn resolve_artifact<P: PlaneService>(
-    State(state): State<AppState<P>>,
-    Query(q): Query<ResolveQuery>,
+async fn resolve_artifact<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Query(query): Query<ResolveQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let caller = caller(&state, &headers)?;
-    let object = state.service.resolve(&caller, &q.uri).await?;
-    Ok(bytes_with_metadata(&object.metadata, object.bytes))
+    let object = state.service.resolve(&caller, &query.uri).await?;
+    bytes_with_metadata(&object.metadata, object.bytes)
 }
 
-async fn add_grant<P: PlaneService>(
-    State(state): State<AppState<P>>,
-    Path(sha): Path<String>,
+async fn add_grant<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(req): Json<PutGrantRequest>,
-) -> Result<Response, ApiError> {
+    Json(request): Json<PutGrantRequest>,
+) -> Result<StatusCode, ApiError> {
     let caller = caller(&state, &headers)?;
-    let sha = parse_sha(&sha)?;
     state
         .service
-        .grant(&caller, &sha, req.subject, req.level)
+        .grant(
+            &caller,
+            &parse_artifact_id(&artifact_id)?,
+            request.subject,
+            request.level,
+        )
         .await?;
-    Ok(StatusCode::NO_CONTENT.into_response())
+    Ok(StatusCode::NO_CONTENT)
 }
 
-async fn remove_grant<P: PlaneService>(
-    State(state): State<AppState<P>>,
-    Path(sha): Path<String>,
+async fn remove_grant<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
     headers: HeaderMap,
     Json(subject): Json<Subject>,
-) -> Result<Response, ApiError> {
+) -> Result<StatusCode, ApiError> {
     let caller = caller(&state, &headers)?;
-    let sha = parse_sha(&sha)?;
-    state.service.revoke(&caller, &sha, &subject).await?;
-    Ok(StatusCode::NO_CONTENT.into_response())
+    state
+        .service
+        .revoke(&caller, &parse_artifact_id(&artifact_id)?, &subject)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
-async fn list_grants<P: PlaneService>(
-    State(state): State<AppState<P>>,
-    Path(sha): Path<String>,
+async fn list_grants<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
     headers: HeaderMap,
-) -> Result<Response, ApiError> {
+) -> Result<Json<GrantList>, ApiError> {
     let caller = caller(&state, &headers)?;
-    let sha = parse_sha(&sha)?;
-    let grants = state.service.list_grants(&caller, &sha).await?;
-    Ok(Json(GrantList { grants }).into_response())
+    Ok(Json(GrantList {
+        grants: state
+            .service
+            .list_grants(&caller, &parse_artifact_id(&artifact_id)?)
+            .await?,
+    }))
+}
+
+async fn set_release_state<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    headers: HeaderMap,
+    Json(request): Json<SetArtifactReleaseStateRequest>,
+) -> Result<Json<ArtifactMetadata>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(
+        state
+            .service
+            .set_release_state(
+                &caller,
+                &parse_artifact_id(&artifact_id)?,
+                request.release_state,
+            )
+            .await?,
+    ))
+}
+
+async fn create_share_link<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    headers: HeaderMap,
+    Json(request): Json<CreateArtifactShareLinkRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let caller = caller(&state, &headers)?;
+    let link = state
+        .service
+        .create_share_link(&caller, &parse_artifact_id(&artifact_id)?, request)
+        .await?;
+    Ok((StatusCode::CREATED, Json(link)))
+}
+
+async fn revoke_share_link<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path((artifact_id, link_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    let caller = caller(&state, &headers)?;
+    let link_id = ArtifactShareLinkId::parse(link_id)?;
+    state
+        .service
+        .revoke_share_link(&caller, &parse_artifact_id(&artifact_id)?, &link_id)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn issue_write_capability<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    headers: HeaderMap,
+    Json(request): Json<IssueArtifactWriteCapabilityRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let caller = caller(&state, &headers)?;
+    let issued = state
+        .service
+        .issue_write_capability(&caller, request)
+        .await?;
+    Ok((StatusCode::CREATED, Json(issued)))
+}
+
+async fn redeem_write_capability<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(capability_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<impl IntoResponse, ApiError> {
+    let capability_id = ArtifactWriteCapabilityId::parse(capability_id)?;
+    let request_header = headers
+        .get("x-artifact-capability-redeem")
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| {
+            ArtifactPlaneError::InvalidRequest("missing x-artifact-capability-redeem header".into())
+        })?;
+    let request: RedeemArtifactWriteCapabilityRequest = serde_json::from_str(request_header)
+        .map_err(|error| {
+            ArtifactPlaneError::InvalidRequest(format!(
+                "invalid x-artifact-capability-redeem: {error}"
+            ))
+        })?;
+    if request.capability_id != capability_id {
+        return Err(ArtifactPlaneError::InvalidRequest(
+            "capability id does not match request path".into(),
+        )
+        .into());
+    }
+    let metadata = state
+        .service
+        .redeem_write_capability(bearer(&headers)?, request, body.to_vec())
+        .await?;
+    Ok((StatusCode::CREATED, Json(metadata)))
+}
+
+async fn redeem_public_share<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(token): Path<String>,
+) -> Result<Response, ApiError> {
+    match state.service.redeem_public_share(&token).await {
+        Ok(download) => download_response(download),
+        Err(ArtifactPlaneError::Transport(message)) => {
+            Err(ApiError(ArtifactPlaneError::Transport(message)))
+        }
+        Err(_) => Err(ApiError(ArtifactPlaneError::NotFound)),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+    use std::num::{NonZeroU32, NonZeroU64};
 
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
     use chrono::{TimeDelta, Utc};
     use veoveo_artifact_client::HttpArtifactPlane;
-    use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, ArtifactSha256};
     use veoveo_mcp_contract::gateway::{
-        GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
+        GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
+        TokenSubject,
     };
-    use veoveo_mcp_contract::internal_auth::{GatewayInternalTokenIssuer, InternalTokenSecret};
+    use veoveo_mcp_contract::internal_auth::{
+        GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTrustBundle,
+    };
     use veoveo_mcp_contract::{
-        ArtifactPlane, ArtifactPlaneError, PlaneCaller, Principal, PutArtifactRequest, TenantId,
+        ArtifactPlane, ArtifactReleaseState, ArtifactWriteCapabilityId,
+        CreateArtifactShareLinkRequest, IssueArtifactWriteCapabilityRequest, PlaneCaller,
+        Principal, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
     };
 
     use super::*;
-    use crate::ledger::testing::InMemoryLedger;
-    use crate::service::ArtifactService;
+    use crate::ledger::testing::InMemoryRepository;
     use crate::store::testing::InMemoryBlobStore;
 
-    fn secret() -> InternalTokenSecret {
-        InternalTokenSecret::new("local-dev-internal-token-secret-32-bytes-minimum").unwrap()
+    const KEY_ID: &str = "artifact-http-test";
+    const PRIVATE_KEY_DER_B64: &str =
+        "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
+    const PUBLIC_KEY_X: &str = "OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg";
+
+    fn signing_key() -> GatewayInternalSigningKey {
+        GatewayInternalSigningKey::new(KEY_ID, BASE64_STANDARD.decode(PRIVATE_KEY_DER_B64).unwrap())
+            .unwrap()
     }
 
-    fn principal(id: &str, tenant: &str) -> Principal {
-        Principal {
-            id: PrincipalId::new(id).unwrap(),
-            kind: PrincipalKind::User,
-            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-            subject: TokenSubject::new("s").unwrap(),
-            tenant: Some(TenantId::new(tenant).unwrap()),
-            groups: BTreeSet::new(),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::new(),
-            scopes: BTreeSet::new(),
-            data_labels: BTreeSet::new(),
-            assurances: BTreeSet::new(),
-            authenticated_at: Some(Utc::now()),
-        }
+    fn trust_bundle() -> GatewayInternalTrustBundle {
+        GatewayInternalTrustBundle::from_json(&format!(
+            r#"{{"keys":[{{"kty":"OKP","crv":"Ed25519","x":"{PUBLIC_KEY_X}","alg":"EdDSA","use":"sig","kid":"{KEY_ID}"}}]}}"#
+        ))
+        .unwrap()
     }
 
-    /// Mint a real gateway-signed internal token and package it as a caller,
-    /// exactly as a domain server would forward it.
-    fn signed_caller(id: &str, tenant: &str) -> PlaneCaller {
-        let issuer =
-            GatewayInternalTokenIssuer::new(TokenIssuer::new("veoveo-internal").unwrap(), secret());
+    fn signed_caller() -> PlaneCaller {
+        let now = Utc::now();
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            signing_key(),
+        );
         let issued = issuer
             .issue(
                 GatewayProfileId::new("operator").unwrap(),
-                ServerSlug::new("duckdb").unwrap(),
-                principal(id, tenant),
-                Utc::now() + TimeDelta::minutes(5),
+                ServerSlug::new("media").unwrap(),
+                Principal {
+                    id: PrincipalId::new("alice").unwrap(),
+                    kind: PrincipalKind::User,
+                    issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
+                    subject: TokenSubject::new("alice-subject").unwrap(),
+                    tenant: Some(TenantId::new("acme").unwrap()),
+                    groups: BTreeSet::new(),
+                    group_roles: BTreeSet::new(),
+                    roles: BTreeSet::new(),
+                    scopes: BTreeSet::new(),
+                    data_labels: BTreeSet::new(),
+                    assurances: BTreeSet::new(),
+                    authenticated_at: Some(now),
+                },
+                now + TimeDelta::minutes(5),
             )
             .unwrap();
         PlaneCaller {
@@ -323,82 +574,115 @@ mod tests {
         }
     }
 
-    async fn spawn_service() -> String {
-        let service = ArtifactService::new(InMemoryLedger::default(), InMemoryBlobStore::default());
+    async fn spawn_service() -> (String, PlaneCaller) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let service = ArtifactService::with_options(
+            InMemoryRepository::default(),
+            InMemoryBlobStore::default(),
+            &base,
+            1024,
+            8,
+        );
         let auth = PlaneAuthenticator::new(
             TokenIssuer::new("veoveo-internal").unwrap(),
-            vec![ServerSlug::new("duckdb").unwrap()],
-            secret(),
+            vec![ServerSlug::new("media").unwrap()],
+            trust_bundle(),
         );
         let app = router(AppState::new(service, auth));
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        tokio::spawn(async move {
-            axum::serve(listener, app).await.unwrap();
-        });
-        format!("http://{addr}")
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (base, signed_caller())
     }
 
     #[tokio::test]
-    async fn end_to_end_put_get_and_denials_over_http() {
-        let base = spawn_service().await;
+    async fn public_link_is_release_gated_counted_and_requires_no_identity() {
+        let (base, caller) = spawn_service().await;
         let plane = HttpArtifactPlane::new(&base);
-
-        let alice = signed_caller("alice", "acme");
-        let meta = plane
+        let metadata = plane
             .put(
-                &alice,
+                &caller,
                 PutArtifactRequest::default(),
-                b"hello plane".to_vec(),
+                b"shared-data".to_vec(),
             )
             .await
             .unwrap();
-        assert_eq!(meta.compliance.tenant_id.as_ref().unwrap().as_str(), "acme");
-        let sha = ArtifactSha256::new(meta.sha256.clone()).unwrap();
-
-        // Owner reads bytes + metadata back over HTTP.
-        let obj = plane.get(&alice, &sha, AccessLevel::Read).await.unwrap();
-        assert_eq!(obj.bytes, b"hello plane");
-        assert_eq!(obj.metadata.sha256, meta.sha256);
-
-        // Same-tenant stranger: DenyNeedToKnow, reason preserved via header.
-        let bob = signed_caller("bob", "acme");
-        assert_eq!(
-            plane.get(&bob, &sha, AccessLevel::Read).await,
-            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
-        );
-
-        // Cross-tenant: even after a grant by id, DenyTenant.
+        let listed = plane
+            .list(&caller, ListArtifactsRequest::default())
+            .await
+            .unwrap();
+        assert_eq!(listed.artifacts.len(), 1);
+        assert_eq!(listed.artifacts[0].artifact_id, metadata.artifact_id);
         plane
-            .grant(
-                &alice,
-                &sha,
-                veoveo_mcp_contract::access::Subject::User(PrincipalId::new("mallory").unwrap()),
-                AccessLevel::Read,
+            .set_release_state(
+                &caller,
+                &metadata.artifact_id,
+                ArtifactReleaseState::Releasable,
             )
             .await
             .unwrap();
-        let mallory = signed_caller("mallory", "evil");
+        let link = plane
+            .create_share_link(
+                &caller,
+                &metadata.artifact_id,
+                CreateArtifactShareLinkRequest {
+                    expires_at: None,
+                    max_downloads: NonZeroU64::new(1),
+                },
+            )
+            .await
+            .unwrap();
+        let http = reqwest::Client::new();
+        let first = http.get(&link.url).send().await.unwrap();
+        assert_eq!(first.status(), reqwest::StatusCode::OK);
+        assert_eq!(first.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(first.headers()[header::REFERRER_POLICY], "no-referrer");
+        assert_eq!(first.headers()[header::CONTENT_DISPOSITION], "attachment");
+        assert_eq!(first.headers()[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+        assert_eq!(first.bytes().await.unwrap(), b"shared-data".as_slice());
         assert_eq!(
-            plane.get(&mallory, &sha, AccessLevel::Read).await,
-            Err(ArtifactPlaneError::Denied(AccessDecision::DenyTenant))
+            http.get(&link.url).send().await.unwrap().status(),
+            reqwest::StatusCode::NOT_FOUND
         );
-
-        // Resolve via the neutral plane URI (cross-server input path).
-        let resolved = plane.resolve(&alice, &meta.artifact_uri).await.unwrap();
-        assert_eq!(resolved.bytes, b"hello plane");
     }
 
     #[tokio::test]
-    async fn rejects_unsigned_and_missing_tokens() {
-        let base = spawn_service().await;
+    async fn capability_path_mismatch_is_rejected_before_redemption() {
+        let (base, caller) = spawn_service().await;
         let plane = HttpArtifactPlane::new(&base);
-        let mut forged = signed_caller("alice", "acme");
-        forged.bearer_token = "not-a-jwt".to_string();
-        let sha = ArtifactSha256::new("a".repeat(64)).unwrap();
-        assert_eq!(
-            plane.get(&forged, &sha, AccessLevel::Read).await,
-            Err(ArtifactPlaneError::Unauthenticated)
-        );
+        let task_id = uuid::Uuid::now_v7().to_string();
+        let issued = plane
+            .issue_write_capability(
+                &caller,
+                &IssueArtifactWriteCapabilityRequest {
+                    task_id: task_id.clone(),
+                    expires_at: Utc::now() + TimeDelta::minutes(5),
+                    max_artifact_count: NonZeroU32::new(1).unwrap(),
+                    max_total_bytes: NonZeroU64::new(16).unwrap(),
+                },
+            )
+            .await
+            .unwrap();
+        let request = RedeemArtifactWriteCapabilityRequest {
+            capability_id: issued.capability_id,
+            task_id,
+            idempotency_key: veoveo_mcp_contract::ArtifactWriteIdempotencyKey::new("output-0")
+                .unwrap(),
+            artifact: PutArtifactRequest::default(),
+        };
+        let response = reqwest::Client::new()
+            .post(format!(
+                "{base}/artifact-write-capabilities/{}/redeem",
+                ArtifactWriteCapabilityId::new()
+            ))
+            .bearer_auth(issued.secret.expose_secret())
+            .header(
+                "x-artifact-capability-redeem",
+                serde_json::to_string(&request).unwrap(),
+            )
+            .body("bytes")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
     }
 }

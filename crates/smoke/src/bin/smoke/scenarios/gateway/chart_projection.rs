@@ -17,7 +17,6 @@ pub(crate) async fn gateway_chart_projection(
     let chart_base = format!("http://127.0.0.1:{chart_port}");
     let gateway_base = format!("http://127.0.0.1:{gateway_port}");
     let generated_control_plane = tmpdir.join("gateway.chart-projection.json");
-    let gateway_state_db = tmpdir.join("gateway-state.duckdb");
     let chart_log = tmpdir.join("chart-fixture.log");
     let gateway_log = tmpdir.join("gateway.log");
     let chart_ready = tmpdir.join("chart.ready");
@@ -49,12 +48,15 @@ pub(crate) async fn gateway_chart_projection(
     contains(&validation, "ok: 2 server(s), 2 profile(s)")?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
-    let control_db = spawn_gateway_control_db(gateway, &generated_control_plane).await?;
+    let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
     let mut gateway_child = ChildGuard::spawn(
         gateway,
-        gateway_serve_args(gateway_port, &control_db.url, &gateway_state_db),
+        gateway_serve_args(gateway_port, &platform_store),
         [
-            ("VEOVEO_INTERNAL_TOKEN_SECRET", INTERNAL_SECRET.into()),
+            (
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            ),
             (
                 "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
                 auth_private_key.trim().into(),

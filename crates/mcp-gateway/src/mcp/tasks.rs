@@ -1,200 +1,111 @@
-use std::collections::BTreeSet;
-
+use futures::StreamExt;
 use rmcp::{
     model::{
-        CancelTaskParams, CancelTaskRequest, CancelTaskResult, ClientRequest,
-        ErrorData as McpError, GetTaskParams, GetTaskPayloadParams, GetTaskPayloadRequest,
-        GetTaskPayloadResult, GetTaskRequest, GetTaskResult, ListTasksResult,
-        PaginatedRequestParams, ServerResult,
+        CancelTaskParams, CancelTaskResult, ErrorData as McpError, GetTaskParams,
+        GetTaskPayloadParams, GetTaskPayloadResult, GetTaskResult,
     },
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::{
-    GatewayAction, PolicyTarget, ServerSlug, TaskExposure as ContractTaskExposure, paginate,
-};
+use veoveo_mcp_contract::GatewayAction;
+use veoveo_mcp_task_extension::DetailedTask;
 
-use crate::mcp_support::{
-    mcp_internal, mcp_invalid_params, mcp_invalid_request, project_task_payload_result,
-    unexpected_upstream_response, upstream_error,
-};
+use crate::mcp_support::{mcp_internal, mcp_invalid_params, project_call_tool_resource_uris};
 
-use super::{GATEWAY_PAGE_SIZE, GatewayMcp};
+use super::{
+    GatewayMcp,
+    tools::{completed_tool_result, project_task_from_detailed},
+};
 
 impl GatewayMcp {
-    pub(super) fn profile_task_servers(&self) -> Vec<ServerSlug> {
-        self.catalog
-            .current()
-            .profile_servers(&self.profile_id)
-            .into_iter()
-            .filter(|(exposure, server)| {
-                exposure.tasks == ContractTaskExposure::Enabled && server.capabilities.tasks
-            })
-            .map(|(_, server)| server.slug.clone())
-            .collect()
-    }
-
-    pub(super) async fn handle_list_tasks(
-        &self,
-        request: Option<PaginatedRequestParams>,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ListTasksResult, McpError> {
-        let subject = self.authenticated(&context)?;
-        let task_servers = self
-            .profile_task_servers()
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        if task_servers.is_empty() {
-            return Err(mcp_invalid_request("profile does not expose MCP tasks"));
-        }
-        let mut allowed_task_servers = BTreeSet::new();
-        for server in task_servers {
-            let allowed = self.allows(
-                &context,
-                GatewayAction::TasksList,
-                PolicyTarget::TaskList {
-                    server: server.clone(),
-                },
-            )?;
-            if allowed {
-                allowed_task_servers.insert(server);
-            }
-        }
-
-        let all_mappings = self
-            .state
-            .task_mappings_for_profile_owner(&self.profile_id, &subject.principal.id)
-            .map_err(|err| mcp_internal(format!("failed to read gateway task mappings: {err}")))?;
-        let mut mappings = Vec::new();
-        for mapping in all_mappings {
-            if !allowed_task_servers.contains(&mapping.upstream_server) {
-                continue;
-            }
-            mappings.push(mapping);
-        }
-
-        let page = paginate(mappings, request.as_ref(), GATEWAY_PAGE_SIZE)
-            .map_err(|err| mcp_invalid_params(err.to_string()))?;
-        let mut tasks = Vec::with_capacity(page.items.len());
-        for mapping in page.items {
-            let server = mapping.upstream_server.clone();
-            let upstream = self
-                .upstream(&server, context.peer.clone(), &subject)
-                .await?;
-            let result = upstream
-                .send_request(ClientRequest::GetTaskRequest(GetTaskRequest::new(
-                    GetTaskParams::new(mapping.upstream_task_id.to_string()),
-                )))
-                .await
-                .map_err(upstream_error)?;
-            match result {
-                ServerResult::GetTaskResult(mut result) => {
-                    result.task.task_id = mapping.gateway_task_id.to_string();
-                    tasks.push(result.task);
-                }
-                other => return Err(unexpected_upstream_response("tasks/get", other)),
-            }
-        }
-
-        let mut result = ListTasksResult::new(tasks);
-        result.next_cursor = page.next_cursor;
-        Ok(result)
-    }
-
     pub(super) async fn handle_get_task_info(
         &self,
-        mut request: GetTaskParams,
+        request: GetTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
-        let mapping = self.task_mapping(&request.task_id)?;
-        let server = mapping.upstream_server.clone();
-        let subject = self.authorize_mapped_task(&context, GatewayAction::TasksGet, &mapping)?;
-        request.task_id = mapping.upstream_task_id.to_string();
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        let result = upstream
-            .send_request(ClientRequest::GetTaskRequest(GetTaskRequest::new(request)))
-            .await
-            .map_err(upstream_error)?;
-        match result {
-            ServerResult::GetTaskResult(mut result) => {
-                result.task.task_id = mapping.gateway_task_id.to_string();
-                Ok(result)
-            }
-            other => Err(unexpected_upstream_response("tasks/get", other)),
+        let subject = self.authenticated(&context)?;
+        if !self.client_allows_direct_task_adapter(&subject)? {
+            return Err(mcp_invalid_params("unknown method"));
         }
+        let route = self
+            .authorize_canonical_task(&context, GatewayAction::TasksGet, &request.task_id)
+            .await?;
+        let client = self
+            .final_task_client(&route.server, &route.subject)
+            .await?;
+        let task = client.get(route.task_id).await?;
+        Ok(GetTaskResult::new(project_task_from_detailed(&task)))
     }
 
     pub(super) async fn handle_get_task_result(
         &self,
-        mut request: GetTaskPayloadParams,
+        request: GetTaskPayloadParams,
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskPayloadResult, McpError> {
-        let mapping = self.task_mapping(&request.task_id)?;
-        let server = mapping.upstream_server.clone();
-        let subject = self.authorize_mapped_task(&context, GatewayAction::TasksResult, &mapping)?;
-        request.task_id = mapping.upstream_task_id.to_string();
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        let result = upstream
-            .send_request(ClientRequest::GetTaskPayloadRequest(
-                GetTaskPayloadRequest::new(request),
-            ))
-            .await
-            .map_err(upstream_error)?;
-        match result {
-            ServerResult::GetTaskPayloadResult(mut result) => {
-                project_task_payload_result(&mut result, &mapping)?;
-                Ok(result)
-            }
-            ServerResult::CallToolResult(result) => {
-                let payload = serde_json::to_value(result)
-                    .map_err(|err| mcp_internal(format!("failed to encode task payload: {err}")))?;
-                let mut result = GetTaskPayloadResult::new(payload);
-                project_task_payload_result(&mut result, &mapping)?;
-                Ok(result)
-            }
-            ServerResult::CustomResult(result) => {
-                let mut result = GetTaskPayloadResult::new(result.0);
-                project_task_payload_result(&mut result, &mapping)?;
-                Ok(result)
-            }
-            other => Err(unexpected_upstream_response("tasks/result", other)),
+        let subject = self.authenticated(&context)?;
+        if !self.client_allows_direct_task_adapter(&subject)? {
+            return Err(mcp_invalid_params("unknown method"));
         }
+        let route = self
+            .authorize_canonical_task(&context, GatewayAction::TasksResult, &request.task_id)
+            .await?;
+        let client = self
+            .final_task_client(&route.server, &route.subject)
+            .await?;
+        let mut task = client.get(route.task_id).await?;
+        if !is_terminal(&task) {
+            let mut updates = client.subscribe(vec![route.task_id]).await?;
+            while let Some(update) = updates.next().await {
+                task = update?;
+                if is_terminal(&task) {
+                    break;
+                }
+            }
+            if !is_terminal(&task) {
+                return Err(mcp_internal(
+                    "upstream task subscription ended before task completion",
+                ));
+            }
+        }
+        let mut result = completed_tool_result(task)?;
+        let catalog = self.catalog.current();
+        let manifest = catalog
+            .server(&route.server)
+            .ok_or_else(|| mcp_internal(format!("unknown task server `{}`", route.server)))?;
+        project_call_tool_resource_uris(manifest, &mut result)?;
+        result.meta = Some(veoveo_mcp_contract::related_task_meta(
+            route.task_id.to_string(),
+        ));
+        serde_json::to_value(result)
+            .map(GetTaskPayloadResult::new)
+            .map_err(|error| mcp_internal(format!("failed to encode task result: {error}")))
     }
 
     pub(super) async fn handle_cancel_task(
         &self,
-        mut request: CancelTaskParams,
+        request: CancelTaskParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CancelTaskResult, McpError> {
-        let mapping = self.task_mapping(&request.task_id)?;
-        let server = mapping.upstream_server.clone();
-        let subject = self.authorize_mapped_task(&context, GatewayAction::TasksCancel, &mapping)?;
-        request.task_id = mapping.upstream_task_id.to_string();
-        let upstream = self
-            .upstream(&server, context.peer.clone(), &subject)
-            .await?;
-        let result = upstream
-            .send_request(ClientRequest::CancelTaskRequest(CancelTaskRequest::new(
-                request,
-            )))
-            .await
-            .map_err(upstream_error)?;
-        match result {
-            ServerResult::CancelTaskResult(mut result) => {
-                result.task.task_id = mapping.gateway_task_id.to_string();
-                Ok(result)
-            }
-            ServerResult::GetTaskResult(upstream_result) => {
-                let mut task = upstream_result.task;
-                task.task_id = mapping.gateway_task_id.to_string();
-                let mut result = CancelTaskResult::new(task);
-                result.meta = upstream_result.meta;
-                Ok(result)
-            }
-            other => Err(unexpected_upstream_response("tasks/cancel", other)),
+        let subject = self.authenticated(&context)?;
+        if !self.client_allows_direct_task_adapter(&subject)? {
+            return Err(mcp_invalid_params("unknown method"));
         }
+        let route = self
+            .authorize_canonical_task(&context, GatewayAction::TasksCancel, &request.task_id)
+            .await?;
+        let client = self
+            .final_task_client(&route.server, &route.subject)
+            .await?;
+        client.cancel(route.task_id).await?;
+        let task = client.get(route.task_id).await?;
+        Ok(CancelTaskResult::new(project_task_from_detailed(&task)))
     }
+}
+
+fn is_terminal(task: &DetailedTask) -> bool {
+    matches!(
+        task,
+        DetailedTask::Completed { .. }
+            | DetailedTask::Failed { .. }
+            | DetailedTask::Cancelled { .. }
+    )
 }

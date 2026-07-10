@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock, Resource},
@@ -5,23 +7,21 @@ use rmcp::{
 use veoveo_duckdb_mcp::contract::{
     DuckDbExecuteOutput, DuckDbExportOutput, DuckDbIngestOutput, DuckDbQueryOutput,
 };
-use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc, set_related_task_meta};
+use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
+use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
+use veoveo_task_runtime::TaskId;
 
 use super::app_state::AppState;
 
 fn finish<T: serde::Serialize>(
     output: &T,
     blocks: Vec<ContentBlock>,
-    task_id: Option<&str>,
 ) -> Result<CallToolResult, McpError> {
     let mut result = CallToolResult::success(blocks);
     result.structured_content = Some(
         serde_json::to_value(output)
             .map_err(|err| McpError::internal_error(err.to_string(), None))?,
     );
-    if let Some(task_id) = task_id {
-        set_related_task_meta(&mut result.meta, task_id);
-    }
     Ok(result)
 }
 
@@ -39,10 +39,7 @@ fn artifact_link(
     ContentBlock::ResourceLink(resource)
 }
 
-pub(super) fn query_result(
-    output: &DuckDbQueryOutput,
-    task_id: Option<&str>,
-) -> Result<CallToolResult, McpError> {
+pub(super) fn query_result(output: &DuckDbQueryOutput) -> Result<CallToolResult, McpError> {
     let mut blocks = Vec::new();
     match &output.artifact {
         Some(artifact) => {
@@ -68,13 +65,10 @@ pub(super) fn query_result(
             )));
         }
     }
-    finish(output, blocks, task_id)
+    finish(output, blocks)
 }
 
-pub(super) fn execute_result(
-    output: &DuckDbExecuteOutput,
-    task_id: Option<&str>,
-) -> Result<CallToolResult, McpError> {
+pub(super) fn execute_result(output: &DuckDbExecuteOutput) -> Result<CallToolResult, McpError> {
     let blocks = vec![ContentBlock::text(format!(
         "executed {} statement(s) on `{}`{}{}",
         output.statements,
@@ -90,13 +84,10 @@ pub(super) fn execute_result(
             ""
         },
     ))];
-    finish(output, blocks, task_id)
+    finish(output, blocks)
 }
 
-pub(super) fn ingest_result(
-    output: &DuckDbIngestOutput,
-    task_id: Option<&str>,
-) -> Result<CallToolResult, McpError> {
+pub(super) fn ingest_result(output: &DuckDbIngestOutput) -> Result<CallToolResult, McpError> {
     let blocks = vec![ContentBlock::text(format!(
         "ingested {} row(s) into `{}`.`{}`{}",
         output.rows_ingested,
@@ -108,13 +99,10 @@ pub(super) fn ingest_result(
             ""
         },
     ))];
-    finish(output, blocks, task_id)
+    finish(output, blocks)
 }
 
-pub(super) fn export_result(
-    output: &DuckDbExportOutput,
-    task_id: Option<&str>,
-) -> Result<CallToolResult, McpError> {
+pub(super) fn export_result(output: &DuckDbExportOutput) -> Result<CallToolResult, McpError> {
     let blocks = vec![
         ContentBlock::text(format!(
             "exported `{}` ({} row(s)) to {}",
@@ -126,30 +114,58 @@ pub(super) fn export_result(
             "Immutable exported data artifact.",
         ),
     ];
-    finish(output, blocks, task_id)
+    finish(output, blocks)
 }
 
-pub(super) fn record_op_usage(
+pub(super) async fn record_op_usage(
     state: &AppState,
     task_id: &str,
     op: &'static str,
     quantity: u64,
     metadata: serde_json::Value,
-) {
-    let record = UsageRecord {
-        task_id: task_id.to_string(),
-        source_id: None,
-        provider_job_id: None,
-        model_id: format!("duckdb/{op}"),
-        kind: UsageKind::Actual,
-        quantity: Some(quantity as f64),
-        unit: Some("row".to_string()),
-        amount: None,
-        currency: None,
-        recorded_at: now_utc(),
-        metadata,
+) -> anyhow::Result<()> {
+    let metadata = match metadata {
+        serde_json::Value::Object(values) => {
+            OpenObject::new(values.into_iter().collect::<BTreeMap<_, _>>())
+        }
+        value => OpenObject::new(BTreeMap::from([("value".to_owned(), value)])),
     };
-    if let Err(err) = state.durable.record_usage(&record) {
-        tracing::warn!(task_id, "failed to record usage: {err}");
+    state
+        .tasks
+        .platform_store()
+        .upsert_domain_usage(DomainUsageDraft {
+            task_id: task_id.parse::<TaskId>()?,
+            server: "duckdb".to_owned(),
+            source_id: None,
+            provider_job_id: None,
+            model_id: format!("duckdb/{op}"),
+            kind: DomainUsageKind::Actual,
+            quantity: Some(quantity as f64),
+            unit: Some("row".to_owned()),
+            amount: None,
+            currency: None,
+            recorded_at: now_utc(),
+            metadata,
+        })
+        .await?;
+    Ok(())
+}
+
+pub(super) fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
+    UsageRecord {
+        task_id: task_id.to_owned(),
+        source_id: record.source_id,
+        provider_job_id: record.provider_job_id,
+        model_id: record.model_id,
+        kind: match record.kind {
+            DomainUsageKind::Estimate => UsageKind::Estimate,
+            DomainUsageKind::Actual => UsageKind::Actual,
+        },
+        quantity: record.quantity,
+        unit: record.unit,
+        amount: record.amount,
+        currency: record.currency,
+        recorded_at: record.recorded_at,
+        metadata: serde_json::Value::Object(record.metadata.into_map().into_iter().collect()),
     }
 }

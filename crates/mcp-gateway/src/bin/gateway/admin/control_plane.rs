@@ -12,7 +12,9 @@ use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource,
 };
-use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};
+use veoveo_mcp_gateway::{
+    AuthenticatedSubject, GatewayCatalog, new_gateway_control_plane_revision_id,
+};
 
 use crate::{
     admin::admin_profile_id,
@@ -62,7 +64,9 @@ pub(crate) async fn read_control_plane(
         "admin/control-plane",
         BTreeMap::new(),
         started_at,
-    ) {
+    )
+    .await
+    {
         Ok(authorized) => authorized,
         Err(response) => return *response,
     };
@@ -82,13 +86,15 @@ pub(crate) async fn read_control_plane(
                     failure: Some(AdminOperationFailure::ControlPlaneSha),
                     metadata: BTreeMap::new(),
                 },
-            ) {
+            )
+            .await
+            {
                 return internal_error_response(audit_err);
             }
             return internal_error_response(err);
         }
     };
-    let revision_id = match state.control_db.load_active_revision().await {
+    let revision_id = match state.control_store.load_active_revision().await {
         Ok(Some(revision)) if revision.sha256 == sha256 => Some(revision.revision_id),
         Ok(_) => None,
         Err(err) => {
@@ -104,7 +110,9 @@ pub(crate) async fn read_control_plane(
                     failure: Some(AdminOperationFailure::LatestRevisionRead),
                     metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
                 },
-            ) {
+            )
+            .await
+            {
                 return internal_error_response(audit_err);
             }
             return internal_error_response(err);
@@ -130,7 +138,9 @@ pub(crate) async fn read_control_plane(
             failure: None,
             metadata,
         },
-    ) {
+    )
+    .await
+    {
         return internal_error_response(err);
     }
 
@@ -163,7 +173,9 @@ pub(crate) async fn update_control_plane(
         "admin/control-plane",
         BTreeMap::new(),
         started_at,
-    ) {
+    )
+    .await
+    {
         Ok(authorized) => authorized,
         Err(response) => return *response,
     };
@@ -184,7 +196,9 @@ pub(crate) async fn update_control_plane(
                     failure: Some(AdminOperationFailure::InvalidControlPlane),
                     metadata: BTreeMap::new(),
                 },
-            ) {
+            )
+            .await
+            {
                 return internal_error_response(audit_err);
             }
             return (StatusCode::BAD_REQUEST, "invalid gateway control plane").into_response();
@@ -206,7 +220,9 @@ pub(crate) async fn update_control_plane(
                     failure: Some(AdminOperationFailure::BuildHttpClient),
                     metadata: BTreeMap::new(),
                 },
-            ) {
+            )
+            .await
+            {
                 return internal_error_response(audit_err);
             }
             return (
@@ -231,34 +247,37 @@ pub(crate) async fn update_control_plane(
                     failure: Some(AdminOperationFailure::ControlPlaneSha),
                     metadata: BTreeMap::new(),
                 },
-            ) {
+            )
+            .await
+            {
                 return internal_error_response(audit_err);
             }
             return internal_error_response(err);
         }
     };
-    let revision_id =
-        match GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::new_v4())) {
-            Ok(revision_id) => revision_id,
-            Err(err) => {
-                if let Err(audit_err) = record_admin_operation_audit(
-                    &state,
-                    &profile,
-                    &subject,
-                    AdminOperationAuditRecord {
-                        action: GatewayAction::AdminWrite,
-                        method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
-                        started_at,
-                        status: AdminOperationStatus::Failed,
-                        failure: Some(AdminOperationFailure::RevisionId),
-                        metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
-                    },
-                ) {
-                    return internal_error_response(audit_err);
-                }
-                return internal_error_response(err);
+    let revision_id = match new_gateway_control_plane_revision_id() {
+        Ok(revision_id) => revision_id,
+        Err(err) => {
+            if let Err(audit_err) = record_admin_operation_audit(
+                &state,
+                &profile,
+                &subject,
+                AdminOperationAuditRecord {
+                    action: GatewayAction::AdminWrite,
+                    method: ADMIN_CONTROL_PLANE_RESULT_METHOD,
+                    started_at,
+                    status: AdminOperationStatus::Failed,
+                    failure: Some(AdminOperationFailure::RevisionId),
+                    metadata: BTreeMap::from([("sha256".to_string(), sha256.clone())]),
+                },
+            )
+            .await
+            {
+                return internal_error_response(audit_err);
             }
-        };
+            return internal_error_response(err);
+        }
+    };
     let revision = GatewayControlPlaneRevision {
         revision_id: revision_id.clone(),
         sha256: sha256.clone(),
@@ -268,7 +287,7 @@ pub(crate) async fn update_control_plane(
         tenant: subject.principal.tenant.clone(),
         control_plane,
     };
-    if let Err(err) = state.control_db.record_revision(&revision).await {
+    if let Err(err) = state.control_store.record_revision(&revision).await {
         tracing::error!("failed to persist gateway control-plane revision: {err}");
         if let Err(audit_err) = record_admin_operation_audit(
             &state,
@@ -285,7 +304,9 @@ pub(crate) async fn update_control_plane(
                     ("sha256".to_string(), sha256.clone()),
                 ]),
             },
-        ) {
+        )
+        .await
+        {
             return internal_error_response(audit_err);
         }
         return internal_error_response(err);
@@ -310,7 +331,9 @@ pub(crate) async fn update_control_plane(
                 ("profiles".to_string(), profiles.to_string()),
             ]),
         },
-    ) {
+    )
+    .await
+    {
         return internal_error_response(err);
     }
     replace_http_client(&state.http, new_http);

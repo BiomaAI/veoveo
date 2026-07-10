@@ -25,17 +25,30 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::ResolvedSecretString;
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub(super) struct TokenResponse {
     pub access_token: String,
     pub token_type: &'static str,
     pub expires_in: u64,
     pub scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token_expires_in: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub(super) struct OidcTokenResponse {
     pub id_token: String,
+}
+
+impl std::fmt::Debug for OidcTokenResponse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("OidcTokenResponse")
+            .field("id_token", &"[REDACTED]")
+            .finish()
+    }
 }
 
 pub(super) struct OidcTokenExchangeRequest {
@@ -242,4 +255,19 @@ pub(super) fn allowed_gateway_jwt_algorithms() -> Vec<Algorithm> {
 fn internal_error_response(err: impl std::fmt::Display) -> axum::response::Response {
     tracing::error!("gateway internal error: {err}");
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oidc_token_response_debug_redacts_id_token() {
+        let response = OidcTokenResponse {
+            id_token: "sensitive-id-token".to_owned(),
+        };
+        let debug = format!("{response:?}");
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("sensitive-id-token"));
+    }
 }
