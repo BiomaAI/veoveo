@@ -30,3 +30,10 @@ Runtime services authenticate to SurrealDB with database-scoped credentials.
 Only the installation bootstrap migrates schema with root credentials. The
 recording workload is intentionally one persistent spooler replica; SurrealDB
 HA and a distributed recording filesystem are outside the current contract.
+
+Encoded camera streams use the canonical H.264 `VideoStream` profile documented
+in [`PERCEPTION_MCP_DESIGN.md`](PERCEPTION_MCP_DESIGN.md). The proxy can provide
+a bounded recent replay, while frozen/sealed RRD segments remain the durable and
+governed source. Video readers merge every authorized segment of the logical
+recording before seeking, because decoder state and a requested sample may be in
+different physical files.

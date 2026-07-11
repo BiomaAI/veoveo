@@ -39,6 +39,7 @@
     {"ref": "veoveo/mcp-stdio-bridge:0.1.0", "dockerfile": "crates/mcp-stdio-bridge/Dockerfile"},
     {"ref": "veoveo/media-mcp:0.1.0", "dockerfile": "crates/media-mcp/Dockerfile"},
     {"ref": "veoveo/optimization-mcp:0.1.0", "dockerfile": "crates/optimization-mcp/Dockerfile"},
+    {"ref": "veoveo/perception-mcp:0.1.0", "dockerfile": "crates/perception-mcp/Dockerfile"},
     {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "crates/recording-hub/Dockerfile"},
     {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "crates/recording-mcp/Dockerfile"},
     {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "crates/timeseries-mcp/Dockerfile"}

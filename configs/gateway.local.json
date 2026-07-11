@@ -95,6 +95,39 @@
       "metadata": {}
     },
     {
+      "slug": "perception",
+      "uri_scheme": "perception",
+      "mount_path": "/perception",
+      "mcp_path": "/perception/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://perception-mcp:8797/perception/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "analyze_recording",
+        "extract_clip"
+      ],
+      "prompts": [
+        "perception-analyze-recording",
+        "perception-extract-clip"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "timeseries",
       "uri_scheme": "timeseries",
       "mount_path": "/timeseries",
@@ -404,6 +437,30 @@
           "tasks": "enabled"
         },
         {
+          "server": "perception",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "analyze_recording",
+              "extract_clip"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "perception"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
           "server": "timeseries",
           "tools": {
             "mode": "listed",
@@ -613,6 +670,30 @@
         "admin:manage"
       ],
       "servers": [
+        {
+          "server": "perception",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "analyze_recording",
+              "extract_clip"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "perception"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
         {
           "server": "media",
           "tools": {
@@ -2285,6 +2366,103 @@
           ],
           "roles": [
             "veoveo_admin"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_perception_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "perception"
+          ],
+          "tools": [
+            "analyze_recording",
+            "extract_clip"
+          ],
+          "resource_schemes": [
+            "perception"
+          ],
+          "prompts": [
+            "perception-analyze-recording",
+            "perception-extract-clip"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator",
+            "veoveo_admin"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_service_perception_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "perception"
+          ],
+          "tools": [
+            "analyze_recording",
+            "extract_clip"
+          ],
+          "resource_schemes": [
+            "perception"
+          ],
+          "prompts": [
+            "perception-analyze-recording",
+            "perception-extract-clip"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service",
+            "https://veoveo.example/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
           ],
           "metadata": {}
         },

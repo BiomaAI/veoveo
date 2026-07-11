@@ -25,6 +25,8 @@ product dependency or canonical hostname.
   deduplication, user/group grants, and expiring revocable anyone-with-link shares.
 - Arbitrary DuckDB SQL inside an owner-scoped, resource-bounded container sandbox.
 - Durable Rerun recording ingestion and an authorized recording MCP projection.
+- Local recorded-video perception through a provider-neutral MCP server backed by
+  NVIDIA DeepStream and TensorRT, with no LLM or hosted inference dependency.
 - A durable autonomous-agent runtime with task detach/resume, wakes, budgets, local
   analytical memory, and Rerun episode recording.
 - An authenticated operations console for health, tasks, artifacts, agents,
@@ -51,7 +53,7 @@ Browser / MCP client
                   gateway-signed identity  |
              +-------------+---------------+----------------+
              |             |               |                |
-          media-mcp    duckdb-mcp     recording-mcp    other MCPs
+          media-mcp    duckdb-mcp     recording-mcp    perception-mcp
              |             |               |                |
              +-------------+--------+------+----------------+
                                     |
@@ -69,7 +71,7 @@ and authorization records.
 
 ## Hosted Servers
 
-The canonical control plane defines nine server identities:
+The canonical control plane defines ten server identities:
 
 | Server | Main capability |
 |---|---|
@@ -80,6 +82,7 @@ The canonical control plane defines nine server identities:
 | `coordinates` | CRS, geodesic, local-frame, geofence, and batch transformations |
 | `artifact` | artifact discovery, metadata, grants, release, and sharing |
 | `recording` | governed recording discovery, query, subscription, and publication |
+| `perception` | governed Rerun video extraction, local detection/tracking, and derived annotations |
 | `charts` | chart rendering projected through the gateway |
 | `rerun` | bridged Rerun viewer MCP surface |
 
@@ -160,7 +163,10 @@ token after that window is replay and revokes the family.
 ## Install With Compose
 
 Prerequisites are Docker with Compose v2 and enough resources to build the Rust
-workspace. Copy and populate the installation environment:
+workspace. The canonical Compose topology also includes `perception-mcp`; its
+Ubuntu runtime requires an NVIDIA driver, NVIDIA Container Toolkit, NGC access,
+and a GPU supported by DeepStream 9. macOS is a development host for the Rust
+layers, not an NVIDIA runtime. Copy and populate the installation environment:
 
 ```bash
 cp .env.example .env
@@ -172,7 +178,10 @@ signing material, OIDC client secret, a distinct 32-byte gateway refresh-deliver
 console session key, media webhook secret, and `PUBLIC_BASE_URL`. Generate the refresh
 delivery key with `openssl rand -base64 32`; the decoded value must be exactly 32 bytes.
 Update `configs/gateway.local.json` for the installation's OIDC issuer, tenant mapping,
-public origin, and client registrations.
+public origin, and client registrations. Set `PERCEPTION_CONFIG_DIR` and
+`PERCEPTION_MODEL_DIR` to the model-specific DeepStream configuration and TensorRT
+engine roots described in
+[`docs/PERCEPTION_MCP_DESIGN.md`](docs/PERCEPTION_MCP_DESIGN.md).
 
 Validate before startup:
 
@@ -244,6 +253,7 @@ checks are:
 just fmt
 just check
 just test
+just test-perception
 just smoke-gateway
 just smoke-hub
 just smoke-agent-kernel
@@ -265,6 +275,7 @@ crates/artifact-service/    artifact byte PEP, grants, shares, retention, S3
 crates/artifact-mcp/        canonical artifact MCP projection
 crates/recording-hub/       durable Rerun ingest and segment spool
 crates/recording-mcp/       authorized recording MCP projection
+crates/perception-mcp/      governed Rerun video extraction and local GPU inference
 crates/agent-runtime/       durable agent persistence and scheduling
 crates/agent-kernel/        autonomous MCP agent loop and memory planes
 crates/*-mcp/               hosted domain servers

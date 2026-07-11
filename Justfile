@@ -68,6 +68,10 @@ smoke-surreal:
 test-hub:
     cargo test -p veoveo-recording-hub
 
+# Perception contracts, runner protocol, and task/server unit tests.
+test-perception:
+    cargo test -p veoveo-perception-mcp --all-targets
+
 # Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
 smoke-hub-spool:
     cargo run -p veoveo-recording-hub --bin hub-smoke -- restart-kill
@@ -75,6 +79,10 @@ smoke-hub-spool:
 # Recording Hub catalog rebuild rejects corruption and fails closed.
 smoke-hub-catalog:
     cargo run -p veoveo-recording-hub --bin hub-smoke -- catalog-rebuild
+
+# Real H.264 VideoStream proxy/restart/cross-segment/remux/decode smoke.
+smoke-hub-video:
+    cargo test -p veoveo-recording-hub --test spool_roundtrip h264_video_extracts_across_restart_segment_boundary -- --nocapture
 
 # Recording Hub agent+world smoke: two producers, one hub, dataset routing.
 smoke-hub-agent-world:
@@ -85,7 +93,7 @@ bench-hub messages='1500':
     cargo run -p veoveo-recording-hub --bin hub-smoke -- rollover-burst --messages {{messages}}
 
 # All Recording Hub checks: crate tests + all process smokes.
-smoke-hub: test-hub smoke-hub-spool smoke-hub-agent-world smoke-hub-catalog
+smoke-hub: test-hub smoke-hub-spool smoke-hub-agent-world smoke-hub-catalog smoke-hub-video
 
 # Write JSON Schemas for external Rust/Python/TypeScript contract implementations.
 contract-schemas output_dir='schemas':

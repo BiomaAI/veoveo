@@ -174,7 +174,7 @@ services:
       <<: *surreal-runtime
       ARTIFACT_SERVICE_BIND: 0.0.0.0:8790
       ARTIFACT_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://veoveo.example}
-      ARTIFACT_ALLOWED_AUDIENCES: artifact,media,timeseries,optimization,duckdb,coordinates,recording,sumo
+      ARTIFACT_ALLOWED_AUDIENCES: artifact,media,timeseries,optimization,duckdb,coordinates,recording,perception,sumo
       ARTIFACT_STORE: s3
       ARTIFACT_S3_ENDPOINT: http://rustfs:9000
       ARTIFACT_S3_PUBLIC_ENDPOINT: ${ARTIFACT_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
@@ -306,6 +306,58 @@ services:
       timeout: 3s
       retries: 30
       start_period: 5s
+
+  perception-mcp:
+    <<: *app-security
+    image: veoveo/perception-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
+    build:
+      context: .
+      dockerfile: crates/perception-mcp/Dockerfile
+    depends_on:
+      artifact-service:
+        condition: service_healthy
+      recording-hub:
+        condition: service_healthy
+    command:
+      - --port
+      - "8797"
+      - --public-base-url
+      - ${PUBLIC_BASE_URL:-https://veoveo.example}
+      - --spool-dir
+      - /recordings
+      - --recording-proxy-uri
+      - rerun+http://recording-hub:9876/proxy
+      - --pipeline-catalog
+      - /etc/veoveo/perception/catalog.json
+      - --deepstream-runner
+      - /usr/local/bin/perception-deepstream-runner
+      - --allowed-host
+      - perception-mcp:8797
+      - --artifact-service-url
+      - http://artifact-service:8790
+    environment:
+      <<: *service-env
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+      GST_REGISTRY: /tmp/gstreamer-registry.bin
+      CUDA_CACHE_PATH: /tmp/cuda-cache
+      HOME: /tmp
+      OTEL_SERVICE_NAME: veoveo-perception-mcp
+      RUST_LOG: info,veoveo_perception_mcp=debug
+    gpus: all
+    volumes:
+      - recording_spool:/recordings:ro
+      - ${PERCEPTION_CONFIG_DIR:?set PERCEPTION_CONFIG_DIR}:/etc/veoveo/perception:ro
+      - ${PERCEPTION_MODEL_DIR:?set PERCEPTION_MODEL_DIR}:/models:ro
+    tmpfs: [/tmp]
+    ports:
+      - 127.0.0.1:8797:8797
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8797/perception/readyz]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
   media-mcp:
     <<: *app-security
@@ -565,6 +617,8 @@ services:
       artifact-mcp:
         condition: service_healthy
       recording-mcp:
+        condition: service_healthy
+      perception-mcp:
         condition: service_healthy
       media-mcp:
         condition: service_healthy

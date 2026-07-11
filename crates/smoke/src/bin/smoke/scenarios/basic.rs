@@ -126,12 +126,28 @@ pub(crate) async fn compose_config() -> Result<()> {
                 "VEOVEO_CONSOLE_OAUTH_RESOURCE",
                 "https://veoveo.enterprise.example/mcp/admin".into(),
             ),
+            (
+                "PERCEPTION_CONFIG_DIR",
+                tmpdir
+                    .join("perception-config")
+                    .display()
+                    .to_string()
+                    .into(),
+            ),
+            (
+                "PERCEPTION_MODEL_DIR",
+                tmpdir
+                    .join("perception-models")
+                    .display()
+                    .to_string()
+                    .into(),
+            ),
             ("PUBLIC_BASE_URL", PUBLIC_BASE_URL.into()),
         ],
     )?;
     let host_ip_count = compose_output.matches("host_ip: 127.0.0.1").count();
-    if host_ip_count < 7 {
-        bail!("compose config had {host_ip_count} loopback port bindings; expected at least 7");
+    if host_ip_count < 8 {
+        bail!("compose config had {host_ip_count} loopback port bindings; expected at least 8");
     }
     for expected in [
         "image: caddy:2.11.2",
@@ -153,6 +169,9 @@ pub(crate) async fn compose_config() -> Result<()> {
         "console-bff:",
         "rustfs:",
         "chart-mcp:",
+        "perception-mcp:",
+        "target: /etc/veoveo/perception",
+        "target: /models",
         "target: 8795",
         "published: \"8795\"",
     ] {
@@ -197,6 +216,7 @@ pub(crate) async fn compose_config() -> Result<()> {
     let caddyfile_text = fs::read_to_string(&caddyfile)?;
     contains(&caddyfile_text, "respond /media/mcp* 404")?;
     contains(&caddyfile_text, "respond /coordinates/mcp* 404")?;
+    contains(&caddyfile_text, "respond /perception/mcp* 404")?;
     contains(&caddyfile_text, "respond /charts/mcp* 404")?;
     contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
     contains(&caddyfile_text, "reverse_proxy media-mcp:8787")?;

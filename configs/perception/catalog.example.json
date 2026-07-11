@@ -1,0 +1,34 @@
+{
+  "models": [
+    {
+      "id": "primary-detector",
+      "title": "Primary object detector",
+      "description": "Site-approved TensorRT object detector",
+      "format": "tensor_rt_engine",
+      "model_path": "/models/primary-detector.engine"
+    }
+  ],
+  "pipelines": [
+    {
+      "id": "detect-objects",
+      "title": "Detect objects",
+      "description": "Decode H.264 on the GPU and run the primary detector on selected recording frames",
+      "operation": "object_detection",
+      "model_id": "primary-detector",
+      "deepstream_config_path": "/etc/veoveo/perception/primary-detector.txt"
+    },
+    {
+      "id": "detect-and-track",
+      "title": "Detect and track objects",
+      "description": "Run the primary detector and assign persistent DeepStream tracker identities",
+      "operation": "object_detection_tracking",
+      "model_id": "primary-detector",
+      "deepstream_config_path": "/etc/veoveo/perception/primary-detector.txt",
+      "tracker": {
+        "config_path": "/etc/veoveo/perception/tracker.yml",
+        "width": 640,
+        "height": 384
+      }
+    }
+  ]
+}

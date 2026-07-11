@@ -28,6 +28,8 @@ anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
 hex.workspace = true
+h264-reader.workspace = true
+mp4.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 secrecy.workspace = true
@@ -49,3 +51,7 @@ re_log_encoding.workspace = true
 re_log_types.workspace = true
 re_uri.workspace = true
 re_dataframe.workspace = true
+re_chunk_store.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
