@@ -12,6 +12,7 @@ pub mod config;
 pub mod query;
 pub mod sim;
 pub mod spool;
+pub mod video;
 
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
@@ -22,4 +23,8 @@ pub use sim::{
 };
 pub use spool::{
     Counters, FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey, Spooler, run_blocking,
+};
+pub use video::{
+    EncodedVideoClip, EncodedVideoSample, H264VideoProfile, VideoClipRequest, VideoIndexKind,
+    extract_video_clip, extract_video_clip_from_messages, remux_h264_mp4,
 };

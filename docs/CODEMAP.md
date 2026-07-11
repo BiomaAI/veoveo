@@ -14,6 +14,7 @@ behavior. It describes only the current hard-cut architecture.
 | `configs/gateway.local.json` | generic typed gateway control plane |
 | `configs/gateway.smoke.json` | isolated smoke control plane |
 | `configs/deployments.json` | typed deployment contract examples |
+| `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/Caddyfile` | canonical edge routes and public-surface denial |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
@@ -182,7 +183,7 @@ The Rust MCP server pattern is intentionally consistent:
 | `bin/server/outputs.rs` | typed results, resource links, usage projection |
 
 Current crates are `media-mcp`, `timeseries-mcp`, `duckdb-mcp`,
-`optimization-mcp`, and `coordinates-mcp`.
+`optimization-mcp`, `coordinates-mcp`, and `perception-mcp`.
 
 Media-specific ownership:
 
@@ -219,6 +220,25 @@ DuckDB-specific ownership:
 `contract.rs` owns query/publication types, `service.rs` owns authorized MCP behavior,
 `uris.rs` owns recording identities, and `bin/server/state.rs` composes platform store,
 spool access, subscriptions, and artifact publication.
+
+### `crates/perception-mcp`
+
+| Path | Responsibility |
+|---|---|
+| `src/contract.rs` | typed analysis, sampling, detection, timeline, and output contracts |
+| `src/catalog.rs` | validated TensorRT model and DeepStream pipeline catalog |
+| `src/source.rs` | authorized durable/recent Rerun video materialization |
+| `src/executor.rs` | bounded typed C++ runner protocol and response validation |
+| `src/annotation.rs` | derived Rerun bounding-box annotation layers |
+| `src/artifacts.rs` | shared artifact-plane adapter |
+| `src/uris.rs` | canonical `perception://` identities |
+| `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
+| `deepstream-runner/` | native DeepStream decode/infer/track metadata runner |
+| `Dockerfile` | DeepStream 9 development/runtime multi-stage image |
+
+`recording-mcp::service::read` owns the reusable governed local read plan. It
+projects only frozen/sealed segment paths after tenant and label authorization;
+perception persists recording identities rather than those paths.
 
 ## Agents
 

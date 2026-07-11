@@ -17,6 +17,14 @@ The default release path requires `syft` and emits one SPDX JSON SBOM per image.
 image tar, checksums, resolved image identities, Compose configuration, Helm
 chart, deployment contract, gateway configuration, and telemetry configuration.
 
+The Perception image contains the DeepStream runtime, but site-approved TensorRT
+engines are deployment inputs and are not embedded in the generic bundle. Place
+the engine/model files and the completed `catalog.json`/nvinfer configuration
+under `PERCEPTION_MODEL_DIR` and `PERCEPTION_CONFIG_DIR` before starting the
+offline Compose installation.
+The connected bundle builder must authenticate to `nvcr.io` before building the
+Perception image.
+
 On the offline host, verify and import into Docker, retaining the installation
 payload and checksum/SBOM evidence under an empty destination directory:
 

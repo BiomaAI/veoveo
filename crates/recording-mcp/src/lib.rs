@@ -4,4 +4,6 @@ pub mod contract;
 pub mod service;
 pub mod uris;
 
-pub use service::RecordingService;
+pub use service::{
+    RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment, RecordingService,
+};

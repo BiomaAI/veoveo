@@ -93,7 +93,7 @@ artifactService:
     tag: 0.1.0
     digest: ""
   replicas: 2
-  allowedAudiences: artifact,media,timeseries,optimization,duckdb,coordinates,recording
+  allowedAudiences: artifact,media,timeseries,optimization,duckdb,coordinates,recording,perception
   resources:
     requests:
       cpu: 100m

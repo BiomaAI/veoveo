@@ -19,6 +19,9 @@ use crate::contract::{
     SealRecordingOutput, SegmentView,
 };
 
+mod read;
+pub use read::{RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment};
+
 const MAX_QUERY_ROWS: u64 = 10_000;
 const MAX_SEGMENTS: u32 = 10_000;
 const RRD_MIME: &str = "application/vnd.rerun.rrd";
@@ -465,12 +468,21 @@ impl RecordingService {
 }
 
 fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> bool {
-    let clearance: BTreeSet<&str> = identity
-        .principal
-        .data_labels
-        .iter()
-        .map(|label| label.as_str())
-        .collect();
+    labels_visible(
+        recording,
+        identity
+            .principal
+            .data_labels
+            .iter()
+            .map(|label| label.as_str()),
+    )
+}
+
+fn labels_visible<'a>(
+    recording: &RecordingRecord,
+    clearance: impl IntoIterator<Item = &'a str>,
+) -> bool {
+    let clearance: BTreeSet<&str> = clearance.into_iter().collect();
     recording
         .labels
         .iter()

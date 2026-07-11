@@ -16,6 +16,7 @@ members = [
     "crates/mcp-stdio-bridge",
     "crates/media-mcp",
     "crates/optimization-mcp",
+    "crates/perception-mcp",
     "crates/platform-store",
     "crates/recording-hub",
     "crates/recording-mcp",
@@ -54,6 +55,7 @@ http = "1.4.2"
 good_lp = { version = "1.15.2", default-features = false, features = ["microlp"] }
 hex = "0.4.3"
 hmac = "0.13.0"
+h264-reader = "0.8.0"
 jsonschema = "0.46.9"
 jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto"] }
 object_store = { version = "0.14.0", default-features = false, features = ["aws"] }
@@ -61,6 +63,7 @@ opentelemetry = "0.32.0"
 opentelemetry-appender-tracing = "0.32.0"
 opentelemetry-otlp = { version = "0.32.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "logs"] }
 opentelemetry_sdk = "0.32.1"
+mp4 = "0.14.0"
 parking_lot = "0.12.5"
 proj = { version = "0.31.0", default-features = false, features = ["geo-types", "bundled_proj"] }
 rayon = "1.12.0"
