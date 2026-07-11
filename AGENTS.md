@@ -101,3 +101,21 @@ MCP server crates use `*-mcp`, not `*-mcp-server`.
 
 The media MCP server may use provider-specific implementation internally, but user-facing
 names should stay provider-neutral.
+
+## Writing Style
+
+Docs and product copy use classic style with varied sentence rhythm. Write confident
+declaratives that each assert one checkable thing, and let causal connectives carry the
+argument. Vary sentence length and shape so no template repeats.
+
+Do not scaffold prose with parallel constructions: no semicolon chains, no "X, so that Y"
+ladders, no bold-led beat paragraphs, no triads used as structure. Tables and bullet
+lists are structure and remain fine; the ban is on list-in-prose.
+
+State requirements and capabilities forward. Do not dramatize or invent failures of the
+outside world to make the platform look necessary. Capability copy states outcomes and
+the questions a capability answers in the user's domain; mechanisms belong in technical
+sections and get at most a closing sentence elsewhere. Keep one hard number where it
+earns trust.
+
+The abstract of docs/veoveo-whitepaper-print.html is the register exemplar.
