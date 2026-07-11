@@ -549,8 +549,8 @@
       end to end.
     </p>
     <div class="statrow">
-      <div class="stat"><b>9</b>edge modules · +sumo</div>
-      <div class="stat"><b>58</b>governed tools</div>
+      <div class="stat"><b>10</b>edge modules · +sumo</div>
+      <div class="stat"><b>60</b>governed tools</div>
       <div class="stat"><b>~225k</b>msgs/s lossless</div>
       <div class="stat"><b>1</b>platform store</div>
       <div class="stat"><b>1</b>shared artifact plane</div>
@@ -643,7 +643,19 @@
       fresh slice of it — <strong>the world now</strong> (a latest-at snapshot),
       <strong>how it got here</strong> (trajectories and history), and <strong>what the agent
       believes and intends</strong> — and each act the agent takes becomes part of the model the
-      next episode reasons from.
+      next episode reasons from. The mission itself lives in the model as data — objectives,
+      constraints, beliefs — so intent is something the agent reasons over, and adaptation
+      stays subordinate to the goal. A mission can arrive in almost any format — a scenario file
+      from another autonomy stack, an exported plan, an annotated map — and the agent structures
+      it into the model: objectives and constraints as rows, geometry into real coordinates, the
+      original preserved as an artifact.
+    </p>
+    <p class="section-lede">
+      <strong>Context is queried, not accumulated.</strong> Because the world model is relational
+      and temporal, an episode's tokens carry answers instead of history: the agent
+      <code>SELECT</code>s exactly the rows it needs from its own memory, pulls a latest-at
+      snapshot or a trajectory from the record, and reads its own past decisions as data. A
+      mission's entire history compresses to the slice that matters this episode.
     </p>
     <figure class="diagram" style="max-width:900px">
       <div class="mermaid">
@@ -662,6 +674,67 @@ flowchart LR
   class WM model;
       </div>
       <figcaption><b>The world model.</b> Sensors, memories, and decisions fuse into it; every episode's context is a fresh slice of it — and each act feeds the model the next episode reads.</figcaption>
+    </figure>
+  </section>
+
+  <!-- IN PRACTICE -->
+  <section class="section">
+    <p class="eyebrow">In Practice</p>
+    <h2>What this unlocks</h2>
+    <p class="section-lede">
+      The same governed surface serves precise context, real perception, and real planning —
+      and the calls compose into one closed loop.
+    </p>
+    <div class="agent-grid">
+      <div>
+        <h5>Context, queried</h5>
+        <ul>
+          <li><code>memory_query</code> — <code>SELECT id, eta, risk FROM missions WHERE status='active'</code></li>
+          <li><code>recording__query_recording</code> — latest-at: every vehicle now · range: this vehicle's last 5 minutes</li>
+          <li><code>timeline_query</code> — my own tool calls and outcomes, last 6 hours</li>
+          <li><code>duckdb__query</code> — <code>SELECT class, count(*) FROM detections GROUP BY window_5m</code></li>
+        </ul>
+      </div>
+      <div>
+        <h5>Perception, on the record</h5>
+        <ul>
+          <li>"How many vehicles, by class, passed E14 in the last hour?" — <code>perception__analyze_recording</code> on the camera's recording</li>
+          <li>→ detections as rows, boxes over the original video, a clip of the window that matters</li>
+          <li><code>duckdb__ingest</code> the detections → demand per approach, as SQL</li>
+        </ul>
+      </div>
+      <div>
+        <h5>Planning, from the model</h5>
+        <ul>
+          <li>"Three drones, forty waypoints — who flies which route?" — <code>optimization__plan</code>, options read straight from SQL rows</li>
+          <li>→ the winning allocation as structured data the agent executes, plus a plan the viewer can scrub</li>
+          <li><code>sumo__optimize_signals</code> — the same shape on real signal timings, as a durable task</li>
+          <li>exact underneath: one binary decision per option, a weighted linear objective, an
+              in-process solver — optimal or explicitly infeasible, and deterministic either way</li>
+        </ul>
+      </div>
+    </div>
+    <figure class="diagram" style="margin-top:16px">
+      <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant W as World model
+  participant A as Agent
+  participant P as Perception
+  participant Q as SQL
+  participant O as Planning
+  participant S as SUMO
+  Note over A: wake — resources/updated: sumo://congestion
+  A->>W: latest-at snapshot — edge E14 saturated
+  A->>P: analyze_recording /world/camera/e14 (task)
+  P-->>A: detections + annotations + clip
+  A->>Q: ingest detections → demand per approach
+  A->>O: plan — minimize delay, options from SQL (task)
+  O-->>A: phase plan + RRD
+  A->>S: set_signal_phase · run_batch(500) (task) — sleep
+  S-->>A: wake — delay −23%, evidence in the record
+      </div>
+      <figcaption><b>One governed loop.</b> record → perception → SQL → plan → act — every call policy-checked, every step in the record.</figcaption>
     </figure>
   </section>
 
@@ -697,7 +770,7 @@ flowchart LR
   subgraph GOV["Governed plane"]
     direction TB
     GW["MCP Gateway&lt;br/&gt;auth · policy · audit"]
-    SRV["capability modules&lt;br/&gt;9 edge + sumo + remote"]
+    SRV["capability modules&lt;br/&gt;10 edge + sumo + remote"]
     GW --> SRV
   end
   KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"]
@@ -973,11 +1046,11 @@ flowchart LR
   <section class="layer">
     <div class="layer-head">
       <h2 class="layer-title">Modular Capabilities</h2>
-      <span class="layer-sub">nine edge modules today — and any MCP server you connect — under one contract</span>
+      <span class="layer-sub">ten edge modules today — and any MCP server you connect — under one contract</span>
     </div>
     <div class="layer-body">
       <p class="agent-lede" style="margin:0 0 16px">
-        Capability is modular. The nine modules below run <strong>at the edge</strong>, inside the
+        Capability is modular. The ten modules below run <strong>at the edge</strong>, inside the
         installation, behind gateway-signed identity. The surface they share is the point: a new
         capability — another edge server, a stdio server carried by the bridge, or a
         <strong>remote MCP endpoint</strong> — registers in the validated catalog, applies live,
@@ -1001,6 +1074,24 @@ flowchart LR
           <div class="server-foot">
             <span class="cap">durable tasks</span><span class="cap">artifacts</span>
             <span class="cap plain">webhook-only completion</span><span class="cap plain">prompts</span><span class="cap plain">usage</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">perception://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Perception</h4>
+            <p>Ask questions of recorded video: which objects, of which class, where, when —
+               tracked over time. Answered locally, on the installation's own hardware; the video
+               never leaves.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">analyze_recording</td><td>Run a detection or detection-plus-tracking pipeline over a recording's video range; returns typed detections, a derived annotation layer on the source timeline, and an optional clip.</td></tr>
+            <tr><td class="tn">extract_clip</td><td>Cut an exact time range from recorded video with keyframe-aware, no-transcode extraction.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">artifacts</span>
+            <span class="cap plain">labels inherited</span><span class="cap plain">rrd annotations</span><span class="cap plain">local inference</span>
           </div>
         </div>
 
@@ -1358,7 +1449,7 @@ flowchart TB
     <div class="layer-body">
       <div class="card">
         <p class="agent-lede">
-          The <a href="https://eclipse.dev/sumo/">SUMO</a> simulator runs the pinned, MIT-licensed
+          The <a href="https://eclipse.dev/sumo/">SUMO</a> simulator — Simulation of Urban Mobility — runs the pinned, MIT-licensed
           <strong>LuST Luxembourg scenario</strong> in its own container. <strong>One
           <code>sumo-mcp</code> server</strong> owns the single serialized TraCI connection,
           <strong>pushes the world into the hub</strong> as typed <code>/world/sumo/**</code>
@@ -1590,6 +1681,13 @@ sequenceDiagram
              and missions, and the decision log.</p>
           <p>Each episode's context is a fresh slice of it: the world now, how it got here, and
              what the agent intends. The agent's own acts feed the model the next episode reads.</p>
+        </div>
+        <div class="term">
+          <div class="term-head"><span class="term-name">Perception module</span><span class="term-kind k-ours">ours</span></div>
+          <p><b>Eyes on the record.</b> Ask recorded video which objects were where, when, and
+             which are the same object over time — detection and tracking, executed locally.</p>
+          <p>Results come back as typed detections, an annotation layer on the source timeline,
+             and an optional clip; every derived artifact inherits the source's classification.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Platform Store</span><span class="term-kind k-oss">OSS</span></div>

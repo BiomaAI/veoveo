@@ -63,6 +63,20 @@ IMAGES = {
         " appearing exactly once. The amber accent appears only on the wireframe sphere and the"
         " CONTEXT arrow; everything else dark slate."
     ),
+    "context-queried": (
+        "1536*1024",
+        "Schematic of context assembled by query. Right: a large outlined chamber labeled EPISODE"
+        " containing an outlined hexagon labeled AGENT, with a small gauge attached to the"
+        " chamber's edge labeled TOKEN BUDGET. Left: three outlined sources stacked vertically —"
+        " a database cylinder labeled MEMORY with two tiny tags reading MISSIONS and BELIEFS, a"
+        " stack of layered strata labeled RECORD with two tiny tags reading LATEST-AT and RANGE,"
+        " and a horizontal filmstrip band labeled DECISION LOG. Between them: three thin dark"
+        " arrows run left from the EPISODE chamber, one to each source, collectively labeled QUERY"
+        " with one label; and from each source one amber arrow returns right into the chamber"
+        " carrying two or three tiny row glyphs, collectively labeled ANSWERS with one label."
+        " Each label appears exactly once. The amber accent appears only on the three returning"
+        " answer arrows — tokens carry answers; everything else dark slate."
+    ),
     "agent-loop": (
         "1536*1024",
         "Lifecycle schematic: five outlined circles placed at the five vertices of a regular pentagon, connected clockwise by curved dark slate arrows to form a single closed loop. Going clockwise from the top vertex the circles are labeled: WAKE, then ASSEMBLE, then EPISODE, then PERSIST, then SLEEP. There are exactly five circles and exactly five labels; every circle has one label; the words WAKE, ASSEMBLE, EPISODE, PERSIST, SLEEP each appear exactly once. In the pentagon's center, one outlined hexagon labeled AGENT. Below the pentagon, three small outlined database cylinders in a row labeled STATE, MEMORY, LOG, each connected by one thin plain line up to the AGENT hexagon only. Outside the loop at the upper left, three small outlined tags labeled TASK RESULT, TIMER, MESSAGE, each with a thin arrow pointing at the WAKE circle. Exactly one element in the whole image is amber: the outline of the EPISODE circle. Every arrow and every other outline is dark slate."
@@ -75,6 +89,10 @@ IMAGES = {
         " passing through to the outside, labeled AUDITED. Outside on the left, one arrow bouncing off"
         " the closed wall, labeled REFUSED. The amber accent is used only for the envelope boundary"
         " line itself; everything else dark slate."
+    ),
+    "harness-poster": (
+        "1536*1024",
+        "The complete system as a single poster schematic, one grand loop. Far left: a region labeled WORLD — a small flat street grid with a few sensor dots and one camera glyph. Amber arrows labeled PUSH flow from WORLD into a stack of layered strata labeled RECORD. From RECORD one thin arrow passes through a small chamber labeled PERCEPTION and continues into the centerpiece: a large, perfectly circular thin-line wireframe sphere — a true circle, never stretched or oval — dominant at the center, with the text WORLD MODEL written in large dark capital letters directly beneath the sphere; this label is mandatory. One small outlined tag attached to the sphere's upper right is labeled MISSION, and above it an outlined rounded box labeled OPERATOR sends one short thin arrow labeled ASSIGN down to the MISSION tag. From the sphere one amber arrow labeled CONTEXT runs right into an outlined hexagon labeled AGENT. From AGENT one amber arrow enters a tall chamber labeled GATEWAY containing three small checkpoint stages stacked vertically and labeled AUTHENTICATE, POLICY, AUDIT, and exits into a region labeled CAPABILITIES: a compact grid of ten small outlined squares, each holding a tiny distinct instrument glyph — a camera, a compass rose, a database drum, a route with waypoints, a rising chart, a chain link, a filmstrip, an eye — followed by two dashed empty squares, room for capabilities not yet added. One long amber arrow labeled ACT begins at the top of the CAPABILITIES region, sweeps across the top of the poster from right to left, and ends with its arrowhead pointing down onto the WORLD region at the far left — closing the loop. Bottom center: one outlined database cylinder labeled EVIDENCE, connected by thin plain dark lines up to RECORD, to AGENT, and to GATEWAY. Each label appears exactly once. The amber accent appears only on the wireframe sphere and the loop arrows — PUSH, CONTEXT, and ACT; everything else dark slate. Crisp uniform line weight, sharp vector-like edges, high resolution."
     ),
     "exec-overview": (
         "1536*1024",
@@ -90,7 +108,33 @@ IMAGES = {
     ),
     "capability-map": (
         "1536*1024",
-        "Modular capability schematic in three parts. Center: one outlined circle labeled GATEWAY; directly beneath it, three stacked wide horizontal bars drawn as thin amber outlines with white interiors, labeled TASKS, ARTIFACTS, POLICY. Left of the gateway: one large dashed rounded boundary labeled EDGE containing a three by three grid of nine equal outlined rectangles; reading left to right, top to bottom they are labeled row one MEDIA, GEODESY, SQL; row two PLANNING, FORECASTING, SHARING; row three RECORDINGS, CHARTS, VIEWER — exactly nine rectangles, each word appearing exactly once. Right of the gateway: one large dashed rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line connects the EDGE boundary to the gateway circle and one trunk line connects the REMOTE boundary to the gateway circle. The amber accent appears only on the three contract bars and the plus symbol; everything else dark slate."
+        "Modular capability schematic in three parts. Center: one outlined circle labeled GATEWAY; directly beneath it, three stacked wide horizontal bars drawn as thin amber outlines with white interiors, labeled TASKS, ARTIFACTS, POLICY. Left of the gateway: one large dashed rounded boundary labeled EDGE containing a grid of exactly ten equal outlined rectangles arranged as two rows of five; reading left to right, top to bottom they are labeled row one MEDIA, PERCEPTION, GEODESY, SQL, PLANNING; row two FORECASTING, SHARING, RECORDINGS, CHARTS, VIEWER — ten rectangles, each word appearing exactly once. Right of the gateway: one large dashed rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line connects the EDGE boundary to the gateway circle and one trunk line connects the REMOTE boundary to the gateway circle. The amber accent appears only on the three contract bars and the plus symbol; everything else dark slate."
+    ),
+    "perception-flow": (
+        "1536*1024",
+        "Capability schematic for perception. Left: a stack of layered strata labeled RECORD."
+        " Top center: one outlined hexagon labeled AGENT with a thin arrow down labeled ASK into a"
+        " central outlined chamber labeled PERCEPTION, which contains exactly two small stages"
+        " labeled DETECT and TRACK. One thin plain arrow runs from the RECORD stack right into the"
+        " chamber. From the chamber, three amber arrows fan out to the right to three outlined"
+        " boxes stacked vertically labeled DETECTIONS, ANNOTATIONS, CLIP; a small gray tag under"
+        " DETECTIONS reads SQL and a small gray tag under ANNOTATIONS reads VIEWER. One thin plain"
+        " curved arrow returns from the three output boxes back to the RECORD stack. Each label"
+        " appears exactly once. The amber accent appears only on the three output arrows — the"
+        " answers; everything else dark slate."
+    ),
+    "planning-flow": (
+        "1536*1024",
+        "Capability schematic for planning. Left: a small thin-line wireframe sphere labeled WORLD"
+        " MODEL, and beneath it a small grid of table rows labeled OPTIONS with a gray tag reading"
+        " SQL. Both send thin plain arrows right into a central outlined chamber labeled PLANNING,"
+        " with one small outlined tag attached to its top edge labeled OBJECTIVE. One amber arrow"
+        " leaves the chamber rightward into an outlined box labeled PLAN. From PLAN, one thin plain"
+        " arrow runs up-right to an outlined hexagon labeled AGENT with the label EXECUTE on the"
+        " arrow, and one thin plain arrow runs down-right to a small outlined database cylinder"
+        " labeled MEMORY with the label WAYPOINTS on the arrow. Each label appears exactly once."
+        " The amber accent appears only on the arrow from PLANNING to PLAN and the PLAN box outline"
+        " — the decision; everything else dark slate."
     ),
     "gateway-gauntlet": (
         "1536*1024",

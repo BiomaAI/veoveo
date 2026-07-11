@@ -215,8 +215,8 @@
     engagement the operator sets.
   </p>
   <div class="stats">
-    <div class="stat"><b>9</b><span>Edge Modules</span></div>
-    <div class="stat"><b>58</b><span>Governed Tools</span></div>
+    <div class="stat"><b>10</b><span>Edge Modules</span></div>
+    <div class="stat"><b>60</b><span>Governed Tools</span></div>
     <div class="stat"><b>~225k</b><span>Messages/s, Lossless</span></div>
   </div>
   <h3 class="minor">Key Findings</h3>
@@ -237,8 +237,8 @@
         perceive → decide → act end to end through the same contracts as every other capability.</li>
   </ul>
   <figure class="art" style="text-align:center">
-    <img src="images/exec-overview.png" alt="" style="width:auto;max-height:2.35in;margin:0 auto">
-    <figcaption style="text-align:left">The whole loop: the world is recorded, agents perceive and act through governed tools, effects land back in the world — and every step leaves evidence.</figcaption>
+    <img src="images/harness-poster.png" alt="" style="width:auto;max-height:2.5in;margin:0 auto">
+    <figcaption style="text-align:left">The whole harness: the world recorded and modeled, the mission in the model, agents acting through the governed gateway into capabilities — and every step landing in evidence.</figcaption>
   </figure>
   <div class="callout">
     <div class="label">[SCOPE]</div>
@@ -319,6 +319,39 @@
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">5</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
+<!-- ======================= 3.1 CONTEXT ======================= -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness</span>
+  <h2 class="sub" style="margin-top:0">3.1 Context, Queried</h2>
+  <p class="body">
+    The world model changes what an episode's context is made of. Context here is assembled by
+    query: the kernel composes each episode from manifest-defined slices, and the agent holds the
+    same instruments, so mid-episode it asks for exactly what it needs — rows from its own memory,
+    a snapshot or trajectory from the record, analytics over anything it has ingested.
+  </p>
+  <table class="data tight">
+    <thead><tr><td>Instrument</td><td>Example</td><td>What the episode gets</td></tr></thead>
+    <tbody>
+      <tr><td class="mono">memory_query</td><td><code>SELECT id, eta, risk FROM missions WHERE status = 'active'</code></td><td>Exactly the active missions, as rows; beliefs and constraints join the same way.</td></tr>
+      <tr><td class="mono">query_recording · latest-at</td><td>every vehicle's position, now</td><td>A world snapshot, measured — the state of reality in one call.</td></tr>
+      <tr><td class="mono">query_recording · range</td><td>vehicle 214, last five minutes</td><td>One trajectory, on the original timeline.</td></tr>
+      <tr><td class="mono">timeline_query</td><td>my tool calls and outcomes, last six hours</td><td>The agent reads its own conduct as data.</td></tr>
+      <tr><td class="mono">duckdb__query</td><td><code>SELECT class, count(*) FROM detections GROUP BY window_5m</code></td><td>Analytics over anything ingested — including perception output.</td></tr>
+    </tbody>
+  </table>
+  <p class="body">
+    The strategy carries for two reasons. Tokens spend on answers rather than history, so a
+    mission's entire history compresses to the rows this episode needs. And because every
+    instrument reads the same governed planes, results join — detections land in SQL, SQL rows
+    feed planning, committed plans write back to memory.
+  </p>
+  <figure class="art" style="text-align:center">
+    <img src="images/context-queried.png" alt="" style="width:auto;max-height:2.5in;margin:0 auto">
+    <figcaption style="text-align:left">The episode queries the planes — memory, record, decision log — and only answers come back to spend tokens, under a hard budget.</figcaption>
+  </figure>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">6</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
 <!-- ======================= 3. DATA FLOW ======================= -->
 <div class="page">
   <span class="runhead">Veoveo · Autonomy Harness</span>
@@ -342,7 +375,7 @@
       <tr><td>Account</td><td>Auth, policy, admin, and task transitions write audit evidence; every decision records what the agent saw, chose, and why.</td><td>Usage records meter provider spend and tool activity per principal.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">6</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">7</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 4. AGENT KERNEL ======================= -->
@@ -374,7 +407,7 @@
     survives process death — descriptors and watcher leases rehydrate from the platform store on
     any boot, so kill and restart resumes the same tasks.
   </p>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">7</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">8</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 4.1 KERNEL CONT ======================= -->
@@ -420,7 +453,7 @@
        boot. A preamble and domain migrations complete the profile; cross-episode instructions
        live there or in memory.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">8</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">9</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 5. GATEWAY ======================= -->
@@ -448,7 +481,7 @@
       <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, artifacts, and usage — forwarded and aggregated under one flat tool namespace (<code>media__run</code>, <code>duckdb__query</code>).</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">9</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">10</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 6. SERVERS ======================= -->
@@ -456,20 +489,21 @@
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">7. Modular Capabilities</h1>
   <p class="body">
-    Capability is modular. Nine modules run at the edge today, inside the installation, behind
+    Capability is modular. Ten modules run at the edge today, inside the installation, behind
     gateway-signed identity — and the surface is open: a new capability, whether another edge
     server, a stdio server carried by the bridge, or a <b>remote MCP endpoint</b>, registers in
     the validated catalog, applies live, and immediately answers to the same tasks, artifacts,
     and policy contract. The gateway projects every module into one flat tool menu.
   </p>
   <figure class="art" style="text-align:center">
-    <img src="images/capability-map.png" alt="" style="width:auto;max-height:2.6in;margin:0 auto">
+    <img src="images/capability-map.png" alt="" style="width:auto;max-height:2.25in;margin:0 auto">
     <figcaption style="text-align:left">Edge and remote capability modules — one contract governs all, and the next slot is open.</figcaption>
   </figure>
   <table class="data tight">
     <thead><tr><td>Module</td><td>Capability</td><td>Tools</td></tr></thead>
     <tbody>
       <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
+      <tr><td>Perception<br><code>perception</code></td><td>Bounded GPU inference over the record's video: detection and tracking against governed recording identities, executed locally.</td><td class="mono">analyze_recording · extract_clip</td></tr>
       <tr><td>Geodesy<br><code>coordinates</code></td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
       <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
       <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
@@ -480,7 +514,85 @@
       <tr><td>Viewer<br><code>rerun</code></td><td>A live Rerun viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">10</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+<!-- ======================= 7.1 PERCEPTION + PLANNING ======================= -->
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness</span>
+  <h2 class="sub" style="margin-top:0">7.1 In Depth: Perception</h2>
+  <p class="body">
+    Every camera the operation records becomes something an agent can question. An analysis runs
+    a detection or detection-plus-tracking model over a chosen stretch of recorded video and
+    returns what was in it: which objects, of which class, where in the frame, when — and, with
+    tracking, which detections are the same object over time. The kinds of questions it answers:
+  </p>
+  <ul class="bullets">
+    <li>How many vehicles, by class, passed intersection E14 between 06:00 and 07:00?</li>
+    <li>Did anything enter this zone overnight? Show me the frames.</li>
+    <li>Follow track 71 — where did it come from, where did it go?</li>
+  </ul>
+  <p class="body">
+    The answer comes back in three forms, one per consumer: <b>detections as data</b> — rows an
+    agent queries and joins immediately; <b>boxes over the original video</b>, on its own
+    timeline, for an operator scrubbing in the viewer; and <b>a clip of just the relevant
+    window</b>, for handing to someone. Analyses run as durable tasks on the installation's own
+    hardware — recorded video stays inside, and results inherit the source's classification.
+  </p>
+  <figure class="art">
+    <img src="images/perception-flow.png" alt="" style="height:2.9in;object-fit:contain">
+    <figcaption>The agent asks, the record answers: detections for SQL, annotations for the viewer, a clip for sharing — and everything joins the record.</figcaption>
+  </figure>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+</div>
+
+<div class="page">
+  <span class="runhead">Veoveo · Autonomy Harness</span>
+  <h2 class="sub" style="margin-top:0">7.2 In Depth: Planning</h2>
+  <p class="body">
+    Planning solves assignment: given agents or assets, the options open to them, and an
+    objective, it returns the best allocation — who does what, in what order, at what cost. The
+    kinds of questions it answers:
+  </p>
+  <ul class="bullets">
+    <li>Three survey drones, forty waypoints, battery limits — which drone flies which route?</li>
+    <li>Given measured demand per approach, which signal-timing plan minimizes total delay?</li>
+    <li>Ten targets, two sensors, shifting priorities — what gets watched this hour?</li>
+  </ul>
+  <p class="body">
+    Options are rows: any SQL-readable table is a valid option set — the mission tables an agent
+    already keeps, or the demand counts perception produced minutes ago. The result is a
+    structured plan the agent executes tool by tool, plus a visualization an operator can inspect
+    before it commits; committed waypoints land back in agent memory.
+  </p>
+  <p class="body">
+    The request compiles to an exact optimization: one binary decision per option, a linear
+    objective weighing priority, confidence, cost, risk, duration, and resource use under
+    operator-set weights, and constraints covering task requirements, agent concurrency,
+    resource ceilings, dependencies, exclusions, and time-window conflicts between options that
+    share an agent. An embedded solver settles the model in-process, which is why the identical
+    planner runs on an edge host or behind an air gap. The answer is optimal under the declared
+    objective or explicitly infeasible, and it returns with the scores and constraint counts
+    that decided it — the same inputs produce the same plan, and the plan can explain itself.
+  </p>
+  <figure class="art">
+    <img src="images/planning-flow.png" alt="" style="height:2.4in;object-fit:contain">
+    <figcaption>The world model and SQL-readable options go in; the plan comes out — executed by the agent, written back to memory.</figcaption>
+  </figure>
+  <h3 class="minor">One governed loop</h3>
+  <table class="data tight">
+    <thead><tr><td>#</td><td>Call</td><td>Result</td></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="mono">wake — resources/updated: sumo://congestion</td><td>A jam forming is a wake, the moment it happens.</td></tr>
+      <tr><td>2</td><td class="mono">query_recording · latest-at</td><td>World snapshot: edge E14 saturated.</td></tr>
+      <tr><td>3</td><td class="mono">perception__analyze_recording /world/camera/e14 · 10 min</td><td>1,204 detections · 87 tracks — cars, buses, trucks, counted per approach.</td></tr>
+      <tr><td>4</td><td class="mono">duckdb__ingest → query</td><td>Demand per approach, as SQL rows.</td></tr>
+      <tr><td>5</td><td class="mono">optimization__plan · minimize total delay · options from SQL</td><td>The winning signal-timing plan, as structured data.</td></tr>
+      <tr><td>6</td><td class="mono">sumo__set_signal_phase · run_batch(500)</td><td>Applied; the agent sleeps through the batch.</td></tr>
+      <tr><td>7</td><td class="mono">wake — task result</td><td>Delay −23%; every step already in the record.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 7. TASKS + PLANES ======================= -->
@@ -523,7 +635,7 @@
        by tenant and label policy; and read-only anyone-with-link bearers for artifacts explicitly
        marked releasable — expiring, download-limited, and revocable.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 8. RECORDING HUB ======================= -->
@@ -542,7 +654,7 @@
     <img src="images/capture-pipeline.png" alt="">
     <figcaption>Durable capture: a crash leaves a readable record · a restart never overwrites · ~225k msgs/s lossless.</figcaption>
   </figure>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 9. SUMO ======================= -->
@@ -550,7 +662,7 @@
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">10. SUMO Showcase</h1>
   <p class="body">
-    The SUMO simulator runs the pinned, MIT-licensed LuST Luxembourg scenario in its own
+    SUMO — Simulation of Urban Mobility, an open-source traffic microsimulator — runs the pinned, MIT-licensed LuST Luxembourg scenario in its own
     container. One <code>sumo-mcp</code> server owns the single serialized TraCI connection,
     pushes the world into the hub as typed <code>/world/sumo/**</code> streams, and exposes SUMO
     control as governed <code>sumo__*</code> tools. The long operations are durable tasks the
@@ -570,7 +682,7 @@
       <tr><td>Outputs</td><td>Successful task outputs upload through a task-bound write capability to the shared artifact plane.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">13</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 9.1 SUMO LOOP ======================= -->
@@ -587,7 +699,7 @@
     <img src="images/task-sleepwake.png" alt="">
     <figcaption>Detach → sleep → wake: zero connections held, zero episodes burned waiting.</figcaption>
   </figure>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">14</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">17</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 10. OPS ======================= -->
@@ -624,7 +736,7 @@
     <li><b>Evidence deploys with the platform.</b> The record, the audit trail, and usage metering
         are part of every form — air-gapped included.</li>
   </ul>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">15</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">18</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 11. VERIFICATION ======================= -->
@@ -649,7 +761,7 @@
        installation. The record replays, the audit trail is durable, and the decision log carries
        each agent's rationale — when someone asks why the system acted, the record answers.</p>
   </div>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">16</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">19</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 <!-- ======================= 12. COMPONENT REFERENCE ======================= -->
@@ -663,6 +775,7 @@
       <tr><td class="mono">mcp-gateway</td><td>ours</td><td>The front desk for tools: authenticates the caller, checks policy, projects every server's tools into one flat menu, writes the audit trail.</td></tr>
       <tr><td class="mono">console</td><td>ours</td><td>The cockpit: the operations UI plus a session backend that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
       <tr><td class="mono">agent-kernel</td><td>ours</td><td>The runtime for long-lived agents: short episodes, durable memory, wake on a result, a timer, or a message.</td></tr>
+      <tr><td class="mono">perception module</td><td>ours</td><td>Eyes on the record: bounded local inference over recorded video; typed detections, an annotation layer on the source timeline, and clips — labels inherited.</td></tr>
       <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: everything the operation senses, remembers, and decides, fused into one durable, queryable model of reality. Every episode's context is a fresh slice of it.</td></tr>
       <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.0 — the platform's memory: identity, policy, tasks, artifacts, recordings, agents, audit, and the transactional outbox.</td></tr>
       <tr><td class="mono">task runtime</td><td>ours</td><td>The ledger for long work: UUIDv7 task ids with atomic leases, transitions, results, and declared recovery per operation.</td></tr>
@@ -678,7 +791,7 @@
       <tr><td class="mono">resource · subscribe</td><td>concept</td><td>A condition that wakes you: subscribing to a resource means the agent is notified the moment it changes.</td></tr>
     </tbody>
   </table>
-  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">17</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
+  <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">20</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
 
 </body>
