@@ -323,6 +323,7 @@ services:
       - "8797"
       - --public-base-url
       - ${PUBLIC_BASE_URL:-https://veoveo.example}
+      - --allow-loopback-hosts
       - --spool-dir
       - /recordings
       - --recording-proxy-uri

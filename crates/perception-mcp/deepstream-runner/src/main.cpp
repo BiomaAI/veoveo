@@ -24,6 +24,8 @@
 #include <utility>
 #include <vector>
 
+#include <unistd.h>
+
 namespace {
 
 constexpr std::string_view kRequestSchema =
@@ -122,6 +124,13 @@ struct DemuxContext {
 
 [[noreturn]] void fail(const std::string &message) {
   throw std::runtime_error(message);
+}
+
+void redirect_native_stdout_to_stderr() {
+  if (std::fflush(stdout) != 0 ||
+      dup2(STDERR_FILENO, STDOUT_FILENO) == -1) {
+    fail("failed to redirect native library stdout");
+  }
 }
 
 json_object *required_member(json_object *object, const char *name,
@@ -734,6 +743,7 @@ parse_arguments(int argc, char **argv) {
 int main(int argc, char **argv) {
   try {
     const auto [request_path, response_path] = parse_arguments(argc, argv);
+    redirect_native_stdout_to_stderr();
     gst_init(nullptr, nullptr);
     const auto request = parse_request(request_path, response_path);
     ProbeContext probe(request);

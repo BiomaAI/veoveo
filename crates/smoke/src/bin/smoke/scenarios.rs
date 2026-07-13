@@ -11,6 +11,8 @@ mod coordinates;
 mod gateway;
 #[path = "scenarios/media.rs"]
 mod media;
+#[path = "scenarios/perception.rs"]
+mod perception;
 #[path = "scenarios/secrets.rs"]
 mod secrets;
 #[path = "scenarios/sumo.rs"]
@@ -21,6 +23,7 @@ pub(crate) use basic::*;
 pub(crate) use coordinates::*;
 pub(crate) use gateway::*;
 pub(crate) use media::*;
+pub(crate) use perception::*;
 pub(crate) use secrets::*;
 pub(crate) use sumo::*;
 

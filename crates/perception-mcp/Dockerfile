@@ -45,11 +45,26 @@ RUN apt-get update \
     && useradd --system --uid 10001 --create-home \
         --home-dir /var/lib/veoveo veoveo
 
+# CUDA's compatibility package can precede the native libraries injected by
+# the NVIDIA Container Toolkit. GeForce GPUs do not support that forward-
+# compatibility path, while the host driver supports CUDA 13.x minor
+# compatibility. Give the architecture's native library directory priority so
+# every NVIDIA plugin resolves one coherent set of driver libraries.
+ARG TARGETARCH
+RUN mkdir -p /opt/veoveo \
+    && case "${TARGETARCH}" in \
+        amd64) driver_lib_dir=/usr/lib/x86_64-linux-gnu ;; \
+        arm64) driver_lib_dir=/usr/lib/aarch64-linux-gnu ;; \
+        *) echo "unsupported target architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && ln -s "${driver_lib_dir}" /opt/veoveo/host-libraries
+
 COPY --from=builder /tmp/perception-mcp /usr/local/bin/perception-mcp
 COPY --from=builder /tmp/perception-deepstream-runner \
     /usr/local/bin/perception-deepstream-runner
 
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
+    LD_LIBRARY_PATH=/opt/veoveo/host-libraries:/usr/local/cuda/lib64:/opt/veoveo/host-libraries/deepstream \
     USE_NEW_NVSTREAMMUX=no
 USER veoveo
 EXPOSE 8797
