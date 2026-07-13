@@ -107,12 +107,56 @@ Required self-hosted secrets are the same ones documented by the root
 `.env.example`. The Rust smoke harness supplies isolated test credentials for its
 own disposable project.
 
+## Visualize with Rerun
+
+The SUMO publisher records live vehicles as `GeoPoints` at
+`/world/sumo/vehicles`. Rerun can place that entity over a Mapbox background.
+Use a Rerun 0.34.x viewer to match the workspace SDK.
+
+Raw Recording Hub ingress stays private in the normal stack. The viewer recipe
+adds the local-only `compose.viewer.yaml` projection and binds it to
+`127.0.0.1:9877`:
+
+```bash
+just showcase-sumo-view-up
+```
+
+Set the canonical provider token in the repository's root `.env` file:
+
+```dotenv
+MAPBOX_ACCESS_TOKEN=pk.example
+```
+
+Docker Compose reads `.env` while it prepares containers, but a native Rerun
+viewer is a separate host process and does not inherit that file. Rerun expects
+the name `RERUN_MAPBOX_ACCESS_TOKEN`. This launch reads only the canonical token,
+maps it for the viewer process, and connects to the loopback projection:
+
+```bash
+RERUN_MAPBOX_ACCESS_TOKEN="$(
+  sed -n 's/^MAPBOX_ACCESS_TOKEN=//p' .env | tail -n 1
+)" rerun --connect rerun+http://127.0.0.1:9877/proxy
+```
+
+Keep the token unquoted in `.env`. If it is empty, the recording remains
+available but the Mapbox background cannot load. Once connected, select or
+create a Map view and add `/world/sumo/vehicles`. The
+`/world/sumo/network` entity uses SUMO's local Cartesian coordinates and belongs
+in the 3D view.
+
+The viewer projection is intended only for a trusted development host. It does
+not change the platform's private Recording Hub boundary or publish ingest on a
+non-loopback interface. Rerun's
+[geospatial guide](https://rerun.io/docs/howto/visualization/geospatial-data)
+documents the viewer-side Mapbox variable.
+
 ## Layout
 
 ```text
 showcase/sumo/
   compose.showcase.yaml   # overlay for SUMO and sumo-mcp
   compose.smoke.yaml      # host-port isolation for the Rust live smoke
+  compose.viewer.yaml     # loopback Recording Hub projection for Rerun
   sim/Dockerfile          # pinned SUMO/LuST TraCI world
   sumo-mcp/Cargo.toml          # veoveo-sumo-mcp crate
   sumo-mcp/Dockerfile          # pinned Rust build and SUMO runtime
