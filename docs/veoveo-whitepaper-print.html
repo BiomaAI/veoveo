@@ -1,4 +1,7 @@
 <!doctype html>
+<!-- Canonical source of docs/veoveo-whitepaper.pdf. Regenerate with `just docs-pdf`
+     (headless Chrome; pages are hand-paginated .page divs — check the affected pages
+     after editing). -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -382,7 +385,9 @@
   <p class="body">
     The system closes one loop. The world streams into the record; agents perceive from it,
     decide, and act through governed tools; effects land back in the world, and every step
-    deposits evidence. Data moves along this spine in three ways. Producers push inward and
+    deposits evidence. The shape is Boyd's OODA loop — observe, orient, decide, act — with
+    orientation held in durable state rather than inside the agent. Data moves along this
+    spine in three ways. Producers push inward and
     agents query back out — observation. Tool calls cross the gateway, and the long ones become
     durable tasks whose completion wakes a sleeping agent. Whatever remains is the account:
     authentication decisions, task transitions, artifact grants, and every agent step, landing
@@ -415,6 +420,7 @@
     analytical memory; every decision lands in the log — and each act an agent takes becomes part
     of the model the next episode reasons from. Context is assembled fresh from the world model
     every episode, so an agent's knowledge survives any restart and outlives any context window.
+    In OODA terms, the world model is the Orient stage made durable and queryable.
   </p>
   <p class="body">
     The mission is part of the model, held as data rather than prompt text. Objectives,

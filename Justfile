@@ -116,6 +116,11 @@ smoke-datasheet:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-artifact-service --bin artifact-service
     {{smoke}} datasheet-mcp --conformance-bin target/debug/conformance --artifact-service-bin target/debug/artifact-service
 
+# Render the whitepaper and harness PDFs from their canonical *-print.html sources.
+docs-pdf chrome='google-chrome':
+    '{{chrome}}' --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=docs/veoveo-whitepaper.pdf docs/veoveo-whitepaper-print.html
+    '{{chrome}}' --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=docs/autonomy-harness.pdf docs/autonomy-harness-print.html
+
 # Smoke-test contract schema export for non-Rust implementations.
 smoke-contract-schemas:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke
