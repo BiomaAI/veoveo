@@ -35,6 +35,36 @@ Task state lives in the required SurrealDB 3.2.0 platform store. The server uses
 Veoveo's final task extension and shared task runtime; no deprecated MCP task API,
 provider polling, in-memory task registry, or compatibility path is present.
 
+## Local prerequisites
+
+The fake-driver unit test and push smoke need the pinned Rust toolchain and
+`just`. They do not need a SUMO installation or Docker.
+
+The live verification also needs Docker Engine with Compose v2. Its host-side
+conformance helper builds the bundled PROJ library. On Debian or Ubuntu, install
+the native build inputs before the first run:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake libsqlite3-dev pkg-config sqlite3
+```
+
+Compose validates the complete platform file before selecting the SUMO service.
+It therefore requires values for the perception bind mounts even though the live
+SUMO verification does not start the perception service. Existing empty
+directories are sufficient:
+
+```bash
+mkdir -p /tmp/veoveo-perception/config /tmp/veoveo-perception/models
+export PERCEPTION_CONFIG_DIR=/tmp/veoveo-perception/config
+export PERCEPTION_MODEL_DIR=/tmp/veoveo-perception/models
+```
+
+The pinned SUMO runtime is `linux/amd64`. An arm64 Docker host must have
+binfmt/QEMU emulation enabled. A cold live run downloads the simulator and
+platform images, builds several Rust service images, and needs network access and
+several gigabytes of Docker storage.
+
 ## Run
 
 Unit tests use the deterministic Rust fake driver and do not require SUMO:
@@ -65,7 +95,9 @@ The live verification builds an isolated Compose project, waits for LuST/TraCI,
 asserts the unauthenticated boundary, drives a read, actuation, and durable task,
 queries the recorded world, and tears the project down. Its smoke-only Compose
 projection removes dependency host ports and reserves an available loopback MCP
-port, so it can run beside an operator's installation:
+port, so it can run beside an operator's installation. It supplies disposable
+platform credentials, while the two perception paths above remain required for
+Compose interpolation:
 
 ```bash
 just showcase-sumo-verify
