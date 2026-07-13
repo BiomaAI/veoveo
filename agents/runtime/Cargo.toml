@@ -11,7 +11,7 @@ path = "src/lib.rs"
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-surrealdb = { version = "=3.2.0", default-features = false, features = ["protocol-ws", "rustls"] }
+surrealdb = { version = "=3.2.1", default-features = false, features = ["protocol-ws", "rustls"] }
 thiserror = "2.0.18"
 uuid.workspace = true
 veoveo-platform-store.workspace = true
