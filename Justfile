@@ -104,6 +104,18 @@ smoke-hub: test-hub smoke-hub-spool smoke-hub-agent-world smoke-hub-catalog smok
 contract-schemas output_dir='schemas':
     {{conformance}} contract-schemas --output-dir '{{output_dir}}'
 
+# Unit and integration tests for the Python platform package and the datasheet template.
+test-python:
+    uv sync --project python --all-extras
+    uv run --project python pytest python/veoveo-mcp/tests
+    uv sync --project templates/python-mcp --all-extras
+    uv run --project templates/python-mcp pytest templates/python-mcp/tests
+
+# Datasheet Python template smoke: auth boundary, MCP surface, final task run, artifacts, usage.
+smoke-datasheet:
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-artifact-service --bin artifact-service
+    {{smoke}} datasheet-mcp --conformance-bin target/debug/conformance --artifact-service-bin target/debug/artifact-service
+
 # Smoke-test contract schema export for non-Rust implementations.
 smoke-contract-schemas:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke

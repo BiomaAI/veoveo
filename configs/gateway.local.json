@@ -255,6 +255,40 @@
       "metadata": {}
     },
     {
+      "slug": "datasheet",
+      "uri_scheme": "datasheet",
+      "mount_path": "/datasheet",
+      "mcp_path": "/datasheet/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://datasheet-mcp:8798/datasheet/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": false,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "column_stats",
+        "preview_dataset",
+        "profile_dataset"
+      ],
+      "prompts": [
+        "datasheet-profile-dataset",
+        "datasheet-report-review"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "artifact",
       "uri_scheme": "artifact",
       "mount_path": "/artifact",
@@ -562,6 +596,31 @@
           "tasks": "enabled"
         },
         {
+          "server": "datasheet",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "column_stats",
+              "preview_dataset",
+              "profile_dataset"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "datasheet"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
           "server": "artifact",
           "tools": {
             "mode": "listed",
@@ -812,6 +871,31 @@
               {
                 "kind": "scheme",
                 "scheme": "coordinates"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "datasheet",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "column_stats",
+              "preview_dataset",
+              "profile_dataset"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "datasheet"
               }
             ]
           },

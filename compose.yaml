@@ -174,7 +174,7 @@ services:
       <<: *surreal-runtime
       ARTIFACT_SERVICE_BIND: 0.0.0.0:8790
       ARTIFACT_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://veoveo.example}
-      ARTIFACT_ALLOWED_AUDIENCES: artifact,media,timeseries,optimization,duckdb,coordinates,recording,perception,sumo
+      ARTIFACT_ALLOWED_AUDIENCES: artifact,media,timeseries,optimization,duckdb,coordinates,recording,perception,sumo,datasheet
       ARTIFACT_STORE: s3
       ARTIFACT_S3_ENDPOINT: http://rustfs:9000
       ARTIFACT_S3_PUBLIC_ENDPOINT: ${ARTIFACT_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
@@ -549,6 +549,42 @@ services:
       retries: 30
       start_period: 5s
 
+  datasheet-mcp:
+    <<: *app-security
+    image: veoveo/datasheet-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
+    build:
+      context: .
+      dockerfile: templates/python-mcp/Dockerfile
+    depends_on:
+      artifact-service:
+        condition: service_healthy
+    command:
+      - --port
+      - "8798"
+      - --public-base-url
+      - ${PUBLIC_BASE_URL:-https://veoveo.example}
+      - --allow-loopback-hosts
+      - --allowed-host
+      - datasheet-mcp:8798
+      - --artifact-service-url
+      - http://artifact-service:8790
+      - --max-artifact-bytes
+      - "67108864"
+      - --surreal-auth-level
+      - database
+    environment:
+      <<: *service-env
+      OTEL_SERVICE_NAME: veoveo-datasheet-mcp
+    tmpfs: [/tmp]
+    ports:
+      - 127.0.0.1:8798:8798
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8798/datasheet/readyz]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
   chart-mcp:
     <<: *app-security
     image: veoveo/chart-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
@@ -630,6 +666,8 @@ services:
       coordinates-mcp:
         condition: service_healthy
       duckdb-mcp:
+        condition: service_healthy
+      datasheet-mcp:
         condition: service_healthy
       chart-mcp:
         condition: service_healthy
