@@ -278,6 +278,10 @@ just showcase-sumo-smoke
 All smoke orchestration is Rust. The `Justfile` only builds or dispatches human-facing
 commands.
 
+The whitepaper and harness PDFs render from their canonical `docs/*-print.html`
+sources with `just docs-pdf`, which drives headless Chrome. Pass `chrome=` when the
+browser binary has a different name. Never edit the PDFs directly.
+
 ## Repository Map
 
 ```text
