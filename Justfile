@@ -312,6 +312,10 @@ showcase-sumo-smoke:
 showcase-sumo-up:
     docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml --profile showcase up --build
 
+# Bring up SUMO with the Recording Hub projected to a loopback Rerun viewer.
+showcase-sumo-view-up:
+    docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml -f showcase/sumo/compose.viewer.yaml --profile showcase up --build
+
 # End-to-end verify: full SUMO showcase up, world durable in hub, served MCP driven e2e.
 showcase-sumo-verify:
     cargo run -p veoveo-smoke -- sumo-verify
