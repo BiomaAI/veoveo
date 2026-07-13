@@ -23,6 +23,8 @@ behavior. It describes only the current hard-cut architecture.
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `examples/bioma/` | optional Bioma Entra/Cloudflare deployment overlay |
+| `python/veoveo-mcp/` | Python platform package for hosted MCP servers |
+| `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 
 ## Shared Contracts
 
@@ -239,6 +241,31 @@ spool access, subscriptions, and artifact publication.
 `recording-mcp::service::read` owns the reusable governed local read plan. It
 projects only frozen/sealed segment paths after tenant and label authorization;
 perception persists recording identities rather than those paths.
+
+## Python Servers
+
+### `python/veoveo-mcp`
+
+The shared platform package for hosted Python MCP servers. It is the Python
+counterpart of the workspace crates a Rust server composes; the Rust side
+stays the source of truth for every wire shape and schema.
+
+| Module | Responsibility |
+|---|---|
+| `contract/` | identity, artifact-plane, and usage wire models |
+| `internal_auth.py` | gateway Ed25519 assertion verification and ASGI middleware |
+| `host.py` | host-authority validation and 421 rejection |
+| `deployment.py`, `pagination.py` | mount identities and cursor pagination |
+| `task_extension/` | final task extension models, ASGI middleware, projection |
+| `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
+| `artifacts.py` | artifact-plane HTTP client and capability redemption |
+
+### `templates/python-mcp`
+
+The canonical template for new Python servers, shipped as the working
+`datasheet` dataset-profiling server. `contract.py` and `engine.py` own the
+domain; `server/` mirrors the Rust per-server module split (config, ownership,
+task extension adapter, durable task, MCP surface, composition).
 
 ## Agents
 

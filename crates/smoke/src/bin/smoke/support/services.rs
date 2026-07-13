@@ -142,6 +142,32 @@ pub(crate) fn spawn_coordinates_smoke(
     )
 }
 
+pub(crate) fn spawn_datasheet_smoke(
+    datasheet: &Path,
+    port: u16,
+    public_base_url: &str,
+    artifact_service_url: &str,
+    platform: &PlatformStoreSmoke,
+    log: &Path,
+) -> Result<ChildGuard> {
+    let mut env = platform.runtime_env();
+    env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
+    ChildGuard::spawn(
+        datasheet,
+        [
+            "--port".into(),
+            port.to_string().into(),
+            "--public-base-url".into(),
+            public_base_url.into(),
+            "--allow-loopback-hosts".into(),
+            "--artifact-service-url".into(),
+            artifact_service_url.into(),
+        ],
+        env,
+        log,
+    )
+}
+
 pub(crate) fn spawn_duckdb_smoke(
     duckdb: &Path,
     port: u16,
@@ -392,7 +418,7 @@ pub(crate) async fn spawn_artifact_service_smoke(
         ("ARTIFACT_STORE", "memory".into()),
         (
             "ARTIFACT_ALLOWED_AUDIENCES",
-            "media,timeseries,optimization,duckdb,coordinates".into(),
+            "media,timeseries,optimization,duckdb,coordinates,datasheet".into(),
         ),
     ]);
     let child = ChildGuard::spawn(artifact_service, Vec::<OsString>::new(), service_env, log)?;

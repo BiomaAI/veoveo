@@ -7,6 +7,8 @@ mod agent_kernel;
 mod basic;
 #[path = "scenarios/coordinates.rs"]
 mod coordinates;
+#[path = "scenarios/datasheet.rs"]
+mod datasheet;
 #[path = "scenarios/gateway.rs"]
 mod gateway;
 #[path = "scenarios/media.rs"]
@@ -21,6 +23,7 @@ mod sumo;
 pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
 pub(crate) use coordinates::*;
+pub(crate) use datasheet::*;
 pub(crate) use gateway::*;
 pub(crate) use media::*;
 pub(crate) use perception::*;

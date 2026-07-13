@@ -71,7 +71,7 @@ and authorization records.
 
 ## Hosted Servers
 
-The canonical control plane defines ten server identities:
+The canonical control plane defines eleven server identities:
 
 | Server | Main capability |
 |---|---|
@@ -80,6 +80,7 @@ The canonical control plane defines ten server identities:
 | `duckdb` | arbitrary query/execute/ingest/export SQL in bounded workspaces |
 | `optimization` | deterministic planning and artifact output |
 | `coordinates` | CRS, geodesic, local-frame, geofence, and batch transformations |
+| `datasheet` | dataset preview, column statistics, and task-based profiling (Python template) |
 | `artifact` | artifact discovery, metadata, grants, release, and sharing |
 | `recording` | governed recording discovery, query, subscription, and publication |
 | `perception` | governed Rerun video extraction, local detection/tracking, and derived annotations |
@@ -246,16 +247,30 @@ Loading retains all verification evidence. See
 
 ## Development And Verification
 
-The workspace is pinned by `rust-toolchain.toml` and uses Rust edition 2024. Common
-checks are:
+The workspace is pinned by `rust-toolchain.toml` and uses Rust edition 2024. Building
+it natively needs a C/C++ toolchain, `cmake`, `pkg-config`, and SQLite development
+files, because `proj-sys` compiles PROJ from source for the coordinates server and
+its dependents (the conformance client and the gateway):
+
+```bash
+sudo apt-get install build-essential cmake pkg-config sqlite3 libsqlite3-dev
+```
+
+GitHub-hosted CI runners and the server Dockerfiles already carry these packages.
+Docker is required for every SurrealDB-backed test and smoke, and [`uv`](https://docs.astral.sh/uv/)
+runs the Python platform package and the datasheet template.
+
+Common checks are:
 
 ```bash
 just fmt
 just check
 just test
+just test-python
 just test-perception
 just smoke-gateway
 just smoke-hub
+just smoke-datasheet
 just smoke-agent-kernel
 just showcase-sumo-smoke
 ```
@@ -281,6 +296,8 @@ crates/agent-kernel/        autonomous MCP agent loop and memory planes
 crates/*-mcp/               hosted domain servers
 crates/console-bff/         browser auth/session/API boundary
 crates/smoke/               Rust multi-process and deployment smoke harness
+python/veoveo-mcp/          Python platform package for hosted MCP servers
+templates/python-mcp/       canonical Python server template (datasheet)
 console/                    React operations console
 configs/                    canonical typed installation configuration
 deploy/                     Helm and offline installation material

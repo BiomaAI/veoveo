@@ -129,6 +129,15 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/artifact-service")]
         artifact_service_bin: PathBuf,
     },
+    /// Smoke-test the Python datasheet template server end to end.
+    DatasheetMcp {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
+    },
     /// Smoke-test the gateway HTTP boundary, auth discovery, and browser OAuth flow.
     GatewayHttp {
         /// Built conformance binary path.
@@ -394,6 +403,10 @@ async fn main() -> Result<()> {
             coordinates_bin,
             artifact_service_bin,
         } => coordinates_mcp(&conformance_bin, &coordinates_bin, &artifact_service_bin).await,
+        Cmd::DatasheetMcp {
+            conformance_bin,
+            artifact_service_bin,
+        } => datasheet_mcp(&conformance_bin, &artifact_service_bin).await,
         Cmd::GatewayHttp {
             conformance_bin,
             gateway_bin,
