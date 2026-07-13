@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.7
 # Build context is the repository root; the template depends on
-# python/veoveo-mcp by path.
+# sdk/python by path.
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
 WORKDIR /build
-COPY python/veoveo-mcp python/veoveo-mcp
+COPY sdk/python sdk/python
 COPY templates/python-mcp templates/python-mcp
 WORKDIR /build/templates/python-mcp
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -18,7 +18,7 @@ RUN apt-get update \
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
-COPY --from=builder /build/python/veoveo-mcp /opt/veoveo/python/veoveo-mcp
+COPY --from=builder /build/sdk/python /opt/veoveo/sdk/python
 COPY --from=builder /build/templates/python-mcp /opt/veoveo/templates/python-mcp
 
 ENV PATH="/opt/veoveo/templates/python-mcp/.venv/bin:${PATH}"

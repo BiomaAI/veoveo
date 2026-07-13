@@ -75,7 +75,7 @@ MP4 can be produced by remuxing without re-encoding. See Rerun's
 and [video query guide](https://rerun.io/docs/howto/query-and-transform/query_videos).
 
 The repository's executable ingest example is the real cross-segment test in
-`crates/recording-hub/tests/spool_roundtrip.rs`. Its producer shape is:
+`platform/recordings/hub/tests/spool_roundtrip.rs`. Its producer shape is:
 
 ```rust
 stream.set_duration_secs("sensor_time", timestamp_seconds);

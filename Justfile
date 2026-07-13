@@ -106,8 +106,8 @@ contract-schemas output_dir='schemas':
 
 # Unit and integration tests for the Python platform package and the datasheet template.
 test-python:
-    uv sync --project python --all-extras
-    uv run --project python pytest python/veoveo-mcp/tests
+    uv sync --project sdk --all-extras
+    uv run --project sdk pytest sdk/python/tests
     uv sync --project templates/python-mcp --all-extras
     uv run --project templates/python-mcp pytest templates/python-mcp/tests
 

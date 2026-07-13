@@ -28,20 +28,20 @@
     }
   ],
   "veoveo_images": [
-    {"ref": "veoveo/agent-kernel:0.1.0", "dockerfile": "crates/agent-kernel/Dockerfile"},
-    {"ref": "veoveo/artifact-mcp:0.1.0", "dockerfile": "crates/artifact-mcp/Dockerfile"},
-    {"ref": "veoveo/artifact-service:0.1.0", "dockerfile": "crates/artifact-service/Dockerfile"},
-    {"ref": "veoveo/chart-mcp:0.1.0", "dockerfile": "containers/chart-mcp/Dockerfile"},
-    {"ref": "veoveo/console-bff:0.1.0", "dockerfile": "crates/console-bff/Dockerfile"},
-    {"ref": "veoveo/coordinates-mcp:0.1.0", "dockerfile": "crates/coordinates-mcp/Dockerfile"},
-    {"ref": "veoveo/duckdb-mcp:0.1.0", "dockerfile": "crates/duckdb-mcp/Dockerfile"},
-    {"ref": "veoveo/mcp-gateway:0.1.0", "dockerfile": "crates/mcp-gateway/Dockerfile"},
-    {"ref": "veoveo/mcp-stdio-bridge:0.1.0", "dockerfile": "crates/mcp-stdio-bridge/Dockerfile"},
-    {"ref": "veoveo/media-mcp:0.1.0", "dockerfile": "crates/media-mcp/Dockerfile"},
-    {"ref": "veoveo/optimization-mcp:0.1.0", "dockerfile": "crates/optimization-mcp/Dockerfile"},
-    {"ref": "veoveo/perception-mcp:0.1.0", "dockerfile": "crates/perception-mcp/Dockerfile"},
-    {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "crates/recording-hub/Dockerfile"},
-    {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "crates/recording-mcp/Dockerfile"},
-    {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "crates/timeseries-mcp/Dockerfile"}
+    {"ref": "veoveo/agent-kernel:0.1.0", "dockerfile": "agents/kernel/Dockerfile"},
+    {"ref": "veoveo/artifact-mcp:0.1.0", "dockerfile": "servers/artifact-mcp/Dockerfile"},
+    {"ref": "veoveo/artifact-service:0.1.0", "dockerfile": "platform/artifacts/service/Dockerfile"},
+    {"ref": "veoveo/chart-mcp:0.1.0", "dockerfile": "servers/chart-mcp/Dockerfile"},
+    {"ref": "veoveo/console-bff:0.1.0", "dockerfile": "apps/console/bff/Dockerfile"},
+    {"ref": "veoveo/coordinates-mcp:0.1.0", "dockerfile": "servers/coordinates-mcp/Dockerfile"},
+    {"ref": "veoveo/duckdb-mcp:0.1.0", "dockerfile": "servers/duckdb-mcp/Dockerfile"},
+    {"ref": "veoveo/mcp-gateway:0.1.0", "dockerfile": "platform/gateway/Dockerfile"},
+    {"ref": "veoveo/mcp-stdio-bridge:0.1.0", "dockerfile": "mcp/bridges/stdio/Dockerfile"},
+    {"ref": "veoveo/media-mcp:0.1.0", "dockerfile": "servers/media-mcp/Dockerfile"},
+    {"ref": "veoveo/optimization-mcp:0.1.0", "dockerfile": "servers/optimization-mcp/Dockerfile"},
+    {"ref": "veoveo/perception-mcp:0.1.0", "dockerfile": "servers/perception-mcp/Dockerfile"},
+    {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "platform/recordings/hub/Dockerfile"},
+    {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "servers/recording-mcp/Dockerfile"},
+    {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "servers/timeseries-mcp/Dockerfile"}
   ]
 }

@@ -417,7 +417,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "uvicorn", specifier = ">=0.30" },
-    { name = "veoveo-mcp", editable = "../../python/veoveo-mcp" },
+    { name = "veoveo-mcp", editable = "../../sdk/python" },
 ]
 provides-extras = ["dev"]
 
@@ -1435,7 +1435,7 @@ wheels = [
 [[package]]
 name = "veoveo-mcp"
 version = "0.1.0"
-source = { editable = "../../python/veoveo-mcp" }
+source = { editable = "../../sdk/python" }
 dependencies = [
     { name = "cryptography" },
     { name = "httpx" },

@@ -20,7 +20,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 datasheet-mcp = "datasheet_mcp.server.main:main"
 
 [tool.uv.sources]
-veoveo-mcp = { path = "../../python/veoveo-mcp", editable = true }
+veoveo-mcp = { path = "../../sdk/python", editable = true }
 
 [build-system]
 requires = ["hatchling"]

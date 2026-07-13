@@ -29,7 +29,7 @@ services:
     platform: linux/amd64
     build:
       context: .
-      dockerfile: showcase/sumo/mcp/Dockerfile
+      dockerfile: showcase/sumo/sumo-mcp/Dockerfile
     depends_on:
       sumo:
         condition: service_started

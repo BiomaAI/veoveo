@@ -18,17 +18,43 @@ behavior. It describes only the current hard-cut architecture.
 | `configs/Caddyfile` | canonical edge routes and public-surface denial |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
-| `console/` | React operations UI |
+| `agents/` | agent kernel and durable agent runtime |
+| `apps/` | user-facing applications and their service boundaries |
+| `mcp/` | shared MCP protocol contracts, extensions, and bridges |
+| `platform/` | internal platform services, persistence, and reusable runtimes |
+| `servers/` | independently deployed MCP servers and protocol projections |
+| `testing/` | conformance tooling and multi-process smoke harnesses |
+| `sdk/` | language SDK workspaces |
 | `deploy/helm/veoveo/` | Kubernetes installation chart |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `examples/bioma/` | optional Bioma Entra/Cloudflare deployment overlay |
-| `python/veoveo-mcp/` | Python platform package for hosted MCP servers |
+| `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
+
+## Placement Rules
+
+The top-level directories express ownership rather than implementation language. A Rust
+crate belongs beside the system it implements; Rust is not an architectural boundary.
+
+| Root | Put code here when it owns |
+|---|---|
+| `servers/` | a hosted MCP server with its own protocol surface, deployment image, and domain behavior |
+| `mcp/` | protocol contracts, transport extensions, or bridges shared by more than one server |
+| `platform/` | internal control/data-plane services, durable stores, and reusable execution runtimes |
+| `agents/` | autonomous agent behavior or durable agent scheduling |
+| `apps/` | a user-facing application and its application-specific backend |
+| `testing/` | cross-component conformance, smoke, and deployment verification |
+| `sdk/` | a language-native client or server-development package |
+| `showcase/` | an end-to-end domain integration that is not part of the core installation |
+
+MCP servers do not live under a generic `tools/` root. They expose resources, prompts,
+tasks, subscriptions, notifications, and typed content in addition to tools, so
+`servers/` names the deployable boundary without narrowing the protocol.
 
 ## Shared Contracts
 
-### `crates/mcp-contract`
+### `mcp/contract`
 
 This crate owns vocabulary shared across services. It must not absorb a domain tool
 schema merely because the server is first-party.
@@ -52,14 +78,14 @@ schema merely because the server is first-party.
 | `subscriptions.rs` | typed resource subscription hub |
 | `telemetry.rs` | tracing/log initialization and guards |
 
-### `crates/rrd`
+### `platform/recordings/rrd`
 
 Owns cross-domain Rerun/RRD spacetime types and adapters. Domain results that do not
 overlap Rerun concepts stay local to their MCP crate.
 
 ## SurrealDB Platform Store
 
-### `crates/platform-store`
+### `platform/store`
 
 The only durable platform persistence layer.
 
@@ -84,7 +110,7 @@ never apply them; installation bootstrap does.
 
 ## Durable Tasks
 
-### `crates/task-runtime`
+### `platform/task-runtime`
 
 | File | Responsibility |
 |---|---|
@@ -92,7 +118,7 @@ never apply them; installation bootstrap does.
 | `runtime.rs` | create/idempotency, lease, update, cancel, finish, recover, prune |
 | `lib.rs` | focused public API |
 
-### `crates/mcp-task-extension`
+### `mcp/task-extension`
 
 | File | Responsibility |
 |---|---|
@@ -104,7 +130,7 @@ The runtime is the source of truth. The extension is transport only.
 
 ## Gateway
 
-### Library surface: `crates/mcp-gateway/src`
+### Library surface: `platform/gateway/src`
 
 | Path | Responsibility |
 |---|---|
@@ -125,7 +151,7 @@ The runtime is the source of truth. The extension is transport only.
 | `state/subscriptions.rs` | durable subscription ownership and forwarding |
 | `secrets.rs` | typed environment/file/Vault secret resolution |
 
-### Binary surface: `crates/mcp-gateway/src/bin/gateway`
+### Binary surface: `platform/gateway/src/bin/gateway`
 
 | Path | Responsibility |
 |---|---|
@@ -143,7 +169,7 @@ The runtime is the source of truth. The extension is transport only.
 
 ## Artifact Plane
 
-### `crates/artifact-service`
+### `platform/artifacts/service`
 
 | File | Responsibility |
 |---|---|
@@ -155,12 +181,12 @@ The runtime is the source of truth. The extension is transport only.
 | `http.rs` | internal artifact API plus `/s/{token}` redemption |
 | `config.rs` | fail-closed store/database/audience configuration |
 
-### `crates/artifact-client`
+### `platform/artifacts/client`
 
 Typed HTTP implementation of the `ArtifactPlane` port used by domain servers and the
 gateway. It forwards the caller's existing signed identity; it never signs one.
 
-### `crates/artifact-mcp`
+### `servers/artifact-mcp`
 
 The canonical MCP-facing artifact projection. `handler.rs` owns tools/resources,
 `prompts.rs` owns reusable workflows, and `subscriptions.rs` owns update notification
@@ -184,30 +210,30 @@ The Rust MCP server pattern is intentionally consistent:
 | `bin/server/app_state.rs` | dependency composition and recovery |
 | `bin/server/outputs.rs` | typed results, resource links, usage projection |
 
-Current crates are `media-mcp`, `timeseries-mcp`, `duckdb-mcp`,
-`optimization-mcp`, `coordinates-mcp`, and `perception-mcp`.
+Current domain servers under `servers/` are `media-mcp`, `timeseries-mcp`,
+`duckdb-mcp`, `optimization-mcp`, `coordinates-mcp`, and `perception-mcp`.
 
 Media-specific ownership:
 
 | Path | Responsibility |
 |---|---|
-| `media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |
-| `media-mcp/src/webhook.rs` | signature parsing and constant-time verification |
-| `bin/server/generation_task.rs` | durable submission/WebhookWait/terminal flow |
-| `bin/server/artifact_tools.rs` | explicit small-content compatibility helper |
-| `bin/server/retention.rs` | platform-owned retention reconciliation |
+| `servers/media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |
+| `servers/media-mcp/src/webhook.rs` | signature parsing and constant-time verification |
+| `servers/media-mcp/src/bin/server/generation_task.rs` | durable submission/WebhookWait/terminal flow |
+| `servers/media-mcp/src/bin/server/artifact_tools.rs` | explicit small-content compatibility helper |
+| `servers/media-mcp/src/bin/server/retention.rs` | platform-owned retention reconciliation |
 
 DuckDB-specific ownership:
 
 | Path | Responsibility |
 |---|---|
-| `duckdb-runtime/` | bounded engine runtime and sandbox primitives |
-| `duckdb-mcp/src/engine.rs` | owner workspace and arbitrary SQL execution |
-| `bin/server/sql_ops.rs` | typed direct/task SQL operations and recovery class |
+| `platform/runtimes/duckdb/` | bounded engine runtime and sandbox primitives |
+| `servers/duckdb-mcp/src/engine.rs` | owner workspace and arbitrary SQL execution |
+| `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | typed direct/task SQL operations and recovery class |
 
 ## Recordings
 
-### `crates/recording-hub`
+### `platform/recordings/hub`
 
 | File | Responsibility |
 |---|---|
@@ -217,13 +243,13 @@ DuckDB-specific ownership:
 | `config.rs` | typed dataset routing and limits |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
-### `crates/recording-mcp`
+### `servers/recording-mcp`
 
 `contract.rs` owns query/publication types, `service.rs` owns authorized MCP behavior,
 `uris.rs` owns recording identities, and `bin/server/state.rs` composes platform store,
 spool access, subscriptions, and artifact publication.
 
-### `crates/perception-mcp`
+### `servers/perception-mcp`
 
 | Path | Responsibility |
 |---|---|
@@ -244,7 +270,7 @@ perception persists recording identities rather than those paths.
 
 ## Python Servers
 
-### `python/veoveo-mcp`
+### `sdk/python`
 
 The shared platform package for hosted Python MCP servers. It is the Python
 counterpart of the workspace crates a Rust server composes; the Rust side
@@ -269,11 +295,11 @@ task extension adapter, durable task, MCP surface, composition).
 
 ## Agents
 
-### `crates/agent-runtime`
+### `agents/runtime`
 
 SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persistence.
 
-### `crates/agent-kernel`
+### `agents/kernel`
 
 | File | Responsibility |
 |---|---|
@@ -289,7 +315,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 ## Console
 
-### `crates/console-bff`
+### `apps/console/bff`
 
 | File | Responsibility |
 |---|---|
@@ -298,7 +324,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `api.rs` | snapshot/mutation/download proxy with no browser bearer exposure |
 | `config.rs` | validated public/gateway/resource configuration |
 
-### `console/src`
+### `apps/console/web/src`
 
 | File | Responsibility |
 |---|---|
@@ -312,25 +338,25 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | Path | Responsibility |
 |---|---|
-| `crates/mcp-conformance` | typed external protocol/config CLI and fake services |
-| `crates/smoke/src/bin/smoke.rs` | smoke command dispatcher |
-| `crates/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
-| `crates/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
-| `crates/smoke/tests/` | static deployment/offline contract tests |
-| `crates/*/tests/` | focused live Surreal/service integration tests |
+| `testing/mcp-conformance` | typed external protocol/config CLI and fake services |
+| `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher |
+| `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
+| `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
+| `testing/smoke/tests/` | static deployment/offline contract tests |
+| component-local `tests/` | focused live SurrealDB and service integration tests |
 | `.github/workflows/ci.yml` | formatting, clippy, tests, UI, Keycloak, deployment CI |
 
 There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell recipes.
 
 ## Change Routing
 
-- Change shared identity/policy/artifact semantics in `mcp-contract`, then update the
+- Change shared identity/policy/artifact semantics in `mcp/contract`, then update the
   platform store and every affected boundary.
-- Change persistence shape in `platform-store` with an ordered migration and typed API.
-- Change task lifecycle in `task-runtime`; change wire behavior in
-  `mcp-task-extension`.
-- Change a domain tool schema in its owning `*-mcp` crate, not the gateway.
-- Change browser behavior through `console-bff` plus `console`; do not expose gateway
+- Change persistence shape in `platform/store` with an ordered migration and typed API.
+- Change task lifecycle in `platform/task-runtime`; change wire behavior in
+  `mcp/task-extension`.
+- Change a domain tool schema in its owning `servers/*-mcp` server, not the gateway.
+- Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway
   tokens to JavaScript.
 - Change public routes in Compose Caddy and Helm ingress together, then extend the Rust
   deployment smoke.
