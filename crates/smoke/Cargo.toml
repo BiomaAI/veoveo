@@ -11,11 +11,16 @@ path = "src/bin/smoke.rs"
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true
+chrono.workspace = true
 clap.workspace = true
+dotenvy.workspace = true
 duckdb.workspace = true
+jsonwebtoken.workspace = true
 rcgen.workspace = true
 reqwest = { workspace = true, features = ["cookies", "json", "rustls-no-provider"] }
 re_grpc_server.workspace = true
+re_sdk.workspace = true
+re_sdk_types.workspace = true
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
 rustls.workspace = true
 scraper.workspace = true
@@ -28,6 +33,7 @@ tempfile = "3"
 url.workspace = true
 uuid.workspace = true
 veoveo-mcp-contract = { path = "../mcp-contract" }
+veoveo-mcp-task-extension = { path = "../mcp-task-extension" }
 veoveo-platform-store = { path = "../platform-store" }
 veoveo-recording-hub = { path = "../recording-hub" }
 veoveo-sumo-mcp = { path = "../../showcase/sumo/mcp" }

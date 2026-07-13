@@ -1,4 +1,4 @@
-# Perception MCP
+# Perception MCP Design
 
 `perception-mcp` is Veoveo's provider-neutral local perception domain. Its
 production execution implementation uses NVIDIA DeepStream and TensorRT, but
@@ -127,6 +127,12 @@ The deployable image is a two-stage DeepStream 9 build:
 - The optional tracker uses NVIDIA's low-level multi-object tracker library and
   an explicitly mounted tracker YAML.
 
+Container execution requires one coherent host driver library set. The native
+driver libraries injected by NVIDIA Container Toolkit take precedence over the
+CUDA forward-compatibility libraries bundled in the DeepStream image. GeForce
+GPUs do not support the latter path. A successful `nvidia-smi` call therefore
+does not replace an acceptance test that decodes video and executes inference.
+
 The deployed process does not start Triton. NVIDIA documents the `triton` image
 as its development image and the `samples` image as the runtime containing
 DeepStream libraries and GStreamer plugins; see the
@@ -183,7 +189,7 @@ NGC before building:
 docker login nvcr.io
 ```
 
-Prepare the two read-only mount roots:
+The production installation uses two read-only mount roots:
 
 ```text
 /opt/veoveo/perception/config/
@@ -210,6 +216,30 @@ runtime shipped with DeepStream 9. By default, serialized engines are specific
 to their TensorRT build version and GPU type; NVIDIA documents optional version
 and hardware compatibility modes with possible performance tradeoffs in the
 [TensorRT engine compatibility guide](https://docs.nvidia.com/deeplearning/tensorrt/latest/inference-library/engine-compatibility.html).
+
+## Testing Strategy
+
+Implemented crate tests cover:
+
+- catalog validation and the repository catalog example
+- canonical perception resource identities
+- typed runner request construction and source-index preservation
+- rejection of invalid or out-of-bounds detections
+
+The implemented GPU smoke is a Rust scenario over the production service
+boundaries. It covers:
+
+- real H.264 `VideoStream` ingress through Recording Hub
+- catalog resolution to a governed UUIDv7 recording identity
+- internal authentication and final MCP task execution
+- NVDEC, DeepStream, and TensorRT execution against a site-built engine
+- typed result, Rerun annotation, and source-clip publication through the
+  shared artifact plane
+
+The fixture must produce decoded frames and at least one valid detection. Its
+exact detection count is diagnostic rather than a protocol contract. The smoke
+harness owns process lifecycle and cleanup; the Justfile remains a short human
+dispatch surface.
 
 ## Deliberate limits
 

@@ -8,7 +8,7 @@ gateway-admin-url := "http://localhost:8780/admin"
 gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-conformance --bin conformance --"
-smoke := "DYLD_LIBRARY_PATH=\"$PWD/target/debug/deps${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}\" target/debug/smoke"
+smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" DYLD_LIBRARY_PATH=\"$PWD/target/debug/deps${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}\" target/debug/smoke"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 
@@ -71,6 +71,11 @@ test-hub:
 # Perception contracts, runner protocol, and task/server unit tests.
 test-perception:
     cargo test -p veoveo-perception-mcp --all-targets
+
+# DeepStream 9 / NVDEC / TensorRT / Recording Hub / final MCP task smoke.
+smoke-perception-gpu env_file='.env':
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} perception-gpu --env-file '{{env_file}}'
 
 # Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
 smoke-hub-spool:
