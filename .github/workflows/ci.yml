@@ -74,14 +74,14 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: console
+        working-directory: apps/console/web
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: console/package-lock.json
+          cache-dependency-path: apps/console/web/package-lock.json
       - run: npm ci
       - run: npm run lint
       - run: npm run build
@@ -104,7 +104,7 @@ jobs:
       - name: Build and execute the pinned SUMO runtime images
         run: |
           docker build --platform linux/amd64 \
-            -f showcase/sumo/mcp/Dockerfile -t veoveo/sumo-mcp:ci .
+            -f showcase/sumo/sumo-mcp/Dockerfile -t veoveo/sumo-mcp:ci .
           docker run --rm --platform linux/amd64 \
             veoveo/sumo-mcp:ci --help >/dev/null
           docker run --rm --platform linux/amd64 --entrypoint sh \

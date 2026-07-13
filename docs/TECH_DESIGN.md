@@ -307,5 +307,5 @@ Coverage includes:
 - recording crash recovery, rollover, catalog rebuild, and SUMO push readback;
 - Compose/Caddy, Helm/schema, offline manifest/loader, and console build contracts.
 
-The complete behavior matrix is executable from `crates/smoke` and the focused crate
+The complete behavior matrix is executable from `testing/smoke` and the focused crate
 tests; documentation is not used as evidence in place of those checks.

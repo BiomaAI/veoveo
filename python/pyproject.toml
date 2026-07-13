@@ -1,5 +1,0 @@
-[tool.uv.workspace]
-members = ["veoveo-mcp"]
-
-[tool.uv.sources]
-veoveo-mcp = { workspace = true }

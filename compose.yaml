@@ -132,7 +132,7 @@ services:
     image: veoveo/mcp-gateway:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/mcp-gateway/Dockerfile
+      dockerfile: platform/gateway/Dockerfile
     depends_on:
       surrealdb:
         condition: service_healthy
@@ -164,7 +164,7 @@ services:
     image: veoveo/artifact-service:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/artifact-service/Dockerfile
+      dockerfile: platform/artifacts/service/Dockerfile
     depends_on:
       installation-bootstrap:
         condition: service_completed_successfully
@@ -202,7 +202,7 @@ services:
     image: veoveo/artifact-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/artifact-mcp/Dockerfile
+      dockerfile: servers/artifact-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -234,7 +234,7 @@ services:
     image: veoveo/recording-hub:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/recording-hub/Dockerfile
+      dockerfile: platform/recordings/hub/Dockerfile
     depends_on:
       installation-bootstrap:
         condition: service_completed_successfully
@@ -276,7 +276,7 @@ services:
     image: veoveo/recording-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/recording-mcp/Dockerfile
+      dockerfile: servers/recording-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -312,7 +312,7 @@ services:
     image: veoveo/perception-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/perception-mcp/Dockerfile
+      dockerfile: servers/perception-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -365,7 +365,7 @@ services:
     image: veoveo/media-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/media-mcp/Dockerfile
+      dockerfile: servers/media-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -404,7 +404,7 @@ services:
     image: veoveo/timeseries-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/timeseries-mcp/Dockerfile
+      dockerfile: servers/timeseries-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -439,7 +439,7 @@ services:
     image: veoveo/optimization-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/optimization-mcp/Dockerfile
+      dockerfile: servers/optimization-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -472,7 +472,7 @@ services:
     image: veoveo/coordinates-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/coordinates-mcp/Dockerfile
+      dockerfile: servers/coordinates-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -507,7 +507,7 @@ services:
     image: veoveo/duckdb-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/duckdb-mcp/Dockerfile
+      dockerfile: servers/duckdb-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -590,7 +590,7 @@ services:
     image: veoveo/chart-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: containers/chart-mcp/Dockerfile
+      dockerfile: servers/chart-mcp/Dockerfile
     command:
       - --transport
       - http
@@ -621,7 +621,7 @@ services:
     image: veoveo/mcp-stdio-bridge:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/mcp-stdio-bridge/Dockerfile
+      dockerfile: mcp/bridges/stdio/Dockerfile
     command:
       - --listen
       - 0.0.0.0:8790
@@ -647,7 +647,7 @@ services:
     image: veoveo/mcp-gateway:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/mcp-gateway/Dockerfile
+      dockerfile: platform/gateway/Dockerfile
     depends_on:
       installation-bootstrap:
         condition: service_completed_successfully
@@ -710,7 +710,7 @@ services:
     image: veoveo/console-bff:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: crates/console-bff/Dockerfile
+      dockerfile: apps/console/bff/Dockerfile
     depends_on:
       mcp-gateway:
         condition: service_healthy

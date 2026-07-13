@@ -5,7 +5,7 @@ a Veoveo installation. It ships as a complete working server — `datasheet`, a
 dataset profiling service built on pandas — so every platform obligation has a
 running reference implementation rather than a description.
 
-The shared platform surface lives in `python/veoveo-mcp`. The template stays
+The shared platform surface lives in `sdk/python`. The template stays
 thin: it owns its domain contract, its computation, and one durable task type.
 
 ## What the platform contract requires
@@ -37,7 +37,7 @@ listed next to each obligation is where this template satisfies it.
    handler, and the durable task module change names, not shape.
 4. Register the server in `compose.yaml` and `configs/gateway.local.json`,
    add its slug to the artifact service's allowed audiences, and extend the
-   Rust smoke (`crates/smoke/src/bin/smoke/scenarios/datasheet.rs` is the
+   Rust smoke (`testing/smoke/src/bin/smoke/scenarios/datasheet.rs` is the
    model). All smoke logic stays in Rust.
 
 ## Running locally
@@ -51,7 +51,7 @@ uv run datasheet-mcp --port 8798 --public-base-url https://veoveo.example \
 
 SurrealDB credentials and the internal trust JWKS come from the same
 `VEOVEO_SURREAL_*` and `VEOVEO_INTERNAL_TRUST_JWKS` variables the Rust servers
-use. Schema migrations remain owned by `crates/platform-store`; this server
+use. Schema migrations remain owned by `platform/store`; this server
 never applies them.
 
 ## The example domain

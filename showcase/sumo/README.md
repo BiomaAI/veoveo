@@ -87,7 +87,7 @@ just showcase-sumo-up
 ```
 
 The authenticated endpoint is `http://127.0.0.1:8895/sumo/mcp`. Port `8795`
-remains the canonical chart MCP port. Normal clients should access SUMO through a
+remains the canonical SUMO MCP port. Normal clients should access SUMO through a
 gateway profile that includes the `sumo` server; the loopback port exists for
 operator verification and still rejects requests without an internal assertion.
 
@@ -114,10 +114,10 @@ showcase/sumo/
   compose.showcase.yaml   # overlay for SUMO and sumo-mcp
   compose.smoke.yaml      # host-port isolation for the Rust live smoke
   sim/Dockerfile          # pinned SUMO/LuST TraCI world
-  mcp/Cargo.toml          # veoveo-sumo-mcp crate
-  mcp/Dockerfile          # pinned Rust build and SUMO runtime
-  mcp/src/contract.rs     # typed domain and durable-operation contracts
-  mcp/src/driver.rs       # FakeSimDriver and serialized TraciSimDriver
-  mcp/src/recording.rs    # typed Recording Hub publisher
-  mcp/src/server/         # auth, MCP, task runtime, artifact, and HTTP modules
+  sumo-mcp/Cargo.toml          # veoveo-sumo-mcp crate
+  sumo-mcp/Dockerfile          # pinned Rust build and SUMO runtime
+  sumo-mcp/src/contract.rs     # typed domain and durable-operation contracts
+  sumo-mcp/src/driver.rs       # FakeSimDriver and serialized TraciSimDriver
+  sumo-mcp/src/recording.rs    # typed Recording Hub publisher
+  sumo-mcp/src/server/         # auth, MCP, task runtime, artifact, and HTTP modules
 ```

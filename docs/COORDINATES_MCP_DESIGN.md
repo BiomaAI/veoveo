@@ -24,7 +24,7 @@ coordinate operations; the shared contract owns the shapes.
 Implemented MVP in this workspace. The current implementation adds:
 
 - shared coordinate contract types in `veoveo_mcp_contract::coordinates`
-- hosted `veoveo-coordinates-mcp` server under `crates/coordinates-mcp`
+- hosted `veoveo-coordinates-mcp` server under `servers/coordinates-mcp`
 - WGS84, ECEF, ENU, and NED frame conversion
 - CRS transforms through PROJ with normalized axis order
 - WGS84 geodesic inverse/direct tools
@@ -37,7 +37,7 @@ Implemented MVP in this workspace. The current implementation adds:
 The target crate name is `veoveo-coordinates-mcp`, with a concise folder name:
 
 ```text
-crates/coordinates-mcp
+servers/coordinates-mcp
 ```
 
 The hosted server slug and URI scheme should both be `coordinates`.
@@ -128,7 +128,7 @@ can be capable.
 Coordinate and frame types belong in the shared contract crate:
 
 ```text
-crates/mcp-contract/src/coordinates.rs
+mcp/contract/src/coordinates.rs
 veoveo_mcp_contract::coordinates
 ```
 
@@ -827,14 +827,14 @@ state tolerances in meters or degrees.
 Keep the binary entrypoint thin:
 
 ```text
-crates/mcp-contract/src/coordinates.rs
-crates/coordinates-mcp/src/bin/server.rs
-crates/coordinates-mcp/src/lib.rs
-crates/coordinates-mcp/src/artifacts.rs
-crates/coordinates-mcp/src/engine.rs
-crates/coordinates-mcp/src/state.rs
-crates/coordinates-mcp/src/uris.rs
-crates/coordinates-mcp/src/bin/server/
+mcp/contract/src/coordinates.rs
+servers/coordinates-mcp/src/bin/server.rs
+servers/coordinates-mcp/src/lib.rs
+servers/coordinates-mcp/src/artifacts.rs
+servers/coordinates-mcp/src/engine.rs
+servers/coordinates-mcp/src/state.rs
+servers/coordinates-mcp/src/uris.rs
+servers/coordinates-mcp/src/bin/server/
   app_state.rs
   config.rs
   host.rs

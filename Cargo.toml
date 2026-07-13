@@ -1,30 +1,30 @@
 [workspace]
 members = [
-    "crates/agent-kernel",
-    "crates/agent-runtime",
-    "crates/artifact-client",
-    "crates/artifact-mcp",
-    "crates/artifact-service",
-    "crates/console-bff",
-    "crates/coordinates-mcp",
-    "crates/duckdb-mcp",
-    "crates/duckdb-runtime",
-    "crates/mcp-gateway",
-    "crates/mcp-conformance",
-    "crates/mcp-contract",
-    "crates/mcp-task-extension",
-    "crates/mcp-stdio-bridge",
-    "crates/media-mcp",
-    "crates/optimization-mcp",
-    "crates/perception-mcp",
-    "crates/platform-store",
-    "crates/recording-hub",
-    "crates/recording-mcp",
-    "crates/rrd",
-    "crates/smoke",
-    "crates/task-runtime",
-    "crates/timeseries-mcp",
-    "showcase/sumo/mcp",
+    "agents/kernel",
+    "agents/runtime",
+    "apps/console/bff",
+    "mcp/bridges/stdio",
+    "mcp/contract",
+    "mcp/task-extension",
+    "platform/artifacts/client",
+    "platform/artifacts/service",
+    "platform/gateway",
+    "platform/recordings/hub",
+    "platform/recordings/rrd",
+    "platform/runtimes/duckdb",
+    "platform/store",
+    "platform/task-runtime",
+    "servers/artifact-mcp",
+    "servers/coordinates-mcp",
+    "servers/duckdb-mcp",
+    "servers/media-mcp",
+    "servers/optimization-mcp",
+    "servers/perception-mcp",
+    "servers/recording-mcp",
+    "servers/timeseries-mcp",
+    "showcase/sumo/sumo-mcp",
+    "testing/mcp-conformance",
+    "testing/smoke",
 ]
 resolver = "3"
 
@@ -102,6 +102,6 @@ url = "2.5.8"
 uuid = { version = "1.23.4", features = ["v4", "v5", "v7"] }
 zeroize = "1.8.2"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
-veoveo-mcp-contract = { path = "crates/mcp-contract", default-features = false }
-veoveo-platform-store = { path = "crates/platform-store" }
-veoveo-rrd = { path = "crates/rrd" }
+veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
+veoveo-platform-store = { path = "platform/store" }
+veoveo-rrd = { path = "platform/recordings/rrd" }

@@ -281,28 +281,18 @@ commands.
 ## Repository Map
 
 ```text
-crates/mcp-contract/        shared typed policy and protocol contracts
-crates/platform-store/      SurrealDB 3.2 schema and typed persistence API
-crates/task-runtime/        durable task leases, recovery, outbox, and retention
-crates/mcp-task-extension/  final task-extension wire adapter
-crates/mcp-gateway/         auth, policy, MCP aggregation, admin, audit, refresh tokens
-crates/artifact-service/    artifact byte PEP, grants, shares, retention, S3
-crates/artifact-mcp/        canonical artifact MCP projection
-crates/recording-hub/       durable Rerun ingest and segment spool
-crates/recording-mcp/       authorized recording MCP projection
-crates/perception-mcp/      governed Rerun video extraction and local GPU inference
-crates/agent-runtime/       durable agent persistence and scheduling
-crates/agent-kernel/        autonomous MCP agent loop and memory planes
-crates/*-mcp/               hosted domain servers
-crates/console-bff/         browser auth/session/API boundary
-crates/smoke/               Rust multi-process and deployment smoke harness
-python/veoveo-mcp/          Python platform package for hosted MCP servers
+agents/                     agent kernel and durable runtime
+apps/console/               browser BFF and React operations UI
+mcp/                        shared MCP contracts, extensions, and bridges
+platform/                   gateway, persistence, task, artifact, recording, and query runtimes
+servers/                    hosted MCP servers, including artifact and recording projections
+testing/                    protocol conformance and Rust multi-process smoke harnesses
+sdk/python/                 Python platform package for hosted MCP servers
 templates/python-mcp/       canonical Python server template (datasheet)
-console/                    React operations console
+showcase/sumo/              real SUMO world, simulator image, and showcase MCP server
 configs/                    canonical typed installation configuration
 deploy/                     Helm and offline installation material
-showcase/sumo/              real traffic-world integration
-examples/bioma/             one optional Entra/Cloudflare deployment example
+examples/bioma/             optional Entra and Cloudflare deployment example
 ```
 
 Detailed ownership and call paths are in [`docs/CODEMAP.md`](docs/CODEMAP.md) and

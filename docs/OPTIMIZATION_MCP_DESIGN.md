@@ -19,7 +19,7 @@ Initial implementation exists in this workspace.
 The target crate name is `veoveo-optimization-mcp`, with a concise folder name:
 
 ```text
-crates/optimization-mcp
+servers/optimization-mcp
 ```
 
 The hosted server slug and URI scheme are both `optimization`. The canonical
@@ -707,12 +707,12 @@ Use the existing `operator:use` scope for normal agent and operator planning.
 Introduce optimization-specific scopes only when there are real admin
 operations.
 
-## Crate Layout
+## Server Layout
 
 The server should start modular. Avoid growing one large `server.rs`.
 
 ```text
-crates/optimization-mcp/
+servers/optimization-mcp/
   Cargo.toml
   src/
     lib.rs
