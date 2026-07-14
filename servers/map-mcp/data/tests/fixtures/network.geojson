@@ -1,0 +1,45 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "maritime-alpha-bravo",
+      "properties": {
+        "name": "Maritime Alpha Bravo",
+        "from_node": "port-alpha",
+        "to_node": "waypoint-bravo",
+        "map_family": "maritime",
+        "distance_m": 1200.0,
+        "nominal_duration_s": 240.0,
+        "bidirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-89.2190, 13.6800],
+          [-89.2140, 13.6840]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "maritime-bravo-charlie",
+      "properties": {
+        "name": "Maritime Bravo Charlie",
+        "from_node": "waypoint-bravo",
+        "to_node": "port-charlie",
+        "map_family": "maritime",
+        "distance_m": 1500.0,
+        "nominal_duration_s": 300.0,
+        "bidirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-89.2140, 13.6840],
+          [-89.2080, 13.6880]
+        ]
+      }
+    }
+  ]
+}
