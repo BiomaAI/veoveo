@@ -11,6 +11,7 @@ mod tools;
 mod upstream;
 mod upstream_cache;
 mod upstream_http;
+pub use upstream_http::build_upstream_http_client;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
@@ -42,7 +43,6 @@ use crate::{
 };
 use upstream::GatewayUpstreamHandler;
 use upstream_cache::{UpstreamCacheKey, UpstreamConnection, UpstreamConnectionCache};
-use upstream_http::build_upstream_http_client;
 
 pub use final_tasks::FinalTaskClient;
 pub use health::{GatewayServerHealth, GatewayServerHealthState, probe_gateway_server_health};

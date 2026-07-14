@@ -1,6 +1,6 @@
 use axum::{
-    body::Body,
-    extract::{Path, State},
+    body::{Body, to_bytes},
+    extract::{Path, Request as AxumRequest, State},
     http::{
         HeaderMap, HeaderValue, Method, Request, StatusCode,
         header::{
@@ -26,6 +26,7 @@ use crate::{
 };
 
 const MAX_SNAPSHOT_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_MAP_ADMIN_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 pub(crate) const CSRF_HEADER: &str = "x-veoveo-csrf-token";
 
 pub(crate) async fn enforce_csrf(
@@ -132,6 +133,86 @@ pub(crate) async fn cancel_task(
         None,
     )
     .await
+}
+
+pub(crate) async fn map_admin(
+    State(state): State<AppState>,
+    Path(path): Path<String>,
+    request_headers: HeaderMap,
+    request: AxumRequest,
+) -> Response {
+    if !valid_map_admin_path(&path)
+        || !matches!(
+            *request.method(),
+            Method::GET | Method::HEAD | Method::POST | Method::PUT
+        )
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let session = match upstream_session(&state, &request_headers).await {
+        Ok(session) => session,
+        Err(response) => return response,
+    };
+    let mut headers = match response_session_headers(&state, &session) {
+        Ok(headers) => headers,
+        Err(status) => return status.into_response(),
+    };
+    let method = request.method().clone();
+    let query = request.uri().query().map(ToOwned::to_owned);
+    let body = match to_bytes(request.into_body(), MAX_MAP_ADMIN_REQUEST_BYTES).await {
+        Ok(body) => body,
+        Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+    };
+    let mut url = state.config.admin_url(&format!("servers/map/{path}"));
+    url.set_query(query.as_deref());
+    let upstream = match state
+        .http
+        .request(method, url)
+        .header(HOST, state.config.gateway_host())
+        .header(CONTENT_TYPE, "application/json")
+        .bearer_auth(&session.session.access_token)
+        .body(body)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, "console Map administration upstream failed");
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        }
+    };
+    if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
+        return unauthorized(&state);
+    }
+    if upstream
+        .content_length()
+        .is_some_and(|length| length > MAX_SNAPSHOT_BYTES)
+    {
+        return (headers, StatusCode::BAD_GATEWAY).into_response();
+    }
+    let status = upstream.status();
+    let content_type = upstream.headers().get(CONTENT_TYPE).cloned();
+    let body = match upstream.bytes().await {
+        Ok(body) if body.len() as u64 <= MAX_SNAPSHOT_BYTES => body,
+        _ => return (headers, StatusCode::BAD_GATEWAY).into_response(),
+    };
+    if let Some(content_type) = content_type {
+        headers.insert(CONTENT_TYPE, content_type);
+    }
+    (status, headers, body).into_response()
+}
+
+fn valid_map_admin_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= 2_048
+        && path.split('/').all(|segment| {
+            !segment.is_empty()
+                && segment != "."
+                && segment != ".."
+                && segment
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        })
 }
 
 pub(crate) async fn set_artifact_release_state(

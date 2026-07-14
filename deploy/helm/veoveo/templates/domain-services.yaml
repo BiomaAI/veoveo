@@ -1,5 +1,5 @@
 {{- range $service := .Values.domainServices }}
-{{- if and $service.duckdbSandbox $service.persistence }}
+{{- if $service.persistence }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -116,9 +116,19 @@ spec:
               mountPath: /var/lib/veoveo/runtime
             - name: tmp
               mountPath: /tmp
-            {{- if $service.duckdbSandbox }}
+            {{- if $service.persistence }}
             - name: workspace
-              mountPath: /var/lib/veoveo/duckdb
+              mountPath: {{ default "/var/lib/veoveo/duckdb" $service.persistenceMountPath }}
+            {{- end }}
+            {{- if $service.sourceExchangeClaim }}
+            - name: source-exchange
+              mountPath: /data/map-sources
+              readOnly: true
+            {{- end }}
+            {{- if $service.sourceSecretName }}
+            - name: source-secrets
+              mountPath: /run/secrets/map
+              readOnly: true
             {{- end }}
       volumes:
         - name: runtime
@@ -126,13 +136,19 @@ spec:
             sizeLimit: 1Gi
         - name: tmp
           emptyDir: {}
-        {{- if $service.duckdbSandbox }}
+        {{- if $service.persistence }}
         - name: workspace
-          {{- if $service.persistence }}
           persistentVolumeClaim:
             claimName: {{ $service.name }}-workspace
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
+        {{- end }}
+        {{- if $service.sourceExchangeClaim }}
+        - name: source-exchange
+          persistentVolumeClaim:
+            claimName: {{ $service.sourceExchangeClaim }}
+        {{- end }}
+        {{- if $service.sourceSecretName }}
+        - name: source-secrets
+          secret:
+            secretName: {{ $service.sourceSecretName }}
         {{- end }}
 {{- end }}

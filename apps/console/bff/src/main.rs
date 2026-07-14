@@ -8,7 +8,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use axum::{
     Router, middleware,
-    routing::{delete, get, post, put},
+    routing::{any, delete, get, post, put},
 };
 use config::Config;
 use session::SessionCipher;
@@ -54,6 +54,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/callback", get(oauth::callback))
         .route("/auth/logout", post(oauth::logout))
         .route("/console/api/snapshot", get(api::snapshot))
+        .route("/console/api/map/{*path}", any(api::map_admin))
         .route(
             "/console/api/tasks/{task_id}/cancel",
             post(api::cancel_task),

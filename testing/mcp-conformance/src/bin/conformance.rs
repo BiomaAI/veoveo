@@ -58,11 +58,13 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use url::Url;
-use veoveo_coordinates_mcp::contract::{
+use veoveo_frames_mcp::contract::{
     BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-    CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest, GeodesicDirectOutput,
-    GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest, TransformCrsOutput,
-    TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
+    CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
+};
+use veoveo_map_mcp::contract::{
+    GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
+    TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput, ValidateGeofenceRequest,
 };
 use veoveo_mcp_contract::{
     AccessTokenSubject, AnalyticalRuntimeDeployment, ArtifactMetadata, AuditEvent, AuthAuditEvent,
@@ -278,13 +280,13 @@ async fn main() -> Result<()> {
         Cmd::GatewayPilotSmokeControlPlane {
             base,
             output,
-            coordinates_upstream_url,
+            frames_upstream_url,
             optimization_upstream_url,
         } => {
             return cmd_gateway_pilot_smoke_control_plane(
                 base.clone(),
                 output.clone(),
-                coordinates_upstream_url.clone(),
+                frames_upstream_url.clone(),
                 optimization_upstream_url.clone(),
             );
         }

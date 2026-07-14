@@ -19,7 +19,7 @@ pub use catalog::{GatewayCatalog, GatewayCatalogHandle, GatewayCatalogSnapshot};
 pub use control_store::{GatewayControlStore, new_gateway_control_plane_revision_id};
 pub use mcp::{
     FinalTaskClient, GatewayMcp, GatewayServerHealth, GatewayServerHealthState,
-    probe_gateway_server_health,
+    build_upstream_http_client, probe_gateway_server_health,
 };
 pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,

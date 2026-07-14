@@ -28,8 +28,8 @@ use veoveo_mcp_gateway::{
 
 use super::{
     admin::{
-        cancel_task, create_artifact_share_link, grant_artifact, prune_jwt_revocations,
-        read_console_snapshot, read_control_plane, revoke_artifact_grant,
+        cancel_task, create_artifact_share_link, grant_artifact, proxy_server_admin,
+        prune_jwt_revocations, read_console_snapshot, read_control_plane, revoke_artifact_grant,
         revoke_artifact_share_link, revoke_jwt, set_artifact_release_state, update_control_plane,
     },
     artifact_download::download_artifact,
@@ -190,6 +190,10 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             post(prune_jwt_revocations),
         )
         .route("/admin/{profile}/tasks/{task_id}/cancel", post(cancel_task))
+        .route(
+            "/admin/{profile}/servers/{server}/{*path}",
+            any(proxy_server_admin),
+        )
         .route(
             "/admin/{profile}/artifacts/{artifact_id}/release-state",
             axum::routing::put(set_artifact_release_state),

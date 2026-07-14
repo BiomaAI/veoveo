@@ -215,13 +215,13 @@
       "metadata": {}
     },
     {
-      "slug": "coordinates",
-      "uri_scheme": "coordinates",
-      "mount_path": "/coordinates",
-      "mcp_path": "/coordinates/mcp",
+      "slug": "frames",
+      "uri_scheme": "frames",
+      "mount_path": "/frames",
+      "mcp_path": "/frames/mcp",
       "upstream": {
         "transport": "streamable_http",
-        "url": "http://coordinates-mcp:8793/coordinates/mcp",
+        "url": "http://frames-mcp:8793/frames/mcp",
         "security": "compose_internal_http"
       },
       "capabilities": {
@@ -237,17 +237,57 @@
       "tools": [
         "batch_transform",
         "convert_frame",
-        "derive_local_frame",
-        "geodesic_direct",
-        "geodesic_inverse",
-        "transform_crs",
-        "validate_geofence"
+        "derive_local_frame"
       ],
       "prompts": [
-        "coordinates-frame-audit",
-        "coordinates-local-frame-select",
-        "coordinates-geofence-review",
-        "coordinates-transform-explain"
+        "frames-frame-audit",
+        "frames-local-frame-select",
+        "frames-transform-explain"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
+      "slug": "map",
+      "uri_scheme": "map",
+      "mount_path": "/map",
+      "mcp_path": "/map/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://map-mcp:8799/map/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "geodesic_direct",
+        "geodesic_inverse",
+        "inspect_corridor",
+        "inspect_location",
+        "publish_restriction",
+        "reachable_area",
+        "route",
+        "route_matrix",
+        "search_locations",
+        "transform_crs",
+        "validate_geofence",
+        "validate_route",
+        "withdraw_restriction"
+      ],
+      "prompts": [
+        "prepare_logistics_matrix",
+        "prepare_route_request",
+        "review_route"
       ],
       "required_scopes": [
         "operator:use"
@@ -567,17 +607,13 @@
           "tasks": "enabled"
         },
         {
-          "server": "coordinates",
+          "server": "frames",
           "tools": {
             "mode": "listed",
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame",
-              "geodesic_direct",
-              "geodesic_inverse",
-              "transform_crs",
-              "validate_geofence"
+              "derive_local_frame"
             ]
           },
           "resources": {
@@ -585,7 +621,27 @@
             "items": [
               {
                 "kind": "scheme",
-                "scheme": "coordinates"
+                "scheme": "frames"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "map",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "map"
               }
             ]
           },
@@ -852,17 +908,13 @@
           "tasks": "enabled"
         },
         {
-          "server": "coordinates",
+          "server": "frames",
           "tools": {
             "mode": "listed",
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame",
-              "geodesic_direct",
-              "geodesic_inverse",
-              "transform_crs",
-              "validate_geofence"
+              "derive_local_frame"
             ]
           },
           "resources": {
@@ -870,7 +922,27 @@
             "items": [
               {
                 "kind": "scheme",
-                "scheme": "coordinates"
+                "scheme": "frames"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "map",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "map"
               }
             ]
           },
@@ -1961,7 +2033,7 @@
           ]
         },
         {
-          "id": "allow_operator_coordinates_use",
+          "id": "allow_operator_frames_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -1982,25 +2054,20 @@
             "operator"
           ],
           "servers": [
-            "coordinates"
+            "frames"
           ],
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame",
-            "geodesic_direct",
-            "geodesic_inverse",
-            "transform_crs",
-            "validate_geofence"
+            "derive_local_frame"
           ],
           "resource_schemes": [
-            "coordinates"
+            "frames"
           ],
           "prompts": [
-            "coordinates-frame-audit",
-            "coordinates-local-frame-select",
-            "coordinates-geofence-review",
-            "coordinates-transform-explain"
+            "frames-frame-audit",
+            "frames-local-frame-select",
+            "frames-transform-explain"
           ],
           "required_scopes": [
             "operator:use"
@@ -2014,7 +2081,7 @@
           ]
         },
         {
-          "id": "allow_operator_service_coordinates_use",
+          "id": "allow_operator_service_frames_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -2035,25 +2102,20 @@
             "operator"
           ],
           "servers": [
-            "coordinates"
+            "frames"
           ],
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame",
-            "geodesic_direct",
-            "geodesic_inverse",
-            "transform_crs",
-            "validate_geofence"
+            "derive_local_frame"
           ],
           "resource_schemes": [
-            "coordinates"
+            "frames"
           ],
           "prompts": [
-            "coordinates-frame-audit",
-            "coordinates-local-frame-select",
-            "coordinates-geofence-review",
-            "coordinates-transform-explain"
+            "frames-frame-audit",
+            "frames-local-frame-select",
+            "frames-transform-explain"
           ],
           "required_scopes": [
             "operator:use"
@@ -2064,7 +2126,7 @@
           ]
         },
         {
-          "id": "allow_admin_coordinates_use",
+          "id": "allow_admin_frames_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -2085,25 +2147,20 @@
             "admin"
           ],
           "servers": [
-            "coordinates"
+            "frames"
           ],
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame",
-            "geodesic_direct",
-            "geodesic_inverse",
-            "transform_crs",
-            "validate_geofence"
+            "derive_local_frame"
           ],
           "resource_schemes": [
-            "coordinates"
+            "frames"
           ],
           "prompts": [
-            "coordinates-frame-audit",
-            "coordinates-local-frame-select",
-            "coordinates-geofence-review",
-            "coordinates-transform-explain"
+            "frames-frame-audit",
+            "frames-local-frame-select",
+            "frames-transform-explain"
           ],
           "required_scopes": [
             "operator:use"
@@ -2117,7 +2174,7 @@
           ]
         },
         {
-          "id": "allow_admin_service_coordinates_use",
+          "id": "allow_admin_service_frames_use",
           "effect": "allow",
           "actions": [
             "tools_list",
@@ -2138,25 +2195,20 @@
             "admin"
           ],
           "servers": [
-            "coordinates"
+            "frames"
           ],
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame",
-            "geodesic_direct",
-            "geodesic_inverse",
-            "transform_crs",
-            "validate_geofence"
+            "derive_local_frame"
           ],
           "resource_schemes": [
-            "coordinates"
+            "frames"
           ],
           "prompts": [
-            "coordinates-frame-audit",
-            "coordinates-local-frame-select",
-            "coordinates-geofence-review",
-            "coordinates-transform-explain"
+            "frames-frame-audit",
+            "frames-local-frame-select",
+            "frames-transform-explain"
           ],
           "required_scopes": [
             "operator:use"
@@ -2165,6 +2217,104 @@
           "principal_ids": [
             "https://veoveo.example/oauth#admin-service"
           ]
+        },
+        {
+          "id": "allow_map_surface_read",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "required_scopes": ["operator:use", "map:dataset:read"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_read_tools",
+          "effect": "allow",
+          "actions": ["tools_call"],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "tools": [
+            "geodesic_direct",
+            "geodesic_inverse",
+            "inspect_corridor",
+            "inspect_location",
+            "search_locations",
+            "transform_crs",
+            "validate_geofence"
+          ],
+          "required_scopes": ["operator:use", "map:dataset:read"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_route_tools",
+          "effect": "allow",
+          "actions": ["tools_call"],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "tools": ["route", "validate_route"],
+          "required_scopes": ["operator:use", "map:route"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_reachable_tasks",
+          "effect": "allow",
+          "actions": ["tools_call", "tasks_get", "tasks_result", "tasks_cancel"],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "tools": ["reachable_area"],
+          "required_scopes": ["operator:use", "map:route"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_matrix_tasks",
+          "effect": "allow",
+          "actions": ["tools_call", "tasks_get", "tasks_result", "tasks_cancel"],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "tools": ["route_matrix"],
+          "required_scopes": ["operator:use", "map:route_matrix"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_restriction_publish",
+          "effect": "allow",
+          "actions": ["tools_call"],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "tools": ["publish_restriction"],
+          "required_scopes": ["operator:use", "map:restriction:publish"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_restriction_withdraw",
+          "effect": "allow",
+          "actions": ["tools_call"],
+          "profiles": ["operator", "admin"],
+          "servers": ["map"],
+          "tools": ["withdraw_restriction"],
+          "required_scopes": ["operator:use", "map:restriction:withdraw"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_map_administration",
+          "effect": "allow",
+          "actions": ["admin_read", "admin_write"],
+          "profiles": ["admin"],
+          "servers": ["map"],
+          "required_scopes": ["operator:use", "admin:manage", "map:admin"],
+          "metadata": {}
         },
         {
           "id": "allow_operator_duckdb_use",
@@ -2644,7 +2794,12 @@
         "none"
       ],
       "allowed_scopes": [
-        "operator:use"
+        "operator:use",
+        "map:dataset:read",
+        "map:route",
+        "map:route_matrix",
+        "map:restriction:publish",
+        "map:restriction:withdraw"
       ],
       "metadata": {
         "client_boundary": "local_public"
@@ -2682,7 +2837,12 @@
         "none"
       ],
       "allowed_scopes": [
-        "operator:use"
+        "operator:use",
+        "map:dataset:read",
+        "map:route",
+        "map:route_matrix",
+        "map:restriction:publish",
+        "map:restriction:withdraw"
       ],
       "metadata": {
         "client_boundary": "hosted_public"
@@ -2710,7 +2870,13 @@
       ],
       "allowed_scopes": [
         "operator:use",
-        "admin:manage"
+        "admin:manage",
+        "map:admin",
+        "map:dataset:read",
+        "map:route",
+        "map:route_matrix",
+        "map:restriction:publish",
+        "map:restriction:withdraw"
       ],
       "metadata": {
         "client_boundary": "admin_console"
@@ -2735,7 +2901,12 @@
         "private_key_jwt"
       ],
       "allowed_scopes": [
-        "operator:use"
+        "operator:use",
+        "map:dataset:read",
+        "map:route",
+        "map:route_matrix",
+        "map:restriction:publish",
+        "map:restriction:withdraw"
       ],
       "metadata": {
         "client_boundary": "operator_service"
@@ -2762,7 +2933,13 @@
       ],
       "allowed_scopes": [
         "operator:use",
-        "admin:manage"
+        "admin:manage",
+        "map:admin",
+        "map:dataset:read",
+        "map:route",
+        "map:route_matrix",
+        "map:restriction:publish",
+        "map:restriction:withdraw"
       ],
       "metadata": {
         "client_boundary": "admin_service"
@@ -2789,7 +2966,12 @@
         "private_key_jwt"
       ],
       "allowed_scopes": [
-        "operator:use"
+        "operator:use",
+        "map:dataset:read",
+        "map:route",
+        "map:route_matrix",
+        "map:restriction:publish",
+        "map:restriction:withdraw"
       ],
       "metadata": {
         "client_boundary": "agent"

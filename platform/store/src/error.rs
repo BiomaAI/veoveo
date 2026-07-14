@@ -96,6 +96,13 @@ pub enum StoreError {
     CoordinateFrameConflict(String),
     #[error("coordinate operation `{0}` conflicts with its durable provenance")]
     CoordinateOperationConflict(String),
+    #[error("invalid map field {field}: {reason}")]
+    InvalidMapField {
+        field: &'static str,
+        reason: &'static str,
+    },
+    #[error("map {entity} `{key}` conflicts with the current durable record")]
+    MapRecordConflict { entity: &'static str, key: String },
     #[error("task `{0}` was not found")]
     TaskNotFound(String),
     #[error("task `{task_id}` does not belong to MCP server `{server}`")]

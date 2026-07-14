@@ -1,0 +1,60 @@
+[package]
+name = "veoveo-map-mcp"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_map_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+base64.workspace = true
+chrono.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+duckdb.workspace = true
+futures.workspace = true
+flate2.workspace = true
+geo.workspace = true
+geo-types.workspace = true
+geographiclib-rs.workspace = true
+geojson.workspace = true
+hex.workspace = true
+nix.workspace = true
+petgraph.workspace = true
+polyline.workspace = true
+proj.workspace = true
+rayon.workspace = true
+reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+rstar.workspace = true
+rustls.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+thiserror.workspace = true
+tar.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+veoveo-artifact-client = { path = "../../platform/artifacts/client" }
+veoveo-duckdb-runtime = { path = "../../platform/runtimes/duckdb" }
+veoveo-mcp-contract.workspace = true
+veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
+veoveo-platform-store = { path = "../../platform/store" }
+veoveo-task-runtime = { path = "../../platform/task-runtime" }
+
+[dev-dependencies]
+tempfile = "3"
+tower = { workspace = true, features = ["util"] }

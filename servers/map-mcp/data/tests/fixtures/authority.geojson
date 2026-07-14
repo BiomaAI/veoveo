@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "warehouse-alpha",
+      "properties": {
+        "name": "Warehouse Alpha",
+        "facility_kind": "warehouse",
+        "supported_mobility_families": ["road_vehicle"],
+        "transfer_map_families": ["road_street", "intermodal"],
+        "capabilities": ["cross_dock"]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.2182, 13.6929]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "district-alpha",
+      "properties": {
+        "name": "District Alpha",
+        "boundary_kind": "administrative"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-89.23, 13.68],
+          [-89.20, 13.68],
+          [-89.20, 13.71],
+          [-89.23, 13.71],
+          [-89.23, 13.68]
+        ]]
+      }
+    }
+  ]
+}

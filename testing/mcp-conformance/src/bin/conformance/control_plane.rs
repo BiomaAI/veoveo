@@ -184,30 +184,22 @@ fn configure_profiles_for_duckdb(control_plane: &mut Value) -> Result<()> {
 pub(super) fn cmd_gateway_pilot_smoke_control_plane(
     base: PathBuf,
     output: PathBuf,
-    coordinates_upstream_url: String,
+    frames_upstream_url: String,
     optimization_upstream_url: String,
 ) -> Result<()> {
-    validate_loopback_http_url(&coordinates_upstream_url, "--coordinates-upstream-url")?;
+    validate_loopback_http_url(&frames_upstream_url, "--frames-upstream-url")?;
     validate_loopback_http_url(&optimization_upstream_url, "--optimization-upstream-url")?;
 
     let mut control_plane: Value = serde_json::from_str(&std::fs::read_to_string(&base)?)?;
-    let coordinates = pilot_server_manifest(
-        "coordinates",
-        &coordinates_upstream_url,
+    let frames = pilot_server_manifest(
+        "frames",
+        &frames_upstream_url,
         serde_json::json!({
             "tools": true, "resources": true, "resource_templates": true,
             "resource_subscriptions": false, "prompts": true, "completions": true,
             "tasks": true, "notifications": true
         }),
-        &[
-            "batch_transform",
-            "convert_frame",
-            "derive_local_frame",
-            "geodesic_direct",
-            "geodesic_inverse",
-            "transform_crs",
-            "validate_geofence",
-        ],
+        &["batch_transform", "convert_frame", "derive_local_frame"],
     );
     let optimization = pilot_server_manifest(
         "optimization",
@@ -225,7 +217,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
             .iter_mut()
             .find(|server| server.get("slug").and_then(Value::as_str) == Some("media"))
             .ok_or_else(|| anyhow!("control plane has no `media` server"))?;
-        *media = coordinates;
+        *media = frames;
         servers.push(optimization);
     }
     for profile_id in ["operator", "admin"] {
@@ -236,16 +228,8 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
             .ok_or_else(|| anyhow!("control plane has no `{profile_id}` profile"))?;
         profile["servers"] = serde_json::json!([
             pilot_profile_exposure(
-                "coordinates",
-                &[
-                    "batch_transform",
-                    "convert_frame",
-                    "derive_local_frame",
-                    "geodesic_direct",
-                    "geodesic_inverse",
-                    "transform_crs",
-                    "validate_geofence",
-                ],
+                "frames",
+                &["batch_transform", "convert_frame", "derive_local_frame",],
                 "all"
             ),
             pilot_profile_exposure("optimization", &["plan"], "none"),
@@ -278,13 +262,11 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
                     "tasks_result", "tasks_cancel", "artifact_read", "usage_read"
                 ],
                 "profiles": [profile],
-                "servers": ["coordinates"],
+                "servers": ["frames"],
                 "tools": [
-                    "batch_transform", "convert_frame", "derive_local_frame",
-                    "geodesic_direct", "geodesic_inverse", "transform_crs",
-                    "validate_geofence"
+                    "batch_transform", "convert_frame", "derive_local_frame"
                 ],
-                "resource_schemes": ["coordinates"],
+                "resource_schemes": ["frames"],
                 "required_scopes": ["operator:use"],
                 "metadata": {}
             });

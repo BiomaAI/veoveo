@@ -71,7 +71,7 @@ and authorization records.
 
 ## Hosted Servers
 
-The canonical control plane defines eleven server identities:
+The canonical control plane defines twelve server identities:
 
 | Server | Main capability |
 |---|---|
@@ -79,7 +79,8 @@ The canonical control plane defines eleven server identities:
 | `timeseries` | typed forecasting and durable RRD output |
 | `duckdb` | arbitrary query/execute/ingest/export SQL in bounded workspaces |
 | `optimization` | deterministic planning and artifact output |
-| `coordinates` | CRS, geodesic, local-frame, geofence, and batch transformations |
+| `frames` | WGS84, ECEF, ENU, and NED frame conversion and durable batches |
+| `map` | Earth geography, governed map releases, restrictions, and logistics routing |
 | `datasheet` | dataset preview, column statistics, and task-based profiling (Python template) |
 | `artifact` | artifact discovery, metadata, grants, release, and sharing |
 | `recording` | governed recording discovery, query, subscription, and publication |
@@ -249,8 +250,8 @@ Loading retains all verification evidence. See
 
 The workspace is pinned by `rust-toolchain.toml` and uses Rust edition 2024. Building
 it natively needs a C/C++ toolchain, `cmake`, `pkg-config`, and SQLite development
-files, because `proj-sys` compiles PROJ from source for the coordinates server and
-its dependents (the conformance client and the gateway):
+files, because `proj-sys` compiles PROJ from source for Map and its dependents
+(the conformance client and the gateway):
 
 ```bash
 sudo apt-get install build-essential cmake pkg-config sqlite3 libsqlite3-dev

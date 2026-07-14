@@ -93,7 +93,7 @@ artifactService:
     tag: 0.1.0
     digest: ""
   replicas: 2
-  allowedAudiences: artifact,media,timeseries,optimization,duckdb,coordinates,recording,perception
+  allowedAudiences: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception
   resources:
     requests:
       cpu: 100m
@@ -203,22 +203,58 @@ domainServices:
       - optimization-mcp:8792
       - --artifact-service-url
       - http://veoveo-artifact-service:8790
-  - name: coordinates-mcp
+  - name: frames-mcp
     image:
-      repository: veoveo/coordinates-mcp
+      repository: veoveo/frames-mcp
       tag: 0.1.0
       digest: ""
     port: 8793
-    healthPath: /coordinates/healthz
+    healthPath: /frames/healthz
     args:
       - --port
       - "8793"
       - --allowed-host
-      - coordinates-mcp:8793
+      - frames-mcp:8793
       - --artifact-service-url
       - http://veoveo-artifact-service:8790
       - --max-artifact-bytes
       - "67108864"
+  - name: map-mcp
+    replicas: 1
+    image:
+      repository: veoveo/map-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8799
+    healthPath: /map/healthz
+    args:
+      - --port
+      - "8799"
+      - --allowed-host
+      - map-mcp:8799
+      - --artifact-service-url
+      - http://veoveo-artifact-service:8790
+      - --map-database
+      - /var/lib/veoveo/map/catalog.duckdb
+      - --duckdb-spill-dir
+      - /var/lib/veoveo/map/spill
+      - --acquisition-scratch-root
+      - /var/lib/veoveo/map/acquisitions
+      - --release-root
+      - /var/lib/veoveo/map/releases
+      - --source-mount-root
+      - /data/map-sources
+      - --max-artifact-bytes
+      - "536870912"
+      - --max-routing-expanded-bytes
+      - "17179869184"
+    persistenceMountPath: /var/lib/veoveo/map
+    sourceExchangeClaim: ""
+    sourceSecretName: ""
+    persistence:
+      size: 100Gi
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
   - name: duckdb-mcp
     replicas: 1
     image:
@@ -238,6 +274,8 @@ domainServices:
       - /var/lib/veoveo/duckdb/exchange
       - --spill-dir
       - /var/lib/veoveo/duckdb/spill
+      - --spatial-extension
+      - /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
       - --artifact-service-url
       - http://veoveo-artifact-service:8790
       - --max-artifact-bytes

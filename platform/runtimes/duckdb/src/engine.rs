@@ -15,6 +15,40 @@ pub struct EngineSettings {
     /// DuckDB can always use its temp directory, so it must not contain
     /// request inputs or other sensitive files.
     pub spill_dir: PathBuf,
+    /// Signed extensions selected and loaded by the embedding service before
+    /// external access and configuration changes are disabled.
+    pub trusted_extensions: Vec<TrustedExtension>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedExtension {
+    name: String,
+    path: PathBuf,
+}
+
+impl TrustedExtension {
+    pub fn new(name: impl Into<String>, path: impl Into<PathBuf>) -> Result<Self> {
+        let name = name.into();
+        let mut chars = name.chars();
+        if !chars.next().is_some_and(|first| first.is_ascii_lowercase())
+            || !chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+        {
+            bail!("invalid trusted DuckDB extension name `{name}`");
+        }
+        let path = path.into();
+        if !path.is_absolute() {
+            bail!("trusted DuckDB extension `{name}` requires an absolute path");
+        }
+        Ok(Self { name, path })
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 impl EngineSettings {
@@ -23,6 +57,7 @@ impl EngineSettings {
             memory_limit: "512MB".to_string(),
             threads: 2,
             spill_dir: spill_dir.into(),
+            trusted_extensions: Vec::new(),
         }
     }
 
@@ -128,6 +163,15 @@ fn configure(
         settings.threads
     ))
     .context("applying DuckDB resource limits")?;
+    conn.execute_batch(
+        "SET allow_community_extensions = false;\n\
+         SET autoinstall_known_extensions = false;\n\
+         SET autoload_known_extensions = false;",
+    )
+    .context("restricting DuckDB extension loading")?;
+    for extension in &settings.trusted_extensions {
+        load_trusted_extension(conn, extension)?;
+    }
     if let FileAccess::RequestDirectory(directory) = files {
         let directory = quote_sql_literal(directory.to_string_lossy().as_ref());
         conn.execute_batch(&format!("SET allowed_directories = [{directory}];"))
@@ -135,11 +179,35 @@ fn configure(
     }
     conn.execute_batch(
         "SET enable_external_access = false;\n\
-         SET autoinstall_known_extensions = false;\n\
-         SET autoload_known_extensions = false;\n\
          SET lock_configuration = true;",
     )
     .context("locking down DuckDB configuration")?;
+    Ok(())
+}
+
+fn load_trusted_extension(conn: &Connection, extension: &TrustedExtension) -> Result<()> {
+    let path = extension.path().canonicalize().with_context(|| {
+        format!(
+            "locating trusted DuckDB extension `{}` at {}",
+            extension.name(),
+            extension.path().display()
+        )
+    })?;
+    if !path.is_file() {
+        bail!(
+            "trusted DuckDB extension `{}` is not a file: {}",
+            extension.name(),
+            path.display()
+        );
+    }
+    let path = path.to_str().with_context(|| {
+        format!(
+            "trusted DuckDB extension `{}` path is not UTF-8",
+            extension.name()
+        )
+    })?;
+    conn.execute_batch(&format!("LOAD {};", quote_sql_literal(path)))
+        .with_context(|| format!("loading trusted DuckDB extension `{}`", extension.name()))?;
     Ok(())
 }
 
@@ -536,6 +604,7 @@ mod tests {
             memory_limit: "256MB".to_string(),
             threads: 2,
             spill_dir: dir.path().join("spill"),
+            trusted_extensions: Vec::new(),
         };
         let request = dir.path().join("request");
         (dir.path().join("test.duckdb"), settings, request)
@@ -602,10 +671,83 @@ mod tests {
                 .is_err()
         );
         assert!(conn.execute_batch("INSTALL httpfs").is_err());
+        assert!(conn.execute_batch("LOAD httpfs").is_err());
         assert!(
             conn.execute_batch("ATTACH '/tmp/foreign.duckdb' AS foreign")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn trusted_extension_requires_an_absolute_path() {
+        let error = TrustedExtension::new("spatial", "spatial.duckdb_extension").unwrap_err();
+        assert!(error.to_string().contains("requires an absolute path"));
+        assert!(TrustedExtension::new("Spatial", "/tmp/spatial.duckdb_extension").is_err());
+    }
+
+    #[test]
+    fn missing_trusted_extension_fails_connection_setup() {
+        let dir = TempDir::new().unwrap();
+        let (path, mut settings, _) = setup(&dir);
+        settings.trusted_extensions.push(
+            TrustedExtension::new("spatial", dir.path().join("missing.duckdb_extension")).unwrap(),
+        );
+        let error = open_connection(&path, false, &[], &FileAccess::Denied, &settings).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("locating trusted DuckDB extension")
+        );
+    }
+
+    #[test]
+    fn configured_spatial_extension_supports_geometry_rtree_and_mvt() {
+        let Some(path) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let dir = TempDir::new().unwrap();
+        let (db_path, mut settings, _) = setup(&dir);
+        settings
+            .trusted_extensions
+            .push(TrustedExtension::new("spatial", PathBuf::from(path)).unwrap());
+        let conn = open_connection(&db_path, false, &[], &FileAccess::Denied, &settings).unwrap();
+        let point: String = conn
+            .query_row("SELECT ST_AsText(ST_Point(1, 2))", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(point, "POINT (1 2)");
+        conn.execute_batch(
+            "CREATE TABLE feature (id INTEGER, geom GEOMETRY);\n\
+             INSERT INTO feature VALUES (1, ST_Point(1, 2)), (2, ST_Point(20, 20));\n\
+             CREATE INDEX feature_geom_rtree ON feature USING RTREE (geom);",
+        )
+        .unwrap();
+        let matches: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM feature WHERE ST_Intersects(geom, ST_MakeEnvelope(0, 0, 5, 5))",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(matches, 1);
+        let tile: Vec<u8> = conn
+            .query_row(
+                "WITH bounds AS (SELECT ST_TileEnvelope(0, 0, 0) AS geom),
+                 tile_rows AS (
+                   SELECT id, ST_AsMVTGeom(
+                     feature.geom, ST_Extent(bounds.geom), 4096, 256, true
+                   ) AS geom
+                   FROM feature, bounds
+                   WHERE ST_Intersects(feature.geom, bounds.geom)
+                 )
+                 SELECT ST_AsMVT(
+                   {'id': id, 'geom': geom}, 'feature', 4096, 'geom', 'id'
+                 ) FROM tile_rows",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!tile.is_empty());
+        assert!(conn.execute_batch("INSTALL httpfs").is_err());
     }
 
     #[test]

@@ -5,7 +5,7 @@ use crate::{GatewayCatalog, GatewaySecretResolver, mcp_support::mcp_internal};
 
 const UPSTREAM_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-pub(super) async fn build_upstream_http_client(
+pub async fn build_upstream_http_client(
     catalog: &GatewayCatalog,
     server: &ServerManifest,
 ) -> Result<reqwest::Client, McpError> {

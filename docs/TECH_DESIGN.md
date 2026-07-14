@@ -115,7 +115,7 @@ Each durable operation declares one recovery class:
 - `InterruptedIndeterminate`: execution may have caused a mutation. Recovery marks the
   task failed and never repeats the operation.
 
-Long-running servers use this same runtime: media, timeseries, optimization, coordinates,
+Long-running servers use this same runtime: media, timeseries, optimization, frames, map,
 DuckDB, and SUMO. There is no server-local in-memory task registry and no alternate task
 URI.
 
@@ -192,11 +192,17 @@ remove the intended analytical value. Isolation is applied around the engine:
 - the server has one serialized owner/workspace boundary and a persistent singleton PVC
   in Helm;
 - configuration and extension loading are locked before user SQL;
+- the official DuckDB Spatial extension matching the embedded DuckDB version is
+  pinned into the image, verified at startup, and loaded before that lock;
 - memory, threads, spill, execution time, result rows, and result bytes are bounded;
 - external sources require governed ingest, artifact resolution, or explicitly allowed
   HTTPS attachment;
 - export bytes enter the shared artifact plane through a task capability;
 - container capabilities, writable paths, process count, and network reach are limited.
+
+Spatial geometry, CRS, R-tree, and MVT functions remain analytical SQL. DuckDB does
+not become the tile, style, or map-rendering service merely because it can compute
+geometries and vector-tile blobs.
 
 Read-only query and export tasks use `Resume`. Mutating execute and ingest tasks use
 `InterruptedIndeterminate` once execution may have started. This preserves flexibility

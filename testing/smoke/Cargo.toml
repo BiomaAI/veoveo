@@ -15,6 +15,7 @@ chrono.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 duckdb.workspace = true
+hex.workspace = true
 jsonwebtoken.workspace = true
 rcgen.workspace = true
 reqwest = { workspace = true, features = ["cookies", "json", "rustls-no-provider"] }

@@ -1,0 +1,60 @@
+use anyhow::{Result, anyhow};
+use veoveo_artifact_client::HttpArtifactPlane;
+use veoveo_mcp_contract::{
+    AccessLevel, ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactPlane, ArtifactPlaneError,
+    ArtifactPut, PlaneCaller, PutArtifactRequest,
+};
+
+const SCHEME: &str = "map";
+
+#[derive(Clone)]
+pub struct ArtifactRepository {
+    plane: HttpArtifactPlane,
+}
+
+impl ArtifactRepository {
+    pub fn new(service_url: impl Into<String>) -> Self {
+        Self {
+            plane: HttpArtifactPlane::new(service_url),
+        }
+    }
+
+    pub async fn put(
+        &self,
+        caller: &PlaneCaller,
+        artifact: ArtifactPut,
+    ) -> Result<ArtifactMetadata> {
+        let request = PutArtifactRequest {
+            mime_type: artifact.mime_type,
+            filename: artifact.filename,
+            classification: artifact.compliance.classification,
+            data_labels: artifact.compliance.data_labels,
+            retention_expires_at: artifact.compliance.retention_expires_at,
+            metadata: artifact.metadata,
+        };
+        self.plane
+            .put(caller, request, artifact.bytes)
+            .await
+            .map(|metadata| metadata.presented_under_scheme(SCHEME))
+            .map_err(plane_error)
+    }
+
+    pub async fn get(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+    ) -> Result<Option<ArtifactObject>> {
+        match self.plane.get(caller, artifact_id, AccessLevel::Read).await {
+            Ok(mut object) => {
+                object.metadata = object.metadata.presented_under_scheme(SCHEME);
+                Ok(Some(object))
+            }
+            Err(ArtifactPlaneError::NotFound) => Ok(None),
+            Err(error) => Err(plane_error(error)),
+        }
+    }
+}
+
+fn plane_error(error: ArtifactPlaneError) -> anyhow::Error {
+    anyhow!("artifact plane error: {error}")
+}

@@ -200,7 +200,7 @@ pub(crate) async fn compose_config() -> Result<()> {
         "platform/gateway/Dockerfile",
         "platform/recordings/hub/Dockerfile",
         "servers/artifact-mcp/Dockerfile",
-        "servers/coordinates-mcp/Dockerfile",
+        "servers/frames-mcp/Dockerfile",
         "servers/duckdb-mcp/Dockerfile",
         "servers/media-mcp/Dockerfile",
         "servers/optimization-mcp/Dockerfile",
@@ -231,7 +231,8 @@ pub(crate) async fn compose_config() -> Result<()> {
     let caddyfile = env::current_dir()?.join("configs/Caddyfile");
     let caddyfile_text = fs::read_to_string(&caddyfile)?;
     contains(&caddyfile_text, "respond /media/mcp* 404")?;
-    contains(&caddyfile_text, "respond /coordinates/mcp* 404")?;
+    contains(&caddyfile_text, "respond /frames/mcp* 404")?;
+    contains(&caddyfile_text, "respond /map/mcp* 404")?;
     contains(&caddyfile_text, "respond /perception/mcp* 404")?;
     contains(&caddyfile_text, "respond /charts/mcp* 404")?;
     contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
@@ -248,7 +249,7 @@ pub(crate) async fn compose_config() -> Result<()> {
         "/media/artifacts",
         "/timeseries/artifacts",
         "/optimization/artifacts",
-        "/coordinates/artifacts",
+        "/frames/artifacts",
         "/duckdb/artifacts",
     ] {
         if caddyfile_text.contains(forbidden) {

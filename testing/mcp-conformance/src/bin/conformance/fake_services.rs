@@ -231,10 +231,13 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
                 }),
             ),
             1 => fake_llm_tool_call_choice(
-                "coordinates__geodesic_inverse",
+                "frames__convert_frame",
                 json!({
-                    "start": { "latitude_deg": 37.7749, "longitude_deg": -122.4194 },
-                    "end": { "latitude_deg": 37.8044, "longitude_deg": -122.2712 }
+                    "target_frame": "ECEF",
+                    "points": [{
+                        "kind": "wgs84", "latitude_deg": 37.7749,
+                        "longitude_deg": -122.4194, "height_m": 0.0
+                    }]
                 }),
             ),
             2 => fake_llm_tool_call_choice(

@@ -184,6 +184,16 @@ a.button { text-decoration: none; }
 .tags { display: flex; flex-wrap: wrap; gap: 3px; max-width: 260px; }
 .tags span { padding: 1px 5px; border: 1px solid #dfe3e5; border-radius: 3px; background: #fafbfb; color: #535d62; font-size: 9px; }
 .settings-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.map-admin-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.map-admin-layout > .full-panel, .map-admin-layout > .action-error { grid-column: 1 / -1; }
+.map-admin-form form { display: grid; gap: 10px; padding: 13px; }
+.map-admin-form label, .pointer-input { display: grid; gap: 4px; color: var(--muted); font-size: 9px; text-transform: capitalize; }
+.map-admin-form input, .map-admin-form select, .map-admin-form textarea, .pointer-input input { width: 100%; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 5px; background: #fff; color: #30373b; font: 10px/15px "SFMono-Regular", Consolas, monospace; }
+.map-admin-form textarea { resize: vertical; }
+.coverage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.pointer-input { grid-template-columns: auto 72px; align-items: center; }
+.pointer-input input { height: 30px; }
+.row-actions { display: flex; gap: 5px; }
 .definition-list { margin: 0; padding: 5px 14px; }
 .definition-list div { min-height: 43px; display: grid; grid-template-columns: 125px minmax(0, 1fr); align-items: center; gap: 12px; border-bottom: 1px solid #eceeef; }
 .definition-list div:last-child { border-bottom: 0; }
@@ -279,6 +289,9 @@ a.button { text-decoration: none; }
   .filter-control { flex: 0 0 auto; }
   .item-grid { grid-template-columns: 1fr; padding: 8px; }
   .settings-layout { grid-template-columns: 1fr; gap: 10px; }
+  .map-admin-layout { grid-template-columns: 1fr; gap: 10px; }
+  .map-admin-layout > .full-panel, .map-admin-layout > .action-error { grid-column: auto; }
+  .coverage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .drawer { width: calc(100vw - 12px); }
   .inline-form { grid-template-columns: 70px minmax(0, 1fr) 68px 34px; }
   .share-form { grid-template-columns: 68px minmax(90px, 1fr); }

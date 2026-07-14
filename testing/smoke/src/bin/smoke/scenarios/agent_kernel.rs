@@ -559,16 +559,16 @@ pub(crate) async fn agent_kernel_scheduler(
     Ok(())
 }
 
-/// The Pilot mission: the full agent loop over real geodesy and planning.
+/// The Pilot mission: the full agent loop over real frame conversion and planning.
 ///
 /// One operator objective drives the whole choreography — record a target
-/// (memory_write), measure the leg (coordinates__geodesic_inverse, inline),
+/// (memory_write), convert the target (frames__convert_frame, inline),
 /// dispatch the planner (optimization__plan, task-required), then record the
 /// waypoint when the plan lands and declare the mission planned. The pilot's
 /// real domain migrations from configs/agents/pilot are applied verbatim.
 pub(crate) async fn agent_pilot_mission(
     conformance: &Path,
-    coordinates: &Path,
+    frames: &Path,
     optimization: &Path,
     gateway: &Path,
     control_plane: &Path,
@@ -577,7 +577,7 @@ pub(crate) async fn agent_pilot_mission(
 ) -> Result<()> {
     for bin in [
         conformance,
-        coordinates,
+        frames,
         optimization,
         gateway,
         artifact_service,
@@ -590,24 +590,24 @@ pub(crate) async fn agent_pilot_mission(
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
     println!("smoke workspace: {}", tmpdir.display());
 
-    let coordinates_port = 18850u16;
+    let frames_port = 18850u16;
     let optimization_port = 18851u16;
     let gateway_port = 18852u16;
     let llm_port = 18853u16;
-    let coordinates_base = format!("http://127.0.0.1:{coordinates_port}");
+    let frames_base = format!("http://127.0.0.1:{frames_port}");
     let optimization_base = format!("http://127.0.0.1:{optimization_port}");
     let gateway_base = format!("http://127.0.0.1:{gateway_port}");
 
     let plane =
         spawn_artifact_service_smoke(artifact_service, &tmpdir.join("artifact-service.log"))
             .await?;
-    let mut coordinates_child = spawn_coordinates_smoke(
-        coordinates,
-        coordinates_port,
-        &coordinates_base,
+    let mut frames_child = spawn_frames_smoke(
+        frames,
+        frames_port,
+        &frames_base,
         &plane.url,
         &plane.platform,
-        &tmpdir.join("coordinates.log"),
+        &tmpdir.join("frames.log"),
     )?;
     let mut optimization_child = spawn_optimization_smoke(
         optimization,
@@ -617,7 +617,7 @@ pub(crate) async fn agent_pilot_mission(
         &plane.url,
         &tmpdir.join("optimization.log"),
     )?;
-    wait_for_http(&format!("{coordinates_base}/coordinates/healthz")).await?;
+    wait_for_http(&format!("{frames_base}/frames/healthz")).await?;
     wait_for_http(&format!("{optimization_base}/optimization/healthz")).await?;
 
     let otlp_port = 18854u16;
@@ -663,8 +663,8 @@ pub(crate) async fn agent_pilot_mission(
             control_plane.as_os_str().to_os_string(),
             "--output".into(),
             generated_control_plane.as_os_str().to_os_string(),
-            "--coordinates-upstream-url".into(),
-            format!("{coordinates_base}/coordinates/mcp").into(),
+            "--frames-upstream-url".into(),
+            format!("{frames_base}/frames/mcp").into(),
             "--optimization-upstream-url".into(),
             format!("{optimization_base}/optimization/mcp").into(),
         ],
@@ -802,7 +802,7 @@ pub(crate) async fn agent_pilot_mission(
         ],
         [],
     )?;
-    contains(&timeline, "coordinates__geodesic_inverse")?;
+    contains(&timeline, "frames__convert_frame")?;
     contains(&timeline, "optimization__plan")?;
 
     // Replay rebuilds domain truth from the decision log alone.
@@ -840,7 +840,7 @@ pub(crate) async fn agent_pilot_mission(
     wait_for_file_contains(&otlp_hits, "logs ", "traces ").await?;
 
     gateway_child.stop();
-    coordinates_child.stop();
+    frames_child.stop();
     optimization_child.stop();
     llm.stop();
     otlp.stop();

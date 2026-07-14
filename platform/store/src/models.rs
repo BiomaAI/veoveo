@@ -167,6 +167,44 @@ string_enum! {
 }
 
 string_enum! {
+    pub enum MapReleaseState {
+        Staged => "staged",
+        Active => "active",
+        Retired => "retired",
+        Quarantined => "quarantined",
+    }
+}
+
+string_enum! {
+    pub enum MapAcquisitionState {
+        Queued => "queued",
+        Running => "running",
+        Succeeded => "succeeded",
+        Failed => "failed",
+        CancelRequested => "cancel_requested",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
+    pub enum MapRouteState {
+        PlanningAdvisory => "planning_advisory",
+        Validated => "validated",
+        Stale => "stale",
+        Invalidated => "invalidated",
+        Unavailable => "unavailable",
+    }
+}
+
+string_enum! {
+    pub enum MapDependencyKind {
+        Release => "release",
+        Restriction => "restriction",
+        Facility => "facility",
+    }
+}
+
+string_enum! {
     pub enum ArtifactReleaseState {
         Private => "private",
         Releasable => "releasable",
@@ -673,6 +711,157 @@ pub struct CoordinateOperationRecord {
     pub provenance: OpenObject,
     pub classification: String,
     pub labels: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapSourceRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub source_key: String,
+    pub dataset_key: String,
+    pub name: String,
+    pub adapter_kind: String,
+    pub authority_class: String,
+    pub map_families: Vec<String>,
+    pub enabled: bool,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapDatasetReleaseRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub release_key: String,
+    pub dataset_key: String,
+    pub source_key: String,
+    pub state: MapReleaseState,
+    pub version_label: String,
+    pub source_digest_sha256: String,
+    pub valid_from: DateTime<Utc>,
+    pub valid_until: Option<DateTime<Utc>>,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapActiveReleaseRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub dataset_key: String,
+    pub release_key: String,
+    pub previous_release_key: Option<String>,
+    pub activated_by: RecordId,
+    pub activated_at: DateTime<Utc>,
+    pub record_version: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapMobilityProfileRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub profile_key: String,
+    pub family: String,
+    pub name: String,
+    pub profile_version: i64,
+    pub valid_from: DateTime<Utc>,
+    pub valid_until: Option<DateTime<Utc>>,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapRestrictionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub restriction_key: String,
+    pub kind: String,
+    pub effect_kind: String,
+    pub affected_mobility_families: Vec<String>,
+    pub valid_from: DateTime<Utc>,
+    pub valid_until: Option<DateTime<Utc>>,
+    pub cancelled_by: Option<String>,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapOperationalSnapshotRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub snapshot_key: String,
+    pub departure_time: DateTime<Utc>,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapRouteRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub route_key: String,
+    pub status: MapRouteState,
+    pub mobility_profile_key: String,
+    pub mobility_profile_version: i64,
+    pub operational_snapshot_key: String,
+    pub departure_time: DateTime<Utc>,
+    pub arrival_time: Option<DateTime<Utc>>,
+    pub cache_digest_sha256: String,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapRouteDependencyRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub route_key: String,
+    pub dependency_kind: MapDependencyKind,
+    pub dependency_key: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapRouteMatrixRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub matrix_key: String,
+    pub mobility_profile_key: String,
+    pub mobility_profile_version: i64,
+    pub operational_snapshot_key: String,
+    pub artifact_uri: Option<String>,
+    pub canonical_json: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapAcquisitionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub acquisition_key: String,
+    pub source_key: String,
+    pub idempotency_key: String,
+    pub status: MapAcquisitionState,
+    pub phase: String,
+    pub staged_release_key: Option<String>,
+    pub canonical_json: String,
+    pub record_version: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
