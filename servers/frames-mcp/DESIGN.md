@@ -1,4 +1,7 @@
-# Frames MCP
+# Frames MCP Design
+
+This document is the canonical design and operational contract for the
+`frames-mcp` crate.
 
 `frames-mcp` owns local spatial frames and bounded coordinate conversion for
 robots, sensors, vehicles, simulations, and mission workspaces. Map MCP owns

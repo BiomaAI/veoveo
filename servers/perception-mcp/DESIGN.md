@@ -1,5 +1,8 @@
 # Perception MCP Design
 
+This document is the canonical design and operational contract for the
+`perception-mcp` crate.
+
 `perception-mcp` is Veoveo's provider-neutral local perception domain. Its
 production execution implementation uses NVIDIA DeepStream and TensorRT, but
 NVIDIA names do not appear in its public MCP identities.

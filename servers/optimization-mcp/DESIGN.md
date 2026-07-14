@@ -1,5 +1,8 @@
 # Optimization MCP Design
 
+This document is the canonical design and operational contract for the
+`optimization-mcp` crate.
+
 This document describes the hosted Veoveo MCP server for high-level
 optimization planning. The first implementation is intentionally in the middle:
 it is not a raw LP/MILP interface, and it is not drone-specific. It models one

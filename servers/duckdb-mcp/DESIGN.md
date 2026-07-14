@@ -1,5 +1,8 @@
 # DuckDB MCP Design
 
+This document is the canonical design and operational contract for the
+`duckdb-mcp` crate.
+
 `duckdb-mcp` is Veoveo's hosted analytical SQL domain. It gives an authenticated
 principal mutable DuckDB databases, unrestricted analytical SQL inside those
 databases, governed data ingress, immutable exports, and DuckDB Spatial without

@@ -3,6 +3,51 @@
 This map identifies ownership boundaries and the shortest path to the code behind a
 behavior. It describes only the current hard-cut architecture.
 
+## Documentation Index
+
+General documents define repository-wide contracts and direct readers to the owning
+component:
+
+| Document | Purpose |
+|---|---|
+| [`README.md`](../README.md) | installation entrypoint, development commands, and repository overview |
+| [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
+| [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
+| [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
+| [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
+| [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
+
+MCP designs live with the crate whose public contract they specify:
+
+| Document | Domain |
+|---|---|
+| [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
+| [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
+| [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
+| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | typed high-level planning and optimization |
+| [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
+
+Deployment, examples, templates, and fixtures keep their instructions beside the
+material they operate:
+
+| Document | Purpose |
+|---|---|
+| [`configs/perception/README.md`](../configs/perception/README.md) | perception catalog and runtime configuration |
+| [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
+| [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
+| [`examples/bioma/README.md`](../examples/bioma/README.md) | optional Bioma deployment overlay |
+| [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
+| [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
+| [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | canonical Python MCP server template |
+| [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |
+
+The canonical long-form sources are
+[`veoveo-whitepaper-print.html`](veoveo-whitepaper-print.html) and
+[`autonomy-harness-print.html`](autonomy-harness-print.html). `just docs-pdf` produces
+the [`whitepaper PDF`](veoveo-whitepaper.pdf) and
+[`harness PDF`](autonomy-harness.pdf). [`autonomy-harness.html`](autonomy-harness.html)
+is the browser edition of the harness document.
+
 ## Root
 
 | Path | Ownership |
@@ -18,6 +63,7 @@ behavior. It describes only the current hard-cut architecture.
 | `configs/Caddyfile` | canonical edge routes and public-surface denial |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
+| `docs/` | general architecture, code index, recording design, and rendered publications |
 | `agents/` | agent kernel and durable agent runtime |
 | `apps/` | user-facing applications and their service boundaries |
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
@@ -165,6 +211,7 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/tasks.rs` | policy-checked cancellation through owning task extension |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
 | `admin/console.rs` | safe installation snapshot projection |
+| `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's typed admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
 | `audit.rs` | common admin authorization and operation audit helpers |
 
@@ -206,6 +253,7 @@ The Rust MCP server pattern is intentionally consistent:
 | `state.rs` | server-local typed provider/domain state, not task persistence |
 | `uris.rs` | canonical server resource identities |
 | `artifacts.rs` | task-bound capability preparation/redemption |
+| `admin/` | optional typed domain administration under the server mount |
 | `bin/server/config.rs` | validated CLI/environment configuration |
 | `bin/server/internal_auth.rs` | required gateway assertion middleware |
 | `bin/server/ownership.rs` | principal/tenant/label task ownership |
@@ -213,9 +261,19 @@ The Rust MCP server pattern is intentionally consistent:
 | `bin/server/app_state.rs` | dependency composition and recovery |
 | `bin/server/outputs.rs` | typed results, resource links, usage projection |
 
-Current domain servers under `servers/` include `media-mcp`, `timeseries-mcp`,
-`duckdb-mcp`, `optimization-mcp`, `frames-mcp`, `map-mcp`, and
-`perception-mcp`.
+Current MCP crates under `servers/` are indexed here:
+
+| Path | Primary ownership |
+|---|---|
+| `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
+| `servers/duckdb-mcp` | arbitrary analytical SQL, governed ingest/export, and DuckDB Spatial |
+| `servers/frames-mcp` | local frame derivation, coordinate conversion, and operation provenance |
+| `servers/map-mcp` | Earth geography, source administration, releases, and logistics routing |
+| `servers/media-mcp` | webhook-completed provider media work and governed outputs |
+| `servers/optimization-mcp` | typed planning problems, solver execution, validation, and mission outputs |
+| `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
+| `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
+| `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 
 ### Geospatial Domains
 
@@ -226,9 +284,8 @@ The geospatial hard cut has two canonical servers:
 | `servers/map-mcp` | Earth geography, governed source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
 | `servers/frames-mcp` | WGS84, ECEF, ENU, and NED local-frame derivation and conversion, durable batch work, operation provenance, artifacts, and usage |
 
-Map administration uses typed REST on the same process. Agents use MCP. The
-gateway signs both paths and the Console projects the administrative REST
-surface through its authenticated BFF.
+The crate-local design documents own their protocol, administration, persistence, and
+deployment details.
 
 Media-specific ownership:
 
@@ -244,7 +301,7 @@ DuckDB-specific ownership:
 
 | Path | Responsibility |
 |---|---|
-| `docs/DUCKDB_MCP_DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
+| `servers/duckdb-mcp/DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
 | `platform/runtimes/duckdb/` | bounded engine runtime and sandbox primitives |
 | `mcp/contract/src/duckdb.rs` | cross-server governed source vocabulary |
 | `servers/duckdb-mcp/src/contract.rs` | server-local tool request and result types |
@@ -342,7 +399,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot/mutation/download proxy with no browser bearer exposure |
+| `api.rs` | snapshot, mutation, download, and explicit server-admin BFF projections |
 | `config.rs` | validated public/gateway/resource configuration |
 
 ### `apps/console/web/src`
@@ -377,6 +434,8 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change task lifecycle in `platform/task-runtime`; change wire behavior in
   `mcp/task-extension`.
 - Change a domain tool schema in its owning `servers/*-mcp` server, not the gateway.
+- Change a domain admin API in its owning server, retain the generic gateway proxy, and
+  add an explicit Console BFF projection when the browser represents that workflow.
 - Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway
   tokens to JavaScript.
 - Change public routes in Compose Caddy and Helm ingress together, then extend the Rust

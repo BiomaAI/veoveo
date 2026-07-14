@@ -48,6 +48,7 @@ mcp-gateway
 hosted MCP server
   +-- server-local typed domain contracts
   +-- shared task runtime when operations are durable
+  +-- optional typed HTTP administration under its canonical mount
   +-- forwarded internal identity for artifact/recording operations
   +-- no private control database or byte route
 
@@ -65,6 +66,43 @@ recording-hub
 Binary entrypoints parse configuration, initialize dependencies, assemble routers, and
 delegate behavior to focused modules. Shared crates own platform vocabulary; domain
 tool schemas stay in the server that owns them.
+
+## Hosted Server Administration
+
+A hosted server can expose an agent protocol surface and an administrative HTTP
+surface under the same catalog identity:
+
+```text
+MCP client
+  -> gateway MCP profile
+  -> {server mount}/mcp
+
+administrative API client
+  -> gateway /admin/{profile}/servers/{server}/{*path}
+  -> {server mount}/admin/{path}
+
+browser
+  -> console-bff /console/api/{domain}/{path}
+  -> gateway admin route
+  -> {server mount}/admin/{path}
+```
+
+The gateway reads the active catalog revision and requires the selected profile to
+contain the requested server. It classifies safe methods as `AdminRead` and mutation
+methods as `AdminWrite`, evaluates profile policy, records the operation, and issues a
+short-lived internal assertion for the owning server. The proxy preserves the bounded
+request body and the HTTP headers needed for typed content, idempotency, conditional
+writes, caching, and retry guidance.
+
+The owning server validates the internal assertion and the domain's administrative
+scope. Its handlers use server-local typed contracts and the same application state as
+its MCP implementation. Durable domain records live behind `veoveo-platform-store`;
+their ordered schema migrations remain part of installation bootstrap.
+
+The Console publishes explicit BFF routes for the administrative workflows represented
+in its React application. The browser receives same-origin responses and never receives
+the gateway bearer. Server design documents specify their endpoint catalogs, request and
+response models, persistence records, authorization scopes, and Console projections.
 
 ## Durable Platform Store
 
