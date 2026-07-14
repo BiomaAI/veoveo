@@ -519,11 +519,157 @@ pub(in crate::routes) fn sum_cost(legs: &[RouteLeg]) -> Result<RouteCost> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
+
+    use crate::contract::{
+        EnergyProfile, EnergySource, Kilograms, KilowattHours, MobilityProfileId,
+        MobilityProfileMetadata, RoadVehicleProfile, RouteConstraints, RouteDataPolicy,
+        VehicleDimensions, VehiclePerformance,
+    };
+
+    fn route_request(kind: RouteObjectiveKind) -> RouteRequest {
+        let position = Wgs84Position::new(-89.21, 13.69, None).unwrap();
+        RouteRequest {
+            mobility_profile_id: MobilityProfileId::new(),
+            mobility_profile_version: 1,
+            origin: RouteEndpoint::Position {
+                position: position.clone(),
+            },
+            destination: RouteEndpoint::Position { position },
+            waypoints: Vec::new(),
+            departure_time: Utc::now(),
+            objective: RouteObjective {
+                kind,
+                weights: None,
+            },
+            constraints: RouteConstraints {
+                required_areas: Vec::new(),
+                avoided_areas: Vec::new(),
+                required_facility_stops: Vec::new(),
+                latest_arrival: None,
+                minimum_energy_reserve: None,
+                required_authority_classes: BTreeSet::new(),
+            },
+            alternatives: 0,
+            data_policy: RouteDataPolicy {
+                allow_planning_advisory: true,
+                allow_stale_operational_data: false,
+                required_map_families: BTreeSet::new(),
+            },
+        }
+    }
+
+    fn road_profile(class: RoadVehicleClass) -> MobilityProfile {
+        MobilityProfile::RoadVehicle(RoadVehicleProfile {
+            metadata: MobilityProfileMetadata {
+                profile_id: MobilityProfileId::new(),
+                name: format!("{class:?}"),
+                version: 1,
+                valid_from: Utc::now(),
+                valid_until: None,
+                labels: BTreeSet::new(),
+            },
+            class,
+            dimensions: VehicleDimensions {
+                length: Meters::new(12.0).unwrap(),
+                width: Meters::new(2.5).unwrap(),
+                height: Meters::new(3.8).unwrap(),
+            },
+            gross_mass: Kilograms::new(18_000.0).unwrap(),
+            performance: VehiclePerformance {
+                maximum_speed: crate::contract::MetersPerSecond::new(30.0).unwrap(),
+                nominal_speed: crate::contract::MetersPerSecond::new(12.0).unwrap(),
+                maximum_range: Some(Meters::new(500_000.0).unwrap()),
+                payload_capacity: Some(Kilograms::new(8_000.0).unwrap()),
+            },
+            energy: EnergyProfile {
+                source: EnergySource::Battery,
+                battery_capacity: Some(KilowattHours::new(500.0).unwrap()),
+                liquid_fuel_capacity: None,
+                minimum_reserve: Ratio::new(0.2).unwrap(),
+            },
+            axle_count: 3,
+            maximum_axle_load: Kilograms::new(8_000.0).unwrap(),
+            minimum_turning_radius: Meters::new(8.0).unwrap(),
+            hazardous_cargo: true,
+            unpaved_allowed: false,
+            emissions_class: None,
+        })
+    }
 
     #[test]
     fn top_speed_does_not_silently_clamp() {
         assert!(bounded_top_speed(9.9).is_err());
         assert_eq!(bounded_top_speed(100.0).unwrap(), Some(100.0));
         assert!(bounded_top_speed(253.0).is_err());
+    }
+
+    #[test]
+    fn every_road_class_selects_the_intended_valhalla_costing() {
+        let cases = [
+            (
+                RoadVehicleClass::Bicycle,
+                "bicycle",
+                MapFamily::ActiveMobility,
+            ),
+            (
+                RoadVehicleClass::PoweredTwoWheeler,
+                "motorcycle",
+                MapFamily::RoadStreet,
+            ),
+            (
+                RoadVehicleClass::PassengerCar,
+                "auto",
+                MapFamily::RoadStreet,
+            ),
+            (
+                RoadVehicleClass::LightCommercial,
+                "auto",
+                MapFamily::RoadStreet,
+            ),
+            (RoadVehicleClass::RigidTruck, "truck", MapFamily::RoadStreet),
+            (
+                RoadVehicleClass::ArticulatedTruck,
+                "truck",
+                MapFamily::RoadStreet,
+            ),
+            (RoadVehicleClass::BusCoach, "bus", MapFamily::RoadStreet),
+            (
+                RoadVehicleClass::EmergencyService,
+                "auto",
+                MapFamily::RoadStreet,
+            ),
+        ];
+
+        for (class, expected_costing, expected_family) in cases {
+            let (costing_name, _, family) = costing(
+                &road_profile(class),
+                &route_request(RouteObjectiveKind::Shortest),
+            )
+            .unwrap();
+            assert_eq!(
+                costing_name, expected_costing,
+                "wrong costing for {class:?}"
+            );
+            assert_eq!(family, expected_family, "wrong family for {class:?}");
+        }
+    }
+
+    #[test]
+    fn truck_costing_carries_governed_physical_limits() {
+        let (_, options, _) = costing(
+            &road_profile(RoadVehicleClass::ArticulatedTruck),
+            &route_request(RouteObjectiveKind::Fastest),
+        )
+        .unwrap();
+        let truck = options.truck.expect("truck options");
+        assert_eq!(truck.height, Some(3.8));
+        assert_eq!(truck.width, Some(2.5));
+        assert_eq!(truck.length, Some(12.0));
+        assert_eq!(truck.weight, Some(18.0));
+        assert_eq!(truck.axle_load, Some(8.0));
+        assert_eq!(truck.axle_count, Some(3));
+        assert_eq!(truck.hazmat, Some(true));
+        assert_eq!(truck.exclude_unpaved, Some(true));
     }
 }

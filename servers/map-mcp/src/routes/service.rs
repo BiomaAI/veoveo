@@ -602,3 +602,103 @@ fn cache_digest(request: &RouteRequest, provenance: &RouteProvenance) -> Result<
     let bytes = serde_json::to_vec(&(request, provenance))?;
     Ok(hex::encode(Sha256::digest(bytes)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contract::{
+        AuthorityClass, DatasetReleaseId, Meters, MobilityFamily, Ratio, RestrictionEffect,
+        RestrictionEffectKind, RestrictionId, RestrictionKind, RouteCost, RouteLeg, RouteStatus,
+        Seconds, Wgs84LineString, Wgs84Polygon,
+    };
+
+    fn position(longitude_deg: f64, latitude_deg: f64) -> Wgs84Position {
+        Wgs84Position::new(longitude_deg, latitude_deg, None).unwrap()
+    }
+
+    fn output() -> PlannerOutput {
+        PlannerOutput {
+            status: RouteStatus::PlanningAdvisory,
+            legs: vec![RouteLeg {
+                sequence: 0,
+                map_family: MapFamily::Maritime,
+                geometry: Wgs84LineString {
+                    coordinates: vec![position(0.0, 0.0), position(1.0, 0.0)],
+                },
+                cost: RouteCost {
+                    distance: Meters::new(1_000.0).unwrap(),
+                    duration: Seconds::new(100.0).unwrap(),
+                    energy: None,
+                    fuel: None,
+                    monetary_minor_units: None,
+                    risk: Ratio::new(0.0).unwrap(),
+                },
+                instructions: Vec::new(),
+                source_release_ids: BTreeSet::from([DatasetReleaseId::new()]),
+                restriction_ids: BTreeSet::new(),
+            }],
+            alternatives: Vec::new(),
+            arrival_time: None,
+            crossed_boundary_ids: BTreeSet::new(),
+        }
+    }
+
+    fn restriction(kind: RestrictionEffectKind) -> Restriction {
+        let now = Utc::now();
+        Restriction {
+            restriction_id: RestrictionId::new(),
+            kind: RestrictionKind::NavigationalWarning,
+            geometry: Wgs84Polygon {
+                exterior: vec![
+                    position(0.4, -0.1),
+                    position(0.6, -0.1),
+                    position(0.6, 0.1),
+                    position(0.4, 0.1),
+                    position(0.4, -0.1),
+                ],
+                interiors: Vec::new(),
+            },
+            vertical_band: None,
+            affected_mobility_families: BTreeSet::from([MobilityFamily::SurfaceVessel]),
+            effect: RestrictionEffect {
+                kind,
+                limit: None,
+                explanation: Some("test restriction".to_owned()),
+            },
+            valid_from: now,
+            valid_until: None,
+            authority: AuthorityClass::SyntheticTest,
+            source_release_id: None,
+            issued_at: now,
+            cancelled_by: None,
+            record_version: 1,
+        }
+    }
+
+    #[test]
+    fn penalizing_restriction_is_pinned_and_changes_route_risk() {
+        let mut output = output();
+        let restriction = restriction(RestrictionEffectKind::Penalize);
+
+        assert!(apply_restrictions(&mut output, &[restriction.clone()]).unwrap());
+
+        assert_eq!(output.legs[0].cost.risk.get(), 0.1);
+        assert!(
+            output.legs[0]
+                .restriction_ids
+                .contains(&restriction.restriction_id)
+        );
+    }
+
+    #[test]
+    fn intersecting_prohibition_rejects_the_planned_route() {
+        let mut output = output();
+        let error =
+            apply_restrictions(&mut output, &[restriction(RestrictionEffectKind::Prohibit)])
+                .unwrap_err()
+                .to_string();
+
+        assert!(error.contains("no feasible route remains"));
+        assert_eq!(output.status, RouteStatus::Unavailable);
+    }
+}
