@@ -6,10 +6,6 @@ work with coordinates, apply transport restrictions, calculate routes, build
 matrices, and inspect reachable areas. Source administration runs through REST
 on the same server and through the Console projection of that API.
 
-Map returns data. It does not render an image, run a browser, or expose a public
-tile endpoint. A renderer such as Mapbox MCP can consume Map results later
-without becoming the source of route truth.
-
 ## Status
 
 Implemented in this workspace.
@@ -35,22 +31,10 @@ health      /map/healthz
 Gateway-mounted tools use names such as `map__route`. Resource identities keep
 the `map://` scheme.
 
-## Responsibility
+## Domain Scope
 
-The three spatial domains answer different questions.
-
-```text
-frames-mcp
-  Where is this pose relative to another frame at this time?
-
-map-mcp
-  Where is this on Earth, and can this mobility profile travel there?
-
-optimization-mcp
-  Which asset, assignment, schedule, or stop sequence should be selected?
-```
-
-Map owns:
+Map answers where something is on Earth and whether a specific mobility
+profile can travel there. It provides:
 
 - WGS84 geography, projected CRS transformations, and ellipsoidal geodesics;
 - locations, facilities, boundaries, map datasets, and effective restrictions;
@@ -59,31 +43,10 @@ Map owns:
 - governed source acquisition and immutable release activation;
 - map-owned analytical and routing-engine projections.
 
-Frames owns ECEF, ENU, NED, FRD, body, sensor, simulation, and time-indexed
-frame graphs. A caller converts robot-local data through Frames before sending
-an Earth-referenced request to Map. Map never hides that cross-domain operation
-behind an internal service call.
-
-Optimization consumes Map route costs and feasibility. It owns fleet selection,
-task assignment, stop ordering, concurrency, and transfer choice. Map exposes
-intermodal facilities and compatible map families; Optimization composes the
-actual multi-asset plan.
-
-DuckDB MCP remains a general owner-scoped SQL service. Map links the same
-hardened DuckDB runtime as a library and owns its database and SQL. Map does not
-call public DuckDB tools or expose arbitrary SQL.
-
-## Non-Goals
-
-- Map is not a map-image renderer or browser application.
-- Map is not an XYZ, WMTS, WMS, or vector-tile HTTP server.
-- Map is not an ArcGIS editing, layout, or enterprise-catalog replacement.
-- Map does not own relative robotics transforms.
-- Map does not select vehicles or command actuators.
-- Planning-advisory maritime, aviation, rail, and off-road results are not
-  certified navigation products.
-- Missing data never becomes an invented straight-line route or a fabricated
-  clearance.
+Optimization consumes Map feasibility and route costs to compose fleet
+selection, assignments, schedules, stop sequences, and multi-asset transfers.
+Map embeds the hardened DuckDB runtime as a library and owns its analytical
+database and SQL policy.
 
 ## Architecture
 
@@ -112,7 +75,7 @@ map-mcp container
 The Rust server is PID 1. Valhalla listens only on loopback and is supervised by
 the server. The Python acquisition application is invoked as a bounded child
 process. These components ship in one image and share one persistent Map
-volume; no helper container is required.
+volume.
 
 ## Canonical Map Families
 
@@ -176,9 +139,8 @@ rejects geocentric EPSG:4978 and vertical values instead of silently copying
 or mis-transforming them. GeographicLib supplies WGS84 direct and inverse
 geodesics. Geofence validation checks segment geometry, not only vertices.
 
-Frames converts WGS84 to ECEF and local ENU or NED frames. The shared
-`mcp/contract/src/coordinates.rs` types keep these domains interoperable; that
-file is not a separate server.
+The shared `mcp/contract/src/coordinates.rs` types keep WGS84 exchange
+consistent across Veoveo services.
 
 ## Persistence
 
@@ -203,14 +165,14 @@ identity remains `artifact://{artifact_id}`. Map projects those artifacts as
 
 ## Authoritative Data Acquisition
 
-A map release is a governed occurrence of source bytes, not a tile archive.
-Every registered source declares authority, coverage, map families, acquisition
-model, location, media types, limits, license, and credential references.
+A map release records one governed occurrence of source bytes. Every registered
+source declares authority, coverage, map families, acquisition model, location,
+media types, limits, license, and credential references.
 
 Authority is evaluated per fact and region. An official bridge-clearance source
 can supersede a community road tag while the same community release continues
-to supply nearby road geometry. A newer timestamp alone does not establish
-greater authority.
+to supply nearby road geometry. Publisher responsibility and validity determine
+precedence alongside time.
 
 ### Recommended Sources By Domain
 
@@ -224,9 +186,9 @@ greater authority.
 | facilities | OSM discovery | port, airport, depot, warehouse, fueling, charging, and terminal operators |
 | terrain and conditions | installation-selected environmental source | responsible weather, hydrology, ocean, terrain, and traffic authority |
 
-OpenStreetMap is an excellent global baseline, not a legal authority. Legal
-borders, clearances, navigational charts, airspace, and effective restrictions
-must use the responsible publisher where the operation depends on them.
+OpenStreetMap supplies the global baseline. Operations that depend on legal
+borders, clearances, navigational charts, airspace, or effective restrictions
+select the responsible publisher for those facts.
 
 ### Registered Source Contract
 
@@ -257,30 +219,26 @@ record_version
 - `osm_replication` records a snapshot endpoint and replication endpoint;
 - `mounted_exchange_set` contains a controlled mount id and relative path.
 
-The current acquisition worker accepts `snapshot` records only. An
-`osm_replication` location therefore acquires its registered snapshot and
-retains the replication endpoint as source metadata; it does not apply diffs.
-Sequenced deltas, effective-event feeds, and observation streams require their
-dedicated ingestion paths. GTFS Realtime is rejected as a base release.
-
-This distinction is intentional. Snapshot handling is implemented and tested.
-Delta continuity, update-chain rules, and feed expiry must not be implied by a
-generic downloader.
+The current acquisition worker processes snapshots. An `osm_replication`
+location acquires its registered snapshot and retains the replication endpoint
+as source metadata. The contract classifies sequenced deltas, effective-event
+feeds, and observation streams as operational feeds governed by continuity,
+update-chain, and expiry rules.
 
 ### Network And File Controls
 
-The Rust process resolves the registered source. The helper never receives an
-arbitrary URL from an agent or browser.
+The Rust process resolves every input from a registered source before invoking
+the helper.
 
 HTTPS acquisition enforces:
 
-- HTTPS only, no URL credentials, and no fragments;
+- HTTPS endpoints without embedded credentials or fragments;
 - registered endpoint and redirect-host allowlists;
 - public resolved addresses, including every redirect target;
 - bounded redirect count, response bytes, and one absolute elapsed deadline;
 - registered response media types;
 - controlled bearer or `x-*` credential headers loaded from secret files;
-- no proxy variables inherited from the surrounding installation.
+- direct connections governed by the registered host policy.
 
 Mounted inputs are canonicalized beneath the installation exchange root and
 must be regular files. Job workspaces are unique. Paths returned by the helper
@@ -302,8 +260,8 @@ The image includes:
 - Python only for controlled source-tool orchestration;
 - the pinned DuckDB Spatial extension for the Rust runtime.
 
-No package or DuckDB extension is installed when the container starts or when
-an acquisition runs.
+The image installs every package and the pinned DuckDB Spatial extension during
+its build.
 
 ### Adapter Availability
 
@@ -317,10 +275,9 @@ an acquisition runs.
 | `aixm` and `faa_nasr` | use the pinned GDAL aviation conversion path to GeoParquet |
 | `gtfs_realtime` | represented in the contract but rejected by base-release acquisition |
 
-The generic maritime and aviation conversions are intake primitives, not a
-claim of full S-57 update-chain, S-100 product, AIXM timeslice, or NASR product
-semantics. Product-specific validation belongs in the corresponding adapter
-before operational reliance.
+The generic maritime and aviation conversions establish the intake primitive.
+Operational reliance adds product-specific S-57 update-chain, S-100 product,
+AIXM timeslice, or NASR validation in the corresponding adapter.
 
 GeoJSON and GeoJSON Sequence products feed the analytical projection. Named
 points become locations unless `facility_kind` is present. Polygon features
@@ -338,14 +295,12 @@ the downloaded bytes before a release is staged.
 
 Jobs are durable catalog records with queued, running, succeeded, failed,
 cancel-requested, and cancelled states. A successful job creates a staged
-release. It never activates data implicitly. After a server restart, listing
-jobs marks interrupted work failed; the operator starts a new idempotent
-acquisition.
+release, and activation remains an explicit version-guarded operation. After a
+server restart, listing jobs marks interrupted work failed; the operator starts
+a new idempotent acquisition.
 
 Public failure messages identify the phase without copying helper stderr or
-licensed source excerpts. Bounded diagnostics stay in server logs. The current
-runtime does not publish a diagnostics artifact, so `diagnostics_uri` remains
-absent.
+licensed source excerpts. Bounded diagnostics stay in server logs.
 
 ## Release Versioning And Activation
 
@@ -380,8 +335,7 @@ license, normalized products, and policy context. Release states are `staged`,
 
 Routing archives are safely expanded once into the retained release directory.
 Archive traversal, links, excessive entry count, and excessive expanded bytes
-are rejected. Activation reuses those cached products; rollback does not rebuild
-the graph or regenerate a complete output.
+are rejected. Activation and rollback reuse the retained cached products.
 
 Activation follows this sequence:
 
@@ -394,22 +348,17 @@ Activation follows this sequence:
 4. Restart the supervised Valhalla process when the release has routing data.
 5. Retire the previous release and invalidate routes that depend on it.
 
-The SurrealDB state and pointer share one database transaction. Local DuckDB
-and filesystem projections cannot share that transaction. A failure after the
-catalog commit returns an error and leaves the canonical active release intact.
-Calling `activate` again with the active release and current record versions
-performs an idempotent local reconciliation; the Console exposes this as
-`Reconcile`.
+The SurrealDB state and pointer share one database transaction and establish the
+canonical active release. DuckDB and filesystem projections reconcile after
+that catalog commit. A projection failure returns an error while preserving the
+canonical release, and calling `activate` again with current record versions
+performs an idempotent reconciliation. The Console exposes this as `Reconcile`.
 
 Map deploys as one replica with one persistent `ReadWriteOnce` volume. The
-activation mutex serializes local product switches inside that process. A
-future multi-replica deployment requires an explicit projection-distribution
-design rather than sharing mutable local state by accident.
+activation mutex serializes local product switches inside that process.
 
 Licenses travel with each release. The contract records attribution,
-redistribution, derivative, offline-bundle, and expiry policy. Offline packaging
-registers the Map image and tooling; it does not silently bundle licensed map
-content.
+redistribution, derivative, offline-bundle, and expiry policy.
 
 ## Routing
 
@@ -426,9 +375,9 @@ provenance. Missing coverage fails explicitly.
 
 Human and road-vehicle profiles use the supervised Valhalla engine. The adapter
 maps the controlled profile to pedestrian, bicycle, motor-scooter, motorcycle,
-auto, truck, or bus costing and rejects unsupported limits rather than
-clamping. Valhalla produces route geometry, maneuver instructions, distance,
-duration, alternatives, and land isochrones.
+auto, truck, or bus costing and validates profile values against the engine's
+supported limits. Valhalla produces route geometry, maneuver instructions,
+distance, duration, alternatives, and land isochrones.
 
 ### Governed Networks
 
@@ -436,12 +385,10 @@ Off-road, rail, surface-vessel, subsurface-vessel, fixed-wing, rotorcraft, and
 UAS profiles use explicit activated LineString edges for their map family. The
 planner snaps endpoints within 10 km, verifies consistent node geometry,
 applies avoided areas, and runs A* for fastest or shortest objectives. It
-returns `planning_advisory` because source-specific certification and complete
-vehicle physics are outside the generic graph adapter.
-
-The governed graph never invents a connection between disconnected nodes.
-Alternative routes and required-area constraints are not available on this
-adapter. A caller must explicitly allow planning-advisory output.
+returns `planning_advisory` until the selected sources and performance models
+carry domain-specific certification. Planning requires connected activated
+edges, supports fastest and shortest objectives, and accepts explicit avoided
+areas. The caller opts into planning-advisory output through its data policy.
 
 ### Restrictions And Validation
 
@@ -492,13 +439,11 @@ operations renew leases while running and resume after a server restart.
 | `withdraw_restriction` | direct | `map:restriction:withdraw` | ended restriction and invalidation count |
 
 All tool results use structured content schemas. Tool and resource lists are
-paginated. A direct call to a task-only tool returns an explicit instruction to
-use task invocation.
+paginated. Task-only tools use the durable task extension.
 
 Map uses stateful Streamable HTTP sessions and SSE responses. This transport
 keeps Task API traffic, resource subscriptions, `resources/updated`, and
-`resources/list_changed` notifications on the canonical MCP session instead of
-collapsing them into a one-response JSON channel.
+`resources/list_changed` notifications on the canonical MCP session.
 
 ### Resources
 
@@ -530,8 +475,9 @@ map://matrix/{matrix_id}
 map://artifact/{artifact_id}
 ```
 
-Source resources omit credentials. Routes and matrices are owner scoped.
-Dataset, geography, profile, and restriction resources are tenant scoped.
+Source resources present public source fields. Routes and matrices are owner
+scoped. Dataset, geography, profile, and restriction resources are tenant
+scoped.
 
 ### Prompts And Completions
 
@@ -545,16 +491,15 @@ profile, restriction, route, and matrix identities from the caller's scope.
 
 ### Subscriptions And Notifications
 
-Mutable collection resources for datasets, restrictions, routes, and matrices
-are subscribable. Immutable instance resources are not. The server emits
-resource-update and resource-list-change notifications after relevant
-mutations. Subscription state is session local; durable long-running work uses
-task subscriptions.
+Subscriptions cover the mutable dataset, restriction, route, and matrix
+collections. The server emits resource-update and resource-list-change
+notifications after relevant mutations. Subscription state is session local;
+durable long-running work uses task subscriptions.
 
 ## Administrative REST
 
-Administrative acquisition is not an MCP tool. The same Axum process exposes a
-typed REST tree protected by the gateway-signed identity and `map:admin`.
+The same Axum process exposes administrative acquisition through a typed REST
+tree protected by the gateway-signed identity and `map:admin`.
 
 | Method and path | Purpose |
 |---|---|
@@ -591,14 +536,14 @@ The gateway proxies only the catalog-resolved generic path:
 
 It accepts bounded GET, HEAD, POST, and PUT requests, replaces internal identity
 headers, signs the authenticated principal, and writes the generic gateway
-audit outcome. It never accepts an upstream URL from the caller.
+audit outcome. Catalog resolution determines the upstream service.
 
 The Console BFF exposes the same operations beneath
 `/console/api/map/{path}`. The React page lists sources, acquisitions, releases,
 active pointers, and mobility profiles. It can register raw typed source and
 profile documents, start and cancel acquisitions, activate, reconcile,
-rollback, and quarantine releases. Browser code never receives the gateway
-bearer or invokes the helper directly.
+rollback, and quarantine releases. The BFF retains gateway credentials and
+mediates every browser operation.
 
 ## Isolation And Security
 
@@ -610,8 +555,7 @@ lookup is tenant constrained.
 The public server validates the Host authority and a gateway-signed internal
 token. Tool handlers enforce domain scopes again after gateway policy. The
 administrative router has its own scope gate. Secret references are bounded
-identifiers, and secret material never appears in MCP resources or Console
-payloads.
+identifiers; MCP resources and Console payloads expose those references.
 
 Health reports DuckDB Spatial verification and both the supervised Valhalla
 process and its loopback health. A failed routing process makes the Map health
@@ -633,8 +577,8 @@ endpoint unavailable.
 
 Unavailable coverage, invalid profile versions, disallowed advisory status,
 unsupported objectives, source digest mismatch, unsafe archives, and
-optimistic-concurrency conflicts all fail explicitly. No fallback changes the
-question being answered.
+optimistic-concurrency conflicts all fail explicitly while preserving the
+original question.
 
 ## Deployment
 
@@ -666,7 +610,7 @@ Important arguments include:
 The image build pins the DuckDB C API and architecture-specific Spatial
 extension, verifies its SHA-256 digest, compiles the Rust server, and copies
 native map utilities from pinned images or packages. The runtime user is uid
-10001. System packages are never installed at startup.
+10001. System packages are fixed during the image build.
 
 ## Dependencies
 
@@ -782,24 +726,7 @@ docker build -f servers/map-mcp/Dockerfile -t veoveo/map-mcp:0.1.0 .
 just smoke-map-mcp
 ```
 
-This suite is risk-based. It does not enumerate every mobility class against
-every map family, contact public data providers, or duplicate the complete
-task-runtime recovery and cancellation matrix inside the Map smoke. Those
-combinations remain deliberate integration and acceptance-test work as real
-authority datasets and certified performance models are introduced.
-
-## Deliberate Follow-On Work
-
-The following work is not presented as implemented:
-
-- OSM replication and other sequenced-delta application;
-- durable operational feed ingestion for GTFS Realtime, traffic, weather,
-  tides, currents, NOTAMs, and navigational warnings;
-- product-specific S-57 update, S-100, AIXM, NASR, and environmental validators;
-- certified vessel, aircraft, rail, and terrain performance models;
-- automatic multi-profile intermodal journey construction;
-- a separate renderer or tile service when agent image reasoning is required;
-- multi-replica distribution of local DuckDB and Valhalla projections.
-
-These additions extend the typed release and route model. They do not require
-another mapping domain or raw database queries for agents.
+The risk-based suite targets representative acquisition, land routing,
+governed-network routing, restriction, invalidation, Task API, and persistence
+boundaries. Authority datasets and certified performance models add their own
+domain acceptance cases as they enter an installation.
