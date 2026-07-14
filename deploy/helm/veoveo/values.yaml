@@ -255,6 +255,28 @@ domainServices:
       size: 100Gi
       storageClass: ""
       accessModes: [ReadWriteOnce]
+  - name: time-mcp
+    replicas: 1
+    image:
+      repository: veoveo/time-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8800
+    healthPath: /time/healthz
+    args:
+      - --port
+      - "8800"
+      - --allowed-host
+      - time-mcp:8800
+      - --acquisition-scratch-root
+      - /var/lib/veoveo/time/acquisitions
+      - --release-root
+      - /var/lib/veoveo/time/releases
+    persistenceMountPath: /var/lib/veoveo/time
+    persistence:
+      size: 10Gi
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
   - name: duckdb-mcp
     replicas: 1
     image:

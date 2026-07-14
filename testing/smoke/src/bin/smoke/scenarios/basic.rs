@@ -170,6 +170,7 @@ pub(crate) async fn compose_config() -> Result<()> {
         "rustfs:",
         "chart-mcp:",
         "perception-mcp:",
+        "time-mcp:",
         "target: /etc/veoveo/perception",
         "target: /models",
         "target: 8795",
@@ -207,6 +208,7 @@ pub(crate) async fn compose_config() -> Result<()> {
         "servers/perception-mcp/Dockerfile",
         "servers/recording-mcp/Dockerfile",
         "servers/timeseries-mcp/Dockerfile",
+        "servers/time-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
         let contents = fs::read_to_string(&dockerfile)?;
@@ -233,6 +235,7 @@ pub(crate) async fn compose_config() -> Result<()> {
     contains(&caddyfile_text, "respond /media/mcp* 404")?;
     contains(&caddyfile_text, "respond /frames/mcp* 404")?;
     contains(&caddyfile_text, "respond /map/mcp* 404")?;
+    contains(&caddyfile_text, "respond /time/mcp* 404")?;
     contains(&caddyfile_text, "respond /perception/mcp* 404")?;
     contains(&caddyfile_text, "respond /charts/mcp* 404")?;
     contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;

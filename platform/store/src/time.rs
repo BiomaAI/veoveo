@@ -372,17 +372,29 @@ impl PlatformStore {
         }
         let active_key = format!("{}:{}", identity.tenant_id, dataset_kind_key(kind));
         let previous = pointer.map(|record| record.release_key);
+        let retire_previous = previous
+            .as_ref()
+            .filter(|previous| previous.as_str() != release_key)
+            .map(|_| "UPDATE ONLY $previous_release MERGE { state: 'retired', record_version: record_version + 1, updated_at: time::now() } WHERE tenant = $tenant;")
+            .unwrap_or_default();
         let pointer_statement = if expected_pointer_version == 0 {
             "CREATE ONLY $active CONTENT { tenant: $tenant, dataset_kind: $dataset_kind, release_key: $release_key, previous_release_key: $previous, activated_by: $owner, activated_at: time::now(), record_version: 1 } RETURN NONE;"
         } else {
             "LET $pointer_updated = (UPDATE ONLY $active MERGE { release_key: $release_key, previous_release_key: $previous, activated_by: $owner, activated_at: time::now(), record_version: $next_pointer } WHERE tenant = $tenant AND record_version = $expected_pointer RETURN AFTER); IF $pointer_updated = NONE { THROW 'time_active_authority_conflict'; };"
         };
         let query = format!(
-            "BEGIN TRANSACTION; LET $release_updated = (UPDATE ONLY $release MERGE {{ state: 'active', canonical_json: $canonical_json, record_version: $next_release, updated_at: time::now() }} WHERE tenant = $tenant AND record_version = $expected_release RETURN AFTER); IF $release_updated = NONE {{ THROW 'time_authority_release_conflict'; }}; {pointer_statement} COMMIT TRANSACTION;"
+            "BEGIN TRANSACTION; LET $release_updated = (UPDATE ONLY $release MERGE {{ state: 'active', canonical_json: $canonical_json, record_version: $next_release, updated_at: time::now() }} WHERE tenant = $tenant AND record_version = $expected_release RETURN AFTER); IF $release_updated = NONE {{ THROW 'time_authority_release_conflict'; }}; {pointer_statement} {retire_previous} COMMIT TRANSACTION;"
         );
         self.client()
             .query(query)
             .bind(("active", time_record("time_active_authority", &active_key)))
+            .bind((
+                "previous_release",
+                time_record(
+                    "time_authority_release",
+                    previous.as_deref().unwrap_or(release_key),
+                ),
+            ))
             .bind((
                 "release",
                 time_record("time_authority_release", release_key),

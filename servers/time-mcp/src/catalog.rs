@@ -164,6 +164,9 @@ impl TimeCatalog {
             .release(scope, id)
             .await?
             .context("unknown authority release")?;
+        if release.state != AuthorityReleaseState::Staged {
+            anyhow::bail!("only a staged authority release can be activated");
+        }
         release.state = AuthorityReleaseState::Active;
         release.record_version = expected_release + 1;
         let canonical_json = serde_json::to_string(&release)?;

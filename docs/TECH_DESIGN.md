@@ -154,8 +154,8 @@ Each durable operation declares one recovery class:
   task failed and never repeats the operation.
 
 Long-running servers use this same runtime: media, timeseries, optimization, frames, map,
-DuckDB, and SUMO. There is no server-local in-memory task registry and no alternate task
-URI.
+Time, DuckDB, and SUMO. There is no server-local in-memory task registry and no alternate
+task URI.
 
 ## Provider Completion
 

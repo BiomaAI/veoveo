@@ -43,6 +43,7 @@
     {"ref": "veoveo/perception-mcp:0.1.0", "dockerfile": "servers/perception-mcp/Dockerfile"},
     {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "platform/recordings/hub/Dockerfile"},
     {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "servers/recording-mcp/Dockerfile"},
+    {"ref": "veoveo/time-mcp:0.1.0", "dockerfile": "servers/time-mcp/Dockerfile"},
     {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "servers/timeseries-mcp/Dockerfile"}
   ]
 }

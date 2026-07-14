@@ -24,6 +24,12 @@ Release activation serializes projection changes within that process. Scaling
 Map requires an explicit projection-distribution design and is not enabled by
 raising the replica count.
 
+`time-mcp` runs as one temporal authority process with a persistent
+`ReadWriteOnce` volume for staged and active TZDB and leap-second products.
+SurrealDB retains the release catalog, active authority pointers, calendars,
+mission epochs, clock policy, events, and durable Task API state. Authority
+activation remains serialized within the process.
+
 The operator must create these resources before installation:
 
 - `surrealdb.adminExistingSecret`: `username` and `password` for bootstrap only.

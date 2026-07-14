@@ -52,11 +52,15 @@ impl TemporalEngine {
     pub fn replace_epochs(&self, epochs: impl IntoIterator<Item = MissionEpoch>) {
         let mut active = self.epochs.write().expect("mission epoch lock poisoned");
         active.clear();
-        active.extend(
-            epochs
-                .into_iter()
-                .map(|epoch| (epoch.epoch_id.to_string(), epoch)),
-        );
+        for epoch in epochs {
+            let key = epoch.epoch_id.to_string();
+            match active.get(&key) {
+                Some(current) if current.version >= epoch.version => {}
+                _ => {
+                    active.insert(key, epoch);
+                }
+            }
+        }
     }
 
     pub fn resolve(&self, request: &ResolveTimeRequest) -> Result<ResolveTimeOutput> {
@@ -737,8 +741,8 @@ mod tests {
     use crate::{
         authority::LeapSecondTable,
         contract::{
-            AuthorityReleaseId, CalendarId, CalendarWindow, OperationalCalendar, RecurrenceRule,
-            TimelineConstraint, TimelinePoint,
+            AuthorityReleaseId, CalendarId, CalendarWindow, MissionEpochId, OperationalCalendar,
+            RecurrenceRule, TimelineConstraint, TimelinePoint,
         },
     };
 
@@ -921,5 +925,33 @@ mod tests {
         assert!(!output.valid);
         assert_eq!(output.violations.len(), 1);
         assert_eq!(output.violations[0].constraint_index, 0);
+    }
+
+    #[test]
+    fn mission_relative_resolution_selects_the_highest_epoch_version() {
+        let engine = engine();
+        let authority = engine.authority.binding.clone();
+        let epoch = |version, seconds| MissionEpoch {
+            epoch_id: MissionEpochId::new("epoch-launch").unwrap(),
+            name: "Launch".to_owned(),
+            instant: TimeInstant {
+                tai_seconds_since_1970: seconds,
+                nanosecond: 0,
+                uncertainty_nanoseconds: 0,
+                authority: authority.clone(),
+            },
+            version,
+        };
+        engine.replace_epochs([epoch(4, 4_000), epoch(2, 2_000), epoch(3, 3_000)]);
+        let resolved = engine
+            .resolve(&ResolveTimeRequest {
+                expression: TimeExpression::EpochRelative {
+                    epoch_id: MissionEpochId::new("epoch-launch").unwrap(),
+                    offset_nanoseconds: 1_000_000_000,
+                },
+                additional_uncertainty_nanoseconds: 0,
+            })
+            .unwrap();
+        assert_eq!(resolved.instant.tai_seconds_since_1970, 4_001);
     }
 }
