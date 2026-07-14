@@ -229,7 +229,11 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
-        scopes: [ScopeName::new("operator:use")?].into_iter().collect(),
+        scopes: args
+            .internal_scopes
+            .iter()
+            .map(|scope| ScopeName::new(scope.clone()))
+            .collect::<Result<_, _>>()?,
         data_labels: Default::default(),
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),

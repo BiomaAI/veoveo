@@ -116,8 +116,8 @@ pub(crate) fn spawn_media_memory_smoke(
     )
 }
 
-pub(crate) fn spawn_coordinates_smoke(
-    coordinates: &Path,
+pub(crate) fn spawn_frames_smoke(
+    frames: &Path,
     port: u16,
     public_base_url: &str,
     artifact_service_url: &str,
@@ -127,7 +127,7 @@ pub(crate) fn spawn_coordinates_smoke(
     let mut env = platform.runtime_env();
     env.push(("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()));
     ChildGuard::spawn(
-        coordinates,
+        frames,
         [
             "--port".into(),
             port.to_string().into(),
@@ -229,8 +229,8 @@ pub(crate) fn spawn_optimization_smoke(
 
 const SURREAL_ROOT_USER: &str = "root";
 const SURREAL_ROOT_PASSWORD: &str = "root";
-const SURREAL_RUNTIME_USER: &str = "veoveo_runtime";
-const SURREAL_RUNTIME_PASSWORD: &str = "runtime-secret";
+pub(crate) const SURREAL_RUNTIME_USER: &str = "veoveo_runtime";
+pub(crate) const SURREAL_RUNTIME_PASSWORD: &str = "runtime-secret";
 
 pub(crate) struct PlatformStoreSmoke {
     pub(crate) endpoint: String,
@@ -418,7 +418,7 @@ pub(crate) async fn spawn_artifact_service_smoke(
         ("ARTIFACT_STORE", "memory".into()),
         (
             "ARTIFACT_ALLOWED_AUDIENCES",
-            "media,timeseries,optimization,duckdb,coordinates,datasheet".into(),
+            "media,timeseries,optimization,duckdb,frames,map,datasheet".into(),
         ),
     ]);
     let child = ChildGuard::spawn(artifact_service, Vec::<OsString>::new(), service_env, log)?;

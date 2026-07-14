@@ -160,6 +160,7 @@ pub(super) enum AdminOperationFailure {
     PersistJwtRevocation,
     PruneJwtRevocations,
     RevisionId,
+    ServerAdminProxy,
     TaskOwnership,
     TaskRoute,
 }
@@ -184,6 +185,7 @@ impl AdminOperationFailure {
             Self::PersistJwtRevocation => "persist_jwt_revocation",
             Self::PruneJwtRevocations => "prune_jwt_revocations",
             Self::RevisionId => "revision_id",
+            Self::ServerAdminProxy => "server_admin_proxy",
             Self::TaskOwnership => "task_ownership",
             Self::TaskRoute => "task_route",
         }

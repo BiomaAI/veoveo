@@ -4,7 +4,7 @@ use std::{
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail};
@@ -14,6 +14,7 @@ use tempfile::{Builder, TempDir};
 #[derive(Debug, Clone)]
 pub struct HttpsSourcePolicy {
     allowed_hosts: BTreeSet<String>,
+    allowed_media_types: BTreeSet<String>,
     pub connect_timeout: Duration,
     pub total_timeout: Duration,
     pub max_bytes: u64,
@@ -32,6 +33,7 @@ impl HttpsSourcePolicy {
                 .map(|host| host.trim().to_ascii_lowercase())
                 .filter(|host| !host.is_empty())
                 .collect(),
+            allowed_media_types: BTreeSet::new(),
             connect_timeout: Duration::from_secs(5),
             total_timeout: Duration::from_secs(60),
             max_bytes: 256 * 1024 * 1024,
@@ -41,6 +43,14 @@ impl HttpsSourcePolicy {
 
     pub fn allowed_hosts(&self) -> impl Iterator<Item = &str> {
         self.allowed_hosts.iter().map(String::as_str)
+    }
+
+    pub fn set_allowed_media_types(&mut self, media_types: impl IntoIterator<Item = String>) {
+        self.allowed_media_types = media_types
+            .into_iter()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect();
     }
 
     fn resolve_public(&self, url: &Url) -> Result<(String, SocketAddr)> {
@@ -158,7 +168,7 @@ impl RequestWorkspace {
     ) -> Result<PathBuf> {
         validate_filename(filename)?;
         let destination = self.request.join(filename);
-        let result = fetch_https_to(uri, &destination, policy);
+        let result = fetch_https_to(uri, &destination, policy, None);
         if result.is_err() {
             let _ = std::fs::remove_file(&destination);
         }
@@ -193,29 +203,69 @@ pub fn materialize_https_source(
     validate_filename(filename)?;
     std::fs::create_dir_all(request_dir)?;
     let destination = request_dir.join(filename);
-    let result = fetch_https_to(uri, &destination, policy);
+    let result = fetch_https_to(uri, &destination, policy, None);
     if result.is_err() {
         let _ = std::fs::remove_file(&destination);
     }
     result.map(|()| destination)
 }
 
-fn fetch_https_to(uri: &str, destination: &Path, policy: &HttpsSourcePolicy) -> Result<()> {
+/// Fetch a governed HTTPS source with credentials scoped to the original
+/// source host. Cross-host redirects are revalidated and never receive these
+/// headers.
+pub fn materialize_https_source_with_headers(
+    request_dir: &Path,
+    uri: &str,
+    filename: &str,
+    policy: &HttpsSourcePolicy,
+    headers: &header::HeaderMap,
+) -> Result<PathBuf> {
+    validate_filename(filename)?;
+    validate_source_headers(headers)?;
+    std::fs::create_dir_all(request_dir)?;
+    let destination = request_dir.join(filename);
+    let result = fetch_https_to(uri, &destination, policy, Some(headers));
+    if result.is_err() {
+        let _ = std::fs::remove_file(&destination);
+    }
+    result.map(|()| destination)
+}
+
+fn fetch_https_to(
+    uri: &str,
+    destination: &Path,
+    policy: &HttpsSourcePolicy,
+    source_headers: Option<&header::HeaderMap>,
+) -> Result<()> {
     let mut url = Url::parse(uri).with_context(|| format!("invalid source URI `{uri}`"))?;
+    let deadline = Instant::now() + policy.total_timeout;
+    let origin_host = url
+        .host_str()
+        .context("source URI must contain a host")?
+        .to_ascii_lowercase();
     for redirect in 0..=policy.max_redirects {
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|remaining| !remaining.is_zero())
+            .context("source exceeded the total timeout")?;
         let (host, address) = policy.resolve_public(&url)?;
         // Pin the request to the address that passed validation. TLS still
         // authenticates the original hostname and every redirect is rebuilt.
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(policy.connect_timeout)
-            .timeout(policy.total_timeout)
+            .timeout(remaining)
             .resolve(&host, address)
             .user_agent("veoveo-duckdb-runtime")
             .build()
             .context("building governed source client")?;
-        let mut response = client
-            .get(url.clone())
+        let mut request = client.get(url.clone());
+        if host == origin_host
+            && let Some(headers) = source_headers
+        {
+            request = request.headers(headers.clone());
+        }
+        let mut response = request
             .send()
             .with_context(|| format!("fetching source `{url}`"))?;
         if response.status().is_redirection() {
@@ -233,6 +283,22 @@ fn fetch_https_to(uri: &str, destination: &Path, policy: &HttpsSourcePolicy) -> 
         }
         if !response.status().is_success() {
             bail!("source returned HTTP {}", response.status());
+        }
+        if !policy.allowed_media_types.is_empty() {
+            let media_type = response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .context("source omitted Content-Type")?
+                .to_str()
+                .context("source Content-Type is not valid text")?
+                .split(';')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            if !policy.allowed_media_types.contains(&media_type) {
+                bail!("source returned disallowed media type `{media_type}`");
+            }
         }
         if response
             .content_length()
@@ -263,6 +329,18 @@ fn fetch_https_to(uri: &str, destination: &Path, policy: &HttpsSourcePolicy) -> 
         return Ok(());
     }
     unreachable!("redirect loop returns or fails")
+}
+
+fn validate_source_headers(headers: &header::HeaderMap) -> Result<()> {
+    for name in headers.keys() {
+        let name = name.as_str();
+        if name != header::AUTHORIZATION.as_str()
+            && (!name.starts_with("x-") || name.starts_with("x-forwarded-"))
+        {
+            bail!("source credential header `{name}` is not allowed");
+        }
+    }
+    Ok(())
 }
 
 fn validate_filename(filename: &str) -> Result<()> {
@@ -391,5 +469,23 @@ mod tests {
             .unwrap();
         assert!(path.starts_with(workspace.request_dir()));
         assert_eq!(std::fs::read(path).unwrap(), b"PAR1");
+    }
+
+    #[test]
+    fn credential_headers_are_narrowly_allowlisted() {
+        let mut allowed = header::HeaderMap::new();
+        allowed.insert(
+            header::AUTHORIZATION,
+            header::HeaderValue::from_static("Bearer token"),
+        );
+        allowed.insert("x-api-key", header::HeaderValue::from_static("token"));
+        assert!(validate_source_headers(&allowed).is_ok());
+
+        let mut denied = header::HeaderMap::new();
+        denied.insert(
+            header::HOST,
+            header::HeaderValue::from_static("example.com"),
+        );
+        assert!(validate_source_headers(&denied).is_err());
     }
 }

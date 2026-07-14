@@ -6,6 +6,8 @@ mod console;
 mod control_plane;
 #[path = "admin/jwt_revocations.rs"]
 mod jwt_revocations;
+#[path = "admin/server_proxy.rs"]
+mod server_proxy;
 #[path = "admin/tasks.rs"]
 mod tasks;
 
@@ -18,6 +20,7 @@ pub(super) use artifacts::{
 pub(super) use console::read_console_snapshot;
 pub(super) use control_plane::{read_control_plane, update_control_plane};
 pub(super) use jwt_revocations::{prune_jwt_revocations, revoke_jwt};
+pub(crate) use server_proxy::proxy_server_admin;
 pub(super) use tasks::cancel_task;
 
 fn admin_profile_id(profile: String) -> Option<GatewayProfileId> {

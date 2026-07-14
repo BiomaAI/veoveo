@@ -47,7 +47,7 @@ use veoveo_duckdb_mcp::{
         DuckDbExportRequest, DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput,
         DuckDbQueryRequest,
     },
-    engine::{self, EngineSettings, FileExchange},
+    engine::{self, EngineSettings, FileExchange, TrustedExtension},
     state::TaskOwner,
     uris,
 };
@@ -130,7 +130,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Query a DuckDB database",
-        description = "Run one read-only SQL statement against a database you own. Read-only is enforced by the connection, and SQL cannot touch files, the network, extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{artifact_id} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
+        description = "Run one read-only SQL statement against a database you own. DuckDB Spatial is preloaded by the server. Read-only is enforced by the connection, and SQL cannot touch files, the network, additional extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{artifact_id} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbQueryOutput>(),
         annotations(
             read_only_hint = true,
@@ -154,7 +154,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Execute SQL on a DuckDB database",
-        description = "Run DDL/DML SQL on a database owned by the caller, creating it when create_if_missing is set. Writes serialize per database. SQL cannot touch files, the network, extensions, or engine settings.",
+        description = "Run DDL/DML SQL on a database owned by the caller, creating it when create_if_missing is set. DuckDB Spatial is preloaded by the server. Writes serialize per database. SQL cannot touch files, the network, additional extensions, or engine settings.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbExecuteOutput>(),
         annotations(
             read_only_hint = false,
@@ -891,6 +891,16 @@ async fn main() -> anyhow::Result<()> {
     for dir in [&args.database_dir, &args.exchange_dir, &args.spill_dir] {
         std::fs::create_dir_all(dir)?;
     }
+    let engine_settings = EngineSettings {
+        memory_limit: args.engine_memory_limit.clone(),
+        threads: args.engine_threads,
+        spill_dir: args.spill_dir.clone(),
+        trusted_extensions: vec![TrustedExtension::new(
+            "spatial",
+            args.spatial_extension.clone(),
+        )?],
+    };
+    engine::verify_spatial(&engine_settings)?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         ServerSlug::new(SERVER_SLUG)?,
@@ -911,11 +921,6 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     let recovery = tasks.recover().await?;
-    let engine_settings = EngineSettings {
-        memory_limit: args.engine_memory_limit.clone(),
-        threads: args.engine_threads,
-        spill_dir: args.spill_dir.clone(),
-    };
     let mut source_policy =
         veoveo_duckdb_runtime::HttpsSourcePolicy::new(args.allow_source_hosts.clone());
     source_policy.max_bytes = args.max_source_bytes;

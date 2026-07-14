@@ -227,7 +227,7 @@ mod tests {
         let provenance = CoordinateOperationProvenance {
             operation: CoordinateOperationRef {
                 operation_id: CoordinateOperationId::new("op-test").unwrap(),
-                operation_uri: "coordinates://operation/op-test".to_string(),
+                operation_uri: "frames://operation/op-test".to_string(),
                 source_frame: Some(FrameId::new("WGS84").unwrap()),
                 target_frame: Some(FrameId::new("ECEF").unwrap()),
                 created_at: Utc::now(),

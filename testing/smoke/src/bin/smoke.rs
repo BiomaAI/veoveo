@@ -117,17 +117,29 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/artifact-service")]
         artifact_service_bin: PathBuf,
     },
-    /// Smoke-test direct hosted coordinates tools, tasks, artifacts, and usage.
-    CoordinatesMcp {
+    /// Smoke-test direct hosted frame tools, tasks, artifacts, and usage.
+    FramesMcp {
         /// Built conformance binary path.
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
-        /// Built coordinates MCP server binary path.
+        /// Built frames MCP server binary path.
         #[arg(long, default_value = "target/debug/server")]
-        coordinates_bin: PathBuf,
+        frames_bin: PathBuf,
         /// Built artifact-service binary path.
         #[arg(long, default_value = "target/debug/artifact-service")]
         artifact_service_bin: PathBuf,
+    },
+    /// Smoke-test the all-in-one Map image, governed acquisition, activation, and MCP data surface.
+    MapMcp {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built artifact-service binary path.
+        #[arg(long, default_value = "target/debug/artifact-service")]
+        artifact_service_bin: PathBuf,
+        /// Map container image containing DuckDB Spatial, GDAL, the acquisition helper, and Valhalla.
+        #[arg(long, default_value = "veoveo/map-mcp:0.1.0")]
+        map_image: String,
     },
     /// Smoke-test the Python datasheet template server end to end.
     DatasheetMcp {
@@ -271,14 +283,14 @@ enum Cmd {
         #[arg(long, default_value_t = false)]
         live: bool,
     },
-    /// Smoke-test the Pilot agent's full mission loop over coordinates and optimization.
+    /// Smoke-test the Pilot agent's full mission loop over frames and optimization.
     AgentPilot {
         /// Built conformance binary path.
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
-        /// Built coordinates MCP server binary path.
-        #[arg(long, default_value = "target/debug/coordinates-mcp-smoke")]
-        coordinates_bin: PathBuf,
+        /// Built frames MCP server binary path.
+        #[arg(long, default_value = "target/debug/frames-mcp-smoke")]
+        frames_bin: PathBuf,
         /// Built optimization MCP server binary path.
         #[arg(long, default_value = "target/debug/optimization-mcp-smoke")]
         optimization_bin: PathBuf,
@@ -398,11 +410,16 @@ async fn main() -> Result<()> {
             media_bin,
             artifact_service_bin,
         } => media_task_run(&conformance_bin, &media_bin, &artifact_service_bin).await,
-        Cmd::CoordinatesMcp {
+        Cmd::FramesMcp {
             conformance_bin,
-            coordinates_bin,
+            frames_bin,
             artifact_service_bin,
-        } => coordinates_mcp(&conformance_bin, &coordinates_bin, &artifact_service_bin).await,
+        } => frames_mcp(&conformance_bin, &frames_bin, &artifact_service_bin).await,
+        Cmd::MapMcp {
+            conformance_bin,
+            artifact_service_bin,
+            map_image,
+        } => map_mcp(&conformance_bin, &artifact_service_bin, &map_image).await,
         Cmd::DatasheetMcp {
             conformance_bin,
             artifact_service_bin,
@@ -500,7 +517,7 @@ async fn main() -> Result<()> {
         }
         Cmd::AgentPilot {
             conformance_bin,
-            coordinates_bin,
+            frames_bin,
             optimization_bin,
             gateway_bin,
             control_plane,
@@ -509,7 +526,7 @@ async fn main() -> Result<()> {
         } => {
             agent_pilot_mission(
                 &conformance_bin,
-                &coordinates_bin,
+                &frames_bin,
                 &optimization_bin,
                 &gateway_bin,
                 &control_plane,

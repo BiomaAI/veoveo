@@ -121,6 +121,12 @@ docs-pdf chrome='google-chrome':
     '{{chrome}}' --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=docs/veoveo-whitepaper.pdf docs/veoveo-whitepaper-print.html
     '{{chrome}}' --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=docs/autonomy-harness.pdf docs/autonomy-harness-print.html
 
+# Smoke-test governed Map acquisition, activation, and spatial MCP queries in the all-in-one image.
+smoke-map-mcp:
+    docker build -f servers/map-mcp/Dockerfile -t veoveo/map-mcp:0.1.0 .
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-artifact-service --bin artifact-service
+    {{smoke}} map-mcp --conformance-bin target/debug/conformance --artifact-service-bin target/debug/artifact-service --map-image veoveo/map-mcp:0.1.0
+
 # Smoke-test contract schema export for non-Rust implementations.
 smoke-contract-schemas:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke
@@ -204,14 +210,14 @@ smoke-agent-kernel-scheduler:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
     {{smoke}} agent-kernel-scheduler --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
-# Smoke-test the Pilot agent's full mission loop over coordinates and optimization.
+# Smoke-test the Pilot agent's full mission loop over frames and optimization.
 smoke-agent-pilot:
-    cargo build -p veoveo-coordinates-mcp --bin server
-    cp target/debug/server target/debug/coordinates-mcp-smoke
+    cargo build -p veoveo-frames-mcp --bin server
+    cp target/debug/server target/debug/frames-mcp-smoke
     cargo build -p veoveo-optimization-mcp --bin server
     cp target/debug/server target/debug/optimization-mcp-smoke
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
-    {{smoke}} agent-pilot --conformance-bin target/debug/conformance --coordinates-bin target/debug/coordinates-mcp-smoke --optimization-bin target/debug/optimization-mcp-smoke --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+    {{smoke}} agent-pilot --conformance-bin target/debug/conformance --frames-bin target/debug/frames-mcp-smoke --optimization-bin target/debug/optimization-mcp-smoke --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
 # Run the real Pilot against the live local compose stack with Cloudflare credentials from .env.
 agent-pilot-local data_dir="output/pilot-data":

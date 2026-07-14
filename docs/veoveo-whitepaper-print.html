@@ -242,7 +242,7 @@
     <div class="row"><span class="t">06:42:07</span><span class="ch">wake</span><span class="tx">operator message · 2 attachments</span></div>
     <div class="row"><span class="t">06:42:08</span><span class="ch">reason</span><span class="tx">two formats I have never seen from this operator — a .kml boundary, an .xlsx priority sheet; I can structure both</span></div>
     <div class="row"><span class="t">06:42:09</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> priorities.xlsx → ops_priorities · 14 intersections ranked</span></div>
-    <div class="row"><span class="t">06:42:10</span><span class="ch">act</span><span class="tx"><b>coordinates__validate_geofence</b> survey-north.kml → WGS84 polygon · 8.2 km²</span></div>
+    <div class="row"><span class="t">06:42:10</span><span class="ch">act</span><span class="tx"><b>map__validate_geofence</b> survey-north.kml → WGS84 polygon · 8.2 km²</span></div>
     <div class="row"><span class="t">06:42:11</span><span class="ch">act</span><span class="tx"><b>memory_write</b> missions ← ‘survey-north’ · objectives, boundary, constraints</span></div>
     <div class="row"><span class="t">06:42:12</span><span class="ch">reason</span><span class="tx">evidence means cameras and counts — four streams cover the district</span></div>
     <div class="row"><span class="t">06:42:13</span><span class="ch">act</span><span class="tx"><b>subscribe</b> sumo://congestion · scoped to the boundary</span></div>
@@ -617,7 +617,7 @@
     <tbody>
       <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
       <tr><td>Perception<br><code>perception</code></td><td>Bounded GPU inference over the record's video: detection and tracking against governed recording identities, executed locally.</td><td class="mono">analyze_recording · extract_clip</td></tr>
-      <tr><td>Geodesy<br><code>coordinates</code></td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
+      <tr><td>Geodesy<br><code>map / frames</code></td><td>Geodesy and reference-frame math: WGS84 / ECEF / ENU / NED, projected CRS, geofences.</td><td class="mono">convert_frame · transform_crs · derive_local_frame · geodesic_inverse · geodesic_direct · validate_geofence · batch_transform</td></tr>
       <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
       <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
       <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as recordings.</td><td class="mono">forecast</td></tr>

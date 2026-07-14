@@ -12,6 +12,7 @@ import {
   KeyRound,
   Link2,
   LogOut,
+  MapPinned,
   Menu,
   Network,
   RefreshCw,
@@ -29,11 +30,20 @@ import {
   cancelTask,
   createArtifactShareLink,
   grantArtifact,
+  loadMapAcquisitions,
+  loadMapActiveReleases,
+  loadMapReleases,
+  loadMapMobilityProfiles,
+  loadMapSources,
   loadSnapshot,
   logoutConsole,
   revokeArtifactGrant,
   revokeArtifactShareLink,
+  registerMapSource,
+  registerMapMobilityProfile,
   setArtifactReleaseState,
+  startMapAcquisition,
+  mutateMapRelease,
 } from "./api";
 import {
   EmptyState,
@@ -44,7 +54,16 @@ import {
   StatusPill,
 } from "./components";
 import { formatBytes, formatDate } from "./format";
-import type { ArtifactSummary, InstallationSnapshot, TaskSummary } from "./types";
+import type {
+  ArtifactSummary,
+  InstallationSnapshot,
+  MapActiveReleaseSummary,
+  MapAcquisitionSummary,
+  MapMobilityProfileSummary,
+  MapReleaseSummary,
+  MapSourceSummary,
+  TaskSummary,
+} from "./types";
 
 const navItems = [
   { id: "overview", label: "Overview", icon: Gauge },
@@ -53,6 +72,7 @@ const navItems = [
   { id: "agents", label: "Agents", icon: Bot },
   { id: "recordings", label: "Recordings", icon: FileStack },
   { id: "mcp", label: "MCP topology", icon: Network },
+  { id: "map", label: "Map data", icon: MapPinned },
   { id: "access", label: "Access", icon: ShieldCheck },
   { id: "audit", label: "Audit", icon: KeyRound },
   { id: "installation", label: "Installation", icon: Settings }
@@ -215,6 +235,7 @@ export function App() {
           {view === "agents" && <AgentsView snapshot={snapshot} />}
           {view === "recordings" && <RecordingsView snapshot={snapshot} />}
           {view === "mcp" && <McpView snapshot={snapshot} />}
+          {view === "map" && <MapDataView />}
           {view === "access" && <AccessView snapshot={snapshot} />}
           {view === "audit" && <AuditView snapshot={snapshot} />}
           {view === "installation" && <InstallationView snapshot={snapshot} />}
@@ -322,6 +343,113 @@ function RecordingsView({ snapshot }: { snapshot: InstallationSnapshot }) {
 
 function McpView({ snapshot }: { snapshot: InstallationSnapshot }) {
   return <><section className="panel full-panel"><SectionHeader title="Hosted MCP servers" count={snapshot.servers.length} /><div className="table-scroll"><table><thead><tr><th>Server</th><th>State</th><th>Capabilities</th><th>Profiles</th><th>Transport</th><th>Endpoint</th></tr></thead><tbody>{snapshot.servers.map((server) => <tr key={server.id}><td><strong>{server.name}</strong><span className="mono subdued">{server.id}</span></td><td><StatusPill value={server.state} /></td><td>{server.tools} tools · {server.resources} resources · {server.prompts} prompts</td><td><div className="tags">{server.profiles.map((profile) => <span key={profile}>{profile}</span>)}</div></td><td><span className="code-label">{server.transport}</span></td><td className="mono">{server.endpoint}</td></tr>)}</tbody></table></div></section></>;
+}
+
+function MapDataView() {
+  const [sources, setSources] = useState<MapSourceSummary[]>([]);
+  const [acquisitions, setAcquisitions] = useState<MapAcquisitionSummary[]>([]);
+  const [releases, setReleases] = useState<MapReleaseSummary[]>([]);
+  const [mobilityProfiles, setMobilityProfiles] = useState<MapMobilityProfileSummary[]>([]);
+  const [activeReleases, setActiveReleases] = useState<MapActiveReleaseSummary[]>([]);
+  const [selectedSource, setSelectedSource] = useState("");
+  const [sourceJson, setSourceJson] = useState("");
+  const [mobilityProfileJson, setMobilityProfileJson] = useState("");
+  const [coverage, setCoverage] = useState({ west: -180, south: -90, east: 180, north: 90 });
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const refresh = async () => {
+    setError(undefined);
+    try {
+      const [nextSources, nextAcquisitions, nextReleases, nextMobilityProfiles, nextActiveReleases] = await Promise.all([
+        loadMapSources(),
+        loadMapAcquisitions(),
+        loadMapReleases(),
+        loadMapMobilityProfiles(),
+        loadMapActiveReleases(),
+      ]);
+      setSources(nextSources);
+      setAcquisitions(nextAcquisitions);
+      setReleases(nextReleases);
+      setMobilityProfiles(nextMobilityProfiles);
+      setActiveReleases(nextActiveReleases);
+      if (!selectedSource && nextSources[0]) setSelectedSource(nextSources[0].source_id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Map administration could not be loaded");
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  const run = async (operation: () => Promise<unknown>) => {
+    setPending(true);
+    setError(undefined);
+    try {
+      await operation();
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Map administration failed");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const submitSource = (event: FormEvent) => {
+    event.preventDefault();
+    void run(async () => registerMapSource(JSON.parse(sourceJson) as unknown));
+  };
+
+  const submitAcquisition = (event: FormEvent) => {
+    event.preventDefault();
+    void run(() => startMapAcquisition(selectedSource, coverage));
+  };
+
+  const submitMobilityProfile = (event: FormEvent) => {
+    event.preventDefault();
+    void run(async () => registerMapMobilityProfile(JSON.parse(mobilityProfileJson) as unknown));
+  };
+
+  const releaseAction = (release: MapReleaseSummary, action: "activate" | "rollback" | "quarantine") => {
+    const pointerVersion = activeReleases.find((pointer) => pointer.dataset_id === release.dataset_id)?.record_version ?? 0;
+    const warning = action === "quarantine"
+      ? `Quarantine ${release.release_id}?`
+      : `${action} ${release.release_id} using active pointer version ${pointerVersion}?`;
+    if (window.confirm(warning)) void run(() => mutateMapRelease(release, action, pointerVersion));
+  };
+
+  return <div className="map-admin-layout">
+    {error && <div className="action-error">{error}</div>}
+    <section className="panel full-panel">
+      <SectionHeader title="Authoritative sources" count={sources.length} actions={<button className="button button-secondary" onClick={() => void refresh()} disabled={pending}><RefreshCw size={14} /> Refresh</button>} />
+      <div className="table-scroll"><table><thead><tr><th>Source</th><th>Adapter</th><th>Authority</th><th>Families</th><th>State</th><th>Version</th></tr></thead><tbody>{sources.map((source) => <tr key={source.source_id}><td><strong>{source.name}</strong><span className="mono subdued">{source.source_id}</span></td><td><span className="code-label">{source.adapter_kind}</span></td><td>{source.authority}</td><td>{source.map_families.join(", ")}</td><td><StatusPill value={source.enabled ? "active" : "disabled"} /></td><td>r{source.record_version}</td></tr>)}</tbody></table></div>
+      {!sources.length && <EmptyState>No governed map sources are registered.</EmptyState>}
+    </section>
+    <section className="panel map-admin-form">
+      <SectionHeader title="Register source" />
+      <form onSubmit={submitSource}><label>Canonical RegisteredSource JSON<textarea value={sourceJson} onChange={(event) => setSourceJson(event.target.value)} rows={9} spellCheck={false} required /></label><button className="button button-primary" disabled={pending || !sourceJson.trim()}>Register source</button></form>
+    </section>
+    <section className="panel map-admin-form">
+      <SectionHeader title="Acquire release" />
+      <form onSubmit={submitAcquisition}><label>Source<select value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)} required>{sources.map((source) => <option key={source.source_id} value={source.source_id}>{source.name}</option>)}</select></label><div className="coverage-grid">{(["west", "south", "east", "north"] as const).map((field) => <label key={field}>{field}<input type="number" value={coverage[field]} min={field === "south" || field === "north" ? -90 : -180} max={field === "south" || field === "north" ? 90 : 180} onChange={(event) => setCoverage({ ...coverage, [field]: Number(event.target.value) })} /></label>)}</div><button className="button button-primary" disabled={pending || !selectedSource}>Start acquisition</button></form>
+    </section>
+    <section className="panel full-panel">
+      <SectionHeader title="Acquisition jobs" count={acquisitions.length} />
+      <div className="table-scroll"><table><thead><tr><th>Acquisition</th><th>Source</th><th>Status</th><th>Phase</th><th>Message</th><th>Updated</th></tr></thead><tbody>{acquisitions.map((job) => <tr key={job.acquisition_id}><td className="mono">{job.acquisition_id}</td><td className="mono">{job.source_id}</td><td><StatusPill value={job.status} /></td><td>{job.progress.phase}</td><td>{job.progress.message}</td><td>{formatDate(job.updated_at)}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="panel full-panel">
+      <SectionHeader title="Mobility profiles" count={mobilityProfiles.length} />
+      <div className="table-scroll"><table><thead><tr><th>Profile</th><th>Family</th><th>Version</th><th>Valid from</th></tr></thead><tbody>{mobilityProfiles.map((profile) => <tr key={`${profile.profile.metadata.profile_id}:${profile.profile.metadata.version}`}><td><strong>{profile.profile.metadata.name}</strong><span className="mono subdued">{profile.profile.metadata.profile_id}</span></td><td><span className="code-label">{profile.family}</span></td><td>v{profile.profile.metadata.version}</td><td>{formatDate(profile.profile.metadata.valid_from)}</td></tr>)}</tbody></table></div>
+      {!mobilityProfiles.length && <EmptyState>No human or vehicle mobility profiles are registered.</EmptyState>}
+    </section>
+    <section className="panel full-panel map-admin-form">
+      <SectionHeader title="Register mobility profile" />
+      <form onSubmit={submitMobilityProfile}><label>Canonical MobilityProfile JSON<textarea value={mobilityProfileJson} onChange={(event) => setMobilityProfileJson(event.target.value)} rows={9} spellCheck={false} required /></label><button className="button button-primary" disabled={pending || !mobilityProfileJson.trim()}>Register profile version</button></form>
+    </section>
+    <section className="panel full-panel">
+      <SectionHeader title="Dataset releases" count={releases.length} />
+      <div className="table-scroll"><table><thead><tr><th>Release</th><th>Dataset</th><th>Version</th><th>State</th><th>Record</th><th>Actions</th></tr></thead><tbody>{releases.map((release) => <tr key={release.release_id}><td className="mono">{release.release_id}</td><td className="mono">{release.dataset_id}</td><td>{release.version_label}</td><td><StatusPill value={release.state} /></td><td>r{release.record_version}</td><td><div className="row-actions">{release.state === "staged" && <button className="button button-primary" disabled={pending} onClick={() => releaseAction(release, "activate")}>Activate</button>}{release.state === "active" && <button className="button button-secondary" disabled={pending} onClick={() => releaseAction(release, "activate")}>Reconcile</button>}<button className="button button-secondary" disabled={pending || release.state === "quarantined"} onClick={() => releaseAction(release, "rollback")}>Rollback</button><button className="button button-secondary" disabled={pending || release.state === "quarantined"} onClick={() => releaseAction(release, "quarantine")}>Quarantine</button></div></td></tr>)}</tbody></table></div>
+    </section>
+  </div>;
 }
 
 function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {

@@ -65,7 +65,8 @@
 	respond /media/mcp* 404
 	respond /timeseries/mcp* 404
 	respond /optimization/mcp* 404
-	respond /coordinates/mcp* 404
+	respond /frames/mcp* 404
+	respond /map/mcp* 404
 	respond /perception/mcp* 404
 	respond /duckdb/mcp* 404
 	respond /charts/mcp* 404

@@ -13,6 +13,7 @@ mod error;
 mod gateway_runtime;
 mod identity;
 mod ids;
+mod map;
 mod migrations;
 mod models;
 mod outbox;
@@ -42,6 +43,11 @@ pub use identity::{
     deterministic_principal_id, deterministic_tenant_id,
 };
 pub use ids::*;
+pub use map::{
+    MapAcquisitionDraft, MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft,
+    MapRestrictionDraft, MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft,
+    MapSourceDraft,
+};
 pub use migrations::{
     AppliedMigration, Migration, MigrationReport, SchemaStatus, migrations, schema_sql,
     validate_catalog,

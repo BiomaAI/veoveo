@@ -1,5 +1,14 @@
 import { demoSnapshot } from "./demo";
-import type { InstallationSnapshot, ReleaseState, ShareLinkCreated } from "./types";
+import type {
+  InstallationSnapshot,
+  MapActiveReleaseSummary,
+  MapAcquisitionSummary,
+  MapMobilityProfileSummary,
+  MapReleaseSummary,
+  MapSourceSummary,
+  ReleaseState,
+  ShareLinkCreated,
+} from "./types";
 
 let csrfToken: string | undefined;
 
@@ -126,4 +135,68 @@ export async function revokeArtifactShareLink(artifactId: string, linkId: string
 
 export function artifactDownloadUrl(artifactId: string): string {
   return `/console/api/artifacts/${encodeURIComponent(artifactId)}/download`;
+}
+
+export async function mapAdminQuery<T>(path: string): Promise<T> {
+  const response = await fetch(`/console/api/map/${path.replace(/^\/+/, "")}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (response.status === 401) {
+    window.location.assign("/auth/login");
+    throw new Error("Authentication required");
+  }
+  if (!response.ok) throw new Error(`Map administration returned ${response.status}`);
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  return response.json() as Promise<T>;
+}
+
+interface MapAdminPage<T> { items: T[]; next_cursor?: string }
+export const loadMapSources = async () => (await mapAdminQuery<MapAdminPage<MapSourceSummary>>("sources?limit=200")).items;
+export const loadMapAcquisitions = async () => (await mapAdminQuery<MapAdminPage<MapAcquisitionSummary>>("acquisitions?limit=200")).items;
+export const loadMapReleases = async () => (await mapAdminQuery<MapAdminPage<MapReleaseSummary>>("releases?limit=200")).items;
+export const loadMapMobilityProfiles = async () => (await mapAdminQuery<MapAdminPage<MapMobilityProfileSummary>>("mobility-profiles?limit=200")).items;
+export const loadMapActiveReleases = async () => (await mapAdminQuery<MapAdminPage<MapActiveReleaseSummary>>("active-releases?limit=200")).items;
+
+export async function registerMapSource(source: unknown): Promise<MapSourceSummary> {
+  return consoleMutation("map/sources", {
+    method: "POST",
+    body: JSON.stringify({ source, idempotency_key: crypto.randomUUID() }),
+  });
+}
+
+export async function registerMapMobilityProfile(profile: unknown): Promise<MapMobilityProfileSummary> {
+  return consoleMutation("map/mobility-profiles", {
+    method: "POST",
+    body: JSON.stringify({ profile, idempotency_key: crypto.randomUUID() }),
+  });
+}
+
+export async function startMapAcquisition(
+  sourceId: string,
+  coverage: { west: number; south: number; east: number; north: number },
+): Promise<MapAcquisitionSummary> {
+  return consoleMutation("map/acquisitions", {
+    method: "POST",
+    body: JSON.stringify({
+      source_id: sourceId,
+      requested_coverage: coverage,
+      idempotency_key: crypto.randomUUID(),
+    }),
+  });
+}
+
+export async function mutateMapRelease(
+  release: MapReleaseSummary,
+  action: "activate" | "rollback" | "quarantine",
+  activePointerVersion: number,
+): Promise<unknown> {
+  return consoleMutation(`map/releases/${encodeURIComponent(release.release_id)}/${action}`, {
+    method: "POST",
+    body: JSON.stringify({
+      expected_record_version: release.record_version,
+      expected_active_pointer_version: activePointerVersion,
+    }),
+  });
 }

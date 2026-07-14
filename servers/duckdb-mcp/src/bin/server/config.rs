@@ -21,6 +21,13 @@ pub(super) struct Args {
     /// DuckDB spill directory; must stay separate from the exchange root.
     #[arg(long, default_value = "spill")]
     pub(super) spill_dir: PathBuf,
+    /// Preinstalled, signed DuckDB Spatial extension. The server loads this
+    /// exact file before locking each DuckDB connection.
+    #[arg(
+        long,
+        default_value = "/usr/local/lib/duckdb/extensions/spatial.duckdb_extension"
+    )]
+    pub(super) spatial_extension: PathBuf,
     /// Base URL of the shared artifact-plane service (e.g.
     /// http://artifact-service:8790). All artifact reads/writes go here.
     #[arg(long, default_value = "http://artifact-service:8790")]

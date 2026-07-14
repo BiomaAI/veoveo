@@ -174,7 +174,7 @@ services:
       <<: *surreal-runtime
       ARTIFACT_SERVICE_BIND: 0.0.0.0:8790
       ARTIFACT_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://veoveo.example}
-      ARTIFACT_ALLOWED_AUDIENCES: artifact,media,timeseries,optimization,duckdb,coordinates,recording,perception,sumo,datasheet
+      ARTIFACT_ALLOWED_AUDIENCES: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,sumo,datasheet
       ARTIFACT_STORE: s3
       ARTIFACT_S3_ENDPOINT: http://rustfs:9000
       ARTIFACT_S3_PUBLIC_ENDPOINT: ${ARTIFACT_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
@@ -467,12 +467,12 @@ services:
       retries: 30
       start_period: 5s
 
-  coordinates-mcp:
+  frames-mcp:
     <<: *app-security
-    image: veoveo/coordinates-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
+    image: veoveo/frames-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
     build:
       context: .
-      dockerfile: servers/coordinates-mcp/Dockerfile
+      dockerfile: servers/frames-mcp/Dockerfile
     depends_on:
       artifact-service:
         condition: service_healthy
@@ -483,24 +483,70 @@ services:
       - ${PUBLIC_BASE_URL:-https://veoveo.example}
       - --allow-loopback-hosts
       - --allowed-host
-      - coordinates-mcp:8793
+      - frames-mcp:8793
       - --artifact-service-url
       - http://artifact-service:8790
       - --max-artifact-bytes
       - "67108864"
     environment:
       <<: *service-env
-      OTEL_SERVICE_NAME: veoveo-coordinates-mcp
-      RUST_LOG: info,veoveo_coordinates_mcp=debug
+      OTEL_SERVICE_NAME: veoveo-frames-mcp
+      RUST_LOG: info,veoveo_frames_mcp=debug
     tmpfs: [/tmp]
     ports:
       - 127.0.0.1:8793:8793
     healthcheck:
-      test: [CMD, curl, -fsS, http://127.0.0.1:8793/healthz]
+      test: [CMD, curl, -fsS, http://127.0.0.1:8793/frames/healthz]
       interval: 3s
       timeout: 3s
       retries: 30
       start_period: 5s
+
+  map-mcp:
+    <<: *app-security
+    image: veoveo/map-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
+    build:
+      context: .
+      dockerfile: servers/map-mcp/Dockerfile
+    depends_on:
+      artifact-service:
+        condition: service_healthy
+    command:
+      - --port
+      - "8799"
+      - --public-base-url
+      - ${PUBLIC_BASE_URL:-https://veoveo.example}
+      - --allow-loopback-hosts
+      - --allowed-host
+      - map-mcp:8799
+      - --artifact-service-url
+      - http://artifact-service:8790
+      - --map-database
+      - /var/lib/veoveo/map/catalog.duckdb
+      - --acquisition-scratch-root
+      - /var/lib/veoveo/map/acquisitions
+      - --source-mount-root
+      - /data/map-sources
+      - --max-artifact-bytes
+      - "536870912"
+      - --max-routing-expanded-bytes
+      - "17179869184"
+    environment:
+      <<: *service-env
+      OTEL_SERVICE_NAME: veoveo-map-mcp
+      RUST_LOG: info,veoveo_map_mcp=debug
+    volumes:
+      - map-data:/var/lib/veoveo/map
+      - map-source-exchange:/data/map-sources:ro
+    tmpfs: [/tmp, /run/secrets/map]
+    ports:
+      - 127.0.0.1:8799:8799
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8799/map/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
 
   duckdb-mcp:
     <<: *app-security
@@ -525,6 +571,8 @@ services:
       - /var/lib/veoveo/duckdb/exchange
       - --spill-dir
       - /var/lib/veoveo/duckdb/spill
+      - --spatial-extension
+      - /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
       - --artifact-service-url
       - http://artifact-service:8790
       - --max-artifact-bytes
@@ -663,7 +711,9 @@ services:
         condition: service_healthy
       optimization-mcp:
         condition: service_healthy
-      coordinates-mcp:
+      frames-mcp:
+        condition: service_healthy
+      map-mcp:
         condition: service_healthy
       duckdb-mcp:
         condition: service_healthy
@@ -757,3 +807,5 @@ volumes:
   rustfs_data:
   duckdb_workspaces:
   recording_spool:
+  map-data:
+  map-source-exchange:

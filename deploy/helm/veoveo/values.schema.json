@@ -138,6 +138,9 @@
           "duckdbSandbox": {"type": "boolean"},
           "platformStore": {"type": "boolean"},
           "persistence": {"$ref": "#/definitions/persistence"},
+          "persistenceMountPath": {"type": "string", "pattern": "^/"},
+          "sourceExchangeClaim": {"type": "string"},
+          "sourceSecretName": {"type": "string"},
           "resources": {"type": "object"}
         }
       }

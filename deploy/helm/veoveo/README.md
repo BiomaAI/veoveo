@@ -17,6 +17,13 @@ sandboxed SQL, so it has a single-writer storage boundary. Its task, identity,
 policy, and audit state still lives in SurrealDB; the PVC stores only the DuckDB
 database files.
 
+`map-mcp` is also intentionally one replica with a persistent `ReadWriteOnce`
+volume. SurrealDB holds its canonical catalog, while the volume retains the
+tenant-scoped DuckDB Spatial projection and activated Valhalla routing builds.
+Release activation serializes projection changes within that process. Scaling
+Map requires an explicit projection-distribution design and is not enabled by
+raising the replica count.
+
 The operator must create these resources before installation:
 
 - `surrealdb.adminExistingSecret`: `username` and `password` for bootstrap only.

@@ -7,11 +7,124 @@ use veoveo_platform_store::{
     ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState, ArtifactShareLinkDraft,
     ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId, ArtifactWriteCapabilityRecord,
     ArtifactWriteRedemptionId, ChangefeedCursor, CoordinateFrameDraft, CoordinateOperationDraft,
-    GatewayReplayKind, GatewayReplayRecord, OpenObject, OutboxDraft, PlatformStore, PlatformTable,
-    PrincipalKind, RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState,
-    SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig,
-    StoreCredentials, StoreError, TaskId, gateway_replay_record_id,
+    GatewayReplayKind, GatewayReplayRecord, MapReleaseDraft, MapReleaseState, OpenObject,
+    OutboxDraft, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft,
+    RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding,
+    SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
+    gateway_replay_record_id,
 };
+
+#[tokio::test]
+async fn map_release_activation_is_atomic_and_version_guarded() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let endpoint =
+        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
+    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
+    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &endpoint,
+            "veoveo_integration",
+            format!("map_activation_test_{}", Uuid::now_v7().simple()),
+            StoreCredentials::root(username, SecretString::from(password)),
+        )
+        .migrate_on_connect(true)
+        .build()
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    let identity = store
+        .ensure_identity(
+            "tenant-map",
+            "map-admin",
+            "https://veoveo.local/services",
+            "map-admin",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    let dataset_key = format!("dataset-{}", Uuid::now_v7());
+    let source_key = format!("source-{}", Uuid::now_v7());
+    let create_release = |release_key: String| MapReleaseDraft {
+        identity: identity.clone(),
+        release_key,
+        dataset_key: dataset_key.clone(),
+        source_key: source_key.clone(),
+        state: MapReleaseState::Staged,
+        version_label: format!("sha256:{}", "a".repeat(64)),
+        source_digest_sha256: "a".repeat(64),
+        valid_from: Utc::now(),
+        valid_until: None,
+        canonical_json: serde_json::json!({ "state": "staged" }).to_string(),
+    };
+
+    let first_key = format!("release-{}", Uuid::now_v7());
+    store
+        .create_map_release(create_release(first_key.clone()))
+        .await
+        .unwrap();
+    let first = store
+        .activate_map_release(
+            &identity,
+            &dataset_key,
+            &first_key,
+            None,
+            1,
+            serde_json::json!({ "state": "active" }).to_string(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.state, MapReleaseState::Active);
+    assert_eq!(first.record_version, 2);
+    assert_eq!(
+        store
+            .active_map_release(identity.tenant_id, &dataset_key)
+            .await
+            .unwrap()
+            .unwrap()
+            .record_version,
+        1
+    );
+
+    let second_key = format!("release-{}", Uuid::now_v7());
+    store
+        .create_map_release(create_release(second_key.clone()))
+        .await
+        .unwrap();
+    let conflict = store
+        .activate_map_release(
+            &identity,
+            &dataset_key,
+            &second_key,
+            Some(1),
+            2,
+            serde_json::json!({ "state": "active" }).to_string(),
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(conflict, StoreError::MapRecordConflict { .. }),
+        "unexpected activation error: {conflict:?}"
+    );
+    let second = store
+        .map_release(identity.tenant_id, &second_key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(second.state, MapReleaseState::Staged);
+    assert_eq!(second.record_version, 1);
+    let pointer = store
+        .active_map_release(identity.tenant_id, &dataset_key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pointer.release_key, first_key);
+    assert_eq!(pointer.record_version, 1);
+}
 
 #[tokio::test]
 async fn coordinate_frames_and_operations_are_durable_and_idempotent() {

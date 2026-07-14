@@ -5,12 +5,14 @@ use super::*;
 mod agent_kernel;
 #[path = "scenarios/basic.rs"]
 mod basic;
-#[path = "scenarios/coordinates.rs"]
-mod coordinates;
 #[path = "scenarios/datasheet.rs"]
 mod datasheet;
+#[path = "scenarios/frames.rs"]
+mod frames;
 #[path = "scenarios/gateway.rs"]
 mod gateway;
+#[path = "scenarios/map.rs"]
+mod map;
 #[path = "scenarios/media.rs"]
 mod media;
 #[path = "scenarios/perception.rs"]
@@ -22,9 +24,10 @@ mod sumo;
 
 pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
-pub(crate) use coordinates::*;
 pub(crate) use datasheet::*;
+pub(crate) use frames::*;
 pub(crate) use gateway::*;
+pub(crate) use map::*;
 pub(crate) use media::*;
 pub(crate) use perception::*;
 pub(crate) use secrets::*;

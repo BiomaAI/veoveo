@@ -13,7 +13,7 @@ pub(crate) struct SmokeGenerationRunOutput {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct SmokeCoordinatesBatchOutput {
+pub(crate) struct SmokeFramesBatchOutput {
     pub(crate) result: Value,
     pub(crate) artifact: Option<SmokeArtifactMetadata>,
 }

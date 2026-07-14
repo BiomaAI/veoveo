@@ -47,6 +47,9 @@ pub(super) struct Args {
     /// to assert the plane's hard cross-tenant isolation.
     #[arg(long, default_value = "local", global = true)]
     pub(super) internal_tenant: String,
+    /// Scopes embedded in direct hosted-server conformance assertions.
+    #[arg(long = "internal-scope", default_value = "operator:use", global = true)]
+    pub(super) internal_scopes: Vec<String>,
     #[command(subcommand)]
     pub(super) cmd: Cmd,
 }
@@ -210,7 +213,7 @@ pub(super) enum Cmd {
         #[arg(long)]
         ready_file: Option<PathBuf>,
     },
-    /// Write a coordinates+optimization gateway smoke control plane for pilot agent tests.
+    /// Write a frames+optimization gateway smoke control plane for pilot agent tests.
     GatewayPilotSmokeControlPlane {
         /// Base gateway control plane JSON.
         #[arg(long)]
@@ -218,9 +221,9 @@ pub(super) enum Cmd {
         /// Output gateway control plane JSON.
         #[arg(long)]
         output: PathBuf,
-        /// Coordinates MCP upstream URL.
+        /// Frames MCP upstream URL.
         #[arg(long)]
-        coordinates_upstream_url: String,
+        frames_upstream_url: String,
         /// Optimization MCP upstream URL.
         #[arg(long)]
         optimization_upstream_url: String,

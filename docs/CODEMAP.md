@@ -63,6 +63,8 @@ schema merely because the server is first-party.
 |---|---|
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
+| `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
+| `coordinates.rs` | current shared coordinate ids, frame kinds, geofence rules, and operation provenance |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
 | `gateway/ids.rs` | validated identity and configuration newtypes |
@@ -100,6 +102,7 @@ The only durable platform persistence layer.
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `coordinates.rs` | frames and coordinate-operation persistence |
+| `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `recordings.rs` | recording and segment catalog |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
@@ -210,8 +213,22 @@ The Rust MCP server pattern is intentionally consistent:
 | `bin/server/app_state.rs` | dependency composition and recovery |
 | `bin/server/outputs.rs` | typed results, resource links, usage projection |
 
-Current domain servers under `servers/` are `media-mcp`, `timeseries-mcp`,
-`duckdb-mcp`, `optimization-mcp`, `coordinates-mcp`, and `perception-mcp`.
+Current domain servers under `servers/` include `media-mcp`, `timeseries-mcp`,
+`duckdb-mcp`, `optimization-mcp`, `frames-mcp`, `map-mcp`, and
+`perception-mcp`.
+
+### Geospatial Domains
+
+The geospatial hard cut has two canonical servers:
+
+| Path | Responsibility |
+|---|---|
+| `servers/map-mcp` | Earth geography, governed source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
+| `servers/frames-mcp` | WGS84, ECEF, ENU, and NED local-frame derivation and conversion, durable batch work, operation provenance, artifacts, and usage |
+
+Map administration uses typed REST on the same process. Agents use MCP. The
+gateway signs both paths and the Console projects the administrative REST
+surface through its authenticated BFF.
 
 Media-specific ownership:
 
@@ -227,9 +244,13 @@ DuckDB-specific ownership:
 
 | Path | Responsibility |
 |---|---|
+| `docs/DUCKDB_MCP_DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
 | `platform/runtimes/duckdb/` | bounded engine runtime and sandbox primitives |
-| `servers/duckdb-mcp/src/engine.rs` | owner workspace and arbitrary SQL execution |
-| `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | typed direct/task SQL operations and recovery class |
+| `mcp/contract/src/duckdb.rs` | cross-server governed source vocabulary |
+| `servers/duckdb-mcp/src/contract.rs` | server-local tool request and result types |
+| `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
+| `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |
+| `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | typed direct/task SQL operations and interruption behavior |
 
 ## Recordings
 

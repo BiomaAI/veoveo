@@ -2206,6 +2206,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
 name = "flatbuffers"
 version = "25.12.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2497,6 +2503,20 @@ checksum = "c5a7f08910fd98737a6eda7568e7c5e645093e073328eeef49758cfe8b0489c7"
 dependencies = [
  "accurate",
  "libm",
+]
+
+[[package]]
+name = "geojson"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "510c094bfc76ea34d02eee00833254945b70491d79a9c0b050abed6eaa799ffb"
+dependencies = [
+ "geo-types",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tinyvec",
 ]
 
 [[package]]
@@ -4605,6 +4625,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "petgraph"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
+dependencies = [
+ "fixedbitset",
+ "hashbrown 0.15.5",
+ "indexmap",
+]
+
+[[package]]
 name = "phf"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4781,6 +4812,15 @@ checksum = "6e2d0073b297041425c7c3df6eb4792d598a15323fe63346852b092eca02904c"
 dependencies = [
  "cpufeatures 0.3.0",
  "universal-hash",
+]
+
+[[package]]
+name = "polyline"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f19cbf429afe5a5186d4c6ca7b246b446b2d18919eefdddb521792d57c874f67"
+dependencies = [
+ "geo-types",
 ]
 
 [[package]]
@@ -7697,6 +7737,7 @@ version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e61e67053d25a4e82c844e8424039d9745781b3fc4f32b8d55ed50f5f667ef3"
 dependencies = [
+ "serde_core",
  "tinyvec_macros",
 ]
 
@@ -8521,45 +8562,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "veoveo-coordinates-mcp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "chrono",
- "clap",
- "dotenvy",
- "futures",
- "geo",
- "geo-types",
- "geographiclib-rs",
- "hex",
- "proj",
- "rayon",
- "reqwest 0.13.4",
- "rmcp",
- "rustls",
- "schemars",
- "secrecy",
- "serde",
- "serde_json",
- "sguaba",
- "sha2 0.11.0",
- "tokio",
- "tokio-util",
- "tower-http 0.7.0",
- "tracing",
- "uuid",
- "veoveo-artifact-client",
- "veoveo-mcp-contract",
- "veoveo-mcp-task-extension",
- "veoveo-platform-store",
- "veoveo-rrd",
- "veoveo-task-runtime",
-]
-
-[[package]]
 name = "veoveo-duckdb-mcp"
 version = "0.1.0"
 dependencies = [
@@ -8611,6 +8613,91 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-frames-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "futures",
+ "hex",
+ "rayon",
+ "reqwest 0.13.4",
+ "rmcp",
+ "rustls",
+ "schemars",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sguaba",
+ "sha2 0.11.0",
+ "tokio",
+ "tokio-util",
+ "tower-http 0.7.0",
+ "tracing",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-task-extension",
+ "veoveo-platform-store",
+ "veoveo-rrd",
+ "veoveo-task-runtime",
+]
+
+[[package]]
+name = "veoveo-map-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "duckdb",
+ "flate2",
+ "futures",
+ "geo",
+ "geo-types",
+ "geographiclib-rs",
+ "geojson",
+ "hex",
+ "nix 0.31.3",
+ "petgraph",
+ "polyline",
+ "proj",
+ "rayon",
+ "reqwest 0.13.4",
+ "rmcp",
+ "rstar 0.12.2",
+ "rustls",
+ "schemars",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tower-http 0.7.0",
+ "tracing",
+ "url",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-duckdb-runtime",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-task-extension",
+ "veoveo-platform-store",
+ "veoveo-task-runtime",
+]
+
+[[package]]
 name = "veoveo-mcp-conformance"
 version = "0.1.0"
 dependencies = [
@@ -8632,7 +8719,8 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
- "veoveo-coordinates-mcp",
+ "veoveo-frames-mcp",
+ "veoveo-map-mcp",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-media-mcp",
@@ -8950,6 +9038,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "duckdb",
+ "hex",
  "jsonwebtoken",
  "rcgen",
  "re_grpc_server",
