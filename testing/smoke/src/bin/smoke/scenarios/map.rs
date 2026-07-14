@@ -794,7 +794,7 @@ async fn assert_governed_graph_workflow(
         mcp_url,
         ["resource".into(), format!("map://route/{route_id}").into()],
     )?;
-    contains(&resource, r#""status":"invalidated""#)?;
+    contains(&resource, r#""status": "invalidated""#)?;
     Ok(route_id)
 }
 
