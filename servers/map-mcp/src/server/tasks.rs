@@ -16,12 +16,13 @@ use veoveo_task_runtime::{
 };
 
 use crate::{
-    contract::{ReachableAreaRequest, RouteMatrixRequest},
+    contract::{ReachableAreaRequest, RouteMatrixRequest, RouteRequest},
     server::auth::ForwardedBearer,
     state::MapApplication,
 };
 
 const SERVER_SLUG: &str = "map";
+const ROUTE_TASK: &str = "route";
 const ROUTE_MATRIX_TASK: &str = "route_matrix";
 const REACHABLE_AREA_TASK: &str = "reachable_area";
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
@@ -42,6 +43,7 @@ pub(super) struct AuthenticatedCaller {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "request", rename_all = "snake_case")]
 enum MapTaskRequest {
+    Route(RouteRequest),
     RouteMatrix(RouteMatrixRequest),
     ReachableArea(ReachableAreaRequest),
 }
@@ -101,6 +103,13 @@ impl TaskExtensionHandler for MapTaskExtension {
     ) -> Result<Option<CreateTaskResult>, AdapterError> {
         let arguments = serde_json::Value::Object(request.arguments.into_iter().collect());
         let args = match request.name.as_str() {
+            ROUTE_TASK => {
+                require_scope(&caller.identity, "map:route")?;
+                MapTaskRequest::Route(
+                    serde_json::from_value(arguments)
+                        .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
+                )
+            }
             ROUTE_MATRIX_TASK => {
                 require_scope(&caller.identity, "map:route_matrix")?;
                 MapTaskRequest::RouteMatrix(
@@ -229,7 +238,7 @@ pub(super) async fn recover_tasks(
     for snapshot in resumable {
         if !matches!(
             snapshot.task_type.as_str(),
-            ROUTE_MATRIX_TASK | REACHABLE_AREA_TASK
+            ROUTE_TASK | ROUTE_MATRIX_TASK | REACHABLE_AREA_TASK
         ) {
             anyhow::bail!("unknown resumable Map task type `{}`", snapshot.task_type);
         }
@@ -351,6 +360,11 @@ async fn run_map_task_inner(
     }
     let result = match state.scope_from_task_owner(&owner).await {
         Ok(scope) => match request {
+            MapTaskRequest::Route(request) => {
+                state.routes.route(&scope, request).await.and_then(|route| {
+                    tool_result(format!("planned route {}", route.route_id), &route)
+                })
+            }
             MapTaskRequest::RouteMatrix(request) => state
                 .routes
                 .route_matrix(&scope, request)
@@ -397,6 +411,7 @@ async fn run_map_task_inner(
 impl MapTaskRequest {
     fn task_type(&self) -> &'static str {
         match self {
+            Self::Route(_) => ROUTE_TASK,
             Self::RouteMatrix(_) => ROUTE_MATRIX_TASK,
             Self::ReachableArea(_) => REACHABLE_AREA_TASK,
         }
@@ -404,6 +419,7 @@ impl MapTaskRequest {
 
     fn description(&self) -> &'static str {
         match self {
+            Self::Route(_) => "logistics route",
             Self::RouteMatrix(_) => "logistics route matrix",
             Self::ReachableArea(_) => "land reachable area",
         }

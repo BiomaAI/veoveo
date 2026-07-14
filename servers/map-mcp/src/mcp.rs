@@ -173,25 +173,19 @@ impl MapMcp {
 
     #[tool(
         title = "Calculate logistics route",
-        description = "Calculate a governed route for one versioned human or vehicle mobility profile. The result pins releases, restrictions, a snapshot, costs, and validation state; unavailable coverage is never replaced by a straight line.",
+        description = "Calculate a governed route for one versioned human or vehicle mobility profile through durable task invocation. The result pins releases, restrictions, a snapshot, costs, and validation state; unavailable coverage is never replaced by a straight line.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RoutePlan>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route(
         &self,
-        Parameters(request): Parameters<RouteRequest>,
-        context: RequestContext<RoleServer>,
+        Parameters(_request): Parameters<RouteRequest>,
+        _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:route")?;
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let output = self
-            .state
-            .routes
-            .route(&scope, request)
-            .await
-            .map_err(invalid_params)?;
-        let _ = context.peer.notify_resource_list_changed().await;
-        structured_result(format!("planned route {}", output.route_id), &output)
+        Err(McpError::invalid_request(
+            "route requires task-based invocation",
+            None,
+        ))
     }
 
     #[tool(
