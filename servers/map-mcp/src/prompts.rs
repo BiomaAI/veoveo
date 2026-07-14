@@ -79,7 +79,7 @@ impl MapPrompt {
                 .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         let text = match self {
             Self::PrepareRoute => format!(
-                "Read map://mobility-profile/{profile}/{{profile_version}} and inspect the endpoint resources for {origin} and {destination}. Confirm profile validity at {departure}. Call route with an explicit objective, constraints, required map families, and whether planning-advisory output is acceptable. Do not replace unavailable coverage with straight-line geometry.",
+                "Read map://mobility-profile/{profile}/{{profile_version}} and inspect the endpoint resources for {origin} and {destination}. Confirm profile validity at {departure}. Invoke route as a durable task with an explicit objective, constraints, required map families, and whether planning-advisory output is acceptable. Do not replace unavailable coverage with straight-line geometry.",
                 profile = required_value(arguments.mobility_profile_id, "mobility_profile_id")?,
                 origin = required_value(arguments.origin, "origin")?,
                 destination = required_value(arguments.destination, "destination")?,

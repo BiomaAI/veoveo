@@ -455,16 +455,21 @@ model version, restriction ids, facilities, and validation identity. Release
 changes and restriction withdrawal invalidate dependent routes while preserving
 the original record for review.
 
-### Matrices And Reachable Areas
+### Durable Routing Operations
+
+Single routes, route matrices, and reachable areas use the MCP Task API. Each
+operation persists its result before the task reaches `completed`. The task
+record carries its owner, lease, progress, terminal payload, retention pins,
+and recovery request. A client can poll or subscribe, cancel active work, and
+read the resulting `map://` resource without holding the initiating request
+open.
 
 Route matrices are limited to 20 origins, 20 destinations, and 400 cells.
 Individual unavailable cells are typed as unavailable; the entire matrix fails
 when no pair has supported coverage.
 
-Reachable areas are Valhalla isochrones for human and road profiles. Both
-operations run through MCP tasks, persist their result, renew leases while
-running, support cancellation and task subscriptions, and resume after a
-server restart.
+Reachable areas are Valhalla isochrones for human and road profiles. All three
+operations renew leases while running and resume after a server restart.
 
 ## MCP Surface
 
@@ -478,7 +483,7 @@ server restart.
 | `geodesic_inverse` | direct | `map:dataset:read` | WGS84 distance and azimuths |
 | `geodesic_direct` | direct | `map:dataset:read` | WGS84 destination |
 | `validate_geofence` | direct | `map:dataset:read` | topological and segment relationship findings |
-| `route` | direct | `map:route` | persisted route with pinned provenance |
+| `route` | task only | `map:route` | persisted route with pinned provenance |
 | `route_matrix` | task only | `map:route_matrix` | persisted many-to-many matrix |
 | `reachable_area` | task only | `map:route` | land isochrone |
 | `validate_route` | direct | `map:route` | typed validation findings |
@@ -489,6 +494,11 @@ server restart.
 All tool results use structured content schemas. Tool and resource lists are
 paginated. A direct call to a task-only tool returns an explicit instruction to
 use task invocation.
+
+Map uses stateful Streamable HTTP sessions and SSE responses. This transport
+keeps Task API traffic, resource subscriptions, `resources/updated`, and
+`resources/list_changed` notifications on the canonical MCP session instead of
+collapsing them into a one-response JSON channel.
 
 ### Resources
 
@@ -741,8 +751,9 @@ The implementation is checked at several boundaries:
   source validation, geodesics, graph costs, Valhalla profile limits, URI
   parsing, paging, stable feature ids, routing archive bounds, and activation;
 - DuckDB runtime tests cover controlled HTTPS source policy;
-- Python tests cover typed contracts, safe GTFS expansion, subprocess timeout,
-  process-group termination, and bounded diagnostics;
+- Python tests cover typed contracts, a bounded GTFS acquisition with validator
+  execution, unsafe ZIP rejection, subprocess timeout, process-group
+  termination, and bounded diagnostics;
 - SurrealDB integration tests apply the schema to SurrealDB 3.2 and verify
   atomic release activation under record versions;
 - Console TypeScript and production Vite builds validate the administrative
@@ -750,7 +761,13 @@ The implementation is checked at several boundaries:
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
 - the Rust Map smoke launches that image with a real SurrealDB 3.2 catalog and
-  artifact service, then acquires, stages, activates, and queries the fixture;
+  artifact service. It acquires and activates authority, OSM, and governed
+  network fixtures, rejects a bad source digest before staging, and exercises
+  named-location, facility, boundary, and corridor queries;
+- the same smoke invokes road and maritime routing through the MCP Task API. It
+  checks task creation and completion, executes a real Valhalla road route,
+  executes a governed graph route, validates persistence, applies restriction
+  risk, withdraws the restriction, and reads the invalidated dependent route;
 - the broader smoke and conformance suites validate gateway, control-plane,
   offline, task, and MCP behavior.
 
@@ -764,6 +781,12 @@ npm --prefix apps/console/web run build
 docker build -f servers/map-mcp/Dockerfile -t veoveo/map-mcp:0.1.0 .
 just smoke-map-mcp
 ```
+
+This suite is risk-based. It does not enumerate every mobility class against
+every map family, contact public data providers, or duplicate the complete
+task-runtime recovery and cancellation matrix inside the Map smoke. Those
+combinations remain deliberate integration and acceptance-test work as real
+authority datasets and certified performance models are introduced.
 
 ## Deliberate Follow-On Work
 
