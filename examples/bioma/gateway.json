@@ -296,6 +296,46 @@
       "metadata": {}
     },
     {
+      "slug": "time",
+      "uri_scheme": "time",
+      "mount_path": "/time",
+      "mcp_path": "/time/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://time-mcp:8800/time/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "assess_clock",
+        "cancel_temporal_event",
+        "convert_time",
+        "create_temporal_event",
+        "evaluate_windows",
+        "expand_schedule",
+        "resolve_time",
+        "validate_timeline"
+      ],
+      "prompts": [
+        "expand_operational_calendar",
+        "resolve_operational_time",
+        "validate_mission_timeline"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "datasheet",
       "uri_scheme": "datasheet",
       "mount_path": "/datasheet",
@@ -653,6 +693,26 @@
           "tasks": "enabled"
         },
         {
+          "server": "time",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
           "server": "datasheet",
           "tools": {
             "mode": "listed",
@@ -944,6 +1004,26 @@
               {
                 "kind": "scheme",
                 "scheme": "map"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "time",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "time"
               }
             ]
           },
@@ -2414,6 +2494,153 @@
           "metadata": {}
         },
         {
+          "id": "allow_time_surface_read",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "time"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "time:read"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_time_read_tools",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "time"
+          ],
+          "tools": [
+            "assess_clock",
+            "convert_time",
+            "resolve_time"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "time:read"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_time_schedule_tasks",
+          "effect": "allow",
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "time"
+          ],
+          "tools": [
+            "evaluate_windows",
+            "expand_schedule"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "time:schedule"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_time_timeline_tasks",
+          "effect": "allow",
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "time"
+          ],
+          "tools": [
+            "validate_timeline"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "time:timeline"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_time_event_tools",
+          "effect": "allow",
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "time"
+          ],
+          "tools": [
+            "cancel_temporal_event",
+            "create_temporal_event"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "time:event:write"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_time_administration",
+          "effect": "allow",
+          "actions": [
+            "admin_read",
+            "admin_write"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "time"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "admin:manage",
+            "time:admin"
+          ],
+          "metadata": {}
+        },
+        {
           "id": "allow_operator_duckdb_use",
           "effect": "allow",
           "actions": [
@@ -2896,7 +3123,11 @@
         "map:route",
         "map:route_matrix",
         "map:restriction:publish",
-        "map:restriction:withdraw"
+        "map:restriction:withdraw",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline"
       ],
       "metadata": {
         "client_boundary": "local_public"
@@ -2944,7 +3175,11 @@
         "map:route",
         "map:route_matrix",
         "map:restriction:publish",
-        "map:restriction:withdraw"
+        "map:restriction:withdraw",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline"
       ],
       "metadata": {
         "client_boundary": "hosted_public"
@@ -2979,11 +3214,16 @@
         "operator:use",
         "admin:manage",
         "map:admin",
+        "time:admin",
         "map:dataset:read",
         "map:route",
         "map:route_matrix",
         "map:restriction:publish",
-        "map:restriction:withdraw"
+        "map:restriction:withdraw",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline"
       ],
       "metadata": {
         "client_boundary": "admin_console"
@@ -3018,7 +3258,11 @@
         "map:route",
         "map:route_matrix",
         "map:restriction:publish",
-        "map:restriction:withdraw"
+        "map:restriction:withdraw",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline"
       ],
       "metadata": {
         "client_boundary": "operator_service"
@@ -3047,11 +3291,16 @@
         "operator:use",
         "admin:manage",
         "map:admin",
+        "time:admin",
         "map:dataset:read",
         "map:route",
         "map:route_matrix",
         "map:restriction:publish",
-        "map:restriction:withdraw"
+        "map:restriction:withdraw",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline"
       ],
       "metadata": {
         "client_boundary": "admin_service"
@@ -3083,7 +3332,11 @@
         "map:route",
         "map:route_matrix",
         "map:restriction:publish",
-        "map:restriction:withdraw"
+        "map:restriction:withdraw",
+        "time:event:write",
+        "time:read",
+        "time:schedule",
+        "time:timeline"
       ],
       "metadata": {
         "client_boundary": "agent"

@@ -161,6 +161,15 @@ pub(super) async fn activate_release(
 ) -> ApiResult<AuthorityRelease> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
     let _guard = state.activation.lock().await;
+    let candidate = state
+        .catalog
+        .release(&scope, &id)
+        .await?
+        .ok_or_else(|| ApiError::not_found("unknown authority release"))?;
+    state
+        .authorities
+        .preflight_activation(&state.catalog, &scope, &candidate)
+        .await?;
     let release = state
         .catalog
         .activate_release(

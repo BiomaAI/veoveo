@@ -26,6 +26,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | typed high-level planning and optimization |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
+| [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -149,6 +150,7 @@ The only durable platform persistence layer.
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `coordinates.rs` | frames and coordinate-operation persistence |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
+| `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
 | `recordings.rs` | recording and segment catalog |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
@@ -274,6 +276,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
+| `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 
 ### Geospatial Domains
 
@@ -286,6 +289,18 @@ The geospatial hard cut has two canonical servers:
 
 The crate-local design documents own their protocol, administration, persistence, and
 deployment details.
+
+### Temporal Domain
+
+| Path | Responsibility |
+|---|---|
+| `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
+| `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
+| `platform/store/src/time.rs` | tenant temporal catalog, optimistic release activation, owner events, and clock policy |
+
+[`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) owns the complete
+protocol, authority, administration, deployment, and synchronization-observation
+contract.
 
 Media-specific ownership:
 

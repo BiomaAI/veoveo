@@ -11,8 +11,124 @@ use veoveo_platform_store::{
     OutboxDraft, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft,
     RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding,
     SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
     gateway_replay_record_id,
 };
+
+#[tokio::test]
+async fn time_authority_activation_retires_the_previous_release_atomically() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let endpoint =
+        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
+    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
+    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &endpoint,
+            "veoveo_integration",
+            format!("time_activation_test_{}", Uuid::now_v7().simple()),
+            StoreCredentials::root(username, SecretString::from(password)),
+        )
+        .migrate_on_connect(true)
+        .build()
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    let identity = store
+        .ensure_identity(
+            "tenant-time",
+            "time-admin",
+            "https://veoveo.local/services",
+            "time-admin",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    let source_key = format!("time-source-{}", Uuid::now_v7());
+    store
+        .create_time_source(TimeSourceDraft {
+            identity: identity.clone(),
+            source_key: source_key.clone(),
+            name: "IANA leap seconds".to_owned(),
+            dataset_kind: TimeDatasetKind::LeapSeconds,
+            source_url: "https://example.com/leap-seconds.list".to_owned(),
+            expected_content_type: "text/plain".to_owned(),
+            enabled: true,
+            canonical_json: serde_json::json!({"source_id": source_key}).to_string(),
+        })
+        .await
+        .unwrap();
+    let create_release = |release_key: String, digest: String| TimeAuthorityReleaseDraft {
+        identity: identity.clone(),
+        release_key,
+        source_key: source_key.clone(),
+        dataset_kind: TimeDatasetKind::LeapSeconds,
+        state: TimeAuthorityReleaseState::Staged,
+        version_label: format!("iana-{}", &digest[..12]),
+        source_url: "https://example.com/leap-seconds.list".to_owned(),
+        source_digest_sha256: digest,
+        artifact_path: "/var/lib/veoveo/time/releases/test/leap-seconds.list".to_owned(),
+        retrieved_at: Utc::now(),
+        validated_at: Utc::now(),
+        canonical_json: serde_json::json!({"state": "staged"}).to_string(),
+    };
+
+    let first_key = format!("time-release-{}", Uuid::now_v7());
+    store
+        .create_time_authority_release(create_release(first_key.clone(), "a".repeat(64)))
+        .await
+        .unwrap();
+    let first = store
+        .activate_time_authority_release(
+            &identity,
+            &first_key,
+            1,
+            0,
+            serde_json::json!({"state": "active"}).to_string(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.state, TimeAuthorityReleaseState::Active);
+
+    let second_key = format!("time-release-{}", Uuid::now_v7());
+    store
+        .create_time_authority_release(create_release(second_key.clone(), "b".repeat(64)))
+        .await
+        .unwrap();
+    let second = store
+        .activate_time_authority_release(
+            &identity,
+            &second_key,
+            1,
+            1,
+            serde_json::json!({"state": "active"}).to_string(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.state, TimeAuthorityReleaseState::Active);
+    let retired = store
+        .time_authority_release(identity.tenant_id, &first_key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(retired.state, TimeAuthorityReleaseState::Retired);
+    assert_eq!(retired.record_version, 3);
+    let pointer = store
+        .active_time_authority(identity.tenant_id, TimeDatasetKind::LeapSeconds)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pointer.release_key, second_key);
+    assert_eq!(
+        pointer.previous_release_key.as_deref(),
+        Some(first_key.as_str())
+    );
+    assert_eq!(pointer.record_version, 2);
+}
 
 #[tokio::test]
 async fn map_release_activation_is_atomic_and_version_guarded() {
@@ -247,7 +363,14 @@ async fn applies_schema_to_surrealdb_3_2() {
     let mut response = store.client().query("INFO FOR DB;").await.unwrap();
     let info: surrealdb::types::Value = response.take(0).unwrap();
     let rendered = format!("{info:?}");
-    for table in ["task", "artifact_occurrence", "recording", "outbox_event"] {
+    for table in [
+        "task",
+        "artifact_occurrence",
+        "recording",
+        "time_authority_release",
+        "time_temporal_event",
+        "outbox_event",
+    ] {
         assert!(rendered.contains(table), "missing {table} in INFO FOR DB");
     }
 

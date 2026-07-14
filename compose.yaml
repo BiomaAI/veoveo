@@ -548,6 +548,40 @@ services:
       retries: 60
       start_period: 30s
 
+  time-mcp:
+    <<: *app-security
+    image: veoveo/time-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
+    build:
+      context: .
+      dockerfile: servers/time-mcp/Dockerfile
+    command:
+      - --port
+      - "8800"
+      - --public-base-url
+      - ${PUBLIC_BASE_URL:-https://veoveo.example}
+      - --allow-loopback-hosts
+      - --allowed-host
+      - time-mcp:8800
+      - --acquisition-scratch-root
+      - /var/lib/veoveo/time/acquisitions
+      - --release-root
+      - /var/lib/veoveo/time/releases
+    environment:
+      <<: *service-env
+      OTEL_SERVICE_NAME: veoveo-time-mcp
+      RUST_LOG: info,veoveo_time_mcp=debug
+    volumes:
+      - time-data:/var/lib/veoveo/time
+    tmpfs: [/tmp]
+    ports:
+      - 127.0.0.1:8800:8800
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8800/time/healthz]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
   duckdb-mcp:
     <<: *app-security
     image: veoveo/duckdb-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
@@ -715,6 +749,8 @@ services:
         condition: service_healthy
       map-mcp:
         condition: service_healthy
+      time-mcp:
+        condition: service_healthy
       duckdb-mcp:
         condition: service_healthy
       datasheet-mcp:
@@ -809,3 +845,4 @@ volumes:
   recording_spool:
   map-data:
   map-source-exchange:
+  time-data:
