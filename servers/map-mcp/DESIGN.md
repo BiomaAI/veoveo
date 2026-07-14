@@ -1,5 +1,8 @@
 # Map MCP Design
 
+This document is the canonical design and operational contract for the
+`map-mcp` crate.
+
 `map-mcp` is Veoveo's Earth geography and logistics-routing domain. Agents use
 one strongly typed MCP surface to find places, inspect facilities and borders,
 work with coordinates, apply transport restrictions, calculate routes, build

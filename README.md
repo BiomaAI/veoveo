@@ -183,7 +183,7 @@ Update `configs/gateway.local.json` for the installation's OIDC issuer, tenant m
 public origin, and client registrations. Set `PERCEPTION_CONFIG_DIR` and
 `PERCEPTION_MODEL_DIR` to the model-specific DeepStream configuration and TensorRT
 engine roots described in
-[`docs/PERCEPTION_MCP_DESIGN.md`](docs/PERCEPTION_MCP_DESIGN.md).
+[`servers/perception-mcp/DESIGN.md`](servers/perception-mcp/DESIGN.md).
 
 Validate before startup:
 

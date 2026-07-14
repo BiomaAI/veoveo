@@ -1,5 +1,15 @@
 # Agent Instructions
 
+## Repository Map
+
+Read [`docs/CODEMAP.md`](docs/CODEMAP.md) before changing a cross-component contract or
+placing a new module. It indexes the normative documents, component designs, code
+ownership, and shortest implementation paths. Update the map in the same change when a
+document moves, a component is added, or an ownership boundary changes.
+
+An MCP server's design document belongs at `servers/{server}-mcp/DESIGN.md` beside its
+crate. Repository-wide architecture stays under `docs/`.
+
 ## Hard Cut Policy
 
 Default behavior in this repository is a hard cut.

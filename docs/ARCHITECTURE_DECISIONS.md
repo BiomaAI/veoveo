@@ -117,6 +117,25 @@ explicit projections over the canonical behavior. They reuse the same models,
 policy checks, audit events, task state, and artifact identities. They are not a
 second implementation or a fallback completion path.
 
+## Hosted server administration
+
+Agent operations use MCP and the shared Task API. A hosted MCP server may pair
+that protocol surface with typed HTTP administration at its canonical
+`{mount}/admin/*` path when the domain has installation-managed catalogs,
+configuration, acquisition, or lifecycle workflows.
+
+The gateway is the governed entry point for these APIs. Its canonical route is
+`/admin/{profile}/servers/{server}/{*path}`. The gateway resolves the server from
+the active profile, authorizes the read or write, records audit evidence, and
+forwards a short-lived internal identity assertion. The owning server validates
+that identity and its administrative scope before applying the operation through
+the same typed domain state used by MCP.
+
+Browser administration enters through explicit same-origin projections in the
+Console BFF. Administrative API clients may use the protected gateway route
+directly. Each server's design document owns its administrative resources,
+authorization scopes, persistence records, and Console integration.
+
 ## Identity and internal trust
 
 Operator authentication is provider-independent OIDC/OAuth with discovery and
