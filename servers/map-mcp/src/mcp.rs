@@ -353,7 +353,7 @@ impl ServerHandler for MapMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Read versioned map:// resources, use route or route_matrix with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. The server never fabricates a straight-line route when transport coverage is unavailable."
+            "Earth geography and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. The server never fabricates a straight-line route when transport coverage is unavailable."
                 .to_owned(),
         );
         info
