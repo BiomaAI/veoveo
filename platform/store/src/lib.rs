@@ -20,6 +20,7 @@ mod outbox;
 mod recordings;
 mod store;
 mod table;
+mod time;
 mod usage;
 
 pub use artifacts::{
@@ -58,4 +59,8 @@ pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBin
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey};
 pub use table::PlatformTable;
+pub use time::{
+    TimeAcquisitionDraft, TimeAuthorityReleaseDraft, TimeCalendarVersionDraft,
+    TimeClockPolicyDraft, TimeMissionEpochDraft, TimeSourceDraft, TimeTemporalEventDraft,
+};
 pub use usage::DomainUsageDraft;

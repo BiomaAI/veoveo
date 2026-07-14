@@ -205,6 +205,49 @@ string_enum! {
 }
 
 string_enum! {
+    pub enum TimeDatasetKind {
+        Tzdb => "tzdb",
+        LeapSeconds => "leap_seconds",
+    }
+}
+
+string_enum! {
+    pub enum TimeAuthorityReleaseState {
+        Staged => "staged",
+        Active => "active",
+        Retired => "retired",
+        Quarantined => "quarantined",
+    }
+}
+
+string_enum! {
+    pub enum TimeAcquisitionState {
+        Queued => "queued",
+        Running => "running",
+        Succeeded => "succeeded",
+        Failed => "failed",
+        CancelRequested => "cancel_requested",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
+    pub enum TimeCalendarState {
+        Staged => "staged",
+        Active => "active",
+        Retired => "retired",
+    }
+}
+
+string_enum! {
+    pub enum TimeTemporalEventState {
+        Scheduled => "scheduled",
+        Due => "due",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
     pub enum ArtifactReleaseState {
         Private => "private",
         Releasable => "releasable",
@@ -861,6 +904,134 @@ pub struct MapAcquisitionRecord {
     pub phase: String,
     pub staged_release_key: Option<String>,
     pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeSourceRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub source_key: String,
+    pub name: String,
+    pub dataset_kind: TimeDatasetKind,
+    pub source_url: String,
+    pub expected_content_type: String,
+    pub enabled: bool,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeAuthorityReleaseRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub release_key: String,
+    pub source_key: String,
+    pub dataset_kind: TimeDatasetKind,
+    pub state: TimeAuthorityReleaseState,
+    pub version_label: String,
+    pub source_url: String,
+    pub source_digest_sha256: String,
+    pub artifact_path: String,
+    pub retrieved_at: DateTime<Utc>,
+    pub validated_at: DateTime<Utc>,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeActiveAuthorityRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub dataset_kind: TimeDatasetKind,
+    pub release_key: String,
+    pub previous_release_key: Option<String>,
+    pub activated_by: RecordId,
+    pub activated_at: DateTime<Utc>,
+    pub record_version: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeAcquisitionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub acquisition_key: String,
+    pub source_key: String,
+    pub idempotency_key: String,
+    pub status: TimeAcquisitionState,
+    pub phase: String,
+    pub staged_release_key: Option<String>,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeCalendarVersionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub calendar_key: String,
+    pub calendar_version: i64,
+    pub name: String,
+    pub zone_id: String,
+    pub state: TimeCalendarState,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeMissionEpochRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub epoch_key: String,
+    pub name: String,
+    pub epoch_version: i64,
+    pub tai_seconds_since_1970: i64,
+    pub nanosecond: i64,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeTemporalEventRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub event_key: String,
+    pub name: String,
+    pub state: TimeTemporalEventState,
+    pub due_tai_seconds_since_1970: i64,
+    pub due_nanosecond: i64,
+    pub idempotency_key: String,
+    pub canonical_json: String,
+    pub record_version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct TimeClockPolicyRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub maximum_error_nanoseconds: i64,
+    pub maximum_stratum: i64,
+    pub minimum_source_diversity: i64,
+    pub maximum_holdover_seconds: i64,
     pub record_version: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

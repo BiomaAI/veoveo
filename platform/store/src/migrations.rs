@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 19] = [
+const MIGRATIONS: [Migration; 20] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -141,6 +141,12 @@ const MIGRATIONS: [Migration; 19] = [
         name: "map_domain",
         filename: "0018_map_domain.surql",
         sql: include_str!("../migrations/0018_map_domain.surql"),
+    },
+    Migration {
+        version: 19,
+        name: "time_domain",
+        filename: "0019_time_domain.surql",
+        sql: include_str!("../migrations/0019_time_domain.surql"),
     },
 ];
 
