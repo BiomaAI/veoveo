@@ -165,9 +165,10 @@ the operation has an explicit policy. Military zone `J` requires an IANA zone an
 is rejected by the DTG parser because `J` denotes local time rather than a fixed
 offset.
 
-Resolution returns the canonical instant together with UTC RFC 3339, military DTG,
-Unix seconds, GPS week/seconds when the instant follows the GPS epoch, and Julian
-TAI day.
+Resolution returns the canonical instant together with UTC RFC 3339, an explicit
+`utc_is_leap_second` flag, military DTG, Unix seconds, GPS week/seconds when the
+instant follows the GPS epoch, and Julian TAI day. A positive leap second keeps its
+`:60` representation instead of collapsing onto an adjacent UTC second.
 
 `convert_time` validates the instant's authority binding before projecting it. It
 can return selected IANA zoned values and UTC, TAI, TT, TDB, GPST, and GST scale
@@ -438,9 +439,10 @@ Examples of agent requests include:
 
 ## Verification
 
-Unit tests cover leap authority validation, RFC/GPS/DTG equivalence, DST ambiguity,
-DST-aware schedule expansion, half-open interval algebra, timeline violations, clock
-policy, canonical URIs, acquisition configuration, and archive traversal rejection.
+Unit tests cover leap authority validation, positive-leap projection, RFC/GPS/DTG
+equivalence, DST ambiguity, DST-aware schedule expansion, half-open interval algebra,
+timeline violations, clock policy, canonical URIs, acquisition configuration, and
+archive traversal rejection.
 Platform-store tests cover URL, id, migration, and policy invariants. Gateway validation,
 Compose rendering, Helm linting, Docker build, and the shared SurrealDB integration
 harness exercise the deployment boundary.

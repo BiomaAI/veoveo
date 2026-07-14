@@ -117,6 +117,7 @@ pub struct ResolveTimeRequest {
 pub struct ResolveTimeOutput {
     pub instant: TimeInstant,
     pub utc_rfc3339: String,
+    pub utc_is_leap_second: bool,
     pub military_dtg: String,
     pub unix_seconds: i64,
     pub gps_week: Option<u32>,
