@@ -18,6 +18,12 @@ pub struct LeapSecondTable {
     entries: Vec<LeapSecond>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UtcCoordinate {
+    pub unix_seconds: i64,
+    pub is_leap_second: bool,
+}
+
 impl LeapSecondTable {
     pub fn from_iana_content(content: &str) -> Result<Self> {
         let mut entries = Vec::new();
@@ -85,7 +91,27 @@ impl LeapSecondTable {
             .context("leap-second authority has no applicable entry")
     }
 
-    pub fn utc_from_tai(&self, tai_seconds_since_1970: i64) -> Result<i64> {
+    pub fn utc_from_tai(&self, tai_seconds_since_1970: i64) -> Result<UtcCoordinate> {
+        for pair in self.entries.windows(2) {
+            let previous = &pair[0];
+            let next = &pair[1];
+            let leap_start = next
+                .effective_unix_seconds
+                .checked_add(previous.tai_minus_utc_seconds)
+                .context("leap-second authority exceeds the supported range")?;
+            let next_ordinary = next
+                .effective_unix_seconds
+                .checked_add(next.tai_minus_utc_seconds)
+                .context("leap-second authority exceeds the supported range")?;
+            if next.tai_minus_utc_seconds > previous.tai_minus_utc_seconds
+                && (leap_start..next_ordinary).contains(&tai_seconds_since_1970)
+            {
+                return Ok(UtcCoordinate {
+                    unix_seconds: next.effective_unix_seconds - 1,
+                    is_leap_second: true,
+                });
+            }
+        }
         let mut utc = tai_seconds_since_1970
             - self
                 .entries
@@ -95,11 +121,17 @@ impl LeapSecondTable {
         for _ in 0..4 {
             let candidate = tai_seconds_since_1970 - self.offset_for_utc(utc)?;
             if candidate == utc {
-                return Ok(utc);
+                return Ok(UtcCoordinate {
+                    unix_seconds: utc,
+                    is_leap_second: false,
+                });
             }
             utc = candidate;
         }
-        Ok(utc)
+        Ok(UtcCoordinate {
+            unix_seconds: utc,
+            is_leap_second: false,
+        })
     }
 
     pub fn entries(&self) -> &[LeapSecond] {
@@ -152,7 +184,20 @@ mod tests {
         assert_eq!(table.offset_for_utc(0).unwrap(), 10);
         assert_eq!(table.offset_for_utc(1_483_228_800).unwrap(), 37);
         let tai = 1_483_228_800 + 37;
-        assert_eq!(table.utc_from_tai(tai).unwrap(), 1_483_228_800);
+        assert_eq!(
+            table.utc_from_tai(tai).unwrap(),
+            UtcCoordinate {
+                unix_seconds: 1_483_228_800,
+                is_leap_second: false,
+            }
+        );
+        assert_eq!(
+            table.utc_from_tai(tai - 1).unwrap(),
+            UtcCoordinate {
+                unix_seconds: 1_483_228_799,
+                is_leap_second: true,
+            }
+        );
     }
 
     #[test]

@@ -74,14 +74,18 @@ impl TemporalEngine {
     pub fn convert(&self, request: &ConvertTimeRequest) -> Result<ConvertTimeOutput> {
         self.ensure_authority(&request.instant)?;
         let canonical = self.project(request.instant.clone())?;
-        let utc_timestamp = timestamp_from_instant(&request.instant, &self.authority)?;
+        let (utc_timestamp, utc_is_leap_second) =
+            timestamp_from_instant(&request.instant, &self.authority)?;
         let mut zoned = Vec::with_capacity(request.zone_ids.len());
         for zone_id in &request.zone_ids {
             validate_zone_id(zone_id)?;
             let zone = self.authority.tzdb.get(zone_id)?;
             zoned.push(ZonedRepresentation {
                 zone_id: zone_id.clone(),
-                rfc9557: utc_timestamp.to_zoned(zone).to_string(),
+                rfc9557: render_leap_second(
+                    utc_timestamp.to_zoned(zone).to_string(),
+                    utc_is_leap_second,
+                )?,
             });
         }
         let tai_julian_day = julian_day_tai(&request.instant);
@@ -410,10 +414,11 @@ impl TemporalEngine {
 
     fn project(&self, instant: TimeInstant) -> Result<ResolveTimeOutput> {
         self.ensure_authority(&instant)?;
-        let utc_seconds = self
+        let utc_coordinate = self
             .authority
             .leap_seconds
             .utc_from_tai(instant.tai_seconds_since_1970)?;
+        let utc_seconds = utc_coordinate.unix_seconds;
         let timestamp = Timestamp::new(utc_seconds, instant.nanosecond as i32)?;
         let gps_seconds = instant.tai_seconds_since_1970 - GPS_EPOCH_TAI_SECONDS_SINCE_1970;
         let (gps_week, gps_seconds_of_week) = if gps_seconds < 0 {
@@ -431,17 +436,16 @@ impl TemporalEngine {
             .timestamp_opt(utc_seconds, instant.nanosecond)
             .single()
             .context("instant is outside the UTC projection range")?;
+        let julian_day_tai = julian_day_tai(&instant);
         Ok(ResolveTimeOutput {
             instant,
-            utc_rfc3339: timestamp.to_string(),
+            utc_rfc3339: render_leap_second(timestamp.to_string(), utc_coordinate.is_leap_second)?,
+            utc_is_leap_second: utc_coordinate.is_leap_second,
             military_dtg: utc.format("%d%H%MZ%b%y").to_string().to_uppercase(),
             unix_seconds: utc_seconds,
             gps_week,
             gps_seconds_of_week,
-            julian_day_tai: JULIAN_DAY_AT_1970_TAI
-                + (utc_seconds + self.authority.leap_seconds.offset_for_utc(utc_seconds)?) as f64
-                    / 86_400.0
-                + f64::from(utc.timestamp_subsec_nanos()) / 86_400_000_000_000.0,
+            julian_day_tai,
         })
     }
 
@@ -509,11 +513,29 @@ fn instant_parts_from_unix(
 fn timestamp_from_instant(
     instant: &TimeInstant,
     authority: &AuthorityContext,
-) -> Result<Timestamp> {
-    let utc_seconds = authority
+) -> Result<(Timestamp, bool)> {
+    let coordinate = authority
         .leap_seconds
         .utc_from_tai(instant.tai_seconds_since_1970)?;
-    Ok(Timestamp::new(utc_seconds, instant.nanosecond as i32)?)
+    Ok((
+        Timestamp::new(coordinate.unix_seconds, instant.nanosecond as i32)?,
+        coordinate.is_leap_second,
+    ))
+}
+
+fn render_leap_second(mut value: String, is_leap_second: bool) -> Result<String> {
+    if !is_leap_second {
+        return Ok(value);
+    }
+    let time = value
+        .find('T')
+        .context("UTC projection has no time component")?;
+    let seconds = time + 7;
+    if value.get(seconds..seconds + 2) != Some("59") {
+        bail!("leap-second projection does not follow second 59");
+    }
+    value.replace_range(seconds..seconds + 2, "60");
+    Ok(value)
 }
 
 fn split_fractional_seconds(seconds: f64, base: i64) -> Result<(i64, u32)> {
@@ -953,5 +975,35 @@ mod tests {
             })
             .unwrap();
         assert_eq!(resolved.instant.tai_seconds_since_1970, 4_001);
+    }
+
+    #[test]
+    fn projects_the_positive_leap_second_without_collapsing_its_identity() {
+        let engine = engine();
+        let midnight = engine
+            .resolve(&ResolveTimeRequest {
+                expression: TimeExpression::Rfc3339 {
+                    value: "2017-01-01T00:00:00Z".to_owned(),
+                },
+                additional_uncertainty_nanoseconds: 0,
+            })
+            .unwrap();
+        let leap = TimeInstant {
+            tai_seconds_since_1970: midnight.instant.tai_seconds_since_1970 - 1,
+            nanosecond: 500_000_000,
+            uncertainty_nanoseconds: 0,
+            authority: engine.authority.binding.clone(),
+        };
+        let projected = engine
+            .convert(&ConvertTimeRequest {
+                instant: leap,
+                zone_ids: vec!["UTC".to_owned(), "America/New_York".to_owned()],
+                scales: vec![TimeScale::Tai],
+            })
+            .unwrap();
+        assert!(projected.canonical.utc_is_leap_second);
+        assert_eq!(projected.canonical.utc_rfc3339, "2016-12-31T23:59:60.5Z");
+        assert!(projected.zoned[0].rfc9557.contains("23:59:60.5"));
+        assert!(projected.zoned[1].rfc9557.contains("18:59:60.5"));
     }
 }
