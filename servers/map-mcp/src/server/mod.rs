@@ -160,8 +160,8 @@ pub async fn run() -> Result<()> {
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(false)
-            .with_json_response(true)
+            .with_stateful_mode(true)
+            .with_json_response(false)
             .with_cancellation_token(cancellation.child_token()),
     );
     let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(
