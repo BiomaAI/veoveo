@@ -3,12 +3,26 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 from map_data.contract import ContractError, NormalizeCommand, NormalizeResult
 from map_data.adapters.gtfs import normalize_gtfs
 
 
 class NormalizeCommandTests(unittest.TestCase):
+    def gtfs_command(self, root: str, source: Path, maximum_output_bytes: int) -> NormalizeCommand:
+        return NormalizeCommand.parse(
+            {
+                "schema_version": 1,
+                "acquisition_id": "acquisition-019f5cda-8c2d-7283-88c8-a72f4a138a5e",
+                "adapter_kind": "gtfs_schedule",
+                "source_path": str(source),
+                "output_dir": str(Path(root) / "output"),
+                "maximum_elapsed_seconds": 10,
+                "maximum_output_bytes": maximum_output_bytes,
+            }
+        )
+
     def test_rejects_relative_and_missing_source_paths(self):
         with self.assertRaises(ContractError):
             NormalizeCommand.parse(
@@ -47,18 +61,51 @@ class NormalizeCommandTests(unittest.TestCase):
                 archive.writestr("../agency.txt", "bad")
                 for name in ["routes.txt", "stops.txt", "trips.txt", "stop_times.txt"]:
                     archive.writestr(name, "x")
-            command = NormalizeCommand.parse(
-                {
-                    "schema_version": 1,
-                    "acquisition_id": "acquisition-019f5cda-8c2d-7283-88c8-a72f4a138a5e",
-                    "adapter_kind": "gtfs_schedule",
-                    "source_path": str(source),
-                    "output_dir": str(Path(root) / "output"),
-                    "maximum_elapsed_seconds": 10,
-                    "maximum_output_bytes": 1024 * 1024,
-                }
-            )
+            command = self.gtfs_command(root, source, 1024 * 1024)
             with self.assertRaises(ContractError):
+                normalize_gtfs(command)
+
+    def test_gtfs_normalizes_a_bounded_feed_and_records_validation_status(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = Path(root) / "feed.zip"
+            with zipfile.ZipFile(source, "w") as archive:
+                for name in ["agency.txt", "routes.txt", "stops.txt", "trips.txt", "stop_times.txt"]:
+                    archive.writestr(name, "header\n")
+            command = self.gtfs_command(root, source, 1024 * 1024)
+
+            with (
+                patch.dict(
+                    "os.environ", {"MAP_GTFS_VALIDATOR_JAR": "/validator.jar"}, clear=True
+                ),
+                patch("map_data.adapters.gtfs.run_tool") as validator,
+            ):
+                normalized, report_path, routing = normalize_gtfs(command)
+
+            self.assertEqual(len(normalized), 1)
+            self.assertEqual(normalized[0].read_bytes(), source.read_bytes())
+            self.assertIsNone(routing)
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["adapter"], "gtfs_schedule")
+            self.assertTrue(
+                next(
+                    check["passed"]
+                    for check in report["checks"]
+                    if check["name"] == "canonical_validator_ran"
+                )
+            )
+            validator.assert_called_once()
+
+    def test_gtfs_rejects_excessive_expansion_before_extracting(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = Path(root) / "feed.zip"
+            with zipfile.ZipFile(source, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("agency.txt", "x" * 20_000)
+                for name in ["routes.txt", "stops.txt", "trips.txt", "stop_times.txt"]:
+                    archive.writestr(name, "header\n")
+            command = self.gtfs_command(root, source, 1024)
+
+            with self.assertRaisesRegex(ContractError, "expansion limits"):
                 normalize_gtfs(command)
 
     def test_typed_result_emits_only_contract_fields(self):

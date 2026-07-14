@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="veoveo-map-smoke">
+  <bounds minlat="13.6900" minlon="-89.2200" maxlat="13.7000" maxlon="-89.2050"/>
+  <node id="1" lat="13.6920" lon="-89.2190" version="1" timestamp="2026-01-01T00:00:00Z"/>
+  <node id="2" lat="13.6950" lon="-89.2140" version="1" timestamp="2026-01-01T00:00:00Z"/>
+  <node id="3" lat="13.6980" lon="-89.2080" version="1" timestamp="2026-01-01T00:00:00Z"/>
+  <way id="101" version="1" timestamp="2026-01-01T00:00:00Z">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Veoveo Test Road"/>
+    <tag k="maxspeed" v="30"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+</osm>
