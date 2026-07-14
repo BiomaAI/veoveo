@@ -52,6 +52,7 @@ DEFINE FIELD IF NOT EXISTS tenant ON TABLE time_acquisition TYPE record<tenant>;
 DEFINE FIELD IF NOT EXISTS owner ON TABLE time_acquisition TYPE record<principal>;
 DEFINE FIELD IF NOT EXISTS acquisition_key ON TABLE time_acquisition TYPE string;
 DEFINE FIELD IF NOT EXISTS source_key ON TABLE time_acquisition TYPE string;
+DEFINE FIELD IF NOT EXISTS expected_source_digest_sha256 ON TABLE time_acquisition TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS idempotency_key ON TABLE time_acquisition TYPE string;
 DEFINE FIELD IF NOT EXISTS status ON TABLE time_acquisition TYPE "queued" | "running" | "succeeded" | "failed" | "cancel_requested" | "cancelled";
 DEFINE FIELD IF NOT EXISTS phase ON TABLE time_acquisition TYPE string;

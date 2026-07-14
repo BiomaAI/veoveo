@@ -45,6 +45,10 @@ impl TemporalEngine {
         &self.authority
     }
 
+    pub fn fork(&self) -> Self {
+        Self::new(self.authority.as_ref().clone())
+    }
+
     pub fn replace_epochs(&self, epochs: impl IntoIterator<Item = MissionEpoch>) {
         let mut active = self.epochs.write().expect("mission epoch lock poisoned");
         active.clear();
@@ -101,6 +105,9 @@ impl TemporalEngine {
             .or_else(|| request.right.first())
             .map(|window| window.start.authority.clone())
             .unwrap_or_else(|| self.authority.binding.clone());
+        if authority != self.authority.binding {
+            bail!("window operation references a non-active temporal authority");
+        }
         for window in request.left.iter().chain(&request.right) {
             validate_window(window)?;
             if window.start.authority != authority || window.end.authority != authority {
@@ -134,17 +141,37 @@ impl TemporalEngine {
 
     pub fn expand_schedule(&self, request: &ExpandScheduleRequest) -> Result<ExpandScheduleOutput> {
         validate_window(&request.horizon)?;
+        self.ensure_authority(&request.horizon.start)?;
+        self.ensure_authority(&request.horizon.end)?;
         if request.maximum_occurrences == 0 || request.maximum_occurrences > 1_000_000 {
             bail!("maximum_occurrences must be in 1..=1000000");
         }
+        if request.calendar.version == 0 || request.calendar.name.trim().is_empty() {
+            bail!("calendar version and name must be set");
+        }
         validate_zone_id(&request.calendar.zone_id)?;
         let zone = self.authority.tzdb.get(&request.calendar.zone_id)?;
-        let excluded: BTreeSet<_> = request.calendar.excluded_dates.iter().cloned().collect();
+        let excluded: BTreeSet<_> = request
+            .calendar
+            .excluded_dates
+            .iter()
+            .map(|value| {
+                NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                    .map(|date| date.format("%Y-%m-%d").to_string())
+                    .context("calendar excluded dates must use YYYY-MM-DD")
+            })
+            .collect::<Result<_>>()?;
         let mut occurrences = Vec::new();
         let mut truncated = false;
         for calendar_window in &request.calendar.windows {
             if calendar_window.recurrence.interval == 0 {
                 bail!("calendar recurrence interval must be positive");
+            }
+            if calendar_window.recurrence.count == Some(0) {
+                bail!("calendar recurrence count must be positive");
+            }
+            if let Some(until) = &calendar_window.recurrence.until {
+                self.ensure_authority(until)?;
             }
             let start = parse_local_datetime(&calendar_window.start_local)?;
             let end = parse_local_datetime(&calendar_window.end_local)?;
@@ -233,6 +260,9 @@ impl TemporalEngine {
         &self,
         request: &ValidateTimelineRequest,
     ) -> Result<ValidateTimelineOutput> {
+        if request.points.len() > 100_000 || request.constraints.len() > 1_000_000 {
+            bail!("timeline exceeds the supported point or constraint limit");
+        }
         let mut points = BTreeMap::new();
         for point in &request.points {
             if point.name.trim().is_empty() || points.contains_key(&point.name) {
@@ -242,6 +272,12 @@ impl TemporalEngine {
         }
         let mut violations = Vec::new();
         for (index, constraint) in request.constraints.iter().enumerate() {
+            if constraint
+                .maximum_separation_nanoseconds
+                .is_some_and(|maximum| maximum < constraint.minimum_separation_nanoseconds)
+            {
+                bail!("timeline maximum separation must not be below its minimum");
+            }
             let Some(predecessor) = points.get(&constraint.predecessor) else {
                 bail!("timeline constraint references an unknown predecessor");
             };
@@ -376,12 +412,17 @@ impl TemporalEngine {
             .utc_from_tai(instant.tai_seconds_since_1970)?;
         let timestamp = Timestamp::new(utc_seconds, instant.nanosecond as i32)?;
         let gps_seconds = instant.tai_seconds_since_1970 - GPS_EPOCH_TAI_SECONDS_SINCE_1970;
-        if gps_seconds < 0 {
-            bail!("instant predates the GPS epoch");
-        }
-        let gps_week = (gps_seconds / SECONDS_PER_WEEK as i64) as u32;
-        let gps_seconds_of_week = (gps_seconds % SECONDS_PER_WEEK as i64) as f64
-            + f64::from(instant.nanosecond) / 1_000_000_000.0;
+        let (gps_week, gps_seconds_of_week) = if gps_seconds < 0 {
+            (None, None)
+        } else {
+            (
+                Some((gps_seconds / SECONDS_PER_WEEK as i64) as u32),
+                Some(
+                    (gps_seconds % SECONDS_PER_WEEK as i64) as f64
+                        + f64::from(instant.nanosecond) / 1_000_000_000.0,
+                ),
+            )
+        };
         let utc = Utc
             .timestamp_opt(utc_seconds, instant.nanosecond)
             .single()
@@ -693,7 +734,13 @@ fn nato_zone_offset_hours(letter: char) -> Result<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{authority::LeapSecondTable, contract::AuthorityReleaseId};
+    use crate::{
+        authority::LeapSecondTable,
+        contract::{
+            AuthorityReleaseId, CalendarId, CalendarWindow, OperationalCalendar, RecurrenceRule,
+            TimelineConstraint, TimelinePoint,
+        },
+    };
 
     const LEAPS: &str = "2272060800 10\n2287785600 11\n2303683200 12\n2335219200 13\n2366755200 14\n2398291200 15\n2429913600 16\n2461449600 17\n2492985600 18\n2524521600 19\n2571782400 20\n2603318400 21\n2634854400 22\n2698012800 23\n2776982400 24\n2840140800 25\n2871676800 26\n2918937600 27\n2950473600 28\n2982009600 29\n3029443200 30\n3076704000 31\n3124137600 32\n3345062400 33\n3439756800 34\n3550089600 35\n3644697600 36\n3692217600 37\n";
 
@@ -731,8 +778,8 @@ mod tests {
         let gps = engine
             .resolve(&ResolveTimeRequest {
                 expression: TimeExpression::Gps {
-                    week: rfc.gps_week,
-                    seconds_of_week: rfc.gps_seconds_of_week,
+                    week: rfc.gps_week.unwrap(),
+                    seconds_of_week: rfc.gps_seconds_of_week.unwrap(),
                 },
                 additional_uncertainty_nanoseconds: 0,
             })
@@ -783,5 +830,96 @@ mod tests {
         assert_eq!(output.windows.len(), 1);
         assert_eq!(output.windows[0].start.tai_seconds_since_1970, 100);
         assert_eq!(output.windows[0].end.tai_seconds_since_1970, 300);
+    }
+
+    #[test]
+    fn expands_local_schedule_across_a_dst_transition() {
+        let engine = engine();
+        let resolve = |value: &str| {
+            engine
+                .resolve(&ResolveTimeRequest {
+                    expression: TimeExpression::Rfc3339 {
+                        value: value.to_owned(),
+                    },
+                    additional_uncertainty_nanoseconds: 0,
+                })
+                .unwrap()
+                .instant
+        };
+        let output = engine
+            .expand_schedule(&ExpandScheduleRequest {
+                calendar: OperationalCalendar {
+                    calendar_id: CalendarId::new("calendar-dst-test").unwrap(),
+                    version: 1,
+                    name: "Eastern operations".to_owned(),
+                    zone_id: "America/New_York".to_owned(),
+                    windows: vec![CalendarWindow {
+                        start_local: "2024-03-08T09:00:00".to_owned(),
+                        end_local: "2024-03-08T17:00:00".to_owned(),
+                        recurrence: RecurrenceRule {
+                            frequency: RecurrenceFrequency::Daily,
+                            interval: 1,
+                            weekdays: Vec::new(),
+                            count: Some(4),
+                            until: None,
+                        },
+                        labels: vec!["day-shift".to_owned()],
+                    }],
+                    excluded_dates: Vec::new(),
+                },
+                horizon: TimeWindow {
+                    start: resolve("2024-03-08T00:00:00Z"),
+                    end: resolve("2024-03-13T00:00:00Z"),
+                },
+                maximum_occurrences: 10,
+            })
+            .unwrap();
+        let starts: Vec<_> = output
+            .occurrences
+            .iter()
+            .map(|occurrence| {
+                engine
+                    .project(occurrence.window.start.clone())
+                    .unwrap()
+                    .utc_rfc3339
+            })
+            .collect();
+        assert_eq!(output.occurrences.len(), 4);
+        assert_eq!(starts[0], "2024-03-08T14:00:00Z");
+        assert_eq!(starts[1], "2024-03-09T14:00:00Z");
+        assert_eq!(starts[2], "2024-03-10T13:00:00Z");
+        assert_eq!(starts[3], "2024-03-11T13:00:00Z");
+    }
+
+    #[test]
+    fn reports_timeline_separation_violations() {
+        let engine = engine();
+        let output = engine
+            .validate_timeline(&ValidateTimelineRequest {
+                points: vec![
+                    TimelinePoint {
+                        name: "depart".to_owned(),
+                        at: TimeExpression::Rfc3339 {
+                            value: "2024-06-01T12:00:00Z".to_owned(),
+                        },
+                    },
+                    TimelinePoint {
+                        name: "arrive".to_owned(),
+                        at: TimeExpression::Rfc3339 {
+                            value: "2024-06-01T12:05:00Z".to_owned(),
+                        },
+                    },
+                ],
+                constraints: vec![TimelineConstraint {
+                    predecessor: "depart".to_owned(),
+                    successor: "arrive".to_owned(),
+                    minimum_separation_nanoseconds: 600_000_000_000,
+                    maximum_separation_nanoseconds: Some(900_000_000_000),
+                }],
+            })
+            .unwrap();
+        assert!(!output.valid);
+        assert_eq!(output.violations.len(), 1);
+        assert_eq!(output.violations[0].constraint_index, 0);
     }
 }

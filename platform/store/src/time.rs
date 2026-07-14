@@ -47,6 +47,7 @@ pub struct TimeAcquisitionDraft {
     pub identity: PlatformIdentity,
     pub acquisition_key: String,
     pub source_key: String,
+    pub expected_source_digest_sha256: Option<String>,
     pub idempotency_key: String,
     pub status: TimeAcquisitionState,
     pub phase: String,
@@ -139,6 +140,7 @@ struct TimeAcquisitionContent {
     owner: RecordId,
     acquisition_key: String,
     source_key: String,
+    expected_source_digest_sha256: Option<String>,
     idempotency_key: String,
     status: TimeAcquisitionState,
     phase: String,
@@ -448,7 +450,7 @@ impl PlatformStore {
             .await?
         {
             if existing.source_key == draft.source_key
-                && existing.canonical_json == draft.canonical_json
+                && existing.expected_source_digest_sha256 == draft.expected_source_digest_sha256
             {
                 return Ok(existing);
             }
@@ -463,6 +465,7 @@ impl PlatformStore {
             owner: draft.identity.principal_id.record_id(),
             acquisition_key: draft.acquisition_key.clone(),
             source_key: draft.source_key,
+            expected_source_digest_sha256: draft.expected_source_digest_sha256,
             idempotency_key: draft.idempotency_key,
             status: draft.status,
             phase: draft.phase,
@@ -811,7 +814,7 @@ impl PlatformStore {
         .await
     }
 
-    async fn time_acquisition_for_idempotency(
+    pub async fn time_acquisition_for_idempotency(
         &self,
         tenant_id: TenantId,
         owner: RecordId,

@@ -3,9 +3,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AuthorityReleaseId, CalendarId, ClockQualityPolicy, MissionEpoch, TimeAcquisitionId,
-    TimeSourceId,
+    AuthorityReleaseId, CalendarId, ClockQualityPolicy, MissionEpoch, OperationalCalendar,
+    TimeAcquisitionId, TimeSourceId,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AdminPage<T> {
+    pub items: Vec<T>,
+    pub next_cursor: Option<String>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -64,6 +70,7 @@ pub enum TimeAcquisitionStatus {
 pub struct TimeAcquisition {
     pub acquisition_id: TimeAcquisitionId,
     pub source_id: TimeSourceId,
+    pub expected_source_digest_sha256: Option<String>,
     pub status: TimeAcquisitionStatus,
     pub phase: String,
     pub staged_release_id: Option<AuthorityReleaseId>,
@@ -80,6 +87,12 @@ pub struct CreateSourceRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReplaceSourceRequest {
+    pub source: TimeSource,
+    pub expected_record_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreateAcquisitionRequest {
     pub source_id: TimeSourceId,
     pub expected_source_digest_sha256: Option<String>,
@@ -90,6 +103,12 @@ pub struct CreateAcquisitionRequest {
 pub struct ActivateReleaseRequest {
     pub expected_release_record_version: u64,
     pub expected_active_pointer_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CreateCalendarRequest {
+    pub calendar: OperationalCalendar,
+    pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -108,4 +127,12 @@ pub struct UpsertMissionEpochRequest {
 pub struct ReplaceClockQualityPolicyRequest {
     pub policy: ClockQualityPolicy,
     pub expected_record_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AdminError {
+    pub code: String,
+    pub message: String,
+    pub retryable: bool,
+    pub trace_id: String,
 }

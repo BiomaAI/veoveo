@@ -966,6 +966,7 @@ pub struct TimeAcquisitionRecord {
     pub owner: RecordId,
     pub acquisition_key: String,
     pub source_key: String,
+    pub expected_source_digest_sha256: Option<String>,
     pub idempotency_key: String,
     pub status: TimeAcquisitionState,
     pub phase: String,

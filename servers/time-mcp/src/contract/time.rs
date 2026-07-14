@@ -119,8 +119,8 @@ pub struct ResolveTimeOutput {
     pub utc_rfc3339: String,
     pub military_dtg: String,
     pub unix_seconds: i64,
-    pub gps_week: u32,
-    pub gps_seconds_of_week: f64,
+    pub gps_week: Option<u32>,
+    pub gps_seconds_of_week: Option<f64>,
     pub julian_day_tai: f64,
 }
 
@@ -179,4 +179,9 @@ pub struct ClockAssessment {
     pub policy: ClockQualityPolicy,
     pub acceptable: bool,
     pub violations: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AssessClockRequest {
+    pub policy: Option<ClockQualityPolicy>,
 }
