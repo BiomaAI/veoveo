@@ -6,12 +6,12 @@ architecture:
   revision_date: 2026-07-14
   handling: reference_baseline_no_client_data
   source_repository: veoveo
-  source_commit: 64a5977aeb577523a6515fc7c583f5a9303c96a0
+  source_commit: b16cd92436980fb82e01d6e65ff0378d537f5412
 
 scope:
-  rust_workspace_packages: 26
-  gateway_server_identities: 12
-  software_resources: 48
+  rust_workspace_packages: 28
+  gateway_server_identities: 14
+  software_resources: 50
   interfaces: 33
   requirements: 18
   actual_resource_configurations: 4

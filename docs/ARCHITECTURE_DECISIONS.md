@@ -28,7 +28,7 @@ that installation, not a customer account in a vendor service.
 
 Tenant and principal identities resolve through one canonical platform identity
 mapping. Tasks, artifacts, frames, recordings, agents, grants, audit events, and
-outbox events must use those same typed record identities. A subsystem must not
+outbox events must use those same canonical record identities. A subsystem must not
 invent a parallel tenant or principal namespace.
 
 ## Durable platform store
@@ -110,7 +110,8 @@ sixty-second object-store URL is issued.
 
 The gateway and hosted servers use the MCP protocol features that fit their
 domains: tools, resources and templates, prompts, completions, tasks,
-subscriptions, notifications, typed structured content, and URI identities.
+subscriptions, notifications, structured content with declared schemas, and URI
+identities.
 
 Tool helpers for clients with weak resource or task support may be added only as
 explicit projections over the canonical behavior. They reuse the same models,
@@ -120,7 +121,7 @@ second implementation or a fallback completion path.
 ## Hosted server administration
 
 Agent operations use MCP and the shared Task API. A hosted MCP server may pair
-that protocol surface with typed HTTP administration at its canonical
+that protocol surface with contract-defined HTTP administration at its canonical
 `{mount}/admin/*` path when the domain has installation-managed catalogs,
 configuration, acquisition, or lifecycle workflows.
 
@@ -129,7 +130,7 @@ The gateway is the governed entry point for these APIs. Its canonical route is
 the active profile, authorizes the read or write, records audit evidence, and
 forwards a short-lived internal identity assertion. The owning server validates
 that identity and its administrative scope before applying the operation through
-the same typed domain state used by MCP.
+the same domain models and state used by MCP.
 
 Browser administration enters through explicit same-origin projections in the
 Console BFF. Administrative API clients may use the protected gateway route
@@ -175,7 +176,7 @@ platform projections.
 
 ## Recording and simulation
 
-The recording hub is a durable push path. Producers push typed Rerun streams;
+The recording hub is a durable push path. Producers push Rerun log streams;
 the hub does not poll producers. Segment writes are fsynced, crash-decodable,
 verified before optimized replacement, and cataloged as governed tenant records.
 A recording MCP server exposes authorized discovery, queries, subscriptions,
@@ -183,7 +184,7 @@ and artifact publication instead of exposing the unauthenticated Rerun proxy or
 catalog directly.
 
 SUMO is a domain showcase over these same contracts: one process owns TraCI,
-pushes world state to the recording hub, exposes typed MCP controls, and uses the
+pushes world state to the recording hub, exposes MCP controls, and uses the
 shared durable task runtime. It does not carry a private compatibility task
 protocol or shell-based smoke framework.
 

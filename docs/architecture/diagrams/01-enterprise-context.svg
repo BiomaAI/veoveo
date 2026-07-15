@@ -106,7 +106,7 @@
 <tspan x="53" dy="0">Sensor / simulator</tspan>
 </text>
 <text x="53" y="785" class="small" text-anchor="start">
-<tspan x="53" dy="0">Private push of typed world</tspan>
+<tspan x="53" dy="0">Private push of Rerun world</tspan>
 <tspan x="53" dy="16">streams</tspan>
 </text>
 <rect x="1415" y="180" width="250" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>

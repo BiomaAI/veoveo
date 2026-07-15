@@ -17,7 +17,7 @@ OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
 VERSION = "0.1.0"
 REVISION_DATE = "2026-07-14"
-SOURCE_COMMIT = "64a5977aeb577523a6515fc7c583f5a9303c96a0"
+SOURCE_COMMIT = "b16cd92436980fb82e01d6e65ff0378d537f5412"
 FIXED_ZIP_TIME = (2026, 7, 14, 12, 0, 0)
 
 
@@ -116,7 +116,7 @@ def prepare(package_kind: str) -> Path:
         "handling": "reference_baseline_no_client_data",
         "standards": {"uaf": "1.3", "sysml": "1.6", "uml": "2.5.1", "xmi": "2.5.1"},
         "counts": {
-            "software_resources": 48,
+            "software_resources": 50,
             "interfaces": 33,
             "requirements": 18,
             "views": 11,

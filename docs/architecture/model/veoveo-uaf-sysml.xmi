@@ -18,7 +18,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-003-COMMENT" body="Outputs retain identity, integrity, access, release, retention, and sharing policy." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-004" name="Governed world recording">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-004-COMMENT" body="Typed sensor and simulation evidence is pushed into durable RRD recordings." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-004-COMMENT" body="Sensor and simulation evidence is pushed into durable RRD recordings." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-005" name="Bounded analytics and decisions">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-005-COMMENT" body="Arbitrary SQL, forecasting, planning, and charts execute inside owned limits." />
@@ -42,7 +42,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-011-COMMENT" body="Governed data releases support geodesy, restrictions, routing, and logistics matrices." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-012" name="Extensible hosted domains">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-012-COMMENT" body="Typed Rust and Python contracts add servers without weakening canonical protocol behavior." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-012-COMMENT" body="Shared Rust contracts and validated Python models add servers without weakening canonical protocol behavior." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-OPERATIONAL" name="Operational">
@@ -59,7 +59,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-004-COMMENT" body="Create artifact occurrence, store bytes, apply access, and release deliberately." />
       </packagedElement>
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-005" name="Ingest and query world evidence">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-005-COMMENT" body="Push typed observations, freeze segments, authorize, and query logical recordings." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-005-COMMENT" body="Push Rerun observations, freeze segments, authorize, and query logical recordings." />
       </packagedElement>
       <packagedElement xmi:type="uml:Activity" xmi:id="VV-OPA-006" name="Analyze, route, and plan">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-OPA-006-COMMENT" body="Transform governed inputs into analytical, logistical, or planning products." />
@@ -138,7 +138,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-007-COMMENT" body="Persists agents, wakes, episodes, watcher leases, retry schedules, task descriptors, results, and retention pins across process restart." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-008" name="Platform store">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-008-COMMENT" body="Owns typed persistence records, ordered migrations, stable identities, transactional outbox, changefeed replay, and platform-store access." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-008-COMMENT" body="Owns persistence record types, ordered migrations, stable identities, transactional outbox, changefeed replay, and platform-store access." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-009" name="Durable task runtime">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-009-COMMENT" body="Owns UUIDv7 task creation, idempotency, leases, claims, progress, elicited input, cancellation, terminal results, retention, recovery, and outbox transitions." />
@@ -147,7 +147,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-010-COMMENT" body="Provides owner-scoped DuckDB workspace construction and locked analytical execution primitives." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-011" name="Shared MCP contract">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-011-COMMENT" body="Defines typed cross-service identities, gateway configuration, policy vocabulary, artifacts, coordinates, storage, tasks, subscriptions, usage, and URI conventions." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-011-COMMENT" body="Defines cross-service Rust models and domain identifiers for gateway configuration, policy vocabulary, artifacts, coordinates, storage, tasks, subscriptions, usage, and URI conventions." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-012" name="Final MCP task extension">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-012-COMMENT" body="Implements discovery, task-required invocation, get, update, cancel, list, notifications, and SSE subscription projection over the shared runtime." />
@@ -156,10 +156,10 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-013-COMMENT" body="Projects a child stdio MCP server onto bounded Streamable HTTP while preserving the registered gateway identity." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-014" name="Artifact client">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-014-COMMENT" body="Provides the typed native client for artifact metadata, capabilities, upload, download, grants, release, and sharing operations." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-014-COMMENT" body="Provides the native Rust client for artifact metadata, capabilities, upload, download, grants, release, and sharing operations." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-015" name="RRD library">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-015-COMMENT" body="Provides typed Rerun/RRD read, merge, query, and recording utility behavior shared by the platform." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-015-COMMENT" body="Provides Rerun/RRD read, merge, query, and recording utility behavior shared by the platform." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-016" name="Artifact MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-016-COMMENT" body="Exposes governed artifact discovery, metadata, grants, release states, share links, subscriptions, prompts, and completions through canonical artifact URIs." />
@@ -177,16 +177,16 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-020-COMMENT" body="Governs map sources and releases; performs geodesy, CRS transformation, location inspection, restrictions, reachable areas, routing, and logistics matrices." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-021" name="Optimization MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Builds deterministic planning options, records durable task state, and publishes typed plan artifacts." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-021-COMMENT" body="Builds deterministic planning options, records durable task state, and publishes plan artifacts." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-022" name="Perception MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Authorizes recorded sensor data, extracts bounded clips, runs local detection and tracking, and publishes typed results plus derived RRD annotations." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Authorizes recorded sensor data, extracts bounded clips, runs local detection and tracking, and publishes detection and tracking results plus derived RRD annotations." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-023" name="Recording MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-023-COMMENT" body="Applies tenant and label authorization to recording discovery, query, sealing, subscriptions, prompts, and artifact publication." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-024" name="Timeseries MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-024-COMMENT" body="Runs typed forecasting as durable work and publishes structured forecast artifacts and RRD output." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-024-COMMENT" body="Runs forecasting as durable work and publishes forecast artifacts and RRD output." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-025" name="Datasheet MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-025-COMMENT" body="Demonstrates the Python platform contract through dataset preview, column statistics, task-based profiling, prompts, completions, resources, and notifications." />
@@ -198,25 +198,25 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-027-COMMENT" body="Provides the Rerun viewer's MCP tool surface under the registered rerun server identity." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-028" name="SUMO MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-028-COMMENT" body="Owns serialized TraCI access, exposes typed traffic reads and actuation, runs durable generation and optimization tasks, and pushes world state to Recording Hub." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-028-COMMENT" body="Owns serialized TraCI access, exposes traffic reads and actuation, runs durable generation and optimization tasks, and pushes world state to Recording Hub." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-029" name="SUMO simulator and LuST world">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-029-COMMENT" body="Runs the pinned LuST traffic scenario and exposes private TraCI control to the SUMO MCP owner." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-030" name="Python hosted-server SDK">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-030-COMMENT" body="Provides typed identity, pagination, internal authentication, telemetry, artifact, deployment, task-runtime, and final task-extension support." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-030-COMMENT" body="Provides Python models and helpers for identity, pagination, internal authentication, telemetry, artifacts, deployment, task runtime, and the final task extension." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-031" name="Map data acquisition helper">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-031-COMMENT" body="Normalizes authoritative OSM, GTFS, maritime, aviation, and authority datasets into bounded acquisition products." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-032" name="Perception DeepStream runner">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-032-COMMENT" body="Executes the bounded GStreamer and DeepStream pipeline and returns typed detections and tracks to the owning server." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-032-COMMENT" body="Executes the bounded GStreamer and DeepStream pipeline and returns detections and tracks that match the owning server's contract." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-033" name="MCP conformance client">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-033-COMMENT" body="Exercises typed external MCP surfaces and configuration against real or fake services." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-033-COMMENT" body="Exercises external MCP surfaces and configuration against real or fake services." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-034" name="Rust smoke harness">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-034-COMMENT" body="Owns multi-process and container lifecycle, readiness, timeouts, cleanup, typed calls, assertions, and deployment contract verification." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-034-COMMENT" body="Owns multi-process and container lifecycle, readiness, timeouts, cleanup, MCP and HTTP calls, assertions, and deployment contract verification." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-035" name="Docker Compose deployment definition">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-035-COMMENT" body="Instantiates the canonical single-host service graph with loopback development ports, private internal networks, volumes, bootstrap, and edge routing." />
@@ -255,10 +255,16 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-046-COMMENT" body="Builds and serves routing tiles, transforms geospatial data, and validates transit datasets under the Map MCP owner." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-047" name="Rerun data model and transport">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-047-COMMENT" body="Carries typed world logs, persists RRD segments, supports queries, and renders recording evidence." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-047-COMMENT" body="Carries world logs, persists RRD segments, supports queries, and renders recording evidence." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-048" name="Container execution environment">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-048-COMMENT" body="Runs isolated service images, networks, volumes, secrets, resource limits, GPUs, and deployment health controls." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-049" name="Time MCP server">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-049-COMMENT" body="Resolves civil, military, GNSS, and mission time against versioned authority releases; evaluates calendars and windows; observes clock quality; publishes temporal events; and runs durable timeline work." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-050" name="View MCP server">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-050-COMMENT" body="Maintains owner-scoped camera views over configured 3D Tiles, bounds network and CPU/GPU residency, renders offscreen with NVIDIA Vulkan, and returns frames with attribution and capture metadata." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SYS-001" name="Veoveo Installation System">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SYS-001-COMMENT" body="Aggregate resource performer composed from the canonical Veoveo software and infrastructure service graph." />
@@ -298,7 +304,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-006-COMMENT" body="Artifact occurrences and bytes shall remain tenant-isolated and shall enforce labels, grants, release state, retention, and bounded sharing." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-007" name="VV-REQ-007">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-007-COMMENT" body="World and sensor producers shall push typed Rerun streams into a private durable recording boundary that preserves crash-decodable evidence." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-007-COMMENT" body="World and sensor producers shall push Rerun log streams into a private durable recording boundary that preserves crash-decodable evidence." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-008" name="VV-REQ-008">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-008-COMMENT" body="Perception shall run locally over authorized recorded data with bounded GPU execution and shall publish governed derived results." />
@@ -612,6 +618,10 @@
   <SysML:Block xmi:id="VV-CMP-047-SYSML" base_Class="VV-CMP-047" isEncapsulated="true" />
   <UAF:System xmi:id="VV-CMP-048-UAF" base_Class="VV-CMP-048" />
   <SysML:Block xmi:id="VV-CMP-048-SYSML" base_Class="VV-CMP-048" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-049-UAF" base_Class="VV-CMP-049" />
+  <SysML:Block xmi:id="VV-CMP-049-SYSML" base_Class="VV-CMP-049" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-050-UAF" base_Class="VV-CMP-050" />
+  <SysML:Block xmi:id="VV-CMP-050-SYSML" base_Class="VV-CMP-050" isEncapsulated="true" />
   <UAF:System xmi:id="VV-SYS-001-UAF" base_Class="VV-SYS-001" />
   <SysML:Block xmi:id="VV-SYS-001-SYSML" base_Class="VV-SYS-001" isEncapsulated="true" />
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />
@@ -632,7 +642,7 @@
   <SysML:Requirement xmi:id="VV-REQ-004-SYSML" base_Class="VV-REQ-004" id="VV-REQ-004" text="Provider job completion shall be accepted only from a signed provider webhook and shall never poll provider status." />
   <SysML:Requirement xmi:id="VV-REQ-005-SYSML" base_Class="VV-REQ-005" id="VV-REQ-005" text="Long-running operations shall use one durable task authority with explicit idempotency, leases, recovery class, cancellation, results, retention, and ordered event delivery." />
   <SysML:Requirement xmi:id="VV-REQ-006-SYSML" base_Class="VV-REQ-006" id="VV-REQ-006" text="Artifact occurrences and bytes shall remain tenant-isolated and shall enforce labels, grants, release state, retention, and bounded sharing." />
-  <SysML:Requirement xmi:id="VV-REQ-007-SYSML" base_Class="VV-REQ-007" id="VV-REQ-007" text="World and sensor producers shall push typed Rerun streams into a private durable recording boundary that preserves crash-decodable evidence." />
+  <SysML:Requirement xmi:id="VV-REQ-007-SYSML" base_Class="VV-REQ-007" id="VV-REQ-007" text="World and sensor producers shall push Rerun log streams into a private durable recording boundary that preserves crash-decodable evidence." />
   <SysML:Requirement xmi:id="VV-REQ-008-SYSML" base_Class="VV-REQ-008" id="VV-REQ-008" text="Perception shall run locally over authorized recorded data with bounded GPU execution and shall publish governed derived results." />
   <SysML:Requirement xmi:id="VV-REQ-009-SYSML" base_Class="VV-REQ-009" id="VV-REQ-009" text="Autonomous agents shall persist wakes, episodes, task descriptors, retries, results, and retention pins across process restart." />
   <SysML:Requirement xmi:id="VV-REQ-010-SYSML" base_Class="VV-REQ-010" id="VV-REQ-010" text="Browser JavaScript shall never receive the gateway bearer and every unsafe console request shall enforce CSRF." />

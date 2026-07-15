@@ -20,7 +20,7 @@ DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
 VERSION = "0.1.0"
 REVISION_DATE = "2026-07-14"
-SOURCE_COMMIT = "64a5977aeb577523a6515fc7c583f5a9303c96a0"
+SOURCE_COMMIT = "b16cd92436980fb82e01d6e65ff0378d537f5412"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
@@ -52,7 +52,7 @@ CAPABILITIES = [
     (
         "VV-CAP-004",
         "Governed world recording",
-        "Typed sensor and simulation evidence is pushed into durable RRD recordings.",
+        "Sensor and simulation evidence is pushed into durable RRD recordings.",
     ),
     (
         "VV-CAP-005",
@@ -92,7 +92,7 @@ CAPABILITIES = [
     (
         "VV-CAP-012",
         "Extensible hosted domains",
-        "Typed Rust and Python contracts add servers without weakening canonical protocol behavior.",
+        "Shared Rust contracts and validated Python models add servers without weakening canonical protocol behavior.",
     ),
 ]
 
@@ -120,7 +120,7 @@ ACTIVITIES = [
     (
         "VV-OPA-005",
         "Ingest and query world evidence",
-        "Push typed observations, freeze segments, authorize, and query logical recordings.",
+        "Push Rerun observations, freeze segments, authorize, and query logical recordings.",
     ),
     (
         "VV-OPA-006",
@@ -557,7 +557,7 @@ def diagram_context() -> None:
     actors = [
         (35, 180, "Operator / architect", "Browser administration and formal review"),
         (35, 430, "MCP client / agent", "Profile-scoped tools, resources, prompts, tasks"),
-        (35, 715, "Sensor / simulator", "Private push of typed world streams"),
+        (35, 715, "Sensor / simulator", "Private push of Rerun world streams"),
         (1415, 180, "Enterprise IdP", "OIDC identity, claims, keys"),
         (1415, 430, "Media provider", "Submission API and signed terminal webhook"),
         (1415, 715, "SIEM / operations", "Approved telemetry and audit evidence"),
@@ -749,7 +749,7 @@ def diagram_services() -> None:
         ("VV-SVC-001/002", "VV-CMP-001, 011, 041"),
         ("VV-SVC-003", "VV-CMP-008, 009, 012, 038"),
         ("VV-SVC-004/005", "VV-CMP-004, 005, 014-016, 023, 039, 047"),
-        ("VV-SVC-006/011/012", "VV-CMP-017-022, 024-026, 031, 032, 044-046"),
+        ("VV-SVC-006/011/012", "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050"),
         ("VV-SVC-007/008/009/010", "VV-CMP-002, 003, 006, 007, 033-037, 040, 042, 048"),
     ]
     svg.text(42, 1080, "Principal realization allocations", cls="label")
@@ -780,7 +780,12 @@ def diagram_resource_structure() -> None:
             "#deebf2",
             4,
         ),
-        ("Hosted MCP domains", [f"VV-CMP-{i:03d}" for i in range(16, 28)], "#eee5d8", 4),
+        (
+            "Hosted MCP domains",
+            [f"VV-CMP-{i:03d}" for i in range(16, 28)] + ["VV-CMP-049", "VV-CMP-050"],
+            "#eee5d8",
+            4,
+        ),
         (
             "Showcase and internal executors",
             [f"VV-CMP-{i:03d}" for i in range(28, 33)],
@@ -906,19 +911,21 @@ def diagram_connectivity() -> None:
         ("VV-CMP-025", "Datasheet"),
         ("VV-CMP-026", "Charts"),
         ("VV-CMP-013/027", "Rerun bridge"),
+        ("VV-CMP-049", "Time"),
+        ("VV-CMP-050", "View"),
     ]
     for index, (ident, title) in enumerate(hosted):
-        col, row = index % 3, index // 3
+        col, row = index % 4, index // 4
         svg.card(
-            705 + col * 180,
-            175 + row * 145,
-            160,
-            108,
+            700 + col * 132,
+            175 + row * 125,
+            122,
+            92,
             ident,
             title,
             "",
             fill="#ffffff",
-            body_width=17,
+            body_width=13,
         )
     svg.card(
         705,
@@ -1170,12 +1177,12 @@ def diagram_security() -> None:
         (
             "CTRL-02",
             "Server-local enforcement",
-            "Canonical audience, domain scope, typed identifiers, bounded bodies and outputs",
+            "Canonical audience, domain scope, stable identifiers, bounded bodies and outputs",
         ),
         (
             "CTRL-03",
             "Durable decision evidence",
-            "Policy decision, typed principal attributes, task owner, audit event, outbox order",
+            "Policy decision, explicit principal attributes, task owner, audit event, outbox order",
         ),
         (
             "CTRL-04",
@@ -1323,7 +1330,7 @@ def diagram_task_lifecycle() -> None:
             "Provider submission and binding committed; signed webhook only",
         ),
         "Completed": (1190, 130, "Persist terminal result and outbox event"),
-        "Failed": (1190, 350, "Persist typed failure and recovery evidence"),
+        "Failed": (1190, 350, "Persist failure and recovery evidence"),
         "Cancelled": (1190, 570, "Local task remains terminal; provider deletion is best effort"),
     }
     positions: dict[str, tuple[float, float]] = {}
@@ -1713,7 +1720,7 @@ def generate_html() -> None:
             "05-software-resource-structure.svg",
             "Software resource structure",
             "Resources Taxonomy and Structure / SysML BDD",
-            "Enumerates all 48 scoped first-party, packaged, and external software resources.",
+            f"Enumerates all {len(COMPONENTS)} scoped first-party, packaged, and external software resources.",
         ),
         (
             "06-software-resource-connectivity.svg",
@@ -1814,17 +1821,17 @@ def generate_html() -> None:
 <p class="kicker">Reference baseline / no client-specific data</p>
 <h1>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</h1>
 <p class="abstract">Veoveo is an organization-owned MCP platform for governed capabilities, durable work, artifacts, recordings, analytical decision support, and autonomous agents. This architecture describes the complete scoped software structure and connects it to enterprise capabilities, operational mission threads, services, security controls, deployment configurations, requirements, and repository evidence.</p>
-<div class="meta"><span>Version {VERSION}</span><span>Revision {REVISION_DATE}</span><span>Source commit {SOURCE_COMMIT[:12]}</span><span>48 software resources</span><span>33 interfaces</span><span>18 requirements</span></div>
+<div class="meta"><span>Version {VERSION}</span><span>Revision {REVISION_DATE}</span><span>Source commit {SOURCE_COMMIT[:12]}</span><span>{len(COMPONENTS)} software resources</span><span>{len(INTERFACES)} interfaces</span><span>{len(REQUIREMENTS)} requirements</span></div>
 </header>
 <nav><a href="#control">Control</a><a href="#method">Method</a><a href="#view-00">Views</a><a href="#components">Components</a><a href="#interfaces">Interfaces</a><a href="#requirements">Requirements</a><a href="#glossary">Glossary</a><a href="#references">References</a></nav>
 <main>
 <section id="control"><h2>Document control</h2>
-<table class="doc-control"><tbody><tr><td>Title</td><td>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</td></tr><tr><td>Architecture identity</td><td>VV-MODEL-001</td></tr><tr><td>Purpose</td><td>Generic reference architecture for formal client review and model exchange.</td></tr><tr><td>Scope</td><td>All 26 Rust workspace packages, the React console, Python SDK and server template, internal Python/C++ executors, deployment and verification components, and external runtime resources in the canonical architecture.</td></tr><tr><td>Exclusions</td><td>Source-code modules within a component, transient permission/init jobs, test fixtures, customer-specific configuration, personnel structure, facilities, and classified mission content.</td></tr><tr><td>Handling</td><td>Reference baseline with no client-specific data. Apply contract, export-control, CUI, distribution, and classification markings before client release.</td></tr><tr><td>Authority</td><td>The repository implementation and executable verification remain product evidence. The model organizes and traces that evidence; it does not replace tests.</td></tr></tbody></table>
-<div class="summary-grid"><div class="summary"><strong>12</strong>UAF capabilities</div><div class="summary"><strong>10</strong>operational activities</div><div class="summary"><strong>12</strong>services</div><div class="summary"><strong>48</strong>software resources</div><div class="summary"><strong>4</strong>actual configurations</div></div></section>
+<table class="doc-control"><tbody><tr><td>Title</td><td>Veoveo UAF 1.3 / SysML 1.6 Reference Architecture</td></tr><tr><td>Architecture identity</td><td>VV-MODEL-001</td></tr><tr><td>Purpose</td><td>Generic reference architecture for formal client review and model exchange.</td></tr><tr><td>Scope</td><td>All 28 Rust workspace packages, the React console, Python SDK and server template, internal Python/C++ executors, deployment and verification components, and external runtime resources in the canonical architecture.</td></tr><tr><td>Exclusions</td><td>Source-code modules within a component, transient permission/init jobs, test fixtures, customer-specific configuration, personnel structure, facilities, and classified mission content.</td></tr><tr><td>Handling</td><td>Reference baseline with no client-specific data. Apply contract, export-control, CUI, distribution, and classification markings before client release.</td></tr><tr><td>Authority</td><td>The repository implementation and executable verification remain product evidence. The model organizes and traces that evidence; it does not replace tests.</td></tr></tbody></table>
+<div class="summary-grid"><div class="summary"><strong>{len(CAPABILITIES)}</strong>UAF capabilities</div><div class="summary"><strong>{len(ACTIVITIES)}</strong>operational activities</div><div class="summary"><strong>{len(SERVICES)}</strong>services</div><div class="summary"><strong>{len(COMPONENTS)}</strong>software resources</div><div class="summary"><strong>{len(ACTUAL_RESOURCES)}</strong>actual configurations</div></div></section>
 <section id="method"><h2>Architecture method and conformance posture</h2><p>UAF 1.3 governs the enterprise and mission architecture. SysML 1.6 supplies detailed software blocks, requirement semantics, connectivity, and lifecycle behavior beneath it. Stable identifiers preserve traceability across diagrams, catalogs, XMI, repository evidence, and future client overlays.</p>
 <div class="notice"><strong>Model-exchange posture.</strong> The included XMI applies the official OMG UAF 1.3 and SysML 1.6 profile URIs and carries the semantic elements and trace relationships used by this report. The release validates XML structure, identifiers, references, catalog coverage, and rendered outputs. Vendor-specific diagram notation and profile OCL validation require import into a UAF 1.3-capable modeling tool; the package does not claim a vendor-native project or tool-certified UAF conformance.</div>
 <h3>Trace rule</h3><p><code>Requirement -&gt; Capability -&gt; Operational Activity -&gt; Service -&gt; Software Resource -&gt; Actual Resource -&gt; Verification Evidence</code></p>
-<h3>Baseline invariants</h3><p>SurrealDB is the sole platform coordination authority. Provider completion is webhook-only. The gateway preserves the complete MCP surface where it fits. Artifacts, recordings, tasks, agents, policy decisions, and audit evidence retain canonical typed identities. Compose and Helm instantiate the same service graph.</p>
+<h3>Baseline invariants</h3><p>SurrealDB is the sole platform coordination authority. Provider completion is webhook-only. The gateway preserves the complete MCP surface where it fits. Artifacts, recordings, tasks, agents, policy decisions, and audit evidence retain canonical identities. Compose and Helm instantiate the same service graph.</p>
 <h3>Selected formal layers</h3><table class="doc-control"><thead><tr><th>Layer</th><th>Question answered</th><th>Veoveo model elements</th></tr></thead><tbody><tr><td>Strategic</td><td>Which enterprise abilities and outcomes matter?</td><td><code>VV-CAP-*</code></td></tr><tr><td>Operational</td><td>Which logical activities and mission threads produce the outcome?</td><td><code>VV-OPA-*</code></td></tr><tr><td>Services</td><td>Which implementation-independent offers support the activities?</td><td><code>VV-SVC-*</code></td></tr><tr><td>Resources</td><td>Which software, interfaces, data, and runtimes realize the services?</td><td><code>VV-CMP-*</code> and <code>VV-IF-*</code></td></tr><tr><td>Actual Resources</td><td>Which connected or offline fielded configuration is present?</td><td><code>VV-AR-*</code></td></tr><tr><td>Requirements and evidence</td><td>Which claims constrain the architecture and where are they verified?</td><td><code>VV-REQ-*</code> and repository evidence</td></tr></tbody></table></section>
 {"".join(view_html)}
 <section class="catalog-section" id="components"><h2>Software component catalog</h2><p>The catalog includes every buildable first-party component and every external runtime that participates in the stated architecture. Deployment aliases and external operational actors appear in the interface model but are not counted as software resources.</p><div class="filter"><label for="component-filter">Filter components</label><input id="component-filter" type="search" placeholder="ID, name, category, implementation, responsibility"></div>{component_table}</section>

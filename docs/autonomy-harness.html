@@ -549,7 +549,7 @@
       end to end.
     </p>
     <div class="statrow">
-      <div class="stat"><b>12</b>hosted servers</div>
+      <div class="stat"><b>14</b>hosted servers</div>
       <div class="stat"><b>full</b>MCP surface</div>
       <div class="stat"><b>~225k</b>msgs/s lossless</div>
       <div class="stat"><b>1</b>platform store</div>
@@ -613,8 +613,8 @@
         <h4>Command from one console</h4>
         <p>The operations console opens on the running installation: <b>health, tasks,
            artifacts, agents, recordings, hosted-server topology, policy, and audit evidence</b>.
-           Typed domain screens manage Map sources, acquisitions, releases, and mobility profiles
-           through the same gateway boundary.</p>
+           Domain administration screens manage Map sources, acquisitions, releases, and mobility
+           profiles through the same gateway boundary.</p>
       </div>
       <div class="card cap-card">
         <h4>Own the whole installation</h4>
@@ -773,7 +773,7 @@ flowchart LR
   subgraph GOV["Governed plane"]
     direction TB
     GW["MCP Gateway&lt;br/&gt;auth · policy · audit"]
-    SRV["hosted capability servers&lt;br/&gt;12 catalog identities + sumo + remote"]
+    SRV["hosted capability servers&lt;br/&gt;14 catalog identities + sumo + remote"]
     GW --> SRV
   end
   KERNEL["Agent Kernel&lt;br/&gt;bounded episodes"]
@@ -799,7 +799,7 @@ flowchart LR
       <div>
         <h5>Observe</h5>
         <ul>
-          <li>Producers push typed Rerun streams to one ingest point; the hub persists first.</li>
+          <li>Producers push Rerun log streams to one ingest point; the hub persists first.</li>
           <li>Segments become governed catalog records in the platform store.</li>
           <li>Agents read slices — a world snapshot, a trajectory — through the recording server.</li>
         </ul>
@@ -830,7 +830,8 @@ flowchart LR
     <p class="section-lede">
       The capabilities above rest on a small set of layers: an agent runtime, one governed door,
       a hosted capability plane, shared durable planes, and the recording pipeline. Each layer
-      is typed, validated fail-closed, and exercised end to end by the smoke harness.
+      has explicit contracts, fails closed on invalid configuration, and is exercised end to end
+      by the smoke harness.
     </p>
   </section>
 
@@ -845,8 +846,8 @@ flowchart LR
         <p class="agent-lede">
           An agent runs forever because <strong>durable stores are the memory</strong>: every
           episode's context is assembled fresh from the agent's memory planes, and everything in
-          flight survives process death. The kernel executes typed manifests — an agent type is a
-          manifest, a preamble, and SQL migrations.
+          flight survives process death. The kernel validates every manifest against its schema
+          before execution. An agent type combines a manifest, a preamble, and SQL migrations.
         </p>
 
         <div class="lifecycle">
@@ -899,7 +900,7 @@ flowchart LR
               <li><strong>Decision log</strong> — an append-only Rerun recording: every turn, tool
                   call, task lifecycle, prompt, and summary, time-indexed and watchable live.</li>
               <li>The agent reads all three itself: <code>memory_query</code> (guarded SQL),
-                  <code>memory_write</code> (typed mutations, mirrored to the decision log), and
+                  <code>memory_write</code> (bounded mutations, mirrored to the decision log), and
                   <code>timeline_query</code> (dataframe reads over the log).</li>
             </ul>
           </div>
@@ -920,9 +921,9 @@ flowchart LR
           <div>
             <h5>Agents are data</h5>
             <ul>
-              <li>A typed manifest, validated fail-closed at boot: model endpoint, gateway
-                  principal (client-credentials + private-key JWT), episode limits, budgets,
-                  schedule, context SQL sections, writable tables.</li>
+              <li>At boot, schema validation rejects an invalid manifest. The manifest declares
+                  the model endpoint, gateway principal (client-credentials + private-key JWT),
+                  episode limits, budgets, schedule, context SQL sections, and writable tables.</li>
               <li>A preamble and domain migrations complete the profile — cross-episode
                   instructions live here or in memory.</li>
               <li>Operators reach a running agent through durable wakes: inject a prompt, read
@@ -1015,7 +1016,7 @@ flowchart LR
           <div class="gcell">
             <h5>Policy &amp; Audit</h5>
             <ul>
-              <li>Typed ABAC/RBAC over tools, resources, tasks, artifacts</li>
+              <li>Attribute- and role-based policy over tools, resources, tasks, and artifacts</li>
               <li>Tenant + data-label (regulated data) checks</li>
               <li>Fail-closed decisions with reason codes</li>
               <li>Audit trail for admin, auth, and policy ops</li>
@@ -1028,7 +1029,7 @@ flowchart LR
               <li>Validated server / profile / policy catalog</li>
               <li>Authenticated live <code>apply</code> &amp; reload</li>
               <li>Secret references (env / vault) with redaction</li>
-              <li>Typed server administration through <code>/admin/{profile}/servers/{server}/...</code></li>
+              <li>Contract-defined server administration through <code>/admin/{profile}/servers/{server}/...</code></li>
               <li>Explicit same-origin Console projections; browser tokens stay in the BFF</li>
               <li>Policy-checked, audited artifact downloads</li>
             </ul>
@@ -1051,11 +1052,11 @@ flowchart LR
   <section class="layer">
     <div class="layer-head">
       <h2 class="layer-title">Hosted Capabilities</h2>
-      <span class="layer-sub">twelve canonical server identities — and any MCP server you connect — under one contract</span>
+      <span class="layer-sub">fourteen canonical server identities — and any MCP server you connect — under one contract</span>
     </div>
     <div class="layer-body">
       <p class="agent-lede" style="margin:0 0 16px">
-        The canonical control plane defines twelve hosted server identities. Each declares the
+        The canonical control plane defines fourteen hosted server identities. Each declares the
         MCP surfaces its domain needs and runs inside the installation behind gateway-signed
         identity. A new local, bridged, or <strong>remote MCP endpoint</strong> registers in the
         validated catalog and immediately answers to the same task, artifact, identity, policy,
@@ -1091,7 +1092,7 @@ flowchart LR
                never leaves.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">analyze_recording</td><td>Run a detection or detection-plus-tracking pipeline over a recording's video range; returns typed detections, a derived annotation layer on the source timeline, and an optional clip.</td></tr>
+            <tr><td class="tn">analyze_recording</td><td>Run a detection or detection-plus-tracking pipeline over a recording's video range; returns detections, a derived annotation layer on the source timeline, and an optional clip.</td></tr>
             <tr><td class="tn">extract_clip</td><td>Cut an exact time range from recorded video with keyframe-aware, no-transcode extraction.</td></tr>
           </table></div>
           <div class="server-foot">
@@ -1129,13 +1130,13 @@ flowchart LR
             <tr><td class="tn">search_locations</td><td>Find visible locations in active governed releases.</td></tr>
             <tr><td class="tn">inspect_location</td><td>Return nearby facilities, containing boundaries, lineage, and coverage gaps.</td></tr>
             <tr><td class="tn">route</td><td>Run Valhalla land routing or a governed-network plan as a durable task.</td></tr>
-            <tr><td class="tn">route_matrix</td><td>Persist a typed many-to-many matrix, up to 400 cells.</td></tr>
+            <tr><td class="tn">route_matrix</td><td>Persist a many-to-many route matrix, up to 400 cells.</td></tr>
             <tr><td class="tn">reachable_area</td><td>Build a land isochrone as a durable task.</td></tr>
             <tr><td class="tn">publish / withdraw restriction</td><td>Change effective movement restrictions and invalidate dependent routes.</td></tr>
             <tr><td class="tn">admin/*</td><td>Register sources and mobility profiles; acquire, activate, reconcile, rollback, or quarantine releases through the governed server-admin route.</td></tr>
           </table></div>
           <div class="server-foot">
-            <span class="cap">durable tasks</span><span class="cap">typed admin</span>
+            <span class="cap">durable tasks</span><span class="cap">domain admin</span>
             <span class="cap plain">resources</span><span class="cap plain">subscriptions</span>
             <span class="cap plain">stateful sessions</span><span class="cap plain">release invalidation</span>
           </div>
@@ -1151,7 +1152,7 @@ flowchart LR
           <div class="tools"><table>
             <tr><td class="tn">query</td><td>One read-only statement; large results return as a parquet artifact link.</td></tr>
             <tr><td class="tn">execute</td><td>DDL/DML on an owned database; writes serialize per database.</td></tr>
-            <tr><td class="tn">ingest</td><td>Load a typed source — inline CSV, allowlisted HTTPS, or any <code style="font-family:var(--mono);font-size:11px">artifact://</code> reference — into one table.</td></tr>
+            <tr><td class="tn">ingest</td><td>Load a supported source — inline CSV, allowlisted HTTPS, or any <code style="font-family:var(--mono);font-size:11px">artifact://</code> reference — into one table.</td></tr>
             <tr><td class="tn">export</td><td>Export a table, query result, or full database snapshot to one immutable artifact.</td></tr>
           </table></div>
           <div class="server-foot">
@@ -1164,7 +1165,7 @@ flowchart LR
           <div class="server-head">
             <span class="scheme">optimization://</span>
             <h4><span class="dot" style="background:var(--hue-opt)"></span>Optimization</h4>
-            <p>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</p>
+            <p>Task-option planning for one or many agents over planning objects or SQL-readable option rows.</p>
           </div>
           <div class="tools"><table>
             <tr><td class="tn">plan</td><td>Solve a planning problem; returns a structured plan plus optional database and Rerun RRD artifacts.</td></tr>
@@ -1192,6 +1193,26 @@ flowchart LR
 
         <div class="server">
           <div class="server-head">
+            <span class="scheme">time://</span>
+            <h4><span class="dot" style="background:var(--hue-ts)"></span>Temporal Authority</h4>
+            <p>Civil, military, GNSS, and mission time resolved against versioned TZDB and
+               leap-second releases, with calendars, timelines, events, and clock evidence.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">resolve_time</td><td>Resolve an expression to one authority-bound physical instant and its projections.</td></tr>
+            <tr><td class="tn">convert_time</td><td>Project an instant into another zone or time scale without changing its authority binding.</td></tr>
+            <tr><td class="tn">assess_clock</td><td>Compare the host clock observation with tenant acceptance policy.</td></tr>
+            <tr><td class="tn">evaluate_windows</td><td>Calculate union, intersection, or difference over operational intervals.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">domain admin</span>
+            <span class="cap plain">resources</span><span class="cap plain">subscriptions</span>
+            <span class="cap plain">clock evidence</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
             <span class="scheme">datasheet://</span>
             <h4><span class="dot" style="background:var(--hue-sql)"></span>Datasheet</h4>
             <p>The canonical Python hosted-server template, delivered as a working dataset
@@ -1199,7 +1220,7 @@ flowchart LR
           </div>
           <div class="tools"><table>
             <tr><td class="tn">preview_dataset</td><td>Preview CSV or Parquet data from an artifact or bounded inline input.</td></tr>
-            <tr><td class="tn">column_stats</td><td>Return typed statistics for one dataset column.</td></tr>
+            <tr><td class="tn">column_stats</td><td>Return column statistics for one dataset column.</td></tr>
             <tr><td class="tn">profile_dataset</td><td>Run durable profiling from persisted input; write the full report through a task-bound artifact capability.</td></tr>
           </table></div>
           <div class="server-foot">
@@ -1216,7 +1237,7 @@ flowchart LR
                the governance surface over the byte store.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">metadata</td><td>Typed metadata, labels, and release state for one authorized artifact.</td></tr>
+            <tr><td class="tn">metadata</td><td>Return governed metadata, labels, and release state for one authorized artifact.</td></tr>
             <tr><td class="tn">grant_access</td><td>Grant read, write, or admin to a user or group, within tenant and label policy.</td></tr>
             <tr><td class="tn">revoke_access</td><td>Remove a standing grant.</td></tr>
             <tr><td class="tn">set_release_state</td><td>Mark an artifact releasable — the precondition for public links.</td></tr>
@@ -1254,7 +1275,7 @@ flowchart LR
                shareable visuals.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">render_chart</td><td>Render a typed chart spec to an image.</td></tr>
+            <tr><td class="tn">render_chart</td><td>Render a validated chart specification to an image.</td></tr>
             <tr><td class="tn">compile_chart</td><td>Compile a spec for rendering.</td></tr>
             <tr><td class="tn">validate_chart</td><td>Validate a spec against its chart type.</td></tr>
             <tr><td class="tn">list_chart_types</td><td>Enumerate supported chart types.</td></tr>
@@ -1262,6 +1283,26 @@ flowchart LR
           </table></div>
           <div class="server-foot">
             <span class="cap plain">gateway projection</span>
+          </div>
+        </div>
+
+        <div class="server">
+          <div class="server-head">
+            <span class="scheme">view://</span>
+            <h4><span class="dot" style="background:var(--hue-viewer)"></span>Geospatial View</h4>
+            <p>Owner-scoped camera views over configured 3D Tiles, with bounded network, CPU, and
+               GPU residency and reproducible offscreen rendering on NVIDIA Vulkan.</p>
+          </div>
+          <div class="tools"><table>
+            <tr><td class="tn">create_view</td><td>Create a logical view and its initial geodetic camera revision.</td></tr>
+            <tr><td class="tn">set_camera</td><td>Replace the exact pose under optimistic revision control.</td></tr>
+            <tr><td class="tn">capture_frame</td><td>Render a bounded frame task with image content, achieved detail, and attribution.</td></tr>
+            <tr><td class="tn">close_view</td><td>Close the owner-scoped view and cancel unfinished captures.</td></tr>
+          </table></div>
+          <div class="server-foot">
+            <span class="cap">durable tasks</span><span class="cap">image content</span>
+            <span class="cap plain">resources</span><span class="cap plain">NVIDIA Vulkan</span>
+            <span class="cap plain">attribution</span>
           </div>
         </div>
 
@@ -1361,8 +1402,8 @@ flowchart LR
                 map catalogs and releases, agents, wakes, audit evidence, and usage</li>
             <li>The <strong>transactional outbox</strong> and replayable changefeed carry all
                 cross-process work; LIVE queries accelerate delivery</li>
-            <li>Ordered typed migrations; separate admin and runtime credentials</li>
-            <li>Every subsystem uses the same typed tenant and principal identities</li>
+            <li>Ordered, versioned migrations; separate admin and runtime credentials</li>
+            <li>Every subsystem uses the same canonical tenant and principal identities</li>
           </ul>
         </div>
         <div class="card plane">
@@ -1387,12 +1428,13 @@ flowchart LR
         <div class="card plane">
           <h4>Contract Core</h4>
           <p>
-            The typed, provider-neutral contract every server shares, validated fail-closed at startup.
+            The provider-neutral contract every server shares: Rust newtypes and enums, exported
+            JSON Schemas, and fail-closed startup validation.
           </p>
           <ul>
             <li>Strong ID newtypes: profiles, servers, tools, tenants, scopes, JWT ids</li>
             <li>Gateway control-plane, auth, and policy config with cross-reference validation</li>
-            <li>Typed deployment profiles: object store, state store, telemetry, network
+            <li>Schema-validated deployment profiles: object store, state store, telemetry, network
                 boundaries, regulated-data controls</li>
             <li>Shared task, artifact, usage, and analytics schemas; JSON Schema export for other languages</li>
             <li>Gateway-to-server <strong>Ed25519 identity assertions</strong> — servers hold
@@ -1466,7 +1508,7 @@ flowchart TB
             <h5>Reading room</h5>
             <ul>
               <li>Local <code>QueryEngine</code> is the authoritative file reader.</li>
-              <li>Recordings and segments carry typed tenant identities in the platform store.</li>
+              <li>Recordings and segments carry canonical tenant identities in the platform store.</li>
               <li>latest-at = a world snapshot · range = a trajectory · seal = an artifact.</li>
             </ul>
           </div>
@@ -1496,7 +1538,7 @@ flowchart TB
           The <a href="https://eclipse.dev/sumo/">SUMO</a> simulator — Simulation of Urban Mobility — runs the pinned, MIT-licensed
           <strong>LuST Luxembourg scenario</strong> in its own container. <strong>One
           <code>sumo-mcp</code> server</strong> owns the single serialized TraCI connection,
-          <strong>pushes the world into the hub</strong> as typed <code>/world/sumo/**</code>
+          <strong>pushes the world into the hub</strong> as Rerun <code>/world/sumo/**</code>
           streams, and exposes SUMO control as governed <code>sumo__*</code> tools. The long
           operations are <strong>durable tasks</strong> the agent detaches from and wakes on — the
           same sleep/wake the kernel already runs, now driven by a real simulator. SUMO is another
@@ -1706,8 +1748,8 @@ sequenceDiagram
         <div class="term">
           <div class="term-head"><span class="term-name">MCP Gateway</span><span class="term-kind k-ours">ours</span></div>
           <p><b>The governed protocol boundary.</b> It authenticates the caller, checks policy,
-             projects each server's full MCP surface, proxies typed server administration, and
-             writes an audit trail.</p>
+             projects each server's full MCP surface, proxies server administration under declared
+             request and response schemas, and writes an audit trail.</p>
           <p>Tool names gain a prefix at aggregation; resource URIs keep their owning schemes.
              Administrative reads and writes follow the catalog-resolved server route.</p>
         </div>
@@ -1735,14 +1777,14 @@ sequenceDiagram
           <div class="term-head"><span class="term-name">Perception server</span><span class="term-kind k-ours">ours</span></div>
           <p><b>Eyes on the record.</b> Ask recorded video which objects were where, when, and
              which are the same object over time — detection and tracking, executed locally.</p>
-          <p>Results come back as typed detections, an annotation layer on the source timeline,
+          <p>Results come back as detections, an annotation layer on the source timeline,
              and an optional clip; every derived artifact inherits the source's classification.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Map server</span><span class="term-kind k-ours">ours</span></div>
           <p><b>Earth geography and logistics routing.</b> It combines governed source releases,
              restrictions, mobility profiles, Valhalla land routes, and explicit network routes
-             behind typed MCP resources and durable tasks.</p>
+             behind MCP resources with stable <code>map://</code> identities and durable tasks.</p>
           <p>Its administrative API owns source registration, acquisition, activation, rollback,
              quarantine, and profiles. The gateway and Console project that same domain state.</p>
         </div>
@@ -1760,7 +1802,7 @@ sequenceDiagram
              identity, policy, tasks, artifacts, recordings, agents, wakes, audit, and the
              transactional outbox.</p>
           <p>The outbox and changefeed are how work crosses processes durably; every subsystem
-             shares the same typed tenant and principal identities.</p>
+             shares the same canonical tenant and principal identities.</p>
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Task Runtime</span><span class="term-kind k-ours">ours</span></div>
@@ -1793,7 +1835,7 @@ sequenceDiagram
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">Catalog projection</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>The card catalog.</b> Every recording and segment gets a typed installation
+          <p><b>The card catalog.</b> Every recording and segment gets a stable installation
              identity in the platform store — tenant, owner, classification, labels, state.</p>
           <p>Startup reconciles footer-less crash leftovers into explicit records, so the catalog
              always reflects what is actually on disk.</p>
@@ -1818,7 +1860,7 @@ sequenceDiagram
         </div>
         <div class="term">
           <div class="term-head"><span class="term-name">GeoPoints · Scalars</span><span class="term-kind k-format">format</span></div>
-          <p><b>Typed data shapes.</b> Rerun archetypes — <em>GeoPoints</em> are points with real lat/lon that land on a map; <em>Scalars</em> are named time-series numbers.</p>
+          <p><b>Rerun data shapes.</b> Its archetypes carry known semantics — <em>GeoPoints</em> are points with real lat/lon that land on a map; <em>Scalars</em> are named time-series numbers.</p>
           <p>Logging data as a known shape is what lets the viewer put vehicles on a map and plot speeds without any per-project wiring.</p>
         </div>
       </div>
@@ -1845,8 +1887,9 @@ sequenceDiagram
         <div class="term">
           <div class="term-head"><span class="term-name">MCP</span><span class="term-kind k-proto">protocol</span></div>
           <p><b>The shared protocol surface.</b> Model Context Protocol carries tools, resources
-             and templates, prompts, completions, tasks, subscriptions, notifications, and typed
-             structured content between clients, the gateway, and hosted servers.</p>
+             and templates, prompts, completions, tasks, subscriptions, notifications, and
+             structured content with declared schemas between clients, the gateway, and
+             hosted servers.</p>
           <p>The gateway governs the complete surface through one profile without replacing
              URI-based resources or task state with a second tool-only implementation.</p>
         </div>

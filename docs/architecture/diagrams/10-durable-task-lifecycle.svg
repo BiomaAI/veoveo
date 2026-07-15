@@ -71,8 +71,8 @@
 <tspan x="1208" dy="0">Failed</tspan>
 </text>
 <text x="1208" y="420" class="small" text-anchor="start">
-<tspan x="1208" dy="0">Persist typed failure and</tspan>
-<tspan x="1208" dy="16">recovery evidence</tspan>
+<tspan x="1208" dy="0">Persist failure and recovery</tspan>
+<tspan x="1208" dy="16">evidence</tspan>
 </text>
 <rect x="1190" y="570" width="275" height="145" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1190" y="570" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
