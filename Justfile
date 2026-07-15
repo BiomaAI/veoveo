@@ -11,6 +11,7 @@ conformance := "cargo run -p veoveo-mcp-conformance --bin conformance --"
 smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" DYLD_LIBRARY_PATH=\"$PWD/target/debug/deps${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}\" target/debug/smoke"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
+architecture-python := "uv run --project docs/architecture --locked python"
 
 # List available recipes.
 default:
@@ -120,6 +121,24 @@ smoke-datasheet:
 docs-pdf chrome='google-chrome':
     '{{chrome}}' --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=docs/veoveo-whitepaper.pdf docs/veoveo-whitepaper-print.html
     '{{chrome}}' --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=docs/autonomy-harness.pdf docs/autonomy-harness-print.html
+
+# Install the locked formal-architecture Python toolchain.
+architecture-sync:
+    uv sync --project docs/architecture --locked
+
+# Regenerate the generic formal model, diagrams, and portal.
+architecture-render:
+    {{architecture-python}} docs/architecture/tools/render.py
+
+# Validate the generic architecture and lint every architecture tool.
+architecture-check:
+    uv run --project docs/architecture --locked ruff format --check docs/architecture/tools
+    uv run --project docs/architecture --locked ruff check docs/architecture/tools
+    {{architecture-python}} docs/architecture/tools/validate.py
+
+# Render architecture PDF pages and contact sheets with pinned PDFium.
+architecture-qa:
+    {{architecture-python}} docs/architecture/tools/qa.py --clean
 
 # Smoke-test governed Map acquisition, activation, and spatial MCP queries in the all-in-one image.
 smoke-map-mcp:

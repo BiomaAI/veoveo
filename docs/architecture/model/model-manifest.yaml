@@ -1,0 +1,100 @@
+schema: veoveo.architecture-model-manifest/v1
+architecture:
+  id: VV-MODEL-001
+  title: Veoveo UAF 1.3 / SysML 1.6 Reference Architecture
+  version: 0.1.0
+  revision_date: 2026-07-14
+  handling: reference_baseline_no_client_data
+  source_repository: veoveo
+  source_commit: 64a5977aeb577523a6515fc7c583f5a9303c96a0
+
+scope:
+  rust_workspace_packages: 26
+  gateway_server_identities: 12
+  software_resources: 48
+  interfaces: 33
+  requirements: 18
+  actual_resource_configurations: 4
+  includes:
+    - first_party_buildable_components
+    - canonical_hosted_mcp_servers
+    - internal_execution_helpers
+    - deployment_and_verification_components
+    - participating_external_runtimes
+  excludes:
+    - source_modules_within_components
+    - transient_permission_and_init_jobs
+    - test_fixtures
+    - client_specific_overlays
+    - personnel_and_facility_models
+    - classified_mission_content
+
+standards:
+  governing_framework:
+    name: OMG Unified Architecture Framework
+    version: "1.3"
+    formal_date: 2026-04
+    specification: https://www.omg.org/spec/UAF/1.3
+    profile_uri: http://www.omg.org/spec/UAF/20241101/UAF
+    machine_readable_profile: https://www.omg.org/spec/UAF/20241101/UAF.xml
+    observed_sha256: 8ca25af40322defacfac2a1653e8ab0f06c10b84417b5e3a970a6528369c9bce
+  systems_language:
+    name: OMG Systems Modeling Language
+    version: "1.6"
+    specification: https://www.omg.org/spec/SysML/1.6
+    profile_uri: http://www.omg.org/spec/SysML/20181001/SysML
+    machine_readable_profile: https://www.omg.org/spec/SysML/20181001/SysML.xmi
+    observed_sha256: 3b981f5afdbcb52fdfeb1b51e11005f5ab5c8b9dd9dfe970d8afccb6586a6717
+  interchange:
+    name: OMG XML Metadata Interchange
+    namespace: http://www.omg.org/spec/XMI/20131001
+    declared_version: 2.5.1
+  uml:
+    namespace: http://www.omg.org/spec/UML/20161101
+
+model:
+  exchange_file: veoveo-uaf-sysml.xmi
+  native_project: not_included
+  native_project_reason: vendor_specific_project_and_diagram_notation_require_selected_client_tool
+  canonical_trace: Requirement -> Capability -> OperationalActivity -> Service -> Software -> ActualResource -> VerificationEvidence
+  stable_id_prefixes:
+    model: VV-MODEL-
+    capability: VV-CAP-
+    operational_activity: VV-OPA-
+    service: VV-SVC-
+    component: VV-CMP-
+    interface: VV-IF-
+    actual_resource: VV-AR-
+    requirement: VV-REQ-
+    view: VV-VIEW-
+
+validation:
+  completed:
+    - csv_parsing_and_row_counts
+    - xml_well_formedness
+    - unique_xmi_identifiers
+    - internal_xmi_reference_resolution
+    - catalog_to_xmi_identifier_coverage
+    - cross_catalog_identifier_resolution
+    - svg_xml_well_formedness
+    - html_local_link_resolution
+    - headless_browser_pdf_render
+    - pdf_text_extraction
+    - rendered_pdf_visual_inspection
+    - release_checksum_generation
+    - locked_uv_environment_resolution
+    - pinned_pdfium_visual_review_render
+  requires_modeling_tool:
+    - official_profile_resolution
+    - uaf_profile_constraint_execution
+    - sysml_profile_constraint_execution
+    - vendor_native_diagram_notation
+    - native_project_round_trip
+  conformance_claim: standards_aligned_exchange_baseline_not_vendor_certified
+
+derived_artifacts:
+  html: ../index.html
+  pdf: ../veoveo-reference-architecture.pdf
+  diagrams: ../diagrams
+  catalogs: ../catalogs
+  generator: ../tools/render.py
