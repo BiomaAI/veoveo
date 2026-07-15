@@ -1,10 +1,11 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     io::Write,
     process::{Command, Stdio},
 };
 
 use anyhow::ensure;
+use scraper::{Html, Selector};
 use secrecy::{ExposeSecret, SecretString};
 
 use super::*;
@@ -136,6 +137,7 @@ pub(crate) async fn bioma_verify(
         .build()?;
     wait_for_health(&client, local_base_url, Some(public_host), 30).await?;
     wait_for_health(&client, public_base_url, None, 150).await?;
+    verify_public_console(public_base_url).await?;
 
     let jwks_url = format!("{}/oauth/jwks.json", public_base_url.trim_end_matches('/'));
     let jwks: Value = client
@@ -176,7 +178,106 @@ pub(crate) async fn bioma_verify(
     );
 
     println!(
-        "Bioma verify ok: SUMO and Bioma contexts are live, tunnel health and object TLS are public, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: both contexts are live, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
+    );
+    Ok(())
+}
+
+async fn verify_public_console(public_base_url: &str) -> Result<()> {
+    let base = url::Url::parse(public_base_url).context("parsing public console base URL")?;
+    let browser = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .cookie_store(true)
+        .redirect(Policy::none())
+        .build()?;
+
+    let root = browser
+        .get(base.clone())
+        .send()
+        .await
+        .context("requesting the public Bioma root")?;
+    ensure!(
+        root.status() == StatusCode::PERMANENT_REDIRECT
+            && root
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok())
+                == Some("/console/"),
+        "public Bioma root must redirect permanently to /console/"
+    );
+
+    let console_url = base.join("/console/")?;
+    let console = browser
+        .get(console_url)
+        .send()
+        .await
+        .context("requesting the public Bioma console")?
+        .error_for_status()
+        .context("public Bioma console returned an error")?;
+    let html = console.text().await?;
+    let document = Html::parse_document(&html);
+    let selector = Selector::parse("script[src], link[href]")
+        .map_err(|error| anyhow!("building console asset selector: {error}"))?;
+    let asset_paths = document
+        .select(&selector)
+        .filter_map(|element| {
+            element
+                .value()
+                .attr("src")
+                .or_else(|| element.value().attr("href"))
+        })
+        .filter(|path| path.starts_with("/console/"))
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    ensure!(
+        asset_paths.iter().any(|path| path.ends_with(".js"))
+            && asset_paths.iter().any(|path| path.ends_with(".css"))
+            && asset_paths.contains("/console/favicon.svg"),
+        "public console HTML must reference JavaScript, CSS, and favicon assets under /console/"
+    );
+    for path in asset_paths {
+        browser
+            .get(base.join(&path)?)
+            .send()
+            .await
+            .with_context(|| format!("requesting public console asset {path}"))?
+            .error_for_status()
+            .with_context(|| format!("public console asset {path} returned an error"))?;
+    }
+
+    let login = browser
+        .get(base.join("/auth/login")?)
+        .send()
+        .await
+        .context("starting public console authorization")?;
+    ensure!(
+        login.status() == StatusCode::SEE_OTHER,
+        "console login must redirect to the Veoveo authorization endpoint"
+    );
+    let authorize_location = login
+        .headers()
+        .get(LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .context("console login omitted its authorization redirect")?;
+    let authorize = browser
+        .get(base.join(authorize_location)?)
+        .send()
+        .await
+        .context("requesting the Veoveo authorization endpoint")?;
+    ensure!(
+        authorize.status() == StatusCode::FOUND,
+        "Veoveo authorization must redirect to the external identity provider"
+    );
+    let identity_provider = authorize
+        .headers()
+        .get(LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .context("Veoveo authorization omitted the identity-provider redirect")?;
+    let identity_provider = url::Url::parse(identity_provider)?;
+    ensure!(
+        identity_provider.scheme() == "https"
+            && identity_provider.host_str() == Some("login.microsoftonline.com"),
+        "Bioma console authorization must continue at Microsoft Entra"
     );
     Ok(())
 }

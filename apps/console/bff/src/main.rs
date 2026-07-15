@@ -8,6 +8,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use axum::{
     Router, middleware,
+    response::Redirect,
     routing::{any, delete, get, post, put},
 };
 use config::Config;
@@ -49,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(config.asset_dir().join("index.html")));
     let router = Router::new()
+        .route("/", get(|| async { Redirect::permanent("/console/") }))
         .route("/healthz", get(|| async { "ok" }))
         .route("/auth/login", get(oauth::login))
         .route("/auth/callback", get(oauth::callback))

@@ -140,6 +140,9 @@ consoleBff:
   replicas: 2
   oauthClientId: admin-console
   oauthResource: https://veoveo.enterprise.example/mcp/admin
+  oauthScopes:
+    - operator:use
+    - admin:manage
   resources:
     requests:
       cpu: 50m
