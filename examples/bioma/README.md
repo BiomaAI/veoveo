@@ -111,8 +111,11 @@ and the Bioma authorization-server key at the public JWKS endpoint.
 external OIDC provider. Its registration must match the control plane:
 
 - Register `https://veoveo.bioma.ai/oauth/callback` as a Web redirect URI.
-- Create the app roles `veoveo_operator` and `veoveo_admin`, allow user or group
-  assignment, and assign at least one role to every user who can sign in.
+- Create the app roles `veoveo_operator` and `veoveo_admin`, then allow user or
+  group assignment. The operations console requires `veoveo_admin`; operator
+  access requires `veoveo_operator` or `veoveo_admin` according to the profile
+  policy. Sign out and authenticate again after changing an assignment because
+  existing tokens retain their original `roles` claim.
 - Keep the tenant-specific v2 issuer, authorization endpoint, token endpoint,
   and JWKS URI on the same directory tenant.
 - Grant only `openid`, `profile`, and `email`. Browser authorization uses code

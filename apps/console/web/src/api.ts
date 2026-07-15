@@ -26,6 +26,11 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
     window.location.assign("/auth/login");
     throw new Error("Authentication required");
   }
+  if (response.status === 403) {
+    throw new Error(
+      "Your Microsoft Entra account is signed in but is not assigned the veoveo_admin application role."
+    );
+  }
   if (!response.ok) {
     throw new Error(`Console API returned ${response.status}`);
   }
