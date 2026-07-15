@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1240" width="1900" height="1240" role="img" aria-labelledby="title desc">
+<title id="title">Security and trust</title>
+<desc id="desc">Trust zones, identity transitions, data authorities, and principal security controls.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#21465b"/></marker>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#687983"/></marker>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0b2534" flood-opacity="0.12"/></filter>
+</defs>
+<style>
+.title{font:700 30px Arial,Helvetica,sans-serif;fill:#102f40}.subtitle{font:400 15px Arial,Helvetica,sans-serif;fill:#4d626d}.label{font:700 14px Arial,Helvetica,sans-serif;fill:#102f40;letter-spacing:.04em}.node-title{font:700 17px Arial,Helvetica,sans-serif;fill:#102f40}.node-id{font:700 12px Arial,Helvetica,sans-serif;fill:#176b68;letter-spacing:.04em}.body{font:400 14px Arial,Helvetica,sans-serif;fill:#2d4653}.small{font:400 12px Arial,Helvetica,sans-serif;fill:#526a76}.tiny{font:400 10px Arial,Helvetica,sans-serif;fill:#526a76}.inverse{fill:#ffffff}.edge{stroke:#21465b;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.edge-muted{stroke:#687983;stroke-width:1.6;fill:none;marker-end:url(#arrow-muted)}.edge-dash{stroke:#687983;stroke-width:1.5;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow-muted)}
+</style>
+<rect x="0" y="0" width="1900" height="1240" rx="0" fill="#f5f2eb" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="1900" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="36" y="43" class="title inverse" text-anchor="start">Security and trust</text>
+<text x="1864" y="32" class="label inverse" text-anchor="end">VV-VIEW-08</text>
+<text x="1864" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<rect x="40" y="130" width="330" height="980" rx="12" fill="#f0dfdc" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="58" y="156" class="label" text-anchor="start">External trust</text>
+<text x="352" y="156" class="small" text-anchor="end">Trust zone</text>
+<text x="58" y="182" class="small" text-anchor="start">
+<tspan x="58" dy="0">Enterprise users, clients, IdP,</tspan>
+<tspan x="58" dy="16">provider, link holders</tspan>
+</text>
+<rect x="405" y="130" width="330" height="980" rx="12" fill="#e9e7db" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="423" y="156" class="label" text-anchor="start">Published ingress</text>
+<text x="717" y="156" class="small" text-anchor="end">Trust zone</text>
+<text x="423" y="182" class="small" text-anchor="start">
+<tspan x="423" dy="0">TLS edge, console BFF, gateway,</tspan>
+<tspan x="423" dy="16">public redemption</tspan>
+</text>
+<rect x="770" y="130" width="520" height="980" rx="12" fill="#d9ebe7" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="788" y="156" class="label" text-anchor="start">Authenticated application</text>
+<text x="1272" y="156" class="small" text-anchor="end">Trust zone</text>
+<text x="788" y="182" class="small" text-anchor="start">
+<tspan x="788" dy="0">Gateway-issued internal identity and server-local</tspan>
+<tspan x="788" dy="16">authorization</tspan>
+</text>
+<rect x="1325" y="130" width="535" height="980" rx="12" fill="#e7e1ef" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="1343" y="156" class="label" text-anchor="start">Protected data / execution</text>
+<text x="1842" y="156" class="small" text-anchor="end">Trust zone</text>
+<text x="1343" y="182" class="small" text-anchor="start">
+<tspan x="1343" dy="0">SurrealDB, object bytes, RRD, analytical workspaces,</tspan>
+<tspan x="1343" dy="16">GPU</tspan>
+</text>
+<rect x="70" y="245" width="270" height="100" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="70" y="245" width="7" height="100" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="88" y="268" class="node-id" text-anchor="start">EXT-1</text>
+<text x="88" y="292" class="node-title" text-anchor="start">
+<tspan x="88" dy="0">OIDC principal</tspan>
+</text>
+<rect x="70" y="395" width="270" height="100" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="70" y="395" width="7" height="100" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="88" y="418" class="node-id" text-anchor="start">EXT-2</text>
+<text x="88" y="442" class="node-title" text-anchor="start">
+<tspan x="88" dy="0">OAuth client</tspan>
+</text>
+<rect x="70" y="545" width="270" height="100" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="70" y="545" width="7" height="100" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="88" y="568" class="node-id" text-anchor="start">EXT-3</text>
+<text x="88" y="592" class="node-title" text-anchor="start">
+<tspan x="88" dy="0">Signed provider</tspan>
+</text>
+<rect x="70" y="695" width="270" height="100" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="70" y="695" width="7" height="100" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="88" y="718" class="node-id" text-anchor="start">EXT-4</text>
+<text x="88" y="742" class="node-title" text-anchor="start">
+<tspan x="88" dy="0">Link bearer</tspan>
+</text>
+<rect x="70" y="845" width="270" height="100" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="70" y="845" width="7" height="100" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="88" y="868" class="node-id" text-anchor="start">EXT-5</text>
+<text x="88" y="892" class="node-title" text-anchor="start">
+<tspan x="88" dy="0">World producer</tspan>
+</text>
+<rect x="435" y="235" width="270" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="435" y="235" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="453" y="258" class="node-id" text-anchor="start">VV-CMP-040</text>
+<text x="453" y="282" class="node-title" text-anchor="start">
+<tspan x="453" dy="0">Edge controls</tspan>
+</text>
+<text x="453" y="305" class="small" text-anchor="start">
+<tspan x="453" dy="0">TLS, route allowlist, bearer-log</tspan>
+<tspan x="453" dy="16">suppression</tspan>
+</text>
+<rect x="435" y="440" width="270" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="435" y="440" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="453" y="463" class="node-id" text-anchor="start">VV-CMP-002</text>
+<text x="453" y="487" class="node-title" text-anchor="start">
+<tspan x="453" dy="0">Browser controls</tspan>
+</text>
+<text x="453" y="510" class="small" text-anchor="start">
+<tspan x="453" dy="0">PKCE, encrypted cookie, CSRF,</tspan>
+<tspan x="453" dy="16">CSP</tspan>
+</text>
+<rect x="435" y="645" width="270" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="435" y="645" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="453" y="668" class="node-id" text-anchor="start">VV-CMP-001</text>
+<text x="453" y="692" class="node-title" text-anchor="start">
+<tspan x="453" dy="0">Gateway controls</tspan>
+</text>
+<text x="453" y="715" class="small" text-anchor="start">
+<tspan x="453" dy="0">issuer/key checks, policy,</tspan>
+<tspan x="453" dy="16">audit, replay defense</tspan>
+</text>
+<rect x="435" y="850" width="270" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="435" y="850" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="453" y="873" class="node-id" text-anchor="start">VV-CMP-004</text>
+<text x="453" y="897" class="node-title" text-anchor="start">
+<tspan x="453" dy="0">Share controls</tspan>
+</text>
+<text x="453" y="920" class="small" text-anchor="start">
+<tspan x="453" dy="0">hash-only bearer, expiry,</tspan>
+<tspan x="453" dy="16">limits, revocation</tspan>
+</text>
+<rect x="805" y="235" width="450" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="805" y="235" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="823" y="258" class="node-id" text-anchor="start">CTRL-01</text>
+<text x="823" y="282" class="node-title" text-anchor="start">
+<tspan x="823" dy="0">Short-lived internal assertion</tspan>
+</text>
+<text x="823" y="305" class="small" text-anchor="start">
+<tspan x="823" dy="0">Ed25519, kid, issuer, audience, principal, tenant,</tspan>
+<tspan x="823" dy="16">labels, scopes, expiry</tspan>
+</text>
+<rect x="805" y="440" width="450" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="805" y="440" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="823" y="463" class="node-id" text-anchor="start">CTRL-02</text>
+<text x="823" y="487" class="node-title" text-anchor="start">
+<tspan x="823" dy="0">Server-local enforcement</tspan>
+</text>
+<text x="823" y="510" class="small" text-anchor="start">
+<tspan x="823" dy="0">Canonical audience, domain scope, typed identifiers,</tspan>
+<tspan x="823" dy="16">bounded bodies and outputs</tspan>
+</text>
+<rect x="805" y="645" width="450" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="805" y="645" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="823" y="668" class="node-id" text-anchor="start">CTRL-03</text>
+<text x="823" y="692" class="node-title" text-anchor="start">
+<tspan x="823" dy="0">Durable decision evidence</tspan>
+</text>
+<text x="823" y="715" class="small" text-anchor="start">
+<tspan x="823" dy="0">Policy decision, typed principal attributes, task</tspan>
+<tspan x="823" dy="16">owner, audit event, outbox order</tspan>
+</text>
+<rect x="805" y="850" width="450" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="805" y="850" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="823" y="873" class="node-id" text-anchor="start">CTRL-04</text>
+<text x="823" y="897" class="node-title" text-anchor="start">
+<tspan x="823" dy="0">Least-authority background work</tspan>
+</text>
+<text x="823" y="920" class="small" text-anchor="start">
+<tspan x="823" dy="0">Task-bound expiring write capability; no minted</tspan>
+<tspan x="823" dy="16">background principal</tspan>
+</text>
+<rect x="1358" y="205" width="470" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1358" y="205" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1376" y="228" class="node-id" text-anchor="start">VV-CMP-038</text>
+<text x="1376" y="252" class="node-title" text-anchor="start">
+<tspan x="1376" dy="0">Coordination authority</tspan>
+</text>
+<text x="1376" y="275" class="small" text-anchor="start">
+<tspan x="1376" dy="0">Separate bootstrap/runtime credentials; transactions;</tspan>
+<tspan x="1376" dy="16">tenant identifiers; outbox</tspan>
+</text>
+<rect x="1358" y="380" width="470" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1358" y="380" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1376" y="403" class="node-id" text-anchor="start">VV-CMP-039</text>
+<text x="1376" y="427" class="node-title" text-anchor="start">
+<tspan x="1376" dy="0">Artifact bytes</tspan>
+</text>
+<text x="1376" y="450" class="small" text-anchor="start">
+<tspan x="1376" dy="0">Service-only credentials; tenant storage keys;</tspan>
+<tspan x="1376" dy="16">integrity hash; signed redirect</tspan>
+</text>
+<rect x="1358" y="555" width="470" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1358" y="555" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1376" y="578" class="node-id" text-anchor="start">VV-CMP-047</text>
+<text x="1376" y="602" class="node-title" text-anchor="start">
+<tspan x="1376" dy="0">Recording evidence</tspan>
+</text>
+<text x="1376" y="625" class="small" text-anchor="start">
+<tspan x="1376" dy="0">Private ingest; governed catalog; read authorization;</tspan>
+<tspan x="1376" dy="16">crash-decodable files</tspan>
+</text>
+<rect x="1358" y="730" width="470" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1358" y="730" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1376" y="753" class="node-id" text-anchor="start">VV-CMP-045/046</text>
+<text x="1376" y="777" class="node-title" text-anchor="start">
+<tspan x="1376" dy="0">Domain workspaces</tspan>
+</text>
+<text x="1376" y="800" class="small" text-anchor="start">
+<tspan x="1376" dy="0">Owner paths, locked settings, bounded processes,</tspan>
+<tspan x="1376" dy="16">governed input and output</tspan>
+</text>
+<rect x="1358" y="905" width="470" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1358" y="905" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1376" y="928" class="node-id" text-anchor="start">VV-CMP-044</text>
+<text x="1376" y="952" class="node-title" text-anchor="start">
+<tspan x="1376" dy="0">GPU execution</tspan>
+</text>
+<text x="1376" y="975" class="small" text-anchor="start">
+<tspan x="1376" dy="0">Mounted approved engine, task process boundary, no</tspan>
+<tspan x="1376" dy="16">remote inference dependency</tspan>
+</text>
+<path d="M 340 295 L 435 310" class="edge"/>
+<path d="M 705 720 L 805 310" class="edge"/>
+<path d="M 1255 310 L 1358 272" class="edge"/>
+<path d="M 1255 515 L 1358 447" class="edge"/>
+<path d="M 1255 720 L 1358 622" class="edge"/>
+<rect x="40" y="1145" width="1820" height="45" rx="8" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="62" y="1174" class="body inverse" text-anchor="start">Fail-closed rule: unknown profiles, servers, methods, resources, task IDs, artifact IDs, issuers, keys, and policy targets are denied.</text>
+<rect x="28" y="1205" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
+<text x="30" y="1226" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
+<text x="1870" y="1226" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-08</text>
+</svg>

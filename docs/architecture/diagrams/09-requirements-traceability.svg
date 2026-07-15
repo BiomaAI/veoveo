@@ -1,0 +1,435 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1500" width="2400" height="1500" role="img" aria-labelledby="title desc">
+<title id="title">Requirements traceability</title>
+<desc id="desc">Trace from SysML requirements through UAF capabilities, operational activities, services, resources, and verification evidence.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#21465b"/></marker>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#687983"/></marker>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0b2534" flood-opacity="0.12"/></filter>
+</defs>
+<style>
+.title{font:700 30px Arial,Helvetica,sans-serif;fill:#102f40}.subtitle{font:400 15px Arial,Helvetica,sans-serif;fill:#4d626d}.label{font:700 14px Arial,Helvetica,sans-serif;fill:#102f40;letter-spacing:.04em}.node-title{font:700 17px Arial,Helvetica,sans-serif;fill:#102f40}.node-id{font:700 12px Arial,Helvetica,sans-serif;fill:#176b68;letter-spacing:.04em}.body{font:400 14px Arial,Helvetica,sans-serif;fill:#2d4653}.small{font:400 12px Arial,Helvetica,sans-serif;fill:#526a76}.tiny{font:400 10px Arial,Helvetica,sans-serif;fill:#526a76}.inverse{fill:#ffffff}.edge{stroke:#21465b;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.edge-muted{stroke:#687983;stroke-width:1.6;fill:none;marker-end:url(#arrow-muted)}.edge-dash{stroke:#687983;stroke-width:1.5;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow-muted)}
+</style>
+<rect x="0" y="0" width="2400" height="1500" rx="0" fill="#f5f2eb" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="2400" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="36" y="43" class="title inverse" text-anchor="start">Requirements traceability</text>
+<text x="2364" y="32" class="label inverse" text-anchor="end">VV-VIEW-09</text>
+<text x="2364" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<rect x="35" y="125" width="150" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="45" y="157" class="small inverse" text-anchor="start">Requirement</text>
+<rect x="190" y="125" width="690" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="200" y="157" class="small inverse" text-anchor="start">Requirement statement</text>
+<rect x="885" y="125" width="185" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="895" y="157" class="small inverse" text-anchor="start">Capability</text>
+<rect x="1075" y="125" width="185" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1085" y="157" class="small inverse" text-anchor="start">Activity</text>
+<rect x="1265" y="125" width="185" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1275" y="157" class="small inverse" text-anchor="start">Service</text>
+<rect x="1455" y="125" width="535" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1465" y="157" class="small inverse" text-anchor="start">Principal resources</text>
+<rect x="1995" y="125" width="370" height="52" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="2005" y="157" class="small inverse" text-anchor="start">Verification evidence</text>
+<rect x="35" y="177" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="177" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="177" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="177" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="177" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="177" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="177" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="204" class="node-id" text-anchor="start">VV-REQ-001</text>
+<text x="200" y="200" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Each installation shall remain organization-owned and shall not depend on a Veoveo</tspan>
+<tspan x="200" dy="13">vendor control plane, hosted service, or canonical domain name.</tspan>
+</text>
+<text x="895" y="206" class="small" text-anchor="start">VV-CAP-008</text>
+<text x="1085" y="206" class="small" text-anchor="start">VV-OPA-010</text>
+<text x="1275" y="206" class="small" text-anchor="start">VV-SVC-009</text>
+<text x="1465" y="200" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-035, VV-CMP-036, VV-CMP-037, VV-CMP-048</tspan>
+</text>
+<text x="2005" y="200" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">README.md; docs/ARCHITECTURE_DECISIONS.md;</tspan>
+<tspan x="2005" dy="13">testing/smoke/tests/offline_contract.rs</tspan>
+</text>
+<rect x="35" y="245" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="245" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="245" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="245" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="245" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="245" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="245" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="272" class="node-id" text-anchor="start">VV-REQ-002</text>
+<text x="200" y="268" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Hosted domains shall use the complete MCP protocol surface where it fits, including</tspan>
+<tspan x="200" dy="13">resources, templates, prompts, completions, tasks, subscriptions, notifications,</tspan>
+<tspan x="200" dy="13">structured content, and URI identities.</tspan>
+</text>
+<text x="895" y="274" class="small" text-anchor="start">VV-CAP-001</text>
+<text x="1085" y="274" class="small" text-anchor="start">VV-OPA-002</text>
+<text x="1275" y="274" class="small" text-anchor="start">VV-SVC-001</text>
+<text x="1465" y="268" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-012, VV-CMP-016, VV-CMP-017,</tspan>
+<tspan x="1465" dy="13">VV-CMP-019, VV-CMP-020, VV-CMP-022, VV-CMP-023, VV-CMP-025</tspan>
+</text>
+<text x="2005" y="268" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">configs/gateway.local.json;</tspan>
+<tspan x="2005" dy="13">testing/mcp-conformance; testing/smoke</tspan>
+</text>
+<rect x="35" y="313" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="313" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="313" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="313" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="313" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="313" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="313" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="340" class="node-id" text-anchor="start">VV-REQ-003</text>
+<text x="200" y="336" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Every externally reachable MCP or administrative operation shall pass through profile</tspan>
+<tspan x="200" dy="13">selection, policy evaluation, and audit at the gateway.</tspan>
+</text>
+<text x="895" y="342" class="small" text-anchor="start">VV-CAP-001</text>
+<text x="1085" y="342" class="small" text-anchor="start">VV-OPA-001</text>
+<text x="1275" y="342" class="small" text-anchor="start">VV-SVC-001</text>
+<text x="1465" y="336" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-008, VV-CMP-011</tspan>
+</text>
+<text x="2005" y="336" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">platform/gateway/tests; testing/smoke gateway</tspan>
+<tspan x="2005" dy="13">scenarios</tspan>
+</text>
+<rect x="35" y="381" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="381" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="381" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="381" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="381" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="381" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="381" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="408" class="node-id" text-anchor="start">VV-REQ-004</text>
+<text x="200" y="404" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Provider job completion shall be accepted only from a signed provider webhook and shall</tspan>
+<tspan x="200" dy="13">never poll provider status.</tspan>
+</text>
+<text x="895" y="410" class="small" text-anchor="start">VV-CAP-002</text>
+<text x="1085" y="410" class="small" text-anchor="start">VV-OPA-003</text>
+<text x="1275" y="410" class="small" text-anchor="start">VV-SVC-003</text>
+<text x="1465" y="404" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-019, VV-CMP-009, VV-CMP-004, VV-CMP-043</tspan>
+</text>
+<text x="2005" y="404" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">servers/media-mcp tests; testing/smoke</tspan>
+<tspan x="2005" dy="13">webhook-only media scenarios;</tspan>
+<tspan x="2005" dy="13">docs/TECH_DESIGN.md</tspan>
+</text>
+<rect x="35" y="449" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="449" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="449" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="449" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="449" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="449" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="449" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="476" class="node-id" text-anchor="start">VV-REQ-005</text>
+<text x="200" y="472" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Long-running operations shall use one durable task authority with explicit idempotency,</tspan>
+<tspan x="200" dy="13">leases, recovery class, cancellation, results, retention, and ordered event delivery.</tspan>
+</text>
+<text x="895" y="478" class="small" text-anchor="start">VV-CAP-002</text>
+<text x="1085" y="478" class="small" text-anchor="start">VV-OPA-003</text>
+<text x="1275" y="478" class="small" text-anchor="start">VV-SVC-003</text>
+<text x="1465" y="472" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-008, VV-CMP-009, VV-CMP-012, VV-CMP-038</tspan>
+</text>
+<text x="2005" y="472" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">platform/task-runtime tests; mcp/task-extension</tspan>
+<tspan x="2005" dy="13">tests; testing/smoke</tspan>
+</text>
+<rect x="35" y="517" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="517" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="517" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="517" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="517" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="517" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="517" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="544" class="node-id" text-anchor="start">VV-REQ-006</text>
+<text x="200" y="540" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Artifact occurrences and bytes shall remain tenant-isolated and shall enforce labels,</tspan>
+<tspan x="200" dy="13">grants, release state, retention, and bounded sharing.</tspan>
+</text>
+<text x="895" y="546" class="small" text-anchor="start">VV-CAP-003</text>
+<text x="1085" y="546" class="small" text-anchor="start">VV-OPA-004</text>
+<text x="1275" y="546" class="small" text-anchor="start">VV-SVC-004</text>
+<text x="1465" y="540" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-004, VV-CMP-014, VV-CMP-016, VV-CMP-039</tspan>
+</text>
+<text x="2005" y="540" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">platform/artifacts tests; servers/artifact-mcp</tspan>
+<tspan x="2005" dy="13">tests; testing/smoke artifact scenarios</tspan>
+</text>
+<rect x="35" y="585" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="585" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="585" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="585" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="585" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="585" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="585" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="612" class="node-id" text-anchor="start">VV-REQ-007</text>
+<text x="200" y="608" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">World and sensor producers shall push typed Rerun streams into a private durable</tspan>
+<tspan x="200" dy="13">recording boundary that preserves crash-decodable evidence.</tspan>
+</text>
+<text x="895" y="614" class="small" text-anchor="start">VV-CAP-004</text>
+<text x="1085" y="614" class="small" text-anchor="start">VV-OPA-005</text>
+<text x="1275" y="614" class="small" text-anchor="start">VV-SVC-005</text>
+<text x="1465" y="608" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-005, VV-CMP-015, VV-CMP-023, VV-CMP-047</tspan>
+</text>
+<text x="2005" y="608" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">platform/recordings/hub tests; testing/smoke hub</tspan>
+<tspan x="2005" dy="13">scenario; docs/RECORDINGS.md</tspan>
+</text>
+<rect x="35" y="653" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="653" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="653" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="653" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="653" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="653" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="653" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="680" class="node-id" text-anchor="start">VV-REQ-008</text>
+<text x="200" y="676" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Perception shall run locally over authorized recorded data with bounded GPU execution</tspan>
+<tspan x="200" dy="13">and shall publish governed derived results.</tspan>
+</text>
+<text x="895" y="682" class="small" text-anchor="start">VV-CAP-006</text>
+<text x="1085" y="682" class="small" text-anchor="start">VV-OPA-007</text>
+<text x="1275" y="682" class="small" text-anchor="start">VV-SVC-012</text>
+<text x="1465" y="676" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-022, VV-CMP-032, VV-CMP-044, VV-CMP-004, VV-CMP-005</tspan>
+</text>
+<text x="2005" y="676" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">servers/perception-mcp tests and GPU smoke;</tspan>
+<tspan x="2005" dy="13">servers/perception-mcp/DESIGN.md</tspan>
+</text>
+<rect x="35" y="721" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="721" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="721" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="721" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="721" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="721" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="721" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="748" class="node-id" text-anchor="start">VV-REQ-009</text>
+<text x="200" y="744" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Autonomous agents shall persist wakes, episodes, task descriptors, retries, results, and</tspan>
+<tspan x="200" dy="13">retention pins across process restart.</tspan>
+</text>
+<text x="895" y="750" class="small" text-anchor="start">VV-CAP-007</text>
+<text x="1085" y="750" class="small" text-anchor="start">VV-OPA-008</text>
+<text x="1275" y="750" class="small" text-anchor="start">VV-SVC-007</text>
+<text x="1465" y="744" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-006, VV-CMP-007, VV-CMP-008, VV-CMP-009</tspan>
+</text>
+<text x="2005" y="744" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">agents/kernel tests; agents/runtime tests;</tspan>
+<tspan x="2005" dy="13">testing/smoke agent-kernel scenario</tspan>
+</text>
+<rect x="35" y="789" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="789" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="789" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="789" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="789" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="789" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="789" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="816" class="node-id" text-anchor="start">VV-REQ-010</text>
+<text x="200" y="812" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Browser JavaScript shall never receive the gateway bearer and every unsafe console</tspan>
+<tspan x="200" dy="13">request shall enforce CSRF.</tspan>
+</text>
+<text x="895" y="818" class="small" text-anchor="start">VV-CAP-009</text>
+<text x="1085" y="818" class="small" text-anchor="start">VV-OPA-009</text>
+<text x="1275" y="818" class="small" text-anchor="start">VV-SVC-008</text>
+<text x="1465" y="812" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-002, VV-CMP-003, VV-CMP-001</tspan>
+</text>
+<text x="2005" y="812" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">apps/console/bff tests; console build checks;</tspan>
+<tspan x="2005" dy="13">testing/smoke console scenarios</tspan>
+</text>
+<rect x="35" y="857" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="857" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="857" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="857" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="857" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="857" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="857" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="884" class="node-id" text-anchor="start">VV-REQ-011</text>
+<text x="200" y="880" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">An offline installation shall verify all transferred files and images and shall not</tspan>
+<tspan x="200" dy="13">require network access during loading or operation of provider-independent capabilities.</tspan>
+</text>
+<text x="895" y="886" class="small" text-anchor="start">VV-CAP-010</text>
+<text x="1085" y="886" class="small" text-anchor="start">VV-OPA-010</text>
+<text x="1275" y="886" class="small" text-anchor="start">VV-SVC-009</text>
+<text x="1465" y="880" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-037, VV-CMP-035, VV-CMP-036, VV-CMP-048</tspan>
+</text>
+<text x="2005" y="880" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">deploy/offline;</tspan>
+<tspan x="2005" dy="13">testing/smoke/tests/offline_contract.rs</tspan>
+</text>
+<rect x="35" y="925" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="925" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="925" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="925" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="925" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="925" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="925" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="952" class="node-id" text-anchor="start">VV-REQ-012</text>
+<text x="200" y="948" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Compose and Helm shall instantiate the same canonical service graph while retaining</tspan>
+<tspan x="200" dy="13">form-specific controls for storage, ingress, network policy, and mTLS.</tspan>
+</text>
+<text x="895" y="954" class="small" text-anchor="start">VV-CAP-010</text>
+<text x="1085" y="954" class="small" text-anchor="start">VV-OPA-010</text>
+<text x="1275" y="954" class="small" text-anchor="start">VV-SVC-009</text>
+<text x="1465" y="948" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-035, VV-CMP-036, VV-CMP-048</tspan>
+</text>
+<text x="2005" y="948" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">testing/smoke deployment contract tests;</tspan>
+<tspan x="2005" dy="13">deploy/helm/veoveo/values.schema.json</tspan>
+</text>
+<rect x="35" y="993" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="993" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="993" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="993" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="993" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="993" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="993" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1020" class="node-id" text-anchor="start">VV-REQ-013</text>
+<text x="200" y="1016" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Analytical users shall retain arbitrary DuckDB SQL within owner-scoped workspaces</tspan>
+<tspan x="200" dy="13">bounded by engine, filesystem, process, resource, and network controls.</tspan>
+</text>
+<text x="895" y="1022" class="small" text-anchor="start">VV-CAP-005</text>
+<text x="1085" y="1022" class="small" text-anchor="start">VV-OPA-006</text>
+<text x="1275" y="1022" class="small" text-anchor="start">VV-SVC-006</text>
+<text x="1465" y="1016" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-018, VV-CMP-010, VV-CMP-045, VV-CMP-004</tspan>
+</text>
+<text x="2005" y="1016" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">servers/duckdb-mcp tests; testing/smoke DuckDB</tspan>
+<tspan x="2005" dy="13">scenarios; servers/duckdb-mcp/DESIGN.md</tspan>
+</text>
+<rect x="35" y="1061" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="1061" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="1061" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="1061" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="1061" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="1061" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="1061" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1088" class="node-id" text-anchor="start">VV-REQ-014</text>
+<text x="200" y="1084" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">The platform shall support governed map acquisition, release activation, restrictions,</tspan>
+<tspan x="200" dy="13">geodesy, routing, reachable areas, and logistics matrices through stable map identities.</tspan>
+</text>
+<text x="895" y="1090" class="small" text-anchor="start">VV-CAP-011</text>
+<text x="1085" y="1090" class="small" text-anchor="start">VV-OPA-006</text>
+<text x="1275" y="1090" class="small" text-anchor="start">VV-SVC-011</text>
+<text x="1465" y="1084" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-020, VV-CMP-031, VV-CMP-046, VV-CMP-004, VV-CMP-038</tspan>
+</text>
+<text x="2005" y="1084" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">servers/map-mcp tests;</tspan>
+<tspan x="2005" dy="13">servers/map-mcp/DESIGN.md; gateway catalog</tspan>
+<tspan x="2005" dy="13">validation</tspan>
+</text>
+<rect x="35" y="1129" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="1129" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="1129" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="1129" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="1129" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="1129" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="1129" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1156" class="node-id" text-anchor="start">VV-REQ-015</text>
+<text x="200" y="1152" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Known platform and domain contracts shall use typed structs, enums, identifiers, and</tspan>
+<tspan x="200" dy="13">schemas; raw JSON shall remain confined to genuinely opaque provider boundaries.</tspan>
+</text>
+<text x="895" y="1158" class="small" text-anchor="start">VV-CAP-012</text>
+<text x="1085" y="1158" class="small" text-anchor="start">VV-OPA-002</text>
+<text x="1275" y="1158" class="small" text-anchor="start">VV-SVC-001</text>
+<text x="1465" y="1152" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-011, VV-CMP-030, VV-CMP-001, VV-CMP-HOSTED</tspan>
+</text>
+<text x="2005" y="1152" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">cargo test workspace; Python type and test</tspan>
+<tspan x="2005" dy="13">suite; gateway configuration schema validation</tspan>
+</text>
+<rect x="35" y="1197" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="1197" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="1197" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="1197" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="1197" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="1197" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="1197" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1224" class="node-id" text-anchor="start">VV-REQ-016</text>
+<text x="200" y="1220" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">Only the gateway shall sign short-lived internal identity assertions and hosted services</tspan>
+<tspan x="200" dy="13">shall validate the key identifier, audience, tenant, principal, labels, scopes, and</tspan>
+<tspan x="200" dy="13">expiry.</tspan>
+</text>
+<text x="895" y="1226" class="small" text-anchor="start">VV-CAP-008</text>
+<text x="1085" y="1226" class="small" text-anchor="start">VV-OPA-001</text>
+<text x="1275" y="1226" class="small" text-anchor="start">VV-SVC-002</text>
+<text x="1465" y="1220" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-030, VV-CMP-HOSTED</tspan>
+</text>
+<text x="2005" y="1220" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">platform/gateway authentication tests; Python</tspan>
+<tspan x="2005" dy="13">SDK tests; testing/smoke</tspan>
+</text>
+<rect x="35" y="1265" width="150" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="1265" width="690" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="1265" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="1265" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="1265" width="185" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="1265" width="535" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="1265" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1292" class="node-id" text-anchor="start">VV-REQ-017</text>
+<text x="200" y="1288" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">SurrealDB shall remain the sole platform coordination authority; transactional outbox</tspan>
+<tspan x="200" dy="13">replay shall remain authoritative over best-effort live delivery.</tspan>
+</text>
+<text x="895" y="1294" class="small" text-anchor="start">VV-CAP-008</text>
+<text x="1085" y="1294" class="small" text-anchor="start">VV-OPA-003</text>
+<text x="1275" y="1294" class="small" text-anchor="start">VV-SVC-003</text>
+<text x="1465" y="1288" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-008, VV-CMP-009, VV-CMP-038</tspan>
+</text>
+<text x="2005" y="1288" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">platform/store tests; platform/task-runtime</tspan>
+<tspan x="2005" dy="13">tests; docs/TECH_DESIGN.md</tspan>
+</text>
+<rect x="35" y="1333" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="190" y="1333" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="885" y="1333" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1075" y="1333" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1265" y="1333" width="185" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1455" y="1333" width="535" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<rect x="1995" y="1333" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
+<text x="45" y="1360" class="node-id" text-anchor="start">VV-REQ-018</text>
+<text x="200" y="1356" class="tiny" text-anchor="start">
+<tspan x="200" dy="0">New hosted servers shall compose through shared contracts and the gateway catalog</tspan>
+<tspan x="200" dy="13">without leaking server-specific behavior into generic gateway modules.</tspan>
+</text>
+<text x="895" y="1362" class="small" text-anchor="start">VV-CAP-012</text>
+<text x="1085" y="1362" class="small" text-anchor="start">VV-OPA-002</text>
+<text x="1275" y="1362" class="small" text-anchor="start">VV-SVC-001</text>
+<text x="1465" y="1356" class="tiny" text-anchor="start">
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-012, VV-CMP-030, VV-CMP-025</tspan>
+</text>
+<text x="2005" y="1356" class="tiny" text-anchor="start">
+<tspan x="2005" dy="0">templates/python-mcp tests; gateway catalog</tspan>
+<tspan x="2005" dy="13">validation; testing/mcp-conformance</tspan>
+</text>
+<rect x="28" y="1465" width="2344" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
+<text x="30" y="1486" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
+<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-09</text>
+</svg>

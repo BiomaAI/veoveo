@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1120" width="1700" height="1120" role="img" aria-labelledby="title desc">
+<title id="title">Architecture view map</title>
+<desc id="desc">The UAF domains, SysML detail model, and published Veoveo views with their trace path.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#21465b"/></marker>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#687983"/></marker>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0b2534" flood-opacity="0.12"/></filter>
+</defs>
+<style>
+.title{font:700 30px Arial,Helvetica,sans-serif;fill:#102f40}.subtitle{font:400 15px Arial,Helvetica,sans-serif;fill:#4d626d}.label{font:700 14px Arial,Helvetica,sans-serif;fill:#102f40;letter-spacing:.04em}.node-title{font:700 17px Arial,Helvetica,sans-serif;fill:#102f40}.node-id{font:700 12px Arial,Helvetica,sans-serif;fill:#176b68;letter-spacing:.04em}.body{font:400 14px Arial,Helvetica,sans-serif;fill:#2d4653}.small{font:400 12px Arial,Helvetica,sans-serif;fill:#526a76}.tiny{font:400 10px Arial,Helvetica,sans-serif;fill:#526a76}.inverse{fill:#ffffff}.edge{stroke:#21465b;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.edge-muted{stroke:#687983;stroke-width:1.6;fill:none;marker-end:url(#arrow-muted)}.edge-dash{stroke:#687983;stroke-width:1.5;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow-muted)}
+</style>
+<rect x="0" y="0" width="1700" height="1120" rx="0" fill="#f5f2eb" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="1700" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="36" y="43" class="title inverse" text-anchor="start">Architecture view map</text>
+<text x="1664" y="32" class="label inverse" text-anchor="end">VV-VIEW-00</text>
+<text x="1664" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<rect x="42" y="130" width="240" height="145" rx="9" fill="#d9ebe7" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="42" y="130" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="60" y="153" class="node-id" text-anchor="start">VV-CAP-*</text>
+<text x="60" y="177" class="node-title" text-anchor="start">
+<tspan x="60" dy="0">Strategic</tspan>
+</text>
+<text x="60" y="200" class="small" text-anchor="start">
+<tspan x="60" dy="0">Capabilities and outcomes</tspan>
+</text>
+<path d="M 282 202 L 317 202" class="edge"/>
+<rect x="317" y="130" width="240" height="145" rx="9" fill="#deebf2" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="317" y="130" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="335" y="153" class="node-id" text-anchor="start">VV-OPA-*</text>
+<text x="335" y="177" class="node-title" text-anchor="start">
+<tspan x="335" dy="0">Operational</tspan>
+</text>
+<text x="335" y="200" class="small" text-anchor="start">
+<tspan x="335" dy="0">Activities and mission</tspan>
+<tspan x="335" dy="16">threads</tspan>
+</text>
+<path d="M 557 202 L 592 202" class="edge"/>
+<rect x="592" y="130" width="240" height="145" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="592" y="130" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="610" y="153" class="node-id" text-anchor="start">VV-SVC-*</text>
+<text x="610" y="177" class="node-title" text-anchor="start">
+<tspan x="610" dy="0">Services</tspan>
+</text>
+<text x="610" y="200" class="small" text-anchor="start">
+<tspan x="610" dy="0">Implementation-independent</tspan>
+<tspan x="610" dy="16">offers</tspan>
+</text>
+<path d="M 832 202 L 867 202" class="edge"/>
+<rect x="867" y="130" width="240" height="145" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="867" y="130" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="885" y="153" class="node-id" text-anchor="start">VV-CMP-* / VV-IF-*</text>
+<text x="885" y="177" class="node-title" text-anchor="start">
+<tspan x="885" dy="0">Resources</tspan>
+</text>
+<text x="885" y="200" class="small" text-anchor="start">
+<tspan x="885" dy="0">Software, interfaces, data</tspan>
+</text>
+<path d="M 1107 202 L 1142 202" class="edge"/>
+<rect x="1142" y="130" width="240" height="145" rx="9" fill="#e9e7db" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1142" y="130" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1160" y="153" class="node-id" text-anchor="start">VV-AR-*</text>
+<text x="1160" y="177" class="node-title" text-anchor="start">
+<tspan x="1160" dy="0">Actual Resources</tspan>
+</text>
+<text x="1160" y="200" class="small" text-anchor="start">
+<tspan x="1160" dy="0">Fielded configurations</tspan>
+</text>
+<path d="M 1382 202 L 1417 202" class="edge"/>
+<rect x="1417" y="130" width="240" height="145" rx="9" fill="#f0dfdc" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1417" y="130" width="7" height="145" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1435" y="153" class="node-id" text-anchor="start">VV-REQ-*</text>
+<text x="1435" y="177" class="node-title" text-anchor="start">
+<tspan x="1435" dy="0">Evidence</tspan>
+</text>
+<text x="1435" y="200" class="small" text-anchor="start">
+<tspan x="1435" dy="0">Requirements and</tspan>
+<tspan x="1435" dy="16">verification</tspan>
+</text>
+<text x="42" y="320" class="label" text-anchor="start">Governing UAF domains and cross-cutting aspects</text>
+<rect x="42" y="345" width="375" height="120" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="42" y="345" width="7" height="120" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="60" y="368" class="node-id" text-anchor="start">CROSS-1</text>
+<text x="60" y="392" class="node-title" text-anchor="start">
+<tspan x="60" dy="0">Architecture Management</tspan>
+</text>
+<text x="60" y="415" class="small" text-anchor="start">
+<tspan x="60" dy="0">Scope, stakeholders, principles, dictionary,</tspan>
+<tspan x="60" dy="16">model governance</tspan>
+</text>
+<rect x="449" y="345" width="375" height="120" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="449" y="345" width="7" height="120" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="467" y="368" class="node-id" text-anchor="start">CROSS-2</text>
+<text x="467" y="392" class="node-title" text-anchor="start">
+<tspan x="467" dy="0">Security</tspan>
+</text>
+<text x="467" y="415" class="small" text-anchor="start">
+<tspan x="467" dy="0">Risks, assets, controls, trust boundaries,</tspan>
+<tspan x="467" dy="16">identity and audit</tspan>
+</text>
+<rect x="856" y="345" width="375" height="120" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="856" y="345" width="7" height="120" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="874" y="368" class="node-id" text-anchor="start">CROSS-3</text>
+<text x="874" y="392" class="node-title" text-anchor="start">
+<tspan x="874" dy="0">Standards</tspan>
+</text>
+<text x="874" y="415" class="small" text-anchor="start">
+<tspan x="874" dy="0">MCP, OAuth/OIDC, UAF, SysML, OCI, OTLP,</tspan>
+<tspan x="874" dy="16">storage and transport contracts</tspan>
+</text>
+<rect x="1263" y="345" width="375" height="120" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1263" y="345" width="7" height="120" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1281" y="368" class="node-id" text-anchor="start">CROSS-4</text>
+<text x="1281" y="392" class="node-title" text-anchor="start">
+<tspan x="1281" dy="0">Parameters</tspan>
+</text>
+<text x="1281" y="415" class="small" text-anchor="start">
+<tspan x="1281" dy="0">Limits, recovery semantics, retention,</tspan>
+<tspan x="1281" dy="16">measures, and deployment constraints</tspan>
+</text>
+<text x="42" y="520" class="label" text-anchor="start">Published view set</text>
+<rect x="42" y="545" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="42" y="545" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="60" y="568" class="node-id" text-anchor="start">VV-VIEW-01</text>
+<text x="60" y="592" class="node-title" text-anchor="start">
+<tspan x="60" dy="0">Enterprise context</tspan>
+</text>
+<text x="60" y="615" class="small" text-anchor="start">
+<tspan x="60" dy="0">Stakeholders and boundary</tspan>
+</text>
+<rect x="369" y="545" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="369" y="545" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="387" y="568" class="node-id" text-anchor="start">VV-VIEW-02</text>
+<text x="387" y="592" class="node-title" text-anchor="start">
+<tspan x="387" dy="0">Capability map</tspan>
+</text>
+<text x="387" y="615" class="small" text-anchor="start">
+<tspan x="387" dy="0">Strategic taxonomy</tspan>
+</text>
+<rect x="696" y="545" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="696" y="545" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="714" y="568" class="node-id" text-anchor="start">VV-VIEW-03</text>
+<text x="714" y="592" class="node-title" text-anchor="start">
+<tspan x="714" dy="0">Operational mission thread</tspan>
+</text>
+<text x="714" y="615" class="small" text-anchor="start">
+<tspan x="714" dy="0">Operational sequence/process</tspan>
+</text>
+<rect x="1023" y="545" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1023" y="545" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1041" y="568" class="node-id" text-anchor="start">VV-VIEW-04</text>
+<text x="1041" y="592" class="node-title" text-anchor="start">
+<tspan x="1041" dy="0">Service structure</tspan>
+</text>
+<text x="1041" y="615" class="small" text-anchor="start">
+<tspan x="1041" dy="0">Services taxonomy/structure</tspan>
+</text>
+<rect x="1350" y="545" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1350" y="545" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1368" y="568" class="node-id" text-anchor="start">VV-VIEW-05</text>
+<text x="1368" y="592" class="node-title" text-anchor="start">
+<tspan x="1368" dy="0">Software resource structure</tspan>
+</text>
+<text x="1368" y="615" class="small" text-anchor="start">
+<tspan x="1368" dy="0">Resource taxonomy/structure</tspan>
+</text>
+<rect x="42" y="750" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="42" y="750" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="60" y="773" class="node-id" text-anchor="start">VV-VIEW-06</text>
+<text x="60" y="797" class="node-title" text-anchor="start">
+<tspan x="60" dy="0">Software connectivity</tspan>
+</text>
+<text x="60" y="820" class="small" text-anchor="start">
+<tspan x="60" dy="0">Resource connectivity</tspan>
+</text>
+<rect x="369" y="750" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="369" y="750" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="387" y="773" class="node-id" text-anchor="start">VV-VIEW-07</text>
+<text x="387" y="797" class="node-title" text-anchor="start">
+<tspan x="387" dy="0">Deployment configurations</tspan>
+</text>
+<text x="387" y="820" class="small" text-anchor="start">
+<tspan x="387" dy="0">Actual Resource structure</tspan>
+</text>
+<rect x="696" y="750" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="696" y="750" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="714" y="773" class="node-id" text-anchor="start">VV-VIEW-08</text>
+<text x="714" y="797" class="node-title" text-anchor="start">
+<tspan x="714" dy="0">Security and trust</tspan>
+</text>
+<text x="714" y="820" class="small" text-anchor="start">
+<tspan x="714" dy="0">Security structure/traceability</tspan>
+</text>
+<rect x="1023" y="750" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1023" y="750" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1041" y="773" class="node-id" text-anchor="start">VV-VIEW-09</text>
+<text x="1041" y="797" class="node-title" text-anchor="start">
+<tspan x="1041" dy="0">Requirements traceability</tspan>
+</text>
+<text x="1041" y="820" class="small" text-anchor="start">
+<tspan x="1041" dy="0">Traceability and evidence</tspan>
+</text>
+<rect x="1350" y="750" width="295" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1350" y="750" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1368" y="773" class="node-id" text-anchor="start">VV-VIEW-10</text>
+<text x="1368" y="797" class="node-title" text-anchor="start">
+<tspan x="1368" dy="0">Durable task lifecycle</tspan>
+</text>
+<text x="1368" y="820" class="small" text-anchor="start">
+<tspan x="1368" dy="0">SysML state detail</tspan>
+</text>
+<rect x="42" y="970" width="1615" height="76" rx="10" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="65" y="1001" class="label inverse" text-anchor="start">Canonical trace</text>
+<text x="65" y="1028" class="body inverse" text-anchor="start">Requirement -&gt; Capability -&gt; Operational Activity -&gt; Service -&gt; Function -&gt; Software Block -&gt; Actual Resource -&gt; Verification Evidence</text>
+<rect x="28" y="1085" width="1644" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
+<text x="30" y="1106" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
+<text x="1670" y="1106" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-00</text>
+</svg>

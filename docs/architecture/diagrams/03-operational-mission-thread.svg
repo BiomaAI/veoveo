@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1080" width="1800" height="1080" role="img" aria-labelledby="title desc">
+<title id="title">Operational mission thread</title>
+<desc id="desc">A representative governed observe-analyze-decide-act thread across Veoveo operational performers.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#21465b"/></marker>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#687983"/></marker>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0b2534" flood-opacity="0.12"/></filter>
+</defs>
+<style>
+.title{font:700 30px Arial,Helvetica,sans-serif;fill:#102f40}.subtitle{font:400 15px Arial,Helvetica,sans-serif;fill:#4d626d}.label{font:700 14px Arial,Helvetica,sans-serif;fill:#102f40;letter-spacing:.04em}.node-title{font:700 17px Arial,Helvetica,sans-serif;fill:#102f40}.node-id{font:700 12px Arial,Helvetica,sans-serif;fill:#176b68;letter-spacing:.04em}.body{font:400 14px Arial,Helvetica,sans-serif;fill:#2d4653}.small{font:400 12px Arial,Helvetica,sans-serif;fill:#526a76}.tiny{font:400 10px Arial,Helvetica,sans-serif;fill:#526a76}.inverse{fill:#ffffff}.edge{stroke:#21465b;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.edge-muted{stroke:#687983;stroke-width:1.6;fill:none;marker-end:url(#arrow-muted)}.edge-dash{stroke:#687983;stroke-width:1.5;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow-muted)}
+</style>
+<rect x="0" y="0" width="1800" height="1080" rx="0" fill="#f5f2eb" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="1800" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="36" y="43" class="title inverse" text-anchor="start">Operational mission thread</text>
+<text x="1764" y="32" class="label inverse" text-anchor="end">VV-VIEW-03</text>
+<text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<rect x="35" y="135" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
+<text x="55" y="165" class="label" text-anchor="start">Mission operator / autonomous agent</text>
+<text x="55" y="189" class="small" text-anchor="start">Intent, constraints, decision, authority</text>
+<rect x="35" y="335" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
+<text x="55" y="365" class="label" text-anchor="start">Gateway and policy boundary</text>
+<text x="55" y="389" class="small" text-anchor="start">Identity, profile, policy, audit, routing</text>
+<rect x="35" y="535" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
+<text x="55" y="565" class="label" text-anchor="start">Domain services</text>
+<text x="55" y="589" class="small" text-anchor="start">Recording, map, frames, analytics, optimization, perception</text>
+<rect x="35" y="735" width="1730" height="155" rx="8" fill="#ffffff" stroke="#c1cdd2" stroke-width="1" opacity="1"/>
+<text x="55" y="765" class="label" text-anchor="start">Durable work and evidence</text>
+<text x="55" y="789" class="small" text-anchor="start">Tasks, outbox, artifacts, RRD recordings</text>
+<rect x="178" y="203" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="250" y="231" class="node-id" text-anchor="middle">1</text>
+<text x="250" y="255" class="body" text-anchor="middle">State intent</text>
+<rect x="398" y="403" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="470" y="431" class="node-id" text-anchor="middle">2</text>
+<text x="470" y="455" class="body" text-anchor="middle">Authorize</text>
+<rect x="618" y="403" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="690" y="431" class="node-id" text-anchor="middle">3</text>
+<text x="690" y="455" class="body" text-anchor="middle">Discover</text>
+<rect x="838" y="603" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="910" y="631" class="node-id" text-anchor="middle">4</text>
+<text x="910" y="655" class="body" text-anchor="middle">Observe</text>
+<rect x="1058" y="603" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="1130" y="631" class="node-id" text-anchor="middle">5</text>
+<text x="1130" y="655" class="body" text-anchor="middle">Analyze / route</text>
+<rect x="1278" y="203" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="1350" y="231" class="node-id" text-anchor="middle">6</text>
+<text x="1350" y="255" class="body" text-anchor="middle">Plan / decide</text>
+<rect x="1498" y="203" width="144" height="68" rx="34" fill="#d9ebe7" stroke="#88aca8" stroke-width="1" opacity="1"/>
+<text x="1570" y="231" class="node-id" text-anchor="middle">7</text>
+<text x="1570" y="255" class="body" text-anchor="middle">Act</text>
+<path d="M 322 237 L 360.0 237 L 360.0 437 L 398 437" class="edge"/>
+<path d="M 542 437 L 580.0 437 L 580.0 437 L 618 437" class="edge"/>
+<path d="M 762 437 L 800.0 437 L 800.0 637 L 838 637" class="edge"/>
+<path d="M 982 637 L 1020.0 637 L 1020.0 637 L 1058 637" class="edge"/>
+<path d="M 1202 637 L 1240.0 637 L 1240.0 237 L 1278 237" class="edge"/>
+<path d="M 1422 237 L 1460.0 237 L 1460.0 237 L 1498 237" class="edge"/>
+<rect x="205" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="205" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="223" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
+<text x="223" y="837" class="node-title" text-anchor="start">
+<tspan x="223" dy="0">Recording identity</tspan>
+</text>
+<text x="223" y="860" class="small" text-anchor="start">
+<tspan x="223" dy="0">recording://...</tspan>
+</text>
+<rect x="490" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="490" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="508" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
+<text x="508" y="837" class="node-title" text-anchor="start">
+<tspan x="508" dy="0">Policy decision</tspan>
+</text>
+<text x="508" y="860" class="small" text-anchor="start">
+<tspan x="508" dy="0">principal + target + outcome</tspan>
+</text>
+<rect x="775" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="775" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="793" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
+<text x="793" y="837" class="node-title" text-anchor="start">
+<tspan x="793" dy="0">Task identity</tspan>
+</text>
+<text x="793" y="860" class="small" text-anchor="start">
+<tspan x="793" dy="0">UUIDv7 + recovery class</tspan>
+</text>
+<rect x="1060" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1060" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1078" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
+<text x="1078" y="837" class="node-title" text-anchor="start">
+<tspan x="1078" dy="0">Result identity</tspan>
+</text>
+<text x="1078" y="860" class="small" text-anchor="start">
+<tspan x="1078" dy="0">artifact://... / map://...</tspan>
+</text>
+<rect x="1345" y="790" width="250" height="105" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1345" y="790" width="7" height="105" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1363" y="813" class="node-id" text-anchor="start">EVIDENCE</text>
+<text x="1363" y="837" class="node-title" text-anchor="start">
+<tspan x="1363" dy="0">Audit evidence</tspan>
+</text>
+<text x="1363" y="860" class="small" text-anchor="start">
+<tspan x="1363" dy="0">method + reason + context</tspan>
+</text>
+<path d="M 910 637 L 910 790" class="edge-muted"/>
+<path d="M 1130 637 L 1185 790" class="edge-muted"/>
+<path d="M 1570 237 L 1570 725 L 1470 790" class="edge-muted"/>
+<rect x="35" y="930" width="1730" height="82" rx="10" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="58" y="962" class="label inverse" text-anchor="start">Operational invariant</text>
+<text x="58" y="990" class="body inverse" text-anchor="start">Every transition carries canonical identity and policy context; durable work and outputs remain addressable after the initiating episode ends.</text>
+<rect x="28" y="1045" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
+<text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
+<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-03</text>
+</svg>

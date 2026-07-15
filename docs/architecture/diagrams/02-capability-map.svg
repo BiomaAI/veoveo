@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1180" width="1700" height="1180" role="img" aria-labelledby="title desc">
+<title id="title">Capability map</title>
+<desc id="desc">Strategic capability taxonomy for the Veoveo reference architecture.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#21465b"/></marker>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#687983"/></marker>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0b2534" flood-opacity="0.12"/></filter>
+</defs>
+<style>
+.title{font:700 30px Arial,Helvetica,sans-serif;fill:#102f40}.subtitle{font:400 15px Arial,Helvetica,sans-serif;fill:#4d626d}.label{font:700 14px Arial,Helvetica,sans-serif;fill:#102f40;letter-spacing:.04em}.node-title{font:700 17px Arial,Helvetica,sans-serif;fill:#102f40}.node-id{font:700 12px Arial,Helvetica,sans-serif;fill:#176b68;letter-spacing:.04em}.body{font:400 14px Arial,Helvetica,sans-serif;fill:#2d4653}.small{font:400 12px Arial,Helvetica,sans-serif;fill:#526a76}.tiny{font:400 10px Arial,Helvetica,sans-serif;fill:#526a76}.inverse{fill:#ffffff}.edge{stroke:#21465b;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.edge-muted{stroke:#687983;stroke-width:1.6;fill:none;marker-end:url(#arrow-muted)}.edge-dash{stroke:#687983;stroke-width:1.5;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow-muted)}
+</style>
+<rect x="0" y="0" width="1700" height="1180" rx="0" fill="#f5f2eb" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="1700" height="82" rx="0" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="36" y="43" class="title inverse" text-anchor="start">Capability map</text>
+<text x="1664" y="32" class="label inverse" text-anchor="end">VV-VIEW-02</text>
+<text x="1664" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
+<rect x="40" y="120" width="1620" height="225" rx="12" fill="#d9ebe7" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="58" y="146" class="label" text-anchor="start">Mission-facing capabilities</text>
+<text x="1642" y="146" class="small" text-anchor="end">4 capabilities</text>
+<rect x="60.0" y="168" width="378.5" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="60.0" y="168" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="78.0" y="191" class="node-id" text-anchor="start">VV-CAP-001</text>
+<text x="78.0" y="215" class="node-title" text-anchor="start">
+<tspan x="78.0" dy="0">Governed MCP access</tspan>
+</text>
+<text x="78.0" y="238" class="small" text-anchor="start">
+<tspan x="78.0" dy="0">Policy-scoped discovery and use of</tspan>
+<tspan x="78.0" dy="16">complete MCP domain surfaces.</tspan>
+</text>
+<rect x="460.5" y="168" width="378.5" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="460.5" y="168" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="478.5" y="191" class="node-id" text-anchor="start">VV-CAP-002</text>
+<text x="478.5" y="215" class="node-title" text-anchor="start">
+<tspan x="478.5" dy="0">Durable asynchronous work</tspan>
+</text>
+<text x="478.5" y="238" class="small" text-anchor="start">
+<tspan x="478.5" dy="0">Long operations survive restart with</tspan>
+<tspan x="478.5" dy="16">explicit recovery semantics.</tspan>
+</text>
+<rect x="861.0" y="168" width="378.5" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="861.0" y="168" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="879.0" y="191" class="node-id" text-anchor="start">VV-CAP-003</text>
+<text x="879.0" y="215" class="node-title" text-anchor="start">
+<tspan x="879.0" dy="0">Governed artifacts</tspan>
+</text>
+<text x="879.0" y="238" class="small" text-anchor="start">
+<tspan x="879.0" dy="0">Outputs retain identity, integrity,</tspan>
+<tspan x="879.0" dy="16">access, release, retention, and sharing</tspan>
+<tspan x="879.0" dy="16">policy.</tspan>
+</text>
+<rect x="1261.5" y="168" width="378.5" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1261.5" y="168" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1279.5" y="191" class="node-id" text-anchor="start">VV-CAP-004</text>
+<text x="1279.5" y="215" class="node-title" text-anchor="start">
+<tspan x="1279.5" dy="0">Governed world recording</tspan>
+</text>
+<text x="1279.5" y="238" class="small" text-anchor="start">
+<tspan x="1279.5" dy="0">Typed sensor and simulation evidence is</tspan>
+<tspan x="1279.5" dy="16">pushed into durable RRD recordings.</tspan>
+</text>
+<rect x="40" y="367" width="1620" height="225" rx="12" fill="#deebf2" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="58" y="393" class="label" text-anchor="start">Domain decision capabilities</text>
+<text x="1642" y="393" class="small" text-anchor="end">3 capabilities</text>
+<rect x="60.0" y="415" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="60.0" y="415" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="78.0" y="438" class="node-id" text-anchor="start">VV-CAP-005</text>
+<text x="78.0" y="462" class="node-title" text-anchor="start">
+<tspan x="78.0" dy="0">Bounded analytics and decisions</tspan>
+</text>
+<text x="78.0" y="485" class="small" text-anchor="start">
+<tspan x="78.0" dy="0">Arbitrary SQL, forecasting, planning, and charts</tspan>
+<tspan x="78.0" dy="16">execute inside owned limits.</tspan>
+</text>
+<rect x="594.0" y="415" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="594.0" y="415" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="612.0" y="438" class="node-id" text-anchor="start">VV-CAP-006</text>
+<text x="612.0" y="462" class="node-title" text-anchor="start">
+<tspan x="612.0" dy="0">Local perception</tspan>
+</text>
+<text x="612.0" y="485" class="small" text-anchor="start">
+<tspan x="612.0" dy="0">Recorded video is decoded, detected, tracked, and</tspan>
+<tspan x="612.0" dy="16">published inside the installation.</tspan>
+</text>
+<rect x="1128.0" y="415" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1128.0" y="415" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1146.0" y="438" class="node-id" text-anchor="start">VV-CAP-007</text>
+<text x="1146.0" y="462" class="node-title" text-anchor="start">
+<tspan x="1146.0" dy="0">Autonomous agent operation</tspan>
+</text>
+<text x="1146.0" y="485" class="small" text-anchor="start">
+<tspan x="1146.0" dy="0">Bounded episodes persist scheduling, wakes, work,</tspan>
+<tspan x="1146.0" dy="16">memory, and evidence.</tspan>
+</text>
+<rect x="40" y="614" width="1620" height="225" rx="12" fill="#eee5d8" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="58" y="640" class="label" text-anchor="start">Enterprise platform capabilities</text>
+<text x="1642" y="640" class="small" text-anchor="end">3 capabilities</text>
+<rect x="60.0" y="662" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="60.0" y="662" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="78.0" y="685" class="node-id" text-anchor="start">VV-CAP-008</text>
+<text x="78.0" y="709" class="node-title" text-anchor="start">
+<tspan x="78.0" dy="0">Secure enterprise integration</tspan>
+</text>
+<text x="78.0" y="732" class="small" text-anchor="start">
+<tspan x="78.0" dy="0">Installation-owned identity, policy, audit, tenancy,</tspan>
+<tspan x="78.0" dy="16">and internal trust compose.</tspan>
+</text>
+<rect x="594.0" y="662" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="594.0" y="662" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="612.0" y="685" class="node-id" text-anchor="start">VV-CAP-009</text>
+<text x="612.0" y="709" class="node-title" text-anchor="start">
+<tspan x="612.0" dy="0">Operations oversight</tspan>
+</text>
+<text x="612.0" y="732" class="small" text-anchor="start">
+<tspan x="612.0" dy="0">Operators inspect and administer live work without</tspan>
+<tspan x="612.0" dy="16">exposing bearer credentials.</tspan>
+</text>
+<rect x="1128.0" y="662" width="512.0" height="157" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1128.0" y="662" width="7" height="157" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1146.0" y="685" class="node-id" text-anchor="start">VV-CAP-010</text>
+<text x="1146.0" y="709" class="node-title" text-anchor="start">
+<tspan x="1146.0" dy="0">Connected and offline deployment</tspan>
+</text>
+<text x="1146.0" y="732" class="small" text-anchor="start">
+<tspan x="1146.0" dy="0">One service graph deploys through Compose or Helm with</tspan>
+<tspan x="1146.0" dy="16">verified offline transfer.</tspan>
+</text>
+<rect x="40" y="861" width="1620" height="210" rx="12" fill="#e7e1ef" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
+<text x="58" y="887" class="label" text-anchor="start">Extension and logistics capabilities</text>
+<text x="1642" y="887" class="small" text-anchor="end">2 capabilities</text>
+<rect x="60.0" y="909" width="779.0" height="142" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="60.0" y="909" width="7" height="142" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="78.0" y="932" class="node-id" text-anchor="start">VV-CAP-011</text>
+<text x="78.0" y="956" class="node-title" text-anchor="start">
+<tspan x="78.0" dy="0">Geospatial logistics</tspan>
+</text>
+<text x="78.0" y="979" class="small" text-anchor="start">
+<tspan x="78.0" dy="0">Governed data releases support geodesy, restrictions, routing, and logistics</tspan>
+<tspan x="78.0" dy="16">matrices.</tspan>
+</text>
+<rect x="861.0" y="909" width="779.0" height="142" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="861.0" y="909" width="7" height="142" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="879.0" y="932" class="node-id" text-anchor="start">VV-CAP-012</text>
+<text x="879.0" y="956" class="node-title" text-anchor="start">
+<tspan x="879.0" dy="0">Extensible hosted domains</tspan>
+</text>
+<text x="879.0" y="979" class="small" text-anchor="start">
+<tspan x="879.0" dy="0">Typed Rust and Python contracts add servers without weakening canonical protocol</tspan>
+<tspan x="879.0" dy="16">behavior.</tspan>
+</text>
+<rect x="40" y="1045" width="1620" height="70" rx="10" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
+<text x="62" y="1075" class="label inverse" text-anchor="start">Capability realization rule</text>
+<text x="62" y="1101" class="body inverse" text-anchor="start">Every capability traces through at least one operational activity and service to named software resources and verification evidence.</text>
+<rect x="28" y="1145" width="1644" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
+<text x="30" y="1166" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
+<text x="1670" y="1166" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-02</text>
+</svg>
