@@ -30,11 +30,7 @@ import {
   cancelTask,
   createArtifactShareLink,
   grantArtifact,
-  loadMapAcquisitions,
-  loadMapActiveReleases,
-  loadMapReleases,
-  loadMapMobilityProfiles,
-  loadMapSources,
+  loadMapAdministration,
   loadSnapshot,
   logoutConsole,
   revokeArtifactGrant,
@@ -366,19 +362,13 @@ function MapDataView() {
   const refresh = async () => {
     setError(undefined);
     try {
-      const [nextSources, nextAcquisitions, nextReleases, nextMobilityProfiles, nextActiveReleases] = await Promise.all([
-        loadMapSources(),
-        loadMapAcquisitions(),
-        loadMapReleases(),
-        loadMapMobilityProfiles(),
-        loadMapActiveReleases(),
-      ]);
-      setSources(nextSources);
-      setAcquisitions(nextAcquisitions);
-      setReleases(nextReleases);
-      setMobilityProfiles(nextMobilityProfiles);
-      setActiveReleases(nextActiveReleases);
-      if (!selectedSource && nextSources[0]) setSelectedSource(nextSources[0].source_id);
+      const next = await loadMapAdministration();
+      setSources(next.sources);
+      setAcquisitions(next.acquisitions);
+      setReleases(next.releases);
+      setMobilityProfiles(next.mobilityProfiles);
+      setActiveReleases(next.activeReleases);
+      if (!selectedSource && next.sources[0]) setSelectedSource(next.sources[0].source_id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Map administration could not be loaded");
     }
@@ -386,21 +376,15 @@ function MapDataView() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      loadMapSources(),
-      loadMapAcquisitions(),
-      loadMapReleases(),
-      loadMapMobilityProfiles(),
-      loadMapActiveReleases(),
-    ])
-      .then(([nextSources, nextAcquisitions, nextReleases, nextMobilityProfiles, nextActiveReleases]) => {
+    loadMapAdministration()
+      .then((next) => {
         if (cancelled) return;
-        setSources(nextSources);
-        setAcquisitions(nextAcquisitions);
-        setReleases(nextReleases);
-        setMobilityProfiles(nextMobilityProfiles);
-        setActiveReleases(nextActiveReleases);
-        if (nextSources[0]) setSelectedSource(nextSources[0].source_id);
+        setSources(next.sources);
+        setAcquisitions(next.acquisitions);
+        setReleases(next.releases);
+        setMobilityProfiles(next.mobilityProfiles);
+        setActiveReleases(next.activeReleases);
+        if (next.sources[0]) setSelectedSource(next.sources[0].source_id);
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -482,7 +466,7 @@ function MapDataView() {
 }
 
 function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
-  return <section className="panel full-panel"><SectionHeader title="Policy revisions" count={snapshot.policies.length} actions={<button className="button button-secondary"><ShieldCheck size={15} /> New revision</button>} /><div className="table-scroll"><table><thead><tr><th>Policy</th><th>State</th><th>Revision</th><th>Rules</th><th>Updated</th><th aria-label="Open" /></tr></thead><tbody>{snapshot.policies.map((policy) => <tr key={policy.id}><td><strong>{policy.name}</strong><span className="mono subdued">{policy.id}</span></td><td><StatusPill value={policy.state} /></td><td>r{policy.revision}</td><td>{policy.rules}</td><td>{formatDate(policy.updatedAt)}</td><td><RowLink /></td></tr>)}</tbody></table></div></section>;
+  return <section className="panel full-panel"><SectionHeader title="Active policy sets" count={snapshot.policies.length} /><p className="panel-intro">Access policy is part of the versioned gateway control plane. Changes are validated and activated as one atomic revision; this console reports the active policy sets and does not edit them independently.</p><div className="table-scroll"><table><thead><tr><th>Policy</th><th>State</th><th>Revision</th><th>Rules</th><th>Updated</th></tr></thead><tbody>{snapshot.policies.map((policy) => <tr key={policy.id}><td><strong>{policy.name}</strong><span className="mono subdued">{policy.id}</span></td><td><StatusPill value={policy.state} /></td><td>r{policy.revision}</td><td>{policy.rules}</td><td>{formatDate(policy.updatedAt)}</td></tr>)}</tbody></table></div></section>;
 }
 
 function AuditView({ snapshot }: { snapshot: InstallationSnapshot }) {

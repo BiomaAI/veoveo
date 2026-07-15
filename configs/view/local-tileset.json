@@ -1,0 +1,13 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "geometricError": 0,
+  "root": {
+    "boundingVolume": {
+      "region": [-1.56906, 0.23598, -1.56889, 0.23612, 0, 1]
+    },
+    "geometricError": 0,
+    "refine": "ADD"
+  }
+}

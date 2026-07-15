@@ -103,6 +103,7 @@ spec:
                 secretKeyRef:
                   name: {{ $.Values.global.existingSecret }}
                   key: google-maps-api-key
+                  optional: true
             - name: NVIDIA_VISIBLE_DEVICES
               value: all
             - name: NVIDIA_DRIVER_CAPABILITIES
@@ -123,12 +124,18 @@ spec:
             httpGet:
               path: {{ $service.healthPath }}
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ printf "%s:%v" $service.name $service.port | quote }}
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: {{ $service.healthPath }}
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ printf "%s:%v" $service.name $service.port | quote }}
             initialDelaySeconds: 10
             periodSeconds: 10
           securityContext:

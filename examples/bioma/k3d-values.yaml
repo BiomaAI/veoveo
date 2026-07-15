@@ -17,12 +17,17 @@ artifactService:
   replicas: 1
 
 recording:
-  enabled: false
+  enabled: true
+  tenantKey: bioma
+  persistence:
+    size: 20Gi
+
+perception:
+  modelCache:
+    size: 5Gi
 
 consoleBff:
   replicas: 1
-
-domainServices: []
 
 telemetry:
   enabled: false

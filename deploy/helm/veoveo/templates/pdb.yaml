@@ -34,4 +34,19 @@ spec:
       {{- include "veoveo.selectorLabels" $ | nindent 6 }}
       app.kubernetes.io/component: {{ $service.name }}
 {{- end }}
+{{- if .Values.perception.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: perception-mcp
+  labels:
+    {{- include "veoveo.labels" $ | nindent 4 }}
+spec:
+  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: perception-mcp
+{{- end }}
 {{- end }}

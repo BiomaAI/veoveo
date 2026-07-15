@@ -94,7 +94,7 @@ artifactService:
     tag: 0.1.0
     digest: ""
   replicas: 2
-  allowedAudiences: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception
+  allowedAudiences: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,datasheet
   resources:
     requests:
       cpu: 100m
@@ -132,6 +132,37 @@ recording:
       cpu: "2"
       memory: 4Gi
 
+perception:
+  enabled: true
+  replicas: 1
+  runtimeClassName: nvidia
+  image:
+    repository: veoveo/perception-mcp
+    tag: 0.1.0
+    digest: ""
+  modelCache:
+    size: 5Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+  builderResources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "4"
+      memory: 8Gi
+      nvidia.com/gpu: "1"
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "8"
+      memory: 16Gi
+      nvidia.com/gpu: "1"
+
 consoleBff:
   image:
     repository: veoveo/console-bff
@@ -165,7 +196,7 @@ domainServices:
       - --allowed-host
       - artifact-mcp:8794
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
   - name: media-mcp
     image:
       repository: veoveo/media-mcp
@@ -179,7 +210,7 @@ domainServices:
       - --allowed-host
       - media-mcp:8787
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
   - name: timeseries-mcp
     image:
       repository: veoveo/timeseries-mcp
@@ -193,7 +224,7 @@ domainServices:
       - --allowed-host
       - timeseries-mcp:8789
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
       - --max-artifact-bytes
       - "536870912"
   - name: optimization-mcp
@@ -209,7 +240,7 @@ domainServices:
       - --allowed-host
       - optimization-mcp:8792
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
   - name: frames-mcp
     image:
       repository: veoveo/frames-mcp
@@ -223,7 +254,7 @@ domainServices:
       - --allowed-host
       - frames-mcp:8793
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
       - --max-artifact-bytes
       - "67108864"
   - name: map-mcp
@@ -240,7 +271,7 @@ domainServices:
       - --allowed-host
       - map-mcp:8799
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
       - --map-database
       - /var/lib/veoveo/map/catalog.duckdb
       - --duckdb-spill-dir
@@ -299,7 +330,7 @@ domainServices:
       - --allowed-host
       - view-mcp:8801
       - --layer-catalog
-      - /etc/veoveo/view/layers.json
+      - /etc/veoveo/view/local-layers.json
     resources:
       requests:
         cpu: "1"
@@ -309,6 +340,20 @@ domainServices:
         cpu: "8"
         memory: 16Gi
         nvidia.com/gpu: "1"
+  - name: datasheet-mcp
+    image:
+      repository: veoveo/datasheet-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8798
+    healthPath: /datasheet/healthz
+    args:
+      - --port
+      - "8798"
+      - --allowed-host
+      - datasheet-mcp:8798
+      - --artifact-service-url
+      - http://artifact-service:8790
   - name: duckdb-mcp
     replicas: 1
     image:
@@ -331,7 +376,7 @@ domainServices:
       - --spatial-extension
       - /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
       - --artifact-service-url
-      - http://veoveo-artifact-service:8790
+      - http://artifact-service:8790
       - --max-artifact-bytes
       - "536870912"
     duckdbSandbox: true

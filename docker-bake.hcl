@@ -22,7 +22,22 @@ group "bioma" {
   targets = [
     "mcp-gateway",
     "artifact-service",
+    "recording-hub",
+    "recording-mcp",
     "console-bff",
+    "artifact-mcp",
+    "media-mcp",
+    "perception-mcp",
+    "timeseries-mcp",
+    "duckdb-mcp",
+    "optimization-mcp",
+    "frames-mcp",
+    "map-mcp",
+    "view-mcp",
+    "time-mcp",
+    "datasheet-mcp",
+    "chart-mcp",
+    "mcp-stdio-bridge",
   ]
 }
 
@@ -70,6 +85,84 @@ target "console-bff" {
   inherits   = ["base"]
   dockerfile = "apps/console/bff/Dockerfile"
   tags       = ["veoveo/console-bff:0.1.0"]
+}
+
+target "artifact-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/artifact-mcp/Dockerfile"
+  tags       = ["veoveo/artifact-mcp:0.1.0"]
+}
+
+target "media-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/media-mcp/Dockerfile"
+  tags       = ["veoveo/media-mcp:0.1.0"]
+}
+
+target "perception-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/perception-mcp/Dockerfile"
+  tags       = ["veoveo/perception-mcp:0.1.0"]
+}
+
+target "timeseries-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/timeseries-mcp/Dockerfile"
+  tags       = ["veoveo/timeseries-mcp:0.1.0"]
+}
+
+target "duckdb-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/duckdb-mcp/Dockerfile"
+  tags       = ["veoveo/duckdb-mcp:0.1.0"]
+}
+
+target "optimization-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/optimization-mcp/Dockerfile"
+  tags       = ["veoveo/optimization-mcp:0.1.0"]
+}
+
+target "frames-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/frames-mcp/Dockerfile"
+  tags       = ["veoveo/frames-mcp:0.1.0"]
+}
+
+target "map-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/map-mcp/Dockerfile"
+  tags       = ["veoveo/map-mcp:0.1.0"]
+}
+
+target "view-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/view-mcp/Dockerfile"
+  tags       = ["veoveo/view-mcp:0.1.0"]
+}
+
+target "time-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/time-mcp/Dockerfile"
+  tags       = ["veoveo/time-mcp:0.1.0"]
+}
+
+target "datasheet-mcp" {
+  inherits   = ["base"]
+  dockerfile = "templates/python-mcp/Dockerfile"
+  tags       = ["veoveo/datasheet-mcp:0.1.0"]
+}
+
+target "chart-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/chart-mcp/Dockerfile"
+  tags       = ["veoveo/chart-mcp:0.1.0"]
+}
+
+target "mcp-stdio-bridge" {
+  inherits   = ["base"]
+  dockerfile = "mcp/bridges/stdio/Dockerfile"
+  tags       = ["veoveo/mcp-stdio-bridge:0.1.0"]
 }
 
 target "sumo-sim" {

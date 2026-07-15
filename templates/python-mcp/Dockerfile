@@ -3,10 +3,10 @@
 # sdk/python by path.
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
-WORKDIR /build
+WORKDIR /opt/veoveo
 COPY sdk/python sdk/python
 COPY templates/python-mcp templates/python-mcp
-WORKDIR /build/templates/python-mcp
+WORKDIR /opt/veoveo/templates/python-mcp
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev --compile-bytecode
 
@@ -18,8 +18,7 @@ RUN apt-get update \
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
-COPY --from=builder /build/sdk/python /opt/veoveo/sdk/python
-COPY --from=builder /build/templates/python-mcp /opt/veoveo/templates/python-mcp
+COPY --from=builder /opt/veoveo /opt/veoveo
 
 ENV PATH="/opt/veoveo/templates/python-mcp/.venv/bin:${PATH}"
 

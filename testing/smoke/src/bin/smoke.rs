@@ -71,14 +71,11 @@ enum Cmd {
         #[arg(long, default_value = "k3d-veoveo-bioma")]
         context: String,
     },
-    /// Verify concurrent SUMO and Bioma clusters plus the public Cloudflare edge.
+    /// Verify the Bioma installation and its public Cloudflare edge.
     BiomaVerify {
         /// Kubernetes context owned by the Bioma k3d cluster.
         #[arg(long, default_value = "k3d-veoveo-bioma")]
         context: String,
-        /// Kubernetes context owned by the SUMO development cluster.
-        #[arg(long, default_value = "k3d-veoveo-sumo")]
-        sumo_context: String,
         /// Loopback origin projected by the Bioma k3d load balancer.
         #[arg(long, default_value = "http://127.0.0.1:8781")]
         local_base_url: String,
@@ -435,14 +432,12 @@ async fn main() -> Result<()> {
         Cmd::BiomaResources { context } => bioma_resources(&context),
         Cmd::BiomaVerify {
             context,
-            sumo_context,
             local_base_url,
             public_base_url,
             object_base_url,
         } => {
             bioma_verify(
                 &context,
-                &sumo_context,
                 &local_base_url,
                 &public_base_url,
                 &object_base_url,

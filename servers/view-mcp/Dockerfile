@@ -41,6 +41,8 @@ RUN apt-get update \
 
 COPY --from=builder /tmp/view-mcp /usr/local/bin/view-mcp
 COPY configs/view/layers.json /etc/veoveo/view/layers.json
+COPY configs/view/local-layers.json /etc/veoveo/view/local-layers.json
+COPY configs/view/local-tileset.json /etc/veoveo/view/local-tileset.json
 
 ENV NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility \
