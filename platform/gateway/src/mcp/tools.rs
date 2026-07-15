@@ -32,7 +32,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let subject = self.authenticated(&context)?;
-        let project_tasks = self.client_allows_direct_task_adapter(&subject)?;
+        let project_tasks = self.client_allows_task_projection(&subject)?;
         let mut tools = Vec::new();
         for server_slug in self.profile_servers() {
             let catalog = self.catalog.current();
@@ -174,7 +174,7 @@ impl GatewayMcp {
         let catalog = self.catalog.current();
         let projection = parse_gateway_tool(&catalog, &request.name)?;
         let subject = self.authenticated(&context)?;
-        if !self.client_allows_direct_task_adapter(&subject)? {
+        if !self.client_allows_task_projection(&subject)? {
             return Err(mcp_invalid_params("unknown method"));
         }
         let subject = self

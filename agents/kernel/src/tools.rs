@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use rig_core::{completion::ToolDefinition, tool::Tool};
+use rig_core::tool::{Tool, ToolContext};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -66,25 +66,28 @@ impl Tool for MemoryQueryTool {
     type Args = MemoryQueryArgs;
     type Output = MemoryQueryOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Run one read-only SELECT over your own memory database. Kernel state \
-                          lives in the `kernel` schema (episodes, task_ledger, wakes); your \
-                          domain tables live in `main`."
-                .to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "sql": { "type": "string", "description": "A single SELECT or WITH statement." },
-                    "max_rows": { "type": "integer", "description": "Row cap (default 50, max 500)." }
-                },
-                "required": ["sql"]
-            }),
-        }
+    fn description(&self) -> String {
+        "Run one read-only SELECT over your own memory database. Kernel state lives in the \
+         `kernel` schema (episodes, task_ledger, wakes); your domain tables live in `main`."
+            .to_string()
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "sql": { "type": "string", "description": "A single SELECT or WITH statement." },
+                "max_rows": { "type": "integer", "description": "Row cap (default 50, max 500)." }
+            },
+            "required": ["sql"]
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let max_rows = args.max_rows.unwrap_or(50).min(MAX_QUERY_ROWS);
         let rows = self.memory.query_json(&args.sql, max_rows)?;
         Ok(MemoryQueryOutput {
@@ -121,29 +124,33 @@ impl Tool for MemoryWriteTool {
     type Args = MemoryWrite;
     type Output = MemoryWriteOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: format!(
-                "Record durable conclusions in your memory database with one typed mutation. \
-                 Writable tables: {}.",
-                self.allowed_tables.join(", ")
-            ),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "op": { "type": "string", "enum": ["insert", "update", "delete"] },
-                    "table": { "type": "string" },
-                    "row": { "type": "object", "description": "Column values for insert." },
-                    "set": { "type": "object", "description": "Column values for update." },
-                    "where": { "type": "object", "description": "Equality filters for update/delete." }
-                },
-                "required": ["op", "table"]
-            }),
-        }
+    fn description(&self) -> String {
+        format!(
+            "Record durable conclusions in your memory database with one typed mutation. \
+             Writable tables: {}.",
+            self.allowed_tables.join(", ")
+        )
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "op": { "type": "string", "enum": ["insert", "update", "delete"] },
+                "table": { "type": "string" },
+                "row": { "type": "object", "description": "Column values for insert." },
+                "set": { "type": "object", "description": "Column values for update." },
+                "where": { "type": "object", "description": "Equality filters for update/delete." }
+            },
+            "required": ["op", "table"]
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         let affected_rows = self.memory.write(&args, &self.allowed_tables)?;
         // Mirror the mutation onto the episodic plane so the decision log shows
         // when each durable fact changed.
@@ -177,25 +184,28 @@ impl Tool for TimelineQueryTool {
     type Args = TimelineQuery;
     type Output = TimelineQueryOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Query your episodic decision log (everything you have observed and \
-                          done, time-indexed). Entities: /agent/turns, /agent/tools/**, \
-                          /agent/tasks/**, /agent/episodes, /domain/**."
-                .to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "entities": { "type": "string", "description": "Entity path filter, e.g. /agent/** (default /**)." },
-                    "timeline": { "type": "string", "description": "Index timeline: log_time (default) or episode." },
-                    "max_rows": { "type": "integer", "description": "Row cap (default 50)." }
-                }
-            }),
-        }
+    fn description(&self) -> String {
+        "Query your episodic decision log (everything you have observed and done, time-indexed). \
+         Entities: /agent/turns, /agent/tools/**, /agent/tasks/**, /agent/episodes, /domain/**."
+            .to_string()
     }
 
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "entities": { "type": "string", "description": "Entity path filter, e.g. /agent/** (default /**)." },
+                "timeline": { "type": "string", "description": "Index timeline: log_time (default) or episode." },
+                "max_rows": { "type": "integer", "description": "Row cap (default 50)." }
+            }
+        })
+    }
+
+    async fn call(
+        &self,
+        _context: &mut ToolContext,
+        args: Self::Args,
+    ) -> Result<Self::Output, Self::Error> {
         // The live segment is mid-append; flush so the snapshot sees
         // everything logged before this query.
         self.rrd.flush();

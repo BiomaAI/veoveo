@@ -13,7 +13,7 @@ server uses the protocol surface that matches its domain:
 | Need | Canonical MCP surface |
 |---|---|
 | action | tool with declared input and output JSON Schemas |
-| durable action | task-required tool through the final task extension |
+| durable action | task-augmented tool through the MCP tasks API |
 | addressable state | resource or resource template |
 | discovery | resource list/template plus completion |
 | reusable interaction | prompt |
@@ -25,11 +25,19 @@ The gateway discovers these surfaces from upstream servers and projects them int
 profile. It prefixes tool names only at the aggregation boundary, for example local
 `run` becomes `media__run`. Resource URIs keep their owning scheme.
 
+Full-MCP clients receive the standard task surface whenever a profile exposes a
+task-capable server. The gateway currently projects the hosted server's final task
+extension onto that surface without changing task identity. The shared runtime still
+owns policy checks and retention. Audit follows the existing task path, and completion
+remains webhook-only. This projection is the migration boundary until hosted servers
+implement the standard task handlers directly.
+
 Some registered clients are explicitly `tools_compat`. Their narrow projections are
 implemented over the same upstream operation contract, task ID, policy decision, audit
-path, subscription, artifact identity, and result. They are additive client features,
-not a second protocol or source of truth. Full-MCP clients never receive compatibility
-helper clutter.
+path, subscription, artifact identity, and result. Task projection for these clients
+requires the explicit direct-adapter flag. Compatibility behavior remains additive and
+does not create a second protocol or source of truth. Full-MCP clients never receive
+compatibility helper clutter.
 
 ## Component Boundaries
 

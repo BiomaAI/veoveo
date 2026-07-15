@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use chrono::{TimeDelta, Utc};
-use rig_core::tool::{TaskResumer, ToolFailureKind, ToolTaskDescriptor};
+use rig_core::tool::{TaskResumer, ToolErrorKind, ToolTaskDescriptor, ToolTaskStatus};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use veoveo_agent_runtime::{AgentRuntime, ClaimedAgentTask, json_object, wrapped_json};
@@ -80,28 +80,30 @@ async fn watch_task(
                     }
                 }
             };
-            let outcome = result.outcome();
-            let transient = outcome.is_error_kind(ToolFailureKind::Network)
-                || outcome.is_error_kind(ToolFailureKind::Timeout)
-                || outcome.is_error_kind(ToolFailureKind::Cancelled);
+            let outcome = result.result();
+            let status = result.status();
+            let error_kind = outcome.error().map(|error| error.kind());
+            let transient = is_transient_task_failure(status, error_kind);
             if transient {
                 runtime
                     .retry_task(
                         &task,
                         Utc::now() + retry_delay(task.attempt_count),
-                        result.model_output(),
+                        &outcome.output().render(),
                     )
                     .await?;
                 return Ok(());
             }
             let payload = json_object(
                 serde_json::json!({
-                    "output": result.model_output(),
+                    "output": outcome.output().render(),
                     "delivered": "watcher",
                 }),
                 "task result",
             )?;
-            let wake_id = if outcome.is_error_kind(ToolFailureKind::NotFound) {
+            let wake_id = if outcome.is_error_kind(ToolErrorKind::NotFound)
+                || status == ToolTaskStatus::Cancelled
+            {
                 runtime.fail_task(&task, payload).await?
             } else {
                 runtime
@@ -141,6 +143,13 @@ fn retry_delay(attempt_count: i64) -> TimeDelta {
     TimeDelta::seconds(i64::from(2u32.saturating_pow(exponent)))
 }
 
+fn is_transient_task_failure(status: ToolTaskStatus, error_kind: Option<ToolErrorKind>) -> bool {
+    matches!(
+        error_kind,
+        Some(ToolErrorKind::Network | ToolErrorKind::Timeout)
+    ) || (error_kind == Some(ToolErrorKind::Cancelled) && status != ToolTaskStatus::Cancelled)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,5 +159,21 @@ mod tests {
         assert_eq!(retry_delay(0), TimeDelta::seconds(1));
         assert_eq!(retry_delay(1), TimeDelta::seconds(2));
         assert_eq!(retry_delay(100_000), TimeDelta::seconds(64));
+    }
+
+    #[test]
+    fn backend_cancellation_is_terminal_but_transport_cancellation_retries() {
+        assert!(!is_transient_task_failure(
+            ToolTaskStatus::Cancelled,
+            Some(ToolErrorKind::Cancelled)
+        ));
+        assert!(is_transient_task_failure(
+            ToolTaskStatus::Failed,
+            Some(ToolErrorKind::Cancelled)
+        ));
+        assert!(is_transient_task_failure(
+            ToolTaskStatus::Failed,
+            Some(ToolErrorKind::Network)
+        ));
     }
 }

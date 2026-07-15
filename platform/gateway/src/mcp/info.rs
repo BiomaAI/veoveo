@@ -79,7 +79,7 @@ impl GatewayMcp {
         let subject = self.authenticated(&context)?;
         context.peer.set_peer_info(request);
         let mut info = self.get_info();
-        if self.client_allows_direct_task_adapter(&subject)?
+        if self.client_allows_task_projection(&subject)?
             && self
                 .catalog
                 .current()

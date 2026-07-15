@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
 use rig_core::{
-    agent::{Agent, run::TaskDrainPolicy},
-    tool::ToolCallExtensions,
+    agent::{Agent, TaskCompletionPolicy, TaskDrainPolicy},
+    tool::{ToolContext, ToolTaskDescriptor},
 };
 use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion, json_object};
 use veoveo_mcp_task_extension::TASK_RETENTION_PIN_META_KEY;
@@ -98,15 +98,16 @@ impl EpisodeDriver {
             TASK_RETENTION_PIN_META_KEY.to_owned(),
             serde_json::json!(episode.retention_pin),
         );
-        let mut extensions = ToolCallExtensions::new();
-        extensions.insert(meta);
+        let mut tool_context = ToolContext::new();
+        tool_context.insert(meta);
         let response = self
             .agent
             .runner(prompt)
-            .tool_extensions(extensions)
+            .tool_context(tool_context)
             .add_hook(recorder)
             .add_hook(BudgetHook::new(self.manifest.budgets.per_episode.clone()))
             .max_turns(self.manifest.episode.max_turns)
+            .task_completion_policy(TaskCompletionPolicy::ContinueTurns)
             .task_deadline(self.manifest.task_deadline())
             .task_drain(TaskDrainPolicy::Detach)
             .run()
@@ -257,10 +258,7 @@ fn canonical_task_id(value: &str) -> Result<TaskId> {
     Ok(task_id)
 }
 
-fn descriptor_tool_name(
-    descriptors: &[rig_core::tool::ToolTaskDescriptor],
-    task_id: TaskId,
-) -> &str {
+fn descriptor_tool_name(descriptors: &[ToolTaskDescriptor], task_id: TaskId) -> &str {
     descriptors
         .iter()
         .find(|descriptor| descriptor.task_id == task_id.to_string())

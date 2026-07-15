@@ -9,7 +9,9 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use rig_core::{
-    agent::{AgentHook, Flow, HookContext, StepEvent},
+    agent::{
+        AgentHook, CompletionCallAction, CompletionCallEvent, HookContext, ToolCall, ToolCallAction,
+    },
     completion::CompletionModel,
 };
 
@@ -37,30 +39,31 @@ impl<M> AgentHook<M> for BudgetHook
 where
     M: CompletionModel,
 {
-    async fn on_event(&self, _ctx: &HookContext, event: StepEvent<'_, M>) -> Flow {
-        match event {
-            StepEvent::CompletionCall { .. } => {
-                let seen = self.completion_calls.fetch_add(1, Ordering::Relaxed) + 1;
-                if let Some(max) = self.budget.max_completion_calls
-                    && seen > max
-                {
-                    return Flow::terminate(format!(
-                        "{BUDGET_TERMINATED_PREFIX}: completion calls exceeded {max}"
-                    ));
-                }
-            }
-            StepEvent::ToolCall { .. } => {
-                let seen = self.tool_calls.fetch_add(1, Ordering::Relaxed) + 1;
-                if let Some(max) = self.budget.max_tool_calls
-                    && seen > max
-                {
-                    return Flow::terminate(format!(
-                        "{BUDGET_TERMINATED_PREFIX}: tool calls exceeded {max}"
-                    ));
-                }
-            }
-            _ => {}
+    async fn on_completion_call(
+        &self,
+        _ctx: &HookContext,
+        _event: CompletionCallEvent<'_>,
+    ) -> CompletionCallAction {
+        let seen = self.completion_calls.fetch_add(1, Ordering::Relaxed) + 1;
+        if let Some(max) = self.budget.max_completion_calls
+            && seen > max
+        {
+            return CompletionCallAction::stop(format!(
+                "{BUDGET_TERMINATED_PREFIX}: completion calls exceeded {max}"
+            ));
         }
-        Flow::cont()
+        CompletionCallAction::continue_run()
+    }
+
+    async fn on_tool_call(&self, _ctx: &HookContext, _event: ToolCall<'_>) -> ToolCallAction {
+        let seen = self.tool_calls.fetch_add(1, Ordering::Relaxed) + 1;
+        if let Some(max) = self.budget.max_tool_calls
+            && seen > max
+        {
+            return ToolCallAction::stop(format!(
+                "{BUDGET_TERMINATED_PREFIX}: tool calls exceeded {max}"
+            ));
+        }
+        ToolCallAction::run()
     }
 }

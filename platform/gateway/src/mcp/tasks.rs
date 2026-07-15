@@ -23,7 +23,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, McpError> {
         let subject = self.authenticated(&context)?;
-        if !self.client_allows_direct_task_adapter(&subject)? {
+        if !self.client_allows_task_projection(&subject)? {
             return Err(mcp_invalid_params("unknown method"));
         }
         let route = self
@@ -42,7 +42,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<GetTaskPayloadResult, McpError> {
         let subject = self.authenticated(&context)?;
-        if !self.client_allows_direct_task_adapter(&subject)? {
+        if !self.client_allows_task_projection(&subject)? {
             return Err(mcp_invalid_params("unknown method"));
         }
         let route = self
@@ -86,7 +86,7 @@ impl GatewayMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CancelTaskResult, McpError> {
         let subject = self.authenticated(&context)?;
-        if !self.client_allows_direct_task_adapter(&subject)? {
+        if !self.client_allows_task_projection(&subject)? {
             return Err(mcp_invalid_params("unknown method"));
         }
         let route = self
