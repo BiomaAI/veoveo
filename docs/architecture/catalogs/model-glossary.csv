@@ -2,9 +2,9 @@ term,definition,uaf_or_sysml_mapping
 Actual Resource,"A fielded or instantiated resource configuration. In this baseline it represents a connected or offline Compose or Helm installation.",UAF ActualResource
 Artifact,"A governed occurrence with a canonical artifact URI, metadata, authorization, retention, release state, and separately stored bytes.",UAF ResourceArtifact and OperationalInformation
 Capability,"An enterprise ability realized through operational activities, services, resources, people, and constraints.",UAF Capability
-Compatibility helper,"An explicitly registered narrow projection for a client that cannot use a richer MCP surface; it reuses canonical typed models, policy, audit, tasks, artifacts, and URIs.",Derived service projection
+Compatibility helper,"An explicitly registered narrow projection for a client that cannot use a richer MCP surface; it reuses canonical domain models, policy, audit, tasks, artifacts, and URIs.",Derived service projection
 Completion,"An MCP protocol capability that helps complete identifiers or arguments; it is distinct from provider job completion.",MCP service function
-Control plane,"The typed identity, server, profile, policy, OAuth, and gateway revision state that governs an installation.",UAF Architecture Management and Security information
+Control plane,"The identity, server, profile, policy, OAuth, and gateway revision records that govern an installation.",UAF Architecture Management and Security information
 Data label,"A classification or handling label enforced with tenant and grant policy before access is allowed.",UAF Security constraint
 Durable task,"A long-running operation whose identity, owner, transitions, recovery, result, and events survive process restart.",SysML state machine subject and UAF Function
 Gateway profile,"A protected MCP resource that selects servers, capabilities, scopes, clients, and policy rules for a client population.",UAF ServiceArchitecture
@@ -18,7 +18,7 @@ Provider completion,"The transition of an external provider job from submitted t
 Recording,"A governed logical Rerun recording composed of one or more crash-decodable RRD segments and a SurrealDB catalog identity.",UAF ResourceArtifact and ResourceInformation
 Recovery class,"The declared restart semantics of a durable operation: Resume, WebhookWait, or InterruptedIndeterminate.",SysML state-machine constraint
 Resource,"A concrete software, data, infrastructure, personnel, or facility element that realizes services and operational activities.",UAF Resource domain
-Resource URI,"A typed URI owned by one domain and preserved across gateway aggregation, tasks, artifacts, and links.",UAF ResourceInformation identity
+Resource URI,"A canonical URI owned by one domain and preserved across gateway aggregation, tasks, artifacts, and links.",UAF ResourceInformation identity
 Service,"An implementation-independent capability offered across an interface to support operational activities.",UAF Service
 Software component,"A first-party or external executable, library, application, package, deployment definition, or runtime included in the architecture scope.",UAF Software and SysML Block
 System,"A resource performer that composes software and infrastructure into an operationally useful whole.",UAF System and SysML Block

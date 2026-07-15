@@ -129,8 +129,8 @@
 <tspan x="823" dy="0">Server-local enforcement</tspan>
 </text>
 <text x="823" y="510" class="small" text-anchor="start">
-<tspan x="823" dy="0">Canonical audience, domain scope, typed identifiers,</tspan>
-<tspan x="823" dy="16">bounded bodies and outputs</tspan>
+<tspan x="823" dy="0">Canonical audience, domain scope, stable</tspan>
+<tspan x="823" dy="16">identifiers, bounded bodies and outputs</tspan>
 </text>
 <rect x="805" y="645" width="450" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="805" y="645" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -139,7 +139,7 @@
 <tspan x="823" dy="0">Durable decision evidence</tspan>
 </text>
 <text x="823" y="715" class="small" text-anchor="start">
-<tspan x="823" dy="0">Policy decision, typed principal attributes, task</tspan>
+<tspan x="823" dy="0">Policy decision, explicit principal attributes, task</tspan>
 <tspan x="823" dy="16">owner, audit event, outbox order</tspan>
 </text>
 <rect x="805" y="850" width="450" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>

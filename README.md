@@ -10,7 +10,7 @@ product dependency or canonical hostname.
 
 ## What It Provides
 
-- A typed MCP gateway that aggregates hosted servers into policy-scoped profiles.
+- An MCP gateway that aggregates hosted servers into policy-scoped profiles.
 - Full MCP surfaces where the domain fits: tools, resources and templates, prompts,
   completions, final durable tasks, subscriptions, notifications, structured
   content, and URI identities.
@@ -71,12 +71,13 @@ and authorization records.
 
 ## Hosted Servers
 
-The canonical control plane defines twelve server identities:
+The canonical control plane defines fourteen server identities:
 
 | Server | Main capability |
 |---|---|
 | `media` | provider-neutral media catalog, schemas, generation, webhook completion |
-| `timeseries` | typed forecasting and durable RRD output |
+| `timeseries` | forecasting with governed artifacts and durable RRD output |
+| `time` | authority-bound time resolution, calendars, clock quality, timelines, and events |
 | `duckdb` | arbitrary query/execute/ingest/export SQL in bounded workspaces |
 | `optimization` | deterministic planning and artifact output |
 | `frames` | WGS84, ECEF, ENU, and NED frame conversion and durable batches |
@@ -87,6 +88,7 @@ The canonical control plane defines twelve server identities:
 | `perception` | governed Rerun video extraction, local detection/tracking, and derived annotations |
 | `charts` | chart rendering projected through the gateway |
 | `rerun` | bridged Rerun viewer MCP surface |
+| `view` | GPU-backed 3D Tiles views and reproducible offscreen frame capture |
 
 The SUMO showcase adds a provider-neutral `sumo` traffic-world server without
 changing platform contracts. See [`showcase/sumo/README.md`](showcase/sumo/README.md).
@@ -242,7 +244,7 @@ just offline-load output/veoveo-offline-0.1.0.tar.gz docker /opt/veoveo
 ```
 
 The bundle contains pinned runtime images, Veoveo images, Compose and Helm material,
-typed configuration schemas, checksums, resolved image identities, and SPDX SBOMs.
+versioned configuration schemas, checksums, resolved image identities, and SPDX SBOMs.
 Loading retains all verification evidence. See
 [`deploy/offline/README.md`](deploy/offline/README.md).
 
@@ -295,7 +297,7 @@ testing/                    protocol conformance and Rust multi-process smoke ha
 sdk/python/                 Python platform package for hosted MCP servers
 templates/python-mcp/       canonical Python server template (datasheet)
 showcase/sumo/              real SUMO world, simulator image, and showcase MCP server
-configs/                    canonical typed installation configuration
+configs/                    canonical installation configuration
 deploy/                     Helm and offline installation material
 examples/bioma/             optional Entra and Cloudflare deployment example
 ```

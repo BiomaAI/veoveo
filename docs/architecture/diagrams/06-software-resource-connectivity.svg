@@ -99,77 +99,89 @@
 <rect x="680" y="120" width="570" height="1020" rx="12" fill="#deebf2" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="698" y="146" class="label" text-anchor="start">Application zone</text>
 <text x="1232" y="146" class="small" text-anchor="end">Gateway-authenticated</text>
-<rect x="705" y="175" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="705" y="175" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="723" y="198" class="node-id" text-anchor="start">VV-CMP-016</text>
-<text x="723" y="222" class="node-title" text-anchor="start">
-<tspan x="723" dy="0">Artifact</tspan>
+<rect x="700" y="175" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="700" y="175" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="718" y="198" class="node-id" text-anchor="start">VV-CMP-016</text>
+<text x="718" y="222" class="node-title" text-anchor="start">
+<tspan x="718" dy="0">Artifact</tspan>
 </text>
-<rect x="885" y="175" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="885" y="175" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="903" y="198" class="node-id" text-anchor="start">VV-CMP-017</text>
-<text x="903" y="222" class="node-title" text-anchor="start">
-<tspan x="903" dy="0">Frames</tspan>
+<rect x="832" y="175" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="832" y="175" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="850" y="198" class="node-id" text-anchor="start">VV-CMP-017</text>
+<text x="850" y="222" class="node-title" text-anchor="start">
+<tspan x="850" dy="0">Frames</tspan>
 </text>
-<rect x="1065" y="175" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="1065" y="175" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1083" y="198" class="node-id" text-anchor="start">VV-CMP-018</text>
-<text x="1083" y="222" class="node-title" text-anchor="start">
-<tspan x="1083" dy="0">DuckDB</tspan>
+<rect x="964" y="175" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="964" y="175" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="982" y="198" class="node-id" text-anchor="start">VV-CMP-018</text>
+<text x="982" y="222" class="node-title" text-anchor="start">
+<tspan x="982" dy="0">DuckDB</tspan>
 </text>
-<rect x="705" y="320" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="705" y="320" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="723" y="343" class="node-id" text-anchor="start">VV-CMP-019</text>
-<text x="723" y="367" class="node-title" text-anchor="start">
-<tspan x="723" dy="0">Media</tspan>
+<rect x="1096" y="175" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1096" y="175" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1114" y="198" class="node-id" text-anchor="start">VV-CMP-019</text>
+<text x="1114" y="222" class="node-title" text-anchor="start">
+<tspan x="1114" dy="0">Media</tspan>
 </text>
-<rect x="885" y="320" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="885" y="320" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="903" y="343" class="node-id" text-anchor="start">VV-CMP-020</text>
-<text x="903" y="367" class="node-title" text-anchor="start">
-<tspan x="903" dy="0">Map</tspan>
+<rect x="700" y="300" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="700" y="300" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="718" y="323" class="node-id" text-anchor="start">VV-CMP-020</text>
+<text x="718" y="347" class="node-title" text-anchor="start">
+<tspan x="718" dy="0">Map</tspan>
 </text>
-<rect x="1065" y="320" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="1065" y="320" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1083" y="343" class="node-id" text-anchor="start">VV-CMP-021</text>
-<text x="1083" y="367" class="node-title" text-anchor="start">
-<tspan x="1083" dy="0">Optimization</tspan>
+<rect x="832" y="300" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="832" y="300" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="850" y="323" class="node-id" text-anchor="start">VV-CMP-021</text>
+<text x="850" y="347" class="node-title" text-anchor="start">
+<tspan x="850" dy="0">Optimization</tspan>
 </text>
-<rect x="705" y="465" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="705" y="465" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="723" y="488" class="node-id" text-anchor="start">VV-CMP-022</text>
-<text x="723" y="512" class="node-title" text-anchor="start">
-<tspan x="723" dy="0">Perception</tspan>
+<rect x="964" y="300" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="964" y="300" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="982" y="323" class="node-id" text-anchor="start">VV-CMP-022</text>
+<text x="982" y="347" class="node-title" text-anchor="start">
+<tspan x="982" dy="0">Perception</tspan>
 </text>
-<rect x="885" y="465" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="885" y="465" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="903" y="488" class="node-id" text-anchor="start">VV-CMP-023</text>
-<text x="903" y="512" class="node-title" text-anchor="start">
-<tspan x="903" dy="0">Recording</tspan>
+<rect x="1096" y="300" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1096" y="300" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1114" y="323" class="node-id" text-anchor="start">VV-CMP-023</text>
+<text x="1114" y="347" class="node-title" text-anchor="start">
+<tspan x="1114" dy="0">Recording</tspan>
 </text>
-<rect x="1065" y="465" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="1065" y="465" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1083" y="488" class="node-id" text-anchor="start">VV-CMP-024</text>
-<text x="1083" y="512" class="node-title" text-anchor="start">
-<tspan x="1083" dy="0">Timeseries</tspan>
+<rect x="700" y="425" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="700" y="425" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="718" y="448" class="node-id" text-anchor="start">VV-CMP-024</text>
+<text x="718" y="472" class="node-title" text-anchor="start">
+<tspan x="718" dy="0">Timeseries</tspan>
 </text>
-<rect x="705" y="610" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="705" y="610" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="723" y="633" class="node-id" text-anchor="start">VV-CMP-025</text>
-<text x="723" y="657" class="node-title" text-anchor="start">
-<tspan x="723" dy="0">Datasheet</tspan>
+<rect x="832" y="425" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="832" y="425" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="850" y="448" class="node-id" text-anchor="start">VV-CMP-025</text>
+<text x="850" y="472" class="node-title" text-anchor="start">
+<tspan x="850" dy="0">Datasheet</tspan>
 </text>
-<rect x="885" y="610" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="885" y="610" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="903" y="633" class="node-id" text-anchor="start">VV-CMP-026</text>
-<text x="903" y="657" class="node-title" text-anchor="start">
-<tspan x="903" dy="0">Charts</tspan>
+<rect x="964" y="425" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="964" y="425" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="982" y="448" class="node-id" text-anchor="start">VV-CMP-026</text>
+<text x="982" y="472" class="node-title" text-anchor="start">
+<tspan x="982" dy="0">Charts</tspan>
 </text>
-<rect x="1065" y="610" width="160" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="1065" y="610" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1083" y="633" class="node-id" text-anchor="start">VV-CMP-013/027</text>
-<text x="1083" y="657" class="node-title" text-anchor="start">
-<tspan x="1083" dy="0">Rerun bridge</tspan>
+<rect x="1096" y="425" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1096" y="425" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1114" y="448" class="node-id" text-anchor="start">VV-CMP-013/027</text>
+<text x="1114" y="472" class="node-title" text-anchor="start">
+<tspan x="1114" dy="0">Rerun bridge</tspan>
+</text>
+<rect x="700" y="550" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="700" y="550" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="718" y="573" class="node-id" text-anchor="start">VV-CMP-049</text>
+<text x="718" y="597" class="node-title" text-anchor="start">
+<tspan x="718" dy="0">Time</tspan>
+</text>
+<rect x="832" y="550" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="832" y="550" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="850" y="573" class="node-id" text-anchor="start">VV-CMP-050</text>
+<text x="850" y="597" class="node-title" text-anchor="start">
+<tspan x="850" dy="0">View</tspan>
 </text>
 <rect x="705" y="790" width="250" height="135" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="705" y="790" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>

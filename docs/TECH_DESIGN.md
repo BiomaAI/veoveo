@@ -1,8 +1,9 @@
 # Veoveo Technical Design
 
 This document explains how the self-hosted Veoveo components implement the
-boundaries in `ARCHITECTURE_DECISIONS.md`. The architecture is protocol-first,
-typed, durable, and installation-owned.
+boundaries in `ARCHITECTURE_DECISIONS.md`. The architecture is protocol-first.
+Known requests, responses, identities, and persisted records use explicit Rust types
+or declared schemas. Durable state and service ownership remain inside the installation.
 
 ## Capability Model
 
@@ -11,21 +12,21 @@ server uses the protocol surface that matches its domain:
 
 | Need | Canonical MCP surface |
 |---|---|
-| action | tool with typed input/output schema |
+| action | tool with declared input and output JSON Schemas |
 | durable action | task-required tool through the final task extension |
 | addressable state | resource or resource template |
 | discovery | resource list/template plus completion |
 | reusable interaction | prompt |
 | live condition | resource subscription and notification |
 | progress/result wake | task subscription |
-| cross-server identity | typed URI and resource link |
+| cross-server identity | canonical URI and resource link |
 
 The gateway discovers these surfaces from upstream servers and projects them into a
 profile. It prefixes tool names only at the aggregation boundary, for example local
 `run` becomes `media__run`. Resource URIs keep their owning scheme.
 
 Some registered clients are explicitly `tools_compat`. Their narrow projections are
-implemented over the same typed upstream operation, task ID, policy decision, audit
+implemented over the same upstream operation contract, task ID, policy decision, audit
 path, subscription, artifact identity, and result. They are additive client features,
 not a second protocol or source of truth. Full-MCP clients never receive compatibility
 helper clutter.
@@ -46,9 +47,9 @@ mcp-gateway
   +-- SurrealDB control/runtime state
 
 hosted MCP server
-  +-- server-local typed domain contracts
+  +-- server-local Rust models and declared schemas
   +-- shared task runtime when operations are durable
-  +-- optional typed HTTP administration under its canonical mount
+  +-- optional contract-defined HTTP administration under its canonical mount
   +-- forwarded internal identity for artifact/recording operations
   +-- no private control database or byte route
 
@@ -91,12 +92,12 @@ The gateway reads the active catalog revision and requires the selected profile 
 contain the requested server. It classifies safe methods as `AdminRead` and mutation
 methods as `AdminWrite`, evaluates profile policy, records the operation, and issues a
 short-lived internal assertion for the owning server. The proxy preserves the bounded
-request body and the HTTP headers needed for typed content, idempotency, conditional
+request body and the HTTP headers needed for structured content, idempotency, conditional
 writes, caching, and retry guidance.
 
 The owning server validates the internal assertion and the domain's administrative
-scope. Its handlers use server-local typed contracts and the same application state as
-its MCP implementation. Durable domain records live behind `veoveo-platform-store`;
+scope. Its handlers use server-local request and response models and the same application
+state as its MCP implementation. Durable domain records live behind `veoveo-platform-store`;
 their ordered schema migrations remain part of installation bootstrap.
 
 The Console publishes explicit BFF routes for the administrative workflows represented
@@ -112,7 +113,7 @@ migrations, creates or rotates the database runtime user, and publishes the init
 gateway control revision. Long-running services connect at database scope and never run
 migrations themselves.
 
-`veoveo-platform-store` owns typed records and persistence APIs for:
+`veoveo-platform-store` owns Rust record types and persistence APIs for:
 
 - tenants, principals, groups, server/profile identities, and policies;
 - immutable gateway control revisions and the active revision pointer;
@@ -140,7 +141,7 @@ part of idempotency scope.
 
 `veoveo-mcp-task-extension` implements the final `2026-06-30` extension wire contract:
 discovery, task-required tool invocation, get, update, cancel, list, and SSE task
-subscriptions. It projects the shared runtime's typed snapshots; it does not persist a
+subscriptions. It projects the shared runtime's task snapshots; it does not persist a
 parallel task model. Traits use native Rust return-position `impl Future`; the workspace
 does not require `async-trait` for controlled async contracts.
 
@@ -248,10 +249,10 @@ without pretending mutations can be replayed safely.
 
 ## Gateway Identity And Policy
 
-External identity is provider-independent. A typed control plane describes OIDC issuer,
-JWKS, claim mapping, tenant mapping, authorization endpoints, clients, profiles, scopes,
-server exposure, and policy rules. Keycloak is used for real integration tests; Entra is
-shown in the Bioma example.
+External identity is provider-independent. The control-plane configuration is validated
+against its schema. It describes the OIDC issuer, JWKS, claim mapping, tenant mapping,
+authorization endpoints, clients, profiles, scopes, server exposure, and policy rules.
+Keycloak is used for real integration tests; Entra is shown in the Bioma example.
 
 The gateway supports:
 
@@ -267,16 +268,16 @@ The gateway supports:
   scopes, and short expiry.
 
 Unknown profiles, servers, methods, resources, task IDs, artifact IDs, issuers, keys, or
-policy targets fail closed. Audit records carry typed principal attributes and decision
+policy targets fail closed. Audit records carry explicit principal attributes and decision
 context but exclude prompts, artifact bytes, provider payloads, tokens, link bearers,
 webhook bodies, and signed URLs.
 
 Refresh rotation is a durable compare-and-swap. The winner stores only an
 XChaCha20-Poly1305 successor envelope for the configured short delivery window. Its AAD
 binds the authorization server, profile, OAuth client, token family, and generation. A
-concurrent request using the just-consumed token receives that exact successor and a
-typed duplicate-delivery audit outcome. Once the window expires, reuse is delayed replay
-and revokes the whole family. The delivery key is a separate base64-encoded 32-byte
+concurrent request using the just-consumed token receives that exact successor and an audit
+event with reason code `refresh_token_duplicate_delivery`. Once the window expires, reuse is
+delayed replay and revokes the whole family. The delivery key is a separate base64-encoded 32-byte
 installation secret; plaintext tokens and delivery envelopes never enter logs, audit
 payloads, outbox events, or console snapshots. The envelope becomes ineligible for
 delivery at the configured deadline. Consuming that successor clears its envelope in
@@ -300,7 +301,7 @@ and no-store API responses are applied by the BFF.
 
 ## Recordings And Agents
 
-The Recording Hub is a push-based durability service. Producers stream typed Rerun log
+The Recording Hub is a push-based durability service. Producers stream Rerun log
 messages into a private gRPC proxy. The spooler routes by application prefix, fsyncs open
 segments, keeps crash-decodable siblings, verifies frozen segments before replacement,
 and writes governed recording/segment catalog records. Raw ingest and files are not
@@ -308,7 +309,7 @@ public ingress surfaces.
 
 `recording-mcp` applies tenant/label authorization to discovery, query, subscription,
 and artifact publication. SUMO uses the same path: one serialized TraCI owner publishes
-typed world frames and exposes traffic controls/resources/tasks.
+Rerun world frames and exposes traffic controls, resources, and tasks.
 
 The agent kernel runs bounded episodes and persists scheduling through
 `veoveo-agent-runtime`. Tool tasks detach at episode end; durable descriptors, watcher
@@ -338,7 +339,7 @@ operation.
 ## Verification
 
 All smoke orchestration is Rust. The harness owns child/container lifecycle, readiness,
-timeouts, cleanup, typed calls, and assertions. The Justfile only dispatches it.
+timeouts, cleanup, MCP and HTTP calls, and assertions. The Justfile only dispatches it.
 
 Coverage includes:
 

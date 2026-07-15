@@ -172,8 +172,8 @@
 <rect x="1995" y="585" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <text x="45" y="612" class="node-id" text-anchor="start">VV-REQ-007</text>
 <text x="200" y="608" class="tiny" text-anchor="start">
-<tspan x="200" dy="0">World and sensor producers shall push typed Rerun streams into a private durable</tspan>
-<tspan x="200" dy="13">recording boundary that preserves crash-decodable evidence.</tspan>
+<tspan x="200" dy="0">World and sensor producers shall push Rerun log streams into a private durable recording</tspan>
+<tspan x="200" dy="13">boundary that preserves crash-decodable evidence.</tspan>
 </text>
 <text x="895" y="614" class="small" text-anchor="start">VV-CAP-004</text>
 <text x="1085" y="614" class="small" text-anchor="start">VV-OPA-005</text>

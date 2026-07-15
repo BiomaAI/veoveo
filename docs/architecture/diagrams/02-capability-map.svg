@@ -55,8 +55,8 @@
 <tspan x="1279.5" dy="0">Governed world recording</tspan>
 </text>
 <text x="1279.5" y="238" class="small" text-anchor="start">
-<tspan x="1279.5" dy="0">Typed sensor and simulation evidence is</tspan>
-<tspan x="1279.5" dy="16">pushed into durable RRD recordings.</tspan>
+<tspan x="1279.5" dy="0">Sensor and simulation evidence is pushed</tspan>
+<tspan x="1279.5" dy="16">into durable RRD recordings.</tspan>
 </text>
 <rect x="40" y="367" width="1620" height="225" rx="12" fill="#deebf2" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="58" y="393" class="label" text-anchor="start">Domain decision capabilities</text>
@@ -144,8 +144,8 @@
 <tspan x="879.0" dy="0">Extensible hosted domains</tspan>
 </text>
 <text x="879.0" y="979" class="small" text-anchor="start">
-<tspan x="879.0" dy="0">Typed Rust and Python contracts add servers without weakening canonical protocol</tspan>
-<tspan x="879.0" dy="16">behavior.</tspan>
+<tspan x="879.0" dy="0">Shared Rust contracts and validated Python models add servers without weakening</tspan>
+<tspan x="879.0" dy="16">canonical protocol behavior.</tspan>
 </text>
 <rect x="40" y="1045" width="1620" height="70" rx="10" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="62" y="1075" class="label inverse" text-anchor="start">Capability realization rule</text>

@@ -24,7 +24,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
-| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | typed high-level planning and optimization |
+| [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | planning problem models and optimization |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
@@ -58,9 +58,9 @@ is the browser edition of the harness document.
 | `rust-toolchain.toml` | canonical Rust toolchain |
 | `compose.yaml` | canonical single-host self-hosted installation |
 | `.env.example` | required installation configuration and secrets |
-| `configs/gateway.local.json` | generic typed gateway control plane |
+| `configs/gateway.local.json` | generic gateway control-plane configuration |
 | `configs/gateway.smoke.json` | isolated smoke control plane |
-| `configs/deployments.json` | typed deployment contract examples |
+| `configs/deployments.json` | deployment contract examples |
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `configs/Caddyfile` | canonical edge routes and public-surface denial |
@@ -98,7 +98,7 @@ crate belongs beside the system it implements; Rust is not an architectural boun
 | `showcase/` | an end-to-end domain integration that is not part of the core installation |
 
 MCP servers do not live under a generic `tools/` root. They expose resources, prompts,
-tasks, subscriptions, notifications, and typed content in addition to tools, so
+tasks, subscriptions, notifications, and structured content in addition to tools, so
 `servers/` names the deployable boundary without narrowing the protocol.
 
 ## Shared Contracts
@@ -126,7 +126,7 @@ schema merely because the server is first-party.
 | `deployment.rs` | Compose/Helm/offline topology contract |
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
-| `subscriptions.rs` | typed resource subscription hub |
+| `subscriptions.rs` | resource subscription hub |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `platform/recordings/rrd`
@@ -144,8 +144,8 @@ The only durable platform persistence layer.
 |---|---|
 | `config.rs` | root/database auth configuration and validation |
 | `migrations.rs` | ordered SurrealDB 3.2 schema migrations |
-| `models.rs` | strongly typed persisted records/enums |
-| `ids.rs`, `table.rs` | typed record IDs and table identities |
+| `models.rs` | persisted Rust record and enum definitions |
+| `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | `administration.rs` | bootstrap, runtime user, migration administration |
 | `identity.rs` | tenant/principal/group resolution |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
@@ -156,7 +156,7 @@ The only durable platform persistence layer.
 | `recordings.rs` | recording and segment catalog |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
-| `store.rs` | connection and common typed transaction helpers |
+| `store.rs` | connection and transaction helpers over domain records |
 
 Migrations `0001` through the current version live under `migrations/`. Runtime services
 never apply them; installation bootstrap does.
@@ -202,7 +202,7 @@ The runtime is the source of truth. The extension is transport only.
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC |
 | `state/subscriptions.rs` | durable subscription ownership and forwarding |
-| `secrets.rs` | typed environment/file/Vault secret resolution |
+| `secrets.rs` | secret-source models and environment/file/Vault resolution |
 
 ### Binary surface: `platform/gateway/src/bin/gateway`
 
@@ -215,7 +215,7 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/tasks.rs` | policy-checked cancellation through owning task extension |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
 | `admin/console.rs` | safe installation snapshot projection |
-| `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's typed admin API |
+| `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
 | `audit.rs` | common admin authorization and operation audit helpers |
 
@@ -237,7 +237,7 @@ The runtime is the source of truth. The extension is transport only.
 
 ### `platform/artifacts/client`
 
-Typed HTTP implementation of the `ArtifactPlane` port used by domain servers and the
+HTTP implementation of the `ArtifactPlane` interface used by domain servers and the
 gateway. It forwards the caller's existing signed identity; it never signs one.
 
 ### `servers/artifact-mcp`
@@ -254,16 +254,16 @@ The Rust MCP server pattern is intentionally consistent:
 |---|---|
 | `contract.rs` | tool/resource request and result types owned by the domain |
 | `engine.rs`, `forecast.rs`, or `planning.rs` | pure domain computation |
-| `state.rs` | server-local typed provider/domain state, not task persistence |
+| `state.rs` | server-local provider and domain models, not task persistence |
 | `uris.rs` | canonical server resource identities |
 | `artifacts.rs` | task-bound capability preparation/redemption |
-| `admin/` | optional typed domain administration under the server mount |
+| `admin/` | optional contract-defined domain administration under the server mount |
 | `bin/server/config.rs` | validated CLI/environment configuration |
 | `bin/server/internal_auth.rs` | required gateway assertion middleware |
 | `bin/server/ownership.rs` | principal/tenant/label task ownership |
 | `bin/server/task_extension.rs` | final extension adapter over TaskRuntime |
 | `bin/server/app_state.rs` | dependency composition and recovery |
-| `bin/server/outputs.rs` | typed results, resource links, usage projection |
+| `bin/server/outputs.rs` | result models, resource links, and usage projection |
 
 Current MCP crates under `servers/` are indexed here:
 
@@ -274,7 +274,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp` | local frame derivation, coordinate conversion, and operation provenance |
 | `servers/map-mcp` | Earth geography, source administration, releases, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
-| `servers/optimization-mcp` | typed planning problems, solver execution, validation, and mission outputs |
+| `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
@@ -326,7 +326,7 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/src/contract.rs` | server-local tool request and result types |
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
 | `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |
-| `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | typed direct/task SQL operations and interruption behavior |
+| `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | direct and task SQL operation contracts and interruption behavior |
 
 ## Recordings
 
@@ -337,7 +337,7 @@ DuckDB-specific ownership:
 | `spool.rs` | Rerun receive, segment write/flush/fsync/freeze/recovery |
 | `catalog.rs` | segment verification and governed catalog publication |
 | `query.rs` | RRD query/readback |
-| `config.rs` | typed dataset routing and limits |
+| `config.rs` | dataset routing and validated limits |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
 ### `servers/recording-mcp`
@@ -350,10 +350,10 @@ spool access, subscriptions, and artifact publication.
 
 | Path | Responsibility |
 |---|---|
-| `src/contract.rs` | typed analysis, sampling, detection, timeline, and output contracts |
+| `src/contract.rs` | analysis, sampling, detection, timeline, and output types |
 | `src/catalog.rs` | validated TensorRT model and DeepStream pipeline catalog |
 | `src/source.rs` | authorized durable/recent Rerun video materialization |
-| `src/executor.rs` | bounded typed C++ runner protocol and response validation |
+| `src/executor.rs` | bounded C++ runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
 | `src/uris.rs` | canonical `perception://` identities |
@@ -400,7 +400,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | File | Responsibility |
 |---|---|
-| `manifest.rs` | typed agent/model/profile/tool/budget configuration |
+| `manifest.rs` | agent, model, profile, tool, and budget configuration models |
 | `episode.rs` | bounded reasoning episode lifecycle |
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
@@ -427,7 +427,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | operational views, task controls, artifact grant/share workflows |
 | `api.ts` | same-origin BFF calls and CSRF rotation |
-| `types.ts` | typed snapshot and mutation response shapes |
+| `types.ts` | TypeScript snapshot and mutation response shapes |
 | `components.tsx` | compact reusable operational components |
 | `styles.css` | responsive work-focused visual system |
 
@@ -435,7 +435,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 
 | Path | Responsibility |
 |---|---|
-| `testing/mcp-conformance` | typed external protocol/config CLI and fake services |
+| `testing/mcp-conformance` | external protocol/configuration CLI and fake services |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
@@ -449,7 +449,7 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 
 - Change shared identity/policy/artifact semantics in `mcp/contract`, then update the
   platform store and every affected boundary.
-- Change persistence shape in `platform/store` with an ordered migration and typed API.
+- Change persistence shape in `platform/store` with an ordered migration and matching Rust API.
 - Change task lifecycle in `platform/task-runtime`; change wire behavior in
   `mcp/task-extension`.
 - Change a domain tool schema in its owning `servers/*-mcp` server, not the gateway.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Autonomy Harness schematic figures via wavespeed gpt-image-1.5.
+"""Generate the Autonomy Harness schematic figures via WaveSpeed GPT Image 2.
 
 The STYLE anchor and per-figure prompts below are the canonical Veoveo doc-image
 style: engineering schematic, white background, uniform thin dark slate line
@@ -7,8 +7,7 @@ work, flat 2D, and exactly one amber accent placed only where it carries
 meaning. Keep new figures in this voice.
 
 Usage:
-    set -a; source .env; set +a
-    uv run --python 3.13 docs/images/generate.py [figure ...]
+    uv run --env-file .env --python 3.13 docs/images/generate.py [figure ...]
 
 With no arguments every figure regenerates; naming figures regenerates only
 those. Outputs land beside this script. Review every output for label accuracy
@@ -19,9 +18,14 @@ than rings.
 import json, os, sys, time, urllib.request
 
 BASE = "https://api.wavespeed.ai"
-MODEL = "openai/gpt-image-1.5/text-to-image"
+MODEL = "openai/gpt-image-2/text-to-image"
 KEY = os.environ["MEDIA_PROVIDER_API_KEY"]
 OUT = os.path.dirname(os.path.abspath(__file__))
+
+ASPECT_RATIOS = {
+    "1024*1536": "2:3",
+    "1536*1024": "3:2",
+}
 
 STYLE = (
     " Style: precise engineering schematic, like a figure in a technical standards document."
@@ -49,26 +53,22 @@ IMAGES = {
     ),
     "system-map": (
         "1536*1024",
-        "System architecture schematic with exactly one hexagon in the whole image. Left: three"
-        " outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber"
-        " arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three"
-        " stacked outlined stages labeled INGEST, PERSIST, SEGMENTS. Center: the single outlined"
-        " hexagon, labeled AGENT, sends one plain dark arrow labeled MCP into one outlined circle"
-        " labeled GATEWAY. Above the circle, one outlined rounded rectangle labeled CONSOLE sends"
-        " one plain dark arrow labeled SESSION down into the circle. Right: one large dashed rounded"
-        " boundary labeled HOSTED SERVERS contains exactly twelve equal tiny outlined rectangles"
-        " arranged as three rows of four, with no text inside them. One plain dark arrow labeled MCP"
-        " + ADMIN leaves the GATEWAY circle and enters the HOSTED SERVERS boundary. Bottom center:"
-        " one outlined database cylinder labeled PLATFORM STORE, connected by thin plain dark lines"
-        " up to GATEWAY and HOSTED SERVERS, with the single label DURABLE STATE + AUDIT beneath the"
-        " cylinder. One long amber arrow labeled QUERIES starts at the lower edge of RECORDING HUB,"
-        " routes below GATEWAY, then rises into HOSTED SERVERS; its only arrowhead must touch HOSTED"
-        " SERVERS. One amber dashed arrow labeled WAKES starts at PLATFORM STORE, rises upward, and"
-        " ends at the lower edge of the AGENT hexagon; its only arrowhead must touch AGENT, never"
-        " PLATFORM STORE. No other amber line may touch PLATFORM STORE. Every specified label appears"
-        " exactly once except PUSH, which appears exactly three times, once on each producer arrow."
-        " Amber appears only on the three PUSH arrows, the QUERIES arrow, and the WAKES arrow; every"
-        " other line is dark slate. Do not draw a detached legend arrow."
+        "High-level system topology in a strict left-to-right layout. Far left, stack three outlined"
+        " producer boxes labeled SENSORS, SUMO, AGENTS. Each sends one amber right-pointing arrow"
+        " labeled PUSH into one tall RECORDING HUB container beside them. The hub contains three"
+        " stacked stages labeled INGEST, PERSIST, SEGMENTS. Center, place exactly one hexagon labeled"
+        " AGENT to the left of exactly one circle labeled GATEWAY. Join AGENT to GATEWAY with one"
+        " dark right-pointing arrow labeled MCP. Put CONSOLE directly above GATEWAY and join it to"
+        " GATEWAY with one plain dark vertical line labeled SESSION, without arrowheads. Put one"
+        " database cylinder labeled"
+        " PLATFORM STORE below GATEWAY, with DURABLE STATE + AUDIT beneath it, joined to GATEWAY by"
+        " one plain dark vertical line. At right, draw one large dashed rounded container labeled"
+        " 14 HOSTED SERVERS. Inside it, draw one unified abstract capability-plane glyph made from"
+        " several thin unlabelled horizontal layers; do not draw separate countable server boxes."
+        " Join GATEWAY to 14 HOSTED SERVERS with one dark right-pointing arrow labeled MCP + ADMIN."
+        " This overview intentionally omits recording-query and task-wake cross-links; do not render"
+        " QUERIES or WAKES. No direct line joins RECORDING HUB to AGENT or GATEWAY. No extra nodes,"
+        " arrows, arrowheads, boxes, or labels."
     ),
     "world-model": (
         "1536*1024",
@@ -130,13 +130,19 @@ IMAGES = {
         "1536*1024",
         "Hosted capability schematic in three parts. Center: one outlined circle labeled GATEWAY;"
         " directly beneath it, four stacked wide horizontal bars drawn as thin amber outlines with"
-        " white interiors, labeled from top to bottom FULL MCP, TYPED ADMIN, DURABLE TASKS, ARTIFACTS"
+        " white interiors, labeled from top to bottom FULL MCP, DOMAIN ADMIN, DURABLE TASKS, ARTIFACTS"
         " + POLICY. Left of the gateway: one large dashed rounded boundary labeled HOSTED containing"
-        " a grid of exactly twelve equal outlined rectangles arranged as four rows of three. Reading"
+        " a rigid grid of exactly fourteen equal outlined rectangles. The first four rows contain"
+        " three aligned boxes each; a fifth centered row contains exactly two aligned boxes."
+        " HARD LAYOUT INVARIANT: the HOSTED boundary must be large enough for all five rows, and no"
+        " label may wrap onto a sixth row. Reading"
         " left to right, top to bottom: row one MEDIA, PERCEPTION, TIMESERIES; row two DUCKDB,"
-        " OPTIMIZATION, FRAMES; row three MAP, DATASHEET, ARTIFACT; row four RECORDING, CHARTS, RERUN."
-        " Draw all four complete rows inside the boundary. DUCKDB and DATASHEET are mandatory. Do not"
-        " omit any label, put RERUN on its own row, or draw any extra capability box. Right of the"
+        " OPTIMIZATION, FRAMES; row three MAP, DATASHEET, ARTIFACT; row four RECORDING, CHARTS, RERUN;"
+        " row five TIME, VIEW. Draw all five rows inside the boundary. The fourth row must show"
+        " RECORDING, CHARTS, and RERUN side by side; the fifth row must show TIME and VIEW side by"
+        " side. DUCKDB, DATASHEET, TIME, and VIEW are mandatory. Do not omit any label, create a"
+        " sixth row, or draw any extra capability"
+        " box. Right of the"
         " gateway: one large dashed"
         " rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined"
         " and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one"
@@ -244,11 +250,13 @@ def main():
         if only and name not in only:
             continue
         resp = api(f"/api/v3/{MODEL}", {
-            "prompt": prompt,
-            "size": size,
+            "prompt": prompt + STYLE,
+            "aspect_ratio": ASPECT_RATIOS[size],
+            "resolution": "2k",
             "quality": "high",
             "output_format": "png",
-            "background": "opaque",
+            "enable_sync_mode": False,
+            "enable_base64_output": False,
         })
         jobs[name] = resp["data"]["id"]
         print(f"submitted {name}: {jobs[name]}", flush=True)

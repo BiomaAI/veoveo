@@ -178,8 +178,8 @@
   table.toc tbody td { font-size: 10.5px; font-weight: 600; color: var(--ink); padding: 9px 10px; }
   table.toc tbody tr:nth-child(even) { background: var(--wash); }
   table.toc tbody td:first-child { width: 40px; font-weight: 400; color: var(--muted); }
-  table.capability-table thead td { font-size: 8px; padding: 4px; }
-  table.capability-table tbody td { font-size: 7.4px; line-height: 1.22; padding: 3px 4px; }
+  table.capability-table thead td { font-size: 8px; padding: 2px 4px; }
+  table.capability-table tbody td { font-size: 7px; line-height: 1.12; padding: 1px 4px; }
 
   /* ---------- whitepaper additions ---------- */
   .abstract {
@@ -369,10 +369,10 @@
         episode that started it and survives process death. Every operation declares its recovery
         class — resumable, webhook-bound, or fail-closed — and completion wakes the sleeping agent
         within a second.</li>
-    <li><b>A modular capability plane under one contract (§6).</b> Twelve hosted server identities
+    <li><b>A modular capability plane under one contract (§6).</b> Fourteen hosted server identities
         ship in the canonical control plane. Any local, bridged, or remote MCP server registers in
         the validated catalog and immediately answers to the same task, artifact, identity,
-        policy, and audit contracts; typed domain administration follows the same governed path.</li>
+        policy, and audit contracts; domain administration follows the same governed path.</li>
     <li><b>Deployment-invariant cognition (§11).</b> The same platform, the same agents, and the
         same operational intelligence run on one edge host, across a cluster, sealed inside an air
         gap, or hybrid — with provenance included and connectivity on the operator's terms.</li>
@@ -403,7 +403,7 @@
   <table class="data">
     <thead><tr><td>Flow</td><td>Path</td><td>Guarantee</td></tr></thead>
     <tbody>
-      <tr><td>Observe</td><td>Producers push typed streams to one ingest point; segments become governed catalog records; agents read slices through the recording server.</td><td>The hub persists first; a crash mid-write leaves readable files.</td></tr>
+      <tr><td>Observe</td><td>Producers push Rerun log streams to one ingest point; segments become governed catalog records; agents read slices through the recording server.</td><td>The hub persists first; a crash mid-write leaves readable files.</td></tr>
       <tr><td>Act</td><td>Every tool call enters through the gateway under one flat namespace; quick tools answer inline; long tools return a durable task handle immediately.</td><td>Task completion pushes a wake; the next episode assembles with the result.</td></tr>
       <tr><td>Account</td><td>Auth, policy, admin, and task transitions write audit evidence; every decision records what the agent saw, chose, and why.</td><td>Usage records meter provider spend and tool activity per principal.</td></tr>
     </tbody>
@@ -498,9 +498,9 @@
   <p class="body">
     An agent runs indefinitely because durable stores are the memory: every episode's context is
     assembled fresh from the world model, and everything in flight survives process death. The
-    kernel executes typed manifests — an agent type is a manifest, a preamble, and SQL
-    migrations — so fielding another agent is an act of configuration, and one installation runs
-    one agent or a team of them.
+    kernel validates every manifest against its schema before execution. An agent type combines a
+    manifest, a preamble, and SQL migrations. Fielding another agent is an act of configuration,
+    and one installation runs one agent or a team of them.
   </p>
   <figure class="art">
     <img src="images/agent-loop.png" alt="" style="height:3.0in;object-fit:contain">
@@ -542,7 +542,7 @@
         <li><b>Decision log.</b> An append-only recording: every turn, tool call, task lifecycle,
             prompt, and summary — time-indexed and watchable live.</li>
         <li>The agent reads all three itself: <code>memory_query</code> (guarded SQL),
-            <code>memory_write</code> (typed mutations), and <code>timeline_query</code>
+            <code>memory_write</code> (bounded mutations), and <code>timeline_query</code>
             (dataframe reads over the log).</li>
       </ul>
     </div>
@@ -563,10 +563,10 @@
   </div>
   <div class="callout">
     <div class="label">[PRINCIPLE]</div>
-    <p>Agents are data. A typed manifest — model endpoint, gateway principal, episode limits,
-       budgets, schedule, context sections, writable tables — is validated fail-closed at boot.
-       A preamble and domain migrations complete the profile; cross-episode instructions live
-       there or in memory.</p>
+    <p>Agents are data. At boot, schema validation rejects an invalid manifest. The manifest
+       declares the model endpoint, gateway principal, episode limits, budgets, schedule, context
+       sections, and writable tables. A preamble and domain migrations complete the profile;
+       cross-episode instructions live there or in memory.</p>
   </div>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">10</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
 </div>
@@ -591,10 +591,10 @@
     <thead><tr><td>Function</td><td>Behavior</td></tr></thead>
     <tbody>
       <tr><td>Authentication</td><td>Browser OAuth with PKCE, client credentials with private-key JWT, identity-assertion grant exchange, JWKS, token issuance and revocation, durable refresh rotation — reuse revokes the family.</td></tr>
-      <tr><td>Policy &amp; audit</td><td>Typed attribute- and role-based policy over tools, resources, tasks, and artifacts; tenant and data-label checks for regulated data; fail-closed decisions with reason codes; a durable audit trail.</td></tr>
+      <tr><td>Policy &amp; audit</td><td>Attribute- and role-based policy over tools, resources, tasks, and artifacts; tenant and data-label checks for regulated data; fail-closed decisions with reason codes; a durable audit trail.</td></tr>
       <tr><td>Control plane</td><td>Validated server / profile / policy catalog, authenticated live apply and reload, secret references with redaction, an admin API for the console, and policy-checked, audited artifact downloads.</td></tr>
-      <tr><td>Server administration</td><td><code>/admin/{profile}/servers/{server}/{path}</code> resolves the active catalog, authorizes and audits the operation, then forwards a short-lived identity to the owning server's typed <code>{mount}/admin/*</code> API. Map uses this path for sources, acquisitions, releases, and mobility profiles.</td></tr>
-      <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, typed structured content, artifacts, and usage. Tool names gain a prefix only at aggregation; resource URIs retain their owning scheme.</td></tr>
+      <tr><td>Server administration</td><td><code>/admin/{profile}/servers/{server}/{path}</code> resolves the active catalog, authorizes and audits the operation, then forwards a short-lived identity to the owning server's contract-defined <code>{mount}/admin/*</code> API. Map uses this path for sources, acquisitions, releases, and mobility profiles.</td></tr>
+      <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, structured content with declared schemas, artifacts, and usage. Tool names gain a prefix only at aggregation; resource URIs retain their owning scheme.</td></tr>
     </tbody>
   </table>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">11</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
@@ -606,15 +606,15 @@
   <span class="runhead">Veoveo · Autonomy Harness Whitepaper</span>
   <h1 class="section">6. The Capability Plane</h1>
   <p class="body">
-    The canonical control plane defines twelve hosted server identities. Each server declares the
+    The canonical control plane defines fourteen hosted server identities. Each server declares the
     MCP surfaces its domain needs and runs behind gateway-signed identity; a new local, bridged,
     or remote endpoint registers in the validated catalog and immediately answers to the same
     task, artifact, identity, policy, and audit contracts. The gateway discovers the declared
     surface, prefixes tool names only at aggregation, and preserves each resource URI scheme.
   </p>
   <figure class="art" style="text-align:center">
-    <img src="images/capability-map.png" alt="" style="width:auto;max-height:2.0in;margin:0 auto">
-    <figcaption style="text-align:left">Figure 5 — Twelve hosted servers and remote endpoints; full MCP, typed administration, durable tasks, artifacts, and policy remain one governed system.</figcaption>
+    <img src="images/capability-map.png" alt="" style="width:auto;max-height:1.55in;margin:0 auto">
+    <figcaption style="text-align:left">Figure 5 — Fourteen hosted servers and remote endpoints; full MCP, contract-defined administration, durable tasks, artifacts, and policy remain one governed system.</figcaption>
   </figure>
   <table class="data tight capability-table">
     <thead><tr><td>Server</td><td>Capability</td><td>Representative tools</td></tr></thead>
@@ -622,8 +622,9 @@
       <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook-driven completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
       <tr><td>Perception<br><code>perception</code></td><td>Bounded GPU inference over the record's video: detection and tracking against governed recording identities, executed locally.</td><td class="mono">analyze_recording · extract_clip</td></tr>
       <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasting over any SQL-readable time-series source, visualized as recordings.</td><td class="mono">forecast</td></tr>
+      <tr><td>Time<br><code>time</code></td><td>Authority-bound civil, military, GNSS, and mission time; calendars, timelines, clock quality, and temporal events.</td><td class="mono">resolve_time · convert_time · assess_clock · evaluate_windows</td></tr>
       <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over principal-owned databases inside a locked, resource-bounded sandbox.</td><td class="mono">query · execute · ingest · export</td></tr>
-      <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over typed objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
+      <tr><td>Planning<br><code>optimization</code></td><td>Task-option planning for one or many agents over planning objects or SQL-readable option rows.</td><td class="mono">plan</td></tr>
       <tr><td>Frames<br><code>frames</code></td><td>WGS84, ECEF, ENU, and NED local-frame derivation, conversion, durable batches, and provenance.</td><td class="mono">convert_frame · derive_local_frame · batch_transform</td></tr>
       <tr><td>Map<br><code>map</code></td><td>Earth geography, governed releases and restrictions, Valhalla and governed-network routes, matrices, and reachable areas with pinned provenance.</td><td class="mono">search_locations · inspect_location · route · route_matrix · reachable_area · publish_restriction · validate_route</td></tr>
       <tr><td>Datasheet<br><code>datasheet</code></td><td>Python reference server for dataset preview, column statistics, and durable artifact-backed profiling.</td><td class="mono">preview_dataset · column_stats · profile_dataset</td></tr>
@@ -631,6 +632,7 @@
       <tr><td>Recordings<br><code>recording</code></td><td>Authorized access to the record: discovery, dataframe queries, subscriptions, publication.</td><td class="mono">query_recording · seal_recording</td></tr>
       <tr><td>Charts<br><code>charts</code></td><td>Chart rendering projected through the gateway, turning query results into shareable visuals.</td><td class="mono">render_chart · compile_chart · validate_chart · list_chart_types · create_chart_view</td></tr>
       <tr><td>Viewer<br><code>rerun</code></td><td>A live viewer driven entirely over MCP — session, capture, inspection, and UI automation.</td><td class="mono">17 interactive tools (connect … batch)</td></tr>
+      <tr><td>3D View<br><code>view</code></td><td>Owner-scoped camera views over configured 3D Tiles, rendered offscreen on NVIDIA Vulkan.</td><td class="mono">create_view · set_camera · capture_frame · close_view</td></tr>
     </tbody>
   </table>
   <div class="foot"><span class="wordmark">veoveo</span><span class="pageno">12</span><span class="mark"><svg viewBox="0 0 14 14"><rect x="0" y="0" width="4" height="4" fill="#B87514"/><rect x="5" y="5" width="4" height="4" fill="#B87514" opacity="0.6"/><rect x="10" y="10" width="4" height="4" fill="#B87514" opacity="0.3"/></svg></span></div>
@@ -744,10 +746,9 @@
         bytes, the platform store for grants, labels, and release state. Fresh opaque identity per
         occurrence; hashes provide integrity and tenant-local dedup; artifact references let one
         server consume another's output.</li>
-    <li><b>Contract core.</b> The typed, provider-neutral contract every server shares, validated
-        fail-closed at startup: strong identities, deployment profiles, shared task and artifact
-        schemas, and gateway-signed identity assertions — servers hold public verification keys
-        only.</li>
+    <li><b>Contract core.</b> The provider-neutral contract every server shares: Rust newtypes and
+        enums, deployment models, exported JSON Schemas, and gateway-signed identity assertions —
+        all validated fail-closed; servers hold public verification keys only.</li>
   </ul>
   <div class="callout">
     <div class="label">[PRINCIPLE]</div>
@@ -790,7 +791,7 @@
     Mobility, an open-source traffic microsimulator — runs the
     pinned, MIT-licensed LuST Luxembourg scenario in its own container; one <code>sumo-mcp</code>
     server owns the single serialized control connection, pushes the world into the record as
-    typed streams, and exposes traffic control as governed tools. The long operations are durable
+    Rerun streams, and exposes traffic control as governed tools. The long operations are durable
     tasks the agent detaches from and wakes on — the same sleep/wake the kernel runs everywhere,
     now driven by a real simulator.
   </p>
@@ -952,22 +953,22 @@
     <thead><tr><td>Component</td><td>Role</td><td>What it is</td></tr></thead>
     <tbody>
       <tr><td class="mono">ingress</td><td>ours</td><td>The single public door, owned by the operator. One place to defend and observe.</td></tr>
-      <tr><td class="mono">gateway</td><td>ours</td><td>The governed protocol boundary: authenticates the caller, checks policy, projects full MCP server surfaces, proxies typed server administration, and writes the audit trail.</td></tr>
+      <tr><td class="mono">gateway</td><td>ours</td><td>The governed protocol boundary: authenticates the caller, checks policy, projects full MCP server surfaces, proxies server administration under declared request and response schemas, and writes the audit trail.</td></tr>
       <tr><td class="mono">console</td><td>ours</td><td>The cockpit: the operations UI plus a session backend that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
       <tr><td class="mono">agent kernel</td><td>ours</td><td>The runtime for long-lived agents: short episodes, durable memory, wake on a result, a timer, or a message.</td></tr>
-      <tr><td class="mono">hosted MCP server</td><td>ours</td><td>A typed domain boundary with the MCP surfaces it needs, shared task and artifact contracts, and optional typed administration under its canonical mount.</td></tr>
-      <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and logistics routing over governed, versioned releases; its typed admin API owns sources, acquisition, activation, rollback, and mobility profiles.</td></tr>
+      <tr><td class="mono">hosted MCP server</td><td>ours</td><td>A domain boundary with explicit request and response models, the MCP surfaces it needs, shared task and artifact contracts, and optional administration under its canonical mount.</td></tr>
+      <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and logistics routing over governed, versioned releases; its administrative API owns sources, acquisition, activation, rollback, and mobility profiles.</td></tr>
       <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: everything the operation senses, remembers, and decides, fused into one durable, queryable model of reality.</td></tr>
       <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB — the platform's memory: identity, policy, tasks, artifacts, recordings, map catalogs and releases, agents, audit, and the transactional outbox.</td></tr>
       <tr><td class="mono">task runtime</td><td>ours</td><td>The ledger for long work: atomic leases, transitions, results, and declared recovery per operation.</td></tr>
       <tr><td class="mono">ingest socket</td><td>OSS</td><td>Where every producer pushes: one gRPC endpoint (the Rerun proxy), rebroadcast live to anyone reading.</td></tr>
       <tr><td class="mono">persist-first writer</td><td>ours</td><td>Embeds the ingest socket and fsyncs every message to disk before anything else — the write happens first.</td></tr>
       <tr><td class="mono">.rrd segment</td><td>format</td><td>The record on disk: one growing file per dataset / day / recording, readable even mid-write.</td></tr>
-      <tr><td class="mono">catalog</td><td>ours</td><td>The card catalog: typed installation identity for every recording and segment; startup reconciles crash leftovers.</td></tr>
+      <tr><td class="mono">catalog</td><td>ours</td><td>The card catalog: stable installation identity for every recording and segment; startup reconciles crash leftovers.</td></tr>
       <tr><td class="mono">recording server</td><td>ours</td><td>The reading room: authorized discovery, latest-at / range / dataframe queries, subscriptions, and sealing to an artifact.</td></tr>
       <tr><td class="mono">SUMO / TraCI</td><td>OSS</td><td>The traffic simulator and its control socket — a live world producing positions and states to record and reason about.</td></tr>
       <tr><td class="mono">sumo-mcp</td><td>ours</td><td>The bridge: the one owner of the simulator's control socket, pushing the world into the record and exposing governed control.</td></tr>
-      <tr><td class="mono">MCP</td><td>protocol</td><td>The shared protocol for tools, resources, prompts, completions, tasks, subscriptions, notifications, and typed content; one gateway governs the complete surface.</td></tr>
+      <tr><td class="mono">MCP</td><td>protocol</td><td>The shared protocol for tools, resources, prompts, completions, tasks, subscriptions, notifications, and structured content with declared schemas; one gateway governs the complete surface.</td></tr>
       <tr><td class="mono">durable task</td><td>concept</td><td>A tool call you walk away from: the handle returns immediately; the row, lease, and result live in the platform store.</td></tr>
       <tr><td class="mono">resource · subscribe</td><td>concept</td><td>A condition that wakes you: subscribing to a resource means the agent is notified the moment it changes.</td></tr>
     </tbody>
