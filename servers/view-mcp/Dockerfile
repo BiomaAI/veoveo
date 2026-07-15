@@ -17,10 +17,8 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,id=view-mcp-cargo-registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=view-mcp-cargo-git,target=/usr/local/cargo/git \
     --mount=type=cache,id=view-mcp-target,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-view-mcp --bin server --bin view-gpu-smoke --bin view-google-proof \
-    && cp /app/target/release/server /tmp/view-mcp \
-    && cp /app/target/release/view-gpu-smoke /tmp/view-gpu-smoke \
-    && cp /app/target/release/view-google-proof /tmp/view-google-proof
+    cargo build --release --jobs 4 -p veoveo-view-mcp --bin server \
+    && cp /app/target/release/server /tmp/view-mcp
 
 # This runtime provides NVIDIA's CUDA user-space baseline. The host driver and
 # Vulkan ICD are injected by NVIDIA Container Toolkit through the graphics
@@ -42,8 +40,6 @@ RUN apt-get update \
     && chown -R veoveo:veoveo /var/lib/veoveo
 
 COPY --from=builder /tmp/view-mcp /usr/local/bin/view-mcp
-COPY --from=builder /tmp/view-gpu-smoke /usr/local/bin/view-gpu-smoke
-COPY --from=builder /tmp/view-google-proof /usr/local/bin/view-google-proof
 COPY configs/view/layers.json /etc/veoveo/view/layers.json
 
 ENV NVIDIA_VISIBLE_DEVICES=all \

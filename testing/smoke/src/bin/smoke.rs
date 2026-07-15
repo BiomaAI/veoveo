@@ -141,6 +141,24 @@ enum Cmd {
         #[arg(long, default_value = "veoveo/map-mcp:0.1.0")]
         map_image: String,
     },
+    /// Smoke-test the production View MCP image through NVIDIA, MCP tasks, and frame resources.
+    ViewMcp {
+        /// Production View MCP container image.
+        #[arg(long, default_value = "veoveo/view-mcp:0.1.0")]
+        view_image: String,
+        /// Optional path that retains the deterministic rendered frame.
+        #[arg(long)]
+        retained_frame: Option<PathBuf>,
+    },
+    /// Run billed live Google 3D Tiles acceptance through the production View MCP boundary.
+    ViewGoogleLive {
+        /// Production View MCP container image.
+        #[arg(long, default_value = "veoveo/view-mcp:0.1.0")]
+        view_image: String,
+        /// Path for the retained Statue of Liberty JPEG.
+        #[arg(long, default_value = "/tmp/veoveo-view-proof/statue-of-liberty.jpg")]
+        output: PathBuf,
+    },
     /// Smoke-test the Python datasheet template server end to end.
     DatasheetMcp {
         /// Built conformance binary path.
@@ -420,6 +438,11 @@ async fn main() -> Result<()> {
             artifact_service_bin,
             map_image,
         } => map_mcp(&conformance_bin, &artifact_service_bin, &map_image).await,
+        Cmd::ViewMcp {
+            view_image,
+            retained_frame,
+        } => view_mcp(&view_image, retained_frame.as_deref()).await,
+        Cmd::ViewGoogleLive { view_image, output } => view_google_live(&view_image, &output).await,
         Cmd::DatasheetMcp {
             conformance_bin,
             artifact_service_bin,

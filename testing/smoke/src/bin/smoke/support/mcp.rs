@@ -58,6 +58,78 @@ pub(crate) async fn assert_mcp_session_resource_denied(
     Ok(())
 }
 
+pub(crate) async fn call_tool_as_task(
+    session: &SmokeMcpSession,
+    tool_name: &str,
+    arguments: Value,
+) -> Result<rmcp::model::Task> {
+    let arguments = arguments
+        .as_object()
+        .cloned()
+        .ok_or_else(|| anyhow!("tool arguments must be a JSON object"))?;
+    let params = CallToolRequestParams::new(tool_name.to_owned())
+        .with_arguments(arguments)
+        .with_task(rmcp::model::TaskMetadata::new().with_ttl(3_600_000));
+    let result = session
+        .send_request(rmcp::model::ClientRequest::CallToolRequest(
+            rmcp::model::Request::new(params),
+        ))
+        .await?;
+    match result {
+        rmcp::model::ServerResult::CreateTaskResult(created) => Ok(created.task),
+        other => bail!("expected CreateTaskResult for {tool_name}, got {other:?}"),
+    }
+}
+
+pub(crate) async fn await_task_terminal(
+    session: &SmokeMcpSession,
+    task_id: &str,
+) -> Result<rmcp::model::Task> {
+    await_task_terminal_with_timeout(session, task_id, Duration::from_secs(30)).await
+}
+
+pub(crate) async fn await_task_terminal_with_timeout(
+    session: &SmokeMcpSession,
+    task_id: &str,
+    timeout: Duration,
+) -> Result<rmcp::model::Task> {
+    tokio::time::timeout(timeout, async {
+        loop {
+            let result = session
+                .send_request(rmcp::model::ClientRequest::GetTaskRequest(
+                    rmcp::model::Request::new(rmcp::model::GetTaskParams::new(task_id)),
+                ))
+                .await?;
+            let rmcp::model::ServerResult::GetTaskResult(info) = result else {
+                bail!("expected GetTaskResult for {task_id}, got {result:?}");
+            };
+            match info.task.status {
+                rmcp::model::TaskStatus::Working | rmcp::model::TaskStatus::InputRequired => {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                _ => return Ok(info.task),
+            }
+        }
+    })
+    .await
+    .with_context(|| format!("task {task_id} did not reach a terminal status"))?
+}
+
+pub(crate) async fn task_payload(
+    session: &SmokeMcpSession,
+    task_id: &str,
+) -> Result<rmcp::model::CallToolResult> {
+    let result = session
+        .send_request(rmcp::model::ClientRequest::GetTaskPayloadRequest(
+            rmcp::model::Request::new(rmcp::model::GetTaskPayloadParams::new(task_id)),
+        ))
+        .await?;
+    match result {
+        rmcp::model::ServerResult::CallToolResult(payload) => Ok(payload),
+        other => bail!("expected CallToolResult payload for {task_id}, got {other:?}"),
+    }
+}
+
 pub(crate) fn run_direct_mcp(
     conformance: &Path,
     url: &str,

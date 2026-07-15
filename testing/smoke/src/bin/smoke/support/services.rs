@@ -323,6 +323,12 @@ async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()
     Ok(())
 }
 
+pub(crate) async fn spawn_platform_store_smoke() -> Result<PlatformStoreSmoke> {
+    let platform = spawn_surreal_platform().await?;
+    initialize_surreal_platform(&platform).await?;
+    Ok(platform)
+}
+
 pub(crate) async fn spawn_gateway_platform_store(
     gateway: &Path,
     control_plane: &Path,
@@ -403,8 +409,7 @@ pub(crate) async fn spawn_artifact_service_smoke(
     artifact_service: &Path,
     log: &Path,
 ) -> Result<ArtifactServiceSmoke> {
-    let platform = spawn_surreal_platform().await?;
-    initialize_surreal_platform(&platform).await?;
+    let platform = spawn_platform_store_smoke().await?;
     let bind_port = reserve_local_port()?;
     let url = format!("http://127.0.0.1:{bind_port}");
     let mut service_env = platform.runtime_env();
