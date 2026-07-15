@@ -21,7 +21,7 @@ use anyhow::{Context, Result, bail};
 use base64::Engine as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use rig_core::tool::{
-    rmcp::{McpClientHandler, McpTaskResumer},
+    rmcp::{McpClientHandler, McpTaskPolicy, McpTaskResumer},
     server::ToolServerHandle,
 };
 use rmcp::{
@@ -174,6 +174,7 @@ impl GatewayConnection {
             self.tool_server_handle.clone(),
         )
         .with_timeout(self.manifest.request_timeout())
+        .with_task_policy(McpTaskPolicy::Preferred)
         .with_notification_delegate(KernelNotificationDelegate::new(self.handlers.bus.clone()))
         .with_elicitation_handler(ParkedElicitationHandler::new(
             self.handlers.runtime.clone(),

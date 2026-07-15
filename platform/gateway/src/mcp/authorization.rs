@@ -159,13 +159,15 @@ impl GatewayMcp {
         Ok(client.allowed_compatibility_helpers.contains(&helper))
     }
 
-    pub(super) fn client_allows_direct_task_adapter(
+    pub(super) fn client_allows_task_projection(
         &self,
         subject: &AuthenticatedSubject,
     ) -> Result<bool, McpError> {
         let client = self.authenticated_oauth_client(subject)?;
-        Ok(client.client_surface == OAuthClientSurface::ToolsCompat
-            && client.direct_task_call_adapter)
+        Ok(client_surface_allows_task_projection(
+            client.client_surface,
+            client.direct_task_call_adapter,
+        ))
     }
 
     pub(super) async fn authorize(
@@ -421,5 +423,46 @@ impl GatewayMcp {
                 "prompt `{prompt}` is ambiguous across profile servers"
             ))),
         }
+    }
+}
+
+fn client_surface_allows_task_projection(
+    surface: OAuthClientSurface,
+    direct_task_call_adapter: bool,
+) -> bool {
+    match surface {
+        OAuthClientSurface::FullMcp => true,
+        OAuthClientSurface::ToolsCompat => direct_task_call_adapter,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use veoveo_mcp_contract::OAuthClientSurface;
+
+    use super::client_surface_allows_task_projection;
+
+    #[test]
+    fn full_mcp_always_receives_canonical_tasks() {
+        assert!(client_surface_allows_task_projection(
+            OAuthClientSurface::FullMcp,
+            false
+        ));
+        assert!(client_surface_allows_task_projection(
+            OAuthClientSurface::FullMcp,
+            true
+        ));
+    }
+
+    #[test]
+    fn tools_compat_requires_explicit_task_projection() {
+        assert!(!client_surface_allows_task_projection(
+            OAuthClientSurface::ToolsCompat,
+            false
+        ));
+        assert!(client_surface_allows_task_projection(
+            OAuthClientSurface::ToolsCompat,
+            true
+        ));
     }
 }

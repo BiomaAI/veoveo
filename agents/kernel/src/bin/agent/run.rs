@@ -99,20 +99,17 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     let tool_server_handle = ToolServer::new().run();
     tool_server_handle
         .add_tool(MemoryQueryTool::new(memory.clone()))
-        .await
-        .context("registering memory_query")?;
+        .await;
     tool_server_handle
         .add_tool(MemoryWriteTool::new(
             memory.clone(),
             rrd.clone(),
             manifest.memory.memory_write_tables.clone(),
         ))
-        .await
-        .context("registering memory_write")?;
+        .await;
     tool_server_handle
         .add_tool(TimelineQueryTool::new(rrd.clone()))
-        .await
-        .context("registering timeline_query")?;
+        .await;
 
     let agent = llm::build_agent(&manifest, tool_server_handle.clone())?;
     let (mut connection, epoch_rx) =
