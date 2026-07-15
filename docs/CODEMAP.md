@@ -27,6 +27,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | typed high-level planning and optimization |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
+| [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -61,6 +62,7 @@ is the browser edition of the harness document.
 | `configs/gateway.smoke.json` | isolated smoke control plane |
 | `configs/deployments.json` | typed deployment contract examples |
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
+| `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `configs/Caddyfile` | canonical edge routes and public-surface denial |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
@@ -277,15 +279,17 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
+| `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
 
 ### Geospatial Domains
 
-The geospatial hard cut has two canonical servers:
+The geospatial hard cut has three canonical servers:
 
 | Path | Responsibility |
 |---|---|
 | `servers/map-mcp` | Earth geography, governed source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
 | `servers/frames-mcp` | WGS84, ECEF, ENU, and NED local-frame derivation and conversion, durable batch work, operation provenance, artifacts, and usage |
+| `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
 The crate-local design documents own their protocol, administration, persistence, and
 deployment details.

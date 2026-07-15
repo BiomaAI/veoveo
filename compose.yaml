@@ -582,6 +582,48 @@ services:
       retries: 30
       start_period: 5s
 
+  view-mcp:
+    <<: *app-security
+    image: veoveo/view-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
+    build:
+      context: .
+      dockerfile: servers/view-mcp/Dockerfile
+    depends_on:
+      installation-bootstrap:
+        condition: service_completed_successfully
+    command:
+      - --port
+      - "8801"
+      - --public-base-url
+      - ${PUBLIC_BASE_URL:-https://veoveo.example}
+      - --allow-loopback-hosts
+      - --allowed-host
+      - view-mcp:8801
+      - --layer-catalog
+      - /etc/veoveo/view/layers.json
+    environment:
+      <<: *service-env
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:?set GOOGLE_MAPS_API_KEY}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: graphics,compute,utility
+      WGPU_BACKEND: vulkan
+      WGPU_POWER_PREF: high
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/wgpu-cache
+      OTEL_SERVICE_NAME: veoveo-view-mcp
+      RUST_LOG: info,veoveo_view_mcp=debug,wgpu_core=info
+    gpus: all
+    mem_limit: 16g
+    tmpfs: [/tmp]
+    ports:
+      - 127.0.0.1:8801:8801
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8801/view/readyz]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+
   duckdb-mcp:
     <<: *app-security
     image: veoveo/duckdb-mcp:${VEOVEO_IMAGE_TAG:-0.1.0}
@@ -750,6 +792,8 @@ services:
       map-mcp:
         condition: service_healthy
       time-mcp:
+        condition: service_healthy
+      view-mcp:
         condition: service_healthy
       duckdb-mcp:
         condition: service_healthy

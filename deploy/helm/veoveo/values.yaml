@@ -277,6 +277,31 @@ domainServices:
       size: 10Gi
       storageClass: ""
       accessModes: [ReadWriteOnce]
+  - name: view-mcp
+    replicas: 1
+    runtimeClassName: nvidia
+    image:
+      repository: veoveo/view-mcp
+      tag: 0.1.0
+      digest: ""
+    port: 8801
+    healthPath: /view/readyz
+    args:
+      - --port
+      - "8801"
+      - --allowed-host
+      - view-mcp:8801
+      - --layer-catalog
+      - /etc/veoveo/view/layers.json
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "8"
+        memory: 16Gi
+        nvidia.com/gpu: "1"
   - name: duckdb-mcp
     replicas: 1
     image:

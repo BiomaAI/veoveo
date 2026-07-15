@@ -77,6 +77,35 @@ spec:
         - protocol: TCP
           port: 443
 {{- end }}
+{{- if not .Values.global.offline }}
+---
+# Kubernetes NetworkPolicy cannot match DNS names. View validates every remote
+# content URI against its configured HTTPS source host, while this policy gives
+# only that pod the TCP/443 path required for live 3D Tiles sources.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-view-https-egress
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: view-mcp
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

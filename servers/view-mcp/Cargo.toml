@@ -1,0 +1,68 @@
+[package]
+name = "veoveo-view-mcp"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_view_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "view-gpu-smoke"
+path = "src/bin/view_gpu_smoke.rs"
+
+[[bin]]
+name = "view-google-proof"
+path = "src/bin/view_google_proof.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+base64.workspace = true
+bevy = { workspace = true, features = [
+    "std",
+    "multi_threaded",
+    "async_executor",
+    "default_app",
+    "bevy_window",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+] }
+chrono.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+draco-gltf.workspace = true
+futures.workspace = true
+glam.workspace = true
+gltf.workspace = true
+hex.workspace = true
+image.workspace = true
+parking_lot.workspace = true
+reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+rustls.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+veoveo-mcp-contract.workspace = true
+veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
+veoveo-task-runtime = { path = "../../platform/task-runtime" }
+
+[dev-dependencies]
+approx = "0.5.1"
+tempfile = "3"
+tower = { workspace = true, features = ["util"] }

@@ -30,6 +30,12 @@ SurrealDB retains the release catalog, active authority pointers, calendars,
 mission epochs, clock policy, events, and durable Task API state. Authority
 activation remains serialized within the process.
 
+`view-mcp` runs as one stateful offscreen renderer and requests one
+`nvidia.com/gpu`. Install NVIDIA GPU Operator or NVIDIA Container Toolkit,
+provide an `nvidia` RuntimeClass, and put `google-maps-api-key` in the
+installation secret. Readiness fails unless Bevy selects an NVIDIA Vulkan
+hardware adapter; the image does not install a Mesa Vulkan software ICD.
+
 The operator must create these resources before installation:
 
 - `surrealdb.adminExistingSecret`: `username` and `password` for bootstrap only.

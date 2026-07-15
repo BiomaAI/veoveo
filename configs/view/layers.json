@@ -1,0 +1,14 @@
+{
+  "layers": [
+    {
+      "layer_id": "google-photorealistic",
+      "label": "Google Photorealistic 3D Tiles",
+      "source": {
+        "kind": "google_photorealistic",
+        "root_url": "https://tile.googleapis.com/v1/3dtiles/root.json",
+        "api_key_env": "GOOGLE_MAPS_API_KEY",
+        "daily_request_cap": 2000
+      }
+    }
+  ]
+}
