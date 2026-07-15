@@ -74,8 +74,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     secretKeyRef:
       name: {{ .Values.global.existingSecret }}
       key: internal-trust-jwks
+{{- if .Values.telemetry.enabled }}
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
   value: http://otel-collector:4318
+{{- end }}
 - name: VEOVEO_CONNECTIVITY_MODE
   value: {{ ternary "offline" "connected" .Values.global.offline | quote }}
 {{- end }}

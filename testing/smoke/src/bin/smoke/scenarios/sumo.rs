@@ -89,7 +89,7 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
+pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()> {
     if conformance == Path::new("target/debug/conformance") {
         run_checked(
             Path::new("cargo"),
@@ -105,8 +105,12 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
     }
     assert_executable(conformance)?;
 
-    run_checked(Path::new("kubectl"), ["cluster-info".into()], [])
-        .context("SUMO verification requires the active k3d cluster")?;
+    run_checked(
+        Path::new("kubectl"),
+        ["--context".into(), context.into(), "cluster-info".into()],
+        [],
+    )
+    .context("SUMO verification requires the active k3d cluster")?;
 
     let mcp_url = "http://127.0.0.1:8895/sumo/mcp";
     let health_url = "http://127.0.0.1:8895/sumo/healthz";
@@ -128,6 +132,8 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
         let logs = run_checked(
             Path::new("kubectl"),
             [
+                "--context".into(),
+                context.into(),
                 "-n".into(),
                 "veoveo".into(),
                 "logs".into(),
@@ -232,6 +238,8 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
     let pod = run_checked(
         Path::new("kubectl"),
         [
+            "--context".into(),
+            context.into(),
             "-n".into(),
             "veoveo".into(),
             "get".into(),
@@ -246,6 +254,8 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
     let query = run_checked(
         Path::new("kubectl"),
         [
+            "--context".into(),
+            context.into(),
             "-n".into(),
             "veoveo".into(),
             "exec".into(),

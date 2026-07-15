@@ -63,7 +63,7 @@ same local cluster.
 
 ```bash
 just k3d-node-build
-just k3d-create
+just sumo-k3d-create
 just showcase-sumo-build
 just showcase-sumo-import
 just showcase-sumo-resources

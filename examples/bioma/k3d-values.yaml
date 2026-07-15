@@ -1,0 +1,34 @@
+global:
+  defaultReplicas: 1
+
+surrealdb:
+  persistence:
+    size: 5Gi
+
+objectStore:
+  rustfs:
+    persistence:
+      size: 10Gi
+
+gateway:
+  replicas: 1
+
+artifactService:
+  replicas: 1
+
+recording:
+  enabled: false
+
+consoleBff:
+  replicas: 1
+
+domainServices: []
+
+telemetry:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false

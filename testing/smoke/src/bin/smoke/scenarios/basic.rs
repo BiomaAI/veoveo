@@ -1,3 +1,5 @@
+use anyhow::ensure;
+
 use super::*;
 
 pub(crate) async fn surreal_integration() -> Result<()> {
@@ -118,11 +120,67 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&platform, expected)?;
     }
-    for forbidden in ["minio", "caddy", "compose"] {
+    for forbidden in ["minio", "caddy", "compose", "OTEL_EXPORTER_OTLP_ENDPOINT"] {
         if platform.to_ascii_lowercase().contains(forbidden) {
             bail!("canonical Helm render must not contain `{forbidden}`");
         }
     }
+
+    let bioma = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "bioma".into(),
+            "deploy/helm/veoveo".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "examples/bioma/values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/k3d-values.yaml".into(),
+        ],
+        [],
+    )?;
+    for expected in [
+        "host: veoveo.bioma.ai",
+        "host: objects-veoveo.bioma.ai",
+        "https://veoveo.bioma.ai",
+        "name: bioma-gateway-control-plane",
+    ] {
+        contains(&bioma, expected)?;
+    }
+    for forbidden in [
+        "name: recording-ingest",
+        "name: otel-collector",
+        "secretName: bioma-ingress-tls",
+    ] {
+        if bioma.contains(forbidden) {
+            bail!("Bioma k3d render must not contain `{forbidden}`");
+        }
+    }
+
+    let sumo_cluster = fs::read_to_string("deploy/local/k3d/cluster.yaml")?;
+    contains(&sumo_cluster, "name: veoveo-sumo")?;
+    contains(&sumo_cluster, "127.0.0.1:8780:80")?;
+
+    let bioma_cluster = fs::read_to_string("examples/bioma/k3d.yaml")?;
+    contains(&bioma_cluster, "name: veoveo-bioma")?;
+    contains(&bioma_cluster, "127.0.0.1:8781:80")?;
+    let tunnel: Value = serde_json::from_str(&fs::read_to_string(
+        "examples/bioma/cloudflare-tunnel.json",
+    )?)?;
+    let ingress = tunnel
+        .pointer("/config/ingress")
+        .and_then(Value::as_array)
+        .context("Bioma Cloudflare configuration omitted ingress")?;
+    ensure!(
+        ingress.iter().any(|route| {
+            route.get("hostname").and_then(Value::as_str) == Some("veoveo.bioma.ai")
+                && route.get("service").and_then(Value::as_str)
+                    == Some("http://traefik.kube-system.svc.cluster.local:80")
+        }),
+        "Bioma tunnel must route the public hostname to in-cluster Traefik"
+    );
 
     let sumo = run_checked(
         Path::new("helm"),

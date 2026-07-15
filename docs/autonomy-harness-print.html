@@ -730,7 +730,7 @@
   <table class="data tight">
     <thead><tr><td>Form</td><td>Shape</td></tr></thead>
     <tbody>
-      <tr><td>Local</td><td><code>just k3d-create</code> creates a loopback-only Kubernetes cluster. Helm installs the selected profile with the same workload model used in the field.</td></tr>
+      <tr><td>Local</td><td><code>just sumo-k3d-create</code> creates a loopback-only Kubernetes cluster. Helm installs the selected profile with the same workload model used in the field.</td></tr>
       <tr><td>Cluster</td><td>The Helm form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional service-mesh mTLS, separate migration and runtime credentials, operator-supplied telemetry and SIEM wiring.</td></tr>
       <tr><td>Air-gap</td><td>The verified offline bundle contains pinned images, Helm material, config schemas, checksums, and SBOMs. Installation and verification complete entirely inside the boundary.</td></tr>
       <tr><td>Hybrid</td><td>An edge installation that registers remote MCP endpoints and provider-backed servers. The reach is governed like everything else — same policy, same audit, same task contract.</td></tr>

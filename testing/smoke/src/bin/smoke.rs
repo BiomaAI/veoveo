@@ -29,7 +29,8 @@ use rmcp::{
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
+    GatewayInternalTrustBundle, GatewayTaskStatusDocument, GatewayTaskStatusKind,
+    RELATED_TASK_META_KEY,
 };
 
 #[path = "smoke/scenarios.rs"]
@@ -64,6 +65,30 @@ enum Cmd {
     },
     /// Smoke-test Helm and k3d local deployment rendering.
     HelmConfig,
+    /// Apply Bioma's typed ConfigMap and Secret resources to its isolated cluster.
+    BiomaResources {
+        /// Kubernetes context owned by the Bioma k3d cluster.
+        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        context: String,
+    },
+    /// Verify concurrent SUMO and Bioma clusters plus the public Cloudflare edge.
+    BiomaVerify {
+        /// Kubernetes context owned by the Bioma k3d cluster.
+        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        context: String,
+        /// Kubernetes context owned by the SUMO development cluster.
+        #[arg(long, default_value = "k3d-veoveo-sumo")]
+        sumo_context: String,
+        /// Loopback origin projected by the Bioma k3d load balancer.
+        #[arg(long, default_value = "http://127.0.0.1:8781")]
+        local_base_url: String,
+        /// Public Cloudflare hostname for the Bioma installation.
+        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        public_base_url: String,
+        /// Public Cloudflare hostname for the Bioma object store.
+        #[arg(long, default_value = "https://objects-veoveo.bioma.ai")]
+        object_base_url: String,
+    },
     /// Run every live SurrealDB integration target against an isolated 3.2.0 container.
     SurrealIntegration,
     /// Smoke-test gateway platform bootstrap and active revision validation.
@@ -382,6 +407,9 @@ enum Cmd {
     SumoVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
+        /// Kubernetes context owned by the SUMO development cluster.
+        #[arg(long, default_value = "k3d-veoveo-sumo")]
+        context: String,
     },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
     PerceptionGpu {
@@ -404,6 +432,23 @@ async fn main() -> Result<()> {
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::HelmConfig => helm_config().await,
+        Cmd::BiomaResources { context } => bioma_resources(&context),
+        Cmd::BiomaVerify {
+            context,
+            sumo_context,
+            local_base_url,
+            public_base_url,
+            object_base_url,
+        } => {
+            bioma_verify(
+                &context,
+                &sumo_context,
+                &local_base_url,
+                &public_base_url,
+                &object_base_url,
+            )
+            .await
+        }
         Cmd::SurrealIntegration => surreal_integration().await,
         Cmd::GatewayPlatformStore {
             gateway_bin,
@@ -594,7 +639,10 @@ async fn main() -> Result<()> {
             control_plane,
         } => gateway_vault_secrets(&gateway_bin, &control_plane).await,
         Cmd::SumoPush { steps } => sumo_push(steps).await,
-        Cmd::SumoVerify { conformance_bin } => sumo_verify(&conformance_bin).await,
+        Cmd::SumoVerify {
+            conformance_bin,
+            context,
+        } => sumo_verify(&conformance_bin, &context).await,
         Cmd::PerceptionGpu { env_file, work_dir } => perception_gpu(&env_file, &work_dir).await,
     }
 }

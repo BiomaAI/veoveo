@@ -18,6 +18,14 @@ group "platform" {
   ]
 }
 
+group "bioma" {
+  targets = [
+    "mcp-gateway",
+    "artifact-service",
+    "console-bff",
+  ]
+}
+
 group "sumo-showcase" {
   targets = [
     "mcp-gateway",

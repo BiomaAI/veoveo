@@ -3,7 +3,7 @@ global:
 
 objectStore:
   rustfs:
-    publicEndpoint: https://objects.veoveo.bioma.ai
+    publicEndpoint: https://objects-veoveo.bioma.ai
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
@@ -14,6 +14,6 @@ consoleBff:
 ingress:
   className: traefik
   host: veoveo.bioma.ai
-  objectStoreHost: objects.veoveo.bioma.ai
+  objectStoreHost: objects-veoveo.bioma.ai
   tls:
-    secretName: bioma-ingress-tls
+    enabled: false
