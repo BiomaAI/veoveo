@@ -295,6 +295,39 @@
       "metadata": {}
     },
     {
+      "slug": "view",
+      "uri_scheme": "view",
+      "mount_path": "/view",
+      "mcp_path": "/view/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://view-mcp:8801/view/mcp",
+        "security": "compose_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": false,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "capture_frame",
+        "close_view",
+        "create_view",
+        "set_camera"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "renderer": "headless_nvidia_vulkan"
+      }
+    },
+    {
       "slug": "time",
       "uri_scheme": "time",
       "mount_path": "/time",
@@ -692,6 +725,26 @@
           "tasks": "enabled"
         },
         {
+          "server": "view",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "view"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
           "server": "time",
           "tools": {
             "mode": "all"
@@ -845,6 +898,26 @@
         "admin:manage"
       ],
       "servers": [
+        {
+          "server": "view",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "view"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
         {
           "server": "perception",
           "tools": {
@@ -2299,6 +2372,44 @@
           ]
         },
         {
+          "id": "allow_view_surface_read",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "completion_complete"
+          ],
+          "profiles": ["operator", "admin"],
+          "servers": ["view"],
+          "resource_schemes": ["view"],
+          "required_scopes": ["operator:use", "view:read"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_view_write_tools",
+          "effect": "allow",
+          "actions": ["tools_call"],
+          "profiles": ["operator", "admin"],
+          "servers": ["view"],
+          "tools": ["create_view", "set_camera", "close_view"],
+          "required_scopes": ["operator:use", "view:write"],
+          "metadata": {}
+        },
+        {
+          "id": "allow_view_capture_tasks",
+          "effect": "allow",
+          "actions": ["tools_call", "tasks_get", "tasks_result", "tasks_cancel"],
+          "profiles": ["operator", "admin"],
+          "servers": ["view"],
+          "tools": ["capture_frame"],
+          "required_scopes": ["operator:use", "view:capture"],
+          "metadata": {}
+        },
+        {
           "id": "allow_map_surface_read",
           "effect": "allow",
           "actions": [
@@ -3022,6 +3133,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "view:read",
+        "view:write",
+        "view:capture",
         "map:dataset:read",
         "map:route",
         "map:route_matrix",
@@ -3069,6 +3183,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "view:read",
+        "view:write",
+        "view:capture",
         "map:dataset:read",
         "map:route",
         "map:route_matrix",
@@ -3106,6 +3223,9 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
+        "view:read",
+        "view:write",
+        "view:capture",
         "map:admin",
         "time:admin",
         "map:dataset:read",
@@ -3142,6 +3262,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "view:read",
+        "view:write",
+        "view:capture",
         "map:dataset:read",
         "map:route",
         "map:route_matrix",
@@ -3178,6 +3301,9 @@
       "allowed_scopes": [
         "operator:use",
         "admin:manage",
+        "view:read",
+        "view:write",
+        "view:capture",
         "map:admin",
         "time:admin",
         "map:dataset:read",
@@ -3216,6 +3342,9 @@
       ],
       "allowed_scopes": [
         "operator:use",
+        "view:read",
+        "view:write",
+        "view:capture",
         "map:dataset:read",
         "map:route",
         "map:route_matrix",

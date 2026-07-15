@@ -56,6 +56,9 @@ spec:
       annotations:
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
     spec:
+      {{- if $service.runtimeClassName }}
+      runtimeClassName: {{ $service.runtimeClassName }}
+      {{- end }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" $ }}
       automountServiceAccountToken: false
       imagePullSecrets:
@@ -91,6 +94,25 @@ spec:
                 secretKeyRef:
                   name: {{ $.Values.global.existingSecret }}
                   key: media-provider-webhook-secret
+            {{- end }}
+            {{- if eq $service.name "view-mcp" }}
+            - name: GOOGLE_MAPS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.global.existingSecret }}
+                  key: google-maps-api-key
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: graphics,compute,utility
+            - name: WGPU_BACKEND
+              value: vulkan
+            - name: WGPU_POWER_PREF
+              value: high
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp/wgpu-cache
             {{- end }}
           ports:
             - name: http

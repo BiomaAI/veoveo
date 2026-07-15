@@ -24,6 +24,7 @@ members = [
     "servers/recording-mcp",
     "servers/timeseries-mcp",
     "servers/time-mcp",
+    "servers/view-mcp",
     "showcase/sumo/sumo-mcp",
     "testing/mcp-conformance",
     "testing/smoke",
@@ -42,14 +43,18 @@ anyhow = "1.0.103"
 axum = "0.8.9"
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 base64 = "0.22.1"
+bevy = { version = "=0.19.0", default-features = false }
 bytes = "1.12.0"
 chacha20poly1305 = { version = "0.11.0", features = ["alloc", "getrandom", "rand_core"] }
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock"] }
 clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
+draco-gltf = { version = "0.1.0", default-features = false, features = ["image"] }
 flate2 = "1.1.9"
 duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "e2f3d156223250827567d154035e670432d97ac9", features = ["chrono"] }
 futures = "0.3.32"
+glam = { version = "0.32.0", features = ["serde"] }
+gltf = { version = "1.4.1", default-features = false, features = ["extensions", "import", "KHR_materials_unlit", "names", "utils"] }
 geo = { version = "0.32.0", features = ["serde"] }
 geo-types = { version = "0.7.19", features = ["serde"] }
 geographiclib-rs = "0.2.7"
@@ -59,6 +64,7 @@ http = "1.4.2"
 good_lp = { version = "1.15.2", default-features = false, features = ["microlp"] }
 hex = "0.4.3"
 hmac = "0.13.0"
+image = { version = "0.25.9", default-features = false, features = ["jpeg", "png"] }
 hifitime = { version = "4.3.0", default-features = false, features = ["std"] }
 h264-reader = "0.8.0"
 jsonschema = "0.46.9"

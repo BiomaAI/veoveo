@@ -135,6 +135,7 @@
           "healthPath": {"type": "string", "pattern": "^/"},
           "args": {"type": "array", "items": {"type": "string"}},
           "replicas": {"type": "integer", "minimum": 1},
+          "runtimeClassName": {"type": "string", "minLength": 1},
           "duckdbSandbox": {"type": "boolean"},
           "platformStore": {"type": "boolean"},
           "persistence": {"$ref": "#/definitions/persistence"},
