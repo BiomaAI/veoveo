@@ -7,7 +7,8 @@ work, flat 2D, and exactly one amber accent placed only where it carries
 meaning. Keep new figures in this voice.
 
 Usage:
-    MEDIA_PROVIDER_API_KEY=... python3 docs/images/generate.py [figure ...]
+    set -a; source .env; set +a
+    uv run --python 3.13 docs/images/generate.py [figure ...]
 
 With no arguments every figure regenerates; naming figures regenerates only
 those. Outputs land beside this script. Review every output for label accuracy
@@ -48,7 +49,26 @@ IMAGES = {
     ),
     "system-map": (
         "1536*1024",
-        "System architecture schematic with exactly one hexagon in the whole image. Left: three outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three stacked outlined stages labeled INGEST, PERSIST, SEGMENTS. Center-right: one outlined circle labeled GATEWAY. Above the circle, an outlined rounded rectangle labeled CONSOLE with a plain dark arrow down into the circle. Left of the circle, the single outlined hexagon, labeled AGENT, with a plain dark arrow into the circle labeled TOOLS. One plain dark unlabeled arrow leaves the circle rightward into a horizontal row of nine tiny outlined rectangles with the word MODULES written beneath the row. Bottom center: an outlined database cylinder labeled PLATFORM STORE, connected by thin plain dark lines up to the GATEWAY circle and to the MODULES row. One long amber arrow starts at the bottom edge of the RECORDING HUB container and ends at the MODULES row, labeled QUERIES. One amber dashed arrow starts at the PLATFORM STORE cylinder and ends at the AGENT hexagon, labeled WAKES, pointing at the hexagon. Amber appears only on the three PUSH arrows, the QUERIES arrow, and the WAKES arrow; every other line is dark slate."
+        "System architecture schematic with exactly one hexagon in the whole image. Left: three"
+        " outlined boxes stacked vertically labeled SENSORS, SUMO, AGENTS, each with a thin amber"
+        " arrow labeled PUSH into a tall outlined container labeled RECORDING HUB holding three"
+        " stacked outlined stages labeled INGEST, PERSIST, SEGMENTS. Center: the single outlined"
+        " hexagon, labeled AGENT, sends one plain dark arrow labeled MCP into one outlined circle"
+        " labeled GATEWAY. Above the circle, one outlined rounded rectangle labeled CONSOLE sends"
+        " one plain dark arrow labeled SESSION down into the circle. Right: one large dashed rounded"
+        " boundary labeled HOSTED SERVERS contains exactly twelve equal tiny outlined rectangles"
+        " arranged as three rows of four, with no text inside them. One plain dark arrow labeled MCP"
+        " + ADMIN leaves the GATEWAY circle and enters the HOSTED SERVERS boundary. Bottom center:"
+        " one outlined database cylinder labeled PLATFORM STORE, connected by thin plain dark lines"
+        " up to GATEWAY and HOSTED SERVERS, with the single label DURABLE STATE + AUDIT beneath the"
+        " cylinder. One long amber arrow labeled QUERIES starts at the lower edge of RECORDING HUB,"
+        " routes below GATEWAY, then rises into HOSTED SERVERS; its only arrowhead must touch HOSTED"
+        " SERVERS. One amber dashed arrow labeled WAKES starts at PLATFORM STORE, rises upward, and"
+        " ends at the lower edge of the AGENT hexagon; its only arrowhead must touch AGENT, never"
+        " PLATFORM STORE. No other amber line may touch PLATFORM STORE. Every specified label appears"
+        " exactly once except PUSH, which appears exactly three times, once on each producer arrow."
+        " Amber appears only on the three PUSH arrows, the QUERIES arrow, and the WAKES arrow; every"
+        " other line is dark slate. Do not draw a detached legend arrow."
     ),
     "world-model": (
         "1536*1024",
@@ -108,7 +128,22 @@ IMAGES = {
     ),
     "capability-map": (
         "1536*1024",
-        "Modular capability schematic in three parts. Center: one outlined circle labeled GATEWAY; directly beneath it, three stacked wide horizontal bars drawn as thin amber outlines with white interiors, labeled TASKS, ARTIFACTS, POLICY. Left of the gateway: one large dashed rounded boundary labeled EDGE containing a grid of exactly ten equal outlined rectangles arranged as two rows of five; reading left to right, top to bottom they are labeled row one MEDIA, PERCEPTION, GEODESY, SQL, PLANNING; row two FORECASTING, SHARING, RECORDINGS, CHARTS, VIEWER — ten rectangles, each word appearing exactly once. Right of the gateway: one large dashed rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line connects the EDGE boundary to the gateway circle and one trunk line connects the REMOTE boundary to the gateway circle. The amber accent appears only on the three contract bars and the plus symbol; everything else dark slate."
+        "Hosted capability schematic in three parts. Center: one outlined circle labeled GATEWAY;"
+        " directly beneath it, four stacked wide horizontal bars drawn as thin amber outlines with"
+        " white interiors, labeled from top to bottom FULL MCP, TYPED ADMIN, DURABLE TASKS, ARTIFACTS"
+        " + POLICY. Left of the gateway: one large dashed rounded boundary labeled HOSTED containing"
+        " a grid of exactly twelve equal outlined rectangles arranged as four rows of three. Reading"
+        " left to right, top to bottom: row one MEDIA, PERCEPTION, TIMESERIES; row two DUCKDB,"
+        " OPTIMIZATION, FRAMES; row three MAP, DATASHEET, ARTIFACT; row four RECORDING, CHARTS, RERUN."
+        " Draw all four complete rows inside the boundary. DUCKDB and DATASHEET are mandatory. Do not"
+        " omit any label, put RERUN on its own row, or draw any extra capability box. Right of the"
+        " gateway: one large dashed"
+        " rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined"
+        " and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one"
+        " drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line"
+        " connects the HOSTED boundary to the GATEWAY circle and one trunk line connects the REMOTE"
+        " boundary to the GATEWAY circle. Every specified label appears exactly once. The amber accent"
+        " appears only on the four contract bars and the plus symbol; everything else is dark slate."
     ),
     "perception-flow": (
         "1536*1024",
