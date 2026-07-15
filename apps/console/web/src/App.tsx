@@ -154,9 +154,14 @@ export function App() {
         <Boxes size={30} />
         <h1>Console unavailable</h1>
         <p>{error ?? "No installation snapshot was returned."}</p>
-        <button className="button button-primary" onClick={refresh}>
-          <RefreshCw size={15} /> Retry
-        </button>
+        <div className="error-actions">
+          <button className="button button-primary" onClick={refresh}>
+            <RefreshCw size={15} /> Retry
+          </button>
+          <button className="button button-secondary" onClick={() => void signOut()} disabled={signingOut}>
+            <LogOut size={15} /> Sign out and authenticate again
+          </button>
+        </div>
       </div>
     );
   }
