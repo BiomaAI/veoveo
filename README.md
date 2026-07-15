@@ -31,8 +31,8 @@ product dependency or canonical hostname.
   analytical memory, and Rerun episode recording.
 - An authenticated operations console for health, tasks, artifacts, agents,
   recordings, MCP topology, policy, audit, and installation state.
-- Equivalent Docker Compose and Helm installation shapes, plus a verified offline
-  bundle path.
+- One Kubernetes and Helm installation shape, a GPU-capable k3d development
+  profile, and a verified offline bundle path.
 
 The normative product boundaries are in
 [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md).
@@ -142,8 +142,7 @@ Two sharing modes are separate and explicit:
 
 Authorized large downloads pass through the gateway policy/audit boundary before a
 short-lived object-store redirect is returned. Public links use `/s/{token}`; only a
-token hash is stored. The default Caddy edge suppresses these bearer paths from
-access logs. Helm isolates `/s` in a dedicated Ingress with an explicit access-log
+token hash is stored. The chart isolates `/s` in a dedicated Ingress with an explicit access-log
 disable annotation; operators using another controller must replace it with that
 controller's equivalent and apply the same suppression in APM/WAF/tracing. Domain
 servers expose no independent byte routes.
@@ -164,60 +163,36 @@ receives a gateway bearer token. A short gateway delivery window lets concurrent
 stateless BFF requests receive the identical rotated successor; use of the consumed
 token after that window is replay and revokes the family.
 
-## Install With Compose
+## Develop With k3d
 
-Prerequisites are Docker with Compose v2 and enough resources to build the Rust
-workspace. The canonical Compose topology also includes `perception-mcp`; its
-Ubuntu runtime requires an NVIDIA driver, NVIDIA Container Toolkit, NGC access,
-and a GPU supported by DeepStream 9. macOS is a development host for the Rust
-layers, not an NVIDIA runtime. Copy and populate the installation environment:
-
-```bash
-cp .env.example .env
-```
-
-Required values include SurrealDB bootstrap/runtime credentials, object-store
-credentials, the gateway Ed25519 private key and public JWKS, authorization-server
-signing material, OIDC client secret, a distinct 32-byte gateway refresh-delivery key,
-console session key, media webhook secret, and `PUBLIC_BASE_URL`. Generate the refresh
-delivery key with `openssl rand -base64 32`; the decoded value must be exactly 32 bytes.
-Update `configs/gateway.local.json` for the installation's OIDC issuer, tenant mapping,
-public origin, and client registrations. Set `PERCEPTION_CONFIG_DIR` and
-`PERCEPTION_MODEL_DIR` to the model-specific DeepStream configuration and TensorRT
-engine roots described in
-[`servers/perception-mcp/DESIGN.md`](servers/perception-mcp/DESIGN.md).
-
-Validate before startup:
+Local container development uses k3d and the same Helm chart as a fielded
+installation. The pinned profile currently uses k3d 5.9.0, Kubernetes 1.36.2,
+kubectl 1.36.2, and Helm 4.2.3. Its custom K3s node installs the NVIDIA Container
+Toolkit and fails closed when the host GPU is unavailable.
 
 ```bash
-just gateway-validate
-just deployments-validate
-just smoke-compose-config
+just k3d-node-build
+just k3d-create
+just k3d-status
 ```
 
-Start the canonical single-host installation:
+Workloads are selected with profile-owned Helm values and gateway control data.
+The SUMO profile is the first complete local proof:
 
 ```bash
-just compose-up
-just compose-ps
-just health
+just showcase-sumo-build
+just showcase-sumo-import
+just showcase-sumo-resources
+just showcase-sumo-platform-up
+just showcase-sumo-up
+just showcase-sumo-verify
 ```
 
-The local edge binds to `127.0.0.1:8780`. Public exposure belongs to the installation
-operator's ingress. The canonical stack does not start a tunnel.
-
-Useful entrypoints are:
-
-```text
-{PUBLIC_BASE_URL}/console/
-{PUBLIC_BASE_URL}/mcp/operator
-{PUBLIC_BASE_URL}/mcp/admin
-{PUBLIC_BASE_URL}/healthz
-{PUBLIC_BASE_URL}/readyz
-```
-
-Direct hosted MCP ports are loopback development targets and are blocked at the public
-edge. Provider webhooks and curated provider-fetchable media remain plumbing routes.
+The cluster maps its canonical loopback ingress to `http://localhost:8780`,
+SUMO MCP verification to `127.0.0.1:8895`, and Recording Hub viewing to
+`127.0.0.1:9877`. See
+[`deploy/local/k3d/README.md`](deploy/local/k3d/README.md) for GPU validation,
+profile isolation, image import, and Rerun commands.
 
 ## Install With Helm
 
@@ -243,7 +218,7 @@ just offline-bundle
 just offline-load output/veoveo-offline-0.1.0.tar.gz docker /opt/veoveo
 ```
 
-The bundle contains pinned runtime images, Veoveo images, Compose and Helm material,
+The bundle contains pinned runtime images, Veoveo images, Helm material,
 versioned configuration schemas, checksums, resolved image identities, and SPDX SBOMs.
 Loading retains all verification evidence. See
 [`deploy/offline/README.md`](deploy/offline/README.md).

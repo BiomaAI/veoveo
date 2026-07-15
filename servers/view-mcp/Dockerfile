@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM rust:1.96.1-slim-bookworm AS builder
+FROM rust:1.97.0-slim-bookworm AS builder
 
 WORKDIR /app
 RUN apt-get update \
@@ -23,7 +23,7 @@ RUN --mount=type=cache,id=view-mcp-cargo-registry,target=/usr/local/cargo/regist
 # This runtime provides NVIDIA's CUDA user-space baseline. The host driver and
 # Vulkan ICD are injected by NVIDIA Container Toolkit through the graphics
 # driver capability; no Mesa Vulkan ICD or CPU rendering fallback is installed.
-FROM nvidia/cuda:13.0.1-runtime-ubuntu24.04
+FROM nvidia/cuda:13.3.0-runtime-ubuntu24.04
 
 USER root
 RUN apt-get update \

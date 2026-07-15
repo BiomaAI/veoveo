@@ -43,7 +43,7 @@ metadata:
     {{- include "veoveo.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $service.name }}
 spec:
-  replicas: {{ default 2 $service.replicas }}
+  replicas: {{ default $.Values.global.defaultReplicas $service.replicas }}
   selector:
     matchLabels:
       {{- include "veoveo.selectorLabels" $ | nindent 6 }}
@@ -76,8 +76,10 @@ spec:
             {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
             {{- include "veoveo.commonEnv" $ | nindent 12 }}
             {{- else }}
+            {{- if $.Values.telemetry.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4318
+            {{- end }}
             {{- end }}
             - name: PUBLIC_BASE_URL
               value: {{ $.Values.global.publicBaseUrl | quote }}

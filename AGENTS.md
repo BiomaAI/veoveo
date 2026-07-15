@@ -30,6 +30,18 @@ This means:
 If a change would break existing callers, that is acceptable by default. Document the new
 canonical path, update tests and examples to it, and delete the old path.
 
+## Dependency Currency
+
+Use the latest stable upstream release whenever a dependency, toolchain, image,
+or deployment component is introduced or touched. Do not copy stale versions
+from examples, blog posts, or upstream guides. Verify the current release from
+the authoritative upstream source, pin it exactly for reproducibility, and
+update its tests and documentation in the same change.
+
+Pre-release dependencies require an explicit product reason. If the upstream
+project has no stable release, use its latest published pre-release and record
+that constraint beside the pin.
+
 ## Provider Completion
 
 Provider job completion is webhook-only. Do not add provider status polling, polling

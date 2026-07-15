@@ -385,7 +385,7 @@ mod tests {
             upstream: UpstreamEndpoint {
                 transport: UpstreamTransport::StreamableHttp,
                 url: UpstreamUrl::new(format!("http://{slug}-mcp:8787/{slug}/mcp")).unwrap(),
-                security: UpstreamTransportSecurity::ComposeInternalHttp,
+                security: UpstreamTransportSecurity::ClusterInternalHttp,
                 trusted_certificate_authorities: Vec::new(),
                 client_certificate: None,
                 client_private_key: None,

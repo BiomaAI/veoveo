@@ -236,8 +236,8 @@
         declared recovery class; agents detach, and results wake them within a second of
         completion — across process death.</li>
     <li><b>The installation is sovereign.</b> Built for contested and disconnected operations:
-        one platform, three installation forms — Compose, Helm, and a verified offline bundle
-        with provenance included.</li>
+        one Helm workload model runs in local k3d, fielded Kubernetes, and a verified offline
+        bundle with provenance included.</li>
     <li><b>A live city proves the loop.</b> A pinned SUMO traffic world drives
         perceive → decide → act end to end through the same contracts as every other capability.</li>
   </ul>
@@ -467,8 +467,8 @@
   <span class="runhead">Veoveo · Autonomy Harness</span>
   <h1 class="section">6. Edge, Access, and the Gateway</h1>
   <p class="body">
-    Every client enters through the installation's own ingress: the Caddy edge on Compose, an
-    Ingress on Helm. <code>/mcp</code>, <code>/oauth</code>, <code>/admin</code>, and
+    Every client enters through the installation's own Kubernetes Ingress. <code>/mcp</code>,
+    <code>/oauth</code>, <code>/admin</code>, and
     <code>/artifacts</code> reach the gateway; <code>/console</code> and <code>/auth</code> reach
     the console BFF; <code>/s/{token}</code> reaches the artifact service for public links. Every
     hosted server lives on the internal network and requires a gateway-signed Ed25519 identity
@@ -730,9 +730,9 @@
   <table class="data tight">
     <thead><tr><td>Form</td><td>Shape</td></tr></thead>
     <tbody>
-      <tr><td>Edge</td><td>One host at the operation: <code>just compose-up</code> brings up the full stack behind a loopback Caddy edge. Public exposure is the operator's ingress decision.</td></tr>
+      <tr><td>Local</td><td><code>just k3d-create</code> creates a loopback-only Kubernetes cluster. Helm installs the selected profile with the same workload model used in the field.</td></tr>
       <tr><td>Cluster</td><td>The Helm form: one SurrealDB StatefulSet, default-deny NetworkPolicy, optional service-mesh mTLS, separate migration and runtime credentials, operator-supplied telemetry and SIEM wiring.</td></tr>
-      <tr><td>Air-gap</td><td>The verified offline bundle: pinned images, Compose and Helm material, config schemas, checksums, and SBOMs. Installation and verification complete entirely inside the boundary.</td></tr>
+      <tr><td>Air-gap</td><td>The verified offline bundle contains pinned images, Helm material, config schemas, checksums, and SBOMs. Installation and verification complete entirely inside the boundary.</td></tr>
       <tr><td>Hybrid</td><td>An edge installation that registers remote MCP endpoints and provider-backed servers. The reach is governed like everything else — same policy, same audit, same task contract.</td></tr>
     </tbody>
   </table>
@@ -760,7 +760,7 @@
         token tooling.</li>
     <li><b>Smoke harness.</b> End-to-end scenarios with real process orchestration: fake IdP,
         provider, and upstream services; a real Keycloak realm; live agent-kernel sleep/wake; and
-        the full SUMO world in a disposable Compose project. The Map smoke acquires and activates
+        the full SUMO world in a disposable k3d cluster. The Map smoke acquires and activates
         source fixtures, runs real Valhalla and governed-network routes through tasks, and proves
         restrictions and release changes invalidate dependent resources.</li>
     <li><b>CI.</b> Formatting, clippy, Rust and Python tests, the datasheet template, the console UI
@@ -784,7 +784,7 @@
   <table class="data tight">
     <thead><tr><td>Component</td><td>Role</td><td>What it is</td></tr></thead>
     <tbody>
-      <tr><td class="mono">ingress</td><td>ours</td><td>The single public door, owned by the operator: Caddy on Compose, an Ingress on Helm. One place to defend and observe.</td></tr>
+      <tr><td class="mono">ingress</td><td>ours</td><td>The single public door, owned by the operator: Kubernetes Ingress in local k3d and fielded clusters. One place to defend and observe.</td></tr>
       <tr><td class="mono">gateway</td><td>ours</td><td>The governed protocol boundary: authenticates the caller, checks policy, projects full MCP server surfaces, proxies server administration under declared request and response schemas, and writes the audit trail.</td></tr>
       <tr><td class="mono">console</td><td>ours</td><td>The cockpit: the operations UI plus a session backend that owns browser login, encrypted sessions, and CSRF enforcement.</td></tr>
       <tr><td class="mono">agent kernel</td><td>ours</td><td>The runtime for long-lived agents: short episodes, durable memory, wake on a result, a timer, or a message.</td></tr>

@@ -62,8 +62,8 @@ enum Cmd {
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         smoke_control_plane: PathBuf,
     },
-    /// Smoke-test Compose edge routing and published-port shape.
-    ComposeConfig,
+    /// Smoke-test Helm and k3d local deployment rendering.
+    HelmConfig,
     /// Run every live SurrealDB integration target against an isolated 3.2.0 container.
     SurrealIntegration,
     /// Smoke-test gateway platform bootstrap and active revision validation.
@@ -385,15 +385,12 @@ enum Cmd {
     },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
     PerceptionGpu {
-        /// Environment file used by the Compose stack and direct assertion signer.
+        /// Environment file used by the active k3d profile and direct assertion signer.
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
-        /// Compose override that publishes the Recording Hub proxy on loopback.
-        #[arg(long, default_value = "output/perception/compose.gpu-test.yaml")]
-        compose_override: PathBuf,
-        /// Isolated Compose project name.
-        #[arg(long, default_value = "veoveo-perception-gpu")]
-        project_name: String,
+        /// Host workspace for the generated DeepStream sample.
+        #[arg(long, default_value = "output/perception/work")]
+        work_dir: PathBuf,
     },
 }
 
@@ -406,7 +403,7 @@ async fn main() -> Result<()> {
             control_plane,
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
-        Cmd::ComposeConfig => compose_config().await,
+        Cmd::HelmConfig => helm_config().await,
         Cmd::SurrealIntegration => surreal_integration().await,
         Cmd::GatewayPlatformStore {
             gateway_bin,
@@ -598,10 +595,6 @@ async fn main() -> Result<()> {
         } => gateway_vault_secrets(&gateway_bin, &control_plane).await,
         Cmd::SumoPush { steps } => sumo_push(steps).await,
         Cmd::SumoVerify { conformance_bin } => sumo_verify(&conformance_bin).await,
-        Cmd::PerceptionGpu {
-            env_file,
-            compose_override,
-            project_name,
-        } => perception_gpu(&env_file, &compose_override, &project_name).await,
+        Cmd::PerceptionGpu { env_file, work_dir } => perception_gpu(&env_file, &work_dir).await,
     }
 }

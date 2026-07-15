@@ -17,8 +17,8 @@ Veoveo is installed and operated by its owner. Each installation is autonomous:
   labeled deployment example;
 - connected and offline installations expose the same product capabilities.
 
-The supported installation forms are Docker Compose and Helm. They describe the
-same architecture and contracts rather than separate product editions.
+Kubernetes is the supported installation form and Helm is its package contract.
+k3d runs that same chart for local development.
 
 ## Tenancy
 
@@ -158,10 +158,10 @@ console projections. A successor consumption clears its envelope atomically;
 otherwise expired envelopes are ineligible immediately and physically removed by a
 dedicated one-minute GC pass.
 
-Production Helm deployments separate migration-admin and runtime database
+Helm deployments separate migration-admin and runtime database
 credentials, use existing Kubernetes Secrets, support service-mesh mTLS, and
-apply default-deny network policy. Compose is the local and single-host form and
-keeps internal ports private by default.
+apply default-deny network policy. The k3d profile binds local projections to
+loopback and keeps TraCI inside the cluster.
 
 ## Operations console
 
@@ -191,7 +191,7 @@ protocol or shell-based smoke framework.
 ## Offline operation
 
 An offline bundle contains all pinned external images, Veoveo images, the Helm
-chart and Compose configuration, configuration schemas, checksums, and SBOMs.
+chart, configuration schemas, checksums, and SBOMs.
 Bundle creation occurs in a connected build environment; installation and
 verification must not require a registry, package index, vendor API, or Veoveo
 service. Provider-dependent features may be unavailable offline without changing

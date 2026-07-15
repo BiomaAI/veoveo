@@ -29,7 +29,7 @@ fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|path| path.parent())
-        .expect("smoke crate lives under <root>/crates")
+        .expect("smoke crate lives under <root>/testing")
         .to_owned()
 }
 
@@ -43,7 +43,8 @@ fn offline_bundle_manifest_is_immutable_and_complete() {
     assert_eq!(manifest.schema_version, 1);
     assert!(!manifest.bundle_version.trim().is_empty());
 
-    let compose = fs::read_to_string(root.join("compose.yaml")).expect("read compose");
+    let helm_values =
+        fs::read_to_string(root.join("deploy/helm/veoveo/values.yaml")).expect("read Helm values");
     let mut references = BTreeSet::new();
     for image in &manifest.external_images {
         assert!(references.insert(&image.r#ref), "duplicate image reference");
@@ -59,10 +60,17 @@ fn offline_bundle_manifest_is_immutable_and_complete() {
                 .bytes()
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
         );
+        let (repository, tag) = image
+            .r#ref
+            .rsplit_once(':')
+            .expect("external image ref must have an exact tag");
         assert!(
-            compose.contains(&format!("image: {}", image.r#ref)),
-            "Compose does not use locked external image {}",
-            image.r#ref
+            helm_values.contains(&format!("repository: {repository}")),
+            "Helm values do not use locked external repository {repository}"
+        );
+        assert!(
+            helm_values.contains(&format!("tag: {tag}")),
+            "Helm values do not use locked external tag {tag}"
         );
     }
     for image in &manifest.veoveo_images {

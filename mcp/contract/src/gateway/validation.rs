@@ -346,7 +346,7 @@ fn upstream_security_allows_url(security: UpstreamTransportSecurity, url: &Upstr
         UpstreamTransportSecurity::LoopbackHttp => {
             parsed.scheme() == "http" && url_host_is_loopback(&parsed)
         }
-        UpstreamTransportSecurity::ComposeInternalHttp => {
+        UpstreamTransportSecurity::ClusterInternalHttp => {
             parsed.scheme() == "http" && url_host_is_single_label_service_name(&parsed)
         }
         UpstreamTransportSecurity::Tls | UpstreamTransportSecurity::MutualTls => {

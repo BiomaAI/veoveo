@@ -82,7 +82,7 @@ CAPABILITIES = [
     (
         "VV-CAP-010",
         "Connected and offline deployment",
-        "One service graph deploys through Compose or Helm with verified offline transfer.",
+        "One Helm service graph runs in local k3d or fielded Kubernetes with verified offline transfer.",
     ),
     (
         "VV-CAP-011",
@@ -213,10 +213,9 @@ SERVICES = [
 ]
 
 ACTUAL_RESOURCES = [
-    ("VV-AR-001", "Compose connected installation", "VV-CMP-035"),
-    ("VV-AR-002", "Compose offline installation", "VV-CMP-035"),
-    ("VV-AR-003", "Helm connected installation", "VV-CMP-036"),
-    ("VV-AR-004", "Helm offline installation", "VV-CMP-036"),
+    ("VV-AR-001", "k3d local development installation", "VV-CMP-035"),
+    ("VV-AR-002", "Kubernetes connected installation", "VV-CMP-036"),
+    ("VV-AR-003", "Kubernetes offline installation", "VV-CMP-036"),
 ]
 
 ROLES = [
@@ -1009,45 +1008,38 @@ def diagram_deployment() -> None:
         1800,
         1100,
         "Deployment configurations",
-        "Four actual resource configurations composed from the same Veoveo service graph.",
+        "Three actual resource configurations instantiated from the same Helm service graph.",
         "VV-VIEW-07",
     )
     configs = [
         (
             "VV-AR-001",
-            "Compose connected",
-            "Single host",
-            "External OIDC; RustFS or S3; private HTTP; loopback ports",
+            "k3d local",
+            "Local Kubernetes",
+            "Loopback ingress; development Secrets; mandatory NVIDIA GPU access",
             "#d9ebe7",
         ),
         (
             "VV-AR-002",
-            "Compose offline",
-            "Single isolated host",
-            "Offline OIDC discovery; RustFS; mTLS option; imported images",
-            "#deebf2",
-        ),
-        (
-            "VV-AR-003",
-            "Helm connected",
+            "Kubernetes connected",
             "Kubernetes",
             "External OIDC/S3; Ingress; default-deny NetworkPolicy; mesh mTLS",
             "#eee5d8",
         ),
         (
-            "VV-AR-004",
-            "Helm offline",
+            "VV-AR-003",
+            "Kubernetes offline",
             "Isolated Kubernetes",
             "Imported images; existing Secrets; offline values; retained evidence",
             "#e7e1ef",
         ),
     ]
     for index, (ident, name, form, detail, fill) in enumerate(configs):
-        x = 38 + index * 438
+        x = 38 + index * 573
         svg.card(
             x,
             135,
-            405,
+            540,
             190,
             ident,
             name,
@@ -1065,14 +1057,13 @@ def diagram_deployment() -> None:
             "Telemetry + audit",
         ]
         for row, invariant in enumerate(invariants):
-            svg.rect(x, 365 + row * 72, 405, 54, fill="#ffffff", stroke="#c0ccd1", rx=6)
+            svg.rect(x, 365 + row * 72, 540, 54, fill="#ffffff", stroke="#c0ccd1", rx=6)
             svg.text(x + 18, 398 + row * 72, invariant, cls="body")
-            svg.text(x + 380, 398 + row * 72, "INVARIANT", cls="tiny", anchor="end")
-        svg.rect(x, 825, 405, 112, fill="#ffffff", stroke="#c0ccd1", rx=8)
+            svg.text(x + 515, 398 + row * 72, "INVARIANT", cls="tiny", anchor="end")
+        svg.rect(x, 825, 540, 112, fill="#ffffff", stroke="#c0ccd1", rx=8)
         svg.text(x + 18, 855, "Form-specific controls", cls="node-id")
         form_controls = [
-            "Compose secrets, volumes, Caddy",
-            "Offline image import and local trust",
+            "k3d ports, image import, GPU node",
             "Kubernetes Secrets, PVCs, Ingress",
             "Offline Helm values and image policy",
         ][index]
@@ -1732,7 +1723,7 @@ def generate_html() -> None:
             "07-deployment-configurations.svg",
             "Deployment configurations",
             "Actual Resources Structure",
-            "Compares the four fieldable connected/offline Compose/Helm configurations and their invariant service graph.",
+            "Compares local k3d with connected and offline Kubernetes configurations that share one Helm service graph.",
         ),
         (
             "08-security-and-trust.svg",
@@ -1831,7 +1822,7 @@ def generate_html() -> None:
 <section id="method"><h2>Architecture method and conformance posture</h2><p>UAF 1.3 governs the enterprise and mission architecture. SysML 1.6 supplies detailed software blocks, requirement semantics, connectivity, and lifecycle behavior beneath it. Stable identifiers preserve traceability across diagrams, catalogs, XMI, repository evidence, and future client overlays.</p>
 <div class="notice"><strong>Model-exchange posture.</strong> The included XMI applies the official OMG UAF 1.3 and SysML 1.6 profile URIs and carries the semantic elements and trace relationships used by this report. The release validates XML structure, identifiers, references, catalog coverage, and rendered outputs. Vendor-specific diagram notation and profile OCL validation require import into a UAF 1.3-capable modeling tool; the package does not claim a vendor-native project or tool-certified UAF conformance.</div>
 <h3>Trace rule</h3><p><code>Requirement -&gt; Capability -&gt; Operational Activity -&gt; Service -&gt; Software Resource -&gt; Actual Resource -&gt; Verification Evidence</code></p>
-<h3>Baseline invariants</h3><p>SurrealDB is the sole platform coordination authority. Provider completion is webhook-only. The gateway preserves the complete MCP surface where it fits. Artifacts, recordings, tasks, agents, policy decisions, and audit evidence retain canonical identities. Compose and Helm instantiate the same service graph.</p>
+<h3>Baseline invariants</h3><p>SurrealDB is the sole platform coordination authority. Provider completion is webhook-only. The gateway preserves the complete MCP surface where it fits. Artifacts, recordings, tasks, agents, policy decisions, and audit evidence retain canonical identities. Helm instantiates the same service graph in local k3d and fielded Kubernetes.</p>
 <h3>Selected formal layers</h3><table class="doc-control"><thead><tr><th>Layer</th><th>Question answered</th><th>Veoveo model elements</th></tr></thead><tbody><tr><td>Strategic</td><td>Which enterprise abilities and outcomes matter?</td><td><code>VV-CAP-*</code></td></tr><tr><td>Operational</td><td>Which logical activities and mission threads produce the outcome?</td><td><code>VV-OPA-*</code></td></tr><tr><td>Services</td><td>Which implementation-independent offers support the activities?</td><td><code>VV-SVC-*</code></td></tr><tr><td>Resources</td><td>Which software, interfaces, data, and runtimes realize the services?</td><td><code>VV-CMP-*</code> and <code>VV-IF-*</code></td></tr><tr><td>Actual Resources</td><td>Which connected or offline fielded configuration is present?</td><td><code>VV-AR-*</code></td></tr><tr><td>Requirements and evidence</td><td>Which claims constrain the architecture and where are they verified?</td><td><code>VV-REQ-*</code> and repository evidence</td></tr></tbody></table></section>
 {"".join(view_html)}
 <section class="catalog-section" id="components"><h2>Software component catalog</h2><p>The catalog includes every buildable first-party component and every external runtime that participates in the stated architecture. Deployment aliases and external operational actors appear in the interface model but are not counted as software resources.</p><div class="filter"><label for="component-filter">Filter components</label><input id="component-filter" type="search" placeholder="ID, name, category, implementation, responsibility"></div>{component_table}</section>

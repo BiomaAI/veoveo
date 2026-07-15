@@ -83,7 +83,6 @@ pub struct SelfHostedDeploymentPlan {
 pub struct SelfHostedDeploymentProfile {
     pub id: DeploymentProfileId,
     pub installation_scope: InstallationScope,
-    pub installation_form: InstallationForm,
     pub connectivity: ConnectivityMode,
     pub tenant_model: TenantModel,
     pub platform_store: PlatformStoreDeployment,
@@ -103,15 +102,6 @@ pub struct SelfHostedDeploymentProfile {
 #[serde(rename_all = "snake_case")]
 pub enum InstallationScope {
     OneEnterprise,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum InstallationForm {
-    Compose,
-    Helm,
 }
 
 #[derive(
@@ -265,7 +255,6 @@ pub struct IngressDeployment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IngressKind {
-    ComposePublishedPort,
     KubernetesIngress,
     ExternalReverseProxy,
 }
@@ -293,7 +282,6 @@ pub struct SecretManagerDeployment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SecretManagerKind {
-    ComposeSecretFiles,
     KubernetesExistingSecret,
     ExternalSecretManager,
 }
@@ -424,25 +412,18 @@ impl SelfHostedDeploymentPlan {
             bail!("deployment plan must define at least one profile");
         }
         let mut ids = BTreeSet::new();
-        let mut shapes = BTreeSet::new();
+        let mut connectivity_modes = BTreeSet::new();
         for profile in &self.profiles {
             if !ids.insert(profile.id.clone()) {
                 bail!("duplicate deployment profile `{}`", profile.id);
             }
-            shapes.insert((profile.installation_form, profile.connectivity));
+            connectivity_modes.insert(profile.connectivity);
             profile.validate()?;
         }
-        for shape in [
-            (InstallationForm::Compose, ConnectivityMode::Connected),
-            (InstallationForm::Compose, ConnectivityMode::Offline),
-            (InstallationForm::Helm, ConnectivityMode::Connected),
-            (InstallationForm::Helm, ConnectivityMode::Offline),
-        ] {
-            if !shapes.contains(&shape) {
+        for connectivity in [ConnectivityMode::Connected, ConnectivityMode::Offline] {
+            if !connectivity_modes.contains(&connectivity) {
                 bail!(
-                    "deployment plan must include canonical `{:?}` `{:?}` installation profile",
-                    shape.0,
-                    shape.1
+                    "deployment plan must include canonical `{connectivity:?}` Kubernetes installation profile"
                 );
             }
         }
@@ -470,11 +451,10 @@ impl SelfHostedDeploymentProfile {
         self.platform_store.validate(&self.id)?;
         self.object_store.validate(&self.id)?;
         self.analytical_runtime.validate(&self.id)?;
-        self.ingress.validate(&self.id, self.installation_form)?;
+        self.ingress.validate(&self.id)?;
         self.identity_provider
             .validate(&self.id, self.connectivity)?;
-        self.secret_manager
-            .validate(&self.id, self.installation_form)?;
+        self.secret_manager.validate(&self.id)?;
         self.service_to_service.validate(&self.id)?;
         self.telemetry.validate(&self.id)?;
         self.retention.validate(&self.id)?;
@@ -567,27 +547,12 @@ impl AnalyticalRuntimeDeployment {
 }
 
 impl IngressDeployment {
-    fn validate(&self, profile: &DeploymentProfileId, form: InstallationForm) -> Result<()> {
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
         if !self.tls_terminated {
             bail!("deployment profile `{profile}` ingress must terminate TLS");
         }
         if !self.public_base_url.as_str().starts_with("https://") {
             bail!("deployment profile `{profile}` public ingress must use HTTPS");
-        }
-        let valid_for_form = matches!(
-            (form, self.kind),
-            (
-                InstallationForm::Compose,
-                IngressKind::ComposePublishedPort | IngressKind::ExternalReverseProxy
-            ) | (
-                InstallationForm::Helm,
-                IngressKind::KubernetesIngress | IngressKind::ExternalReverseProxy
-            )
-        );
-        if !valid_for_form {
-            bail!(
-                "deployment profile `{profile}` ingress choice does not match its installation form"
-            );
         }
         Ok(())
     }
@@ -613,32 +578,11 @@ impl IdentityProviderDeployment {
 }
 
 impl SecretManagerDeployment {
-    fn validate(&self, profile: &DeploymentProfileId, form: InstallationForm) -> Result<()> {
+    fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
         if self.existing_secret_name.is_empty()
             || self.existing_secret_name.chars().any(char::is_whitespace)
         {
             bail!("deployment profile `{profile}` must name an existing secret");
-        }
-        let valid_for_form = matches!(
-            (form, self.kind),
-            (
-                InstallationForm::Compose,
-                SecretManagerKind::ComposeSecretFiles
-            ) | (
-                InstallationForm::Compose,
-                SecretManagerKind::ExternalSecretManager
-            ) | (
-                InstallationForm::Helm,
-                SecretManagerKind::KubernetesExistingSecret
-            ) | (
-                InstallationForm::Helm,
-                SecretManagerKind::ExternalSecretManager
-            )
-        );
-        if !valid_for_form {
-            bail!(
-                "deployment profile `{profile}` secret-manager choice does not match its installation form"
-            );
         }
         if !self.rotation_owned_by_operator {
             bail!("deployment profile `{profile}` secret rotation must be operator-owned");

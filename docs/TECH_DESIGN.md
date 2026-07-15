@@ -225,10 +225,10 @@ sixty-second object-store redirect. Public bearer redemption is the only `/s/{to
 route. Domain-specific artifact byte paths do not exist.
 
 Because the public path contains a bearer, edge access/APM/WAF logs must suppress
-`/s/*`. Compose enforces this with route-local Caddy `log_skip`. Helm renders `/s`
-as a dedicated Ingress whose default ingress-nginx annotation disables access
-logging; installations using another controller must replace it with that
-controller's equivalent. Application audit events never record the raw token.
+`/s/*`. Helm renders `/s` as a dedicated Ingress whose default ingress-nginx
+annotation disables access logging; installations using another controller must
+replace it with that controller's equivalent. Application audit events never
+record the raw token.
 
 ## DuckDB Runtime
 
@@ -327,11 +327,8 @@ planes; chat history is not the source of truth.
 
 ## Deployment
 
-Compose and Helm instantiate the same service graph.
-
-Compose is the canonical local/single-host deployment. Published ports bind to loopback;
-the Caddy edge exposes only gateway/console routes, public share redemption, and required
-provider plumbing. No tunnel is part of the canonical stack.
+Helm defines the canonical Kubernetes service graph. k3d runs that chart locally
+with loopback ingress and profile-owned values.
 
 Helm separates bootstrap and runtime database Secrets, emits default-deny network policy,
 supports an existing object store and SIEM credentials, can require strict Istio mTLS,
@@ -340,7 +337,7 @@ internal. SurrealDB HA is not claimed.
 
 The offline builder resolves digest-pinned external images, builds exact-tag Veoveo
 images, exports configuration schemas, records image identities, emits SPDX SBOMs and
-checksums, and packages Compose/Helm/configuration. The loader verifies all files before
+checksums, and packages Helm configuration. The loader verifies all files before
 import, verifies image references after import, retains evidence, and performs no network
 operation.
 
@@ -358,7 +355,7 @@ Coverage includes:
 - task recovery classes, deterministic resume output, capability redemption, quotas;
 - arbitrary DuckDB SQL and interruption classification;
 - recording crash recovery, rollover, catalog rebuild, and SUMO push readback;
-- Compose/Caddy, Helm/schema, offline manifest/loader, and console build contracts.
+- k3d/GPU, Helm/schema, offline manifest/loader, and console build contracts.
 
 The complete behavior matrix is executable from `testing/smoke` and the focused crate
 tests; documentation is not used as evidence in place of those checks.

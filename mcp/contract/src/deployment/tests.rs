@@ -24,23 +24,18 @@ fn rejects_base_url_paths() {
 }
 
 #[test]
-fn canonical_plan_covers_compose_helm_connected_and_offline() {
+fn canonical_plan_covers_connected_and_offline_kubernetes() {
     let plan = SelfHostedDeploymentPlan::load_json(canonical_plan_path())
         .expect("canonical deployment plan");
 
     let shapes = plan
         .profiles
         .iter()
-        .map(|profile| (profile.installation_form, profile.connectivity))
+        .map(|profile| profile.connectivity)
         .collect::<BTreeSet<_>>();
     assert_eq!(
         shapes,
-        BTreeSet::from([
-            (InstallationForm::Compose, ConnectivityMode::Connected),
-            (InstallationForm::Compose, ConnectivityMode::Offline),
-            (InstallationForm::Helm, ConnectivityMode::Connected),
-            (InstallationForm::Helm, ConnectivityMode::Offline),
-        ])
+        BTreeSet::from([ConnectivityMode::Connected, ConnectivityMode::Offline])
     );
 }
 
@@ -96,19 +91,14 @@ fn offline_install_requires_internal_oidc_reachability() {
 }
 
 #[test]
-fn rejects_wrong_secret_surface_for_installation_form() {
+fn rejects_missing_kubernetes_secret_name() {
     let mut plan = canonical_plan();
-    plan.profiles[0].installation_form = InstallationForm::Compose;
-    plan.profiles[0].secret_manager.kind = SecretManagerKind::KubernetesExistingSecret;
+    plan.profiles[0].secret_manager.existing_secret_name.clear();
 
     let error = plan
         .validate()
-        .expect_err("Kubernetes secret in Compose must fail");
-    assert!(
-        error
-            .to_string()
-            .contains("does not match its installation form")
-    );
+        .expect_err("missing Kubernetes secret name must fail");
+    assert!(error.to_string().contains("must name an existing secret"));
 }
 
 #[test]

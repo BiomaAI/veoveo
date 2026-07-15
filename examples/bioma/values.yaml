@@ -1,0 +1,19 @@
+global:
+  publicBaseUrl: https://veoveo.bioma.ai
+
+objectStore:
+  rustfs:
+    publicEndpoint: https://objects.veoveo.bioma.ai
+
+gateway:
+  existingControlPlaneConfigMap: bioma-gateway-control-plane
+
+consoleBff:
+  oauthResource: https://veoveo.bioma.ai/mcp/admin
+
+ingress:
+  className: traefik
+  host: veoveo.bioma.ai
+  objectStoreHost: objects.veoveo.bioma.ai
+  tls:
+    secretName: bioma-ingress-tls

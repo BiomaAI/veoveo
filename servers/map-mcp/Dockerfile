@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM rust:1.96.1-slim-bookworm AS builder
+FROM rust:1.97.0-slim-bookworm AS builder
 
 ARG TARGETARCH
 ARG DUCKDB_VERSION=1.5.4

@@ -1,13 +1,14 @@
 # syntax=docker/dockerfile:1.7
-FROM node:24-bookworm-slim AS console-builder
+FROM node:26-bookworm-slim AS console-builder
 
 WORKDIR /app/apps/console/web
 COPY apps/console/web/package.json apps/console/web/package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm npm install --global npm@12.0.1 \
+    && npm ci
 COPY apps/console/web ./
 RUN npm run build
 
-FROM rust:1.96.1-slim AS rust-builder
+FROM rust:1.97.0-slim AS rust-builder
 
 WORKDIR /app
 RUN apt-get update \

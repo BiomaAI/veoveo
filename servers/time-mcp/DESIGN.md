@@ -16,7 +16,7 @@ Implemented in this workspace.
 The implementation includes typed temporal contracts, an authority-bound engine,
 SurrealDB records, controlled IANA data acquisition, atomic release activation,
 clock-quality observation, MCP discovery surfaces, durable Task API operations,
-administrative REST, gateway policy, Compose, Helm, and offline image registration.
+administrative REST, gateway policy, Helm, and offline image registration.
 
 The canonical service identity is:
 
@@ -363,7 +363,7 @@ database-scoped runtime identity and never applies migrations.
 
 Compiled authority products live under `/var/lib/veoveo/time/releases`. Acquisition
 scratch data lives under `/var/lib/veoveo/time/acquisitions` and is removed at terminal
-completion. Compose and Helm mount `/var/lib/veoveo/time` from a persistent volume.
+completion. Kubernetes mounts `/var/lib/veoveo/time` from a persistent volume.
 
 ## Authorization
 
@@ -383,14 +383,13 @@ ownership is derived from that identity.
 
 ## Deployment
 
-The image runs as UID 10001 with a read-only root filesystem under the Compose and Helm
-security profiles. Writable paths are the Time persistent volume and `/tmp`. The
+The image runs as UID 10001 with a read-only root filesystem under the Kubernetes
+security profile. Writable paths are the Time persistent volume and `/tmp`. The
 container includes CA roots, `tzdata`, `zic`, and the single Rust service binary.
 
-Compose publishes loopback port 8800 and gives the gateway an internal dependency on
-the Time health check. Helm installs one replica with a `ReadWriteOnce` PVC because
-release activation and local event watchers are process-owned. SurrealDB retains the
-durable coordination state.
+Helm installs one replica with a `ReadWriteOnce` PVC because release activation and
+local event watchers are process-owned. The gateway reaches the service only over the
+cluster network. SurrealDB retains the durable coordination state.
 
 Connected installations grant the pod HTTPS egress only to approved IANA mirrors or
 installation-controlled authority endpoints. Source endpoints remain tenant admin
@@ -444,5 +443,5 @@ equivalence, DST ambiguity, DST-aware schedule expansion, half-open interval alg
 timeline violations, clock policy, canonical URIs, acquisition configuration, and
 archive traversal rejection.
 Platform-store tests cover URL, id, migration, and policy invariants. Gateway validation,
-Compose rendering, Helm linting, Docker build, and the shared SurrealDB integration
+Helm rendering and linting, the container build, and the shared SurrealDB integration
 harness exercise the deployment boundary.

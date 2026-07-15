@@ -3,8 +3,8 @@
 # (Luxembourg SUMO Traffic, lcodeca/LuSTScenario, MIT) — a validated OpenStreetMap
 # network with a full day of realistic demand and actuated signals. Because the
 # network carries a real projection, vehicle positions convert to true lat/lon
-# and land on the actual streets in any map view. Internal-network only — TraCI
-# has no auth, so the port is never published beyond the compose network.
+# and land on the actual streets in any map view. TraCI has no authentication,
+# so the port remains a ClusterIP-only Kubernetes service.
 ARG SUMO_PLATFORM=linux/amd64
 FROM --platform=${SUMO_PLATFORM} ghcr.io/eclipse-sumo/sumo:v1_27_1@sha256:87623396d3501ca8d0ac25154e202bc38baa55a31c724e4dfd6ae60f297c6bf2
 
@@ -27,7 +27,7 @@ COPY --chmod=0555 run-sumo.sh /usr/local/bin/run-sumo
 # lights — the richest of the four bundled configs. Start at the morning ramp
 # (07:00 = 25200 s) so there is dense traffic the moment a client connects.
 EXPOSE 8813
-USER veoveo
+USER 10001:10001
 ENTRYPOINT ["/usr/local/bin/run-sumo"]
 CMD ["-c", "dua.actuated.sumocfg", \
      "--begin", "25200", \

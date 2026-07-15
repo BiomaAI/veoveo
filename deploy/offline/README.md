@@ -14,14 +14,14 @@ deploy/offline/create-bundle.sh \
 
 The default release path requires `syft` and emits one SPDX JSON SBOM per image.
 `--skip-sbom` is an explicit non-release escape hatch. The archive includes the
-image tar, checksums, resolved image identities, Compose configuration, Helm
+image tar, checksums, resolved image identities, Helm
 chart, deployment contract, gateway configuration, and telemetry configuration.
 
 The Perception image contains the DeepStream runtime, but site-approved TensorRT
 engines are deployment inputs and are not embedded in the generic bundle. Place
 the engine/model files and the completed `catalog.json`/nvinfer configuration
-under `PERCEPTION_MODEL_DIR` and `PERCEPTION_CONFIG_DIR` before starting the
-offline Compose installation.
+under the site-approved Kubernetes volumes before starting the offline
+installation.
 The connected bundle builder must authenticate to `nvcr.io` before building the
 Perception image.
 
@@ -37,8 +37,8 @@ deploy/offline/load-bundle.sh \
 
 For Kubernetes nodes using containerd, use `--runtime containerd`. The loader
 checks every file before import, verifies every image reference afterward, and
-installs the payload at `/opt/veoveo`. Use `/opt/veoveo/compose.yaml` for a
-single-host installation or install `/opt/veoveo/deploy/helm/veoveo` with
+installs the payload at `/opt/veoveo`. Install
+`/opt/veoveo/deploy/helm/veoveo` with
 `/opt/veoveo/deploy/values.offline.yaml` so the kubelet uses
 `imagePullPolicy: Never`. Bundle evidence remains in
 `/opt/veoveo/bundle-evidence`. Secrets, TLS material, the internal OIDC
@@ -46,9 +46,8 @@ configuration, and site-specific gateway/telemetry configuration are supplied
 inside the offline boundary and are never embedded in the bundle.
 
 Create the gateway refresh-delivery key inside that boundary with
-`openssl rand -base64 32`. For Compose, set the resulting base64 text as
-`VEOVEO_REFRESH_DELIVERY_KEY_B64`; for Helm, store it under
-`refresh-delivery-key-b64` in `global.existingSecret`. It must decode to exactly
+`openssl rand -base64 32`. Store it under `refresh-delivery-key-b64` in
+`global.existingSecret`. It must decode to exactly
 32 bytes and must not reuse any signing or console session key.
 
 The offline deployment keeps the same default five-second

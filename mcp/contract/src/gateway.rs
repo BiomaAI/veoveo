@@ -13,8 +13,8 @@ use validation::{
 };
 use wire::{
     resource_uri_template_matches, validate_https_url, validate_local_file_path,
-    validate_mount_path, validate_oauth_redirect_uri, validate_resource_uri, validate_upstream_url,
-    validate_uri_template,
+    validate_mount_path, validate_oauth_endpoint_url, validate_oauth_redirect_uri,
+    validate_resource_uri, validate_upstream_url, validate_uri_template,
 };
 
 pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =

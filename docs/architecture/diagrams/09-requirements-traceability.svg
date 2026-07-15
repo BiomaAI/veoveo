@@ -282,8 +282,9 @@
 <rect x="1995" y="925" width="370" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <text x="45" y="952" class="node-id" text-anchor="start">VV-REQ-012</text>
 <text x="200" y="948" class="tiny" text-anchor="start">
-<tspan x="200" dy="0">Compose and Helm shall instantiate the same canonical service graph while retaining</tspan>
-<tspan x="200" dy="13">form-specific controls for storage, ingress, network policy, and mTLS.</tspan>
+<tspan x="200" dy="0">The canonical Helm chart shall instantiate the same service graph in local k3d and</tspan>
+<tspan x="200" dy="13">fielded Kubernetes while retaining profile-specific controls for storage, ingress,</tspan>
+<tspan x="200" dy="13">network policy, and mTLS.</tspan>
 </text>
 <text x="895" y="954" class="small" text-anchor="start">VV-CAP-010</text>
 <text x="1085" y="954" class="small" text-anchor="start">VV-OPA-010</text>

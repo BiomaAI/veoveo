@@ -285,9 +285,9 @@
 <rect x="897.2" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="913.2" y="1383" class="node-id" text-anchor="start">VV-CMP-035</text>
 <text x="913.2" y="1408" class="body" text-anchor="start">
-<tspan x="913.2" dy="0">Docker Compose deployment definition</tspan>
+<tspan x="913.2" dy="0">k3d local development environment</tspan>
 </text>
-<text x="1290.8000000000002" y="1383" class="tiny" text-anchor="end">YAML and container images</text>
+<text x="1290.8000000000002" y="1383" class="tiny" text-anchor="end">k3d and Kubernetes YAML</text>
 <rect x="1320.8000000000002" y="1362" width="405.6" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1320.8000000000002" y="1362" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1336.8000000000002" y="1383" class="node-id" text-anchor="start">VV-CMP-036</text>
@@ -325,7 +325,7 @@
 <text x="1125.0" y="1594" class="body" text-anchor="start">
 <tspan x="1125.0" dy="0">Installation edge and ingress</tspan>
 </text>
-<text x="1608.5" y="1569" class="tiny" text-anchor="end">Caddy or Kubernetes ingress controller</text>
+<text x="1608.5" y="1569" class="tiny" text-anchor="end">Kubernetes ingress controller</text>
 <rect x="1638.5" y="1548" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1638.5" y="1548" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1654.5" y="1569" class="node-id" text-anchor="start">VV-CMP-041</text>
@@ -339,7 +339,7 @@
 <text x="66.0" y="1686" class="body" text-anchor="start">
 <tspan x="66.0" dy="0">OpenTelemetry collector and SIEM export</tspan>
 </text>
-<text x="549.5" y="1661" class="tiny" text-anchor="end">OpenTelemetry Collector 0.155.0 and optional SIEM</text>
+<text x="549.5" y="1661" class="tiny" text-anchor="end">OpenTelemetry Collector 0.156.0 and optional SIEM</text>
 <rect x="579.5" y="1640" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="579.5" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="595.5" y="1661" class="node-id" text-anchor="start">VV-CMP-043</text>
@@ -381,7 +381,7 @@
 <text x="1125.0" y="1778" class="body" text-anchor="start">
 <tspan x="1125.0" dy="0">Container execution environment</tspan>
 </text>
-<text x="1608.5" y="1753" class="tiny" text-anchor="end">Docker Engine or Kubernetes</text>
+<text x="1608.5" y="1753" class="tiny" text-anchor="end">Kubernetes with an OCI container runtime</text>
 <rect x="28" y="1865" width="2144" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1886" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
 <text x="2170" y="1886" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-05</text>

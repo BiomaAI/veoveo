@@ -1,0 +1,4 @@
+artifactService:
+  allowedAudiences: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,sumo
+
+domainServices: []

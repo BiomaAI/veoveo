@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Internal durable spooler image. The governed recording-mcp process is the
 # only public protocol reader; this image exposes raw Rerun ingest internally.
-FROM rust:1.96.1-slim AS builder
+FROM rust:1.97.0-slim AS builder
 
 WORKDIR /app
 RUN apt-get update \

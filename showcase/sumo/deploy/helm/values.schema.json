@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["images", "platform", "telemetry", "simulation", "service", "persistence", "resources"],
+  "properties": {
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pullPolicy", "sim", "mcp"],
+      "properties": {
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
+        "sim": {"$ref": "#/definitions/image"},
+        "mcp": {"$ref": "#/definitions/image"}
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicBaseUrl", "surrealService", "surrealNamespace", "surrealDatabase", "surrealRuntimeSecret", "installationSecret", "artifactServiceUrl", "recordingProxy"],
+      "properties": {
+        "publicBaseUrl": {"type": "string", "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)"},
+        "surrealService": {"type": "string", "minLength": 1},
+        "surrealNamespace": {"type": "string", "minLength": 1},
+        "surrealDatabase": {"type": "string", "minLength": 1},
+        "surrealRuntimeSecret": {"type": "string", "minLength": 1},
+        "installationSecret": {"type": "string", "minLength": 1},
+        "artifactServiceUrl": {"type": "string", "pattern": "^http://"},
+        "recordingProxy": {"type": "string", "pattern": "^rerun\\+http://"}
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "endpoint"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "endpoint": {"type": "string", "pattern": "^http://"}
+      }
+    },
+    "simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenario", "maxVehicles", "connectRetries"],
+      "properties": {
+        "scenario": {"type": "string", "minLength": 1},
+        "maxVehicles": {"type": "integer", "minimum": 1},
+        "connectRetries": {"type": "integer", "minimum": 1}
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodePort"],
+      "properties": {
+        "nodePort": {"type": "integer", "minimum": 30000, "maximum": 32767}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "storageClass"],
+      "properties": {
+        "size": {"type": "string", "minLength": 1},
+        "storageClass": {"type": "string"}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sim", "mcp"],
+      "properties": {
+        "sim": {"type": "object"},
+        "mcp": {"type": "object"}
+      }
+    }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1, "not": {"const": "latest"}}
+      }
+    }
+  }
+}

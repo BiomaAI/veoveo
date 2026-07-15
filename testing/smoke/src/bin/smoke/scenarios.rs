@@ -113,8 +113,8 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
         [],
     )?;
 
-    suite_step("compose edge configuration");
-    compose_config().await?;
+    suite_step("Helm deployment configuration");
+    helm_config().await?;
 
     suite_step("gateway HTTP and OAuth boundary");
     gateway_http(conformance, gateway, smoke_control_plane).await?;

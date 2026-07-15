@@ -44,9 +44,15 @@ The operator must create these resources before installation:
   key, provider credentials, object-store credentials, and the gateway refresh
   delivery key under `refresh-delivery-key-b64`.
 - `gateway.existingControlPlaneConfigMap`: the typed gateway JSON under
-  `gateway.controlPlaneKey`.
+  `gateway.controlPlaneKey`, plus any file-backed JWKS or CA documents referenced
+  by that JSON.
 - `telemetry.existingConfigMap`: the collector configuration under
   `telemetry.configKey`, including the enterprise SIEM/export destination.
+
+The chart mounts the complete gateway ConfigMap at `/etc/veoveo/gateway` in both
+the bootstrap Job and the running gateway. File references in the control plane
+must resolve beneath that directory. This keeps revision validation and runtime
+authentication on the same immutable input set.
 
 Generate `refresh-delivery-key-b64` independently from all signing and session
 keys with `openssl rand -base64 32`, then store that base64 text as the Secret
@@ -91,9 +97,9 @@ renders that path as a dedicated Ingress and defaults
 IngressClass, replace that annotation with the controller's path-level access-log
 disable or redaction policy and verify the rendered controller configuration
 before accepting traffic. Suppress the same path in APM, WAF, and tracing
-pipelines. The normal Ingress does not own `/s`, and the Compose Caddy route
-retains `log_skip`. Application audit records contain the artifact identity and
-outcome, never the raw link token.
+pipelines. The normal Ingress does not own `/s` and does not receive
+public-share traffic. Application audit records contain the artifact identity
+and outcome, never the raw link token.
 
 Connected installations should provide tightly scoped
 `networkPolicy.externalEgressCidrs` for the external OIDC issuer and approved

@@ -105,19 +105,16 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
     }
     assert_executable(conformance)?;
 
-    let project = format!("veoveosumo{}", uuid::Uuid::new_v4().simple());
-    let host_port = reserve_local_port()?;
-    let mcp_url = format!("http://127.0.0.1:{host_port}/sumo/mcp");
-    let health_url = format!("http://127.0.0.1:{host_port}/sumo/healthz");
-    let environment = showcase_environment(host_port);
-    let stack = SumoComposeGuard::new(project, environment);
-    stack.run(&["up", "-d", "--build", "sumo-mcp"])?;
+    run_checked(Path::new("kubectl"), ["cluster-info".into()], [])
+        .context("SUMO verification requires the active k3d cluster")?;
 
+    let mcp_url = "http://127.0.0.1:8895/sumo/mcp";
+    let health_url = "http://127.0.0.1:8895/sumo/healthz";
     let client = reqwest::Client::new();
     let mut ready = false;
     for _ in 0..300 {
         if client
-            .get(&health_url)
+            .get(health_url)
             .send()
             .await
             .is_ok_and(|response| response.status() == StatusCode::OK)
@@ -128,20 +125,29 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
     if !ready {
-        let logs = stack
-            .run(&["logs", "--no-color", "sumo", "sumo-mcp", "recording-hub"])
-            .unwrap_or_else(|error| error.to_string());
+        let logs = run_checked(
+            Path::new("kubectl"),
+            [
+                "-n".into(),
+                "veoveo".into(),
+                "logs".into(),
+                "deployment/sumo-mcp".into(),
+                "--tail=200".into(),
+            ],
+            [],
+        )
+        .unwrap_or_else(|error| error.to_string());
         bail!("SUMO MCP did not become healthy\n{logs}");
     }
 
-    assert_http_get_status(&mcp_url, None, StatusCode::UNAUTHORIZED).await?;
+    assert_http_get_status(mcp_url, None, StatusCode::UNAUTHORIZED).await?;
     let auth = [(
         "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
         INTERNAL_SIGNING_KEY_DER_B64.into(),
     )];
     let base = [
         "--url",
-        &mcp_url,
+        mcp_url,
         "--scheme",
         "sumo",
         "--internal-server",
@@ -223,18 +229,42 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
     );
 
     tokio::time::sleep(Duration::from_secs(2)).await;
-    let query = stack.run(&[
-        "exec",
-        "-T",
-        "recording-hub",
-        "hub-query",
-        "--root",
-        "/recordings/world",
-        "--entities",
-        "/world/sumo/**",
-        "--timeline",
-        "tick",
-    ])?;
+    let pod = run_checked(
+        Path::new("kubectl"),
+        [
+            "-n".into(),
+            "veoveo".into(),
+            "get".into(),
+            "pod".into(),
+            "-l".into(),
+            "app.kubernetes.io/component=recording".into(),
+            "-o".into(),
+            "jsonpath={.items[0].metadata.name}".into(),
+        ],
+        [],
+    )?;
+    let query = run_checked(
+        Path::new("kubectl"),
+        [
+            "-n".into(),
+            "veoveo".into(),
+            "exec".into(),
+            pod.trim().into(),
+            "-c".into(),
+            "recording-hub".into(),
+            "--".into(),
+            "hub-query".into(),
+            "--root".into(),
+            "/recordings/world".into(),
+            "--entities".into(),
+            "/world/sumo/**".into(),
+            "--timeline".into(),
+            "tick".into(),
+            "--max-rows".into(),
+            "0".into(),
+        ],
+        [],
+    )?;
     let query: Value = serde_json::from_str(query.trim())?;
     let rows = query
         .get("rows_by_recording")
@@ -247,7 +277,7 @@ pub(crate) async fn sumo_verify(conformance: &Path) -> Result<()> {
         "Recording Hub did not retain the live SUMO world: {rows:?}"
     );
 
-    println!("sumo verify ok: live TraCI, authenticated MCP task/actuation, and durable world");
+    println!("sumo verify ok: live k3d TraCI, authenticated MCP task/actuation, and durable world");
     Ok(())
 }
 
@@ -271,97 +301,4 @@ fn run_conformance<const N: usize>(
         .map(OsString::from)
         .collect::<Vec<_>>();
     run_checked(conformance, arguments, environment)
-}
-
-struct SumoComposeGuard {
-    project: String,
-    environment: Vec<(&'static str, OsString)>,
-}
-
-impl SumoComposeGuard {
-    fn new(project: String, environment: Vec<(&'static str, OsString)>) -> Self {
-        Self {
-            project,
-            environment,
-        }
-    }
-
-    fn arguments(&self, command: &[&str]) -> Vec<OsString> {
-        [
-            "compose",
-            "--project-name",
-            &self.project,
-            "-f",
-            "compose.yaml",
-            "-f",
-            "showcase/sumo/compose.showcase.yaml",
-            "-f",
-            "showcase/sumo/compose.smoke.yaml",
-            "--profile",
-            "showcase",
-        ]
-        .into_iter()
-        .chain(command.iter().copied())
-        .map(OsString::from)
-        .collect()
-    }
-
-    fn run(&self, command: &[&str]) -> Result<String> {
-        run_checked(
-            Path::new("docker"),
-            self.arguments(command),
-            self.environment.clone(),
-        )
-    }
-}
-
-impl Drop for SumoComposeGuard {
-    fn drop(&mut self) {
-        let _ = Command::new("docker")
-            .args(self.arguments(&["down", "--volumes", "--remove-orphans"]))
-            .envs(self.environment.clone())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-}
-
-fn showcase_environment(host_port: u16) -> Vec<(&'static str, OsString)> {
-    vec![
-        ("COMPOSE_PARALLEL_LIMIT", "1".into()),
-        ("SUMO_MCP_HOST_PORT", host_port.to_string().into()),
-        ("PUBLIC_BASE_URL", "http://127.0.0.1:8780".into()),
-        ("MEDIA_PROVIDER_API_KEY", "sumo-smoke".into()),
-        (
-            "MEDIA_PROVIDER_WEBHOOK_SECRET",
-            "whsec_0Wn4SW+lD1zrRtFhb1r4fGHt6XZLSkX5y2EK+lSbA+E=".into(),
-        ),
-        ("VEOVEO_SURREAL_ADMIN_PASSWORD", "admin-secret".into()),
-        ("VEOVEO_SURREAL_RUNTIME_USERNAME", "veoveo-runtime".into()),
-        ("VEOVEO_SURREAL_RUNTIME_PASSWORD", "runtime-secret".into()),
-        ("VEOVEO_OBJECT_STORE_ACCESS_KEY", "rustfs-access".into()),
-        ("VEOVEO_OBJECT_STORE_SECRET_KEY", "rustfs-secret".into()),
-        (
-            "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-            INTERNAL_SIGNING_KEY_DER_B64.into(),
-        ),
-        (
-            "VEOVEO_REFRESH_DELIVERY_KEY_B64",
-            REFRESH_DELIVERY_KEY_B64.into(),
-        ),
-        ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
-        (
-            "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
-            INTERNAL_SIGNING_KEY_DER_B64.into(),
-        ),
-        ("VEOVEO_IDP_OIDC_CLIENT_SECRET", "sumo-smoke".into()),
-        (
-            "VEOVEO_CONSOLE_SESSION_KEY",
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
-        ),
-        (
-            "VEOVEO_CONSOLE_OAUTH_RESOURCE",
-            "http://127.0.0.1:8780/mcp/admin".into(),
-        ),
-    ]
 }

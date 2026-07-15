@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: veoveo-gpu-probe
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: veoveo-gpu-probe
+    spec:
+      runtimeClassName: nvidia
+      restartPolicy: Never
+      containers:
+        - name: probe
+          image: nvidia/cuda:13.3.0-base-ubuntu24.04
+          env:
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: graphics,compute,utility,video
+          command:
+            - /bin/bash
+            - -ceu
+            - |
+              apt-get update >/dev/null
+              apt-get install -y --no-install-recommends \
+                libegl1 \
+                libvulkan1 \
+                libx11-6 \
+                libxext6 \
+                vulkan-tools >/dev/null
+              nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+              test -f /etc/vulkan/icd.d/nvidia_icd.json
+              vulkaninfo --summary
+          resources:
+            limits:
+              nvidia.com/gpu: "1"

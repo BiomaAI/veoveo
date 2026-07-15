@@ -51,7 +51,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://media-mcp:8787/media/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -103,7 +103,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://perception-mcp:8797/perception/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -136,7 +136,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://timeseries-mcp:8789/timeseries/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -164,7 +164,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://duckdb-mcp:8791/duckdb/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -195,7 +195,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://optimization-mcp:8792/optimization/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -223,7 +223,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://frames-mcp:8793/frames/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -258,7 +258,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://map-mcp:8799/map/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -303,7 +303,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://view-mcp:8801/view/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -336,7 +336,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://time-mcp:8800/time/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -376,7 +376,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://datasheet-mcp:8798/datasheet/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -410,7 +410,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://artifact-mcp:8794/artifact/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -447,7 +447,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://recording-mcp:8796/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -483,7 +483,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://chart-mcp:8795/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,
@@ -522,7 +522,7 @@
       "upstream": {
         "transport": "streamable_http",
         "url": "http://rerun-bridge:8790/mcp",
-        "security": "compose_internal_http"
+        "security": "cluster_internal_http"
       },
       "capabilities": {
         "tools": true,

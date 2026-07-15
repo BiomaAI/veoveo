@@ -11,20 +11,12 @@
       "source": "rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3"
     },
     {
-      "ref": "alpine:3.20.3",
-      "source": "alpine@sha256:1e42bbe2508154c9126d48c2b8a75420c3544343bf86fd041fb7527e017a4b4a"
+      "ref": "amazon/aws-cli:2.35.23",
+      "source": "amazon/aws-cli@sha256:0425835c7c9e33a747dfd499dcd3603ec802662f7f7ded42d8fc81ce7b712bf9"
     },
     {
-      "ref": "amazon/aws-cli:2.17.45",
-      "source": "amazon/aws-cli@sha256:66bc04ecab82ac8aff739b87973e77a84f42bc4b971e84d6f4ffbcabb0260d56"
-    },
-    {
-      "ref": "caddy:2.11.2",
-      "source": "caddy@sha256:25cdc846626b62d05f6b633b9b40c2c9f6ef89b515dc76133cefd920f7dbe562"
-    },
-    {
-      "ref": "otel/opentelemetry-collector:0.155.0",
-      "source": "otel/opentelemetry-collector@sha256:140cdb56eeea12ebc33bb4f7109fd4eef90391933f8d85b33384fcfe1cf040c4"
+      "ref": "otel/opentelemetry-collector:0.156.0",
+      "source": "otel/opentelemetry-collector@sha256:0beba82d63792511591522a8d582904b9a8ae81710357bfcab731607b8b0ffe2"
     }
   ],
   "veoveo_images": [

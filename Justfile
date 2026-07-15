@@ -1,7 +1,9 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
-compose := "docker compose -f compose.yaml"
+k3d := "k3d"
+kubectl := "kubectl"
+helm := "helm"
 mcp-url := "http://localhost:8780/mcp/operator"
 gateway-token-url := "http://localhost:8780/oauth/token"
 gateway-admin-url := "http://localhost:8780/admin"
@@ -45,8 +47,10 @@ deployments-validate:
 
 # Validate and render the canonical Helm installation.
 helm-check:
-    helm lint deploy/helm/veoveo
-    helm template veoveo deploy/helm/veoveo >/dev/null
+    {{helm}} lint deploy/helm/veoveo
+    {{helm}} lint showcase/sumo/deploy/helm
+    {{helm}} template veoveo deploy/helm/veoveo -f deploy/local/k3d/values.yaml >/dev/null
+    {{helm}} template sumo showcase/sumo/deploy/helm >/dev/null
 
 # Create a content-verified offline installation bundle.
 offline-bundle output='output/veoveo-offline-0.1.0.tar.gz' platform='linux/amd64':
@@ -56,10 +60,10 @@ offline-bundle output='output/veoveo-offline-0.1.0.tar.gz' platform='linux/amd64
 offline-load bundle runtime='docker' install_dir='veoveo-offline':
     deploy/offline/load-bundle.sh --bundle '{{bundle}}' --runtime '{{runtime}}' --install-dir '{{install_dir}}'
 
-# Smoke-test Compose edge routing and published-port shape.
-smoke-compose-config:
+# Smoke-test Helm and k3d local deployment rendering.
+smoke-helm-config:
     cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} compose-config
+    {{smoke}} helm-config
 
 # Run all live SurrealDB 3.2 integration targets in an isolated container.
 smoke-surreal:
@@ -74,9 +78,9 @@ test-perception:
     cargo test -p veoveo-perception-mcp --all-targets
 
 # DeepStream 9 / NVDEC / TensorRT / Recording Hub / final MCP task smoke.
-smoke-perception-gpu env_file='.env':
+smoke-perception-gpu env_file='.env' work_dir='output/perception/work':
     cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} perception-gpu --env-file '{{env_file}}'
+    {{smoke}} perception-gpu --env-file '{{env_file}}' --work-dir '{{work_dir}}'
 
 # Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
 smoke-hub-spool:
@@ -250,10 +254,10 @@ smoke-agent-pilot:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
     {{smoke}} agent-pilot --conformance-bin target/debug/conformance --frames-bin target/debug/frames-mcp-smoke --optimization-bin target/debug/optimization-mcp-smoke --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
-# Run the real Pilot against the live local compose stack with Cloudflare credentials from .env.
+# Run the real Pilot against the active local k3d stack with Cloudflare credentials from .env.
 agent-pilot-local data_dir="output/pilot-data":
     cargo build -p veoveo-agent-kernel --bin agent
-    PILOT_GATEWAY_URL="${PILOT_GATEWAY_URL:-http://localhost:8780}" target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9876/proxy
+    PILOT_GATEWAY_URL="${PILOT_GATEWAY_URL:-http://localhost:8780}" target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9877/proxy
 
 # Smoke-test a continuously-running agent sleeping on a long gateway task and waking from its completion push.
 smoke-agent-sleep-wake:
@@ -265,37 +269,30 @@ smoke-agent-live:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
     {{smoke}} agent-sleep-wake --live --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
-# Build canonical Compose images.
-compose-build:
-    {{compose}} build
+# Build the current GPU-enabled K3s node image used by k3d.
+k3d-node-build:
+    source deploy/local/k3d/versions.env; docker build --build-arg K3S_VERSION="$K3S_VERSION" --build-arg CUDA_VERSION="$CUDA_VERSION" --build-arg NVIDIA_CONTAINER_TOOLKIT_VERSION="$NVIDIA_CONTAINER_TOOLKIT_VERSION" -t "$VEOVEO_K3D_NODE_IMAGE" deploy/local/k3d/node
 
-# Build and start the autonomous self-hosted Compose installation.
-compose-up:
-    {{compose}} up --build -d
+# Create the loopback-only local cluster.
+k3d-create:
+    {{k3d}} cluster create --config deploy/local/k3d/cluster.yaml
 
-# Stop the Compose stack.
-compose-down:
-    {{compose}} down --remove-orphans
+# Delete the local cluster and its Kubernetes state.
+k3d-delete:
+    {{k3d}} cluster delete veoveo
 
-# Stop the Compose stack and remove its volumes.
-compose-down-volumes:
-    {{compose}} down --remove-orphans --volumes
+# Show local cluster and workload status.
+k3d-status:
+    {{k3d}} cluster list
+    {{kubectl}} -n veoveo get pods,services
 
-# Show Compose service status.
-compose-ps:
-    {{compose}} ps
-
-# Follow logs for one service.
-logs service='mcp-gateway':
-    {{compose}} logs -f --tail=200 {{service}}
+# Follow one Kubernetes deployment.
+logs workload='mcp-gateway':
+    {{kubectl}} -n veoveo logs -f deployment/{{workload}} --all-containers --tail=200
 
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':
     curl -fsS http://localhost:8780/healthz
-    @echo
-    curl -fsS http://localhost:8788/healthz
-    @echo
-    curl -fsS http://localhost:8787/media/healthz
     @echo
     if [ -n '{{public_base_url}}' ]; then curl -fsS '{{public_base_url}}/healthz'; echo; fi
 
@@ -335,9 +332,8 @@ usage task_id:
 artifact artifact_id output_dir='output':
     token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} artifact '{{artifact_id}}' --output-dir '{{output_dir}}'
 
-# Start the stack, check health, print MCP info, and run the default edit task.
+# Check the active stack, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':
-    just compose-up
     just health '{{public_base_url}}'
     just info
     just run-edit '{{public_base_url}}' '{{output_dir}}'
@@ -350,13 +346,35 @@ showcase-sumo-test:
 showcase-sumo-smoke:
     cargo run -p veoveo-smoke -- sumo-push
 
+# Build the platform and SUMO images for the showcase profile.
+showcase-sumo-build:
+    docker buildx bake sumo-showcase
+
+# Import the showcase images into the active k3d node.
+showcase-sumo-import:
+    {{k3d}} image import --cluster veoveo veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0
+    docker save veoveo/sumo-sim:1.27.1 veoveo/sumo-mcp:0.1.0 | docker exec -i k3d-veoveo-server-0 ctr -n k8s.io images import -
+
+# Apply disposable credentials and the SUMO-owned gateway profile.
+showcase-sumo-resources:
+    {{kubectl}} apply -f deploy/local/k3d/development-resources.yaml
+    {{kubectl}} -n veoveo create configmap veoveo-gateway-control-plane --from-file=gateway.json=showcase/sumo/deploy/gateway.json --from-file=jwks.json=showcase/sumo/deploy/jwks.json --dry-run=client -o yaml | {{kubectl}} apply -f -
+
+# Install the local platform with only the services needed by SUMO.
+showcase-sumo-platform-up:
+    {{helm}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values deploy/local/k3d/values.yaml --values showcase/sumo/deploy/platform-values.yaml --wait --timeout 12m
+
 # Bring up the full SUMO showcase (SUMO + sumo-mcp + hub).
 showcase-sumo-up:
-    docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml --profile showcase up --build
+    {{helm}} upgrade --install sumo showcase/sumo/deploy/helm --namespace veoveo --wait --timeout 12m
 
-# Bring up SUMO with the Recording Hub projected to a loopback Rerun viewer.
-showcase-sumo-view-up:
-    docker compose -f compose.yaml -f showcase/sumo/compose.showcase.yaml -f showcase/sumo/compose.viewer.yaml --profile showcase up --build
+# Stop only the SUMO profile while retaining the local platform.
+showcase-sumo-down:
+    {{helm}} uninstall sumo --namespace veoveo
+
+# Launch Rerun against the loopback Recording Hub projection.
+showcase-sumo-view:
+    test -n "${MAPBOX_ACCESS_TOKEN:-}"; RERUN_MAPBOX_ACCESS_TOKEN="$MAPBOX_ACCESS_TOKEN" rerun --connect rerun+http://127.0.0.1:9877/proxy
 
 # End-to-end verify: full SUMO showcase up, world durable in hub, served MCP driven e2e.
 showcase-sumo-verify:
