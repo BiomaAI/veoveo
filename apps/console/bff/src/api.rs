@@ -29,6 +29,14 @@ const MAX_SNAPSHOT_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_MAP_ADMIN_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 pub(crate) const CSRF_HEADER: &str = "x-veoveo-csrf-token";
 
+#[derive(Debug, PartialEq, Eq)]
+enum SnapshotUpstreamDisposition {
+    Success,
+    Unauthorized,
+    Forbidden,
+    BadGateway,
+}
+
 pub(crate) async fn enforce_csrf(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -92,13 +100,17 @@ pub(crate) async fn snapshot(
             return (response_headers, StatusCode::BAD_GATEWAY).into_response();
         }
     };
-    if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
-        return unauthorized(&state);
-    }
     let status = upstream.status();
-    if !status.is_success() {
-        tracing::warn!(%status, "console snapshot upstream returned an error");
-        return (response_headers, StatusCode::BAD_GATEWAY).into_response();
+    match classify_snapshot_upstream(status) {
+        SnapshotUpstreamDisposition::Success => {}
+        SnapshotUpstreamDisposition::Unauthorized => return unauthorized(&state),
+        SnapshotUpstreamDisposition::Forbidden => {
+            return (response_headers, StatusCode::FORBIDDEN).into_response();
+        }
+        SnapshotUpstreamDisposition::BadGateway => {
+            tracing::warn!(%status, "console snapshot upstream returned an error");
+            return (response_headers, StatusCode::BAD_GATEWAY).into_response();
+        }
     }
     if upstream
         .content_length()
@@ -115,6 +127,15 @@ pub(crate) async fn snapshot(
     }
     response_headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     (response_headers, body).into_response()
+}
+
+fn classify_snapshot_upstream(status: reqwest::StatusCode) -> SnapshotUpstreamDisposition {
+    match status {
+        status if status.is_success() => SnapshotUpstreamDisposition::Success,
+        reqwest::StatusCode::UNAUTHORIZED => SnapshotUpstreamDisposition::Unauthorized,
+        reqwest::StatusCode::FORBIDDEN => SnapshotUpstreamDisposition::Forbidden,
+        _ => SnapshotUpstreamDisposition::BadGateway,
+    }
 }
 
 pub(crate) async fn cancel_task(
@@ -488,7 +509,7 @@ fn unauthorized(state: &AppState) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::constant_time_equal;
+    use super::{SnapshotUpstreamDisposition, classify_snapshot_upstream, constant_time_equal};
 
     #[test]
     fn csrf_comparison_rejects_wrong_values_and_lengths() {
@@ -496,5 +517,25 @@ mod tests {
         assert!(!constant_time_equal("same", "different"));
         assert!(!constant_time_equal("same", "sam"));
         assert!(!constant_time_equal("", "nonempty"));
+    }
+
+    #[test]
+    fn snapshot_preserves_authentication_and_authorization_failures() {
+        assert_eq!(
+            classify_snapshot_upstream(reqwest::StatusCode::OK),
+            SnapshotUpstreamDisposition::Success
+        );
+        assert_eq!(
+            classify_snapshot_upstream(reqwest::StatusCode::UNAUTHORIZED),
+            SnapshotUpstreamDisposition::Unauthorized
+        );
+        assert_eq!(
+            classify_snapshot_upstream(reqwest::StatusCode::FORBIDDEN),
+            SnapshotUpstreamDisposition::Forbidden
+        );
+        assert_eq!(
+            classify_snapshot_upstream(reqwest::StatusCode::INTERNAL_SERVER_ERROR),
+            SnapshotUpstreamDisposition::BadGateway
+        );
     }
 }
