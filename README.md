@@ -172,8 +172,8 @@ Toolkit and fails closed when the host GPU is unavailable.
 
 ```bash
 just k3d-node-build
-just k3d-create
-just k3d-status
+just sumo-k3d-create
+just sumo-k3d-status
 ```
 
 Workloads are selected with profile-owned Helm values and gateway control data.
@@ -193,6 +193,12 @@ SUMO MCP verification to `127.0.0.1:8895`, and Recording Hub viewing to
 `127.0.0.1:9877`. See
 [`deploy/local/k3d/README.md`](deploy/local/k3d/README.md) for GPU validation,
 profile isolation, image import, and Rerun commands.
+
+The Bioma example adds an independent `veoveo-bioma` cluster on the same host
+and connects `veoveo.bioma.ai` through Cloudflare Tunnel. Its recipes always use
+`k3d-veoveo-bioma`, while SUMO recipes always use `k3d-veoveo-sumo`. See
+[`examples/bioma/README.md`](examples/bioma/README.md) for the concurrent-cluster
+acceptance sequence.
 
 ## Install With Helm
 

@@ -1,20 +1,14 @@
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
-  name: veoveo-sumo
+  name: veoveo-bioma
 servers: 1
 agents: 0
 image: veoveo/k3s-gpu:v1.36.2-k3s1-cuda13.3.0
 kubeAPI:
   hostIP: 127.0.0.1
 ports:
-  - port: 127.0.0.1:8780:80
-    nodeFilters:
-      - loadbalancer
-  - port: 127.0.0.1:8895:30895
-    nodeFilters:
-      - loadbalancer
-  - port: 127.0.0.1:9877:30877
+  - port: 127.0.0.1:8781:80
     nodeFilters:
       - loadbalancer
 env:

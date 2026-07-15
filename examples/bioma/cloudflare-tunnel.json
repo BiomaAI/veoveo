@@ -1,0 +1,26 @@
+{
+  "config": {
+    "ingress": [
+      {
+        "hostname": "veoveo.bioma.ai",
+        "service": "http://traefik.kube-system.svc.cluster.local:80",
+        "originRequest": {
+          "httpHostHeader": "veoveo.bioma.ai"
+        }
+      },
+      {
+        "hostname": "objects-veoveo.bioma.ai",
+        "service": "http://traefik.kube-system.svc.cluster.local:80",
+        "originRequest": {
+          "httpHostHeader": "objects-veoveo.bioma.ai"
+        }
+      },
+      {
+        "service": "http_status:404"
+      }
+    ],
+    "warp-routing": {
+      "enabled": false
+    }
+  }
+}

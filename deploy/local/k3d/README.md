@@ -3,7 +3,12 @@
 The local environment is a real Kubernetes installation. k3d owns the cluster,
 Helm owns workload releases, and kubectl provides inspection and process control.
 Each simulator keeps its values and gateway profile beside its own source. The
-generic local cluster contains no simulator selection.
+SUMO development cluster contains no simulator workload until that profile is
+installed.
+
+The optional Bioma profile uses a second cluster and explicit Kubernetes context.
+See [`examples/bioma/README.md`](../../../examples/bioma/README.md) for the
+concurrent SUMO and public-tunnel proof.
 
 The development ingress has one canonical origin: `http://localhost:8780`.
 Loopback HTTP is deliberate for the disposable local cluster. Fielded profiles
@@ -47,13 +52,13 @@ plugin with `FAIL_ON_INIT_ERROR=true`. GPU workloads do not have a CPU fallback.
 ```bash
 nvidia-smi
 just k3d-node-build
-just k3d-create
+just sumo-k3d-create
 
-kubectl get node -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
-kubectl delete job veoveo-gpu-probe --ignore-not-found
-kubectl apply -f deploy/local/k3d/gpu-probe.yaml
-kubectl wait --for=condition=complete job/veoveo-gpu-probe --timeout=5m
-kubectl logs job/veoveo-gpu-probe
+kubectl --context k3d-veoveo-sumo get node -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
+kubectl --context k3d-veoveo-sumo delete job veoveo-gpu-probe --ignore-not-found
+kubectl --context k3d-veoveo-sumo apply -f deploy/local/k3d/gpu-probe.yaml
+kubectl --context k3d-veoveo-sumo wait --for=condition=complete job/veoveo-gpu-probe --timeout=5m
+kubectl --context k3d-veoveo-sumo logs job/veoveo-gpu-probe
 ```
 
 The probe requests one Kubernetes GPU and checks CUDA, the NVIDIA Vulkan ICD, and
@@ -97,10 +102,10 @@ Useful control commands remain standard Kubernetes operations:
 
 ```bash
 k3d cluster list
-kubectl -n veoveo get pods,services
-kubectl -n veoveo logs -f deployment/sumo-mcp
-kubectl -n veoveo rollout restart deployment/sumo-mcp
-helm -n veoveo list
+kubectl --context k3d-veoveo-sumo -n veoveo get pods,services
+kubectl --context k3d-veoveo-sumo -n veoveo logs -f deployment/sumo-mcp
+kubectl --context k3d-veoveo-sumo -n veoveo rollout restart deployment/sumo-mcp
+helm --kube-context k3d-veoveo-sumo -n veoveo list
 ```
 
 ## Rerun
@@ -133,5 +138,5 @@ just showcase-sumo-down
 Delete the cluster to remove all local Kubernetes state and persistent volumes:
 
 ```bash
-just k3d-delete
+just sumo-k3d-delete
 ```

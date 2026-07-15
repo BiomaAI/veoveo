@@ -5,6 +5,8 @@ use super::*;
 mod agent_kernel;
 #[path = "scenarios/basic.rs"]
 mod basic;
+#[path = "scenarios/bioma.rs"]
+mod bioma;
 #[path = "scenarios/datasheet.rs"]
 mod datasheet;
 #[path = "scenarios/frames.rs"]
@@ -26,6 +28,7 @@ mod view;
 
 pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
+pub(crate) use bioma::*;
 pub(crate) use datasheet::*;
 pub(crate) use frames::*;
 pub(crate) use gateway::*;

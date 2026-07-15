@@ -37,7 +37,7 @@ material they operate:
 | [`configs/perception/README.md`](../configs/perception/README.md) | perception catalog and runtime configuration |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
-| [`examples/bioma/README.md`](../examples/bioma/README.md) | optional Bioma deployment overlay |
+| [`examples/bioma/README.md`](../examples/bioma/README.md) | isolated Bioma k3d cluster, Entra profile, and Cloudflare Tunnel operations |
 | [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | canonical Python MCP server template |
