@@ -182,9 +182,10 @@ modules.
 
 ## Deployment And Tests
 
-Compose and Helm register `frames-mcp` at port `8793`. The gateway catalog
+Helm registers `frames-mcp` at cluster port `8793`. The gateway catalog
 advertises three tools, the `frames://` resource scheme, three prompts,
-completions, notifications, and tasks. Caddy rejects direct public MCP access.
+completions, notifications, and tasks. Ingress does not route direct public MCP
+access to the hosted service.
 
 Rust unit tests cover validation and conversion. Contract schemas are emitted
 by the conformance binary. The Rust smoke harness exercises host validation,

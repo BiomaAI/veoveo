@@ -121,8 +121,8 @@
 <tspan x="1146.0" dy="0">Connected and offline deployment</tspan>
 </text>
 <text x="1146.0" y="732" class="small" text-anchor="start">
-<tspan x="1146.0" dy="0">One service graph deploys through Compose or Helm with</tspan>
-<tspan x="1146.0" dy="16">verified offline transfer.</tspan>
+<tspan x="1146.0" dy="0">One Helm service graph runs in local k3d or fielded</tspan>
+<tspan x="1146.0" dy="16">Kubernetes with verified offline transfer.</tspan>
 </text>
 <rect x="40" y="861" width="1620" height="210" rx="12" fill="#e7e1ef" stroke="#b9c8ce" stroke-width="1.2" opacity="1"/>
 <text x="58" y="887" class="label" text-anchor="start">Extension and logistics capabilities</text>

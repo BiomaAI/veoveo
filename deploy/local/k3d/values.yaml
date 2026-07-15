@@ -1,0 +1,46 @@
+global:
+  defaultReplicas: 1
+  publicBaseUrl: http://localhost:8780
+
+surrealdb:
+  persistence:
+    size: 5Gi
+
+objectStore:
+  rustfs:
+    publicEndpoint: http://objects.localhost:8780
+    persistence:
+      size: 10Gi
+
+gateway:
+  replicas: 1
+
+artifactService:
+  replicas: 1
+
+recording:
+  viewer:
+    enabled: true
+    nodePort: 30877
+  persistence:
+    size: 20Gi
+
+consoleBff:
+  replicas: 1
+  oauthResource: http://localhost:8780/mcp/admin
+
+telemetry:
+  enabled: false
+
+ingress:
+  className: traefik
+  host: localhost
+  objectStoreHost: objects.localhost
+  tls:
+    enabled: false
+
+networkPolicy:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false

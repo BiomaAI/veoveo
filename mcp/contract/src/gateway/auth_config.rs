@@ -16,11 +16,11 @@ pub struct IdentityProvider {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trusted_certificate_authorities: Vec<CertificateAuthoritySource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub authorization_endpoint: Option<HttpsUrl>,
+    pub authorization_endpoint: Option<OAuthEndpointUrl>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub token_endpoint: Option<HttpsUrl>,
+    pub token_endpoint: Option<OAuthEndpointUrl>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enterprise_managed_authorization_endpoint: Option<HttpsUrl>,
+    pub enterprise_managed_authorization_endpoint: Option<OAuthEndpointUrl>,
     #[serde(default)]
     pub metadata: Value,
 }
@@ -85,8 +85,8 @@ pub struct ResourceAuthorizationServer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity_provider: Option<IdentityProviderId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub authorization_endpoint: Option<HttpsUrl>,
-    pub token_endpoint: HttpsUrl,
+    pub authorization_endpoint: Option<OAuthEndpointUrl>,
+    pub token_endpoint: OAuthEndpointUrl,
     #[serde(default)]
     pub metadata: Value,
 }

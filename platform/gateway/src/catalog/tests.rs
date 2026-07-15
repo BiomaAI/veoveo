@@ -8,14 +8,14 @@ use veoveo_mcp_contract::{
     IdentityProvider, IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource,
     JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
     MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
-    OAuthClientRegistration, OAuthClientSurface, OAuthGrantType, OAuthRedirectUri,
-    OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose,
-    PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, Principal,
-    PrincipalAssurance, PrincipalId, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
-    ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme, ResourceSelector,
-    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
-    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, TaskExposure,
-    TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    OAuthClientRegistration, OAuthClientSurface, OAuthEndpointUrl, OAuthGrantType,
+    OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
+    OwnedRoutePurpose, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget,
+    Principal, PrincipalAssurance, PrincipalId, PrincipalKind, ProfileServerExposure,
+    ProtectedResourceId, ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme,
+    ResourceSelector, ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName,
+    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
+    TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
     UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
 };
 
@@ -32,11 +32,13 @@ fn identity_provider() -> IdentityProvider {
         claim_mapping: veoveo_mcp_contract::IdentityProviderClaimMapping::default(),
         trusted_certificate_authorities: Vec::new(),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
+            OAuthEndpointUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
         ),
-        token_endpoint: Some(HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap()),
+        token_endpoint: Some(
+            OAuthEndpointUrl::new("https://idp.example.com/oauth2/token").unwrap(),
+        ),
         enterprise_managed_authorization_endpoint: Some(
-            HttpsUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
+            OAuthEndpointUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
         ),
         metadata: Value::Null,
     }
@@ -54,9 +56,9 @@ fn authorization_server() -> ResourceAuthorizationServer {
             .unwrap(),
         identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://veoveo.example/oauth/authorize").unwrap(),
+            OAuthEndpointUrl::new("https://veoveo.example/oauth/authorize").unwrap(),
         ),
-        token_endpoint: HttpsUrl::new("https://veoveo.example/oauth/token").unwrap(),
+        token_endpoint: OAuthEndpointUrl::new("https://veoveo.example/oauth/token").unwrap(),
         metadata: Value::Null,
     }
 }
@@ -94,7 +96,7 @@ fn media_manifest() -> ServerManifest {
         upstream: UpstreamEndpoint {
             transport: UpstreamTransport::StreamableHttp,
             url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
-            security: UpstreamTransportSecurity::ComposeInternalHttp,
+            security: UpstreamTransportSecurity::ClusterInternalHttp,
             trusted_certificate_authorities: Vec::new(),
             client_certificate: None,
             client_private_key: None,

@@ -11,8 +11,9 @@
         "imageRegistry": {"type": "string"},
         "imagePullSecrets": {"type": "array", "items": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}}},
         "imagePullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
+        "defaultReplicas": {"type": "integer", "minimum": 1},
         "existingSecret": {"type": "string", "minLength": 1},
-        "publicBaseUrl": {"type": "string", "pattern": "^https://"},
+        "publicBaseUrl": {"type": "string", "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)"},
         "offline": {"type": "boolean"},
         "podAnnotations": {"type": "object"},
         "podLabels": {"type": "object"},
@@ -59,7 +60,7 @@
           "properties": {
             "image": {"$ref": "#/definitions/image"},
             "bucket": {"type": "string", "minLength": 1},
-            "publicEndpoint": {"type": "string", "pattern": "^https://"},
+            "publicEndpoint": {"type": "string", "pattern": "^(https://|http://([a-z0-9-]+\\.)?localhost(:[0-9]+)?)"},
             "persistence": {"$ref": "#/definitions/persistence"},
             "resources": {"type": "object"}
           }
@@ -108,9 +109,18 @@
     "artifactService": {"$ref": "#/definitions/workload"},
     "recording": {
       "type": "object",
-      "required": ["enabled", "tenantKey", "classification", "labels", "route", "persistence", "hubImage", "mcpImage", "resources"],
+      "required": ["enabled", "viewer", "tenantKey", "classification", "labels", "route", "persistence", "hubImage", "mcpImage", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
+        "viewer": {
+          "type": "object",
+          "required": ["enabled", "nodePort"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "nodePort": {"type": "integer", "minimum": 30000, "maximum": 32767}
+          },
+          "additionalProperties": false
+        },
         "tenantKey": {"type": "string", "minLength": 1},
         "classification": {"type": "string", "minLength": 1},
         "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
@@ -124,7 +134,7 @@
     "consoleBff": {"$ref": "#/definitions/workload"},
     "domainServices": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "items": {
         "type": "object",
         "required": ["name", "image", "port", "healthPath", "args"],

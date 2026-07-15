@@ -3,16 +3,21 @@
 This directory is one operator-owned Veoveo installation. It is not a Veoveo
 service dependency and is not the canonical deployment topology.
 
-The overlay replaces the generic gateway control plane with Bioma's Entra
-configuration and adds a Cloudflare Tunnel in front of the canonical Compose
-edge:
+The Helm values select Bioma's public origins. Its gateway control plane owns the
+Entra configuration, while the separate Kubernetes deployment runs Cloudflare
+Tunnel:
 
 ```sh
-docker compose \
-  -f compose.yaml \
-  -f examples/bioma/compose.yaml \
-  --profile tunnel \
-  up --build -d
+kubectl create namespace veoveo --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n veoveo create configmap bioma-gateway-control-plane \
+  --from-file=gateway.json=examples/bioma/gateway.json
+kubectl -n veoveo create secret generic bioma-cloudflared \
+  --from-literal=token="$CLOUDFLARED_TUNNEL_TOKEN"
+
+helm upgrade --install veoveo deploy/helm/veoveo \
+  --namespace veoveo \
+  --values examples/bioma/values.yaml
+kubectl -n veoveo apply -f examples/bioma/tunnel.yaml
 ```
 
 Populate the canonical installation secrets plus the values documented in
@@ -37,7 +42,7 @@ external OIDC provider. Its registration must match the control plane:
   Authorization code with PKCE is used for the browser flow; no implicit grant
   is required.
 - Put the client secret in `VEOVEO_IDP_OIDC_CLIENT_SECRET`. Do not add it to
-  `gateway.json` or the Compose overlay.
+  `gateway.json` or a Kubernetes manifest.
 
 When adapting this example, replace both the Entra tenant UUID and client UUID,
 then update the tenant mapping as one change. Validate the result before

@@ -34,7 +34,7 @@ Implemented in this workspace. The current server provides:
 - shared artifact-plane input and output
 - governed allowlisted HTTPS source materialization
 - pinned DuckDB Spatial loading and startup verification
-- Compose, Helm, gateway catalog, profile, and policy integration
+- Helm, gateway catalog, profile, and policy integration
 - Rust unit, integration, conformance, and multi-process smoke coverage
 
 The crate, folder, hosted server slug, and URI scheme are:
@@ -735,10 +735,10 @@ The server composes three storage domains:
 | tasks, owners, leases, usage | SurrealDB platform store |
 | immutable exports and query artifacts | shared artifact plane |
 
-Compose mounts the database directory from the `duckdb_workspaces` volume and
-places exchange and spill directories on container tmpfs. Helm deploys one
-replica with a `ReadWriteOnce` workspace PVC. The chart does not claim database
-high availability.
+Helm mounts the database directory from the `duckdb_workspaces` volume, places
+exchange and spill directories on ephemeral storage, and deploys one replica
+with a `ReadWriteOnce` workspace PVC. The chart does not claim database high
+availability.
 
 The singleton is part of the correctness boundary. The per-database write mutex
 is process-local, and DuckDB is embedded rather than a network database. Adding
@@ -785,14 +785,14 @@ The production image runs as the non-root `veoveo` user with UID `10001`.
 DuckDB Spatial is read-only inside the image. The mutable workspace is mounted
 under `/var/lib/veoveo/duckdb`.
 
-Compose applies:
+The Kubernetes security context and resource policy apply:
 
 - a read-only root filesystem
 - all Linux capabilities dropped
 - `no-new-privileges`
 - a process limit
 - a two-GiB container memory limit
-- loopback-only host publication
+- cluster-private service exposure
 
 The server requires database-scoped SurrealDB credentials. Installation root
 credentials are never accepted by its configuration parser.

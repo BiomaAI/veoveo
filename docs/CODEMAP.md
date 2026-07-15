@@ -56,14 +56,14 @@ is the browser edition of the harness document.
 |---|---|
 | `Cargo.toml` | Rust workspace membership and pinned shared dependencies |
 | `rust-toolchain.toml` | canonical Rust toolchain |
-| `compose.yaml` | canonical single-host self-hosted installation |
+| `docker-bake.hcl` | local OCI image build groups |
 | `.env.example` | required installation configuration and secrets |
 | `configs/gateway.local.json` | generic gateway control-plane configuration |
 | `configs/gateway.smoke.json` | isolated smoke control plane |
 | `configs/deployments.json` | deployment contract examples |
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `configs/Caddyfile` | canonical edge routes and public-surface denial |
+| `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
 | `docs/` | general architecture, code index, recording design, and rendered publications |
@@ -123,7 +123,7 @@ schema merely because the server is first-party.
 | `gateway/runtime_state.rs` | durable auth/runtime record contracts |
 | `gateway/validation.rs` | fail-closed cross-reference and invariant validation |
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |
-| `deployment.rs` | Compose/Helm/offline topology contract |
+| `deployment.rs` | Connected/offline Kubernetes topology contract |
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
@@ -457,7 +457,6 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
   add an explicit Console BFF projection when the browser represents that workflow.
 - Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway
   tokens to JavaScript.
-- Change public routes in Compose Caddy and Helm ingress together, then extend the Rust
-  deployment smoke.
-- Change installation image/config content in Compose, Helm, offline lock/builder, and
+- Change public routes in Helm ingress, then extend the Rust deployment smoke.
+- Change installation image/config content in Helm, the offline lock/builder, and
   deployment contract together.

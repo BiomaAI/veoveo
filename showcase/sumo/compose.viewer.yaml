@@ -1,7 +1,0 @@
-# Local development projection for a native Rerun viewer. The platform keeps
-# Recording Hub ingress private by default; this overlay exposes it only through
-# the host loopback interface.
-services:
-  recording-hub:
-    ports:
-      - "127.0.0.1:9877:9876"

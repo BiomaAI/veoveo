@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -29,34 +28,35 @@ const RECORDING_PROXY: &str = "rerun+http://127.0.0.1:9876/proxy";
 const PERCEPTION_MCP_URL: &str = "http://127.0.0.1:8797/perception/mcp";
 const PERCEPTION_READY_URL: &str = "http://127.0.0.1:8797/perception/readyz";
 
-pub(crate) async fn perception_gpu(
-    env_file: &Path,
-    compose_override: &Path,
-    project_name: &str,
-) -> Result<()> {
-    ensure!(
-        !project_name.trim().is_empty(),
-        "Compose project name is empty"
-    );
+pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<()> {
     ensure!(
         env_file.is_file(),
         "environment file is missing: {}",
         env_file.display()
     );
-    ensure!(
-        compose_override.is_file(),
-        "Compose override is missing: {}",
-        compose_override.display()
-    );
     let environment = load_environment(env_file)?;
     validate_perception_workspace(&environment)?;
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
-    let sample_h264 = prepare_sample_h264(compose_override, &environment)?;
+    let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
 
-    let stack = PerceptionComposeGuard::new(project_name, env_file, compose_override);
-    stack.run(&["up", "-d", "--no-build", "otel-collector", "perception-mcp"])?;
-    wait_for_perception(&stack).await?;
+    run_checked(
+        Path::new("kubectl"),
+        [
+            "-n".into(),
+            "veoveo".into(),
+            "rollout".into(),
+            "status".into(),
+            "deployment/perception-mcp".into(),
+            "--timeout=300s".into(),
+        ],
+        [],
+    )
+    .context("perception GPU smoke requires the active k3d perception profile")?;
+    let _recording_forward = PortForwardGuard::spawn("recording-ingest", 9876, 9876)?;
+    let _perception_forward = PortForwardGuard::spawn("perception-mcp", 8797, 8797)?;
+    let _surreal_forward = PortForwardGuard::spawn("surrealdb", 8000, 8000)?;
+    wait_for_perception().await?;
 
     let recording_key = uuid::Uuid::now_v7().to_string();
     publish_h264_recording(&recording_key, &sample_h264).await?;
@@ -82,18 +82,9 @@ pub(crate) async fn perception_gpu(
     let task = match task {
         Ok(output) => output,
         Err(error) => {
-            let logs = stack
-                .run(&[
-                    "logs",
-                    "--no-color",
-                    "--tail",
-                    "300",
-                    "perception-mcp",
-                    "recording-hub",
-                    "artifact-service",
-                ])
+            let logs = kubernetes_logs()
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
-            bail!("perception MCP task failed: {error:#}\nCompose logs:\n{logs}");
+            bail!("perception MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
         }
     };
     let output = task;
@@ -223,7 +214,7 @@ async fn wait_for_recording_catalog(
     bail!("Recording Hub did not catalog recording key {recording_key}")
 }
 
-async fn wait_for_perception(stack: &PerceptionComposeGuard) -> Result<()> {
+async fn wait_for_perception() -> Result<()> {
     let client = reqwest::Client::new();
     for _ in 0..90 {
         if client
@@ -236,29 +227,13 @@ async fn wait_for_perception(stack: &PerceptionComposeGuard) -> Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let logs = stack
-        .run(&[
-            "logs",
-            "--no-color",
-            "--tail",
-            "300",
-            "perception-mcp",
-            "recording-hub",
-            "artifact-service",
-        ])
-        .unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
+    let logs =
+        kubernetes_logs().unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
     bail!("perception MCP did not become ready\n{logs}")
 }
 
-fn prepare_sample_h264(
-    compose_override: &Path,
-    environment: &BTreeMap<String, String>,
-) -> Result<PathBuf> {
-    let perception_dir = compose_override
-        .parent()
-        .context("perception Compose override has no parent directory")?;
-    let work_dir = perception_dir.join("work");
-    std::fs::create_dir_all(&work_dir)?;
+fn prepare_sample_h264(work_dir: &Path, environment: &BTreeMap<String, String>) -> Result<PathBuf> {
+    std::fs::create_dir_all(work_dir)?;
     let output = work_dir.join(SAMPLE_H264_NAME);
     if output.metadata().is_ok_and(|metadata| metadata.len() > 0) {
         return Ok(output);
@@ -384,48 +359,54 @@ fn issue_internal_token(private_key_der_b64: &str, key_id: &str) -> Result<Strin
         .bearer_token)
 }
 
-struct PerceptionComposeGuard {
-    project_name: String,
-    env_file: PathBuf,
-    compose_override: PathBuf,
+struct PortForwardGuard {
+    child: Child,
 }
 
-impl PerceptionComposeGuard {
-    fn new(project_name: &str, env_file: &Path, compose_override: &Path) -> Self {
-        Self {
-            project_name: project_name.to_owned(),
-            env_file: env_file.to_owned(),
-            compose_override: compose_override.to_owned(),
-        }
-    }
-
-    fn arguments(&self, command: &[&str]) -> Vec<OsString> {
-        let mut arguments = vec![
-            "compose".into(),
-            "--project-name".into(),
-            self.project_name.clone().into(),
-            "--env-file".into(),
-            self.env_file.as_os_str().to_owned(),
-            "-f".into(),
-            "compose.yaml".into(),
-            "-f".into(),
-            self.compose_override.as_os_str().to_owned(),
-        ];
-        arguments.extend(command.iter().map(OsString::from));
-        arguments
-    }
-
-    fn run(&self, command: &[&str]) -> Result<String> {
-        run_checked(Path::new("docker"), self.arguments(command), [])
-    }
-}
-
-impl Drop for PerceptionComposeGuard {
-    fn drop(&mut self) {
-        let _ = Command::new("docker")
-            .args(self.arguments(&["down", "--volumes", "--remove-orphans"]))
+impl PortForwardGuard {
+    fn spawn(service: &str, local_port: u16, remote_port: u16) -> Result<Self> {
+        let child = Command::new("kubectl")
+            .args([
+                "-n",
+                "veoveo",
+                "port-forward",
+                &format!("service/{service}"),
+                &format!("{local_port}:{remote_port}"),
+            ])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .status();
+            .spawn()
+            .with_context(|| format!("starting port-forward for service/{service}"))?;
+        Ok(Self { child })
     }
+}
+
+impl Drop for PortForwardGuard {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn kubernetes_logs() -> Result<String> {
+    let mut output = String::new();
+    for (workload, container) in [
+        ("deployment/perception-mcp", None),
+        ("deployment/recording", Some("recording-hub")),
+        ("deployment/artifact-service", None),
+    ] {
+        let mut arguments = vec![
+            "-n".into(),
+            "veoveo".into(),
+            "logs".into(),
+            workload.into(),
+            "--tail=300".into(),
+        ];
+        if let Some(container) = container {
+            arguments.extend(["-c".into(), container.into()]);
+        }
+        let logs = run_checked(Path::new("kubectl"), arguments, [])?;
+        output.push_str(&format!("==> {workload}\n{logs}\n"));
+    }
+    Ok(output)
 }

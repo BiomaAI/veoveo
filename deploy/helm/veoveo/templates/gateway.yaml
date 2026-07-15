@@ -85,10 +85,12 @@ spec:
                   key: refresh-delivery-key-b64
             - name: VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS
               value: {{ .Values.gateway.refreshDeliveryWindowSeconds | quote }}
+            {{- if .Values.telemetry.enabled }}
             - name: OTEL_SERVICE_NAME
               value: veoveo-mcp-gateway
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4318
+            {{- end }}
           ports:
             - name: http
               containerPort: 8788
@@ -96,6 +98,9 @@ spec:
             httpGet:
               path: /readyz
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.global.publicBaseUrl | trimPrefix "https://" | trimPrefix "http://" | quote }}
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 12
@@ -103,6 +108,9 @@ spec:
             httpGet:
               path: /healthz
               port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ .Values.global.publicBaseUrl | trimPrefix "https://" | trimPrefix "http://" | quote }}
             initialDelaySeconds: 10
             periodSeconds: 10
           securityContext:
@@ -110,8 +118,14 @@ spec:
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
           volumeMounts:
+            - name: control-plane
+              mountPath: /etc/veoveo/gateway
+              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: control-plane
+          configMap:
+            name: {{ .Values.gateway.existingControlPlaneConfigMap }}
         - name: tmp
           emptyDir: {}

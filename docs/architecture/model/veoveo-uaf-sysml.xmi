@@ -36,7 +36,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-009-COMMENT" body="Operators inspect and administer live work without exposing bearer credentials." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-010" name="Connected and offline deployment">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-010-COMMENT" body="One service graph deploys through Compose or Helm with verified offline transfer." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-010-COMMENT" body="One Helm service graph runs in local k3d or fielded Kubernetes with verified offline transfer." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CAP-011" name="Geospatial logistics">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CAP-011-COMMENT" body="Governed data releases support geodesy, restrictions, routing, and logistics matrices." />
@@ -218,14 +218,14 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-034" name="Rust smoke harness">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-034-COMMENT" body="Owns multi-process and container lifecycle, readiness, timeouts, cleanup, MCP and HTTP calls, assertions, and deployment contract verification." />
       </packagedElement>
-      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-035" name="Docker Compose deployment definition">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-035-COMMENT" body="Instantiates the canonical single-host service graph with loopback development ports, private internal networks, volumes, bootstrap, and edge routing." />
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-035" name="k3d local development environment">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-035-COMMENT" body="Creates a current K3s cluster with mandatory NVIDIA GPU access, imports local images, and applies profile-owned Helm values without selecting a simulator in generic configuration." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-036" name="Helm deployment chart">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-036-COMMENT" body="Instantiates the service graph with existing secrets, network policy, persistent storage, optional service-mesh mTLS, and ingress controls." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-037" name="Offline bundle builder and loader">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-037-COMMENT" body="Builds and verifies digest-pinned images, configuration schemas, checksums, SPDX SBOMs, Compose and Helm material without requiring target-network access." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-037-COMMENT" body="Builds and verifies digest-pinned images, configuration schemas, checksums, SPDX SBOMs, and Helm material without requiring target-network access." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-038" name="SurrealDB platform database">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-038-COMMENT" body="Provides the sole durable coordination store for identity, control, policy, tasks, artifacts, recordings, agents, audit, and outbox state." />
@@ -271,17 +271,14 @@
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-ACTUAL" name="Actual Resources">
-      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-001" name="Compose connected installation" classifier="VV-SYS-001">
+      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-001" name="k3d local development installation" classifier="VV-SYS-001">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-AR-001-COMMENT" body="Reference fielded configuration of the Veoveo Installation System, configured by VV-CMP-035." />
       </packagedElement>
-      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-002" name="Compose offline installation" classifier="VV-SYS-001">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-AR-002-COMMENT" body="Reference fielded configuration of the Veoveo Installation System, configured by VV-CMP-035." />
+      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-002" name="Kubernetes connected installation" classifier="VV-SYS-001">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-AR-002-COMMENT" body="Reference fielded configuration of the Veoveo Installation System, configured by VV-CMP-036." />
       </packagedElement>
-      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-003" name="Helm connected installation" classifier="VV-SYS-001">
+      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-003" name="Kubernetes offline installation" classifier="VV-SYS-001">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-AR-003-COMMENT" body="Reference fielded configuration of the Veoveo Installation System, configured by VV-CMP-036." />
-      </packagedElement>
-      <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="VV-AR-004" name="Helm offline installation" classifier="VV-SYS-001">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-AR-004-COMMENT" body="Reference fielded configuration of the Veoveo Installation System, configured by VV-CMP-036." />
       </packagedElement>
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-REQUIREMENTS" name="Requirements">
@@ -319,7 +316,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-011-COMMENT" body="An offline installation shall verify all transferred files and images and shall not require network access during loading or operation of provider-independent capabilities." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-012" name="VV-REQ-012">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-012-COMMENT" body="Compose and Helm shall instantiate the same canonical service graph while retaining form-specific controls for storage, ingress, network policy, and mTLS." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-012-COMMENT" body="The canonical Helm chart shall instantiate the same service graph in local k3d and fielded Kubernetes while retaining profile-specific controls for storage, ingress, network policy, and mTLS." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-REQ-013" name="VV-REQ-013">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-REQ-013-COMMENT" body="Analytical users shall retain arbitrary DuckDB SQL within owner-scoped workspaces bounded by engine, filesystem, process, resource, and network controls." />
@@ -352,9 +349,8 @@
     </packagedElement>
     <packagedElement xmi:type="uml:Package" xmi:id="VV-PKG-TRACE" name="Traceability">
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-AR-001-DEPLOY" name="configuredBy" client="VV-AR-001" supplier="VV-CMP-035" />
-      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-AR-002-DEPLOY" name="configuredBy" client="VV-AR-002" supplier="VV-CMP-035" />
+      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-AR-002-DEPLOY" name="configuredBy" client="VV-AR-002" supplier="VV-CMP-036" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-AR-003-DEPLOY" name="configuredBy" client="VV-AR-003" supplier="VV-CMP-036" />
-      <packagedElement xmi:type="uml:Dependency" xmi:id="VV-AR-004-DEPLOY" name="configuredBy" client="VV-AR-004" supplier="VV-CMP-036" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-01-1" name="tracesTo" client="VV-REQ-001" supplier="VV-CAP-008" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-01-2" name="tracesTo" client="VV-CAP-008" supplier="VV-OPA-010" />
       <packagedElement xmi:type="uml:Dependency" xmi:id="VV-TRACE-01-3" name="tracesTo" client="VV-OPA-010" supplier="VV-SVC-009" />
@@ -627,7 +623,6 @@
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />
   <UAF:ActualResource xmi:id="VV-AR-002-UAF" base_InstanceSpecification="VV-AR-002" />
   <UAF:ActualResource xmi:id="VV-AR-003-UAF" base_InstanceSpecification="VV-AR-003" />
-  <UAF:ActualResource xmi:id="VV-AR-004-UAF" base_InstanceSpecification="VV-AR-004" />
   <UAF:OperationalPerformer xmi:id="VV-EXT-MCP-CLIENT-UAF" base_Class="VV-EXT-MCP-CLIENT" />
   <UAF:OperationalPerformer xmi:id="VV-EXT-BROWSER-UAF" base_Class="VV-EXT-BROWSER" />
   <UAF:OperationalPerformer xmi:id="VV-EXT-OAUTH-CLIENT-UAF" base_Class="VV-EXT-OAUTH-CLIENT" />
@@ -647,7 +642,7 @@
   <SysML:Requirement xmi:id="VV-REQ-009-SYSML" base_Class="VV-REQ-009" id="VV-REQ-009" text="Autonomous agents shall persist wakes, episodes, task descriptors, retries, results, and retention pins across process restart." />
   <SysML:Requirement xmi:id="VV-REQ-010-SYSML" base_Class="VV-REQ-010" id="VV-REQ-010" text="Browser JavaScript shall never receive the gateway bearer and every unsafe console request shall enforce CSRF." />
   <SysML:Requirement xmi:id="VV-REQ-011-SYSML" base_Class="VV-REQ-011" id="VV-REQ-011" text="An offline installation shall verify all transferred files and images and shall not require network access during loading or operation of provider-independent capabilities." />
-  <SysML:Requirement xmi:id="VV-REQ-012-SYSML" base_Class="VV-REQ-012" id="VV-REQ-012" text="Compose and Helm shall instantiate the same canonical service graph while retaining form-specific controls for storage, ingress, network policy, and mTLS." />
+  <SysML:Requirement xmi:id="VV-REQ-012-SYSML" base_Class="VV-REQ-012" id="VV-REQ-012" text="The canonical Helm chart shall instantiate the same service graph in local k3d and fielded Kubernetes while retaining profile-specific controls for storage, ingress, network policy, and mTLS." />
   <SysML:Requirement xmi:id="VV-REQ-013-SYSML" base_Class="VV-REQ-013" id="VV-REQ-013" text="Analytical users shall retain arbitrary DuckDB SQL within owner-scoped workspaces bounded by engine, filesystem, process, resource, and network controls." />
   <SysML:Requirement xmi:id="VV-REQ-014-SYSML" base_Class="VV-REQ-014" id="VV-REQ-014" text="The platform shall support governed map acquisition, release activation, restrictions, geodesy, routing, reachable areas, and logistics matrices through stable map identities." />
   <SysML:Requirement xmi:id="VV-REQ-015-SYSML" base_Class="VV-REQ-015" id="VV-REQ-015" text="Known platform and domain contracts shall use typed structs, enums, identifiers, and schemas; raw JSON shall remain confined to genuinely opaque provider boundaries." />

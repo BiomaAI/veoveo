@@ -260,9 +260,9 @@ pub(super) enum Cmd {
         /// OAuth client id used as issuer and subject.
         #[arg(long, default_value = "operator-service")]
         client_id: String,
-        /// Client assertion audience claim.
-        #[arg(long, default_value = "https://veoveo.example/oauth/token")]
-        audience: String,
+        /// Client assertion audience claim. Defaults to the token endpoint URL.
+        #[arg(long)]
+        audience: Option<String>,
         /// MCP protected resource for the requested profile.
         #[arg(long)]
         resource: Option<String>,

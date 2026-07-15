@@ -1,0 +1,212 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sumo-work
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sumo
+spec:
+  selector:
+    app.kubernetes.io/name: sumo-sim
+  ports:
+    - name: traci
+      port: 8813
+      targetPort: traci
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sumo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sumo-sim
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sumo-sim
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sumo
+          image: {{ printf "%s:%s" .Values.images.sim.repository .Values.images.sim.tag }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - name: traci
+              containerPort: 8813
+          # TraCI permits one client. A TCP probe would consume that connection
+          # and terminate the simulation before sumo-mcp can become its owner.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          resources:
+            {{- toYaml .Values.resources.sim | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sumo-mcp
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: sumo-mcp
+  ports:
+    - name: http
+      port: 8795
+      targetPort: http
+      nodePort: {{ .Values.service.nodePort }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sumo-mcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sumo-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sumo-mcp
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sumo-mcp
+          image: {{ printf "%s:%s" .Values.images.mcp.repository .Values.images.mcp.tag }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          args:
+            - --port
+            - "8795"
+            - --public-base-url
+            - {{ .Values.platform.publicBaseUrl | quote }}
+            - --allowed-host
+            - sumo-mcp:8795
+            - --allowed-host
+            - 127.0.0.1:8895
+            - --hub-proxy
+            - {{ .Values.platform.recordingProxy | quote }}
+            - --recording
+            - sumo-live
+            - --artifact-service-url
+            - {{ .Values.platform.artifactServiceUrl | quote }}
+          env:
+            - name: SUMO_HOST
+              value: sumo
+            - name: SUMO_PORT
+              value: "8813"
+            - name: SUMO_SCENARIO
+              value: {{ .Values.simulation.scenario | quote }}
+            - name: SUMO_MAX_VEHICLES
+              value: {{ .Values.simulation.maxVehicles | quote }}
+            - name: SUMO_CONNECT_RETRIES
+              value: {{ .Values.simulation.connectRetries | quote }}
+            - name: VEOVEO_SURREAL_ENDPOINT
+              value: {{ printf "ws://%s:8000" .Values.platform.surrealService | quote }}
+            - name: VEOVEO_SURREAL_NAMESPACE
+              value: {{ .Values.platform.surrealNamespace | quote }}
+            - name: VEOVEO_SURREAL_DATABASE
+              value: {{ .Values.platform.surrealDatabase | quote }}
+            - name: VEOVEO_SURREAL_AUTH_LEVEL
+              value: database
+            - name: VEOVEO_SURREAL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.platform.surrealRuntimeSecret }}
+                  key: username
+            - name: VEOVEO_SURREAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.platform.surrealRuntimeSecret }}
+                  key: password
+            - name: VEOVEO_INTERNAL_TRUST_JWKS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.platform.installationSecret }}
+                  key: internal-trust-jwks
+            {{- if .Values.telemetry.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.telemetry.endpoint | quote }}
+            {{- end }}
+            - name: RUST_LOG
+              value: info
+          ports:
+            - name: http
+              containerPort: 8795
+          readinessProbe:
+            httpGet:
+              path: /sumo/healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: sumo-mcp:8795
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 100
+          livenessProbe:
+            httpGet:
+              path: /sumo/healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: sumo-mcp:8795
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          resources:
+            {{- toYaml .Values.resources.mcp | nindent 12 }}
+          volumeMounts:
+            - name: work
+              mountPath: /var/lib/veoveo/sumo
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: work
+          persistentVolumeClaim:
+            claimName: sumo-work
+        - name: tmp
+          emptyDir: {}

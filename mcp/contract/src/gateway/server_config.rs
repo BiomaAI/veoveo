@@ -230,6 +230,48 @@ impl From<HttpsUrl> for String {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+pub struct OAuthEndpointUrl(String);
+
+impl OAuthEndpointUrl {
+    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
+        let value = value.into();
+        validate_oauth_endpoint_url(&value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for OAuthEndpointUrl {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for OAuthEndpointUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TryFrom<String> for OAuthEndpointUrl {
+    type Error = IdentifierError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<OAuthEndpointUrl> for String {
+    fn from(value: OAuthEndpointUrl) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
 pub struct UpstreamUrl(String);
 
 impl UpstreamUrl {
@@ -579,7 +621,7 @@ pub enum UpstreamTransport {
 #[serde(rename_all = "snake_case")]
 pub enum UpstreamTransportSecurity {
     LoopbackHttp,
-    ComposeInternalHttp,
+    ClusterInternalHttp,
     Tls,
     MutualTls,
     ServiceMeshMtls,
@@ -642,5 +684,20 @@ impl From<AuthMode> for OAuthGrantType {
             AuthMode::EnterpriseManagedAuthorization => Self::EnterpriseManagedAuthorization,
             AuthMode::OAuthClientCredentials => Self::ClientCredentials,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oauth_endpoints_allow_only_https_or_explicit_loopback_http() {
+        OAuthEndpointUrl::new("https://idp.example.com/oauth/token").unwrap();
+        OAuthEndpointUrl::new("http://localhost:8780/oauth/token").unwrap();
+        OAuthEndpointUrl::new("http://127.0.0.1:8780/oauth/token").unwrap();
+
+        assert!(OAuthEndpointUrl::new("http://localhost/oauth/token").is_err());
+        assert!(OAuthEndpointUrl::new("http://gateway:8780/oauth/token").is_err());
     }
 }

@@ -35,10 +35,11 @@ listed next to each obligation is where this template satisfies it.
    computation. Keep the engine pure; it runs inside worker threads.
 3. Keep `server/` structurally intact: config, ownership, the task-extension
    handler, and the durable task module change names, not shape.
-4. Register the server in `compose.yaml` and `configs/gateway.local.json`,
-   add its slug to the artifact service's allowed audiences, and extend the
-   Rust smoke (`testing/smoke/src/bin/smoke/scenarios/datasheet.rs` is the
-   model). All smoke logic stays in Rust.
+4. Add the workload to `deploy/helm/veoveo`, register it in the intended
+   profile-owned gateway JSON, add its slug to the artifact service's allowed
+   audiences, and extend the Rust smoke
+   (`testing/smoke/src/bin/smoke/scenarios/datasheet.rs` is the model). All
+   smoke logic stays in Rust.
 
 ## Running locally
 

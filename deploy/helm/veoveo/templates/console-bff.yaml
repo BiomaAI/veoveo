@@ -63,8 +63,10 @@ spec:
                   key: console-session-key
             - name: OTEL_SERVICE_NAME
               value: veoveo-console-bff
+            {{- if .Values.telemetry.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4318
+            {{- end }}
           ports:
             - name: http
               containerPort: 8786

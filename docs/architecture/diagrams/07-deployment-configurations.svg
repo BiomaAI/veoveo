@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100" width="1800" height="1100" role="img" aria-labelledby="title desc">
 <title id="title">Deployment configurations</title>
-<desc id="desc">Four actual resource configurations composed from the same Veoveo service graph.</desc>
+<desc id="desc">Three actual resource configurations instantiated from the same Helm service graph.</desc>
 <defs>
 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#21465b"/></marker>
 <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#687983"/></marker>
@@ -14,137 +14,105 @@
 <text x="36" y="43" class="title inverse" text-anchor="start">Deployment configurations</text>
 <text x="1764" y="32" class="label inverse" text-anchor="end">VV-VIEW-07</text>
 <text x="1764" y="57" class="small inverse" text-anchor="end">UAF 1.3 / SysML 1.6 | v0.1.0</text>
-<rect x="38" y="135" width="405" height="190" rx="9" fill="#d9ebe7" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="38" y="135" width="540" height="190" rx="9" fill="#d9ebe7" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="38" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="56" y="158" class="node-id" text-anchor="start">VV-AR-001</text>
 <text x="56" y="182" class="node-title" text-anchor="start">
-<tspan x="56" dy="0">Compose connected</tspan>
+<tspan x="56" dy="0">k3d local</tspan>
 </text>
 <text x="56" y="205" class="small" text-anchor="start">
-<tspan x="56" dy="0">Single host. External OIDC; RustFS or S3;</tspan>
-<tspan x="56" dy="16">private HTTP; loopback ports</tspan>
+<tspan x="56" dy="0">Local Kubernetes. Loopback ingress;</tspan>
+<tspan x="56" dy="16">development Secrets; mandatory NVIDIA GPU</tspan>
+<tspan x="56" dy="16">access</tspan>
 </text>
-<rect x="38" y="365" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<rect x="38" y="365" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="398" class="body" text-anchor="start">Gateway + console</text>
-<text x="418" y="398" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="38" y="437" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="553" y="398" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="38" y="437" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
-<text x="418" y="470" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="38" y="509" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="553" y="470" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="38" y="509" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="542" class="body" text-anchor="start">Artifact plane</text>
-<text x="418" y="542" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="38" y="581" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="553" y="542" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="38" y="581" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="614" class="body" text-anchor="start">Recording plane</text>
-<text x="418" y="614" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="38" y="653" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="553" y="614" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="38" y="653" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="686" class="body" text-anchor="start">SurrealDB authority</text>
-<text x="418" y="686" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="38" y="725" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="553" y="686" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="38" y="725" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="758" class="body" text-anchor="start">Telemetry + audit</text>
-<text x="418" y="758" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="38" y="825" width="405" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="553" y="758" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="38" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
 <text x="56" y="883" class="body" text-anchor="start">
-<tspan x="56" dy="0">Compose secrets, volumes, Caddy</tspan>
+<tspan x="56" dy="0">k3d ports, image import, GPU node</tspan>
 </text>
-<rect x="476" y="135" width="405" height="190" rx="9" fill="#deebf2" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="476" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="494" y="158" class="node-id" text-anchor="start">VV-AR-002</text>
-<text x="494" y="182" class="node-title" text-anchor="start">
-<tspan x="494" dy="0">Compose offline</tspan>
+<rect x="611" y="135" width="540" height="190" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="611" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="629" y="158" class="node-id" text-anchor="start">VV-AR-002</text>
+<text x="629" y="182" class="node-title" text-anchor="start">
+<tspan x="629" dy="0">Kubernetes connected</tspan>
 </text>
-<text x="494" y="205" class="small" text-anchor="start">
-<tspan x="494" dy="0">Single isolated host. Offline OIDC discovery;</tspan>
-<tspan x="494" dy="16">RustFS; mTLS option; imported images</tspan>
+<text x="629" y="205" class="small" text-anchor="start">
+<tspan x="629" dy="0">Kubernetes. External OIDC/S3; Ingress;</tspan>
+<tspan x="629" dy="16">default-deny NetworkPolicy; mesh mTLS</tspan>
 </text>
-<rect x="476" y="365" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="398" class="body" text-anchor="start">Gateway + console</text>
-<text x="856" y="398" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="476" y="437" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
-<text x="856" y="470" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="476" y="509" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="542" class="body" text-anchor="start">Artifact plane</text>
-<text x="856" y="542" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="476" y="581" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="614" class="body" text-anchor="start">Recording plane</text>
-<text x="856" y="614" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="476" y="653" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="686" class="body" text-anchor="start">SurrealDB authority</text>
-<text x="856" y="686" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="476" y="725" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="758" class="body" text-anchor="start">Telemetry + audit</text>
-<text x="856" y="758" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="476" y="825" width="405" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="494" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
-<text x="494" y="883" class="body" text-anchor="start">
-<tspan x="494" dy="0">Offline image import and local trust</tspan>
+<rect x="611" y="365" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="398" class="body" text-anchor="start">Gateway + console</text>
+<text x="1126" y="398" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="611" y="437" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
+<text x="1126" y="470" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="611" y="509" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="542" class="body" text-anchor="start">Artifact plane</text>
+<text x="1126" y="542" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="611" y="581" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="614" class="body" text-anchor="start">Recording plane</text>
+<text x="1126" y="614" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="611" y="653" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="686" class="body" text-anchor="start">SurrealDB authority</text>
+<text x="1126" y="686" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="611" y="725" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="758" class="body" text-anchor="start">Telemetry + audit</text>
+<text x="1126" y="758" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="611" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="629" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
+<text x="629" y="883" class="body" text-anchor="start">
+<tspan x="629" dy="0">Kubernetes Secrets, PVCs, Ingress</tspan>
 </text>
-<rect x="914" y="135" width="405" height="190" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="914" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="932" y="158" class="node-id" text-anchor="start">VV-AR-003</text>
-<text x="932" y="182" class="node-title" text-anchor="start">
-<tspan x="932" dy="0">Helm connected</tspan>
+<rect x="1184" y="135" width="540" height="190" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1184" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1202" y="158" class="node-id" text-anchor="start">VV-AR-003</text>
+<text x="1202" y="182" class="node-title" text-anchor="start">
+<tspan x="1202" dy="0">Kubernetes offline</tspan>
 </text>
-<text x="932" y="205" class="small" text-anchor="start">
-<tspan x="932" dy="0">Kubernetes. External OIDC/S3; Ingress;</tspan>
-<tspan x="932" dy="16">default-deny NetworkPolicy; mesh mTLS</tspan>
+<text x="1202" y="205" class="small" text-anchor="start">
+<tspan x="1202" dy="0">Isolated Kubernetes. Imported images; existing</tspan>
+<tspan x="1202" dy="16">Secrets; offline values; retained evidence</tspan>
 </text>
-<rect x="914" y="365" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="398" class="body" text-anchor="start">Gateway + console</text>
-<text x="1294" y="398" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="914" y="437" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
-<text x="1294" y="470" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="914" y="509" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="542" class="body" text-anchor="start">Artifact plane</text>
-<text x="1294" y="542" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="914" y="581" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="614" class="body" text-anchor="start">Recording plane</text>
-<text x="1294" y="614" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="914" y="653" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="686" class="body" text-anchor="start">SurrealDB authority</text>
-<text x="1294" y="686" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="914" y="725" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="758" class="body" text-anchor="start">Telemetry + audit</text>
-<text x="1294" y="758" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="914" y="825" width="405" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="932" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
-<text x="932" y="883" class="body" text-anchor="start">
-<tspan x="932" dy="0">Kubernetes Secrets, PVCs, Ingress</tspan>
-</text>
-<rect x="1352" y="135" width="405" height="190" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
-<rect x="1352" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1370" y="158" class="node-id" text-anchor="start">VV-AR-004</text>
-<text x="1370" y="182" class="node-title" text-anchor="start">
-<tspan x="1370" dy="0">Helm offline</tspan>
-</text>
-<text x="1370" y="205" class="small" text-anchor="start">
-<tspan x="1370" dy="0">Isolated Kubernetes. Imported images; existing</tspan>
-<tspan x="1370" dy="16">Secrets; offline values; retained evidence</tspan>
-</text>
-<rect x="1352" y="365" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="398" class="body" text-anchor="start">Gateway + console</text>
-<text x="1732" y="398" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="1352" y="437" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
-<text x="1732" y="470" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="1352" y="509" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="542" class="body" text-anchor="start">Artifact plane</text>
-<text x="1732" y="542" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="1352" y="581" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="614" class="body" text-anchor="start">Recording plane</text>
-<text x="1732" y="614" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="1352" y="653" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="686" class="body" text-anchor="start">SurrealDB authority</text>
-<text x="1732" y="686" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="1352" y="725" width="405" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="758" class="body" text-anchor="start">Telemetry + audit</text>
-<text x="1732" y="758" class="tiny" text-anchor="end">INVARIANT</text>
-<rect x="1352" y="825" width="405" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
-<text x="1370" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
-<text x="1370" y="883" class="body" text-anchor="start">
-<tspan x="1370" dy="0">Offline Helm values and image policy</tspan>
+<rect x="1184" y="365" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="398" class="body" text-anchor="start">Gateway + console</text>
+<text x="1699" y="398" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="1184" y="437" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="470" class="body" text-anchor="start">Hosted MCP domains</text>
+<text x="1699" y="470" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="1184" y="509" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="542" class="body" text-anchor="start">Artifact plane</text>
+<text x="1699" y="542" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="1184" y="581" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="614" class="body" text-anchor="start">Recording plane</text>
+<text x="1699" y="614" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="1184" y="653" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="686" class="body" text-anchor="start">SurrealDB authority</text>
+<text x="1699" y="686" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="1184" y="725" width="540" height="54" rx="6" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="758" class="body" text-anchor="start">Telemetry + audit</text>
+<text x="1699" y="758" class="tiny" text-anchor="end">INVARIANT</text>
+<rect x="1184" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
+<text x="1202" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
+<text x="1202" y="883" class="body" text-anchor="start">
+<tspan x="1202" dy="0">Offline Helm values and image policy</tspan>
 </text>
 <rect x="38" y="980" width="1719" height="60" rx="10" fill="#102f40" stroke="none" stroke-width="1" opacity="1"/>
 <text x="60" y="1017" class="body inverse" text-anchor="start">Deployment invariant: one enterprise installation owns identity mapping, policy, persistence, artifacts, recordings, telemetry, secrets, ingress, and lifecycle.</text>

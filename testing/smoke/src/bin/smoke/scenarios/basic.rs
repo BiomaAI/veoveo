@@ -80,111 +80,76 @@ pub(crate) async fn surreal_integration() -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn compose_config() -> Result<()> {
-    let tmpdir = smoke_tmpdir()?;
-    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    println!("smoke workspace: {}", tmpdir.display());
-
-    let compose_output = run_checked(
-        Path::new("docker"),
-        [
-            "compose".into(),
-            "-f".into(),
-            "compose.yaml".into(),
-            "config".into(),
-        ],
-        [
-            ("MEDIA_PROVIDER_API_KEY", "dummy".into()),
-            (
-                "MEDIA_PROVIDER_WEBHOOK_SECRET",
-                "whsec_0Wn4SW+lD1zrRtFhb1r4fGHt6XZLSkX5y2EK+lSbA+E=".into(),
-            ),
-            (
-                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-                INTERNAL_SIGNING_KEY_DER_B64.into(),
-            ),
-            (
-                "VEOVEO_REFRESH_DELIVERY_KEY_B64",
-                REFRESH_DELIVERY_KEY_B64.into(),
-            ),
-            ("VEOVEO_INTERNAL_TRUST_JWKS", INTERNAL_TRUST_JWKS.into()),
-            ("VEOVEO_SURREAL_ADMIN_PASSWORD", "admin-secret".into()),
-            ("VEOVEO_SURREAL_RUNTIME_USERNAME", "veoveo-runtime".into()),
-            ("VEOVEO_SURREAL_RUNTIME_PASSWORD", "runtime-secret".into()),
-            ("VEOVEO_OBJECT_STORE_ACCESS_KEY", "rustfs-access".into()),
-            ("VEOVEO_OBJECT_STORE_SECRET_KEY", "rustfs-secret".into()),
-            (
-                "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
-                "dummy".into(),
-            ),
-            ("VEOVEO_IDP_OIDC_CLIENT_SECRET", "dummy".into()),
-            (
-                "VEOVEO_CONSOLE_SESSION_KEY",
-                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
-            ),
-            (
-                "VEOVEO_CONSOLE_OAUTH_RESOURCE",
-                "https://veoveo.enterprise.example/mcp/admin".into(),
-            ),
-            (
-                "PERCEPTION_CONFIG_DIR",
-                tmpdir
-                    .join("perception-config")
-                    .display()
-                    .to_string()
-                    .into(),
-            ),
-            (
-                "PERCEPTION_MODEL_DIR",
-                tmpdir
-                    .join("perception-models")
-                    .display()
-                    .to_string()
-                    .into(),
-            ),
-            ("PUBLIC_BASE_URL", PUBLIC_BASE_URL.into()),
-        ],
-    )?;
-    let host_ip_count = compose_output.matches("host_ip: 127.0.0.1").count();
-    if host_ip_count < 8 {
-        bail!("compose config had {host_ip_count} loopback port bindings; expected at least 8");
+pub(crate) async fn helm_config() -> Result<()> {
+    for chart in ["deploy/helm/veoveo", "showcase/sumo/deploy/helm"] {
+        run_checked(Path::new("helm"), ["lint".into(), chart.into()], [])
+            .with_context(|| format!("linting Helm chart {chart}"))?;
     }
+
+    let platform = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "veoveo".into(),
+            "deploy/helm/veoveo".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "deploy/local/k3d/values.yaml".into(),
+            "--values".into(),
+            "showcase/sumo/deploy/platform-values.yaml".into(),
+        ],
+        [],
+    )?;
     for expected in [
-        "image: caddy:2.11.2",
         "image: surrealdb/surrealdb:v3.2.0",
         "image: rustfs/rustfs:1.0.0-beta.8",
-        "gateway.local.json",
-        "rocksdb:/data/veoveo.db",
-        "VEOVEO_SURREAL_AUTH_LEVEL: database",
-        "VEOVEO_SURREAL_ENDPOINT: ws://surrealdb:8000",
-        "VEOVEO_REFRESH_DELIVERY_KEY_B64:",
-        "VEOVEO_REFRESH_DELIVERY_WINDOW_SECONDS: \"5\"",
-        "ARTIFACT_S3_PUBLIC_ENDPOINT",
-        "target: /etc/caddy/Caddyfile",
-        "http://rustfs:9000",
-        "target: 8080",
-        "published: \"8780\"",
-        "edge:",
-        "installation-bootstrap:",
-        "console-bff:",
-        "rustfs:",
-        "chart-mcp:",
-        "perception-mcp:",
-        "time-mcp:",
-        "target: /etc/veoveo/perception",
-        "target: /models",
-        "target: 8795",
-        "published: \"8795\"",
+        "image: amazon/aws-cli:2.35.23",
+        "name: mcp-gateway",
+        "name: artifact-service",
+        "name: recording-ingest",
+        "name: console-bff",
+        "nodePort: 30877",
+        "host: localhost",
+        "path: /s",
+        "mountPath: /etc/veoveo/gateway",
+        "runAsUser: 65532",
+        "runAsUser: 10001",
     ] {
-        contains(&compose_output, expected)?;
+        contains(&platform, expected)?;
     }
-    if compose_output.to_ascii_lowercase().contains("minio") {
-        bail!("compose config must use RustFS/S3-compatible storage, not MinIO");
-    }
-    for forbidden in ["postgres", "cloudflared", "artifact_master_key"] {
-        if compose_output.to_ascii_lowercase().contains(forbidden) {
-            bail!("canonical compose config must not contain `{forbidden}`");
+    for forbidden in ["minio", "caddy", "compose"] {
+        if platform.to_ascii_lowercase().contains(forbidden) {
+            bail!("canonical Helm render must not contain `{forbidden}`");
         }
+    }
+
+    let sumo = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "sumo".into(),
+            "showcase/sumo/deploy/helm".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+        ],
+        [],
+    )?;
+    for expected in [
+        "image: veoveo/sumo-sim:1.27.1",
+        "image: veoveo/sumo-mcp:0.1.0",
+        "nodePort: 30895",
+        "value: sumo-mcp:8795",
+        "rerun+http://recording-ingest:9876/proxy",
+        "runAsUser: 10001",
+    ] {
+        contains(&sumo, expected)?;
+    }
+    if sumo.contains("tcpSocket:") {
+        bail!("SUMO chart must not probe the single-client TraCI socket");
+    }
+    if sumo.contains("OTEL_EXPORTER_OTLP_ENDPOINT") {
+        bail!("SUMO chart must not export telemetry when its profile disables telemetry");
     }
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
@@ -225,60 +190,13 @@ pub(crate) async fn compose_config() -> Result<()> {
                 .with_context(|| format!("{dockerfile} must copy every Cargo workspace root"))?;
         }
     }
+
     let dockerignore = fs::read_to_string(".dockerignore")?;
     contains(&dockerignore, "**/.venv")?;
     contains(&dockerignore, "**/node_modules")?;
     contains(&dockerignore, "**/dist")?;
 
-    let caddyfile = env::current_dir()?.join("configs/Caddyfile");
-    let caddyfile_text = fs::read_to_string(&caddyfile)?;
-    contains(&caddyfile_text, "respond /media/mcp* 404")?;
-    contains(&caddyfile_text, "respond /frames/mcp* 404")?;
-    contains(&caddyfile_text, "respond /map/mcp* 404")?;
-    contains(&caddyfile_text, "respond /time/mcp* 404")?;
-    contains(&caddyfile_text, "respond /perception/mcp* 404")?;
-    contains(&caddyfile_text, "respond /charts/mcp* 404")?;
-    contains(&caddyfile_text, "reverse_proxy mcp-gateway:8788")?;
-    contains(&caddyfile_text, "reverse_proxy media-mcp:8787")?;
-    contains(&caddyfile_text, "reverse_proxy console-bff:8786")?;
-    contains(&caddyfile_text, "reverse_proxy artifact-service:8790")?;
-    let public_share_route = caddyfile_text
-        .split_once("handle /s/* {")
-        .and_then(|(_, route)| route.split_once('}').map(|(route, _)| route))
-        .context("Caddy config is missing a dedicated /s/* route")?;
-    contains(public_share_route, "log_skip")?;
-    contains(public_share_route, "reverse_proxy artifact-service:8790")?;
-    for forbidden in [
-        "/media/artifacts",
-        "/timeseries/artifacts",
-        "/optimization/artifacts",
-        "/frames/artifacts",
-        "/duckdb/artifacts",
-    ] {
-        if caddyfile_text.contains(forbidden) {
-            bail!("edge config must not expose obsolete domain byte route `{forbidden}`");
-        }
-    }
-    run_checked(
-        Path::new("docker"),
-        [
-            "run".into(),
-            "--rm".into(),
-            "-v".into(),
-            format!("{}:/etc/caddy/Caddyfile:ro", caddyfile.display()).into(),
-            "caddy:2.11.2".into(),
-            "caddy".into(),
-            "validate".into(),
-            "--config".into(),
-            "/etc/caddy/Caddyfile".into(),
-            "--adapter".into(),
-            "caddyfile".into(),
-        ],
-        [],
-    )?;
-
-    cleanup.remove_on_drop();
-    println!("compose config smoke ok");
+    println!("helm config smoke ok");
     Ok(())
 }
 

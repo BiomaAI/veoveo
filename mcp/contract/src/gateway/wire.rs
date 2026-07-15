@@ -179,6 +179,44 @@ pub(super) fn validate_https_url(value: &str) -> Result<(), IdentifierError> {
     Ok(())
 }
 
+pub(super) fn validate_oauth_endpoint_url(value: &str) -> Result<(), IdentifierError> {
+    if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(IdentifierError::new(
+            value,
+            "must not contain whitespace or control characters",
+        ));
+    }
+    let url = Url::parse(value).map_err(|_| IdentifierError::new(value, "must be a valid URL"))?;
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(IdentifierError::new(value, "must not contain userinfo"));
+    }
+    if url.fragment().is_some() {
+        return Err(IdentifierError::new(value, "must not contain a fragment"));
+    }
+    match url.scheme() {
+        "https" if url.host().is_some() => Ok(()),
+        "http" => {
+            let is_loopback = match url.host() {
+                Some(Host::Domain(host)) => host == "localhost",
+                Some(Host::Ipv4(addr)) => addr.is_loopback(),
+                Some(Host::Ipv6(addr)) => addr.is_loopback(),
+                None => false,
+            };
+            if is_loopback && url.port().is_some_and(|port| port != 0) {
+                return Ok(());
+            }
+            Err(IdentifierError::new(
+                value,
+                "http:// OAuth endpoints must use a loopback host and explicit non-zero port",
+            ))
+        }
+        _ => Err(IdentifierError::new(
+            value,
+            "must use https:// or local loopback http://",
+        )),
+    }
+}
+
 pub(super) fn validate_upstream_url(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(value, "must not be empty"));

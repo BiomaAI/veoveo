@@ -1,0 +1,50 @@
+images:
+  pullPolicy: IfNotPresent
+  sim:
+    repository: veoveo/sumo-sim
+    tag: 1.27.1
+  mcp:
+    repository: veoveo/sumo-mcp
+    tag: 0.1.0
+
+platform:
+  publicBaseUrl: http://localhost:8780
+  surrealService: surrealdb
+  surrealNamespace: veoveo
+  surrealDatabase: platform
+  surrealRuntimeSecret: veoveo-surreal-runtime
+  installationSecret: veoveo-installation-secrets
+  artifactServiceUrl: http://artifact-service:8790
+  recordingProxy: rerun+http://recording-ingest:9876/proxy
+
+telemetry:
+  enabled: false
+  endpoint: http://otel-collector:4318
+
+simulation:
+  scenario: luxembourg
+  maxVehicles: 800
+  connectRetries: 300
+
+service:
+  nodePort: 30895
+
+persistence:
+  size: 5Gi
+  storageClass: ""
+
+resources:
+  sim:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  mcp:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 4Gi

@@ -182,11 +182,12 @@ file route. Runner JSON is capped at 256 MiB by default, and an MCP resource rea
 is capped at 16 MiB before the artifact body is fetched; larger occurrences use
 the governed artifact download path.
 
-## Ubuntu Docker deployment
+## GPU image and Kubernetes deployment
 
-The target host needs Docker Engine, Compose with `gpus: all` support, an NVIDIA
-driver compatible with DeepStream 9, and NVIDIA Container Toolkit. Log in to
-NGC before building:
+The Kubernetes node needs an NVIDIA driver compatible with DeepStream 9, NVIDIA
+Container Toolkit, and the NVIDIA device plugin. The pod requests one
+`nvidia.com/gpu`; a missing GPU is a scheduling or readiness failure, never a CPU
+fallback. Log in to NGC before building the image:
 
 ```bash
 docker login nvcr.io

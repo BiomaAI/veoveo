@@ -244,9 +244,8 @@ rejects fallback or CPU adapters. Readiness includes the selected adapter name,
 backend, and device type. A process without a hardware adapter is not ready.
 
 The NVIDIA image contains the Vulkan loader and runs through NVIDIA Container
-Toolkit with `graphics`, `compute`, and `utility` driver capabilities. Compose
-requests all GPUs for the single-host profile. Helm requests one
-`nvidia.com/gpu` resource for each renderer replica.
+Toolkit with `graphics`, `compute`, and `utility` driver capabilities. Helm
+requests one `nvidia.com/gpu` resource for each renderer replica.
 
 ## Attribution
 
@@ -268,9 +267,10 @@ adapter in the production profile.
 
 ## Deployment And Verification
 
-Compose exposes only loopback health and MCP ports. The gateway is the normal
-caller and forwards signed internal identity. The container runs as the
-non-root Veoveo user with a read-only root filesystem and writable `/tmp`.
+The Kubernetes Service exposes health and MCP ports only inside the cluster. The
+gateway is the normal caller and forwards signed internal identity. The
+container runs as the non-root Veoveo user with a read-only root filesystem and
+writable `/tmp`.
 
 Rust tests cover camera resolution, ECEF cancellation, tree construction, SSE
 selection, weighted eviction, freshness, credential-free cache keys, GLB

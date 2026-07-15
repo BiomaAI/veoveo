@@ -1,5 +1,5 @@
 term,definition,uaf_or_sysml_mapping
-Actual Resource,"A fielded or instantiated resource configuration. In this baseline it represents a connected or offline Compose or Helm installation.",UAF ActualResource
+Actual Resource,"A fielded or instantiated resource configuration. In this baseline it represents local k3d or a connected or offline Kubernetes installation.",UAF ActualResource
 Artifact,"A governed occurrence with a canonical artifact URI, metadata, authorization, retention, release state, and separately stored bytes.",UAF ResourceArtifact and OperationalInformation
 Capability,"An enterprise ability realized through operational activities, services, resources, people, and constraints.",UAF Capability
 Compatibility helper,"An explicitly registered narrow projection for a client that cannot use a richer MCP surface; it reuses canonical domain models, policy, audit, tasks, artifacts, and URIs.",Derived service projection

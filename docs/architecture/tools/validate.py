@@ -128,7 +128,7 @@ def main() -> None:
     required_model_ids |= {f"VV-CAP-{index:03d}" for index in range(1, 13)}
     required_model_ids |= {f"VV-OPA-{index:03d}" for index in range(1, 11)}
     required_model_ids |= {f"VV-SVC-{index:03d}" for index in range(1, 13)}
-    required_model_ids |= {f"VV-AR-{index:03d}" for index in range(1, 5)}
+    required_model_ids |= {f"VV-AR-{index:03d}" for index in range(1, 4)}
     required_model_ids.add("VV-SYS-001")
     missing_model_ids = sorted(required_model_ids - xmi_id_set)
     if missing_model_ids:

@@ -10,11 +10,13 @@ fn identity_provider() -> IdentityProvider {
         claim_mapping: IdentityProviderClaimMapping::default(),
         trusted_certificate_authorities: Vec::new(),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
+            OAuthEndpointUrl::new("https://idp.example.com/oauth2/authorize").unwrap(),
         ),
-        token_endpoint: Some(HttpsUrl::new("https://idp.example.com/oauth2/token").unwrap()),
+        token_endpoint: Some(
+            OAuthEndpointUrl::new("https://idp.example.com/oauth2/token").unwrap(),
+        ),
         enterprise_managed_authorization_endpoint: Some(
-            HttpsUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
+            OAuthEndpointUrl::new("https://idp.example.com/oauth2/id-jag").unwrap(),
         ),
         metadata: Value::Null,
     }
@@ -32,9 +34,9 @@ fn authorization_server() -> ResourceAuthorizationServer {
             .unwrap(),
         identity_provider: Some(IdentityProviderId::new("enterprise").unwrap()),
         authorization_endpoint: Some(
-            HttpsUrl::new("https://veoveo.example/oauth/authorize").unwrap(),
+            OAuthEndpointUrl::new("https://veoveo.example/oauth/authorize").unwrap(),
         ),
-        token_endpoint: HttpsUrl::new("https://veoveo.example/oauth/token").unwrap(),
+        token_endpoint: OAuthEndpointUrl::new("https://veoveo.example/oauth/token").unwrap(),
         metadata: Value::Null,
     }
 }
@@ -100,7 +102,7 @@ fn media_manifest() -> ServerManifest {
         upstream: UpstreamEndpoint {
             transport: UpstreamTransport::StreamableHttp,
             url: UpstreamUrl::new("http://media-mcp:8787/media/mcp").unwrap(),
-            security: UpstreamTransportSecurity::ComposeInternalHttp,
+            security: UpstreamTransportSecurity::ClusterInternalHttp,
             trusted_certificate_authorities: Vec::new(),
             client_certificate: None,
             client_private_key: None,

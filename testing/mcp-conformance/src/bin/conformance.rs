@@ -319,7 +319,7 @@ async fn main() -> Result<()> {
                 token_url: token_url.clone(),
                 client_assertion: ClientAssertionInput {
                     client_id: client_id.clone(),
-                    audience: audience.clone(),
+                    audience: audience.clone().unwrap_or_else(|| token_url.clone()),
                     jwt_id: jwt_id.clone(),
                     ttl_minutes: *ttl_minutes,
                 },

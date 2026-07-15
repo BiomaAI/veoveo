@@ -674,7 +674,7 @@ Add an `optimization` server manifest to gateway control data:
   "upstream": {
     "transport": "streamable_http",
     "url": "http://optimization-mcp:8792/optimization/mcp",
-    "security": "compose_internal_http"
+    "security": "cluster_internal_http"
   },
   "capabilities": {
     "tools": true,
@@ -813,7 +813,7 @@ operator or system approval path outside this server.
   row mapping.
 - Implement `plan` with `good_lp` and the pure-Rust `microlp` backend.
 - Emit structured output plus optional DuckDB and Rerun RRD artifacts.
-- Wire Compose, Caddy, gateway server manifest, profiles, and policies.
+- Wire the Helm workload, gateway server manifest, profiles, and policies.
 
 ### Phase 2: Solver Hardening
 
@@ -856,8 +856,8 @@ operator or system approval path outside this server.
 
 ## Open Decisions
 
-- Exact first solver backend feature flags and packaging path for local Compose
-  and production images.
+- Exact first solver backend feature flags and packaging path for local k3d and
+  fielded Kubernetes images.
 - Whether trajectory planning is MILP-based in version one or starts with a
   simpler bounded waypoint validator.
 - Whether plan approvals belong in this server as resources or in a separate

@@ -544,9 +544,8 @@
       conditions the moment they change, decide, and intervene — and between events they drive
       the mission forward on their own initiative, analyzing, planning, and tasking work under
       rules of engagement you set. Every decision is recorded, every action is accountable, and the
-      same platform installs with Docker Compose on one host, with Helm in a cluster, or from a
-      verified offline bundle. A live <strong>SUMO traffic city</strong> proves the whole loop
-      end to end.
+      same Helm workload model runs in local k3d, fielded Kubernetes, or from a verified offline
+      bundle. A live <strong>SUMO traffic city</strong> proves the whole loop end to end.
     </p>
     <div class="statrow">
       <div class="stat"><b>14</b>hosted servers</div>
@@ -554,7 +553,7 @@
       <div class="stat"><b>~225k</b>msgs/s lossless</div>
       <div class="stat"><b>1</b>platform store</div>
       <div class="stat"><b>1</b>shared artifact plane</div>
-      <div class="stat"><b>3</b>install forms</div>
+      <div class="stat"><b>1</b>Helm workload model</div>
     </div>
   </header>
 
@@ -620,8 +619,8 @@
         <h4>Own the whole installation</h4>
         <p>Built for contested and disconnected operations: each installation is owned and
            operated by whoever deploys it — <b>your hostname, your identity provider, your
-           object store</b>. Compose runs it on one host, Helm runs it in a cluster, and a
-           verified offline bundle, provenance included, runs it fully disconnected.</p>
+           object store</b>. k3d runs the Helm chart locally, fielded Kubernetes runs the same
+           chart in a cluster, and a verified offline bundle runs it fully disconnected.</p>
       </div>
       <div class="card cap-card">
         <h4>Prove it on a live city</h4>
@@ -955,8 +954,8 @@ flowchart LR
           <div class="node">
             <span class="tag">Ingress</span>
             <h4>Installation ingress</h4>
-            <p>The operator's own boundary: the Caddy edge on Compose, an Ingress on Helm. The
-               local edge binds to loopback; public exposure is the operator's decision.</p>
+            <p>The operator's Kubernetes Ingress. k3d binds it to loopback for local work;
+               public exposure and TLS remain the fielded operator's decision.</p>
           </div>
           <div class="node">
             <span class="tag">Routes</span>
@@ -1644,8 +1643,8 @@ sequenceDiagram
       <div class="ops" style="grid-template-columns:repeat(3,1fr)">
         <div class="card">
           <h4>Edge</h4>
-          <p>One host at the operation: <code>just compose-up</code> brings up the full stack
-             behind a loopback Caddy edge. Public exposure is the operator's ingress decision.</p>
+          <p><code>just k3d-create</code> creates a loopback-only Kubernetes cluster. Helm then
+             installs the selected profile with the same workload model used in the field.</p>
         </div>
         <div class="card">
           <h4>Cluster</h4>
@@ -1655,9 +1654,9 @@ sequenceDiagram
         </div>
         <div class="card">
           <h4>Air-gap</h4>
-          <p>The verified offline bundle: pinned images, Compose and Helm material, config
-             schemas, checksums, and SBOMs. Installation and verification complete entirely
-             inside the boundary.</p>
+          <p>The verified offline bundle contains pinned images, Helm material, config schemas,
+             checksums, and SBOMs. Installation and verification complete entirely inside the
+             boundary.</p>
         </div>
         <div class="card">
           <h4>Hybrid</h4>
@@ -1739,8 +1738,8 @@ sequenceDiagram
       <div class="glossary">
         <div class="term">
           <div class="term-head"><span class="term-name">Installation ingress</span><span class="term-kind k-ours">ours</span></div>
-          <p><b>The single public door, owned by the operator.</b> The Caddy edge on Compose, an
-             Ingress on Helm; it terminates TLS and routes the handful of public paths.</p>
+          <p><b>The single public door, owned by the operator.</b> Kubernetes Ingress terminates
+             TLS and routes the handful of public paths.</p>
           <p>Every request from outside enters here and nowhere else, so there is exactly one
              place to defend and observe. The local edge binds to loopback until the operator
              decides otherwise.</p>

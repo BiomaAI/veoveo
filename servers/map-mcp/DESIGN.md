@@ -16,8 +16,8 @@ Implemented in this workspace.
 The implementation includes the Map domain contract, SurrealDB records,
 tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
 governed network planner, source acquisition, release activation, MCP discovery
-surfaces, administrative REST, gateway proxying, Console workflows, Compose,
-Helm, and offline image registration.
+surfaces, administrative REST, gateway proxying, Console workflows, Helm, and
+offline image registration.
 
 The canonical service identity is:
 
@@ -585,10 +585,11 @@ original question.
 
 ## Deployment
 
-Compose builds `servers/map-mcp/Dockerfile`, mounts one `map-data` volume, mounts
-the optional source exchange read-only, and exposes only port 8799. The Helm
-chart deploys one replica with a 100 GiB `ReadWriteOnce` claim. The offline
-image lock contains `veoveo/map-mcp:0.1.0` and its Dockerfile.
+The container image is built from `servers/map-mcp/Dockerfile`. The Helm chart
+mounts one `map-data` volume and the optional source exchange read-only, exposes
+only port 8799 inside the cluster, and deploys one replica with a 100 GiB
+`ReadWriteOnce` claim. The offline image lock contains
+`veoveo/map-mcp:0.1.0` and its Dockerfile.
 
 Important arguments include:
 

@@ -4,7 +4,7 @@
 # arm64 workstation. Bullseye's glibc is intentionally older than the Ubuntu
 # 22.04 SUMO runtime, keeping the resulting binary ABI-compatible.
 ARG SUMO_PLATFORM=linux/amd64
-FROM --platform=${SUMO_PLATFORM} rust:1.96.1-slim-bullseye AS builder
+FROM --platform=${SUMO_PLATFORM} rust:1.97.0-slim-bullseye AS builder
 
 WORKDIR /app
 RUN apt-get update \
@@ -39,6 +39,6 @@ RUN apt-get update \
     && ln -sf /usr/share/sumo/tools/tlsCoordinator.py /usr/local/bin/tlsCoordinator.py
 COPY --from=builder /out/sumo-mcp /usr/local/bin/sumo-mcp
 
-USER veoveo
+USER 10001:10001
 EXPOSE 8795
 ENTRYPOINT ["/usr/local/bin/sumo-mcp"]
