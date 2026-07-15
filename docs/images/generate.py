@@ -42,14 +42,17 @@ IMAGES = {
     "cover": (
         "1024*1536",
         "Vertical layered architecture schematic on a deep slate blue-black background, hex 0e141b,"
-        " drawn in uniform thin pale gray lines with one amber accent, hex e2a14e. Four tiers connected"
-        " by thin vertical arrows flowing downward. Top tier: four small outlined hexagons, labeled"
-        " AGENTS. Second tier: one large outlined circle, labeled GATEWAY, with two small outlined tags"
-        " beside it reading POLICY and AUDIT. Third tier: a horizontal row of nine small outlined"
-        " rectangles, labeled TOOLS. Bottom tier: five stacked horizontal outlined layers, labeled"
-        " RECORD. One thin amber arrow rises along the right side from the bottom tier back to the top"
-        " tier, labeled WAKES — the amber line is the only colored element. Flat 2D, no glow, no fills,"
-        " no icons. Small all-caps pale gray labels, perfectly spelled. Keep the lower quarter empty."
+        " drawn in uniform thin pale gray lines with one amber accent, hex e2a14e. The dark background"
+        " is mandatory and overrides any general white-background style instruction. Four tiers are"
+        " connected by thin vertical arrows flowing downward. Top tier: exactly four small outlined"
+        " hexagons in one row, never five, with the single group label AGENTS. Second tier: exactly one"
+        " large outlined circle, labeled GATEWAY, with exactly two small outlined tags beside it reading"
+        " POLICY and AUDIT. Third tier: exactly nine small outlined rectangles in one horizontal row,"
+        " never ten, with the single group label TOOLS. No other hexagons or rectangles appear in those"
+        " two rows. Bottom tier: five stacked horizontal outlined layers, labeled RECORD. One thin amber"
+        " arrow rises along the right side from the bottom tier back to the top tier, labeled WAKES —"
+        " the amber line is the only colored element. Flat 2D, no glow, no fills, no icons. Small"
+        " all-caps pale gray labels, perfectly spelled. Keep the lower quarter empty."
     ),
     "system-map": (
         "1536*1024",
@@ -99,32 +102,48 @@ IMAGES = {
     ),
     "agent-loop": (
         "1536*1024",
-        "Lifecycle schematic: five outlined circles placed at the five vertices of a regular pentagon, connected clockwise by curved dark slate arrows to form a single closed loop. Going clockwise from the top vertex the circles are labeled: WAKE, then ASSEMBLE, then EPISODE, then PERSIST, then SLEEP. There are exactly five circles and exactly five labels; every circle has one label; the words WAKE, ASSEMBLE, EPISODE, PERSIST, SLEEP each appear exactly once. In the pentagon's center, one outlined hexagon labeled AGENT. Below the pentagon, three small outlined database cylinders in a row labeled STATE, MEMORY, LOG, each connected by one thin plain line up to the AGENT hexagon only. Outside the loop at the upper left, three small outlined tags labeled TASK RESULT, TIMER, MESSAGE, each with a thin arrow pointing at the WAKE circle. Exactly one element in the whole image is amber: the outline of the EPISODE circle. Every arrow and every other outline is dark slate."
-    ),
-    "envelope": (
-        "1536*1024",
-        "Policy containment schematic: one large rounded rectangle boundary labeled POLICY ENVELOPE"
-        " along its top edge. Inside, three outlined hexagons labeled AGENT with short dashed motion"
-        " trails. On the right edge, one gap in the boundary labeled GATEWAY with a single thin arrow"
-        " passing through to the outside, labeled AUDITED. Outside on the left, one arrow bouncing off"
-        " the closed wall, labeled REFUSED. The amber accent is used only for the envelope boundary"
-        " line itself; everything else dark slate."
+        "Lifecycle schematic: exactly five outlined circles placed at the five vertices of a regular"
+        " pentagon, connected clockwise by curved dark slate arrows to form one clean closed loop."
+        " Going clockwise from the top vertex the circles are labeled WAKE, ASSEMBLE, EPISODE, PERSIST,"
+        " SLEEP. There are exactly five circles and exactly five lifecycle labels; every circle has one"
+        " label and each word appears exactly once. Inside the pentagon, place one outlined hexagon"
+        " labeled AGENT above exactly three small outlined database cylinders in a row labeled STATE,"
+        " MEMORY, LOG. Join each cylinder to AGENT with one short thin plain line. Every storage line"
+        " begins visibly touching the bottom edge of AGENT and ends visibly touching the top rim of its"
+        " own cylinder; no gap appears at either endpoint. Those three storage lines remain entirely"
+        " inside the loop and must never touch or cross a lifecycle arrow, circle, or outer edge."
+        " Outside the loop at upper left, place three small outlined tags labeled TASK"
+        " RESULT, TIMER, MESSAGE, each with a thin arrow pointing only to the WAKE circle. Exactly one"
+        " element in the whole image is amber: the outline of the EPISODE circle. Every arrow and every"
+        " other outline is dark slate."
     ),
     "harness-poster": (
         "1536*1024",
-        "The complete system as a single poster schematic, one grand loop. Far left: a region labeled WORLD — a small flat street grid with a few sensor dots and one camera glyph. Amber arrows labeled PUSH flow from WORLD into a stack of layered strata labeled RECORD. From RECORD one thin arrow passes through a small chamber labeled PERCEPTION and continues into the centerpiece: a large, perfectly circular thin-line wireframe sphere — a true circle, never stretched or oval — dominant at the center, with the text WORLD MODEL written in large dark capital letters directly beneath the sphere; this label is mandatory. One small outlined tag attached to the sphere's upper right is labeled MISSION, and above it an outlined rounded box labeled OPERATOR sends one short thin arrow labeled ASSIGN down to the MISSION tag. From the sphere one amber arrow labeled CONTEXT runs right into an outlined hexagon labeled AGENT. From AGENT one amber arrow enters a tall chamber labeled GATEWAY containing three small checkpoint stages stacked vertically and labeled AUTHENTICATE, POLICY, AUDIT, and exits into a region labeled CAPABILITIES: a compact grid of ten small outlined squares, each holding a tiny distinct instrument glyph — a camera, a compass rose, a database drum, a route with waypoints, a rising chart, a chain link, a filmstrip, an eye — followed by two dashed empty squares, room for capabilities not yet added. One long amber arrow labeled ACT begins at the top of the CAPABILITIES region, sweeps across the top of the poster from right to left, and ends with its arrowhead pointing down onto the WORLD region at the far left — closing the loop. Bottom center: one outlined database cylinder labeled EVIDENCE, connected by thin plain dark lines up to RECORD, to AGENT, and to GATEWAY. Each label appears exactly once. The amber accent appears only on the wireframe sphere and the loop arrows — PUSH, CONTEXT, and ACT; everything else dark slate. Crisp uniform line weight, sharp vector-like edges, high resolution."
-    ),
-    "exec-overview": (
-        "1536*1024",
-        "Holistic system loop schematic: five outlined nodes placed at the five vertices of a regular"
-        " pentagon, connected clockwise by curved arrows into one closed loop. Clockwise from the top"
-        " vertex: a small flat street-grid icon labeled WORLD, a stack of layered strata labeled"
-        " RECORD, an outlined hexagon labeled AGENT, a small chamber holding three tiny checkpoint"
-        " squares labeled GATEWAY, and a three by three mini grid of tiny squares labeled TOOLS; the"
-        " loop closes from TOOLS back to WORLD. Exactly five nodes, each labeled once. In the"
-        " pentagon's center, one outlined database cylinder labeled EVIDENCE, connected to every node"
-        " by one thin plain dark line. The amber accent appears only on the five curved loop arrows —"
-        " the autonomy loop itself; everything else dark slate."
+        "The complete system as a single poster schematic, one grand loop. Far left: a region labeled"
+        " WORLD — a small flat street grid with a few sensor dots and one camera glyph. Amber arrows"
+        " labeled PUSH flow from WORLD into a stack of layered strata labeled RECORD. From RECORD one"
+        " thin arrow passes through a small chamber labeled PERCEPTION and continues into the"
+        " centerpiece: a large, perfectly circular thin-line wireframe sphere — a true circle, never"
+        " stretched or oval — dominant at the center, with the mandatory text WORLD MODEL in large"
+        " dark capitals directly beneath it. One small outlined tag attached to the sphere's upper"
+        " right is labeled MISSION. Above it, an outlined rounded box labeled OPERATOR sends one short"
+        " thin arrow labeled ASSIGN down to the MISSION tag. From the sphere one amber arrow labeled"
+        " CONTEXT runs right into an outlined hexagon labeled AGENT. From AGENT one amber arrow enters"
+        " a tall chamber labeled GATEWAY containing three small checkpoint stages stacked vertically"
+        " and labeled AUTHENTICATE, POLICY, AUDIT. It exits into a region labeled CAPABILITIES. That"
+        " region contains exactly eight solid outlined glyph cells arranged four by two — camera,"
+        " compass rose, database drum, route with waypoints, rising chart, chain link, filmstrip, eye —"
+        " followed below by exactly two dashed empty cells. One continuous long amber arrow labeled ACT"
+        " has its tail visibly touching the top edge of CAPABILITIES, rises vertically, bends left, and"
+        " sweeps across the top of the poster from right to left. The CAPABILITIES end is a plain tail"
+        " with no arrowhead. The path ends above WORLD with its only arrowhead visibly touching and"
+        " pointing down onto WORLD. HARD INVARIANT: the entire ACT path has exactly one arrowhead, at"
+        " WORLD, and no arrowhead at CAPABILITIES. The ACT path has no dangling segment and no second"
+        " arrow. Bottom center: one outlined database"
+        " cylinder labeled EVIDENCE, connected by thin plain dark lines up to RECORD, AGENT, and"
+        " GATEWAY. Each label appears exactly once. The amber accent appears only on the wireframe"
+        " sphere and the loop arrows PUSH, CONTEXT, ACT; everything else dark slate. Crisp uniform line"
+        " weight, sharp vector-like edges, high resolution."
     ),
     "capability-map": (
         "1536*1024",
@@ -159,10 +178,12 @@ IMAGES = {
         " labeled DETECT and TRACK. One thin plain arrow runs from the RECORD stack right into the"
         " chamber. From the chamber, three amber arrows fan out to the right to three outlined"
         " boxes stacked vertically labeled DETECTIONS, ANNOTATIONS, CLIP; a small gray tag under"
-        " DETECTIONS reads SQL and a small gray tag under ANNOTATIONS reads VIEWER. One thin plain"
-        " curved arrow returns from the three output boxes back to the RECORD stack. Each label"
-        " appears exactly once. The amber accent appears only on the three output arrows — the"
-        " answers; everything else dark slate."
+        " DETECTIONS reads SQL and a small gray tag under ANNOTATIONS reads VIEWER. No arrow connects"
+        " one output box to another. A shared dark output bracket on the right collects the three"
+        " boxes. From that bracket, one thin plain curved return arrow routes around the bottom of the"
+        " figure and ends with its arrowhead visibly touching the RECORD stack. It must not connect"
+        " DETECTIONS to ANNOTATIONS or CLIP. Each label appears exactly once. The amber accent appears"
+        " only on the three outward answer arrows; everything else dark slate."
     ),
     "planning-flow": (
         "1536*1024",
@@ -187,17 +208,31 @@ IMAGES = {
         " labeled GATEWAY containing exactly three checkpoint stages in sequence connected by arrows,"
         " labeled in order AUTHENTICATE, POLICY, AUDIT; the flow enters the chamber on the left,"
         " passes through all three stages, and exits on the right. From the POLICY stage one short"
-        " arrow deflects downward out of the flow, labeled REFUSED. Right: one large dashed boundary"
+        " amber arrow deflects downward, ends at the label REFUSED, and stops. It never touches"
+        " EVIDENCE. Right: one large dashed boundary"
         " region labeled INTERNAL NETWORK containing a three by three grid of nine small unlabeled"
         " outlined rectangles; the single arrow from the gateway chamber into this region is labeled"
         " SIGNED IDENTITY. Below the gateway chamber, one outlined database cylinder labeled EVIDENCE"
-        " receiving a thin arrow down from the AUDIT stage. The amber accent appears only on the"
+        " receives a separate dark vertical arrow whose source visibly touches AUDIT and whose"
+        " arrowhead visibly touches EVIDENCE. The POLICY-to-REFUSED and AUDIT-to-EVIDENCE paths remain"
+        " distinct and never join. The amber accent appears only on the"
         " three checkpoint stage outlines and the REFUSED deflection arrow — the enforcement path;"
         " every other line is dark slate."
     ),
     "capture-pipeline": (
         "1536*1024",
-        "Horizontal pipeline schematic. Left: three outlined boxes stacked vertically labeled SENSORS, AGENTS, SUMO, each with a thin arrow labeled PUSH merging into the pipeline. The pipeline flows left to right through four outlined stages connected by arrows, labeled INGEST, PERSIST, LIVE SEGMENT, FROZEN SEGMENT. On the arrow between LIVE SEGMENT and FROZEN SEGMENT sits one small diamond checkpoint labeled VERIFY. Below the pipeline, one branch arrow drops from LIVE SEGMENT down to an outlined box labeled CATALOG, which sends one arrow right to an outlined box labeled QUERIES. The amber accent is used only for the LIVE SEGMENT and FROZEN SEGMENT stage outlines, the VERIFY diamond, and the arrows between them — the durable record and its proof; everything else dark slate."
+        "Horizontal pipeline schematic. Left: exactly three outlined boxes stacked vertically and"
+        " labeled SENSORS, AGENTS, SUMO. Each has one thin right-pointing arrow carrying its own visible"
+        " PUSH label, so the word PUSH appears exactly three times. All three arrows converge visibly"
+        " on one dark merge junction, and one trunk arrow leaves that junction with"
+        " its arrowhead visibly touching INGEST. No producer arrow is detached and every producer"
+        " arrowhead points toward INGEST. The pipeline continues left to right through four outlined"
+        " stages labeled INGEST, PERSIST, LIVE SEGMENT, FROZEN SEGMENT. On the arrow between LIVE"
+        " SEGMENT and FROZEN SEGMENT sits one small diamond checkpoint labeled VERIFY. Below the"
+        " pipeline, one branch arrow drops from LIVE SEGMENT into an outlined box labeled CATALOG,"
+        " which sends one arrow right into an outlined box labeled QUERIES. The amber accent is used"
+        " only for the LIVE SEGMENT and FROZEN SEGMENT stage outlines, the VERIFY diamond, and the"
+        " arrows between them — the durable record and its proof; everything else dark slate."
     ),
     "task-sleepwake": (
         "1536*1024",

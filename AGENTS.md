@@ -112,6 +112,25 @@ MCP server crates use `*-mcp`, not `*-mcp-server`.
 The media MCP server may use provider-specific implementation internally, but user-facing
 names should stay provider-neutral.
 
+## Documentation Image Generation
+
+Documentation raster images use one canonical generation path: WaveSpeed through
+`docs/images/generate.py`. Run it with the repository-managed Python environment:
+
+```sh
+uv run --env-file .env --python 3.13 docs/images/generate.py [figure ...]
+```
+
+The script's canonical model is `openai/gpt-image-2/text-to-image`. Keep API credentials
+in `.env` and use `MEDIA_PROVIDER_API_KEY`; never print or copy the credential into another
+file.
+
+Do not use a built-in image-generation tool, another image service, Inkscape, system Python,
+or an ad hoc replacement pipeline for these assets. Do not change the established image
+style or generation method unless the user explicitly requests that change. Update the
+prompts in `docs/images/generate.py`, generate through WaveSpeed, and inspect every output
+before accepting it.
+
 ## Writing Style
 
 Docs and product copy use classic style with varied sentence rhythm. Write confident
