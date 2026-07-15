@@ -379,7 +379,31 @@ function MapDataView() {
     }
   };
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      loadMapSources(),
+      loadMapAcquisitions(),
+      loadMapReleases(),
+      loadMapMobilityProfiles(),
+      loadMapActiveReleases(),
+    ])
+      .then(([nextSources, nextAcquisitions, nextReleases, nextMobilityProfiles, nextActiveReleases]) => {
+        if (cancelled) return;
+        setSources(nextSources);
+        setAcquisitions(nextAcquisitions);
+        setReleases(nextReleases);
+        setMobilityProfiles(nextMobilityProfiles);
+        setActiveReleases(nextActiveReleases);
+        if (nextSources[0]) setSelectedSource(nextSources[0].source_id);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Map administration could not be loaded");
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const run = async (operation: () => Promise<unknown>) => {
     setPending(true);

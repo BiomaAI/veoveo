@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -6,6 +7,7 @@ use std::{
 use anyhow::{Context, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use url::Url;
+use veoveo_mcp_contract::ScopeName;
 
 #[derive(Clone)]
 pub(crate) struct Config {
@@ -14,6 +16,7 @@ pub(crate) struct Config {
     gateway_url: Url,
     oauth_client_id: String,
     oauth_resource: Url,
+    oauth_scopes: BTreeSet<ScopeName>,
     admin_profile: String,
     session_key: [u8; 32],
     asset_dir: PathBuf,
@@ -29,6 +32,7 @@ impl Config {
         let oauth_client_id = required("VEOVEO_CONSOLE_OAUTH_CLIENT_ID")?;
         validate_identifier("VEOVEO_CONSOLE_OAUTH_CLIENT_ID", &oauth_client_id)?;
         let oauth_resource = absolute_url("VEOVEO_CONSOLE_OAUTH_RESOURCE")?;
+        let oauth_scopes = parse_oauth_scopes(&required("VEOVEO_CONSOLE_OAUTH_SCOPES")?)?;
         let admin_profile = oauth_resource
             .path()
             .strip_prefix("/mcp/")
@@ -52,6 +56,7 @@ impl Config {
             gateway_url,
             oauth_client_id,
             oauth_resource,
+            oauth_scopes,
             admin_profile,
             session_key,
             asset_dir,
@@ -66,6 +71,13 @@ impl Config {
     }
     pub(crate) fn oauth_resource(&self) -> &Url {
         &self.oauth_resource
+    }
+    pub(crate) fn oauth_scope(&self) -> String {
+        self.oauth_scopes
+            .iter()
+            .map(ScopeName::as_str)
+            .collect::<Vec<_>>()
+            .join(" ")
     }
     pub(crate) const fn session_key(&self) -> &[u8; 32] {
         &self.session_key
@@ -185,9 +197,37 @@ impl std::fmt::Debug for Config {
             .field("gateway_url", &self.gateway_url)
             .field("oauth_client_id", &self.oauth_client_id)
             .field("oauth_resource", &self.oauth_resource)
+            .field("oauth_scopes", &self.oauth_scopes)
             .field("admin_profile", &self.admin_profile)
             .field("session_key", &"[REDACTED]")
             .field("asset_dir", &self.asset_dir)
             .finish()
+    }
+}
+
+fn parse_oauth_scopes(value: &str) -> anyhow::Result<BTreeSet<ScopeName>> {
+    let scopes = value
+        .split_ascii_whitespace()
+        .map(ScopeName::new)
+        .collect::<Result<BTreeSet<_>, _>>()
+        .context("VEOVEO_CONSOLE_OAUTH_SCOPES contains an invalid scope")?;
+    if scopes.is_empty() {
+        bail!("VEOVEO_CONSOLE_OAUTH_SCOPES must contain at least one scope");
+    }
+    Ok(scopes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn console_oauth_scopes_are_typed_deduplicated_and_stable() {
+        let scopes = parse_oauth_scopes("operator:use admin:manage operator:use").unwrap();
+        assert_eq!(
+            scopes.iter().map(ScopeName::as_str).collect::<Vec<_>>(),
+            ["admin:manage", "operator:use"]
+        );
+        assert!(parse_oauth_scopes(" ").is_err());
     }
 }

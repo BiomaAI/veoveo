@@ -6,7 +6,7 @@ use axum::{
     extract::{Request, State},
     http::StatusCode,
     middleware,
-    response::IntoResponse,
+    response::{IntoResponse, Redirect},
     routing::{any, get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -103,6 +103,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     };
 
     let mut router = Router::new()
+        .route("/", get(|| async { Redirect::permanent("/console/") }))
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(readyz))
         .route("/oauth/authorize", get(authorize_endpoint))

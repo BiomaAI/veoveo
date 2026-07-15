@@ -28,6 +28,15 @@ the console BFF. Domain MCP workloads and Recording Hub remain absent from this
 small profile. The Bioma gateway catalog stays canonical and can serve those
 workloads when their deployment overlay is installed.
 
+The public root redirects to the operations console:
+
+```text
+https://veoveo.bioma.ai/console/
+```
+
+The object-store hostname is an S3 API endpoint. Its bucket root returns
+`AccessDenied` without credentials and is not a browser console.
+
 ## Cloudflare state
 
 The remote-managed tunnel is named `veoveo-bioma-ai`. Its desired ingress maps

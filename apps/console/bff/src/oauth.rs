@@ -49,6 +49,7 @@ fn begin_login(state: &AppState) -> anyhow::Result<Response> {
         .query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", state.config.oauth_client_id())
+        .append_pair("scope", &state.config.oauth_scope())
         .append_pair("redirect_uri", state.config.callback_url().as_str())
         .append_pair("code_challenge", &code_challenge)
         .append_pair("code_challenge_method", "S256")
@@ -332,6 +333,7 @@ mod tests {
 
     #[test]
     fn revocation_request_is_form_encoded_and_keeps_the_secret_out_of_the_url() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let request = reqwest::Client::new()
             .post("https://gateway.example/oauth/revoke")
             .form(&RevocationRequest {

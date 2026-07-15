@@ -26,6 +26,13 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: console-bff
+                port:
+                  number: 8786
           - path: /console
             pathType: Prefix
             backend:

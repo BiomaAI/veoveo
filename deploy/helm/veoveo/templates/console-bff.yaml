@@ -56,6 +56,8 @@ spec:
               value: {{ .Values.consoleBff.oauthClientId | quote }}
             - name: VEOVEO_CONSOLE_OAUTH_RESOURCE
               value: {{ .Values.consoleBff.oauthResource | quote }}
+            - name: VEOVEO_CONSOLE_OAUTH_SCOPES
+              value: {{ join " " .Values.consoleBff.oauthScopes | quote }}
             - name: VEOVEO_CONSOLE_SESSION_KEY
               valueFrom:
                 secretKeyRef:
