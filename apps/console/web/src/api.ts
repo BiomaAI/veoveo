@@ -22,6 +22,7 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
     headers: { Accept: "application/json" },
     signal
   });
+  csrfToken = response.headers.get("x-veoveo-csrf-token") ?? undefined;
   if (response.status === 401) {
     window.location.assign("/auth/login");
     throw new Error("Authentication required");
@@ -34,7 +35,6 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
   if (!response.ok) {
     throw new Error(`Console API returned ${response.status}`);
   }
-  csrfToken = response.headers.get("x-veoveo-csrf-token") ?? undefined;
   return response.json() as Promise<InstallationSnapshot>;
 }
 

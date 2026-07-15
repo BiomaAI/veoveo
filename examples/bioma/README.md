@@ -116,6 +116,11 @@ external OIDC provider. Its registration must match the control plane:
   access requires `veoveo_operator` or `veoveo_admin` according to the profile
   policy. Sign out and authenticate again after changing an assignment because
   existing tokens retain their original `roles` claim.
+- Treat the app-role UUID as part of the role identity. When a role value
+  changes, remove its assignments, disable and delete the old definition, then
+  create the canonical value with a new UUID and migrate the assignments. Entra
+  can continue issuing the retired value when a definition reuses its old UUID;
+  Veoveo does not accept that value.
 - Keep the tenant-specific v2 issuer, authorization endpoint, token endpoint,
   and JWKS URI on the same directory tenant.
 - Grant only `openid`, `profile`, and `email`. Browser authorization uses code
