@@ -277,23 +277,18 @@ selection, weighted eviction, freshness, credential-free cache keys, GLB
 preprocessing, and typed unsupported content. The Rust smoke path starts the
 renderer inside the NVIDIA container, verifies a non-CPU Vulkan adapter,
 captures a deterministic local tileset through source, traversal, decode, and
-Bevy, then checks that two owner-scoped views remain revision-isolated while
-sharing one GPU tile upload. `just smoke-view-mcp` builds and runs that image.
+Bevy through the production MCP task and frame-resource boundaries, then checks
+that two owner-scoped views remain revision-isolated. The production image
+contains only the View MCP server. `just smoke-view-mcp` builds the image and
+dispatches the central Rust smoke harness.
 
-The live acceptance binary captures Google Photorealistic 3D Tiles from a
-camera orbiting the Statue of Liberty at 40.6892494, -74.0445004. It requires
-the API key in `GOOGLE_MAPS_API_KEY`, passes the variable by name rather than
-putting its value in the command line, requires an NVIDIA adapter, and retains
-only the rendered JPEG:
+The billed live acceptance scenario captures Google Photorealistic 3D Tiles
+from a camera orbiting the Statue of Liberty at 40.6892494, -74.0445004. It
+requires the API key in `GOOGLE_MAPS_API_KEY`, passes the variable by name
+rather than putting its value in the command line, drives the production MCP
+task interface, requires an NVIDIA adapter, and retains only the rendered JPEG:
 
 ```sh
-install -d -m 0777 /tmp/veoveo-view-proof
-docker run --rm --gpus all --read-only --tmpfs /tmp \
-  -e GOOGLE_MAPS_API_KEY \
-  -e VIEW_GOOGLE_PROOF_OUTPUT=/proof/statue-of-liberty.jpg \
-  -e NVIDIA_VISIBLE_DEVICES=all \
-  -e NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility \
-  -v /tmp/veoveo-view-proof:/proof \
-  --entrypoint /usr/local/bin/view-google-proof \
-  veoveo/view-mcp:0.1.0
+just smoke-view-google \
+  /tmp/veoveo-view-proof/statue-of-liberty.jpg
 ```

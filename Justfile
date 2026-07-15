@@ -127,10 +127,17 @@ smoke-map-mcp:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-artifact-service --bin artifact-service
     {{smoke}} map-mcp --conformance-bin target/debug/conformance --artifact-service-bin target/debug/artifact-service --map-image veoveo/map-mcp:0.1.0
 
-# Render two isolated views through the real offscreen NVIDIA/Vulkan pipeline and verify shared GPU residency.
+# Exercise two isolated views through the production NVIDIA/Vulkan image and MCP task boundary.
 smoke-view-mcp:
     docker build -f servers/view-mcp/Dockerfile -t veoveo/view-mcp:0.1.0 .
-    docker run --rm --gpus all --read-only --tmpfs /tmp -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=graphics,compute,utility --entrypoint /usr/local/bin/view-gpu-smoke veoveo/view-mcp:0.1.0
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} view-mcp --view-image veoveo/view-mcp:0.1.0
+
+# Run billed live Google 3D Tiles acceptance through the production View MCP boundary.
+smoke-view-google output='/tmp/veoveo-view-proof/statue-of-liberty.jpg':
+    docker build -f servers/view-mcp/Dockerfile -t veoveo/view-mcp:0.1.0 .
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} view-google-live --view-image veoveo/view-mcp:0.1.0 --output '{{output}}'
 
 # Smoke-test contract schema export for non-Rust implementations.
 smoke-contract-schemas:

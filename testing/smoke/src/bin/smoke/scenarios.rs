@@ -21,6 +21,8 @@ mod perception;
 mod secrets;
 #[path = "scenarios/sumo.rs"]
 mod sumo;
+#[path = "scenarios/view.rs"]
+mod view;
 
 pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
@@ -32,6 +34,7 @@ pub(crate) use media::*;
 pub(crate) use perception::*;
 pub(crate) use secrets::*;
 pub(crate) use sumo::*;
+pub(crate) use view::*;
 
 pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Path) -> Result<()> {
     let conformance = Path::new("target/debug/conformance");

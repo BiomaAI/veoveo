@@ -11,14 +11,6 @@ path = "src/lib.rs"
 name = "server"
 path = "src/bin/server.rs"
 
-[[bin]]
-name = "view-gpu-smoke"
-path = "src/bin/view_gpu_smoke.rs"
-
-[[bin]]
-name = "view-google-proof"
-path = "src/bin/view_google_proof.rs"
-
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
@@ -40,7 +32,6 @@ draco-gltf.workspace = true
 futures.workspace = true
 glam.workspace = true
 gltf.workspace = true
-hex.workspace = true
 image.workspace = true
 parking_lot.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }

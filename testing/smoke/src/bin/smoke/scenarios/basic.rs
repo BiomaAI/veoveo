@@ -211,7 +211,7 @@ pub(crate) async fn compose_config() -> Result<()> {
         "servers/time-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
-        let contents = fs::read_to_string(&dockerfile)?;
+        let contents = fs::read_to_string(dockerfile)?;
         for workspace_root in [
             "COPY agents ./agents",
             "COPY apps/console/bff ./apps/console/bff",
