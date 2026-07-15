@@ -1,0 +1,12 @@
+{
+  "layers": [
+    {
+      "layer_id": "local-reference",
+      "label": "Local reference plane",
+      "source": {
+        "kind": "local_tileset",
+        "root_path": "/etc/veoveo/view/local-tileset.json"
+      }
+    }
+  ]
+}

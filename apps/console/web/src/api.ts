@@ -164,6 +164,15 @@ export const loadMapReleases = async () => (await mapAdminQuery<MapAdminPage<Map
 export const loadMapMobilityProfiles = async () => (await mapAdminQuery<MapAdminPage<MapMobilityProfileSummary>>("mobility-profiles?limit=200")).items;
 export const loadMapActiveReleases = async () => (await mapAdminQuery<MapAdminPage<MapActiveReleaseSummary>>("active-releases?limit=200")).items;
 
+export const loadMapAdministration = async () => {
+  const sources = await loadMapSources();
+  const acquisitions = await loadMapAcquisitions();
+  const releases = await loadMapReleases();
+  const mobilityProfiles = await loadMapMobilityProfiles();
+  const activeReleases = await loadMapActiveReleases();
+  return { sources, acquisitions, releases, mobilityProfiles, activeReleases };
+};
+
 export async function registerMapSource(source: unknown): Promise<MapSourceSummary> {
   return consoleMutation("map/sources", {
     method: "POST",

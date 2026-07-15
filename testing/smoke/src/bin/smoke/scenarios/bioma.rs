@@ -11,6 +11,26 @@ use secrecy::{ExposeSecret, SecretString};
 use super::*;
 
 const NAMESPACE: &str = "veoveo";
+const BIOMA_DEPLOYMENTS: &[&str] = &[
+    "mcp-gateway",
+    "artifact-service",
+    "console-bff",
+    "recording",
+    "artifact-mcp",
+    "media-mcp",
+    "perception-mcp",
+    "timeseries-mcp",
+    "duckdb-mcp",
+    "optimization-mcp",
+    "frames-mcp",
+    "map-mcp",
+    "view-mcp",
+    "time-mcp",
+    "datasheet-mcp",
+    "chart-mcp",
+    "rerun-bridge",
+    "cloudflared",
+];
 
 pub(crate) fn bioma_resources(context: &str) -> Result<()> {
     ensure!(!context.trim().is_empty(), "Kubernetes context is required");
@@ -82,6 +102,11 @@ pub(crate) fn bioma_resources(context: &str) -> Result<()> {
                 ("console-session-key", "VEOVEO_CONSOLE_SESSION_KEY"),
                 ("object-store-access-key", "VEOVEO_OBJECT_STORE_ACCESS_KEY"),
                 ("object-store-secret-key", "VEOVEO_OBJECT_STORE_SECRET_KEY"),
+                ("media-provider-api-key", "MEDIA_PROVIDER_API_KEY"),
+                (
+                    "media-provider-webhook-secret",
+                    "MEDIA_PROVIDER_WEBHOOK_SECRET",
+                ),
             ],
         )?,
     )?;
@@ -96,27 +121,21 @@ pub(crate) fn bioma_resources(context: &str) -> Result<()> {
 
 pub(crate) async fn bioma_verify(
     context: &str,
-    sumo_context: &str,
     local_base_url: &str,
     public_base_url: &str,
     object_base_url: &str,
 ) -> Result<()> {
-    ensure!(
-        context != sumo_context,
-        "Bioma and SUMO must use different Kubernetes contexts"
-    );
-    for cluster_context in [sumo_context, context] {
-        run_checked(
-            Path::new("kubectl"),
-            ["--context", cluster_context, "cluster-info"].map(OsString::from),
-            [],
-        )
-        .with_context(|| format!("Kubernetes context {cluster_context} is unavailable"))?;
-    }
+    run_checked(
+        Path::new("kubectl"),
+        ["--context", context, "cluster-info"].map(OsString::from),
+        [],
+    )
+    .with_context(|| format!("Kubernetes context {context} is unavailable"))?;
 
-    assert_available_deployment(sumo_context, "sumo-mcp")?;
-    assert_available_deployment(context, "mcp-gateway")?;
-    assert_available_deployment(context, "cloudflared")?;
+    for deployment in BIOMA_DEPLOYMENTS {
+        assert_available_deployment(context, deployment)?;
+    }
+    assert_gpu_capacity(context, 2)?;
 
     let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
     ensure!(
@@ -178,7 +197,7 @@ pub(crate) async fn bioma_verify(
     );
 
     println!(
-        "Bioma verify ok: both contexts are live, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: the full server catalog is available, both GPU workloads are schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
     );
     Ok(())
 }
@@ -355,6 +374,31 @@ fn assert_available_deployment(context: &str, deployment: &str) -> Result<()> {
     ensure!(
         available > 0,
         "deployment {deployment} has no available replicas in {context}"
+    );
+    Ok(())
+}
+
+fn assert_gpu_capacity(context: &str, minimum: u32) -> Result<()> {
+    let output = run_checked(
+        Path::new("kubectl"),
+        [
+            "--context",
+            context,
+            "get",
+            "nodes",
+            "--output",
+            "jsonpath={range .items[*]}{.status.allocatable.nvidia\\.com/gpu}{\"\\n\"}{end}",
+        ]
+        .map(OsString::from),
+        [],
+    )?;
+    let capacity = output
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .sum::<u32>();
+    ensure!(
+        capacity >= minimum,
+        "Bioma requires at least {minimum} allocatable NVIDIA GPU shares; {context} reports {capacity}"
     );
     Ok(())
 }

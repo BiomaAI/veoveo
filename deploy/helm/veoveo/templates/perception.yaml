@@ -1,0 +1,231 @@
+{{- if .Values.perception.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: perception-model-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: perception-mcp
+spec:
+  accessModes:
+    {{- toYaml .Values.perception.modelCache.accessModes | nindent 4 }}
+  {{- if .Values.perception.modelCache.storageClass }}
+  storageClassName: {{ .Values.perception.modelCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.perception.modelCache.size }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: perception-runtime
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: perception-mcp
+data:
+  catalog.json: |
+    {
+      "models": [
+        {
+          "id": "trafficcamnet",
+          "title": "TrafficCamNet",
+          "description": "NVIDIA sample traffic-camera object detector compiled locally for this GPU.",
+          "format": "tensor_rt_engine",
+          "model_path": "/models/trafficcamnet.engine"
+        }
+      ],
+      "pipelines": [
+        {
+          "id": "traffic-object-detection",
+          "title": "Traffic object detection",
+          "description": "Detect vehicles, people, road signs, and two-wheelers in recording video.",
+          "operation": "object_detection",
+          "model_id": "trafficcamnet",
+          "deepstream_config_path": "/etc/veoveo/perception/inference.txt"
+        }
+      ]
+    }
+  inference.txt: |
+    [property]
+    gpu-id=0
+    net-scale-factor=0.00392156862745098
+    model-engine-file=/models/trafficcamnet.engine
+    labelfile-path=/opt/nvidia/deepstream/deepstream-9.0/samples/models/Primary_Detector/labels.txt
+    batch-size=1
+    process-mode=1
+    model-color-format=0
+    network-mode=2
+    num-detected-classes=4
+    interval=0
+    gie-unique-id=1
+    cluster-mode=2
+
+    [class-attrs-all]
+    topk=20
+    nms-iou-threshold=0.5
+    pre-cluster-threshold=0.2
+
+    [class-attrs-0]
+    topk=20
+    nms-iou-threshold=0.5
+    pre-cluster-threshold=0.4
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: perception-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: perception-mcp
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: perception-mcp
+  ports:
+    - name: http
+      port: 8797
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: perception-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: perception-mcp
+spec:
+  replicas: {{ .Values.perception.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: perception-mcp
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: perception-mcp
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      runtimeClassName: {{ .Values.perception.runtimeClassName }}
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      initContainers:
+        - name: compile-model
+          image: {{ include "veoveo.image" (list . .Values.perception.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              if [ -s /models/trafficcamnet.engine ]; then
+                exit 0
+              fi
+              rm -f /models/.trafficcamnet.engine
+              /usr/src/tensorrt/bin/trtexec \
+                --onnx=/opt/nvidia/deepstream/deepstream-9.0/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx \
+                --saveEngine=/models/.trafficcamnet.engine \
+                --fp16 \
+                --skipInference
+              mv /models/.trafficcamnet.engine /models/trafficcamnet.engine
+          env:
+            - name: HOME
+              value: /tmp
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.perception.builderResources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: perception-mcp
+          image: {{ include "veoveo.image" (list . .Values.perception.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - --port
+            - "8797"
+            - --allowed-host
+            - perception-mcp:8797
+            - --artifact-service-url
+            - http://artifact-service:8790
+            - --spool-dir
+            - /recordings
+            - --recording-proxy-uri
+            - rerun+http://recording-ingest:9876/proxy
+            - --pipeline-catalog
+            - /etc/veoveo/perception/catalog.json
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: PUBLIC_BASE_URL
+              value: {{ .Values.global.publicBaseUrl | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-perception-mcp
+            - name: HOME
+              value: /tmp
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          ports:
+            - name: http
+              containerPort: 8797
+          readinessProbe:
+            httpGet:
+              path: /perception/readyz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: perception-mcp:8797
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /perception/healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: perception-mcp:8797
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.perception.resources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+            - name: runtime-config
+              mountPath: /etc/veoveo/perception
+              readOnly: true
+            - name: recordings
+              mountPath: /recordings
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: perception-model-cache
+        - name: runtime-config
+          configMap:
+            name: perception-runtime
+        - name: recordings
+          persistentVolumeClaim:
+            claimName: recording-spool
+        - name: tmp
+          emptyDir: {}
+{{- end }}

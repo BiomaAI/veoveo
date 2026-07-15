@@ -16,6 +16,7 @@ smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRAR
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
+bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
 
 # List available recipes.
 default:
@@ -293,7 +294,7 @@ sumo-k3d-status:
 logs workload='mcp-gateway' context=sumo-kube-context:
     {{kubectl}} --context '{{context}}' -n veoveo logs -f deployment/{{workload}} --all-containers --tail=200
 
-# Create the isolated Bioma cluster without changing the SUMO port bindings.
+# Create the Bioma cluster.
 bioma-k3d-create:
     {{k3d}} cluster create --config examples/bioma/k3d.yaml
 
@@ -307,13 +308,13 @@ clusters-status:
     {{kubectl}} --context {{sumo-kube-context}} -n veoveo get pods
     {{kubectl}} --context {{bioma-kube-context}} -n veoveo get pods
 
-# Build the minimal platform images used by the public Bioma edge.
+# Build the complete Veoveo installation used by Bioma.
 bioma-build:
     docker buildx bake bioma
 
-# Import the Bioma platform images into only the Bioma cluster.
+# Import the complete Veoveo installation into the Bioma cluster.
 bioma-import:
-    {{k3d}} image import --cluster veoveo-bioma veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/console-bff:0.1.0
+    {{k3d}} image import --cluster veoveo-bioma {{bioma-images}}
 
 # Apply Bioma's control plane and environment-backed Kubernetes Secrets.
 bioma-resources:
@@ -329,10 +330,10 @@ bioma-tunnel-up:
     {{kubectl}} --context {{bioma-kube-context}} -n veoveo apply -f examples/bioma/tunnel.yaml
     {{kubectl}} --context {{bioma-kube-context}} -n veoveo rollout status deployment/cloudflared --timeout=5m
 
-# Verify both clusters and the authoritative public Bioma edge.
+# Verify the Bioma installation and its authoritative public edge.
 bioma-verify:
     cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} bioma-verify --context {{bioma-kube-context}} --sumo-context {{sumo-kube-context}}
+    {{smoke}} bioma-verify --context {{bioma-kube-context}}
 
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':

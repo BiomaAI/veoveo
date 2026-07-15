@@ -1,32 +1,36 @@
 # Bioma deployment example
 
-This directory owns the `veoveo.bioma.ai` installation profile. It is separate
-from the SUMO development cluster and showcase. The public hostname reaches an
-isolated k3d cluster through a remote-managed Cloudflare Tunnel.
+This directory owns the `veoveo.bioma.ai` installation profile. The public
+hostname reaches its k3d cluster through a remote-managed Cloudflare Tunnel.
 
 | Installation | k3d cluster | Kubernetes context | Host projection |
 |---|---|---|---|
-| SUMO development | `veoveo-sumo` | `k3d-veoveo-sumo` | `http://localhost:8780` |
 | Bioma public edge | `veoveo-bioma` | `k3d-veoveo-bioma` | `http://localhost:8781` |
 
-Every repository recipe passes its Kubernetes context explicitly. Creating the
-second cluster may change kubectl's current context, but it cannot redirect a
-SUMO or Bioma recipe into the other installation.
+Every Bioma recipe passes its Kubernetes context explicitly. The active
+kubectl context cannot redirect a recipe into another installation.
 
 ## Profile ownership
 
 - `values.yaml` owns Bioma's public origins and gateway ConfigMap identity.
 - `gateway.json` owns the Entra application, tenant mapping, and MCP profiles.
-- `k3d.yaml` owns the second cluster and its non-conflicting loopback port.
-- `k3d-values.yaml` reduces the local proof to the core public edge. It does not
-  alter the fielded Bioma values.
+- `k3d.yaml` owns the cluster and its loopback port.
+- `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
+  cluster without changing the server catalog.
 - `cloudflare-tunnel.json` is the desired remote tunnel ingress configuration.
 - `tunnel.yaml` runs the connector inside the Bioma cluster.
 
-The k3d proof deploys SurrealDB, RustFS, the gateway, the artifact service, and
-the console BFF. Domain MCP workloads and Recording Hub remain absent from this
-small profile. The Bioma gateway catalog stays canonical and can serve those
-workloads when their deployment overlay is installed.
+The Bioma cluster deploys the complete Veoveo installation: the gateway,
+artifact and recording planes, console, and every hosted MCP server in
+`gateway.json`.
+
+View and Perception each request one NVIDIA GPU allocation. The k3d node device
+plugin publishes two time-sliced allocations from the physical GPU, while both
+pods retain the normal `nvidia.com/gpu: 1` request and the `nvidia` runtime
+class. Perception compiles the bundled TrafficCamNet ONNX model into a
+GPU-specific TensorRT engine on first startup and keeps that engine in its
+model-cache volume. View starts with a local reference tileset; fielded layer
+catalogs can select authenticated HTTPS or Google Photorealistic 3D Tiles.
 
 The public root redirects to the operations console:
 
@@ -62,23 +66,10 @@ The `.env` file must define `CLOUDFLARE_ACCOUNT_ID`,
 Tunnel:Edit and DNS:Edit for this account and zone. The tunnel token is stored
 only in the `bioma-cloudflared` Kubernetes Secret.
 
-## Start both clusters
-
-Build the shared GPU-capable node once. Then start the SUMO installation:
+## Start Bioma
 
 ```bash
 just k3d-node-build
-just sumo-k3d-create
-just showcase-sumo-build
-just showcase-sumo-import
-just showcase-sumo-resources
-just showcase-sumo-platform-up
-just showcase-sumo-up
-```
-
-Start Bioma without stopping SUMO:
-
-```bash
 just bioma-k3d-create
 just bioma-build
 just bioma-import
@@ -87,23 +78,26 @@ just bioma-platform-up
 just bioma-tunnel-up
 ```
 
-`bioma-resources` reads the required Veoveo and Cloudflare values from `.env`,
-applies Kubernetes Secrets over stdin, and never writes their plaintext to a
-repository or temporary manifest.
+`bioma-resources` reads the required Veoveo, media-provider, and Cloudflare
+values from `.env`, applies Kubernetes Secrets over stdin, and never writes
+their plaintext to a repository or temporary manifest. `bioma-build` and
+`bioma-import` cover every image used by the release.
 
 ## Acceptance
 
-Run both checks while both clusters are active:
+Run the installation check after the release and tunnel are active:
 
 ```bash
-just showcase-sumo-verify
 just bioma-verify
-just clusters-status
 ```
 
-The Bioma check requires an available SUMO MCP deployment in the first context,
-an available gateway and tunnel connector in the second, a healthy public edge,
-and the Bioma authorization-server key at the public JWKS endpoint.
+The Bioma check requires every deployment, two allocatable NVIDIA GPU shares,
+a healthy public edge, and the Bioma authorization-server key at the public
+JWKS endpoint.
+
+The Access page reports policy sets from the active gateway control-plane
+revision. Policies are not independent CRUD records. Edit `gateway.json`,
+validate the complete document, and activate it as one atomic revision.
 
 ## Entra application registration
 
@@ -136,11 +130,10 @@ cargo run -p veoveo-mcp-gateway --bin gateway -- \
 
 ## Cleanup
 
-Each cluster has an independent destructive command:
+Delete the local installation with:
 
 ```bash
 just bioma-k3d-delete
-just sumo-k3d-delete
 ```
 
 Deleting the Bioma cluster disconnects the tunnel but does not delete its

@@ -73,7 +73,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .sidebar-foot span { font-size: 10px; color: var(--sidebar-muted); line-height: 15px; }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #46bd82; box-shadow: 0 0 0 3px rgba(70, 189, 130, 0.13); }
 .live-off { background: #d1524b; box-shadow: 0 0 0 3px rgba(209, 82, 75, 0.13); }
-.mobile-close, .mobile-menu, .nav-scrim { display: none; }
+.icon-button.mobile-close, .icon-button.mobile-menu, .nav-scrim { display: none; }
 
 .main-shell { grid-column: 2; min-width: 0; min-height: 100vh; }
 .topbar {
@@ -248,6 +248,7 @@ a.button { text-decoration: none; }
 .one-time-link { margin-bottom: 10px; padding: 8px; border: 1px solid #bdd9c9; border-radius: 5px; background: var(--green-soft); }
 .one-time-link > span { display: block; margin-bottom: 5px; color: var(--green); font-size: 8px; font-weight: 680; }
 .detail-copy { margin: 9px 0 0; color: var(--muted); font-size: 10px; line-height: 16px; }
+.panel-intro { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-soft); color: var(--muted); font-size: 11px; line-height: 17px; }
 .drawer-footer { min-height: 58px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 15px; border-top: 1px solid var(--border); background: #fafbfb; }
 
 .center-state { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: #4b5459; text-align: center; }
@@ -268,8 +269,8 @@ a.button { text-decoration: none; }
   .main-shell { min-height: 100vh; }
   .sidebar { transform: translateX(-100%); transition: transform 160ms ease; box-shadow: 10px 0 30px rgba(0, 0, 0, 0.25); }
   .sidebar-open { transform: translateX(0); }
-  .mobile-close { display: grid; margin-left: auto; border-color: #343a3e; background: transparent; color: #bfc5c8; }
-  .mobile-menu { display: grid; }
+  .icon-button.mobile-close { display: grid; margin-left: auto; border-color: #343a3e; background: transparent; color: #bfc5c8; }
+  .icon-button.mobile-menu { display: grid; }
   .nav-scrim { display: block; position: fixed; inset: 0; z-index: 19; border: 0; background: rgba(15, 18, 20, 0.46); }
   .topbar { height: 62px; padding: 0 12px; }
   .topbar-title h1 { font-size: 16px; }
