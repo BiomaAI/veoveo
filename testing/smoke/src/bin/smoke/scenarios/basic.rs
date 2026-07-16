@@ -109,9 +109,10 @@ pub(crate) async fn helm_config() -> Result<()> {
         "image: amazon/aws-cli:2.35.23",
         "name: mcp-gateway",
         "name: artifact-service",
-        "name: recording-ingest",
+        "name: recording-hub",
         "name: console-bff",
-        "nodePort: 30877",
+        "port: 9878",
+        "veoveo.ai/recording-producer: \"true\"",
         "host: localhost",
         "path: /s",
         "mountPath: /etc/veoveo/gateway",
@@ -120,7 +121,14 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&platform, expected)?;
     }
-    for forbidden in ["minio", "caddy", "compose", "OTEL_EXPORTER_OTLP_ENDPOINT"] {
+    for forbidden in [
+        "minio",
+        "caddy",
+        "compose",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "name: recording-ingest",
+        "nodePort: 30877",
+    ] {
         if platform.to_ascii_lowercase().contains(forbidden) {
             bail!("canonical Helm render must not contain `{forbidden}`");
         }
@@ -146,7 +154,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "host: objects-veoveo.bioma.ai",
         "https://veoveo.bioma.ai",
         "name: bioma-gateway-control-plane",
-        "name: recording-ingest",
+        "name: recording-hub",
     ] {
         contains(&bioma, expected)?;
     }
@@ -155,6 +163,26 @@ pub(crate) async fn helm_config() -> Result<()> {
             bail!("Bioma k3d render must not contain `{forbidden}`");
         }
     }
+
+    let bioma_lan = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "bioma".into(),
+            "deploy/helm/veoveo".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "examples/bioma/values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/k3d-values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/lan-values.yaml".into(),
+        ],
+        [],
+    )?;
+    contains(&bioma_lan, "secretName: bioma-lan-ingress-tls")?;
+    contains(&bioma_lan, "host: veoveo.bioma.ai")?;
 
     let sumo_cluster = fs::read_to_string("deploy/local/k3d/cluster.yaml")?;
     contains(&sumo_cluster, "name: veoveo-sumo")?;
@@ -195,7 +223,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "image: veoveo/sumo-mcp:0.1.0",
         "nodePort: 30895",
         "value: sumo-mcp:8795",
-        "rerun+http://recording-ingest:9876/proxy",
+        "rerun+http://recording-hub:9876/proxy",
+        "veoveo.ai/recording-producer: \"true\"",
         "runAsUser: 10001",
     ] {
         contains(&sumo, expected)?;
