@@ -51,19 +51,11 @@ impl KubernetesClient {
             .context("KUBERNETES_SERVICE_PORT is required for cluster inspection")?;
         let api = Url::parse(&format!("https://{host}:{port}/"))
             .context("building Kubernetes API URL")?;
-        let token = fs::read_to_string(TOKEN_PATH)
-            .with_context(|| format!("reading Kubernetes token {TOKEN_PATH}"))?;
-        let mut authorization = HeaderValue::from_str(&format!("Bearer {}", token.trim()))
-            .context("building Kubernetes authorization header")?;
-        authorization.set_sensitive(true);
-        let mut headers = HeaderMap::new();
-        headers.insert(AUTHORIZATION, authorization);
         let certificate = Certificate::from_pem(
             &fs::read(CA_PATH).with_context(|| format!("reading Kubernetes CA {CA_PATH}"))?,
         )
         .context("decoding Kubernetes CA")?;
         let http = reqwest::Client::builder()
-            .default_headers(headers)
             .add_root_certificate(certificate)
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(10))
@@ -76,7 +68,12 @@ impl KubernetesClient {
         }))
     }
 
-    async fn list<T: DeserializeOwned>(&self, group: &str, resource: &str) -> Result<Vec<T>> {
+    async fn list<T: DeserializeOwned>(
+        &self,
+        authorization: &HeaderValue,
+        group: &str,
+        resource: &str,
+    ) -> Result<Vec<T>> {
         let path = if group == "core" {
             format!("api/v1/namespaces/{}/{resource}", self.namespace)
         } else {
@@ -85,15 +82,23 @@ impl KubernetesClient {
         let response = self
             .http
             .get(self.api.join(&path)?)
+            .header(AUTHORIZATION, authorization.clone())
             .send()
             .await
-            .with_context(|| format!("requesting Kubernetes {resource}"))?
-            .error_for_status()
-            .with_context(|| format!("Kubernetes rejected {resource} inventory"))?;
+            .with_context(|| format!("requesting Kubernetes {resource}"))?;
+        if !response.status().is_success() {
+            bail!(
+                "Kubernetes rejected {resource} inventory with {}",
+                response.status()
+            );
+        }
         Ok(response.json::<KubernetesList<T>>().await?.items)
     }
 
     async fn snapshot(&self) -> Result<ClusterSnapshot> {
+        // Projected service-account tokens rotate in place. Read the token for
+        // each snapshot rather than caching a credential for the pod lifetime.
+        let authorization = kubernetes_authorization_header().await?;
         let (
             deployments,
             stateful_sets,
@@ -106,16 +111,16 @@ impl KubernetesClient {
             disruption_budgets,
             config_maps,
         ) = tokio::try_join!(
-            self.list::<Deployment>("apps/v1", "deployments"),
-            self.list::<StatefulSet>("apps/v1", "statefulsets"),
-            self.list::<Job>("batch/v1", "jobs"),
-            self.list::<Pod>("core", "pods"),
-            self.list::<Service>("core", "services"),
-            self.list::<PersistentVolumeClaim>("core", "persistentvolumeclaims"),
-            self.list::<Ingress>("networking.k8s.io/v1", "ingresses"),
-            self.list::<NamedResource>("networking.k8s.io/v1", "networkpolicies"),
-            self.list::<NamedResource>("policy/v1", "poddisruptionbudgets"),
-            self.list::<NamedResource>("core", "configmaps"),
+            self.list::<Deployment>(&authorization, "apps/v1", "deployments"),
+            self.list::<StatefulSet>(&authorization, "apps/v1", "statefulsets"),
+            self.list::<Job>(&authorization, "batch/v1", "jobs"),
+            self.list::<Pod>(&authorization, "core", "pods"),
+            self.list::<Service>(&authorization, "core", "services"),
+            self.list::<PersistentVolumeClaim>(&authorization, "core", "persistentvolumeclaims"),
+            self.list::<Ingress>(&authorization, "networking.k8s.io/v1", "ingresses"),
+            self.list::<NamedResource>(&authorization, "networking.k8s.io/v1", "networkpolicies"),
+            self.list::<NamedResource>(&authorization, "policy/v1", "poddisruptionbudgets"),
+            self.list::<NamedResource>(&authorization, "core", "configmaps"),
         )?;
 
         let mut workloads = deployments
@@ -140,6 +145,20 @@ impl KubernetesClient {
             config_maps: names(config_maps),
         })
     }
+}
+
+async fn kubernetes_authorization_header() -> Result<HeaderValue> {
+    let token = tokio::fs::read_to_string(TOKEN_PATH)
+        .await
+        .with_context(|| format!("reading Kubernetes token {TOKEN_PATH}"))?;
+    authorization_header(&token)
+}
+
+fn authorization_header(token: &str) -> Result<HeaderValue> {
+    let mut authorization = HeaderValue::from_str(&format!("Bearer {}", token.trim()))
+        .context("building Kubernetes authorization header")?;
+    authorization.set_sensitive(true);
+    Ok(authorization)
 }
 
 pub(crate) async fn snapshot(
@@ -578,5 +597,17 @@ impl From<Ingress> for ClusterIngress {
                 .filter_map(|rule| rule.host)
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kubernetes_authorization_is_sensitive_and_trims_the_projected_token() {
+        let authorization = authorization_header("token-value\n").unwrap();
+        assert_eq!(authorization.as_bytes(), b"Bearer token-value");
+        assert!(authorization.is_sensitive());
     }
 }

@@ -160,10 +160,19 @@ perception:
       memory: 16Gi
       nvidia.com/gpu: "1"
 
-mapBootstrap:
-  enabled: false
-  tenantKey: installation
-  sources: []
+# Installation-time server bootstrap documents, keyed by domain-service
+# name. Each entry renders a `{name}-bootstrap` ConfigMap mounted at the
+# canonical /etc/veoveo/bootstrap/catalog.json and passed to the server via
+# --bootstrap-catalog. The payload schema is owned by the server crate;
+# validate documents with the server binary's `bootstrap-validate` verb.
+# serverBootstrap:
+#   map-mcp:
+#     server: map
+#     tenantKey: installation
+#     payload:
+#       sources: []
+#       mobility_profiles: []
+serverBootstrap: {}
 
 consoleBff:
   image:
@@ -276,6 +285,7 @@ domainServices:
     port: 8799
     healthPath: /map/healthz
     args:
+      - serve
       - --port
       - "8799"
       - --allowed-host

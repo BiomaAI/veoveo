@@ -43,7 +43,7 @@ use crate::{
 };
 
 use auth::{AdminAuthState, InternalAuthState, authenticate_internal, authorize_admin};
-use config::Args;
+use config::{Args, Cli};
 use host::validate_host;
 use tasks::{MapTaskExtension, recover_tasks};
 
@@ -52,9 +52,15 @@ const SERVER_SLUG: &str = "map";
 pub async fn run() -> Result<()> {
     install_rustls_provider();
     let _ = dotenvy::dotenv();
+    match Cli::parse() {
+        Cli::BootstrapValidate { path } => bootstrap::run_validate(&path).await,
+        Cli::Serve(args) => serve(*args).await,
+    }
+}
+
+async fn serve(args: Args) -> Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-map-mcp", "info,veoveo_map_mcp=debug")?;
-    let args = Args::parse();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let verifier = GatewayInternalTokenVerifier::new(
