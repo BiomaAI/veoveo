@@ -11053,7 +11053,9 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
+ "veoveo-recording-forwarder",
  "veoveo-recording-hub",
+ "veoveo-recording-protocol",
  "veoveo-sumo-mcp",
 ]
 

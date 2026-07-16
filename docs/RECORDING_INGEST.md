@@ -86,3 +86,18 @@ recording-forwarder \
 The same command works on the local network when split-horizon DNS resolves
 `veoveo.bioma.ai` to the LAN ingress. The certificate and OAuth resource identity remain
 unchanged.
+
+## Acceptance
+
+The Rust smoke harness starts an isolated SurrealDB with Recording Hub and the gateway.
+The producer forwarder client executes the complete contract against those services. The
+harness confirms discovery and private-key JWT token issuance. It retries a native RRD
+batch, resumes at the durable checkpoint, finishes the stream, then inspects the immutable
+segment digest.
+
+```sh
+cargo build -p veoveo-mcp-conformance --bin conformance \
+  -p veoveo-mcp-gateway --bin gateway \
+  -p veoveo-recording-hub --bin spooler
+cargo run -p veoveo-smoke --bin smoke -- recording-ingest
+```

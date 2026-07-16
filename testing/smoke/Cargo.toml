@@ -40,7 +40,9 @@ uuid.workspace = true
 veoveo-mcp-contract = { path = "../../mcp/contract" }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../../platform/store" }
+veoveo-recording-forwarder = { path = "../../platform/recordings/forwarder" }
 veoveo-recording-hub = { path = "../../platform/recordings/hub" }
+veoveo-recording-protocol = { path = "../../platform/recordings/protocol" }
 veoveo-sumo-mcp = { path = "../../showcase/sumo/sumo-mcp" }
 
 [build-dependencies]
