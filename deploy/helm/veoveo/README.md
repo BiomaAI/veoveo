@@ -7,9 +7,10 @@ RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 
 The recording workload is one pod with an internal-only Rerun ingest container
-and a governed MCP container sharing `recording.persistence`. Raw ingest is
-available only through the `recording-ingest` ClusterIP service. Gateway traffic
-uses `recording-mcp`; no ingress route exposes the spooler or its files.
+and a governed MCP container sharing `recording.persistence`. The `recording-hub`
+ClusterIP carries the authenticated gateway API on port 9878. Raw Rerun traffic
+on port 9876 is limited to explicitly labeled in-cluster producers. No NodePort
+or Ingress exposes either port.
 
 `duckdb-mcp` is intentionally one replica with a persistent `ReadWriteOnce`
 workspace. It provides owner-scoped mutable analytical databases and arbitrary

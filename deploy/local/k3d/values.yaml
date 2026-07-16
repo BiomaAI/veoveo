@@ -19,9 +19,6 @@ artifactService:
   replicas: 1
 
 recording:
-  viewer:
-    enabled: true
-    nodePort: 30877
   persistence:
     size: 20Gi
 

@@ -15,7 +15,7 @@ platform:
   surrealRuntimeSecret: veoveo-surreal-runtime
   installationSecret: veoveo-installation-secrets
   artifactServiceUrl: http://artifact-service:8790
-  recordingProxy: rerun+http://recording-ingest:9876/proxy
+  recordingProxy: rerun+http://recording-hub:9876/proxy
 
 telemetry:
   enabled: false

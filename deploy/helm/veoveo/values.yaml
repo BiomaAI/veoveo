@@ -105,9 +105,6 @@ artifactService:
 
 recording:
   enabled: true
-  viewer:
-    enabled: false
-    nodePort: 30877
   tenantKey: enterprise
   classification: unclassified
   labels: []

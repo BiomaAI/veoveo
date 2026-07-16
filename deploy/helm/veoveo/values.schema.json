@@ -109,18 +109,9 @@
     "artifactService": {"$ref": "#/definitions/workload"},
     "recording": {
       "type": "object",
-      "required": ["enabled", "viewer", "tenantKey", "classification", "labels", "route", "persistence", "hubImage", "mcpImage", "resources"],
+      "required": ["enabled", "tenantKey", "classification", "labels", "route", "persistence", "hubImage", "mcpImage", "resources"],
       "properties": {
         "enabled": {"type": "boolean"},
-        "viewer": {
-          "type": "object",
-          "required": ["enabled", "nodePort"],
-          "properties": {
-            "enabled": {"type": "boolean"},
-            "nodePort": {"type": "integer", "minimum": 30000, "maximum": 32767}
-          },
-          "additionalProperties": false
-        },
         "tenantKey": {"type": "string", "minLength": 1},
         "classification": {"type": "string", "minLength": 1},
         "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
