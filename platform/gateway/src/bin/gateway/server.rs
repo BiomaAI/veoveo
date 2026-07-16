@@ -40,11 +40,12 @@ use super::{
     },
     host::validate_host,
     oauth::{authorization_callback, authorize_endpoint, revoke_refresh_token, token_endpoint},
+    recording_ingest::recording_ingest_router,
     runtime::{
         AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
-        ProfileAuthState, ProfileMcpService, Readiness, build_http_client, current_catalog,
-        profile_id_from_gateway_path, run_gateway_retention_gc, spawn_gateway_retention_gc_loop,
-        spawn_refresh_delivery_gc_loop,
+        ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
+        build_http_client, current_catalog, profile_id_from_gateway_path, run_gateway_retention_gc,
+        spawn_gateway_retention_gc_loop, spawn_refresh_delivery_gc_loop,
     },
 };
 
@@ -146,6 +147,14 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             authenticate_mcp,
         ));
     router = router.merge(mcp_router);
+
+    router = router.merge(recording_ingest_router(RecordingIngestGatewayState {
+        catalog: catalog.clone(),
+        gateway_state: gateway_state.clone(),
+        http: http.clone(),
+        internal_token_issuer: internal_token_issuer.clone(),
+        public_base_url: deployment.base_url().to_string(),
+    }));
 
     let artifact_download_state = ArtifactDownloadState {
         catalog: catalog.clone(),

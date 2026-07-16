@@ -10706,6 +10706,7 @@ dependencies = [
  "getrandom 0.3.4",
  "jsonwebtoken",
  "parking_lot",
+ "prost",
  "rcgen",
  "reqwest 0.13.4",
  "rmcp",
@@ -10726,6 +10727,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
+ "veoveo-recording-protocol",
  "veoveo-task-runtime",
 ]
 

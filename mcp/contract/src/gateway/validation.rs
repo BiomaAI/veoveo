@@ -441,6 +441,7 @@ pub(super) fn resource_selector_description(selector: &ResourceSelector) -> Stri
 pub(super) fn validate_policy_set(
     policy: &PolicySet,
     profiles: &BTreeSet<GatewayProfileId>,
+    protected_resources: &BTreeSet<ProtectedResourceId>,
     servers: &BTreeMap<ServerSlug, &ServerManifest>,
     resource_schemes: &BTreeSet<ResourceScheme>,
     data_labels: &BTreeSet<DataLabelId>,
@@ -461,6 +462,17 @@ pub(super) fn validate_policy_set(
                     rule: rule.id.clone(),
                     profile: profile.clone(),
                 });
+            }
+        }
+        for resource in &rule.protected_resources {
+            if !protected_resources.contains(resource) {
+                return Err(
+                    GatewayControlPlaneError::UnknownPolicyRuleProtectedResource {
+                        policy: policy.version.clone(),
+                        rule: rule.id.clone(),
+                        resource: resource.clone(),
+                    },
+                );
             }
         }
         for server in &rule.servers {
@@ -546,6 +558,23 @@ fn validate_policy_rule_actions(
     server_scope: &[&ServerManifest],
 ) -> Result<(), GatewayControlPlaneError> {
     for action in &rule.actions {
+        if action.is_recording_ingest() {
+            if rule.protected_resources.is_empty()
+                || !rule.servers.is_empty()
+                || !rule.tools.is_empty()
+                || !rule.resource_schemes.is_empty()
+                || !rule.prompts.is_empty()
+            {
+                return Err(
+                    GatewayControlPlaneError::PolicyRuleActionUnsupportedByServerScope {
+                        policy: policy.version.clone(),
+                        rule: rule.id.clone(),
+                        action: *action,
+                    },
+                );
+            }
+            continue;
+        }
         let supported = if rule.servers.is_empty() {
             server_scope
                 .iter()
@@ -585,6 +614,10 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         }
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
+        GatewayAction::RecordingStreamOpen
+        | GatewayAction::RecordingStreamStatus
+        | GatewayAction::RecordingBatchAppend
+        | GatewayAction::RecordingStreamFinish => false,
     }
 }
 

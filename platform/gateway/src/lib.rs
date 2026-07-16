@@ -25,7 +25,10 @@ pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,
     ProtectedResourceMetadata, www_authenticate_challenge,
 };
-pub use policy::{PolicyRequest, mcp_method_name, resource_scheme_from_uri};
+pub use policy::{
+    PolicyRequest, RecordingIngestPolicyDecision, RecordingIngestPolicyRequest, mcp_method_name,
+    resource_scheme_from_uri,
+};
 pub use principal_audit::{merge_principal_audit_metadata, principal_audit_metadata};
 pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverError};
 pub use state::{

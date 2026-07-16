@@ -312,6 +312,27 @@ pub(super) async fn record_auth_audit(
     subject: Option<&AuthenticatedSubject>,
     started_at: Instant,
 ) -> anyhow::Result<()> {
+    record_resource_auth_audit(
+        &state.gateway_state,
+        AuthAuditTarget::from(profile),
+        outcome,
+        reason,
+        subject,
+        started_at,
+        BTreeMap::new(),
+    )
+    .await
+}
+
+pub(super) async fn record_resource_auth_audit(
+    gateway_state: &GatewayState,
+    target: AuthAuditTarget<'_>,
+    outcome: AuthOutcome,
+    reason: AuthReasonCode,
+    subject: Option<&AuthenticatedSubject>,
+    started_at: Instant,
+    metadata: BTreeMap<String, String>,
+) -> anyhow::Result<()> {
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let principal = subject.map(|value| value.principal.id.clone());
@@ -320,14 +341,16 @@ pub(super) async fn record_auth_audit(
     let token_subject = subject.map(|value| value.access_token.subject.clone());
     let jwt_id = subject.and_then(|value| value.access_token.jwt_id.clone());
     let latency_ms = u64::try_from(started_at.elapsed().as_millis())?;
-    state
-        .gateway_state
+    let metadata = subject
+        .map(|value| merge_principal_audit_metadata(metadata.clone(), &value.principal))
+        .unwrap_or(metadata);
+    gateway_state
         .record_auth_audit_event(&AuthAuditEvent {
             event_id,
             timestamp: Utc::now(),
             trace_id,
-            profile: Some(profile.id.clone()),
-            protected_resource: profile.protected_resource.clone(),
+            profile: target.profile.cloned(),
+            protected_resource: target.protected_resource.clone(),
             outcome,
             reason,
             method: AuthMethod::BearerJwt,
@@ -339,9 +362,7 @@ pub(super) async fn record_auth_audit(
             token_subject,
             jwt_id,
             latency_ms: Some(latency_ms),
-            metadata: subject
-                .map(|value| principal_audit_metadata(&value.principal))
-                .unwrap_or_default(),
+            metadata,
         })
         .await
 }

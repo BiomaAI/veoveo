@@ -357,6 +357,7 @@ impl GatewayControlPlane {
             validate_policy_set(
                 policy,
                 &profiles,
+                &protected_resources,
                 &servers,
                 &resource_schemes,
                 &data_labels,

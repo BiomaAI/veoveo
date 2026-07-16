@@ -86,13 +86,14 @@ pub use gateway::{
     PolicyReasonCode, PolicyRule, PolicyRuleId, PolicySet, PolicyTarget, PolicyVersion, Principal,
     PrincipalAssurance, PrincipalAuditAttributes, PrincipalId, PrincipalKind,
     ProfileServerExposure, PromptName, ProtectedResourceId, ProtectedResourceName, ProviderTaskId,
-    RecordingApplicationId, RecordingDatasetName, RecordingIngestResource, RecordingProducerId,
-    RecordingProducerQuotas, RecordingProducerRegistration, RecordingRetentionPolicy,
-    ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme, ResourceSelector,
-    ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName, SecretLocator,
-    SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource, ServerManifest,
-    ServerSlug, TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId,
-    UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+    RecordingApplicationId, RecordingDatasetName, RecordingIngestResource, RecordingIngestStreamId,
+    RecordingProducerId, RecordingProducerQuotas, RecordingProducerRegistration,
+    RecordingRetentionPolicy, ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme,
+    ResourceSelector, ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName,
+    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
+    ServerManifest, ServerSlug, TaskExposure, TenantDefinition, TenantId, TokenIssuer,
+    TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
+    UpstreamUrl,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{
