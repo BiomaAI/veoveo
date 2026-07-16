@@ -520,6 +520,10 @@ fn authorized_producer(producer: &RecordingProducerRegistration) -> AuthorizedRe
         classification: producer.classification.clone(),
         labels: producer.labels.iter().map(ToString::to_string).collect(),
         maximum_stream_bytes: producer.quotas.maximum_stream_bytes,
+        maximum_concurrent_streams: producer.quotas.maximum_concurrent_streams,
+        maximum_batches_per_minute: producer.quotas.maximum_batches_per_minute,
+        maximum_bytes_per_day: producer.quotas.maximum_bytes_per_day,
+        open_stream_days: producer.retention.open_stream_days,
     }
 }
 
