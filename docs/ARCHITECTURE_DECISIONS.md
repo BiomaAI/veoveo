@@ -64,6 +64,24 @@ paths. A mutating query interrupted after execution begins fails as
 
 DuckDB is not the durable multi-process platform database.
 
+## Recording ingest
+
+Recording ingest uses one authenticated, resumable batch protocol from Kubernetes, a
+local network, or the public edge. Network placement changes only the route to the
+gateway. Every producer presents an OAuth client-credentials token for the installation's
+recording resource and is bound to an installation-owned tenant, dataset, application
+allowlist, classification, labels, retention policy, and quota set.
+
+Native Rerun gRPC terminates at a loopback producer forwarder. Recording Hub accepts only
+the gateway's short-lived internal assertion and never exposes the Rerun proxy as an
+installation service, NodePort, or public route. The forwarder and hub retain batches
+until a monotonic durable checkpoint makes replay idempotent.
+
+Durability begins with a validated, fsynced batch journal and its SurrealDB checkpoint.
+RRD segments are an ordered materialization of that journal. Open queries include the
+unmaterialized tail, while finishing waits for complete materialization. Frozen and
+sealed RRD segments remain the governed long-term recording authority.
+
 ## Task execution and provider completion
 
 Long-running work uses the shared durable task runtime. Task IDs are UUIDv7 and

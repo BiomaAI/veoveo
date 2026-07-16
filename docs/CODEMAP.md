@@ -16,6 +16,7 @@ component:
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
+| [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 
 MCP designs live with the crate whose public contract they specify:
 
@@ -144,6 +145,12 @@ schema merely because the server is first-party.
 Owns cross-domain Rerun/RRD spacetime types and adapters. Domain results that do not
 overlap Rerun concepts stay local to their MCP crate.
 
+### `platform/recordings/protocol`
+
+Owns the versioned protobuf contract for authenticated recording streams, batches,
+checkpoints, discovery, and errors. Gateway, Record Hub, the forwarder, and smoke tests
+share this crate.
+
 ## SurrealDB Platform Store
 
 ### `platform/store`
@@ -164,6 +171,7 @@ The only durable platform persistence layer.
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
 | `recordings.rs` | recording and segment catalog |
+| `recording_ingest.rs` | producer streams, idempotent batch checkpoints, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration |
 | `store.rs` | connection and transaction helpers over domain records |
@@ -343,15 +351,29 @@ DuckDB-specific ownership:
 
 ## Recordings
 
+### `platform/recordings/protocol`
+
+`proto/veoveo/recording/ingest/v1/ingest.proto` is the canonical public wire schema.
+`src/lib.rs` owns media types, route constants, limits, digest validation, and generated
+types.
+
 ### `platform/recordings/hub`
 
 | File | Responsibility |
 |---|---|
-| `spool.rs` | Rerun receive, segment write/flush/fsync/freeze/recovery |
-| `catalog.rs` | segment verification and governed catalog publication |
-| `query.rs` | RRD query/readback |
-| `config.rs` | dataset routing and validated limits |
+| `server.rs` | internal authenticated recording-ingest HTTP routes |
+| `journal.rs` | deterministic batch write/fsync/rename and restart reconciliation |
+| `materializer.rs` | ordered journal-to-RRD materialization |
+| `spool.rs` | segment encode/flush/fsync/freeze/recovery |
+| `catalog.rs` | per-stream identity, segment verification, and catalog publication |
+| `query.rs` | RRD and open-journal query/readback |
+| `config.rs` | validated ingest, journal, and materialization limits |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
+
+### `platform/recordings/forwarder`
+
+Owns the loopback Rerun gRPC receiver, producer-side durable queue, OAuth
+`private_key_jwt` client, batching, retry, checkpoint resume, and bounded backpressure.
 
 ### `servers/recording-mcp`
 
