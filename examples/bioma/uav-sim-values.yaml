@@ -1,6 +1,7 @@
 platform:
   instanceLabel: veoveo
   publicBaseUrl: https://veoveo.bioma.ai
+  cesiumSecret: veoveo-uav-sim-secrets
   recordingTenantKey: bioma
 
 session:

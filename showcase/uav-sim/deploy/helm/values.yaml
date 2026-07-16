@@ -17,6 +17,7 @@ platform:
   instanceLabel: veoveo
   publicBaseUrl: http://localhost:8780
   installationSecret: veoveo-installation-secrets
+  cesiumSecret: veoveo-uav-sim-secrets
   cesiumTokenKey: cesium-ion-access-token
   surrealService: surrealdb
   surrealNamespace: veoveo
