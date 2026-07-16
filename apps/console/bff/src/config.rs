@@ -79,6 +79,9 @@ impl Config {
             .collect::<Vec<_>>()
             .join(" ")
     }
+    pub(crate) fn oauth_scopes(&self) -> &BTreeSet<ScopeName> {
+        &self.oauth_scopes
+    }
     pub(crate) const fn session_key(&self) -> &[u8; 32] {
         &self.session_key
     }
