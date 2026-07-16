@@ -43,12 +43,52 @@ spec:
   podSelector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [recording]
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
               {{- include "veoveo.selectorLabels" . | nindent 14 }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-recording
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: recording
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "veoveo.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: gateway
+      ports:
+        - protocol: TCP
+          port: 8796
+        - protocol: TCP
+          port: 9878
+    - from:
+        - podSelector:
+            matchLabels:
+              veoveo.ai/recording-producer: "true"
+      ports:
+        - protocol: TCP
+          port: 9876
   egress:
     - to:
         - podSelector:

@@ -100,6 +100,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: sumo-mcp
+        veoveo.ai/recording-producer: "true"
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64

@@ -19,12 +19,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: recording-ingest
+  name: recording-hub
   labels:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: recording
 spec:
-  type: {{ ternary "NodePort" "ClusterIP" .Values.recording.viewer.enabled }}
+  type: ClusterIP
   selector:
     {{- include "veoveo.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: recording
@@ -32,9 +32,9 @@ spec:
     - name: rerun-ingest
       port: 9876
       targetPort: rerun-ingest
-      {{- if .Values.recording.viewer.enabled }}
-      nodePort: {{ .Values.recording.viewer.nodePort }}
-      {{- end }}
+    - name: ingest-api
+      port: 9878
+      targetPort: ingest-api
 ---
 apiVersion: v1
 kind: Service
@@ -89,8 +89,12 @@ spec:
             - spooler
             - --bind
             - 0.0.0.0:9876
+            - --internal-ingest-bind
+            - 0.0.0.0:9878
             - --spool-dir
             - /recordings
+            - --journal-dir
+            - /recordings/.ingest-journal
             - --route
             - {{ .Values.recording.route | quote }}
             - --rerun-bin
@@ -107,6 +111,8 @@ spec:
               value: recording-hub
             - name: RECORDING_CLASSIFICATION
               value: {{ .Values.recording.classification | quote }}
+            - name: RECORDING_INGEST_PROTECTED_RESOURCE
+              value: {{ printf "%s/ingest/recordings" (trimSuffix "/" .Values.global.publicBaseUrl) | quote }}
             {{- if .Values.recording.labels }}
             - name: RECORDING_LABELS
               value: {{ join "," .Values.recording.labels | quote }}
@@ -118,14 +124,16 @@ spec:
           ports:
             - name: rerun-ingest
               containerPort: 9876
+            - name: ingest-api
+              containerPort: 9878
           readinessProbe:
             tcpSocket:
-              port: rerun-ingest
+              port: ingest-api
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             tcpSocket:
-              port: rerun-ingest
+              port: ingest-api
             initialDelaySeconds: 10
             periodSeconds: 10
           securityContext:

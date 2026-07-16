@@ -2,7 +2,7 @@
 
 The Recording Hub is the installation's append-only Rerun ingest plane. Its
 gRPC proxy is private to the installation network. Producers write Rerun log
-messages to the Kubernetes service `recording-ingest:9876`; that endpoint is
+messages to the Kubernetes service `recording-hub:9876`; that endpoint is
 not routed through public ingress.
 
 The spooler partitions files as `{dataset}/{day}/{recording}.rrd`, fsyncs live
