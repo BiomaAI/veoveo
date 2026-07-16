@@ -238,38 +238,37 @@ class Px4Commander:
             mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
         )
 
-    @staticmethod
     def _mission_items(
+        self,
         waypoints: tuple[Waypoint, ...],
     ) -> tuple[list[dict[str, float | int]], set[int]]:
         items: list[dict[str, float | int]] = []
         waypoint_sequences: set[int] = set()
         for index, waypoint in enumerate(waypoints):
-            if index > 0:
-                items.append(
-                    Px4Commander._item(
-                        len(items),
-                        mavutil.mavlink.MAV_FRAME_MISSION,
-                        mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
-                        param1=1.0,
-                        param2=waypoint.speed_mps,
-                    )
+            items.append(
+                Px4Commander._item(
+                    len(items),
+                    mavutil.mavlink.MAV_FRAME_MISSION,
+                    mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
+                    param1=1.0,
+                    param2=waypoint.speed_mps,
                 )
+            )
             command = (
                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF
-                if index == 0
+                if index == 0 and not self._has_flown
                 else mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
             )
             sequence = len(items)
             items.append(
                 Px4Commander._item(
                     sequence,
-                    mavutil.mavlink.MAV_FRAME_GLOBAL,
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
                     command,
                     param1=waypoint.hold_seconds,
                     x=round(waypoint.latitude_degrees * 10_000_000),
                     y=round(waypoint.longitude_degrees * 10_000_000),
-                    z=waypoint.ellipsoid_height_m,
+                    z=waypoint.ellipsoid_height_m - self._origin_height_m,
                 )
             )
             waypoint_sequences.add(sequence)

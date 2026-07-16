@@ -78,16 +78,17 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "typing-extensions==${TYPING_EXTENSIONS_VERSION}" \
       "yarl==${YARL_VERSION}"
 
-COPY --from=upstream /src/cesium/ /opt/veoveo/extensions/
-COPY --from=upstream /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
-COPY --from=upstream /src/px4/ /opt/veoveo/px4/
-COPY veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
-COPY --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
+COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
+COPY --from=upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
+COPY --from=upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
+COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
+COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
 
 RUN groupadd --gid 10001 veoveo \
     && useradd --uid 10001 --gid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo/.cache/ov /var/lib/veoveo/.local/share/ov /var/lib/veoveo/.nvidia-omniverse \
-    && chown -R 10001:10001 /var/lib/veoveo /opt/veoveo
+    && chown -R 10001:10001 /var/lib/veoveo \
+    && chmod 0755 /isaac-sim
 
 ENV ACCEPT_EULA=Y \
     HOME=/var/lib/veoveo \

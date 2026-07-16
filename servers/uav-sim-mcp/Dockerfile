@@ -15,8 +15,8 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=veoveo-uav-sim-mcp-amd64,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-uav-sim-mcp --bin server \
-    && cp /app/target/release/server /tmp/uav-sim-mcp
+    cargo build --release --jobs 4 -p veoveo-uav-sim-mcp --bin uav-sim-mcp \
+    && cp /app/target/release/uav-sim-mcp /tmp/uav-sim-mcp
 
 FROM --platform=${TARGETPLATFORM} debian:bookworm-slim@sha256:63a496b5d3b99214b39f5ed70eb71a61e590a77979c79cbee4faf991f8c0783e
 
