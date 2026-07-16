@@ -315,7 +315,8 @@ fn service_error(error: anyhow::Error) -> Response {
                 "recording ingest stream was not found",
                 None,
             ),
-            StoreError::RecordingIngestStreamStateConflict { .. } => ingest_error(
+            StoreError::RecordingIngestStreamStateConflict { .. }
+            | StoreError::RecordingIngestStreamExpired(_) => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::StreamFinished,
                 &store.to_string(),
@@ -330,6 +331,12 @@ fn service_error(error: anyhow::Error) -> Response {
             StoreError::RecordingIngestDigestConflict { .. } => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::DigestConflict,
+                &store.to_string(),
+                None,
+            ),
+            StoreError::RecordingIngestQuotaExceeded { .. } => ingest_error(
+                StatusCode::TOO_MANY_REQUESTS,
+                IngestErrorCode::QuotaExceeded,
                 &store.to_string(),
                 None,
             ),

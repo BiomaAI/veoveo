@@ -122,6 +122,7 @@ impl RecordingIngestService {
                 application_id: application_id.to_owned(),
                 recording_key: recording_key.to_owned(),
                 dataset: producer.dataset.clone(),
+                maximum_concurrent_streams: producer.maximum_concurrent_streams,
             })
             .await?;
         self.stream_response(&stream)
@@ -152,6 +153,16 @@ impl RecordingIngestService {
         let stream = self
             .authorized_stream(&identity, producer, stream_id)
             .await?;
+        if chrono::Utc::now()
+            > stream.opened_at + chrono::TimeDelta::days(i64::from(producer.open_stream_days))
+        {
+            return Err(
+                veoveo_platform_store::StoreError::RecordingIngestStreamExpired(
+                    stream_id.to_string(),
+                )
+                .into(),
+            );
+        }
         ensure!(
             stream.byte_len
                 + i64::try_from(batch.encoded_rrd.len()).context("batch length exceeds i64")?
@@ -178,6 +189,9 @@ impl RecordingIngestService {
                 relative_path,
                 byte_len: batch.encoded_rrd.len() as u64,
                 message_count: batch.message_count,
+                producer_id: producer.producer_id.clone(),
+                maximum_batches_per_minute: producer.maximum_batches_per_minute,
+                maximum_bytes_per_day: producer.maximum_bytes_per_day,
             })
             .await?;
         let mut stream = outcome.stream;
@@ -265,6 +279,9 @@ impl RecordingIngestService {
                             relative_path,
                             byte_len: batch.encoded_rrd.len() as u64,
                             message_count: batch.message_count,
+                            producer_id: stream.producer_id.clone(),
+                            maximum_batches_per_minute: u32::MAX,
+                            maximum_bytes_per_day: i64::MAX as u64,
                         })
                         .await?;
                     if outcome.batch.state == RecordingIngestBatchState::Durable {
@@ -544,6 +561,13 @@ fn validate_producer(producer: &AuthorizedRecordingProducer) -> Result<()> {
     ensure!(
         producer.maximum_stream_bytes > 0,
         "producer stream byte limit must be positive"
+    );
+    ensure!(
+        producer.maximum_concurrent_streams > 0
+            && producer.maximum_batches_per_minute > 0
+            && producer.maximum_bytes_per_day > 0
+            && producer.open_stream_days > 0,
+        "producer quota and retention limits must be positive"
     );
     Ok(())
 }

@@ -96,6 +96,10 @@ message AuthorizedRecordingProducer {
   string classification = 6;
   repeated string labels = 7;
   uint64 maximum_stream_bytes = 8;
+  uint32 maximum_concurrent_streams = 9;
+  uint32 maximum_batches_per_minute = 10;
+  uint64 maximum_bytes_per_day = 11;
+  uint32 open_stream_days = 12;
 }
 
 message AuthorizedOpenRecordingStreamRequest {

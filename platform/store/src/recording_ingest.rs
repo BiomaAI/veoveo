@@ -20,6 +20,7 @@ pub struct RecordingIngestStreamDraft {
     pub application_id: String,
     pub recording_key: String,
     pub dataset: String,
+    pub maximum_concurrent_streams: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -32,6 +33,9 @@ pub struct RecordingIngestBatchDraft {
     pub relative_path: String,
     pub byte_len: u64,
     pub message_count: u64,
+    pub producer_id: String,
+    pub maximum_batches_per_minute: u32,
+    pub maximum_bytes_per_day: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,6 +72,7 @@ struct RecordingIngestStreamContent {
 struct RecordingIngestBatchContent {
     tenant: RecordId,
     stream: RecordId,
+    producer_id: String,
     sequence: i64,
     payload_format: String,
     sha256: String,
@@ -122,9 +127,15 @@ impl PlatformStore {
         };
         let created = self
             .db
-            .query("CREATE ONLY $stream CONTENT $content RETURN NONE;")
+            .query("BEGIN TRANSACTION; LET $open_streams = (SELECT VALUE id FROM recording_ingest_stream WHERE tenant = $tenant AND producer_id = $producer_id AND state = 'open'); IF array::len($open_streams) >= $maximum_concurrent_streams { THROW 'recording_ingest_concurrent_stream_quota'; }; CREATE ONLY $stream CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
             .bind(("stream", stream_id.record_id()))
             .bind(("content", content))
+            .bind(("tenant", draft.identity.tenant_id.record_id()))
+            .bind(("producer_id", draft.producer_id.clone()))
+            .bind((
+                "maximum_concurrent_streams",
+                i64::from(draft.maximum_concurrent_streams),
+            ))
             .await
             .and_then(|response| response.check());
         if let Err(error) = created {
@@ -139,7 +150,7 @@ impl PlatformStore {
                 validate_existing_stream(&existing, &draft)?;
                 return Ok(existing);
             }
-            return Err(error.into());
+            return Err(classify_database_error(error));
         }
         self.recording_ingest_stream(draft.identity.tenant_id, stream_id)
             .await?
@@ -205,6 +216,7 @@ impl PlatformStore {
         let content = RecordingIngestBatchContent {
             tenant: draft.identity.tenant_id.record_id(),
             stream: draft.stream_id.record_id(),
+            producer_id: draft.producer_id.clone(),
             sequence,
             payload_format: draft.payload_format.clone(),
             sha256: draft.sha256.clone(),
@@ -217,7 +229,7 @@ impl PlatformStore {
         };
         let committed = self
             .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $stream); IF $current.state != 'open' OR $current.revision != $revision OR $current.next_sequence != $sequence { THROW 'recording_ingest_checkpoint_conflict'; }; CREATE ONLY $batch CONTENT $content RETURN NONE; UPDATE ONLY $stream SET next_sequence += 1, byte_len += $byte_len, message_count += $message_count, updated_at = $now, revision += 1 RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $stream); IF $current.state != 'open' OR $current.revision != $revision OR $current.next_sequence != $sequence { THROW 'recording_ingest_checkpoint_conflict'; }; LET $minute_batches = (SELECT VALUE id FROM recording_ingest_batch WHERE tenant = $tenant AND producer_id = $producer_id AND created_at >= $minute_cutoff); IF array::len($minute_batches) >= $maximum_batches_per_minute { THROW 'recording_ingest_batches_per_minute_quota'; }; LET $day_bytes = (SELECT VALUE byte_len FROM recording_ingest_batch WHERE tenant = $tenant AND producer_id = $producer_id AND created_at >= $day_cutoff); IF math::sum($day_bytes) + $byte_len > $maximum_bytes_per_day { THROW 'recording_ingest_bytes_per_day_quota'; }; CREATE ONLY $batch CONTENT $content RETURN NONE; UPDATE ONLY $stream SET next_sequence += 1, byte_len += $byte_len, message_count += $message_count, updated_at = $now, revision += 1 RETURN NONE; COMMIT TRANSACTION;")
             .bind(("stream", draft.stream_id.record_id()))
             .bind(("revision", stream.revision))
             .bind(("sequence", sequence))
@@ -226,9 +238,21 @@ impl PlatformStore {
             .bind(("byte_len", byte_len))
             .bind(("message_count", message_count))
             .bind(("now", now))
+            .bind(("tenant", draft.identity.tenant_id.record_id()))
+            .bind(("producer_id", draft.producer_id.clone()))
+            .bind(("minute_cutoff", now - chrono::TimeDelta::minutes(1)))
+            .bind(("day_cutoff", now - chrono::TimeDelta::days(1)))
+            .bind((
+                "maximum_batches_per_minute",
+                i64::from(draft.maximum_batches_per_minute),
+            ))
+            .bind((
+                "maximum_bytes_per_day",
+                checked_i64("maximum_bytes_per_day", draft.maximum_bytes_per_day)?,
+            ))
             .await
             .and_then(|response| response.check());
-        if committed.is_err() {
+        if let Err(error) = committed {
             let current = self
                 .recording_ingest_stream(draft.identity.tenant_id, draft.stream_id)
                 .await?
@@ -239,7 +263,7 @@ impl PlatformStore {
                 return duplicate_outcome(current, &draft, self).await;
             }
             classify_sequence(&current, &draft, self).await?;
-            return Err(StoreError::RecordingIngestCheckpointConflict);
+            return Err(classify_database_error(error));
         }
         let stream = self
             .recording_ingest_stream(draft.identity.tenant_id, draft.stream_id)
@@ -437,6 +461,12 @@ fn validate_stream_draft(draft: &RecordingIngestStreamDraft) -> Result<(), Store
     ] {
         validate_text(field, value)?;
     }
+    if draft.maximum_concurrent_streams == 0 {
+        return Err(StoreError::InvalidRecordingIngestField {
+            field: "maximum_concurrent_streams",
+            reason: "must be positive",
+        });
+    }
     Ok(())
 }
 
@@ -463,6 +493,7 @@ fn validate_existing_stream(
 fn validate_batch_draft(draft: &RecordingIngestBatchDraft) -> Result<(), StoreError> {
     validate_text("payload_format", &draft.payload_format)?;
     validate_text("relative_path", &draft.relative_path)?;
+    validate_text("producer_id", &draft.producer_id)?;
     if draft.relative_path.starts_with('/') || draft.relative_path.contains("..") {
         return Err(StoreError::InvalidRecordingIngestField {
             field: "relative_path",
@@ -484,7 +515,35 @@ fn validate_batch_draft(draft: &RecordingIngestBatchDraft) -> Result<(), StoreEr
     checked_i64("sequence", draft.sequence)?;
     checked_i64("byte_len", draft.byte_len)?;
     checked_i64("message_count", draft.message_count)?;
+    if draft.maximum_batches_per_minute == 0 || draft.maximum_bytes_per_day == 0 {
+        return Err(StoreError::InvalidRecordingIngestField {
+            field: "producer_quotas",
+            reason: "must be positive",
+        });
+    }
+    checked_i64("maximum_bytes_per_day", draft.maximum_bytes_per_day)?;
     Ok(())
+}
+
+fn classify_database_error(error: surrealdb::Error) -> StoreError {
+    let message = error.to_string();
+    if message.contains("recording_ingest_concurrent_stream_quota") {
+        StoreError::RecordingIngestQuotaExceeded {
+            quota: "maximum_concurrent_streams",
+        }
+    } else if message.contains("recording_ingest_batches_per_minute_quota") {
+        StoreError::RecordingIngestQuotaExceeded {
+            quota: "maximum_batches_per_minute",
+        }
+    } else if message.contains("recording_ingest_bytes_per_day_quota") {
+        StoreError::RecordingIngestQuotaExceeded {
+            quota: "maximum_bytes_per_day",
+        }
+    } else if message.contains("recording_ingest_checkpoint_conflict") {
+        StoreError::RecordingIngestCheckpointConflict
+    } else {
+        StoreError::Database(error)
+    }
 }
 
 fn validate_text(field: &'static str, value: &str) -> Result<(), StoreError> {
@@ -528,6 +587,9 @@ mod tests {
             relative_path: "journal/stream/00000000000000000000.rrd".to_owned(),
             byte_len: 1,
             message_count: 1,
+            producer_id: "producer-a".to_owned(),
+            maximum_batches_per_minute: 60,
+            maximum_bytes_per_day: 1_000_000,
         };
         assert!(validate_batch_draft(&draft).is_ok());
         draft.relative_path = "../outside".to_owned();

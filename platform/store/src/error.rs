@@ -93,12 +93,16 @@ pub enum StoreError {
     RecordingIngestStreamNotFound(String),
     #[error("recording ingest stream `{stream_id}` is {state}")]
     RecordingIngestStreamStateConflict { stream_id: String, state: String },
+    #[error("recording ingest stream `{0}` exceeded its open-stream retention window")]
+    RecordingIngestStreamExpired(String),
     #[error("recording ingest stream expected sequence {expected}, received {actual}")]
     RecordingIngestSequenceGap { expected: u64, actual: u64 },
     #[error("recording ingest sequence {sequence} conflicts with its durable digest")]
     RecordingIngestDigestConflict { sequence: u64 },
     #[error("recording ingest checkpoint changed concurrently")]
     RecordingIngestCheckpointConflict,
+    #[error("recording ingest producer exceeded the {quota} quota")]
+    RecordingIngestQuotaExceeded { quota: &'static str },
     #[error("invalid domain usage field {field}: {reason}")]
     InvalidUsageField {
         field: &'static str,
