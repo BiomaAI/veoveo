@@ -18,7 +18,10 @@ RUN git clone https://github.com/PX4/PX4-Autopilot.git px4 \
     && rm -rf px4/.git px4/build/px4_sitl_default/build_gtest
 
 RUN git clone https://github.com/PegasusSimulator/PegasusSimulator.git pegasus \
-    && git -C pegasus checkout --detach "${PEGASUS_COMMIT}"
+    && git -C pegasus checkout --detach "${PEGASUS_COMMIT}" \
+    && find pegasus/extensions/pegasus.simulator -type f \
+      \( -name '*.py' -o -name '*.toml' \) \
+      -exec sed -i 's/[[:space:]]\+$//' {} +
 COPY patches/pegasus-5.1.0-isaac-6.0.1.patch /tmp/pegasus.patch
 RUN git -C pegasus apply --check /tmp/pegasus.patch \
     && git -C pegasus apply /tmp/pegasus.patch \
