@@ -84,6 +84,21 @@ pub enum StoreError {
     },
     #[error("segment `{segment_id}` conflicts with its existing immutable identity")]
     SegmentConflict { segment_id: String },
+    #[error("invalid recording ingest field {field}: {reason}")]
+    InvalidRecordingIngestField {
+        field: &'static str,
+        reason: &'static str,
+    },
+    #[error("recording ingest stream `{0}` was not found")]
+    RecordingIngestStreamNotFound(String),
+    #[error("recording ingest stream `{stream_id}` is {state}")]
+    RecordingIngestStreamStateConflict { stream_id: String, state: String },
+    #[error("recording ingest stream expected sequence {expected}, received {actual}")]
+    RecordingIngestSequenceGap { expected: u64, actual: u64 },
+    #[error("recording ingest sequence {sequence} conflicts with its durable digest")]
+    RecordingIngestDigestConflict { sequence: u64 },
+    #[error("recording ingest checkpoint changed concurrently")]
+    RecordingIngestCheckpointConflict,
     #[error("invalid domain usage field {field}: {reason}")]
     InvalidUsageField {
         field: &'static str,

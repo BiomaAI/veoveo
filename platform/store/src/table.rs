@@ -60,6 +60,8 @@ pub enum PlatformTable {
     TimeClockPolicy,
     Recording,
     Segment,
+    RecordingIngestStream,
+    RecordingIngestBatch,
     Agent,
     Wake,
     AgentEpisode,
@@ -70,7 +72,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 61] = [
+    pub const ALL: [Self; 63] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -125,6 +127,8 @@ impl PlatformTable {
         Self::TimeClockPolicy,
         Self::Recording,
         Self::Segment,
+        Self::RecordingIngestStream,
+        Self::RecordingIngestBatch,
         Self::Agent,
         Self::Wake,
         Self::AgentEpisode,
@@ -190,6 +194,8 @@ impl PlatformTable {
             Self::TimeClockPolicy => "time_clock_policy",
             Self::Recording => "recording",
             Self::Segment => "segment",
+            Self::RecordingIngestStream => "recording_ingest_stream",
+            Self::RecordingIngestBatch => "recording_ingest_batch",
             Self::Agent => "agent",
             Self::Wake => "wake",
             Self::AgentEpisode => "agent_episode",
