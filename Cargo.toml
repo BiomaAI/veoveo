@@ -27,6 +27,7 @@ members = [
     "servers/recording-mcp",
     "servers/timeseries-mcp",
     "servers/time-mcp",
+    "servers/uav-sim-mcp",
     "servers/view-mcp",
     "showcase/sumo/sumo-mcp",
     "testing/mcp-conformance",
