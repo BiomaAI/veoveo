@@ -180,6 +180,9 @@ consoleBff:
     - operator:use
     - admin:manage
     - map:admin
+    - map:dataset:read
+    - time:read
+    - view:read
   resources:
     requests:
       cpu: 50m
