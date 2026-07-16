@@ -1,26 +1,107 @@
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode, Url};
+use serde::Deserialize;
 use thiserror::Error;
+use veoveo_platform_store::{
+    PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
+    deterministic_tenant_id,
+};
 
 use crate::{
     contract::{
-        CommandAcknowledgement, DurableOperation, DurableOperationResult, MissionLifecycle,
-        MissionResult, ScenarioResult, SimulationCommand, SimulationLifecycle, SimulationState,
-        VehicleFlightState,
+        CaptureDatasetResult, CommandAcknowledgement, DurableOperation, DurableOperationResult,
+        MissionId, MissionLifecycle, MissionResult, RecordingId, RecordingState, ScenarioResult,
+        SessionId, SimulationCommand, SimulationLifecycle, SimulationState, TileState,
+        VehicleFlightState, VehicleState, Wgs84Position,
     },
     uris,
 };
+
+const RECORDING_APPLICATION_ID: &str = "veoveo-uav-sim";
+const RECORDING_CATALOG_ATTEMPTS: usize = 100;
+const RECORDING_CATALOG_RETRY: Duration = Duration::from_millis(100);
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterRecordingState {
+    application_id: String,
+    recording_key: String,
+    active: bool,
+    camera_streams: Vec<String>,
+    started_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterSimulationState {
+    session_id: SessionId,
+    lifecycle: SimulationLifecycle,
+    simulation_time_s: f64,
+    physics_step: u64,
+    frame_uri: String,
+    georeference_origin: Wgs84Position,
+    tiles: TileState,
+    vehicles: Vec<VehicleState>,
+    recordings: Vec<AdapterRecordingState>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterScenarioResult {
+    session_id: SessionId,
+    elapsed_seconds: f64,
+    final_simulation_time_s: f64,
+    collision_count: u64,
+    recording_keys: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterMissionResult {
+    mission_id: MissionId,
+    lifecycle: MissionLifecycle,
+    started_at: DateTime<Utc>,
+    finished_at: DateTime<Utc>,
+    completed_waypoints: u64,
+    recording_keys: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterCaptureDatasetResult {
+    session_id: SessionId,
+    elapsed_seconds: f64,
+    recording_keys: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "result", content = "output", rename_all = "snake_case")]
+enum AdapterDurableOperationResult {
+    RunScenario(AdapterScenarioResult),
+    ExecuteMission(AdapterMissionResult),
+    CaptureDataset(AdapterCaptureDatasetResult),
+}
 
 #[derive(Clone)]
 pub struct HttpAdapter {
     client: Client,
     base_url: Url,
+    operation_timeout: Duration,
+    platform_store: PlatformStore,
+    recording_tenant_id: TenantId,
 }
 
 impl HttpAdapter {
-    pub fn new(base_url: Url, timeout: Duration) -> Result<Self, AdapterError> {
+    pub fn new(
+        base_url: Url,
+        timeout: Duration,
+        operation_timeout: Duration,
+        platform_store: PlatformStore,
+        recording_tenant_key: &str,
+    ) -> Result<Self, AdapterError> {
         if base_url.scheme() != "http" {
             return Err(AdapterError::Configuration(
                 "simulator adapter URL must use cluster-private HTTP".to_owned(),
@@ -30,11 +111,48 @@ impl HttpAdapter {
             .timeout(timeout)
             .build()
             .map_err(AdapterError::Transport)?;
-        Ok(Self { client, base_url })
+        Ok(Self {
+            client,
+            base_url,
+            operation_timeout,
+            platform_store,
+            recording_tenant_id: deterministic_tenant_id(recording_tenant_key)
+                .map_err(AdapterError::Catalog)?,
+        })
     }
 
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
-        self.get("v1/state").await
+        let state: AdapterSimulationState = self.get("v1/state").await?;
+        let mut recordings = Vec::with_capacity(state.recordings.len());
+        for recording in state.recordings {
+            if recording.application_id != RECORDING_APPLICATION_ID {
+                return Err(AdapterError::InvalidRecordingCatalog(format!(
+                    "adapter returned application_id {:?}, expected {RECORDING_APPLICATION_ID}",
+                    recording.application_id
+                )));
+            }
+            let (recording_id, recording_uri) =
+                self.resolve_recording(&recording.recording_key).await?;
+            recordings.push(RecordingState {
+                recording_id,
+                recording_uri,
+                active: recording.active,
+                camera_streams: recording.camera_streams,
+                started_at: recording.started_at,
+            });
+        }
+        Ok(SimulationState {
+            session_id: state.session_id,
+            lifecycle: state.lifecycle,
+            simulation_time_s: state.simulation_time_s,
+            physics_step: state.physics_step,
+            frame_uri: state.frame_uri,
+            georeference_origin: state.georeference_origin,
+            tiles: state.tiles,
+            vehicles: state.vehicles,
+            recordings,
+            updated_at: state.updated_at,
+        })
     }
 
     pub async fn command(
@@ -48,7 +166,104 @@ impl HttpAdapter {
         &self,
         operation: &DurableOperation,
     ) -> Result<DurableOperationResult, AdapterError> {
-        self.post("v1/operations", operation).await
+        let simulated_duration = match operation {
+            DurableOperation::RunScenario(request) => Some(request.duration_seconds),
+            DurableOperation::CaptureDataset(request) => Some(request.duration_seconds),
+            DurableOperation::ExecuteMission(_) => None,
+        };
+        let timeout = simulated_duration
+            .map(|duration| Duration::from_secs_f64(duration.mul_add(20.0, 120.0)))
+            .map_or(self.operation_timeout, |duration| {
+                duration.max(self.operation_timeout)
+            });
+        let result: AdapterDurableOperationResult = self
+            .post_with_timeout("v1/operations", operation, timeout)
+            .await?;
+        Ok(match result {
+            AdapterDurableOperationResult::RunScenario(value) => {
+                DurableOperationResult::RunScenario(ScenarioResult {
+                    session_id: value.session_id,
+                    elapsed_seconds: value.elapsed_seconds,
+                    final_simulation_time_s: value.final_simulation_time_s,
+                    collision_count: value.collision_count,
+                    recording_uris: self.resolve_recording_keys(value.recording_keys).await?,
+                })
+            }
+            AdapterDurableOperationResult::ExecuteMission(value) => {
+                DurableOperationResult::ExecuteMission(MissionResult {
+                    mission_id: value.mission_id,
+                    lifecycle: value.lifecycle,
+                    started_at: value.started_at,
+                    finished_at: value.finished_at,
+                    completed_waypoints: value.completed_waypoints,
+                    recording_uris: self.resolve_recording_keys(value.recording_keys).await?,
+                })
+            }
+            AdapterDurableOperationResult::CaptureDataset(value) => {
+                DurableOperationResult::CaptureDataset(CaptureDatasetResult {
+                    session_id: value.session_id,
+                    elapsed_seconds: value.elapsed_seconds,
+                    recording_uris: self.resolve_recording_keys(value.recording_keys).await?,
+                })
+            }
+        })
+    }
+
+    async fn resolve_recording_keys(
+        &self,
+        recording_keys: Vec<String>,
+    ) -> Result<Vec<String>, AdapterError> {
+        let mut recording_uris = Vec::with_capacity(recording_keys.len());
+        for recording_key in recording_keys {
+            recording_uris.push(self.resolve_recording(&recording_key).await?.1);
+        }
+        Ok(recording_uris)
+    }
+
+    async fn resolve_recording(
+        &self,
+        recording_key: &str,
+    ) -> Result<(RecordingId, String), AdapterError> {
+        for _ in 0..RECORDING_CATALOG_ATTEMPTS {
+            if let Some(recording) = self
+                .platform_store
+                .recording_by_key(
+                    self.recording_tenant_id,
+                    RECORDING_APPLICATION_ID,
+                    recording_key,
+                )
+                .await
+                .map_err(AdapterError::Catalog)?
+            {
+                let uuid = match recording.id.key {
+                    RecordIdKey::Uuid(value) => *value,
+                    RecordIdKey::String(value) => {
+                        uuid::Uuid::parse_str(&value).map_err(|error| {
+                            AdapterError::InvalidRecordingCatalog(error.to_string())
+                        })?
+                    }
+                    key => {
+                        return Err(AdapterError::InvalidRecordingCatalog(format!(
+                            "recording catalog returned unsupported record key {key:?}"
+                        )));
+                    }
+                };
+                if recording.id.table.as_str() != PlatformRecordingId::TABLE
+                    || uuid.get_version_num() != 7
+                {
+                    return Err(AdapterError::InvalidRecordingCatalog(format!(
+                        "recording key {recording_key:?} resolved to a non-UUIDv7 recording"
+                    )));
+                }
+                let id = RecordingId::new(uuid.to_string())
+                    .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?;
+                return Ok((id, format!("recording://recordings/{uuid}")));
+            }
+            tokio::time::sleep(RECORDING_CATALOG_RETRY).await;
+        }
+        Err(AdapterError::RecordingCatalogTimeout(
+            recording_key.to_owned(),
+        ))
     }
 
     async fn get<T>(&self, path: &str) -> Result<T, AdapterError>
@@ -72,6 +287,27 @@ impl HttpAdapter {
         let response = self
             .client
             .post(self.endpoint(path)?)
+            .json(input)
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        decode(response).await
+    }
+
+    async fn post_with_timeout<I, O>(
+        &self,
+        path: &str,
+        input: &I,
+        timeout: Duration,
+    ) -> Result<O, AdapterError>
+    where
+        I: serde::Serialize + ?Sized,
+        O: serde::de::DeserializeOwned,
+    {
+        let response = self
+            .client
+            .post(self.endpoint(path)?)
+            .timeout(timeout)
             .json(input)
             .send()
             .await
@@ -333,6 +569,12 @@ pub enum AdapterError {
     UnknownVehicle(String),
     #[error("invalid simulator state: {0}")]
     InvalidState(String),
+    #[error("recording catalog failed: {0}")]
+    Catalog(#[source] veoveo_platform_store::StoreError),
+    #[error("recording catalog returned invalid data: {0}")]
+    InvalidRecordingCatalog(String),
+    #[error("recording key `{0}` was not cataloged within 10 seconds")]
+    RecordingCatalogTimeout(String),
 }
 
 #[cfg(test)]
@@ -360,7 +602,7 @@ mod tests {
             tiles: TileState {
                 lifecycle: TileLifecycle::Ready,
                 source: "google_photorealistic_3d_tiles".to_owned(),
-                ion_asset_id: 1,
+                ion_asset_id: 2_275_207,
                 resident_tiles: 20,
                 loading_tiles: 0,
                 failed_tiles: 0,
@@ -437,5 +679,38 @@ mod tests {
             ))
             .unwrap_err();
         assert!(matches!(error, AdapterError::InvalidState(_)));
+    }
+
+    #[test]
+    fn private_adapter_recording_wire_uses_catalog_key() {
+        let recording: AdapterRecordingState = serde_json::from_value(serde_json::json!({
+            "application_id": "veoveo-uav-sim",
+            "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
+            "active": true,
+            "camera_streams": ["/world/uav-sim/session-alpha/vehicle/uav-1/camera/front"],
+            "started_at": "2026-07-16T18:00:00Z"
+        }))
+        .unwrap();
+
+        assert_eq!(recording.application_id, RECORDING_APPLICATION_ID);
+        assert_eq!(
+            recording.recording_key,
+            "019f7122-3d89-7d21-8312-8940d1e0f510"
+        );
+    }
+
+    #[test]
+    fn private_adapter_rejects_claimed_public_recording_uri() {
+        let error = serde_json::from_value::<AdapterRecordingState>(serde_json::json!({
+            "application_id": "veoveo-uav-sim",
+            "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
+            "recording_uri": "recording://recordings/not-cataloged",
+            "active": true,
+            "camera_streams": [],
+            "started_at": "2026-07-16T18:00:00Z"
+        }))
+        .unwrap_err();
+
+        assert!(error.to_string().contains("unknown field `recording_uri`"));
     }
 }

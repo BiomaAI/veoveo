@@ -33,6 +33,18 @@ pub(super) struct Args {
     pub(super) adapter_url: String,
     #[arg(long, env = "UAV_SIM_ADAPTER_TIMEOUT_SECONDS", default_value_t = 90)]
     pub(super) adapter_timeout_seconds: u64,
+    #[arg(
+        long,
+        env = "UAV_SIM_ADAPTER_OPERATION_TIMEOUT_SECONDS",
+        default_value_t = 3600
+    )]
+    pub(super) adapter_operation_timeout_seconds: u64,
+    #[arg(
+        long,
+        env = "UAV_SIM_RECORDING_TENANT_KEY",
+        default_value = "enterprise"
+    )]
+    pub(super) recording_tenant_key: String,
     #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
     pub(super) surreal_endpoint: String,
     #[arg(long = "surreal-namespace", env = "VEOVEO_SURREAL_NAMESPACE")]
@@ -77,6 +89,14 @@ impl Args {
             "adapter timeout must be positive"
         );
         Ok(Duration::from_secs(self.adapter_timeout_seconds))
+    }
+
+    pub(super) fn adapter_operation_timeout(&self) -> anyhow::Result<Duration> {
+        anyhow::ensure!(
+            self.adapter_operation_timeout_seconds > 0,
+            "adapter operation timeout must be positive"
+        );
+        Ok(Duration::from_secs(self.adapter_operation_timeout_seconds))
     }
 }
 

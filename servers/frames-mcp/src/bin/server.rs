@@ -64,6 +64,8 @@ use veoveo_task_runtime::{
 
 #[path = "server/app_state.rs"]
 mod app_state;
+#[path = "server/bootstrap.rs"]
+mod bootstrap;
 #[path = "server/config.rs"]
 mod config;
 #[path = "server/host.rs"]
@@ -80,7 +82,7 @@ mod prompts;
 mod task_extension;
 
 use app_state::{AppState, update_task};
-use config::Args;
+use config::Cli;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use outputs::usage_record;
@@ -881,7 +883,10 @@ async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-frames-mcp", "info,veoveo_frames_mcp=debug")?;
-    let args = Args::parse();
+    let args = match Cli::parse() {
+        Cli::Serve(args) => *args,
+        Cli::BootstrapValidate { path } => return bootstrap::run_validate(&path).await,
+    };
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
@@ -904,6 +909,9 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     let recovery = tasks.recover().await?;
     let frames = FramesState::new(tasks.platform_store().clone());
+    if let Some(path) = &args.bootstrap_catalog {
+        bootstrap::apply(path, tasks.platform_store(), &frames).await?;
+    }
     let state = Arc::new(AppState {
         tasks,
         frames,

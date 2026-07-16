@@ -646,13 +646,6 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let adapter = match args.adapter {
-        AdapterKind::Http => Adapter::Http(HttpAdapter::new(
-            args.adapter_url()?,
-            args.adapter_timeout()?,
-        )?),
-        AdapterKind::Fake => Adapter::Fake(FakeAdapter::new(fake_state()?)),
-    };
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -667,6 +660,16 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     )
     .await?;
     let recovery = tasks.recover().await?;
+    let adapter = match args.adapter {
+        AdapterKind::Http => Adapter::Http(HttpAdapter::new(
+            args.adapter_url()?,
+            args.adapter_timeout()?,
+            args.adapter_operation_timeout()?,
+            tasks.platform_store().clone(),
+            &args.recording_tenant_key,
+        )?),
+        AdapterKind::Fake => Adapter::Fake(FakeAdapter::new(fake_state()?)),
+    };
     let state = Arc::new(AppState {
         adapter: Arc::new(Mutex::new(adapter)),
         tasks,
