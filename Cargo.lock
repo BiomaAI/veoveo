@@ -11192,6 +11192,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-uav-sim-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "futures",
+ "reqwest 0.13.4",
+ "rmcp",
+ "rustls",
+ "schemars",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tower-http 0.7.0",
+ "tracing",
+ "url",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-task-extension",
+ "veoveo-task-runtime",
+]
+
+[[package]]
 name = "veoveo-view-mcp"
 version = "0.1.0"
 dependencies = [
