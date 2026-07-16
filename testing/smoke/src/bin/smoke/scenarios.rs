@@ -19,6 +19,8 @@ mod map;
 mod media;
 #[path = "scenarios/perception.rs"]
 mod perception;
+#[path = "scenarios/recording_ingest.rs"]
+mod recording_ingest;
 #[path = "scenarios/secrets.rs"]
 mod secrets;
 #[path = "scenarios/sumo.rs"]
@@ -35,6 +37,7 @@ pub(crate) use gateway::*;
 pub(crate) use map::*;
 pub(crate) use media::*;
 pub(crate) use perception::*;
+pub(crate) use recording_ingest::*;
 pub(crate) use secrets::*;
 pub(crate) use sumo::*;
 pub(crate) use view::*;
@@ -71,6 +74,10 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
             "veoveo-mcp-gateway".into(),
             "--bin".into(),
             "gateway".into(),
+            "-p".into(),
+            "veoveo-recording-hub".into(),
+            "--bin".into(),
+            "spooler".into(),
             "-p".into(),
             "veoveo-media-mcp".into(),
             "--bin".into(),
@@ -121,6 +128,15 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
 
     suite_step("gateway HTTP and OAuth boundary");
     gateway_http(conformance, gateway, smoke_control_plane).await?;
+
+    suite_step("authenticated recording ingest boundary");
+    recording_ingest(
+        conformance,
+        gateway,
+        Path::new("target/debug/spooler"),
+        smoke_control_plane,
+    )
+    .await?;
 
     suite_step("gateway OpenTelemetry export");
     otel(conformance, gateway, smoke_control_plane).await?;

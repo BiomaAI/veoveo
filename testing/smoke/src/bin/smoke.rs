@@ -202,6 +202,21 @@ enum Cmd {
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
     },
+    /// Prove producer discovery, OAuth, gateway policy, and Hub durability end to end.
+    RecordingIngest {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Built Recording Hub spooler binary path.
+        #[arg(long, default_value = "target/debug/spooler")]
+        hub_bin: PathBuf,
+        /// Base gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+    },
     /// Verify browser OAuth against a pinned, real HTTPS Keycloak identity provider.
     GatewayKeycloak {
         /// Built conformance binary path.
@@ -501,6 +516,12 @@ async fn main() -> Result<()> {
             gateway_bin,
             control_plane,
         } => gateway_http(&conformance_bin, &gateway_bin, &control_plane).await,
+        Cmd::RecordingIngest {
+            conformance_bin,
+            gateway_bin,
+            hub_bin,
+            control_plane,
+        } => recording_ingest(&conformance_bin, &gateway_bin, &hub_bin, &control_plane).await,
         Cmd::GatewayKeycloak {
             conformance_bin,
             gateway_bin,

@@ -366,12 +366,20 @@ pub(crate) async fn spawn_gateway_platform_store(
 }
 
 pub(crate) fn gateway_serve_args(port: u16, platform: &PlatformStoreSmoke) -> Vec<OsString> {
+    gateway_serve_args_for_base(port, platform, PUBLIC_BASE_URL)
+}
+
+pub(crate) fn gateway_serve_args_for_base(
+    port: u16,
+    platform: &PlatformStoreSmoke,
+    public_base_url: &str,
+) -> Vec<OsString> {
     vec![
         "serve".into(),
         "--port".into(),
         port.to_string().into(),
         "--public-base-url".into(),
-        PUBLIC_BASE_URL.into(),
+        public_base_url.into(),
         "--surreal-endpoint".into(),
         platform.endpoint.clone().into(),
         "--surreal-namespace".into(),
