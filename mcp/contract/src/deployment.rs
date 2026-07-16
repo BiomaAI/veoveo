@@ -165,9 +165,9 @@ pub enum PlatformStoreEngine {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SurrealDbVersion {
-    #[serde(rename = "3.2.0")]
-    #[schemars(rename = "3.2.0")]
-    V3_2_0,
+    #[serde(rename = "3.2.1")]
+    #[schemars(rename = "3.2.1")]
+    V3_2_1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -493,7 +493,7 @@ impl SelfHostedDeploymentProfile {
 impl PlatformStoreDeployment {
     fn validate(&self, profile: &DeploymentProfileId) -> Result<()> {
         if self.engine != PlatformStoreEngine::SurrealDb
-            || self.version != SurrealDbVersion::V3_2_0
+            || self.version != SurrealDbVersion::V3_2_1
             || self.storage_engine != SurrealStorageEngine::RocksDb
             || self.topology != DatabaseTopology::SingleNode
             || self.database_ha != DatabaseHighAvailability::OutOfScope
@@ -502,7 +502,7 @@ impl PlatformStoreDeployment {
             || self.live_queries != LiveQueryRole::BestEffortLatencyPath
         {
             bail!(
-                "deployment profile `{profile}` must use required SurrealDB 3.2.0 single-node RocksDB; database HA is out of scope, durable outbox is authoritative, and LIVE is latency-only"
+                "deployment profile `{profile}` must use required SurrealDB 3.2.1 single-node RocksDB; database HA is out of scope, durable outbox is authoritative, and LIVE is latency-only"
             );
         }
         if !(self.endpoint.as_str().starts_with("ws://")

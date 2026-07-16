@@ -355,6 +355,28 @@ async fn applies_schema_to_surrealdb_3_2() {
     .unwrap();
 
     let store = PlatformStore::connect(config).await.unwrap();
+    let mut original_session = store
+        .client()
+        .query("RETURN session::id();")
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let original_session: surrealdb::types::Value = original_session.take(0).unwrap();
+    let cloned_store = store.clone();
+    let mut cloned_session = cloned_store
+        .client()
+        .query("RETURN session::id();")
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let cloned_session: surrealdb::types::Value = cloned_session.take(0).unwrap();
+    assert_eq!(
+        cloned_session, original_session,
+        "PlatformStore clones must share one authenticated SurrealDB session"
+    );
+
     let status = store.schema_status().await.unwrap();
     assert!(status.is_current(), "{status:?}");
     let second_pass = store.migrate().await.unwrap();

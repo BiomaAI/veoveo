@@ -86,7 +86,7 @@ enum Cmd {
         #[arg(long, default_value = "https://objects-veoveo.bioma.ai")]
         object_base_url: String,
     },
-    /// Run every live SurrealDB integration target against an isolated 3.2.0 container.
+    /// Run every live SurrealDB integration target against an isolated 3.2.1 container.
     SurrealIntegration,
     /// Smoke-test gateway platform bootstrap and active revision validation.
     GatewayPlatformStore {

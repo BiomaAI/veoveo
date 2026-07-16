@@ -28,9 +28,10 @@ use veoveo_mcp_gateway::{
 
 use super::{
     admin::{
-        cancel_task, create_artifact_share_link, grant_artifact, proxy_server_admin,
-        prune_jwt_revocations, read_console_snapshot, read_control_plane, revoke_artifact_grant,
-        revoke_artifact_share_link, revoke_jwt, set_artifact_release_state, update_control_plane,
+        authorize_console_cluster, cancel_task, create_artifact_share_link, grant_artifact,
+        proxy_server_admin, prune_jwt_revocations, read_console_snapshot, read_control_plane,
+        revoke_artifact_grant, revoke_artifact_share_link, revoke_jwt, set_artifact_release_state,
+        update_control_plane,
     },
     artifact_download::download_artifact,
     auth::{
@@ -184,6 +185,10 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .route(
             "/admin/{profile}/console/snapshot",
             get(read_console_snapshot),
+        )
+        .route(
+            "/admin/{profile}/console/cluster",
+            get(authorize_console_cluster),
         )
         .route("/admin/{profile}/jwt-revocations", post(revoke_jwt))
         .route(

@@ -55,6 +55,9 @@ spec:
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
+        {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
+        checksum/map-bootstrap: {{ toJson $.Values.mapBootstrap | sha256sum }}
+        {{- end }}
     spec:
       {{- if $service.runtimeClassName }}
       runtimeClassName: {{ $service.runtimeClassName }}
@@ -72,6 +75,10 @@ spec:
           workingDir: /var/lib/veoveo/runtime
           args:
             {{- toYaml $service.args | nindent 12 }}
+            {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
+            - --bootstrap-catalog
+            - /etc/veoveo/map-bootstrap/catalog.json
+            {{- end }}
           env:
             {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
             {{- include "veoveo.commonEnv" $ | nindent 12 }}
@@ -161,6 +168,11 @@ spec:
               mountPath: /run/secrets/map
               readOnly: true
             {{- end }}
+            {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
+            - name: map-bootstrap
+              mountPath: /etc/veoveo/map-bootstrap
+              readOnly: true
+            {{- end }}
       volumes:
         - name: runtime
           emptyDir:
@@ -181,5 +193,10 @@ spec:
         - name: source-secrets
           secret:
             secretName: {{ $service.sourceSecretName }}
+        {{- end }}
+        {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
+        - name: map-bootstrap
+          configMap:
+            name: map-bootstrap
         {{- end }}
 {{- end }}

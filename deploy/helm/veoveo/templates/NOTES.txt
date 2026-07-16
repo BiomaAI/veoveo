@@ -7,7 +7,7 @@ Required existing resources:
   - ConfigMap {{ .Values.gateway.existingControlPlaneConfigMap }} with {{ .Values.gateway.controlPlaneKey }}
   - ConfigMap {{ .Values.telemetry.existingConfigMap }} with {{ .Values.telemetry.configKey }}
 
-SurrealDB is exactly one 3.2.0 RocksDB node. Database HA is out of scope.
+SurrealDB is exactly one 3.2.1 RocksDB node. Database HA is out of scope.
 Back up the SurrealDB and object-store PVCs according to your recovery objectives.
 
 {{- if and (not .Values.global.offline) (not .Values.networkPolicy.externalEgressCidrs) }}

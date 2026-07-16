@@ -550,7 +550,7 @@ fn user_grant_auth_audit_event(
 }
 
 pub(super) fn auth_audit_error_response(err: anyhow::Error) -> Response {
-    tracing::error!("failed to record gateway auth audit event: {err}");
+    tracing::error!("failed to record gateway auth audit event: {err:#}");
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 

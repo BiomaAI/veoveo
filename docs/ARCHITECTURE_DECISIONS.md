@@ -33,7 +33,7 @@ invent a parallel tenant or principal namespace.
 
 ## Durable platform store
 
-SurrealDB `3.2.0` is the required durable platform store. The canonical topology
+SurrealDB `3.2.1` is the required durable platform store. The canonical topology
 is one SurrealDB node using RocksDB storage. Application services may scale
 horizontally; database high availability is not claimed by this release.
 

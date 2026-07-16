@@ -115,7 +115,7 @@ response models, persistence records, authorization scopes, and Console projecti
 
 ## Durable Platform Store
 
-SurrealDB `3.2.0` is the only platform coordination store. The canonical release uses
+SurrealDB `3.2.1` is the only platform coordination store. The canonical release uses
 one RocksDB-backed node. Installation bootstrap connects at root scope, applies ordered
 migrations, creates or rotates the database runtime user, and publishes the initial
 gateway control revision. Long-running services connect at database scope and never run

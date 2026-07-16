@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 export function StatusPill({ value }: { value: string }) {
-  const tone = ["healthy", "succeeded", "active", "sealed", "released", "idle"].includes(value)
+  const tone = ["healthy", "succeeded", "active", "sealed", "released", "idle", "running", "bound", "completed"].includes(value)
     ? "good"
     : ["failed", "denied", "offline", "cancelled", "disabled"].includes(value)
       ? "bad"

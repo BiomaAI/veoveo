@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Activity,
   Archive,
   Bot,
   Boxes,
   Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   FileStack,
@@ -17,7 +20,6 @@ import {
   Network,
   RefreshCw,
   Search,
-  Settings,
   ShieldCheck,
   SlidersHorizontal,
   Trash2,
@@ -31,6 +33,7 @@ import {
   createArtifactShareLink,
   grantArtifact,
   loadMapAdministration,
+  loadCluster,
   loadSnapshot,
   logoutConsole,
   revokeArtifactGrant,
@@ -52,6 +55,7 @@ import {
 import { formatBytes, formatDate } from "./format";
 import type {
   ArtifactSummary,
+  ClusterSnapshot,
   InstallationSnapshot,
   MapActiveReleaseSummary,
   MapAcquisitionSummary,
@@ -67,11 +71,11 @@ const navItems = [
   { id: "artifacts", label: "Artifacts", icon: Archive },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "recordings", label: "Recordings", icon: FileStack },
-  { id: "mcp", label: "MCP topology", icon: Network },
+  { id: "mcp", label: "MCP", icon: Network },
   { id: "map", label: "Map data", icon: MapPinned },
   { id: "access", label: "Access", icon: ShieldCheck },
   { id: "audit", label: "Audit", icon: KeyRound },
-  { id: "installation", label: "Installation", icon: Settings }
+  { id: "cluster", label: "Cluster", icon: Boxes }
 ] as const;
 
 type ViewId = (typeof navItems)[number]["id"];
@@ -190,8 +194,8 @@ export function App() {
         <div className="sidebar-foot">
           <div className={`live-dot ${snapshot.services.some((service) => service.state === "offline") ? "live-off" : ""}`} />
           <div>
-            <strong>{snapshot.installation.offlineMode ? "Offline mode" : "Installation online"}</strong>
-            <span>SurrealDB {snapshot.installation.databaseTopology}</span>
+            <strong>Status</strong>
+            <span>{snapshot.services.filter((service) => service.state === "healthy").length}/{snapshot.services.length} platform services healthy</span>
           </div>
         </div>
       </aside>
@@ -239,7 +243,7 @@ export function App() {
           {view === "map" && <MapDataView />}
           {view === "access" && <AccessView snapshot={snapshot} />}
           {view === "audit" && <AuditView snapshot={snapshot} />}
-          {view === "installation" && <InstallationView snapshot={snapshot} />}
+          {view === "cluster" && <ClusterView snapshot={snapshot} />}
         </main>
       </div>
 
@@ -268,7 +272,7 @@ function Overview({ snapshot, onTask, onArtifact }: { snapshot: InstallationSnap
           <TaskTable tasks={activeTasks} onSelect={onTask} compact />
         </section>
         <section className="panel">
-          <SectionHeader title="Installation health" />
+          <SectionHeader title="Platform health" />
           <div className="health-list">
             {snapshot.services.map((service) => (
               <div key={service.id} className="health-row">
@@ -343,7 +347,71 @@ function RecordingsView({ snapshot }: { snapshot: InstallationSnapshot }) {
 }
 
 function McpView({ snapshot }: { snapshot: InstallationSnapshot }) {
-  return <><section className="panel full-panel"><SectionHeader title="Hosted MCP servers" count={snapshot.servers.length} /><div className="table-scroll"><table><thead><tr><th>Server</th><th>State</th><th>Capabilities</th><th>Profiles</th><th>Transport</th><th>Endpoint</th></tr></thead><tbody>{snapshot.servers.map((server) => <tr key={server.id}><td><strong>{server.name}</strong><span className="mono subdued">{server.id}</span></td><td><StatusPill value={server.state} /></td><td>{server.tools} tools · {server.resources} resources · {server.prompts} prompts</td><td><div className="tags">{server.profiles.map((profile) => <span key={profile}>{profile}</span>)}</div></td><td><span className="code-label">{server.transport}</span></td><td className="mono">{server.endpoint}</td></tr>)}</tbody></table></div></section></>;
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<string>();
+  const [copied, setCopied] = useState<string>();
+  const rows = snapshot.servers.filter((server) =>
+    [server.id, server.name, server.endpoint, ...server.tools, ...server.resources, ...server.prompts]
+      .join(" ")
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
+  const copyEndpoint = async (id: string, endpoint: string) => {
+    await navigator.clipboard.writeText(endpoint);
+    setCopied(id);
+    window.setTimeout(() => setCopied(undefined), 1500);
+  };
+  return <section className="panel full-panel mcp-panel">
+    <SectionHeader title="MCP servers" count={rows.length} actions={<label className="search-control"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search capabilities" /></label>} />
+    <p className="panel-intro">Inspect the protocol surface exposed by each hosted server. Capability names and resource patterns come from the active gateway control plane.</p>
+    <div className="table-scroll"><table className="mcp-table"><thead><tr><th aria-label="Expand" /><th>Server</th><th>State</th><th>Surface</th><th>Profiles</th><th>Transport</th><th>Endpoint</th></tr></thead><tbody>{rows.map((server) => {
+      const isExpanded = expanded === server.id;
+      const capabilityNames = Object.entries(server.capabilities).filter(([, enabled]) => enabled).map(([name]) => humanize(name));
+      return <Fragment key={server.id}>
+        <tr
+          className="mcp-summary-row"
+          onClick={() => setExpanded(isExpanded ? undefined : server.id)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setExpanded(isExpanded ? undefined : server.id);
+            }
+          }}
+          tabIndex={0}
+          aria-expanded={isExpanded}
+        >
+          <td><span className="mcp-expander">{isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</span></td>
+          <td><strong>{server.name}</strong><span className="mono subdued">{server.uriScheme}://</span></td>
+          <td><StatusPill value={server.state} /></td>
+          <td><strong>{server.tools.length} tools · {server.resources.length} resources</strong><span className="subdued">{server.prompts.length} prompts · {capabilityNames.length} protocol surfaces</span></td>
+          <td><div className="tags">{server.profiles.map((profile) => <span key={profile}>{profile}</span>)}</div></td>
+          <td><span className="code-label">{server.transport}</span></td>
+          <td className="mono endpoint-cell">{server.endpoint}</td>
+        </tr>
+        {isExpanded && <tr className="mcp-detail-row"><td colSpan={7}><div className="mcp-detail">
+          <div className="mcp-detail-head"><div><strong>{server.name} protocol surface</strong><span>Checked {formatDate(server.checkedAt)}</span></div><button className="button button-secondary" onClick={(event) => { event.stopPropagation(); void copyEndpoint(server.id, server.endpoint); }}><Copy size={14} /> {copied === server.id ? "Copied" : "Copy endpoint"}</button></div>
+          <div className="mcp-capability-strip">{capabilityNames.map((capability) => <span key={capability}>{capability}</span>)}</div>
+          <div className="mcp-detail-grid">
+            <McpCapabilityList title="Tools" items={server.tools} empty="No tools exposed" />
+            <McpCapabilityList title="Resources" items={server.resources} empty="No resources exposed" />
+            <McpCapabilityList title="Prompts" items={server.prompts} empty="No prompts exposed" />
+            <McpCapabilityList title="Required scopes" items={server.requiredScopes} empty="No server-level scopes" />
+            {server.compatibilityHelpers.length > 0 && <McpCapabilityList title="Compatibility helpers" items={server.compatibilityHelpers} empty="" />}
+            {server.ownedRoutes.length > 0 && <McpCapabilityList title="Owned HTTP routes" items={server.ownedRoutes.map((route) => `${route.path} · ${humanize(route.purpose)}`)} empty="" />}
+          </div>
+        </div></td></tr>}
+      </Fragment>;
+    })}</tbody></table></div>
+    {!rows.length && <EmptyState>No MCP capability matches the current search.</EmptyState>}
+  </section>;
+}
+
+function McpCapabilityList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return <section className="mcp-capability-list"><h3>{title}<span>{items.length}</span></h3>{items.length ? <div>{items.map((item) => <code key={item}>{item}</code>)}</div> : <p>{empty}</p>}</section>;
+}
+
+function humanize(value: string) {
+  return value.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function MapDataView() {
@@ -355,7 +423,7 @@ function MapDataView() {
   const [selectedSource, setSelectedSource] = useState("");
   const [sourceJson, setSourceJson] = useState("");
   const [mobilityProfileJson, setMobilityProfileJson] = useState("");
-  const [coverage, setCoverage] = useState({ west: -180, south: -90, east: 180, north: 90 });
+  const [coverage, setCoverage] = useState({ west: -90.13, south: 13.15, east: -87.68, north: 14.45 });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -375,10 +443,10 @@ function MapDataView() {
   };
 
   useEffect(() => {
-    let cancelled = false;
-    loadMapAdministration()
+    const controller = new AbortController();
+    loadMapAdministration(controller.signal)
       .then((next) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setSources(next.sources);
         setAcquisitions(next.acquisitions);
         setReleases(next.releases);
@@ -387,11 +455,11 @@ function MapDataView() {
         if (next.sources[0]) setSelectedSource(next.sources[0].source_id);
       })
       .catch((cause: unknown) => {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setError(cause instanceof Error ? cause.message : "Map administration could not be loaded");
         }
       });
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, []);
 
   const run = async (operation: () => Promise<unknown>) => {
@@ -471,12 +539,59 @@ function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
 
 function AuditView({ snapshot }: { snapshot: InstallationSnapshot }) {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const pageSize = 25;
   const rows = snapshot.audit.filter((event) => `${event.actor} ${event.action} ${event.resource} ${event.outcome}`.toLowerCase().includes(query.toLowerCase()));
-  return <section className="panel full-panel"><SectionHeader title="Audit events" count={rows.length} actions={<><label className="search-control"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search audit" /></label><button className="button button-secondary"><Download size={15} /> Export</button></>} /><div className="table-scroll"><table><thead><tr><th>Time</th><th>Outcome</th><th>Actor</th><th>Action</th><th>Resource</th><th>Source</th><th>Trace</th></tr></thead><tbody>{rows.map((event) => <tr key={event.id}><td>{formatDate(event.occurredAt)}</td><td><StatusPill value={event.outcome} /></td><td>{event.actor}</td><td className="mono">{event.action}</td><td>{event.resource}</td><td className="mono">{event.sourceIp ?? "-"}</td><td className="mono subdued">{event.traceId ?? "-"}</td></tr>)}</tbody></table></div></section>;
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, pages - 1);
+  const visibleRows = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const updateQuery = (value: string) => { setQuery(value); setPage(0); };
+  const exportAudit = () => {
+    const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const csv = [
+      ["time", "outcome", "actor", "action", "resource", "source_ip", "trace_id"].join(","),
+      ...rows.map((event) => [event.occurredAt, event.outcome, event.actor, event.action, event.resource, event.sourceIp ?? "", event.traceId ?? ""].map(quote).join(",")),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `veoveo-audit-${new Date().toISOString()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  return <section className="panel full-panel"><SectionHeader title="Audit events" count={rows.length} actions={<><label className="search-control"><Search size={15} /><input value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Search audit" /></label><button className="button button-secondary" onClick={exportAudit}><Download size={15} /> Export</button></>} /><div className="table-scroll"><table><thead><tr><th>Time</th><th>Outcome</th><th>Actor</th><th>Action</th><th>Resource</th><th>Source</th><th>Trace</th></tr></thead><tbody>{visibleRows.map((event) => <tr key={event.id}><td>{formatDate(event.occurredAt)}</td><td><StatusPill value={event.outcome} /></td><td>{event.actor}</td><td className="mono">{event.action}</td><td>{event.resource}</td><td className="mono">{event.sourceIp ?? "-"}</td><td className="mono subdued">{event.traceId ?? "-"}</td></tr>)}</tbody></table></div><div className="pagination"><span>{rows.length ? `${currentPage * pageSize + 1}–${Math.min((currentPage + 1) * pageSize, rows.length)} of ${rows.length}` : "0 events"}</span><div><button className="icon-button" aria-label="Previous audit page" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={15} /></button><span>Page {currentPage + 1} of {pages}</span><button className="icon-button" aria-label="Next audit page" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={15} /></button></div></div></section>;
 }
 
-function InstallationView({ snapshot }: { snapshot: InstallationSnapshot }) {
-  return <div className="settings-layout"><section className="panel"><SectionHeader title="Runtime" /><dl className="definition-list"><div><dt>Version</dt><dd>{snapshot.installation.version}</dd></div><div><dt>Mode</dt><dd>{snapshot.installation.offlineMode ? "Air-gapped" : "Connected"}</dd></div><div><dt>Database</dt><dd>SurrealDB 3.2 · RocksDB</dd></div><div><dt>Topology</dt><dd>{snapshot.installation.databaseTopology}</dd></div><div><dt>Tenant</dt><dd>{snapshot.session.tenantName}</dd></div></dl></section><section className="panel"><SectionHeader title="Service endpoints" /><div className="health-list">{snapshot.services.map((service) => <div key={service.id} className="health-row"><div><strong>{service.name}</strong><span>{service.kind}</span></div><StatusPill value={service.state} /></div>)}</div></section></div>;
+function ClusterView({ snapshot }: { snapshot: InstallationSnapshot }) {
+  const [cluster, setCluster] = useState<ClusterSnapshot>();
+  const [error, setError] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const refresh = async () => {
+    setLoading(true);
+    setError(undefined);
+    try { setCluster(await loadCluster()); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Cluster inventory could not be loaded"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { const controller = new AbortController(); loadCluster(controller.signal).then(setCluster).catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Cluster inventory could not be loaded"); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, []);
+  if (loading && !cluster) return <section className="panel full-panel"><EmptyState>Loading Kubernetes inventory…</EmptyState></section>;
+  if (!cluster) return <section className="panel full-panel"><SectionHeader title="Cluster" actions={<button className="button button-secondary" onClick={() => void refresh()}><RefreshCw size={14} /> Retry</button>} /><EmptyState>{error ?? "Cluster inventory is unavailable."}</EmptyState></section>;
+  const readyWorkloads = cluster.workloads.filter((workload) => workload.ready >= workload.desired).length;
+  const readyPods = cluster.pods.filter((pod) => pod.phase === "Running" && pod.ready === pod.containers).length;
+  return <div className="cluster-layout">
+    {error && <div className="action-error">{error}</div>}
+    <div className="metrics-grid cluster-metrics">
+      <Metric label="Workloads" value={`${readyWorkloads}/${cluster.workloads.length}`} detail="Ready in namespace" />
+      <Metric label="Pods" value={`${readyPods}/${cluster.pods.filter((pod) => pod.phase === "Running").length}`} detail={`${cluster.pods.reduce((sum, pod) => sum + pod.restarts, 0)} total restarts`} />
+      <Metric label="Services" value={String(cluster.services.length)} detail={`${cluster.ingresses.length} ingress resources`} />
+      <Metric label="Storage" value={String(cluster.storage.length)} detail={`${cluster.storage.filter((claim) => claim.phase === "Bound").length} claims bound`} />
+    </div>
+    <section className="panel full-panel"><SectionHeader title="Kubernetes workloads" count={cluster.workloads.length} actions={<button className="button button-secondary" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? "spin" : ""} /> Refresh</button>} /><p className="panel-intro">{cluster.orchestrator} namespace <code>{cluster.namespace}</code> · Veoveo {snapshot.installation.version} · {snapshot.installation.offlineMode ? "air-gapped" : "connected"}</p><div className="table-scroll"><table><thead><tr><th>Workload</th><th>Kind</th><th>Ready</th><th>Available</th><th>Image</th><th>Created</th></tr></thead><tbody>{cluster.workloads.map((workload) => <tr key={`${workload.kind}:${workload.name}`}><td><strong>{workload.name}</strong></td><td><span className="code-label">{workload.kind}</span></td><td><StatusPill value={workload.ready >= workload.desired ? "healthy" : "degraded"} /><span className="subdued">{workload.ready}/{workload.desired}</span></td><td>{workload.available}</td><td className="mono image-cell">{workload.images.join(", ")}</td><td>{formatDate(workload.createdAt)}</td></tr>)}</tbody></table></div></section>
+    <section className="panel full-panel"><SectionHeader title="Pods" count={cluster.pods.length} /><div className="table-scroll"><table><thead><tr><th>Pod</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>Node</th><th>Image</th></tr></thead><tbody>{cluster.pods.map((pod) => <tr key={pod.name}><td><strong>{pod.component ?? pod.name}</strong><span className="mono subdued">{pod.name}</span></td><td><StatusPill value={pod.phase.toLowerCase()} /></td><td>{pod.ready}/{pod.containers}</td><td>{pod.restarts}</td><td className="mono">{pod.node ?? "-"}</td><td className="mono image-cell">{pod.images.join(", ")}</td></tr>)}</tbody></table></div></section>
+    <section className="panel"><SectionHeader title="Persistent storage" count={cluster.storage.length} /><div className="cluster-card-list">{cluster.storage.map((claim) => <article key={claim.name}><div><strong>{claim.name}</strong><span>{claim.storageClass ?? "default storage class"}</span></div><StatusPill value={claim.phase.toLowerCase()} /><dl><div><dt>Requested</dt><dd>{claim.requested ?? "-"}</dd></div><div><dt>Capacity</dt><dd>{claim.capacity ?? "-"}</dd></div><div><dt>Access</dt><dd>{claim.accessModes.join(", ")}</dd></div></dl></article>)}</div></section>
+    <section className="panel"><SectionHeader title="Network" /><div className="cluster-network"><div><strong>Ingress</strong>{cluster.ingresses.length ? cluster.ingresses.map((ingress) => <span key={ingress.name}><code>{ingress.name}</code> · {ingress.hosts.join(", ") || "no host"}</span>) : <span>No ingress resources</span>}</div><div><strong>Services</strong><span>{cluster.services.length} service objects</span></div><div><strong>Network policies</strong><span>{cluster.networkPolicies.length} active policies</span></div><div><strong>Disruption budgets</strong><span>{cluster.disruptionBudgets.length} budgets</span></div><div><strong>Configuration</strong><span>{cluster.configMaps.length} ConfigMaps</span></div></div></section>
+    <section className="panel full-panel"><SectionHeader title="Services" count={cluster.services.length} /><div className="table-scroll"><table><thead><tr><th>Service</th><th>Type</th><th>Cluster IP</th><th>Ports</th></tr></thead><tbody>{cluster.services.map((service) => <tr key={service.name}><td><strong>{service.name}</strong></td><td><span className="code-label">{service.kind}</span></td><td className="mono">{service.clusterIp ?? "-"}</td><td className="mono">{service.ports.join(", ")}</td></tr>)}</tbody></table></div></section>
+  </div>;
 }
 
 function DrawerShell({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {

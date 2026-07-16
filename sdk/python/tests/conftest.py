@@ -12,7 +12,7 @@ from surrealdb import AsyncSurreal
 MIGRATIONS_DIR = (
     Path(__file__).resolve().parents[3] / "crates" / "platform-store" / "migrations"
 )
-SURREAL_IMAGE = "surrealdb/surrealdb:v3.2.0"
+SURREAL_IMAGE = "surrealdb/surrealdb:v3.2.1"
 RUNTIME_USER = "veoveo_runtime"
 RUNTIME_PASSWORD = "runtime-secret"
 
@@ -29,7 +29,7 @@ def _docker_available() -> bool:
 
 @pytest.fixture(scope="session")
 def surreal_platform():
-    """A SurrealDB v3.2.0 container with the real platform migrations applied."""
+    """A SurrealDB v3.2.1 container with the real platform migrations applied."""
     if not _docker_available():
         pytest.skip("docker is required for platform-store integration tests")
     if not MIGRATIONS_DIR.is_dir():

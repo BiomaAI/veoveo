@@ -1,0 +1,39 @@
+{{- if .Values.clusterInspection.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "veoveo.fullname" . }}-console-cluster-reader
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "persistentvolumeclaims", "configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "veoveo.fullname" . }}-console-cluster-reader
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "veoveo.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "veoveo.fullname" . }}-console-cluster-reader
+{{- end }}

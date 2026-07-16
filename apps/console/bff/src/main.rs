@@ -1,9 +1,10 @@
 mod api;
+mod cluster;
 mod config;
 mod oauth;
 mod session;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::{
@@ -24,6 +25,7 @@ use veoveo_mcp_contract::{TelemetryGuard, init_server_telemetry};
 struct AppState {
     config: Arc<Config>,
     http: reqwest::Client,
+    cluster: Option<Arc<cluster::KubernetesClient>>,
     sessions: SessionCipher,
 }
 
@@ -37,11 +39,14 @@ async fn main() -> anyhow::Result<()> {
     let sessions = SessionCipher::new(config.session_key())?;
     let http = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(15))
         .build()
         .context("building console HTTP client")?;
+    let cluster = cluster::KubernetesClient::from_env()?.map(Arc::new);
     let state = AppState {
         config: config.clone(),
         http,
+        cluster,
         sessions,
     };
     let csrf_state = state.clone();
@@ -56,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/callback", get(oauth::callback))
         .route("/auth/logout", post(oauth::logout))
         .route("/console/api/snapshot", get(api::snapshot))
+        .route("/console/api/cluster", get(cluster::snapshot))
         .route("/console/api/map/{*path}", any(api::map_admin))
         .route(
             "/console/api/tasks/{task_id}/cancel",

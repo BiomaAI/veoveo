@@ -6,6 +6,7 @@ import type {
   MapMobilityProfileSummary,
   MapReleaseSummary,
   MapSourceSummary,
+  ClusterSnapshot,
   ReleaseState,
   ShareLinkCreated,
 } from "./types";
@@ -38,6 +39,25 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
   return response.json() as Promise<InstallationSnapshot>;
 }
 
+export async function loadCluster(signal?: AbortSignal): Promise<ClusterSnapshot> {
+  const response = await fetch("/console/api/cluster", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) {
+    window.location.assign("/auth/login");
+    throw new Error("Authentication required");
+  }
+  if (response.status === 403) {
+    throw new Error("Cluster inventory is not permitted for this console session.");
+  }
+  if (!response.ok) throw new Error(`Cluster inventory returned ${response.status}`);
+  return response.json() as Promise<ClusterSnapshot>;
+}
+
 export async function consoleMutation<T>(path: string, init: RequestInit): Promise<T> {
   if (!csrfToken) {
     throw new Error("Console session has not been initialized");
@@ -55,6 +75,9 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
   if (response.status === 401) {
     window.location.assign("/auth/login");
     throw new Error("Authentication required");
+  }
+  if (response.status === 403) {
+    throw new Error("This operation is not permitted by the active console scopes and policy.");
   }
   if (!response.ok) {
     throw new Error(`Console API returned ${response.status}`);
@@ -142,14 +165,18 @@ export function artifactDownloadUrl(artifactId: string): string {
   return `/console/api/artifacts/${encodeURIComponent(artifactId)}/download`;
 }
 
-export async function mapAdminQuery<T>(path: string): Promise<T> {
+export async function mapAdminQuery<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/console/api/map/${path.replace(/^\/+/, "")}`, {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
+    signal,
   });
   if (response.status === 401) {
     window.location.assign("/auth/login");
     throw new Error("Authentication required");
+  }
+  if (response.status === 403) {
+    throw new Error("Map administration requires the map:admin scope. Sign out and authenticate again after the console scope configuration is updated.");
   }
   if (!response.ok) throw new Error(`Map administration returned ${response.status}`);
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
@@ -158,18 +185,18 @@ export async function mapAdminQuery<T>(path: string): Promise<T> {
 }
 
 interface MapAdminPage<T> { items: T[]; next_cursor?: string }
-export const loadMapSources = async () => (await mapAdminQuery<MapAdminPage<MapSourceSummary>>("sources?limit=200")).items;
-export const loadMapAcquisitions = async () => (await mapAdminQuery<MapAdminPage<MapAcquisitionSummary>>("acquisitions?limit=200")).items;
-export const loadMapReleases = async () => (await mapAdminQuery<MapAdminPage<MapReleaseSummary>>("releases?limit=200")).items;
-export const loadMapMobilityProfiles = async () => (await mapAdminQuery<MapAdminPage<MapMobilityProfileSummary>>("mobility-profiles?limit=200")).items;
-export const loadMapActiveReleases = async () => (await mapAdminQuery<MapAdminPage<MapActiveReleaseSummary>>("active-releases?limit=200")).items;
+export const loadMapSources = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapSourceSummary>>("sources?limit=200", signal)).items;
+export const loadMapAcquisitions = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapAcquisitionSummary>>("acquisitions?limit=200", signal)).items;
+export const loadMapReleases = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapReleaseSummary>>("releases?limit=200", signal)).items;
+export const loadMapMobilityProfiles = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapMobilityProfileSummary>>("mobility-profiles?limit=200", signal)).items;
+export const loadMapActiveReleases = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapActiveReleaseSummary>>("active-releases?limit=200", signal)).items;
 
-export const loadMapAdministration = async () => {
-  const sources = await loadMapSources();
-  const acquisitions = await loadMapAcquisitions();
-  const releases = await loadMapReleases();
-  const mobilityProfiles = await loadMapMobilityProfiles();
-  const activeReleases = await loadMapActiveReleases();
+export const loadMapAdministration = async (signal?: AbortSignal) => {
+  const sources = await loadMapSources(signal);
+  const acquisitions = await loadMapAcquisitions(signal);
+  const releases = await loadMapReleases(signal);
+  const mobilityProfiles = await loadMapMobilityProfiles(signal);
+  const activeReleases = await loadMapActiveReleases(signal);
   return { sources, acquisitions, releases, mobilityProfiles, activeReleases };
 };
 

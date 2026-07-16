@@ -1,4 +1,5 @@
 pub(super) mod auth;
+mod bootstrap;
 mod config;
 mod host;
 mod tasks;
@@ -77,6 +78,9 @@ pub async fn run() -> Result<()> {
     let recovery = tasks.recover().await?;
 
     let catalog = MapCatalog::new(tasks.platform_store().clone());
+    if let Some(path) = &args.bootstrap_catalog {
+        bootstrap::apply(path, &catalog).await?;
+    }
     let analytics = MapAnalytics::open(MapAnalyticsConfig {
         database_path: args.map_database.clone(),
         spill_dir: args.duckdb_spill_dir.clone(),

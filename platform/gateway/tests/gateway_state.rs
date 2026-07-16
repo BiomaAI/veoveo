@@ -4,6 +4,7 @@ use std::{
 };
 
 use chrono::{TimeDelta, Utc};
+use futures::future::join_all;
 use secrecy::SecretString;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
@@ -23,6 +24,54 @@ use veoveo_mcp_gateway::{
 use veoveo_platform_store::{
     GatewayAuditKind, GatewayRefreshTokenRecord, PlatformStore, StoreConfig, StoreCredentials,
 };
+
+#[tokio::test]
+async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let (bootstrap, runtime) = store_configs();
+    let bootstrap_store = PlatformStore::connect(bootstrap).await.unwrap();
+    bootstrap_store
+        .replace_database_editor(
+            "gateway_runtime",
+            &SecretString::from("gateway-runtime-password"),
+        )
+        .await
+        .unwrap();
+    let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
+    let profile = GatewayProfileId::new("admin").unwrap();
+    let now = Utc::now();
+    let principal =
+        authorization_code(now, &profile, &OAuthClientId::new("admin-console").unwrap()).principal;
+
+    let results = join_all((0..12).map(|index| {
+        let state = state.clone();
+        let event = policy_audit_event(
+            &format!("concurrent-policy-{index}"),
+            now,
+            &profile,
+            &principal,
+        );
+        async move { state.record_audit_event(&event).await }
+    }))
+    .await;
+    for result in results {
+        result.unwrap();
+    }
+
+    assert_eq!(state.audit_counts().await.unwrap().policy_events, 12);
+    let outbox = state.platform_store().read_outbox(0, 100).await.unwrap();
+    assert_eq!(
+        outbox
+            .events
+            .iter()
+            .filter(|event| event.event_type == "gateway.audit.recorded")
+            .count(),
+        12,
+    );
+}
 
 #[tokio::test]
 async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {

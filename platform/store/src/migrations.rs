@@ -27,7 +27,7 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 20] = [
+const MIGRATIONS: [Migration; 21] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -147,6 +147,12 @@ const MIGRATIONS: [Migration; 20] = [
         name: "time_domain",
         filename: "0019_time_domain.surql",
         sql: include_str!("../migrations/0019_time_domain.surql"),
+    },
+    Migration {
+        version: 20,
+        name: "audit_write_path",
+        filename: "0020_audit_write_path.surql",
+        sql: include_str!("../migrations/0020_audit_write_path.surql"),
     },
 ];
 
@@ -395,6 +401,13 @@ mod tests {
         ] {
             assert!(sql.contains(&format!("DEFINE INDEX IF NOT EXISTS {index}")));
         }
+    }
+
+    #[test]
+    fn unused_audit_full_text_index_is_removed() {
+        assert!(
+            schema_sql().contains("REMOVE INDEX IF EXISTS audit_event_search ON TABLE audit_event")
+        );
     }
 
     #[test]
