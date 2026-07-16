@@ -206,6 +206,26 @@ pushes world state to the recording hub, exposes MCP controls, and uses the
 shared durable task runtime. It does not carry a private compatibility task
 protocol or shell-based smoke framework.
 
+The UAV simulation showcase follows the same control boundary at GPU scale.
+One MCP server serializes mutations for each simulation session, while a
+cluster-private adapter owns Isaac Sim, Cesium for Omniverse, Pegasus, PX4,
+MAVLink, and sensor capture. Google Photorealistic 3D Tiles rendered inside
+Isaac through Cesium ion are part of the delivered world contract. View MCP's
+direct Google source is independent and is not a substitute for simulator tile
+residency.
+
+Frames MCP supplies the durable WGS84 origin and local frame identity. The UAV
+adapter materializes that definition before starting physics and performs
+high-rate ENU/NED conversion locally. Camera, transform, vehicle, mission,
+collision, and tile state enter Recording Hub as typed Rerun streams, and
+Perception consumes the governed recording rather than a simulator-private
+media URL.
+
+Bioma runs Isaac Sim, View, and Perception concurrently. Their Helm workloads
+declare ordinary GPU requests and remain independently schedulable. No
+application profile disables one GPU service to admit another; cluster capacity
+must satisfy the complete declared workload.
+
 ## Offline operation
 
 An offline bundle contains all pinned external images, Veoveo images, the Helm

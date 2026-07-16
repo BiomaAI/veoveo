@@ -30,6 +30,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, and recordings |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -42,6 +43,7 @@ material they operate:
 | [`examples/bioma/README.md`](../examples/bioma/README.md) | isolated Bioma k3d cluster, Entra profile, and Cloudflare Tunnel operations |
 | [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
+| [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Pegasus/PX4 UAV simulation integration and operations |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | canonical Python MCP server template |
 | [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |
 
@@ -79,6 +81,7 @@ is the browser edition of the harness document.
 | `deploy/helm/veoveo/` | Kubernetes installation chart |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
+| `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Pegasus, and PX4 |
 | `examples/bioma/` | optional Bioma Entra/Cloudflare deployment overlay |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
@@ -302,6 +305,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, and recording references |
 
 ### Geospatial Domains
 

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-07-16",
+  "architecture": "linux/amd64",
+  "components": {
+    "isaac_sim": {
+      "version": "6.0.1",
+      "image": "nvcr.io/nvidia/isaac-sim:6.0.1",
+      "index_digest": "sha256:783444c706538aa76cf5126e911ddc5e618779e6105305ad4af4260362a30aa9",
+      "platform_digest": "sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb",
+      "source": "https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html"
+    },
+    "cesium_for_omniverse": {
+      "version": "0.29.0",
+      "commit": "c9728dfe481e2aa1b9fe38ca69839f90680ba9b6",
+      "asset": "CesiumGS-cesium-omniverse-linux-x86_64-v0.29.0.zip",
+      "url": "https://github.com/CesiumGS/cesium-omniverse/releases/download/v0.29.0/CesiumGS-cesium-omniverse-linux-x86_64-v0.29.0.zip",
+      "sha256": "fe38d6195974620e87d7cdad32bb4b38d5933389523d56e75bbae23bcf4da55f",
+      "source": "https://cesium.com/downloads/"
+    },
+    "pegasus_simulator": {
+      "version": "5.1.0",
+      "commit": "644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",
+      "repository": "https://github.com/PegasusSimulator/PegasusSimulator.git",
+      "compatibility_target": "Isaac Sim 6.0.1",
+      "source": "https://github.com/PegasusSimulator/PegasusSimulator/releases/tag/v5.1.0"
+    },
+    "px4_autopilot": {
+      "version": "1.17.0",
+      "commit": "d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
+      "repository": "https://github.com/PX4/PX4-Autopilot.git",
+      "source": "https://github.com/PX4/PX4-Autopilot/releases/tag/v1.17.0"
+    },
+    "rerun": {
+      "version": "0.34.1",
+      "source": "https://github.com/rerun-io/rerun/releases/tag/0.34.1"
+    },
+    "nvidia_gpu_operator": {
+      "version": "26.3.3",
+      "source": "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html"
+    },
+    "nvidia_driver": {
+      "version": "595.58.03",
+      "source": "https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html"
+    },
+    "ros_2": {
+      "distribution": "jazzy",
+      "required": false,
+      "reason": "Isaac Sim 6.0.1 recommends ROS 2 Jazzy on Ubuntu 24.04; Phase 1 vehicle control uses MAVLink.",
+      "source": "https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html"
+    }
+  }
+}
