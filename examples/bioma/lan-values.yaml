@@ -1,0 +1,4 @@
+ingress:
+  tls:
+    enabled: true
+    secretName: bioma-lan-ingress-tls

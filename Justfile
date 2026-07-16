@@ -329,6 +329,10 @@ bioma-resources:
 bioma-platform-up:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --wait --timeout 12m
 
+# Install Bioma with canonical-host TLS for direct LAN and split-horizon DNS access.
+bioma-platform-up-lan:
+    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --values examples/bioma/lan-values.yaml --wait --timeout 12m
+
 # Connect the Bioma cluster to its remote-managed Cloudflare Tunnel.
 bioma-tunnel-up:
     {{kubectl}} --context {{bioma-kube-context}} -n veoveo apply -f examples/bioma/tunnel.yaml

@@ -17,6 +17,7 @@ kubectl context cannot redirect a recipe into another installation.
 - `k3d.yaml` owns the cluster and its loopback port.
 - `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
   cluster without changing the server catalog.
+- `lan-values.yaml` enables canonical-host TLS at Traefik for direct LAN access.
 - `cloudflare-tunnel.json` is the desired remote tunnel ingress configuration.
 - `tunnel.yaml` runs the connector inside the Bioma cluster.
 
@@ -103,6 +104,39 @@ just bioma-tunnel-up
 values from `.env`, applies Kubernetes Secrets over stdin, and never writes
 their plaintext to a repository or temporary manifest. `bioma-build` and
 `bioma-import` cover every image used by the release.
+
+## Local-network recording producers
+
+A producer on the same local network uses the public installation name and the
+same OAuth resource as an Internet producer. Configure the LAN DNS resolver to
+return the Traefik address for `veoveo.bioma.ai`, then install a certificate for
+that name as the `bioma-lan-ingress-tls` Kubernetes TLS Secret. The certificate
+must chain to a CA trusted by each producer. An ACME DNS-01 certificate or an
+enterprise CA certificate works without exposing the LAN ingress to the
+Internet.
+
+Create or rotate the Secret from operator-controlled certificate files:
+
+```bash
+kubectl --context k3d-veoveo-bioma -n veoveo create secret tls \
+  bioma-lan-ingress-tls \
+  --cert=/secure/path/veoveo.bioma.ai.crt \
+  --key=/secure/path/veoveo.bioma.ai.key \
+  --dry-run=client -o yaml | \
+kubectl --context k3d-veoveo-bioma apply -f -
+```
+
+Install the LAN overlay after the normal resources are present:
+
+```bash
+just bioma-platform-up-lan
+```
+
+The local DNS answer changes only the route. Discovery, token issuance, the
+protected-resource identifier, certificate hostname, and ingest URL remain
+`https://veoveo.bioma.ai`. The firewall exposes Traefik TCP/443 to the producer
+subnets; it does not expose Recording Hub ports 9876 or 9878. Cloudflare Tunnel
+can remain active because its origin leg continues to use Traefik HTTP port 80.
 
 ## Acceptance
 
