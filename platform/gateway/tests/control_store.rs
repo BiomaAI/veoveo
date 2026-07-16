@@ -97,6 +97,7 @@ fn revision(
 
 fn empty_control_plane() -> GatewayControlPlane {
     GatewayControlPlane {
+        branding: None,
         identity_providers: Vec::new(),
         authorization_servers: Vec::new(),
         servers: Vec::new(),

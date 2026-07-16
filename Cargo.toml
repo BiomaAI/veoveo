@@ -3,6 +3,7 @@ members = [
     "agents/kernel",
     "agents/runtime",
     "apps/console/bff",
+    "mcp/apps-extension",
     "mcp/bridges/stdio",
     "mcp/contract",
     "mcp/task-extension",

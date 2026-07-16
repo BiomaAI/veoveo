@@ -39,6 +39,7 @@ url.workspace = true
 uuid.workspace = true
 vaultrs.workspace = true
 veoveo-artifact-client = { path = "../artifacts/client" }
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store = { path = "../store" }

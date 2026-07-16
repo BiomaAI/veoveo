@@ -393,6 +393,7 @@ mod tests {
     fn control_plane_object_rows_include_queryable_top_level_objects() {
         let tenant_id = TenantId::new("tenant-fixture").unwrap();
         let control_plane = GatewayControlPlane {
+            branding: None,
             identity_providers: Vec::new(),
             authorization_servers: Vec::new(),
             servers: Vec::new(),

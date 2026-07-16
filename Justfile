@@ -229,6 +229,10 @@ smoke-gateway-chart-projection:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     {{smoke}} gateway-chart-projection --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
+smoke-gateway-console-stream:
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
+    {{smoke}} gateway-console-stream --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
+
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
 smoke-gateway-task-run:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway

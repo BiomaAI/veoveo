@@ -60,6 +60,8 @@ pub(super) struct AdminState {
     pub(super) artifact_server: ServerSlug,
     pub(super) artifact_service_url: String,
     pub(super) offline_mode: bool,
+    pub(super) server_health: crate::admin::ServerHealthMonitor,
+    pub(super) console_stream: crate::admin::ConsoleStreamRuntime,
 }
 
 #[derive(Clone)]

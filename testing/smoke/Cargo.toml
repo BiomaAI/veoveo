@@ -9,6 +9,8 @@ name = "smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
+bytes.workspace = true
+futures.workspace = true
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
@@ -20,7 +22,7 @@ hex.workspace = true
 image.workspace = true
 jsonwebtoken.workspace = true
 rcgen.workspace = true
-reqwest = { workspace = true, features = ["cookies", "json", "rustls-no-provider"] }
+reqwest = { workspace = true, features = ["cookies", "json", "rustls-no-provider", "stream"] }
 re_grpc_server.workspace = true
 re_sdk.workspace = true
 re_sdk_types.workspace = true

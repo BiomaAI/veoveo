@@ -27,6 +27,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | planning problem models and optimization |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
+| [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
@@ -102,6 +103,15 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 `servers/` names the deployable boundary without narrowing the protocol.
 
 ## Shared Contracts
+
+### `mcp/apps-extension`
+
+MCP Apps (SEP-1865 / ext-apps "2026-01-26") support: pinned protocol
+constants (`io.modelcontextprotocol/ui`, `text/html;profile=mcp-app`), typed
+`_meta.ui` shapes, server helpers (capability declaration, `ui://` app
+resources, tool links), and host helpers (capability declaration, app
+detection, visibility checks).
+
 
 ### `mcp/contract`
 
@@ -214,7 +224,10 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/control_plane.rs` | control revision read/update |
 | `admin/tasks.rs` | policy-checked cancellation through owning task extension |
 | `admin/artifacts.rs` | release/grant/link mutations through artifact service |
-| `admin/console.rs` | safe installation snapshot projection |
+| `admin/console/mod.rs` | console snapshot handler, branding, stream cursor bootstrap |
+| `admin/console/projection.rs` | tenant projection load and per-entity summary builders |
+| `admin/console/stream.rs` | live console SSE: LIVE wake hub, changefeed replay, tenant filtering, limits |
+| `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
 | `audit.rs` | common admin authorization and operation audit helpers |
@@ -418,18 +431,24 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot, mutation, download, and explicit server-admin BFF projections |
+| `api.rs` | snapshot, SSE stream proxy, mutation, download, and explicit server-admin BFF projections |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool-call proxy |
 | `config.rs` | validated public/gateway/resource configuration |
 
 ### `apps/console/web/src`
 
 | File | Responsibility |
 |---|---|
-| `App.tsx` | operational views, task controls, artifact grant/share workflows |
+| `App.tsx` | application shell: navigation, topbar, view routing, drawer mounting |
+| `views/` | one module per operational view (overview, work, artifacts, agents, recordings, MCP, map, access, audit, cluster) |
+| `drawers/` | artifact and task detail drawers with mutation workflows |
+| `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
+| `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/map/cluster queries, mutation hooks with targeted cache patches |
+| `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
+| `apps/` | MCP Apps host: sandboxed iframe component and the postMessage bridge |
 | `api.ts` | same-origin BFF calls and CSRF rotation |
 | `types.ts` | TypeScript snapshot and mutation response shapes |
-| `components.tsx` | compact reusable operational components |
-| `styles.css` | responsive work-focused visual system |
+| `styles.css` | responsive work-focused visual system with accessible type-scale tokens |
 
 ## Testing And Conformance
 
@@ -453,6 +472,9 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change task lifecycle in `platform/task-runtime`; change wire behavior in
   `mcp/task-extension`.
 - Change a domain tool schema in its owning `servers/*-mcp` server, not the gateway.
+- Change MCP Apps protocol constants or helpers in `mcp/apps-extension`; app views live beside
+  their server (`servers/{server}-mcp/assets/`), and the console host surface in
+  `apps/console/bff` (`apps.rs`) plus `apps/console/web/src/apps/`.
 - Change a domain admin API in its owning server, retain the generic gateway proxy, and
   add an explicit Console BFF projection when the browser represents that workflow.
 - Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway

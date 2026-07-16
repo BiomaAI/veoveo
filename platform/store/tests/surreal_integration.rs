@@ -6,13 +6,13 @@ use uuid::Uuid;
 use veoveo_platform_store::{
     ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState, ArtifactShareLinkDraft,
     ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId, ArtifactWriteCapabilityRecord,
-    ArtifactWriteRedemptionId, ChangefeedCursor, CoordinateFrameDraft, CoordinateOperationDraft,
-    GatewayReplayKind, GatewayReplayRecord, MapReleaseDraft, MapReleaseState, OpenObject,
-    OutboxDraft, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft,
-    RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding,
-    SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
-    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
-    gateway_replay_record_id,
+    ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry, CoordinateFrameDraft,
+    CoordinateOperationDraft, GatewayReplayKind, GatewayReplayRecord, MapReleaseDraft,
+    MapReleaseState, OpenObject, OutboxDraft, PlatformStore, PlatformTable, PrincipalKind,
+    RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState, SegmentDraft,
+    SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig, StoreCredentials,
+    StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind,
+    TimeSourceDraft, decode_changefeed_entry, gateway_replay_record_id,
 };
 
 #[tokio::test]
@@ -1113,4 +1113,207 @@ fn record_uuid(record: &veoveo_platform_store::RecordId) -> Uuid {
         RecordIdKey::String(value) => Uuid::parse_str(value).unwrap(),
         other => panic!("expected UUID record key, got {other:?}"),
     }
+}
+
+/// Pins the SurrealDB changefeed contract the console stream depends on:
+/// the oracle versionstamp layout (`unix_millis << 16`), `INCLUDE ORIGINAL`
+/// entry shapes, the delete shape (record id + original row), gap-free
+/// resume from a versionstamp, and cross-table versionstamp comparability.
+/// Datetime `SINCE` is intentionally NOT used: it returns nothing on this
+/// deployment, which is why cursors are clock-anchored versionstamps.
+/// Run explicitly with:
+/// `VEOVEO_SURREAL_INTEGRATION=1 cargo test -p veoveo-platform-store --test surreal_integration`
+#[tokio::test]
+async fn changefeed_replay_contract_is_pinned() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let endpoint =
+        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
+    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
+    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &endpoint,
+            "veoveo_integration",
+            format!("changefeed_test_{}", Uuid::now_v7().simple()),
+            StoreCredentials::root(username, SecretString::from(password)),
+        )
+        .migrate_on_connect(true)
+        .build()
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let db_now = |store: &PlatformStore| {
+        let store = store.clone();
+        async move {
+            let mut response = store
+                .client()
+                .query("RETURN time::now();")
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let now: surrealdb::types::Value = response.take(0).unwrap();
+            let surrealdb::types::Value::Datetime(now) = now else {
+                panic!("time::now() must return a datetime");
+            };
+            now.into_inner().timestamp_millis()
+        }
+    };
+
+    // Anchor a cursor on the database clock BEFORE any writes, exactly as
+    // the console snapshot handler will before reading its projection.
+    let anchor = store.changefeed_cursor_now().await.unwrap();
+    let db_before_writes_ms = db_now(&store).await;
+
+    let first = store
+        .ensure_identity(
+            "tenant-changefeed",
+            "cf-first",
+            "https://veoveo.local/tests",
+            "cf-first",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    let second = store
+        .ensure_identity(
+            "tenant-changefeed",
+            "cf-second",
+            "https://veoveo.local/tests",
+            "cf-second",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    store
+        .client()
+        .query("UPDATE $principal SET display_name = 'Changefeed Probe';")
+        .bind(("principal", first.principal_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    store
+        .client()
+        .query("DELETE $principal;")
+        .bind(("principal", second.principal_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let db_after_writes_ms = db_now(&store).await;
+
+    let batches = store
+        .replay_changes(PlatformTable::Principal, anchor, 1000)
+        .await
+        .unwrap();
+    assert!(
+        !batches.is_empty(),
+        "a clock-anchored cursor must surface the principal mutations"
+    );
+    let versionstamps: Vec<i64> = batches.iter().map(|batch| batch.versionstamp).collect();
+    assert!(
+        versionstamps.windows(2).all(|pair| pair[0] <= pair[1]),
+        "versionstamps must be monotonic: {versionstamps:?}"
+    );
+
+    // Pin the oracle layout the clock anchoring depends on. A SurrealDB
+    // upgrade that changes the layout must fail here, not in production.
+    let last_versionstamp = *versionstamps.last().unwrap();
+    let last_millis = last_versionstamp >> 16;
+    assert!(
+        (db_before_writes_ms - 1_000..=db_after_writes_ms + 1_000).contains(&last_millis),
+        "versionstamp >> 16 must be unix millis: {last_millis} outside          [{db_before_writes_ms}, {db_after_writes_ms}]"
+    );
+
+    // Every entry must decode: unknown shapes would silently drop console rows.
+    let mut saw_first_create = false;
+    let mut update_versionstamp = None;
+    let mut delete_original_tenant = None;
+    for batch in &batches {
+        for change in &batch.changes {
+            match decode_changefeed_entry(change).expect("all changefeed entries must decode") {
+                ChangefeedEntry::Upsert(row) => {
+                    let surrealdb::types::Value::RecordId(record) = row.get("id").clone() else {
+                        panic!("upsert row without record id: {row:?}");
+                    };
+                    if record == first.principal_id.record_id() {
+                        saw_first_create = true;
+                        if row.get("display_name")
+                            == &surrealdb::types::Value::String("Changefeed Probe".to_owned())
+                        {
+                            update_versionstamp = Some(batch.versionstamp);
+                        }
+                    }
+                }
+                ChangefeedEntry::Delete { record, original } => {
+                    if record == second.principal_id.record_id() {
+                        let original =
+                            original.expect("INCLUDE ORIGINAL deletes must carry the original row");
+                        delete_original_tenant = Some(original.get("tenant").clone());
+                    }
+                }
+                ChangefeedEntry::Definition => {}
+            }
+        }
+    }
+    assert!(
+        saw_first_create,
+        "create of the first principal must replay as an upsert"
+    );
+    let update_versionstamp = update_versionstamp.expect(
+        "the display_name update must replay as a full-row upsert (INCLUDE ORIGINAL current form)",
+    );
+    let delete_original_tenant =
+        delete_original_tenant.expect("the delete of the second principal must replay");
+    assert_eq!(
+        delete_original_tenant,
+        surrealdb::types::Value::RecordId(second.tenant_id.record_id()),
+        "delete originals must expose the tenant for content-based filtering"
+    );
+
+    // Resuming from the versionstamp before the tail must redeliver the tail
+    // (gap-free resume; redelivery of the cursor batch itself is acceptable).
+    if let Some(&resume_from) = versionstamps
+        .iter()
+        .rev()
+        .find(|stamp| **stamp < last_versionstamp)
+    {
+        let resumed = store
+            .replay_changes(
+                PlatformTable::Principal,
+                ChangefeedCursor::from_versionstamp(resume_from).unwrap(),
+                1000,
+            )
+            .await
+            .unwrap();
+        assert!(
+            resumed
+                .iter()
+                .any(|batch| batch.versionstamp == last_versionstamp),
+            "resume from {resume_from} must redeliver the tail batch {last_versionstamp}"
+        );
+    }
+
+    // Versionstamps must be comparable across tables so multi-table replay
+    // batches can be merge-sorted into one ordered stream.
+    let tenant_batches = store
+        .replay_changes(PlatformTable::Tenant, anchor, 1000)
+        .await
+        .unwrap();
+    let tenant_max = tenant_batches
+        .iter()
+        .map(|batch| batch.versionstamp)
+        .max()
+        .expect("tenant creation must appear in its changefeed");
+    assert!(
+        tenant_max <= update_versionstamp,
+        "tenant creation ({tenant_max}) must order before the later principal update \
+         ({update_versionstamp}) across tables"
+    );
 }

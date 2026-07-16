@@ -646,6 +646,10 @@ pub enum OwnedRoutePurpose {
 pub struct McpSurfaceCapabilities {
     pub tools: bool,
     pub resources: bool,
+    /// The server ships MCP App views (`ui://` HTML resources). Requires
+    /// `resources` and server-owned resource projection.
+    #[serde(default)]
+    pub apps: bool,
     pub resource_templates: bool,
     pub resource_subscriptions: bool,
     pub prompts: bool,

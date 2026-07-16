@@ -195,10 +195,11 @@ fn mcp_page<T>(
 #[tool_handler]
 impl ServerHandler for TimeseriesMcp {
     fn get_info(&self) -> ServerInfo {
-        let caps: ServerCapabilities = ServerCapabilities::builder()
+        let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
         let mut info = ServerInfo::default();
         info.capabilities = caps;
         info.server_info =
@@ -218,6 +219,25 @@ impl ServerHandler for TimeseriesMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        // The #[tool] macro has no meta attribute; the app link is attached
+        // to the listed tool here.
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                if tool.name == "forecast" {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::FORECAST_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -233,6 +253,12 @@ impl ServerHandler for TimeseriesMcp {
     ) -> Result<ListResourcesResult, McpError> {
         let identity = internal_identity(&context)?;
         let mut resources = vec![
+            veoveo_mcp_apps_extension::app_resource(uris::FORECAST_APP_URI, "forecast-app")
+                .with_title("Timeseries forecast view")
+                .with_description(
+                    "Interactive MCP App rendering forecast previews and re-running the \
+                     forecast tool.",
+                ),
             Resource::new(uris::USAGE_ROOT_URI, "usage")
                 .with_title("Timeseries usage ledger")
                 .with_description("Index of task usage resources.")
@@ -306,6 +332,14 @@ impl ServerHandler for TimeseriesMcp {
     ) -> Result<ReadResourceResult, McpError> {
         let identity = internal_identity(&context)?;
         let uri = request.uri.as_str();
+        if uri == uris::FORECAST_APP_URI {
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(
+                    uri,
+                    include_str!("../../assets/forecast-app.html"),
+                ),
+            ]));
+        }
         if uri == uris::USAGE_ROOT_URI {
             let mut entries = Vec::new();
             for task_id in self

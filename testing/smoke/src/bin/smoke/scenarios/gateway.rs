@@ -6,6 +6,8 @@ mod agent_gateway;
 mod authenticated;
 #[path = "gateway/chart_projection.rs"]
 mod chart_projection;
+#[path = "gateway/console_stream.rs"]
+mod console_stream;
 #[path = "gateway/http.rs"]
 mod http;
 #[path = "gateway/keycloak.rs"]
@@ -18,6 +20,7 @@ mod two_servers;
 pub(crate) use agent_gateway::agent_gateway;
 pub(crate) use authenticated::gateway_authenticated;
 pub(crate) use chart_projection::gateway_chart_projection;
+pub(crate) use console_stream::gateway_console_stream;
 pub(crate) use http::gateway_http;
 pub(crate) use keycloak::gateway_keycloak;
 pub(crate) use task_run::gateway_task_run;

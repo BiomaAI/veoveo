@@ -27,6 +27,7 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 veoveo-frames-mcp = { path = "../../servers/frames-mcp" }
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract = { workspace = true, features = ["analytics"] }
 veoveo-map-mcp = { path = "../../servers/map-mcp" }
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }

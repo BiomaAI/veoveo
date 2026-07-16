@@ -1,6 +1,8 @@
 mod api;
+mod apps;
 mod cluster;
 mod config;
+mod mcp_client;
 mod oauth;
 mod session;
 
@@ -27,6 +29,7 @@ struct AppState {
     http: reqwest::Client,
     cluster: Option<Arc<cluster::KubernetesClient>>,
     sessions: SessionCipher,
+    mcp: Arc<mcp_client::McpSessionPool>,
 }
 
 #[tokio::main]
@@ -43,11 +46,13 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .context("building console HTTP client")?;
     let cluster = cluster::KubernetesClient::from_env()?.map(Arc::new);
+    let mcp = Arc::new(mcp_client::McpSessionPool::new()?);
     let state = AppState {
         config: config.clone(),
         http,
         cluster,
         sessions,
+        mcp,
     };
     let csrf_state = state.clone();
 
@@ -61,6 +66,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/callback", get(oauth::callback))
         .route("/auth/logout", post(oauth::logout))
         .route("/console/api/snapshot", get(api::snapshot))
+        .route("/console/api/stream", get(api::stream))
+        .route("/console/api/apps", get(apps::list_apps))
+        .route("/console/api/apps/frame", get(apps::app_frame))
+        .route("/console/api/apps/call", post(apps::call_app_tool))
         .route("/console/api/cluster", get(cluster::snapshot))
         .route("/console/api/map/{*path}", any(api::map_admin))
         .route(
@@ -102,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::HeaderName::from_static("content-security-policy"),
             axum::http::HeaderValue::from_static(
-                "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+                "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
             ),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(

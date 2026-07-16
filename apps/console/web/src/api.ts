@@ -1,5 +1,6 @@
 import { demoSnapshot } from "./demo";
 import type {
+  AppCatalog,
   InstallationSnapshot,
   MapActiveReleaseSummary,
   MapAcquisitionSummary,
@@ -192,11 +193,13 @@ export const loadMapMobilityProfiles = async (signal?: AbortSignal) => (await ma
 export const loadMapActiveReleases = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapActiveReleaseSummary>>("active-releases?limit=200", signal)).items;
 
 export const loadMapAdministration = async (signal?: AbortSignal) => {
-  const sources = await loadMapSources(signal);
-  const acquisitions = await loadMapAcquisitions(signal);
-  const releases = await loadMapReleases(signal);
-  const mobilityProfiles = await loadMapMobilityProfiles(signal);
-  const activeReleases = await loadMapActiveReleases(signal);
+  const [sources, acquisitions, releases, mobilityProfiles, activeReleases] = await Promise.all([
+    loadMapSources(signal),
+    loadMapAcquisitions(signal),
+    loadMapReleases(signal),
+    loadMapMobilityProfiles(signal),
+    loadMapActiveReleases(signal),
+  ]);
   return { sources, acquisitions, releases, mobilityProfiles, activeReleases };
 };
 
@@ -239,5 +242,37 @@ export async function mutateMapRelease(
       expected_record_version: release.record_version,
       expected_active_pointer_version: activePointerVersion,
     }),
+  });
+}
+
+export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {
+  const response = await fetch("/console/api/apps", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) {
+    window.location.assign("/auth/login");
+    throw new Error("Authentication required");
+  }
+  if (!response.ok) throw new Error(`App catalog returned ${response.status}`);
+  return response.json() as Promise<AppCatalog>;
+}
+
+export function appFrameUrl(resourceUri: string): string {
+  return `/console/api/apps/frame?uri=${encodeURIComponent(resourceUri)}`;
+}
+
+export async function callAppTool(
+  server: string,
+  appUri: string,
+  tool: string,
+  toolArguments: Record<string, unknown>
+): Promise<unknown> {
+  return consoleMutation("apps/call", {
+    method: "POST",
+    body: JSON.stringify({ server, appUri, tool, arguments: toolArguments }),
   });
 }

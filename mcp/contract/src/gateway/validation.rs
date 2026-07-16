@@ -241,6 +241,20 @@ fn require_any_server_capability(
     }
 }
 
+pub(super) fn validate_server_apps(
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    if server.capabilities.apps
+        && !(server.capabilities.resources
+            && server.resource_projection == ResourceProjectionMode::ServerOwned)
+    {
+        return Err(GatewayControlPlaneError::ServerAppsRequireOwnedResources(
+            server.slug.clone(),
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_server_upstream(
     server: &ServerManifest,
 ) -> Result<(), GatewayControlPlaneError> {

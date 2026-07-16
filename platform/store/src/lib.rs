@@ -28,7 +28,9 @@ pub use artifacts::{
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteReservation,
     PublicShareRedemption,
 };
-pub use changefeed::{ChangefeedBatch, ChangefeedCursor, LiveStream};
+pub use changefeed::{
+    ChangefeedBatch, ChangefeedCursor, ChangefeedEntry, LiveStream, decode_changefeed_entry,
+};
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
 pub use coordinates::{CoordinateFrameDraft, CoordinateOperationDraft};
 pub use error::{MigrationError, StoreConfigError, StoreError};
@@ -57,7 +59,7 @@ pub use models::*;
 pub use outbox::{OutboxDraft, OutboxPage};
 pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
 pub use store::{PlatformClient, PlatformStore};
-pub use surrealdb::types::{RecordId, RecordIdKey};
+pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;
 pub use time::{
     TimeAcquisitionDraft, TimeAuthorityReleaseDraft, TimeCalendarVersionDraft,

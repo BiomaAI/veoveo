@@ -1,3 +1,5 @@
+use anyhow::bail;
+
 use super::client::{Client, FinalTaskClient};
 use super::*;
 use veoveo_mcp_task_extension::{
@@ -187,6 +189,109 @@ pub(super) async fn cmd_resources(client: &Client) -> Result<()> {
     }
     if let Some(cursor) = resources.next_cursor {
         println!("\nnext cursor: {cursor}");
+    }
+    Ok(())
+}
+
+const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;
+
+pub(super) async fn cmd_apps_check(client: &Client) -> Result<()> {
+    let info = client
+        .peer_info()
+        .ok_or_else(|| anyhow!("no server info"))?;
+    if !veoveo_mcp_apps_extension::server_declares_ui(&info.capabilities) {
+        bail!(
+            "server does not declare the `{}` extension",
+            veoveo_mcp_apps_extension::EXTENSION_ID
+        );
+    }
+    let resources = client.list_resources(Default::default()).await?;
+    let app_uris: Vec<String> = resources
+        .resources
+        .iter()
+        .filter(|resource| veoveo_mcp_apps_extension::is_app_resource(resource))
+        .map(|resource| resource.uri.clone())
+        .collect();
+    if app_uris.is_empty() {
+        bail!(
+            "server declares the apps extension but lists no `{}` resources",
+            veoveo_mcp_apps_extension::APP_MIME_TYPE
+        );
+    }
+    let tools = client.list_tools(Default::default()).await?;
+    let mut linked_tools = 0usize;
+    for tool in &tools.tools {
+        if let Some(link) = veoveo_mcp_apps_extension::tool_app_link(tool) {
+            if !app_uris.contains(&link.resource_uri) {
+                bail!(
+                    "tool `{}` links app `{}` which is not a listed app resource",
+                    tool.name,
+                    link.resource_uri
+                );
+            }
+            linked_tools += 1;
+        }
+    }
+    for uri in &app_uris {
+        let result = client
+            .read_resource(ReadResourceRequestParams::new(uri.as_str()))
+            .await?;
+        let contents = result
+            .contents
+            .iter()
+            .find_map(|content| match content {
+                rmcp::model::ResourceContents::TextResourceContents {
+                    text, mime_type, ..
+                } => Some((text.clone(), mime_type.clone())),
+                _ => None,
+            })
+            .ok_or_else(|| anyhow!("app resource {uri} returned no text contents"))?;
+        let (html, mime_type) = contents;
+        if mime_type.as_deref() != Some(veoveo_mcp_apps_extension::APP_MIME_TYPE) {
+            bail!(
+                "app resource {uri} has mime `{}` (expected `{}`)",
+                mime_type.unwrap_or_default(),
+                veoveo_mcp_apps_extension::APP_MIME_TYPE
+            );
+        }
+        if html.len() > MAX_APP_HTML_BYTES {
+            bail!(
+                "app resource {uri} is {} bytes (cap {MAX_APP_HTML_BYTES})",
+                html.len()
+            );
+        }
+        assert_self_contained_html(uri, &html)?;
+    }
+    println!(
+        "apps-check ok: {} app resource(s), {} app-linked tool(s)",
+        app_uris.len(),
+        linked_tools
+    );
+    Ok(())
+}
+
+/// Rejects fetch-capable references to external origins. Namespace
+/// identifiers such as `xmlns="http://…"` are not fetches and stay allowed.
+fn assert_self_contained_html(uri: &str, html: &str) -> Result<()> {
+    let lowered = html.to_ascii_lowercase();
+    for needle in [
+        "src=\"http://",
+        "src=\"https://",
+        "src='http://",
+        "src='https://",
+        "href=\"http://",
+        "href=\"https://",
+        "href='http://",
+        "href='https://",
+        "url(http://",
+        "url(https://",
+        "url(\"http",
+        "url('http",
+        "@import",
+    ] {
+        if lowered.contains(needle) {
+            bail!("app resource {uri} references an external origin via `{needle}`");
+        }
     }
     Ok(())
 }

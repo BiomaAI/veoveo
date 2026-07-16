@@ -102,6 +102,7 @@ fn media_manifest() -> ServerManifest {
             client_private_key: None,
         },
         capabilities: veoveo_mcp_contract::McpSurfaceCapabilities {
+            apps: false,
             tools: true,
             resources: true,
             resource_templates: true,
@@ -298,6 +299,7 @@ fn catalog_with_policy(policy: PolicySet) -> GatewayCatalog {
 
 fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -> GatewayCatalog {
     GatewayCatalog::from_control_plane(GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -744,6 +746,7 @@ fn catalog_routes_server_owned_projected_ui_resources() {
     });
 
     let catalog = GatewayCatalog::from_control_plane(GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), chart_server],
@@ -998,6 +1001,7 @@ fn builds_www_authenticate_challenge_with_scope() {
 #[test]
 fn keeps_contract_validation_errors_visible() {
     let err = GatewayCatalog::from_control_plane(GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],

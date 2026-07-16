@@ -56,6 +56,8 @@ pub enum StoreError {
     AdministrationFailed { operation: &'static str },
     #[error("changefeed limit must be in 1..={max}")]
     InvalidChangefeedLimit { max: u32 },
+    #[error("changefeed entry could not be decoded: {reason}")]
+    InvalidChangefeedEntry { reason: &'static str },
     #[error("outbox page limit must be in 1..={max}")]
     InvalidOutboxLimit { max: u32 },
     #[error("SurrealDB returned no record for {operation}")]

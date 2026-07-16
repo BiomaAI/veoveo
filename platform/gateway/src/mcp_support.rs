@@ -391,6 +391,7 @@ mod tests {
                 client_private_key: None,
             },
             capabilities: McpSurfaceCapabilities {
+                apps: false,
                 tools: true,
                 resources: true,
                 resource_templates: true,

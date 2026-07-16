@@ -119,9 +119,9 @@ use fake_services::{
     cmd_otlp_http_sink,
 };
 use mcp_commands::{
-    RunCommand, cmd_call, cmd_complete, cmd_complete_resource, cmd_info, cmd_models_from_catalog,
-    cmd_prompt, cmd_prompts, cmd_resource, cmd_resources, cmd_run, cmd_task_call, cmd_tasks,
-    read_resource_json, save_output_uri,
+    RunCommand, cmd_apps_check, cmd_call, cmd_complete, cmd_complete_resource, cmd_info,
+    cmd_models_from_catalog, cmd_prompt, cmd_prompts, cmd_resource, cmd_resources, cmd_run,
+    cmd_task_call, cmd_tasks, read_resource_json, save_output_uri,
 };
 use schema::cmd_contract_schemas;
 use tokens::{
@@ -436,6 +436,7 @@ async fn main() -> Result<()> {
         }
         Cmd::Complete { prefix } => cmd_complete(&client, &uris, prefix).await,
         Cmd::Resources => cmd_resources(&client).await,
+        Cmd::AppsCheck => cmd_apps_check(&client).await,
         Cmd::Prompts => cmd_prompts(&client).await,
         Cmd::Resource { uri } => cmd_resource(&client, uri).await,
         Cmd::Prompt { name, arguments } => cmd_prompt(&client, name, arguments).await,
