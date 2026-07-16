@@ -1271,10 +1271,76 @@
       }
     }
   ],
+  "recording_ingest_resources": [
+    {
+      "id": "recording-ingest",
+      "protected_resource": "https://veoveo.bioma.ai/ingest/recordings",
+      "authorization_server": "veoveo",
+      "policy_version": "2026-07-02",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://recording-hub:9878",
+        "security": "cluster_internal_http"
+      },
+      "maximum_batch_bytes": 8388608,
+      "required_scopes": [
+        "recording:ingest"
+      ],
+      "producers": [
+        {
+          "id": "recording-producer",
+          "oauth_client": "recording-producer",
+          "tenant": "bioma",
+          "dataset": "recordings",
+          "allowed_application_ids": [
+            "veoveo-sensor"
+          ],
+          "classification": "internal",
+          "labels": [],
+          "quotas": {
+            "maximum_concurrent_streams": 8,
+            "maximum_batches_per_minute": 1200,
+            "maximum_bytes_per_day": 10737418240,
+            "maximum_stream_bytes": 2147483648
+          },
+          "retention": {
+            "journal_grace_seconds": 86400,
+            "open_stream_days": 7
+          },
+          "enabled": true,
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ],
   "policies": [
     {
       "version": "2026-07-02",
       "rules": [
+        {
+          "id": "allow_recording_ingest",
+          "effect": "allow",
+          "actions": [
+            "recording_stream_open",
+            "recording_stream_status",
+            "recording_batch_append",
+            "recording_stream_finish"
+          ],
+          "protected_resources": [
+            "https://veoveo.bioma.ai/ingest/recordings"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#recording-producer"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "required_scopes": [
+            "recording:ingest"
+          ],
+          "metadata": {}
+        },
         {
           "id": "allow_operator_mcp_use",
           "effect": "allow",
@@ -3270,6 +3336,32 @@
     }
   ],
   "oauth_clients": [
+    {
+      "id": "recording-producer",
+      "authorization_server": "veoveo",
+      "display_name": "Recording Producer",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/ingest/recordings"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "recording:ingest"
+      ],
+      "jwks": {
+        "source": "remote",
+        "jwks_uri": "https://bioma.ai/.well-known/veoveo-recording-producer-jwks.json"
+      },
+      "tenant": "bioma",
+      "metadata": {
+        "client_boundary": "recording_producer"
+      }
+    },
     {
       "id": "operator-local-public",
       "authorization_server": "veoveo",

@@ -764,17 +764,30 @@ pub(super) fn validate_oauth_client_registration(
                 .collect::<BTreeSet<_>>();
             if let Some(policy) = policies.get(&profile.policy_version) {
                 for rule in &policy.rules {
-                    if rule.profiles.is_empty() || rule.profiles.contains(&profile.id) {
+                    if (rule.protected_resources.is_empty()
+                        && (rule.profiles.is_empty() || rule.profiles.contains(&profile.id)))
+                        || rule
+                            .protected_resources
+                            .contains(&profile.protected_resource)
+                    {
                         required_scopes.extend(rule.required_scopes.iter().cloned());
                     }
                 }
             }
             (&profile.authorization_server, required_scopes)
         } else if let Some(resource) = recording_ingest {
-            (
-                &resource.authorization_server,
-                resource.required_scopes.clone(),
-            )
+            let mut required_scopes = resource.required_scopes.clone();
+            if let Some(policy) = policies.get(&resource.policy_version) {
+                for rule in &policy.rules {
+                    if rule
+                        .protected_resources
+                        .contains(&resource.protected_resource)
+                    {
+                        required_scopes.extend(rule.required_scopes.iter().cloned());
+                    }
+                }
+            }
+            (&resource.authorization_server, required_scopes)
         } else {
             return Err(GatewayControlPlaneError::UnknownOAuthClientResource {
                 client: client.id.clone(),

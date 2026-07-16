@@ -152,10 +152,76 @@
       }
     }
   ],
+  "recording_ingest_resources": [
+    {
+      "id": "recording-ingest",
+      "protected_resource": "http://localhost:8780/ingest/recordings",
+      "authorization_server": "veoveo",
+      "policy_version": "2026-07-15",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://recording-hub:9878",
+        "security": "cluster_internal_http"
+      },
+      "maximum_batch_bytes": 8388608,
+      "required_scopes": [
+        "recording:ingest"
+      ],
+      "producers": [
+        {
+          "id": "sumo-recording-producer",
+          "oauth_client": "sumo-recording-producer",
+          "tenant": "tenant-a",
+          "dataset": "sumo-recordings",
+          "allowed_application_ids": [
+            "veoveo-sumo"
+          ],
+          "classification": "internal",
+          "labels": [],
+          "quotas": {
+            "maximum_concurrent_streams": 4,
+            "maximum_batches_per_minute": 1200,
+            "maximum_bytes_per_day": 10737418240,
+            "maximum_stream_bytes": 2147483648
+          },
+          "retention": {
+            "journal_grace_seconds": 86400,
+            "open_stream_days": 7
+          },
+          "enabled": true,
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ],
   "policies": [
     {
       "version": "2026-07-15",
       "rules": [
+        {
+          "id": "allow_sumo_recording_ingest",
+          "effect": "allow",
+          "actions": [
+            "recording_stream_open",
+            "recording_stream_status",
+            "recording_batch_append",
+            "recording_stream_finish"
+          ],
+          "protected_resources": [
+            "http://localhost:8780/ingest/recordings"
+          ],
+          "principal_ids": [
+            "http://localhost:8780/oauth#sumo-recording-producer"
+          ],
+          "tenant_ids": [
+            "tenant-a"
+          ],
+          "required_scopes": [
+            "recording:ingest"
+          ],
+          "metadata": {}
+        },
         {
           "id": "allow_sumo_operator",
           "effect": "allow",
@@ -248,6 +314,32 @@
     }
   ],
   "oauth_clients": [
+    {
+      "id": "sumo-recording-producer",
+      "authorization_server": "veoveo",
+      "display_name": "SUMO Recording Producer",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "http://localhost:8780/ingest/recordings"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "recording:ingest"
+      ],
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/jwks.json"
+      },
+      "tenant": "tenant-a",
+      "metadata": {
+        "client_boundary": "recording_producer"
+      }
+    },
     {
       "id": "operator-local-public",
       "authorization_server": "veoveo",

@@ -174,6 +174,49 @@
       "metadata": {}
     }
   ],
+  "recording_ingest_resources": [
+    {
+      "id": "recording-ingest",
+      "protected_resource": "https://veoveo.example/ingest/recordings",
+      "authorization_server": "veoveo",
+      "policy_version": "2026-07-02",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://recording-hub:9878",
+        "security": "cluster_internal_http"
+      },
+      "maximum_batch_bytes": 8388608,
+      "required_scopes": [
+        "recording:ingest"
+      ],
+      "producers": [
+        {
+          "id": "smoke-recording-producer",
+          "oauth_client": "smoke-recording-producer",
+          "tenant": "tenant-a",
+          "dataset": "smoke-recordings",
+          "allowed_application_ids": [
+            "smoke-sensor"
+          ],
+          "classification": "internal",
+          "labels": [],
+          "quotas": {
+            "maximum_concurrent_streams": 4,
+            "maximum_batches_per_minute": 600,
+            "maximum_bytes_per_day": 10737418240,
+            "maximum_stream_bytes": 2147483648
+          },
+          "retention": {
+            "journal_grace_seconds": 86400,
+            "open_stream_days": 7
+          },
+          "enabled": true,
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ],
   "policies": [
     {
       "version": "2026-07-02",
@@ -282,6 +325,29 @@
           ],
           "required_scopes": [
             "admin:manage"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_smoke_recording_ingest",
+          "effect": "allow",
+          "actions": [
+            "recording_stream_open",
+            "recording_stream_status",
+            "recording_batch_append",
+            "recording_stream_finish"
+          ],
+          "protected_resources": [
+            "https://veoveo.example/ingest/recordings"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#smoke-recording-producer"
+          ],
+          "tenant_ids": [
+            "tenant-a"
+          ],
+          "required_scopes": [
+            "recording:ingest"
           ],
           "metadata": {}
         }
@@ -456,6 +522,32 @@
       ],
       "metadata": {
         "client_boundary": "admin_service"
+      },
+      "jwks": {
+        "source": "file",
+        "path": "configs/jwks.smoke.json"
+      },
+      "tenant": "tenant-a"
+    },
+    {
+      "id": "smoke-recording-producer",
+      "authorization_server": "veoveo",
+      "display_name": "Smoke Recording Producer",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://veoveo.example/ingest/recordings"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "recording:ingest"
+      ],
+      "metadata": {
+        "client_boundary": "recording_producer"
       },
       "jwks": {
         "source": "file",
