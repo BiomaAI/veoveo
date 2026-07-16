@@ -286,6 +286,22 @@ fn control_plane_object_rows(
     for profile in &control_plane.profiles {
         rows.push(object_row(None, "profile", profile.id.as_str(), profile)?);
     }
+    for resource in &control_plane.recording_ingest_resources {
+        rows.push(object_row(
+            None,
+            "recording_ingest_resource",
+            resource.id.as_str(),
+            resource,
+        )?);
+        for producer in &resource.producers {
+            rows.push(object_row(
+                Some(producer.tenant.as_str().to_owned()),
+                "recording_producer",
+                producer.id.as_str(),
+                producer,
+            )?);
+        }
+    }
     for tenant in &control_plane.tenants {
         rows.push(object_row(
             Some(tenant.id.as_str().to_owned()),
@@ -398,6 +414,7 @@ mod tests {
             authorization_servers: Vec::new(),
             servers: Vec::new(),
             profiles: Vec::new(),
+            recording_ingest_resources: Vec::new(),
             tenants: vec![TenantDefinition {
                 id: tenant_id.clone(),
                 title: None,

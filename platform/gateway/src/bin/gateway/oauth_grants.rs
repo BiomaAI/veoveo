@@ -32,7 +32,9 @@ mod scopes;
 pub(super) use id_jag::token_endpoint_id_jag;
 pub(super) use refresh::token_endpoint_refresh_token;
 pub(super) use request::TokenRequest;
-pub(super) use scopes::{authorization_code_client_allowed, requested_token_scopes};
+pub(super) use scopes::{
+    authorization_code_client_allowed, requested_client_credentials_scopes, requested_token_scopes,
+};
 
 pub(super) async fn token_endpoint_authorization_code(
     state: &AppState,
@@ -355,7 +357,7 @@ pub(super) async fn token_endpoint_authorization_code(
     let token = match issue_access_token(
         catalog,
         authorization_server,
-        profile,
+        &profile.protected_resource,
         &code_record.principal.subject,
         &client_id,
         PrincipalKind::User,

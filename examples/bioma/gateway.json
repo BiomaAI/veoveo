@@ -3275,9 +3275,9 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Local Client",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "operator",
-        "rerun"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/rerun"
       ],
       "grant_types": [
         "authorization_code_pkce",
@@ -3331,8 +3331,8 @@
         "media.models"
       ],
       "direct_task_call_adapter": true,
-      "allowed_profiles": [
-        "operator"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/operator"
       ],
       "grant_types": [
         "authorization_code_pkce",
@@ -3375,8 +3375,8 @@
       "display_name": "Veoveo Admin Console",
       "client_surface": "tools_compat",
       "direct_task_call_adapter": true,
-      "allowed_profiles": [
-        "admin"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/admin"
       ],
       "grant_types": [
         "authorization_code_pkce",
@@ -3420,9 +3420,9 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Service",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "operator",
-        "rerun"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/rerun"
       ],
       "grant_types": [
         "client_credentials"
@@ -3459,8 +3459,8 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo Admin Service",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "admin"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/admin"
       ],
       "grant_types": [
         "client_credentials"
@@ -3500,9 +3500,9 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo AI Pilot Agent",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "operator",
-        "rerun"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/rerun"
       ],
       "grant_types": [
         "client_credentials"
@@ -3540,10 +3540,10 @@
       "id": "enterprise",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "allowed_profiles": [
-        "operator",
-        "admin",
-        "rerun"
+      "allowed_resources": [
+        "https://veoveo.bioma.ai/mcp/operator",
+        "https://veoveo.bioma.ai/mcp/admin",
+        "https://veoveo.bioma.ai/mcp/rerun"
       ],
       "client_id": "853550a7-5fd4-421c-abd2-bea0216fa579",
       "redirect_uri": "https://veoveo.bioma.ai/oauth/callback",

@@ -253,8 +253,8 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Local Client",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "operator"
+      "allowed_resources": [
+        "http://localhost:8780/mcp/operator"
       ],
       "grant_types": [
         "authorization_code_pkce",
@@ -286,8 +286,8 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo Admin Console",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "admin"
+      "allowed_resources": [
+        "http://localhost:8780/mcp/admin"
       ],
       "grant_types": [
         "authorization_code_pkce",
@@ -313,8 +313,8 @@
       "authorization_server": "veoveo",
       "display_name": "Veoveo Operator Service",
       "client_surface": "full_mcp",
-      "allowed_profiles": [
-        "operator"
+      "allowed_resources": [
+        "http://localhost:8780/mcp/operator"
       ],
       "grant_types": [
         "client_credentials"
@@ -340,9 +340,9 @@
       "id": "enterprise",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "allowed_profiles": [
-        "operator",
-        "admin"
+      "allowed_resources": [
+        "http://localhost:8780/mcp/operator",
+        "http://localhost:8780/mcp/admin"
       ],
       "client_id": "veoveo",
       "redirect_uri": "http://localhost:8780/oauth/callback",

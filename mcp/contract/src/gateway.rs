@@ -39,6 +39,8 @@ mod tenant;
 pub use tenant::*;
 mod branding;
 pub use branding::*;
+mod recording_ingest;
+pub use recording_ingest::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayControlPlane {
@@ -48,6 +50,8 @@ pub struct GatewayControlPlane {
     pub authorization_servers: Vec<ResourceAuthorizationServer>,
     pub servers: Vec<ServerManifest>,
     pub profiles: Vec<GatewayProfile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recording_ingest_resources: Vec<RecordingIngestResource>,
     pub tenants: Vec<TenantDefinition>,
     pub policies: Vec<PolicySet>,
     pub data_labels: Vec<DataLabelDefinition>,
@@ -186,6 +190,7 @@ impl GatewayControlPlane {
 
         let mut profiles = BTreeSet::new();
         let mut profile_by_id = BTreeMap::new();
+        let mut protected_resources = BTreeSet::new();
         for profile in &self.profiles {
             if !profiles.insert(profile.id.clone()) {
                 return Err(GatewayControlPlaneError::DuplicateProfile(
@@ -193,6 +198,11 @@ impl GatewayControlPlane {
                 ));
             }
             profile_by_id.insert(profile.id.clone(), profile);
+            if !protected_resources.insert(profile.protected_resource.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateProtectedResource(
+                    profile.protected_resource.clone(),
+                ));
+            }
             let Some(identity_provider) = identity_providers.get(&profile.identity_provider) else {
                 return Err(GatewayControlPlaneError::UnknownIdentityProvider {
                     profile: profile.id.clone(),
@@ -230,6 +240,117 @@ impl GatewayControlPlane {
                 validate_profile_server_exposure(profile, exposure, server)?;
             }
             validate_profile_auth_modes(profile, identity_provider, authorization_server)?;
+        }
+
+        let mut recording_ingest_resources = BTreeMap::new();
+        let mut recording_producers = BTreeSet::new();
+        let recording_scope = ScopeName::new("recording:ingest").expect("valid recording scope");
+        for resource in &self.recording_ingest_resources {
+            if recording_ingest_resources
+                .insert(resource.id.clone(), resource)
+                .is_some()
+            {
+                return Err(GatewayControlPlaneError::DuplicateRecordingIngestResource(
+                    resource.id.clone(),
+                ));
+            }
+            if !protected_resources.insert(resource.protected_resource.clone()) {
+                return Err(GatewayControlPlaneError::DuplicateProtectedResource(
+                    resource.protected_resource.clone(),
+                ));
+            }
+            if !authorization_servers.contains_key(&resource.authorization_server) {
+                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                    resource: resource.id.clone(),
+                    reason: format!(
+                        "unknown authorization server `{}`",
+                        resource.authorization_server
+                    ),
+                });
+            }
+            if !policies.contains(&resource.policy_version) {
+                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                    resource: resource.id.clone(),
+                    reason: format!("unknown policy version `{}`", resource.policy_version),
+                });
+            }
+            if resource.maximum_batch_bytes == 0 {
+                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                    resource: resource.id.clone(),
+                    reason: "maximum_batch_bytes must be positive".to_owned(),
+                });
+            }
+            if !resource.required_scopes.contains(&recording_scope) {
+                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                    resource: resource.id.clone(),
+                    reason: "required_scopes must contain recording:ingest".to_owned(),
+                });
+            }
+            if resource.upstream.security != UpstreamTransportSecurity::ClusterInternalHttp
+                || resource
+                    .upstream
+                    .url
+                    .parsed()
+                    .ok()
+                    .is_none_or(|url| url.scheme() != "http")
+            {
+                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                    resource: resource.id.clone(),
+                    reason: "upstream must use cluster_internal_http over HTTP".to_owned(),
+                });
+            }
+            if resource.producers.is_empty() {
+                return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                    resource: resource.id.clone(),
+                    reason: "at least one recording producer is required".to_owned(),
+                });
+            }
+            for producer in &resource.producers {
+                if !recording_producers.insert(producer.id.clone()) {
+                    return Err(GatewayControlPlaneError::DuplicateRecordingProducer(
+                        producer.id.clone(),
+                    ));
+                }
+                if !tenants.contains(&producer.tenant) {
+                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                        resource: resource.id.clone(),
+                        reason: format!(
+                            "producer `{}` references unknown tenant `{}`",
+                            producer.id, producer.tenant
+                        ),
+                    });
+                }
+                if producer.allowed_application_ids.is_empty()
+                    || producer.classification.trim().is_empty()
+                    || producer.quotas.maximum_concurrent_streams == 0
+                    || producer.quotas.maximum_batches_per_minute == 0
+                    || producer.quotas.maximum_bytes_per_day == 0
+                    || producer.quotas.maximum_stream_bytes == 0
+                    || producer.retention.journal_grace_seconds == 0
+                    || producer.retention.open_stream_days == 0
+                {
+                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                        resource: resource.id.clone(),
+                        reason: format!(
+                            "producer `{}` has an empty allowlist or non-positive policy limit",
+                            producer.id
+                        ),
+                    });
+                }
+                if let Some(label) = producer
+                    .labels
+                    .iter()
+                    .find(|label| !data_labels.contains(*label))
+                {
+                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                        resource: resource.id.clone(),
+                        reason: format!(
+                            "producer `{}` references unknown data label `{label}`",
+                            producer.id
+                        ),
+                    });
+                }
+            }
         }
 
         for policy in &self.policies {
@@ -330,17 +451,57 @@ impl GatewayControlPlane {
                 client,
                 &authorization_servers,
                 &profile_by_id,
+                &recording_ingest_resources,
                 &policy_by_id,
                 &servers,
                 &secret_refs,
             )?;
+        }
+        for resource in &self.recording_ingest_resources {
+            for producer in &resource.producers {
+                let Some(client) = self
+                    .oauth_clients
+                    .iter()
+                    .find(|client| client.id == producer.oauth_client)
+                else {
+                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                        resource: resource.id.clone(),
+                        reason: format!(
+                            "producer `{}` references unknown OAuth client `{}`",
+                            producer.id, producer.oauth_client
+                        ),
+                    });
+                };
+                if client.authorization_server != resource.authorization_server
+                    || !client
+                        .allowed_resources
+                        .contains(&resource.protected_resource)
+                    || client.tenant.as_ref() != Some(&producer.tenant)
+                    || !client
+                        .grant_types
+                        .contains(&OAuthGrantType::ClientCredentials)
+                    || !client
+                        .auth_methods
+                        .contains(&OAuthClientAuthMethod::PrivateKeyJwt)
+                {
+                    return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {
+                        resource: resource.id.clone(),
+                        reason: format!(
+                            "producer `{}` OAuth client is not bound to the resource, tenant, and private_key_jwt client-credentials grant",
+                            producer.id
+                        ),
+                    });
+                }
+            }
         }
         for profile in &self.profiles {
             for auth_mode in &profile.auth_modes {
                 let required_grant = OAuthGrantType::from(*auth_mode);
                 let has_client = self.oauth_clients.iter().any(|client| {
                     client.authorization_server == profile.authorization_server
-                        && client.allowed_profiles.contains(&profile.id)
+                        && client
+                            .allowed_resources
+                            .contains(&profile.protected_resource)
                         && client.grant_types.contains(&required_grant)
                 });
                 if !has_client {
@@ -357,7 +518,9 @@ impl GatewayControlPlane {
                 let has_oidc_client = self.oidc_clients.iter().any(|client| {
                     client.identity_provider == profile.identity_provider
                         && client.authorization_server == profile.authorization_server
-                        && client.allowed_profiles.contains(&profile.id)
+                        && client
+                            .allowed_resources
+                            .contains(&profile.protected_resource)
                 });
                 if !has_oidc_client {
                     return Err(GatewayControlPlaneError::MissingOidcClientForProfile {

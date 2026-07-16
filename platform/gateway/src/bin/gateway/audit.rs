@@ -10,8 +10,8 @@ use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction,
     GatewayControlPlane, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, JwtId,
     McpMethodName, OAuthClientId, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
-    Principal, PrincipalAuditAttributes, PrincipalId, ResourceAuthorizationServer, TokenSubject,
-    TraceId,
+    Principal, PrincipalAuditAttributes, PrincipalId, ProtectedResourceId,
+    ResourceAuthorizationServer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest,
@@ -326,7 +326,7 @@ pub(super) async fn record_auth_audit(
             event_id,
             timestamp: Utc::now(),
             trace_id,
-            profile: profile.id.clone(),
+            profile: Some(profile.id.clone()),
             protected_resource: profile.protected_resource.clone(),
             outcome,
             reason,
@@ -356,11 +356,27 @@ pub(super) struct AuthAuditRecord<'a> {
     pub(super) started_at: Instant,
 }
 
-pub(super) async fn record_token_auth_audit(
+#[derive(Clone, Copy)]
+pub(super) struct AuthAuditTarget<'a> {
+    pub(super) profile: Option<&'a GatewayProfileId>,
+    pub(super) protected_resource: &'a ProtectedResourceId,
+}
+
+impl<'a> From<&'a GatewayProfile> for AuthAuditTarget<'a> {
+    fn from(profile: &'a GatewayProfile) -> Self {
+        Self {
+            profile: Some(&profile.id),
+            protected_resource: &profile.protected_resource,
+        }
+    }
+}
+
+pub(super) async fn record_token_auth_audit<'a>(
     gateway_state: &GatewayState,
-    profile: &GatewayProfile,
+    target: impl Into<AuthAuditTarget<'a>>,
     record: AuthAuditRecord<'_>,
 ) -> anyhow::Result<()> {
+    let target = target.into();
     let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())?;
     let token_issuer = record
@@ -383,8 +399,8 @@ pub(super) async fn record_token_auth_audit(
             event_id,
             timestamp: Utc::now(),
             trace_id,
-            profile: profile.id.clone(),
-            protected_resource: profile.protected_resource.clone(),
+            profile: target.profile.cloned(),
+            protected_resource: target.protected_resource.clone(),
             outcome: record.outcome,
             reason: record.reason,
             method: AuthMethod::ClientCredentialsPrivateKeyJwt,
@@ -437,7 +453,7 @@ pub(super) async fn record_id_jag_auth_audit(
             event_id,
             timestamp: Utc::now(),
             trace_id,
-            profile: profile.id.clone(),
+            profile: Some(profile.id.clone()),
             protected_resource: profile.protected_resource.clone(),
             outcome: record.outcome,
             reason: record.reason,
@@ -530,7 +546,7 @@ fn user_grant_auth_audit_event(
         event_id,
         timestamp: Utc::now(),
         trace_id,
-        profile: profile.id.clone(),
+        profile: Some(profile.id.clone()),
         protected_resource: profile.protected_resource.clone(),
         outcome: record.outcome,
         reason: record.reason,

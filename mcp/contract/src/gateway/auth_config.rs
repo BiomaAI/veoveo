@@ -116,7 +116,7 @@ pub struct OAuthClientRegistration {
     pub allowed_compatibility_helpers: BTreeSet<CompatibilityHelperId>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub direct_task_call_adapter: bool,
-    pub allowed_profiles: BTreeSet<GatewayProfileId>,
+    pub allowed_resources: BTreeSet<ProtectedResourceId>,
     pub grant_types: BTreeSet<OAuthGrantType>,
     pub auth_methods: BTreeSet<OAuthClientAuthMethod>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -154,7 +154,7 @@ pub struct IdentityProviderOidcClientRegistration {
     pub id: OidcClientRegistrationId,
     pub identity_provider: IdentityProviderId,
     pub authorization_server: AuthorizationServerId,
-    pub allowed_profiles: BTreeSet<GatewayProfileId>,
+    pub allowed_resources: BTreeSet<ProtectedResourceId>,
     pub client_id: OidcClientId,
     pub redirect_uri: OAuthRedirectUri,
     pub auth_method: OidcClientAuthMethod,

@@ -684,6 +684,7 @@ pub(super) fn validate_oauth_client_registration(
     client: &OAuthClientRegistration,
     authorization_servers: &BTreeMap<AuthorizationServerId, &ResourceAuthorizationServer>,
     profiles: &BTreeMap<GatewayProfileId, &GatewayProfile>,
+    recording_ingest_resources: &BTreeMap<ProtectedResourceName, &RecordingIngestResource>,
     policies: &BTreeMap<PolicyVersion, &PolicySet>,
     servers: &BTreeMap<ServerSlug, &ServerManifest>,
     secrets: &BTreeMap<SecretReferenceId, &SecretReference>,
@@ -696,10 +697,10 @@ pub(super) fn validate_oauth_client_registration(
             },
         );
     }
-    if client.allowed_profiles.is_empty() {
-        return Err(GatewayControlPlaneError::OAuthClientWithoutAllowedProfiles(
-            client.id.clone(),
-        ));
+    if client.allowed_resources.is_empty() {
+        return Err(
+            GatewayControlPlaneError::OAuthClientWithoutAllowedResources(client.id.clone()),
+        );
     }
     if client.grant_types.is_empty() {
         return Err(GatewayControlPlaneError::OAuthClientWithoutGrantTypes(
@@ -713,40 +714,55 @@ pub(super) fn validate_oauth_client_registration(
     }
     validate_oauth_client_surface(client, servers)?;
 
-    for profile_id in &client.allowed_profiles {
-        let Some(profile) = profiles.get(profile_id) else {
-            return Err(GatewayControlPlaneError::UnknownOAuthClientProfile {
-                client: client.id.clone(),
-                profile: profile_id.clone(),
-            });
-        };
-        if profile.authorization_server != client.authorization_server {
-            return Err(
-                GatewayControlPlaneError::OAuthClientProfileAuthorizationServerMismatch {
-                    client: client.id.clone(),
-                    profile: profile_id.clone(),
-                    client_authorization_server: client.authorization_server.clone(),
-                    profile_authorization_server: profile.authorization_server.clone(),
-                },
-            );
-        }
-        let mut required_scopes = profile
-            .required_scopes
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        if let Some(policy) = policies.get(&profile.policy_version) {
-            for rule in &policy.rules {
-                if rule.profiles.is_empty() || rule.profiles.contains(profile_id) {
-                    required_scopes.extend(rule.required_scopes.iter().cloned());
+    for resource_id in &client.allowed_resources {
+        let profile = profiles
+            .values()
+            .copied()
+            .find(|profile| &profile.protected_resource == resource_id);
+        let recording_ingest = recording_ingest_resources
+            .values()
+            .copied()
+            .find(|resource| &resource.protected_resource == resource_id);
+        let (resource_authorization_server, required_scopes) = if let Some(profile) = profile {
+            let mut required_scopes = profile
+                .required_scopes
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if let Some(policy) = policies.get(&profile.policy_version) {
+                for rule in &policy.rules {
+                    if rule.profiles.is_empty() || rule.profiles.contains(&profile.id) {
+                        required_scopes.extend(rule.required_scopes.iter().cloned());
+                    }
                 }
             }
+            (&profile.authorization_server, required_scopes)
+        } else if let Some(resource) = recording_ingest {
+            (
+                &resource.authorization_server,
+                resource.required_scopes.clone(),
+            )
+        } else {
+            return Err(GatewayControlPlaneError::UnknownOAuthClientResource {
+                client: client.id.clone(),
+                resource: resource_id.clone(),
+            });
+        };
+        if resource_authorization_server != &client.authorization_server {
+            return Err(
+                GatewayControlPlaneError::OAuthClientResourceAuthorizationServerMismatch {
+                    client: client.id.clone(),
+                    resource: resource_id.clone(),
+                    client_authorization_server: client.authorization_server.clone(),
+                    resource_authorization_server: resource_authorization_server.clone(),
+                },
+            );
         }
         for scope in required_scopes {
             if !client.allowed_scopes.contains(&scope) {
                 return Err(GatewayControlPlaneError::OAuthClientMissingAllowedScope {
                     client: client.id.clone(),
-                    profile: profile_id.clone(),
+                    resource: resource_id.clone(),
                     scope,
                 });
             }
@@ -978,35 +994,39 @@ pub(super) fn validate_oidc_client_registration(
             },
         );
     }
-    if client.allowed_profiles.is_empty() {
-        return Err(GatewayControlPlaneError::OidcClientWithoutAllowedProfiles(
+    if client.allowed_resources.is_empty() {
+        return Err(GatewayControlPlaneError::OidcClientWithoutAllowedResources(
             client.id.clone(),
         ));
     }
-    for profile_id in &client.allowed_profiles {
-        let Some(profile) = profiles.get(profile_id) else {
-            return Err(GatewayControlPlaneError::UnknownOidcClientProfile {
+    for resource_id in &client.allowed_resources {
+        let Some(profile) = profiles
+            .values()
+            .copied()
+            .find(|profile| &profile.protected_resource == resource_id)
+        else {
+            return Err(GatewayControlPlaneError::UnknownOidcClientResource {
                 client: client.id.clone(),
-                profile: profile_id.clone(),
+                resource: resource_id.clone(),
             });
         };
         if profile.authorization_server != client.authorization_server {
             return Err(
-                GatewayControlPlaneError::OidcClientProfileAuthorizationServerMismatch {
+                GatewayControlPlaneError::OidcClientResourceAuthorizationServerMismatch {
                     client: client.id.clone(),
-                    profile: profile_id.clone(),
+                    resource: resource_id.clone(),
                     client_authorization_server: client.authorization_server.clone(),
-                    profile_authorization_server: profile.authorization_server.clone(),
+                    resource_authorization_server: profile.authorization_server.clone(),
                 },
             );
         }
         if profile.identity_provider != client.identity_provider {
             return Err(
-                GatewayControlPlaneError::OidcClientProfileIdentityProviderMismatch {
+                GatewayControlPlaneError::OidcClientResourceIdentityProviderMismatch {
                     client: client.id.clone(),
-                    profile: profile_id.clone(),
+                    resource: resource_id.clone(),
                     client_identity_provider: client.identity_provider.clone(),
-                    profile_identity_provider: profile.identity_provider.clone(),
+                    resource_identity_provider: profile.identity_provider.clone(),
                 },
             );
         }

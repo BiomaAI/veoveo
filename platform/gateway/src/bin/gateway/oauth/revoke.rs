@@ -74,7 +74,9 @@ pub(crate) async fn revoke_refresh_token(
         .await;
     };
     if client.authorization_server != profile.authorization_server
-        || !client.allowed_profiles.contains(&profile.id)
+        || !client
+            .allowed_resources
+            .contains(&profile.protected_resource)
         || !client.grant_types.contains(&OAuthGrantType::RefreshToken)
         || !client.auth_methods.contains(&OAuthClientAuthMethod::None)
     {

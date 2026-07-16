@@ -55,7 +55,9 @@ pub(crate) async fn token_endpoint_refresh_token(
         .await;
     };
     if client.authorization_server != profile.authorization_server
-        || !client.allowed_profiles.contains(&profile.id)
+        || !client
+            .allowed_resources
+            .contains(&profile.protected_resource)
         || !client.grant_types.contains(&OAuthGrantType::RefreshToken)
         || !client.auth_methods.contains(&OAuthClientAuthMethod::None)
     {
@@ -181,7 +183,7 @@ pub(crate) async fn token_endpoint_refresh_token(
     let token = match issue_access_token(
         catalog,
         authorization_server,
-        profile,
+        &profile.protected_resource,
         &grant.principal.subject,
         &client_id,
         PrincipalKind::User,
