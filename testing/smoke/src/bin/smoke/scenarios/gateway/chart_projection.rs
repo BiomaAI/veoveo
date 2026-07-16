@@ -66,17 +66,7 @@ pub(crate) async fn gateway_chart_projection(
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
 
-    let token = run_checked(
-        conformance,
-        [
-            "gateway-token-exchange".into(),
-            "--token-url".into(),
-            format!("{gateway_base}/oauth/token").into(),
-            "--scope".into(),
-            "operator:use".into(),
-        ],
-        [],
-    )?;
+    let token = gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;
     let token = token.trim();
     let info = run_mcp(conformance, &gateway_base, token, ["info".into()])?;
     contains(&info, "tool `charts__render_chart`")?;
@@ -120,18 +110,14 @@ pub(crate) async fn gateway_chart_projection(
         bail!("chart types resource was not routed correctly: {chart_types}");
     }
 
-    let chart_view = run_mcp(
-        conformance,
-        &gateway_base,
-        token,
-        ["resource".into(), "ui://charts/chart-view.html".into()],
+    // The chart view is a real MCP App now: verify the whole apps surface
+    // (extension aggregation, ui:// projection, MIME, self-containment)
+    // through the gateway.
+    let apps = run_mcp(conformance, &gateway_base, token, ["apps-check".into()])?;
+    contains(
+        &apps,
+        "apps-check ok: 1 app resource(s), 1 app-linked tool(s)",
     )?;
-    let chart_view: Value = serde_json::from_str(&chart_view)?;
-    if chart_view.get("server").and_then(Value::as_str) != Some("charts")
-        || chart_view.get("kind").and_then(Value::as_str) != Some("chart_view")
-    {
-        bail!("chart UI resource was not routed correctly: {chart_view}");
-    }
 
     let prompt = run_mcp(
         conformance,
@@ -173,7 +159,8 @@ fn write_chart_control_plane(base: &Path, output: &Path, upstream_url: &str) -> 
             "prompts": true,
             "completions": false,
             "tasks": false,
-            "notifications": false
+            "notifications": false,
+            "apps": true
         },
         "resource_projection": "server_owned",
         "tools": ["render_chart", "create_chart_view"],

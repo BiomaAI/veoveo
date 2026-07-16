@@ -39,10 +39,12 @@ const mcpServer = (
 export const demoSnapshot: InstallationSnapshot = {
   installation: {
     name: "Veoveo Operations",
+    productLabel: "Operations",
     version: "0.1.0",
     offlineMode: false,
     generatedAt: new Date(now).toISOString()
   },
+  stream: { cursor: "0" },
   session: {
     displayName: "Mara Chen",
     principalId: "entra#8c19f2",

@@ -379,6 +379,9 @@ pub(super) enum Cmd {
     Complete { prefix: String },
     /// List MCP resources visible to the authenticated principal.
     Resources,
+    /// Verify the MCP Apps surface: extension declaration, app view
+    /// resources, tool links, and self-contained HTML.
+    AppsCheck,
     /// List prompt templates.
     Prompts,
     /// Read one JSON resource by URI.

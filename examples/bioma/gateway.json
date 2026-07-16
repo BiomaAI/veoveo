@@ -1,4 +1,9 @@
 {
+  "branding": {
+    "name": "Bioma",
+    "product_label": "Operations",
+    "accent_color": "#4fa87d"
+  },
   "identity_providers": [
     {
       "id": "enterprise",
@@ -146,7 +151,8 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true
+        "notifications": true,
+        "apps": true
       },
       "tools": [
         "forecast"
@@ -154,7 +160,8 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "duckdb",
@@ -622,6 +629,10 @@
               {
                 "kind": "scheme",
                 "scheme": "timeseries"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://timeseries/"
               }
             ]
           },
@@ -983,6 +994,10 @@
               {
                 "kind": "scheme",
                 "scheme": "timeseries"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://timeseries/"
               }
             ]
           },
@@ -1919,7 +1934,8 @@
             "forecast"
           ],
           "resource_schemes": [
-            "timeseries"
+            "timeseries",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -1957,7 +1973,8 @@
             "forecast"
           ],
           "resource_schemes": [
-            "timeseries"
+            "timeseries",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -1992,7 +2009,8 @@
             "forecast"
           ],
           "resource_schemes": [
-            "timeseries"
+            "timeseries",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -2030,7 +2048,8 @@
             "forecast"
           ],
           "resource_schemes": [
-            "timeseries"
+            "timeseries",
+            "ui"
           ],
           "required_scopes": [
             "operator:use"
@@ -2384,30 +2403,69 @@
             "resources_unsubscribe",
             "completion_complete"
           ],
-          "profiles": ["operator", "admin"],
-          "servers": ["view"],
-          "resource_schemes": ["view"],
-          "required_scopes": ["operator:use", "view:read"],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "view"
+          ],
+          "resource_schemes": [
+            "view"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "view:read"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_view_write_tools",
           "effect": "allow",
-          "actions": ["tools_call"],
-          "profiles": ["operator", "admin"],
-          "servers": ["view"],
-          "tools": ["create_view", "set_camera", "close_view"],
-          "required_scopes": ["operator:use", "view:write"],
+          "actions": [
+            "tools_call"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "view"
+          ],
+          "tools": [
+            "create_view",
+            "set_camera",
+            "close_view"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "view:write"
+          ],
           "metadata": {}
         },
         {
           "id": "allow_view_capture_tasks",
           "effect": "allow",
-          "actions": ["tools_call", "tasks_get", "tasks_result", "tasks_cancel"],
-          "profiles": ["operator", "admin"],
-          "servers": ["view"],
-          "tools": ["capture_frame"],
-          "required_scopes": ["operator:use", "view:capture"],
+          "actions": [
+            "tools_call",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "view"
+          ],
+          "tools": [
+            "capture_frame"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "view:capture"
+          ],
           "metadata": {}
         },
         {

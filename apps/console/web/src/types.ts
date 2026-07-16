@@ -12,6 +12,9 @@ export type ReleaseState = "private" | "releasable" | "released";
 export interface InstallationSnapshot {
   installation: {
     name: string;
+    productLabel: string;
+    logo?: string;
+    accentColor?: string;
     version: string;
     offlineMode: boolean;
     generatedAt: string;
@@ -22,6 +25,9 @@ export interface InstallationSnapshot {
     tenantId: string;
     tenantName: string;
     availableTenants: Array<{ id: string; name: string }>;
+  };
+  stream: {
+    cursor: string;
   };
   services: ServiceHealth[];
   tasks: TaskSummary[];
@@ -278,4 +284,24 @@ export interface MapMobilityProfileSummary {
     };
     [key: string]: unknown;
   };
+}
+
+export interface AppToolDescriptor {
+  name: string;
+  title?: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface AppDescriptor {
+  server: string;
+  resourceUri: string;
+  name: string;
+  title?: string;
+  description?: string;
+  tools: AppToolDescriptor[];
+}
+
+export interface AppCatalog {
+  apps: AppDescriptor[];
 }

@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use validation::{
     validate_oauth_client_registration, validate_oidc_client_registration, validate_policy_set,
-    validate_profile_auth_modes, validate_profile_server_exposure,
+    validate_profile_auth_modes, validate_profile_server_exposure, validate_server_apps,
     validate_server_compatibility_helpers, validate_server_upstream,
     validate_server_upstream_tls_material,
 };
@@ -37,9 +37,13 @@ mod data_label;
 pub use data_label::*;
 mod tenant;
 pub use tenant::*;
+mod branding;
+pub use branding::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayControlPlane {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branding: Option<InstallationBranding>,
     pub identity_providers: Vec<IdentityProvider>,
     pub authorization_servers: Vec<ResourceAuthorizationServer>,
     pub servers: Vec<ServerManifest>,
@@ -77,6 +81,10 @@ pub enum GatewayControlPlaneRevisionSource {
 
 impl GatewayControlPlane {
     pub fn validate(&self) -> Result<(), GatewayControlPlaneError> {
+        if let Some(branding) = &self.branding {
+            branding.validate()?;
+        }
+
         let mut identity_providers = BTreeMap::new();
         for identity_provider in &self.identity_providers {
             if identity_providers
@@ -132,6 +140,7 @@ impl GatewayControlPlane {
             }
             validate_server_compatibility_helpers(server)?;
             validate_server_upstream(server)?;
+            validate_server_apps(server)?;
         }
 
         let mut policies = BTreeSet::new();

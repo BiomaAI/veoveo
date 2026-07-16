@@ -31,7 +31,7 @@ use super::{
         authorize_console_cluster, cancel_task, create_artifact_share_link, grant_artifact,
         proxy_server_admin, prune_jwt_revocations, read_console_snapshot, read_control_plane,
         revoke_artifact_grant, revoke_artifact_share_link, revoke_jwt, set_artifact_release_state,
-        update_control_plane,
+        spawn_console_wake_hub, spawn_server_health_prober, stream_console, update_control_plane,
     },
     artifact_download::download_artifact,
     auth::{
@@ -167,6 +167,9 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         ));
     router = router.merge(artifact_download_router);
 
+    let server_health = spawn_server_health_prober(catalog.clone(), ct.child_token());
+    let console_stream =
+        spawn_console_wake_hub(control_store.platform_store().clone(), ct.child_token());
     let admin_state = AdminState {
         catalog: catalog.clone(),
         http: http.clone(),
@@ -176,6 +179,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
         artifact_service_url,
         offline_mode,
+        server_health,
+        console_stream,
     };
     let admin_router = Router::new()
         .route(
@@ -190,6 +195,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             "/admin/{profile}/console/cluster",
             get(authorize_console_cluster),
         )
+        .route("/admin/{profile}/console/stream", get(stream_console))
         .route("/admin/{profile}/jwt-revocations", post(revoke_jwt))
         .route(
             "/admin/{profile}/jwt-revocations/prune",

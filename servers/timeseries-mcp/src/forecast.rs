@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::contract::{
     TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
-    TimeseriesForecastSummary, TimeseriesRowFilter, TimeseriesSeriesSummary,
-    TimeseriesTableMapping,
+    TimeseriesForecastSummary, TimeseriesPreviewForecastPoint, TimeseriesPreviewObservation,
+    TimeseriesRowFilter, TimeseriesSeriesPreview, TimeseriesSeriesSummary, TimeseriesTableMapping,
 };
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
@@ -32,8 +32,44 @@ pub const RRD_FILENAME: &str = "forecast.rrd";
 #[derive(Debug, Clone)]
 pub struct ForecastArtifact {
     pub summary: TimeseriesForecastSummary,
+    pub preview: Vec<TimeseriesSeriesPreview>,
     pub rrd_bytes: Vec<u8>,
     pub metadata: Value,
+}
+
+/// Bound on preview points per series so structured output stays small; the
+/// full-resolution data lives in the RRD artifact.
+pub const PREVIEW_POINTS_PER_SERIES: usize = 500;
+
+fn series_preview(series: &SeriesForecastDocument) -> TimeseriesSeriesPreview {
+    TimeseriesSeriesPreview {
+        series_id: series.series_id.clone(),
+        observed: downsample(&series.observed, PREVIEW_POINTS_PER_SERIES)
+            .map(|row| TimeseriesPreviewObservation {
+                event_time: row.event_time.clone(),
+                value: row.value,
+            })
+            .collect(),
+        forecast: downsample(&series.forecast, PREVIEW_POINTS_PER_SERIES)
+            .map(|point| TimeseriesPreviewForecastPoint {
+                step: point.step,
+                mean: point.mean,
+                q10: point.q10,
+                q90: point.q90,
+            })
+            .collect(),
+    }
+}
+
+/// Even-stride downsampling that always keeps the final point, so the chart
+/// tail (the most recent observation) is never dropped.
+fn downsample<T>(rows: &[T], cap: usize) -> impl Iterator<Item = &T> {
+    let stride = rows.len().div_ceil(cap.max(1)).max(1);
+    let last = rows.len().saturating_sub(1);
+    rows.iter()
+        .enumerate()
+        .filter(move |(index, _)| index % stride == 0 || *index == last)
+        .map(|(_, row)| row)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -126,6 +162,7 @@ pub fn run_forecast(
     }
     summaries.sort_by(|left, right| left.series_id.cmp(&right.series_id));
     series_docs.sort_by(|left, right| left.series_id.cmp(&right.series_id));
+    let preview = series_docs.iter().map(series_preview).collect();
 
     let summary = TimeseriesForecastSummary {
         method: request.method.clone(),
@@ -153,6 +190,7 @@ pub fn run_forecast(
     });
     Ok(ForecastArtifact {
         summary,
+        preview,
         rrd_bytes,
         metadata,
     })

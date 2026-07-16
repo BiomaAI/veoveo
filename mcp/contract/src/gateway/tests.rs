@@ -108,6 +108,7 @@ fn media_manifest() -> ServerManifest {
             client_private_key: None,
         },
         capabilities: McpSurfaceCapabilities {
+            apps: false,
             tools: true,
             resources: true,
             resource_templates: true,
@@ -135,6 +136,7 @@ fn control_plane_with_server_and_secrets(
     secrets: Vec<SecretReference>,
 ) -> GatewayControlPlane {
     GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![server],
@@ -397,6 +399,7 @@ fn control_plane_validates_upstream_transport_security() {
     loopback_manifest.upstream.url = UpstreamUrl::new("http://127.0.0.1:18801/media/mcp").unwrap();
     loopback_manifest.upstream.security = UpstreamTransportSecurity::LoopbackHttp;
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![loopback_manifest],
@@ -417,6 +420,7 @@ fn control_plane_validates_upstream_transport_security() {
         UpstreamUrl::new("http://media-mcp.default.svc.cluster.local/media/mcp").unwrap();
     mesh_manifest.upstream.security = UpstreamTransportSecurity::ServiceMeshMtls;
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![mesh_manifest],
@@ -439,6 +443,7 @@ fn control_plane_validates_upstream_transport_security() {
         UpstreamUrl::new("http://media.example.com/media/mcp").unwrap();
     public_plaintext_manifest.upstream.security = UpstreamTransportSecurity::ServiceMeshMtls;
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![public_plaintext_manifest],
@@ -589,6 +594,7 @@ fn gateway_actions_expose_subscription_mcp_methods() {
 #[test]
 fn control_plane_validates_cross_references() {
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -624,6 +630,7 @@ fn control_plane_rejects_unknown_server_reference() {
     let mut profile = default_profile();
     profile.servers[0].server = ServerSlug::new("simulation").unwrap();
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -650,6 +657,7 @@ fn control_plane_rejects_duplicate_profile_server_reference() {
     let mut profile = default_profile();
     profile.servers.push(profile.servers[0].clone());
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -678,6 +686,7 @@ fn control_plane_rejects_unknown_profile_tool() {
     let mut profile = default_profile();
     profile.servers[0].tools = Exposure::Listed(vec![LocalToolName::new("simulate").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -706,6 +715,7 @@ fn control_plane_rejects_unknown_profile_prompt() {
     let mut profile = default_profile();
     profile.servers[0].prompts = Exposure::Listed(vec![PromptName::new("unknown-prompt").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -736,6 +746,7 @@ fn control_plane_rejects_profile_resource_scheme_mismatch() {
         scheme: ResourceScheme::new("simulation").unwrap(),
     }]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -780,6 +791,7 @@ fn control_plane_accepts_server_owned_projected_ui_resources() {
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("ui").unwrap()]);
 
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![chart_server],
@@ -815,6 +827,7 @@ fn control_plane_rejects_projected_ui_resources_for_other_server_slug() {
     policy.rules[0].servers = BTreeSet::from([ServerSlug::new("charts").unwrap()]);
 
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![chart_server],
@@ -843,6 +856,7 @@ fn control_plane_rejects_disabled_profile_capability() {
     let mut manifest = media_manifest();
     manifest.capabilities.tasks = false;
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],
@@ -874,6 +888,7 @@ fn control_plane_rejects_unknown_identity_provider_reference() {
     let mut profile = default_profile();
     profile.identity_provider = IdentityProviderId::new("missing").unwrap();
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -902,6 +917,7 @@ fn control_plane_rejects_unknown_authorization_server_reference() {
     let mut profile = default_profile();
     profile.authorization_server = AuthorizationServerId::new("missing").unwrap();
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -930,6 +946,7 @@ fn control_plane_rejects_authorization_server_unknown_identity_provider() {
     let mut authorization_server = authorization_server();
     authorization_server.identity_provider = Some(IdentityProviderId::new("missing").unwrap());
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server],
         servers: vec![media_manifest()],
@@ -958,6 +975,7 @@ fn control_plane_rejects_profile_without_auth_modes() {
     let mut profile = default_profile();
     profile.auth_modes.clear();
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -986,6 +1004,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
     let mut profile = default_profile();
     profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![auth_server],
         servers: vec![media_manifest()],
@@ -1016,6 +1035,7 @@ fn control_plane_rejects_oidc_profile_without_browser_endpoints() {
     let mut profile = default_profile();
     profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![idp],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1049,6 +1069,7 @@ fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
     let mut profile = default_profile();
     profile.auth_modes = BTreeSet::from([AuthMode::EnterpriseManagedAuthorization]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![idp],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1078,6 +1099,7 @@ fn control_plane_rejects_extension_auth_modes_without_matching_endpoints() {
 #[test]
 fn control_plane_rejects_unknown_secret_owner_references() {
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1114,6 +1136,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
     ));
 
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1150,6 +1173,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
     ));
 
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1189,6 +1213,7 @@ fn control_plane_rejects_unknown_secret_owner_references() {
 #[test]
 fn control_plane_rejects_missing_oauth_client_for_auth_mode() {
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1217,6 +1242,7 @@ fn control_plane_rejects_missing_oidc_client_for_browser_auth() {
     let mut profile = default_profile();
     profile.auth_modes = BTreeSet::from([AuthMode::OidcAuthorizationCodePkce]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1245,6 +1271,7 @@ fn control_plane_rejects_oidc_client_without_openid_scope() {
     let mut clients = default_oidc_clients();
     clients[0].scopes.remove(&ScopeName::new("openid").unwrap());
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1273,6 +1300,7 @@ fn control_plane_rejects_public_client_credentials() {
     let mut clients = default_oauth_clients();
     clients[1].auth_methods = BTreeSet::from([OAuthClientAuthMethod::None]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1301,6 +1329,7 @@ fn control_plane_rejects_private_key_jwt_without_jwks() {
     let mut clients = default_oauth_clients();
     clients[1].jwks = None;
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1335,6 +1364,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
         jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/browser/jwks.json").unwrap(),
     });
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1360,6 +1390,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     let mut clients = default_oauth_clients();
     clients[0].grant_types = BTreeSet::from([OAuthGrantType::RefreshToken]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1386,6 +1417,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     clients[1].credential_secret =
         Some(SecretReferenceId::new("enterprise_oidc_client_secret").unwrap());
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1416,6 +1448,7 @@ fn control_plane_rejects_unsupported_oauth_client_auth_combinations() {
     clients[1].redirect_uris =
         vec![OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap()];
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1446,6 +1479,7 @@ fn control_plane_rejects_oauth_client_missing_required_scope() {
         .allowed_scopes
         .remove(&ScopeName::new("operator:use").unwrap());
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1474,6 +1508,7 @@ fn control_plane_rejects_duplicate_resource_schemes() {
     let mut second_server = media_manifest();
     second_server.slug = ServerSlug::new("simulation").unwrap();
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), second_server],
@@ -1500,6 +1535,7 @@ fn control_plane_rejects_duplicate_resource_schemes() {
 #[test]
 fn control_plane_rejects_duplicate_tenants() {
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1536,6 +1572,7 @@ fn control_plane_rejects_duplicate_policy_rule_ids() {
     let mut policy = default_policy();
     policy.rules.push(policy.rules[0].clone());
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1564,6 +1601,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].profiles = BTreeSet::from([GatewayProfileId::new("missing").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1589,6 +1627,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].servers = BTreeSet::from([ServerSlug::new("missing").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1614,6 +1653,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1639,6 +1679,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].tools = BTreeSet::from([LocalToolName::new("simulate").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1664,6 +1705,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].prompts = BTreeSet::from([PromptName::new("unknown-prompt").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1690,6 +1732,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     policy.rules[0].required_data_labels =
         BTreeSet::from([DataLabelId::new("unknown_label").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1715,6 +1758,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].tenant_ids = BTreeSet::from([TenantId::new("missing").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
@@ -1743,6 +1787,7 @@ fn control_plane_rejects_unknown_policy_rule_references() {
     let mut policy = default_policy();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("simulation").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), simulation_server],
@@ -1775,6 +1820,7 @@ fn control_plane_rejects_policy_action_outside_server_capabilities() {
     policy.rules[0].tools.clear();
     policy.rules[0].resource_schemes = BTreeSet::from([ResourceScheme::new("media").unwrap()]);
     let config = GatewayControlPlane {
+        branding: None,
         identity_providers: vec![identity_provider()],
         authorization_servers: vec![authorization_server()],
         servers: vec![manifest],

@@ -31,6 +31,7 @@ pub enum PlatformTable {
     ProviderEvent,
     ArtifactBlob,
     ArtifactOccurrence,
+    ArtifactGrant,
     ShareLink,
     ArtifactWriteCapability,
     ArtifactWriteRedemption,
@@ -69,7 +70,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 60] = [
+    pub const ALL: [Self; 61] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -95,6 +96,7 @@ impl PlatformTable {
         Self::ProviderEvent,
         Self::ArtifactBlob,
         Self::ArtifactOccurrence,
+        Self::ArtifactGrant,
         Self::ShareLink,
         Self::ArtifactWriteCapability,
         Self::ArtifactWriteRedemption,
@@ -159,6 +161,7 @@ impl PlatformTable {
             Self::ProviderEvent => "provider_event",
             Self::ArtifactBlob => "artifact_blob",
             Self::ArtifactOccurrence => "artifact_occurrence",
+            Self::ArtifactGrant => "artifact_grant",
             Self::ShareLink => "share_link",
             Self::ArtifactWriteCapability => "artifact_write_capability",
             Self::ArtifactWriteRedemption => "artifact_write_redemption",

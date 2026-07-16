@@ -637,12 +637,15 @@ impl FakeHostedMcp {
 
 impl ServerHandler for FakeHostedMcp {
     fn get_info(&self) -> ServerInfo {
-        let caps: ServerCapabilities = ServerCapabilities::builder()
+        let mut caps: ServerCapabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
             .enable_prompts()
             .enable_completions()
             .build();
+        if self.is_chart_fixture() {
+            veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
+        }
         let mut info = ServerInfo::default();
         info.capabilities = caps;
         info.server_info = Implementation::new(self.server.clone(), env!("CARGO_PKG_VERSION"));
@@ -677,13 +680,22 @@ impl ServerHandler for FakeHostedMcp {
                     )
                     .with_title("render chart")
                     .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden)),
-                    Tool::new(
-                        "create_chart_view",
-                        "Create a deterministic chart view fixture.",
-                        input_schema,
-                    )
-                    .with_title("create chart view")
-                    .with_execution(ToolExecution::new().with_task_support(TaskSupport::Forbidden)),
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        Tool::new(
+                            "create_chart_view",
+                            "Create a deterministic chart view fixture.",
+                            input_schema,
+                        )
+                        .with_title("create chart view")
+                        .with_execution(
+                            ToolExecution::new().with_task_support(TaskSupport::Forbidden),
+                        ),
+                        self.chart_view_uri(),
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    ),
                 ],
                 next_cursor: None,
                 meta: None,
@@ -771,10 +783,9 @@ impl ServerHandler for FakeHostedMcp {
                         .with_title("chart types")
                         .with_description("Deterministic chart fixture type catalog.")
                         .with_mime_type("application/json"),
-                    Resource::new(self.chart_view_uri(), "chart view")
+                    veoveo_mcp_apps_extension::app_resource(self.chart_view_uri(), "chart view")
                         .with_title("chart view")
-                        .with_description("Deterministic chart fixture UI resource.")
-                        .with_mime_type("text/html"),
+                        .with_description("Deterministic chart fixture MCP App view."),
                 ],
                 next_cursor: None,
                 meta: None,
@@ -828,11 +839,19 @@ impl ServerHandler for FakeHostedMcp {
                 "uri": self.chart_types_uri()
             }))
         } else if self.is_chart_fixture() && request.uri == self.chart_view_uri() {
-            serde_json::to_string(&json!({
-                "server": self.server,
-                "kind": "chart_view",
-                "uri": self.chart_view_uri()
-            }))
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(
+                    &request.uri,
+                    concat!(
+                        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
+                        "<title>chart view</title></head><body>",
+                        "<p data-kind=\"chart_view\">charts fixture view</p>",
+                        "<script>window.parent.postMessage(",
+                        "{ jsonrpc: \"2.0\", id: 1, method: \"ui/initialize\", params: {} }, \"*\");",
+                        "</script></body></html>"
+                    ),
+                ),
+            ]));
         } else if request.uri == self.scenarios_uri() {
             serde_json::to_string(&json!({
                 "server": self.server,

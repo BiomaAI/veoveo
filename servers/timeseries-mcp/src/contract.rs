@@ -84,8 +84,35 @@ pub struct TimeseriesForecastSummary {
     pub series: Vec<TimeseriesSeriesSummary>,
 }
 
+/// One observed point in a bounded chart preview.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct TimeseriesPreviewObservation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_time: Option<String>,
+    pub value: f64,
+}
+
+/// One forecast step in a bounded chart preview.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct TimeseriesPreviewForecastPoint {
+    pub step: u32,
+    pub mean: f64,
+    pub q10: f64,
+    pub q90: f64,
+}
+
+/// Downsampled chartable series shipped in structured output so app views
+/// can render without re-reading the RRD artifact.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct TimeseriesSeriesPreview {
+    pub series_id: String,
+    pub observed: Vec<TimeseriesPreviewObservation>,
+    pub forecast: Vec<TimeseriesPreviewForecastPoint>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeseriesForecastOutput {
     pub forecast: TimeseriesForecastSummary,
+    pub preview: Vec<TimeseriesSeriesPreview>,
     pub artifact: ArtifactMetadata,
 }

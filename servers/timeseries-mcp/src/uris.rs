@@ -1,6 +1,10 @@
 use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
 
 pub const ARTIFACT_TEMPLATE: &str = "timeseries://artifact/{artifact_id}";
+/// The forecast app view. The first path segment is the server slug; the
+/// gateway's ServerOwned projection rewrites it to the mounted slug, so the
+/// URI is stable end to end.
+pub const FORECAST_APP_URI: &str = "ui://timeseries/forecast.html";
 pub const USAGE_ROOT_URI: &str = "timeseries://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "timeseries://usage/task/{task_id}";
 

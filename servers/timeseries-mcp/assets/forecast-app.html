@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Timeseries forecast</title>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --ink: #1d2126;
+    --ink-secondary: #5b6570;
+    --ink-muted: #8a929b;
+    --grid: #e8eaec;
+    --panel-border: #dfe2e4;
+    --tooltip-surface: #ffffff;
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --ink: #e8e8e6;
+    --ink-secondary: #a8adb3;
+    --ink-muted: #7c8288;
+    --grid: #32343a;
+    --panel-border: #3a3d42;
+    --tooltip-surface: #24262a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--surface); color: var(--ink);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { padding: 14px 16px 16px; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; }
+  .subtitle { color: var(--ink-secondary); font-size: 12px; }
+  form { display: flex; align-items: center; gap: 8px; }
+  label { color: var(--ink-secondary); font-size: 12px; }
+  input[type="number"] { width: 72px; padding: 4px 6px; border: 1px solid var(--panel-border);
+    border-radius: 5px; background: var(--surface); color: var(--ink); font: inherit; }
+  button { padding: 5px 11px; border: 1px solid var(--panel-border); border-radius: 5px;
+    background: var(--tooltip-surface); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-secondary); font-size: 12px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; }
+  .legend .style-key { color: var(--ink-muted); }
+  #chartwrap { position: relative; }
+  svg { display: block; width: 100%; height: auto; }
+  #tooltip { position: absolute; display: none; pointer-events: none; z-index: 2;
+    background: var(--tooltip-surface); border: 1px solid var(--panel-border); border-radius: 6px;
+    padding: 7px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); min-width: 130px; }
+  #tooltip .tt-x { color: var(--ink-muted); font-size: 11px; margin-bottom: 3px; }
+  #tooltip .tt-row { display: flex; align-items: center; gap: 6px; }
+  #tooltip .tt-row i { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+  #tooltip .tt-row b { margin-left: auto; font-variant-numeric: tabular-nums; }
+  #status { color: var(--ink-muted); padding: 28px 0; text-align: center; }
+  #error { display: none; margin-top: 10px; padding: 7px 10px; border-radius: 5px; font-size: 12px;
+    border: 1px solid #e34948; color: #e34948; }
+  .fold-note { color: var(--ink-muted); font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1 id="title">Timeseries forecast</h1>
+      <div class="subtitle" id="subtitle">Waiting for forecast data…</div>
+    </div>
+    <form id="controls" hidden>
+      <label for="horizon">Horizon</label>
+      <input id="horizon" type="number" min="1" max="10000" value="12">
+      <button id="rerun" type="submit">Re-run forecast</button>
+    </form>
+  </div>
+  <div class="legend" id="legend" hidden></div>
+  <div id="chartwrap" hidden>
+    <svg id="chart" role="img" aria-label="Observed series and forecast with 10–90% band"></svg>
+    <div id="tooltip"></div>
+  </div>
+  <div id="status">Waiting for forecast data…</div>
+  <div id="error"></div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------- bridge --
+ * View side of the MCP Apps (ext-apps 2026-01-26) postMessage protocol.
+ * The host is the only counterparty; the frame runs in an opaque origin, so
+ * postMessage targets "*" and inbound messages are trusted only for shape.
+ */
+const bridge = (() => {
+  let nextId = 1;
+  const pending = new Map();
+  const notificationHandlers = new Map();
+
+  function post(message) {
+    window.parent.postMessage(message, "*");
+  }
+  function request(method, params) {
+    return new Promise((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+      post({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+  function notify(method, params) {
+    post({ jsonrpc: "2.0", method, params });
+  }
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+      const waiter = pending.get(message.id);
+      if (!waiter) return;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message || "host error"));
+      else waiter.resolve(message.result);
+      return;
+    }
+    if (message.method) {
+      const handler = notificationHandlers.get(message.method);
+      if (handler) handler(message.params, message.id);
+      else if (message.id !== undefined) {
+        post({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "method not found" } });
+      }
+    }
+  });
+  return { request, notify, on: (method, handler) => notificationHandlers.set(method, handler), post };
+})();
+
+/* ----------------------------------------------------------------- state --
+ * Categorical palette: validated slots (dataviz reference palette), fixed
+ * order by sorted series id, never cycled — series 9+ fold into a note.
+ */
+const palette = {
+  light: ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#e87ba4", "#eb6834"],
+  dark: ["#3987e5", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767", "#d55181", "#d95926"],
+};
+const MAX_SERIES = 8;
+let theme = "light";
+let lastToolInput = null;
+let preview = null;
+let summary = null;
+
+function seriesColor(index) {
+  return palette[theme][index % MAX_SERIES];
+}
+
+/* ---------------------------------------------------------------- render -- */
+const el = (id) => document.getElementById(id);
+const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+
+function render() {
+  if (!preview || !preview.length) return;
+  const shown = preview.slice(0, MAX_SERIES);
+  const folded = preview.length - shown.length;
+  el("status").hidden = true;
+  el("chartwrap").hidden = false;
+  el("controls").hidden = false;
+  const horizon = summary ? summary.horizon : 0;
+  el("subtitle").textContent =
+    `${shown.length} series · ${horizon} forecast step(s) · shaded band is the 10–90% interval`;
+
+  renderLegend(shown, folded);
+  renderChart(shown);
+}
+
+function renderLegend(shown, folded) {
+  const legend = el("legend");
+  legend.replaceChildren();
+  if (shown.length >= 2) {
+    shown.forEach((series, index) => {
+      const chip = document.createElement("span");
+      const swatch = document.createElement("i");
+      swatch.style.background = seriesColor(index);
+      chip.append(swatch, document.createTextNode(series.series_id));
+      legend.append(chip);
+    });
+  }
+  const styleKey = document.createElement("span");
+  styleKey.className = "style-key";
+  styleKey.textContent = "solid = observed · dashed = forecast mean";
+  legend.append(styleKey);
+  legend.hidden = false;
+  if (folded > 0) {
+    const note = document.createElement("span");
+    note.className = "fold-note";
+    note.textContent = `+${folded} more series not drawn (first ${MAX_SERIES} shown)`;
+    legend.append(note);
+  }
+}
+
+const layout = { width: 720, height: 300, top: 14, right: 118, bottom: 30, left: 52 };
+
+function chartModel(shown) {
+  // x is the row position: observed 0..n-1 per series, forecast appended
+  // after the longest observed series so all series share one axis.
+  const maxObserved = Math.max(...shown.map((series) => series.observed.length));
+  const maxStep = Math.max(...shown.map((series) =>
+    series.forecast.length ? series.forecast[series.forecast.length - 1].step : 0));
+  const xMax = Math.max(1, maxObserved - 1 + maxStep);
+  let yMin = Infinity;
+  let yMax = -Infinity;
+  for (const series of shown) {
+    for (const row of series.observed) { yMin = Math.min(yMin, row.value); yMax = Math.max(yMax, row.value); }
+    for (const point of series.forecast) { yMin = Math.min(yMin, point.q10); yMax = Math.max(yMax, point.q90); }
+  }
+  if (!Number.isFinite(yMin)) { yMin = 0; yMax = 1; }
+  if (yMin === yMax) { yMin -= 1; yMax += 1; }
+  const pad = (yMax - yMin) * 0.06;
+  yMin -= pad; yMax += pad;
+  const plotW = layout.width - layout.left - layout.right;
+  const plotH = layout.height - layout.top - layout.bottom;
+  const x = (position) => layout.left + (position / xMax) * plotW;
+  const y = (value) => layout.top + plotH - ((value - yMin) / (yMax - yMin)) * plotH;
+  return { maxObserved, xMax, yMin, yMax, x, y, plotH, plotW };
+}
+
+function svgEl(name, attrs) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  return node;
+}
+
+function renderChart(shown) {
+  const svg = el("chart");
+  svg.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
+  svg.replaceChildren();
+  const model = chartModel(shown);
+  const ink = getComputedStyle(document.documentElement);
+
+  // recessive grid: 4 horizontal lines + y tick labels
+  for (let tick = 0; tick <= 4; tick++) {
+    const value = model.yMin + ((model.yMax - model.yMin) * tick) / 4;
+    const yPos = model.y(value);
+    svg.append(svgEl("line", {
+      x1: layout.left, x2: layout.width - layout.right, y1: yPos, y2: yPos,
+      stroke: ink.getPropertyValue("--grid").trim(), "stroke-width": 1,
+    }));
+    const label = svgEl("text", {
+      x: layout.left - 8, y: yPos + 4, "text-anchor": "end",
+      fill: ink.getPropertyValue("--ink-muted").trim(), "font-size": 11,
+    });
+    label.textContent = fmt.format(value);
+    svg.append(label);
+  }
+  // forecast region divider at the last observed row
+  const divider = model.x(model.maxObserved - 1);
+  svg.append(svgEl("line", {
+    x1: divider, x2: divider, y1: layout.top, y2: layout.top + model.plotH,
+    stroke: ink.getPropertyValue("--ink-muted").trim(), "stroke-width": 1, "stroke-dasharray": "2 4",
+  }));
+  const dividerLabel = svgEl("text", {
+    x: divider + 4, y: layout.top + 10, fill: ink.getPropertyValue("--ink-muted").trim(), "font-size": 10,
+  });
+  dividerLabel.textContent = "forecast →";
+  svg.append(dividerLabel);
+
+  shown.forEach((series, index) => {
+    const color = seriesColor(index);
+    const anchor = series.observed.length - 1;
+    // 10–90% band
+    if (series.forecast.length) {
+      const upper = series.forecast.map((p) => `${model.x(anchor + p.step)},${model.y(p.q90)}`);
+      const lower = series.forecast.slice().reverse().map((p) => `${model.x(anchor + p.step)},${model.y(p.q10)}`);
+      const lastObserved = series.observed[anchor];
+      const start = lastObserved ? `${model.x(anchor)},${model.y(lastObserved.value)} ` : "";
+      svg.append(svgEl("polygon", {
+        points: `${start}${upper.join(" ")} ${lower.join(" ")}`,
+        fill: color, "fill-opacity": 0.14, stroke: "none",
+      }));
+    }
+    // observed line (solid, 2px)
+    if (series.observed.length) {
+      svg.append(svgEl("polyline", {
+        points: series.observed.map((row, i) => `${model.x(i)},${model.y(row.value)}`).join(" "),
+        fill: "none", stroke: color, "stroke-width": 2, "stroke-linejoin": "round",
+      }));
+    }
+    // forecast mean (dashed, 2px), joined to the last observed point
+    if (series.forecast.length) {
+      const lastObserved = series.observed[anchor];
+      const start = lastObserved ? [`${model.x(anchor)},${model.y(lastObserved.value)}`] : [];
+      svg.append(svgEl("polyline", {
+        points: start.concat(series.forecast.map((p) => `${model.x(anchor + p.step)},${model.y(p.mean)}`)).join(" "),
+        fill: "none", stroke: color, "stroke-width": 2, "stroke-dasharray": "5 4", "stroke-linejoin": "round",
+      }));
+    }
+    // direct label at the line end (≤4 series)
+    if (shown.length <= 4) {
+      const lastPoint = series.forecast.length
+        ? { x: anchor + series.forecast[series.forecast.length - 1].step, y: series.forecast[series.forecast.length - 1].mean }
+        : { x: anchor, y: series.observed.length ? series.observed[anchor].value : 0 };
+      const label = svgEl("text", {
+        x: model.x(lastPoint.x) + 6, y: model.y(lastPoint.y) + 4,
+        fill: ink.getPropertyValue("--ink-secondary").trim(), "font-size": 11,
+      });
+      label.textContent = series.series_id;
+      svg.append(label);
+    }
+  });
+
+  // x tick labels: first observed time, forecast boundary, horizon end
+  const firstTime = shown[0] && shown[0].observed[0] && shown[0].observed[0].event_time;
+  const axisInk = ink.getPropertyValue("--ink-muted").trim();
+  const ticks = [
+    { x: 0, text: firstTime ? firstTime.slice(0, 10) : "start" },
+    { x: model.maxObserved - 1, text: "last observed" },
+    { x: model.xMax, text: `+${model.xMax - model.maxObserved + 1} steps` },
+  ];
+  for (const tick of ticks) {
+    const label = svgEl("text", {
+      x: model.x(tick.x), y: layout.height - 10, "text-anchor": "middle", fill: axisInk, "font-size": 11,
+    });
+    label.textContent = tick.text;
+    svg.append(label);
+  }
+
+  attachHover(svg, shown, model);
+}
+
+/* crosshair + shared tooltip at the nearest x position */
+function attachHover(svg, shown, model) {
+  const crosshair = svgEl("line", {
+    y1: layout.top, y2: layout.top + model.plotH, stroke: "currentColor",
+    "stroke-width": 1, opacity: 0, "pointer-events": "none",
+  });
+  svg.append(crosshair);
+  const tooltip = el("tooltip");
+  const wrap = el("chartwrap");
+
+  const hide = () => { tooltip.style.display = "none"; crosshair.setAttribute("opacity", 0); };
+  svg.addEventListener("pointerleave", hide);
+  svg.addEventListener("pointermove", (event) => {
+    const rect = svg.getBoundingClientRect();
+    const scale = layout.width / rect.width;
+    const xView = (event.clientX - rect.left) * scale;
+    const position = Math.round(((xView - layout.left) / model.plotW) * model.xMax);
+    if (position < 0 || position > model.xMax) { hide(); return; }
+    crosshair.setAttribute("x1", model.x(position));
+    crosshair.setAttribute("x2", model.x(position));
+    crosshair.setAttribute("opacity", 0.25);
+
+    const rows = [];
+    shown.forEach((series, index) => {
+      const anchor = series.observed.length - 1;
+      if (position <= anchor && series.observed[position]) {
+        rows.push({ id: series.series_id, color: seriesColor(index), value: series.observed[position].value });
+      } else {
+        const point = series.forecast.find((p) => anchor + p.step === position);
+        if (point) rows.push({ id: series.series_id, color: seriesColor(index), value: point.mean });
+      }
+    });
+    if (!rows.length) { hide(); return; }
+    tooltip.replaceChildren();
+    const head = document.createElement("div");
+    head.className = "tt-x";
+    head.textContent = position <= model.maxObserved - 1
+      ? `observed row ${position}`
+      : `forecast step +${position - model.maxObserved + 1}`;
+    tooltip.append(head);
+    for (const row of rows) {
+      const line = document.createElement("div");
+      line.className = "tt-row";
+      const swatch = document.createElement("i");
+      swatch.style.background = row.color;
+      const name = document.createElement("span");
+      name.textContent = row.id;
+      const value = document.createElement("b");
+      value.textContent = fmt.format(row.value);
+      line.append(swatch, name, value);
+      tooltip.append(line);
+    }
+    tooltip.style.display = "block";
+    const wrapRect = wrap.getBoundingClientRect();
+    let left = event.clientX - wrapRect.left + 14;
+    if (left + tooltip.offsetWidth > wrapRect.width) left -= tooltip.offsetWidth + 28;
+    tooltip.style.left = `${Math.max(0, left)}px`;
+    tooltip.style.top = `${event.clientY - wrapRect.top + 12}px`;
+  });
+}
+
+/* ------------------------------------------------------------ data flow -- */
+function applyToolResult(result) {
+  const structured = result && (result.structuredContent || result.structured_content);
+  if (!structured || !structured.preview) return;
+  preview = structured.preview.slice().sort((a, b) => a.series_id.localeCompare(b.series_id));
+  summary = structured.forecast || null;
+  if (summary && summary.horizon) el("horizon").value = summary.horizon;
+  el("error").style.display = "none";
+  render();
+  reportSize();
+}
+
+function showError(message) {
+  const error = el("error");
+  error.textContent = message;
+  error.style.display = "block";
+}
+
+function reportSize() {
+  bridge.notify("ui/notifications/size-changed", {
+    height: Math.ceil(document.documentElement.getBoundingClientRect().height) + 8,
+  });
+}
+
+function applyHostContext(context) {
+  if (!context) return;
+  if (context.theme === "dark" || context.theme === "light") {
+    theme = context.theme;
+    document.documentElement.dataset.theme = theme;
+    if (preview) render();
+  }
+}
+
+bridge.on("ui/notifications/tool-input", (params) => {
+  if (params && params.arguments) lastToolInput = params.arguments;
+});
+bridge.on("ui/notifications/tool-result", (params) => {
+  applyToolResult(params && (params.result || params));
+});
+bridge.on("ui/notifications/tool-cancelled", () => {
+  el("rerun").disabled = false;
+  showError("Forecast run was cancelled.");
+});
+bridge.on("ui/notifications/host-context-changed", (params) => {
+  applyHostContext(params && (params.hostContext || params));
+});
+bridge.on("ui/resource-teardown", (_params, id) => {
+  if (id !== undefined) bridge.post({ jsonrpc: "2.0", id, result: {} });
+});
+
+el("controls").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!lastToolInput) {
+    showError("No prior forecast input to re-run; invoke the forecast tool first.");
+    return;
+  }
+  const horizon = Number.parseInt(el("horizon").value, 10);
+  const argumentsWithHorizon = Object.assign({}, lastToolInput, { horizon });
+  const rerun = el("rerun");
+  rerun.disabled = true;
+  el("subtitle").textContent = "Running forecast…";
+  try {
+    const result = await bridge.request("tools/call", { name: "forecast", arguments: argumentsWithHorizon });
+    lastToolInput = argumentsWithHorizon;
+    applyToolResult(result);
+  } catch (cause) {
+    showError(`Forecast failed: ${cause.message}`);
+  } finally {
+    rerun.disabled = false;
+    if (preview) render();
+  }
+});
+
+(async () => {
+  try {
+    const initialized = await bridge.request("ui/initialize", {
+      appInfo: { name: "timeseries-forecast", version: "1.0.0" },
+    });
+    bridge.notify("ui/notifications/initialized", {});
+    applyHostContext(initialized && initialized.hostContext);
+    reportSize();
+  } catch (cause) {
+    showError(`Host initialization failed: ${cause.message}`);
+  }
+})();
+</script>
+</body>
+</html>

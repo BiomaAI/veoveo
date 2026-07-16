@@ -10373,8 +10373,10 @@ dependencies = [
  "chacha20poly1305",
  "chrono",
  "dotenvy",
+ "futures",
  "getrandom 0.3.4",
  "reqwest 0.13.4",
+ "rmcp",
  "rustls",
  "serde",
  "serde_json",
@@ -10383,6 +10385,7 @@ dependencies = [
  "tower-http 0.7.0",
  "tracing",
  "url",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
 ]
@@ -10524,6 +10527,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-mcp-apps-extension"
+version = "0.1.0"
+dependencies = [
+ "rmcp",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "veoveo-mcp-conformance"
 version = "0.1.0"
 dependencies = [
@@ -10547,6 +10559,7 @@ dependencies = [
  "uuid",
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-media-mcp",
@@ -10610,6 +10623,7 @@ dependencies = [
  "uuid",
  "vaultrs",
  "veoveo-artifact-client",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
@@ -10860,10 +10874,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "bytes",
  "chrono",
  "clap",
  "dotenvy",
  "duckdb",
+ "futures",
  "glam 0.32.1",
  "hex",
  "image",
@@ -11016,6 +11032,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-duckdb-runtime",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",

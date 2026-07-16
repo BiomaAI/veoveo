@@ -247,6 +247,18 @@ enum Cmd {
         #[arg(long, default_value = "configs/gateway.smoke.json")]
         control_plane: PathBuf,
     },
+    /// Smoke-test the live console SSE stream (cursor, replay, limits).
+    GatewayConsoleStream {
+        /// Built conformance binary path.
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Built gateway binary path.
+        #[arg(long, default_value = "target/debug/gateway")]
+        gateway_bin: PathBuf,
+        /// Base gateway control-plane JSON.
+        #[arg(long, default_value = "configs/gateway.smoke.json")]
+        control_plane: PathBuf,
+    },
     /// Smoke-test gateway projection for server-owned chart resources.
     GatewayChartProjection {
         /// Built conformance binary path.
@@ -521,6 +533,11 @@ async fn main() -> Result<()> {
             gateway_bin,
             control_plane,
         } => gateway_chart_projection(&conformance_bin, &gateway_bin, &control_plane).await,
+        Cmd::GatewayConsoleStream {
+            conformance_bin,
+            gateway_bin,
+            control_plane,
+        } => gateway_console_stream(&conformance_bin, &gateway_bin, &control_plane).await,
         Cmd::GatewayTaskRun {
             conformance_bin,
             media_bin,

@@ -13,6 +13,11 @@ pub enum GatewayControlPlaneError {
     DuplicatePolicy(PolicyVersion),
     DuplicateDataLabel(DataLabelId),
     DuplicateTenant(TenantId),
+    InvalidBranding {
+        field: &'static str,
+        reason: String,
+    },
+    ServerAppsRequireOwnedResources(ServerSlug),
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
@@ -356,6 +361,14 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateDataLabel(label) => write!(f, "duplicate data label `{label}`"),
             Self::DuplicateTenant(tenant) => write!(f, "duplicate tenant `{tenant}`"),
+            Self::InvalidBranding { field, reason } => {
+                write!(f, "installation branding `{field}` {reason}")
+            }
+            Self::ServerAppsRequireOwnedResources(server) => write!(
+                f,
+                "server `{server}` declares apps but requires resources and server_owned \
+                 resource projection"
+            ),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
             Self::DuplicateOAuthClient(client) => {
                 write!(f, "duplicate OAuth client registration `{client}`")

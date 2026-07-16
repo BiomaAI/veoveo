@@ -1,8 +1,8 @@
 use axum::{
     body::{Body, to_bytes},
-    extract::{Path, Request as AxumRequest, State},
+    extract::{Path, RawQuery, Request as AxumRequest, State},
     http::{
-        HeaderMap, HeaderValue, Method, Request, StatusCode,
+        HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode,
         header::{
             CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY,
             CONTENT_TYPE, ETAG, HOST, LAST_MODIFIED, LOCATION, REFERRER_POLICY,
@@ -13,6 +13,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::Utc;
+use futures::StreamExt;
 use serde::Serialize;
 use veoveo_mcp_contract::{
     ArtifactId, ArtifactShareLinkId, CreateArtifactShareLinkRequest, PutGrantRequest,
@@ -423,6 +424,72 @@ pub(crate) async fn download_artifact(
     response
 }
 
+/// Margin before access-token expiry at which the proxied SSE stream is cut.
+/// The browser's EventSource reconnects immediately and the new handler run
+/// lands inside `ConsoleSession::should_refresh`'s 30 s window, so the token
+/// is silently refreshed across reconnects.
+const STREAM_TOKEN_MARGIN_SECS: i64 = 5;
+
+pub(crate) async fn stream(
+    State(state): State<AppState>,
+    RawQuery(query): RawQuery,
+    request_headers: HeaderMap,
+) -> Response {
+    let session = match upstream_session(&state, &request_headers).await {
+        Ok(session) => session,
+        Err(response) => return response,
+    };
+    let mut headers = match response_session_headers(&state, &session) {
+        Ok(headers) => headers,
+        Err(status) => return status.into_response(),
+    };
+    let mut url = state.config.admin_url("console/stream");
+    if let Some(query) = query.as_deref() {
+        url.set_query(Some(query));
+    }
+    let mut request = state
+        .http
+        .get(url)
+        .header(HOST, state.config.gateway_host())
+        .bearer_auth(&session.session.access_token);
+    if let Some(last_event_id) = request_headers.get("last-event-id") {
+        request = request.header("last-event-id", last_event_id.clone());
+    }
+    let upstream = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, "console stream upstream failed");
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        }
+    };
+    if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
+        return unauthorized(&state);
+    }
+    let status =
+        StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    if !status.is_success() {
+        return (headers, status).into_response();
+    }
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
+    headers.insert(
+        HeaderName::from_static("x-accel-buffering"),
+        HeaderValue::from_static("no"),
+    );
+    let remaining = session
+        .session
+        .access_expires_at
+        .saturating_sub(STREAM_TOKEN_MARGIN_SECS)
+        .saturating_sub(Utc::now().timestamp())
+        .max(1);
+    let deadline = tokio::time::sleep(std::time::Duration::from_secs(remaining.unsigned_abs()));
+    let mut response = Response::new(Body::from_stream(
+        upstream.bytes_stream().take_until(deadline),
+    ));
+    *response.status_mut() = StatusCode::OK;
+    *response.headers_mut() = headers;
+    response
+}
+
 async fn proxy_artifact_json<T: Serialize>(
     state: &AppState,
     request_headers: &HeaderMap,
@@ -493,6 +560,15 @@ async fn proxy_json<T: Serialize>(
         headers.insert(CONTENT_TYPE, content_type);
     }
     (status, headers, body).into_response()
+}
+
+/// Session accessor for the apps host module; identical semantics to the
+/// JSON proxies (cookie session, silent refresh, 401 on failure).
+pub(crate) async fn upstream_session_for_apps(
+    state: &AppState,
+    request_headers: &HeaderMap,
+) -> Result<crate::oauth::UpstreamSession, Response> {
+    upstream_session(state, request_headers).await
 }
 
 async fn upstream_session(

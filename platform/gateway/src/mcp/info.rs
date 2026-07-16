@@ -59,7 +59,16 @@ impl GatewayMcp {
                 capabilities.completions.get_or_insert_with(JsonObject::new);
             }
         }
-        capabilities.extensions = self.auth_extension_capabilities();
+        let mut extensions = self.auth_extension_capabilities();
+        if catalog
+            .profile_servers(&self.profile_id)
+            .iter()
+            .any(|(_, server)| server.capabilities.apps)
+        {
+            let (id, declaration) = veoveo_mcp_apps_extension::host_extension_capability();
+            extensions.get_or_insert_default().insert(id, declaration);
+        }
+        capabilities.extensions = extensions;
 
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;

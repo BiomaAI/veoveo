@@ -61,6 +61,7 @@ pub(super) async fn forecast_result(
     let mut result = CallToolResult::success(blocks);
     result.structured_content = Some(serde_json::to_value(TimeseriesForecastOutput {
         forecast: artifact.summary,
+        preview: artifact.preview,
         artifact: public_metadata,
     })?);
     Ok(result)
