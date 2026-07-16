@@ -10,6 +10,19 @@ document moves, a component is added, or an ownership boundary changes.
 An MCP server's design document belongs at `servers/{server}-mcp/DESIGN.md` beside its
 crate. Repository-wide architecture stays under `docs/`.
 
+## Worktrees and Commit Discipline
+
+Development normally spans multiple Git worktrees. Treat each worktree as an independent
+branch checkout, inspect its branch and status before editing, and preserve changes that
+belong to another user or agent. Synchronize worktrees by fast-forwarding when their
+histories permit it. Never force histories together merely to make every checkout match.
+
+Commit often as work progresses. Prefer several small, logical commits over one late
+catch-all commit because coherent checkpoints make review, recovery, testing, and
+cross-worktree synchronization easier. Each commit should capture one completed concern
+and leave the repository in a coherent state. Do not mix unrelated changes into a commit,
+and do not use commits to conceal incomplete or failing work.
+
 ## Hard Cut Policy
 
 Default behavior in this repository is a hard cut.
