@@ -10896,6 +10896,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-recording-forwarder"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "hex",
+ "jsonwebtoken",
+ "prost",
+ "re_build_info",
+ "re_grpc_server",
+ "re_log_channel",
+ "re_log_encoding",
+ "re_log_types",
+ "re_sdk",
+ "re_sdk_types",
+ "reqwest 0.13.4",
+ "rustls",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+ "veoveo-recording-protocol",
+]
+
+[[package]]
 name = "veoveo-recording-hub"
 version = "0.1.0"
 dependencies = [

@@ -61,3 +61,27 @@ Native Rerun gRPC is loopback-only at the forwarder. Recording Hub exposes an in
 HTTP service to the gateway and has no NodePort or public raw proxy. A firewall or
 NetworkPolicy narrows reachability, but it never replaces OAuth authorization.
 
+## Producer forwarder
+
+`recording-forwarder` listens on `127.0.0.1:9876` by default. A Rerun SDK connects to
+`rerun+http://127.0.0.1:9876/proxy`, while the forwarder discovers and uploads through
+the canonical gateway origin. Its queue directory must be persistent. The process
+applies disk backpressure once that queue reaches its configured byte limit.
+
+The producer registration supplies a JWKS public key. The matching private key stays on
+the producer as a PEM file and is selected by key ID and algorithm. A Bioma
+producer uses these canonical settings:
+
+```sh
+recording-forwarder \
+  --gateway-url https://veoveo.bioma.ai/ \
+  --protected-resource https://veoveo.bioma.ai/ingest/recordings \
+  --client-id bioma-recording-producer \
+  --key-id bioma-recording-producer-2026 \
+  --private-key-pem-file /run/secrets/recording-producer.pem \
+  --queue-dir /var/lib/veoveo-recording-forwarder
+```
+
+The same command works on the local network when split-horizon DNS resolves
+`veoveo.bioma.ai` to the LAN ingress. The certificate and OAuth resource identity remain
+unchanged.
