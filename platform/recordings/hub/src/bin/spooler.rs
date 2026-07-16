@@ -13,11 +13,18 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use clap::Parser;
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
+use veoveo_mcp_contract::{
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalResourceTokenVerifier,
+    GatewayInternalTrustBundle, ProtectedResourceId, ServerSlug, TokenIssuer,
+};
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
-use veoveo_recording_hub::{CatalogPolicy, PlatformCatalog};
+use veoveo_recording_hub::{
+    CatalogPolicy, PlatformCatalog, RecordingIngestService, RecordingIngestServiceConfig,
+    recording_ingest_internal_router,
+};
 
 #[derive(Parser)]
 #[command(name = "spooler", about = "Recording Hub durable spooler + gRPC proxy")]
@@ -25,9 +32,16 @@ struct Args {
     /// gRPC ingest bind address (the embedded proxy).
     #[arg(long, default_value = "127.0.0.1:9876")]
     bind: SocketAddr,
+    /// Cluster-internal authenticated protobuf ingest bind address.
+    #[arg(long, default_value = "127.0.0.1:9878")]
+    internal_ingest_bind: SocketAddr,
     /// Root directory for `{dataset}/{day}/{recording}.rrd`.
     #[arg(long)]
     spool_dir: PathBuf,
+    /// Durable batch journal. It must share the spool volume but remain a
+    /// distinct directory from materialized RRD segments.
+    #[arg(long, default_value = "/recordings/.ingest-journal")]
+    journal_dir: PathBuf,
     /// Routing rule `dataset=application_id_prefix` (repeatable). An empty
     /// prefix (`dataset=`) is the catch-all.
     #[arg(long = "route")]
@@ -89,6 +103,21 @@ struct Args {
         value_delimiter = ','
     )]
     recording_labels: Vec<String>,
+    #[arg(long, env = "RECORDING_INGEST_PROTECTED_RESOURCE")]
+    ingest_protected_resource: String,
+    #[arg(
+        long,
+        env = "VEOVEO_INTERNAL_TRUST_JWKS",
+        hide_env_values = true,
+        value_parser = parse_secret
+    )]
+    internal_trust_jwks: SecretString,
+    #[arg(
+        long,
+        env = "VEOVEO_INTERNAL_TOKEN_ISSUER",
+        default_value = GATEWAY_INTERNAL_TOKEN_ISSUER
+    )]
+    internal_token_issuer: String,
 }
 
 fn parse_secret(value: &str) -> Result<SecretString, String> {
@@ -161,6 +190,35 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
     )
     .await
     .context("connecting recording catalog with database-scoped credentials")?;
+    let ingest = RecordingIngestService::new(
+        store.clone(),
+        RecordingIngestServiceConfig {
+            journal_root: args.journal_dir.clone(),
+            spool_root: config.spool_dir.clone(),
+            protected_resource: ProtectedResourceId::new(&args.ingest_protected_resource)?,
+            maximum_batch_bytes: veoveo_recording_protocol::DEFAULT_MAXIMUM_BATCH_BYTES,
+        },
+    )?;
+    let reconciled_ingest = ingest.reconcile().await?;
+    tracing::info!(reconciled_ingest, "recording ingest journal reconciled");
+    let verifier = GatewayInternalResourceTokenVerifier::new(
+        TokenIssuer::new(&args.internal_token_issuer)?,
+        ServerSlug::new("recording-hub")?,
+        GatewayInternalTrustBundle::from_json(args.internal_trust_jwks.expose_secret())?,
+    );
+    let ingest_router = recording_ingest_internal_router(
+        ingest,
+        verifier,
+        veoveo_recording_protocol::DEFAULT_MAXIMUM_BATCH_BYTES,
+    );
+    let ingest_listener = tokio::net::TcpListener::bind(args.internal_ingest_bind).await?;
+    let mut ingest_http = tokio::spawn(async move {
+        axum::serve(ingest_listener, ingest_router)
+            .await
+            .context("serving Recording Hub internal ingest API")
+    });
+    tracing::info!(bind = %args.internal_ingest_bind, "recording hub internal ingest API up");
+
     let catalog = PlatformCatalog::new(
         store,
         config.spool_dir.clone(),
@@ -214,6 +272,7 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
         _ = wait_for_shutdown() => {
             stopping.store(true, Ordering::SeqCst);
             signal.stop();
+            ingest_http.abort();
             if let Some(ready) = &args.ready_file {
                 let _ = std::fs::remove_file(ready);
             }
@@ -221,6 +280,7 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
         }
         result = &mut drain => {
             signal.stop();
+            ingest_http.abort();
             if let Some(ready) = &args.ready_file {
                 let _ = std::fs::remove_file(ready);
             }
@@ -229,6 +289,15 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
                 "durable drain exited before shutdown after {} messages",
                 counters.messages
             );
+        }
+        result = &mut ingest_http => {
+            stopping.store(true, Ordering::SeqCst);
+            signal.stop();
+            if let Some(ready) = &args.ready_file {
+                let _ = std::fs::remove_file(ready);
+            }
+            result.context("recording ingest HTTP task panicked")??;
+            anyhow::bail!("recording ingest HTTP server exited before shutdown");
         }
     };
     tracing::info!(

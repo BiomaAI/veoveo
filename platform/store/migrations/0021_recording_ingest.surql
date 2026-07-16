@@ -13,7 +13,7 @@ DEFINE FIELD IF NOT EXISTS application_id ON TABLE recording_ingest_stream TYPE 
 DEFINE FIELD IF NOT EXISTS recording_key ON TABLE recording_ingest_stream TYPE string;
 DEFINE FIELD IF NOT EXISTS dataset ON TABLE recording_ingest_stream TYPE string;
 DEFINE FIELD IF NOT EXISTS state ON TABLE recording_ingest_stream TYPE "open" | "finished" | "failed" DEFAULT "open";
-DEFINE FIELD IF NOT EXISTS next_sequence ON TABLE recording_ingest_stream TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS next_sequence ON TABLE recording_ingest_stream TYPE int DEFAULT 1 ASSERT $value >= 1;
 DEFINE FIELD IF NOT EXISTS materialized_through_sequence ON TABLE recording_ingest_stream TYPE option<int> ASSERT $value = NONE OR $value >= 0;
 DEFINE FIELD IF NOT EXISTS byte_len ON TABLE recording_ingest_stream TYPE int DEFAULT 0 ASSERT $value >= 0;
 DEFINE FIELD IF NOT EXISTS message_count ON TABLE recording_ingest_stream TYPE int DEFAULT 0 ASSERT $value >= 0;
