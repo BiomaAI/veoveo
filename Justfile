@@ -16,7 +16,7 @@ smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRAR
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
-bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
+bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0 veoveo/uav-sim-runtime:6.0.1 veoveo/uav-sim-mcp:0.1.0"
 
 # List available recipes.
 default:
@@ -52,9 +52,11 @@ deployments-validate:
 helm-check:
     {{helm}} lint deploy/helm/veoveo
     {{helm}} lint showcase/sumo/deploy/helm
+    {{helm}} lint showcase/uav-sim/deploy/helm
     {{helm}} template veoveo deploy/helm/veoveo -f deploy/local/k3d/values.yaml >/dev/null
     {{helm}} template bioma deploy/helm/veoveo -f examples/bioma/values.yaml -f examples/bioma/k3d-values.yaml >/dev/null
     {{helm}} template sumo showcase/sumo/deploy/helm >/dev/null
+    {{helm}} template uav-sim showcase/uav-sim/deploy/helm -f examples/bioma/uav-sim-values.yaml >/dev/null
 
 # Create a content-verified offline installation bundle.
 offline-bundle output='output/veoveo-offline-0.1.0.tar.gz' platform='linux/amd64':
@@ -328,10 +330,12 @@ bioma-resources:
 # Install the Bioma-owned platform release in its isolated cluster.
 bioma-platform-up:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --wait --timeout 12m
+    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --wait --timeout 30m
 
 # Install Bioma with canonical-host TLS for direct LAN and split-horizon DNS access.
 bioma-platform-up-lan:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --values examples/bioma/lan-values.yaml --wait --timeout 12m
+    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --wait --timeout 30m
 
 # Connect the Bioma cluster to its remote-managed Cloudflare Tunnel.
 bioma-tunnel-up:
@@ -342,6 +346,11 @@ bioma-tunnel-up:
 bioma-verify:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} bioma-verify --context {{bioma-kube-context}}
+
+# Run the live Isaac/PX4/Google 3D Tiles/Recording/Perception acceptance path.
+bioma-uav-sim-verify:
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
+    {{smoke}} uav-sim-verify --context {{bioma-kube-context}}
 
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':

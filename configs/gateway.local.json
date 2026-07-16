@@ -100,6 +100,51 @@
       "metadata": {}
     },
     {
+      "slug": "uav-sim",
+      "uri_scheme": "uav-sim",
+      "mount_path": "/uav-sim",
+      "mcp_path": "/uav-sim/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://uav-sim-mcp:8802/uav-sim/mcp",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "get_simulation_state",
+        "pause_simulation",
+        "resume_simulation",
+        "reset_simulation",
+        "step_simulation",
+        "arm_vehicle",
+        "takeoff_vehicle",
+        "land_vehicle",
+        "run_scenario",
+        "execute_mission",
+        "capture_dataset"
+      ],
+      "prompts": [
+        "uav-sim-mission-plan",
+        "uav-sim-session-review"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "runtime": "isaac-sim-6.0.1",
+        "world_source": "google_photorealistic_3d_tiles"
+      }
+    },
+    {
       "slug": "perception",
       "uri_scheme": "perception",
       "mount_path": "/perception",
@@ -591,6 +636,27 @@
           "tasks": "enabled"
         },
         {
+          "server": "uav-sim",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+
+        {
           "server": "perception",
           "tools": {
             "mode": "listed",
@@ -929,6 +995,27 @@
           "completions": "enabled",
           "tasks": "enabled"
         },
+        {
+          "server": "uav-sim",
+          "tools": {
+            "mode": "all"
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "uav-sim"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+
         {
           "server": "perception",
           "tools": {
@@ -3248,6 +3335,119 @@
           "prompts": [
             "perception-analyze-recording",
             "perception-extract-clip"
+          ],
+          "principal_ids": [
+            "https://veoveo.example/oauth#operator-service",
+            "https://veoveo.example/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_uav_sim_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "get_simulation_state",
+            "pause_simulation",
+            "resume_simulation",
+            "reset_simulation",
+            "step_simulation",
+            "arm_vehicle",
+            "takeoff_vehicle",
+            "land_vehicle",
+            "run_scenario",
+            "execute_mission",
+            "capture_dataset"
+          ],
+          "resource_schemes": [
+            "uav-sim"
+          ],
+          "prompts": [
+            "uav-sim-mission-plan",
+            "uav-sim-session-review"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "roles": [
+            "veoveo_operator",
+            "veoveo_admin"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_service_uav_sim_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "resources_subscribe",
+            "resources_unsubscribe",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_result",
+            "tasks_cancel",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin"
+          ],
+          "servers": [
+            "uav-sim"
+          ],
+          "tools": [
+            "get_simulation_state",
+            "pause_simulation",
+            "resume_simulation",
+            "reset_simulation",
+            "step_simulation",
+            "arm_vehicle",
+            "takeoff_vehicle",
+            "land_vehicle",
+            "run_scenario",
+            "execute_mission",
+            "capture_dataset"
+          ],
+          "resource_schemes": [
+            "uav-sim"
+          ],
+          "prompts": [
+            "uav-sim-mission-plan",
+            "uav-sim-session-review"
           ],
           "principal_ids": [
             "https://veoveo.example/oauth#operator-service",

@@ -28,6 +28,25 @@ networkPolicy:
 podDisruptionBudget:
   enabled: false
 serverBootstrap:
+  frames-mcp:
+    server: frames
+    tenantKey: bioma
+    payload:
+      frames:
+      - frame_id: bioma-uav-origin
+        kind: enu
+        view_coordinates:
+          "x": right
+          "y": forward
+          "z": up
+        parent: WGS84
+        origin:
+          latitude_deg: 13.6929
+          longitude_deg: -89.2182
+          height_m: 700.0
+        datum: WGS84
+        ellipsoid: WGS84
+        description: Bioma UAV simulation origin in San Salvador.
   map-mcp:
     server: map
     tenantKey: bioma

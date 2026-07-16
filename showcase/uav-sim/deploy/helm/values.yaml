@@ -1,0 +1,91 @@
+global:
+  production: false
+  imagePullSecrets: []
+
+images:
+  pullPolicy: IfNotPresent
+  runtime:
+    repository: veoveo/uav-sim-runtime
+    tag: 6.0.1
+    digest: ""
+  mcp:
+    repository: veoveo/uav-sim-mcp
+    tag: 0.1.0
+    digest: ""
+
+platform:
+  instanceLabel: veoveo
+  publicBaseUrl: http://localhost:8780
+  installationSecret: veoveo-installation-secrets
+  cesiumTokenKey: cesium-ion-access-token
+  surrealService: surrealdb
+  surrealNamespace: veoveo
+  surrealDatabase: platform
+  surrealRuntimeSecret: veoveo-surreal-runtime
+  recordingProxy: rerun+http://recording-hub:9876/proxy
+  recordingTenantKey: enterprise
+
+world:
+  source: google_photorealistic_3d_tiles
+  cesiumIonAssetId: 2275207
+  cachePolicy: ephemeral
+
+session:
+  id: bioma-uav
+  frameUri: frames://frame/bioma-uav-origin
+  origin:
+    latitudeDegrees: 37.7749
+    longitudeDegrees: -122.4194
+    ellipsoidHeightM: 30.0
+  vehicleCount: 1
+  physicsHz: 250
+  renderingHz: 30
+  tileReadyFrames: 30
+  privacyConsent: false
+  camera:
+    width: 640
+    height: 480
+    fps: 20
+
+interactive:
+  enabled: true
+
+batch:
+  enabled: false
+  sessionId: bioma-uav-batch
+  exitAfterSeconds: 60
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+
+service:
+  port: 8802
+
+resources:
+  runtime:
+    requests:
+      cpu: "4"
+      memory: 16Gi
+      nvidia.com/gpu: 1
+    limits:
+      cpu: "16"
+      memory: 64Gi
+      nvidia.com/gpu: 1
+  mcp:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+scheduling:
+  runtimeClassName: nvidia
+  nodeSelector:
+    kubernetes.io/arch: amd64
+  tolerations: []
+  affinity: {}
+
+networkPolicy:
+  enabled: true
+  dnsNamespaceSelector:
+    kubernetes.io/metadata.name: kube-system

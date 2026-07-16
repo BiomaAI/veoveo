@@ -38,6 +38,8 @@ group "bioma" {
     "datasheet-mcp",
     "chart-mcp",
     "mcp-stdio-bridge",
+    "uav-sim-runtime",
+    "uav-sim-mcp",
   ]
 }
 
@@ -175,4 +177,18 @@ target "sumo-mcp" {
   inherits   = ["base"]
   dockerfile = "showcase/sumo/sumo-mcp/Dockerfile"
   tags       = ["veoveo/sumo-mcp:0.1.0"]
+}
+
+target "uav-sim-runtime" {
+  context    = "showcase/uav-sim/runtime"
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
+  tags       = ["veoveo/uav-sim-runtime:6.0.1"]
+}
+
+target "uav-sim-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/uav-sim-mcp/Dockerfile"
+  platforms  = ["linux/amd64"]
+  tags       = ["veoveo/uav-sim-mcp:0.1.0"]
 }
