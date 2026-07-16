@@ -100,6 +100,8 @@ domain_id!(FrameId, "frame");
 domain_id!(CoordinateOperationId, "coordinate_operation");
 domain_id!(RecordingId, "recording");
 domain_id!(SegmentId, "segment");
+domain_id!(RecordingIngestStreamId, "recording_ingest_stream");
+domain_id!(RecordingIngestBatchId, "recording_ingest_batch");
 domain_id!(AgentId, "agent");
 domain_id!(WakeId, "wake");
 domain_id!(AgentEpisodeId, "agent_episode");

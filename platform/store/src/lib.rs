@@ -17,6 +17,7 @@ mod map;
 mod migrations;
 mod models;
 mod outbox;
+mod recording_ingest;
 mod recordings;
 mod store;
 mod table;
@@ -57,6 +58,9 @@ pub use migrations::{
 };
 pub use models::*;
 pub use outbox::{OutboxDraft, OutboxPage};
+pub use recording_ingest::{
+    RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestStreamDraft,
+};
 pub use recordings::{RecordingDraft, RecordingSeal, SegmentDraft, SegmentSealBinding};
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};

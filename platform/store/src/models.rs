@@ -289,6 +289,21 @@ string_enum! {
 }
 
 string_enum! {
+    pub enum RecordingIngestStreamState {
+        Open => "open",
+        Finished => "finished",
+        Failed => "failed",
+    }
+}
+
+string_enum! {
+    pub enum RecordingIngestBatchState {
+        Durable => "durable",
+        Materialized => "materialized",
+    }
+}
+
+string_enum! {
     pub enum AgentState {
         Idle => "idle",
         Running => "running",
@@ -1079,6 +1094,46 @@ pub struct SegmentRecord {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingIngestStreamRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub recording: RecordId,
+    pub producer_id: String,
+    pub oauth_client_id: String,
+    pub source_stream_id: String,
+    pub application_id: String,
+    pub recording_key: String,
+    pub dataset: String,
+    pub state: RecordingIngestStreamState,
+    pub next_sequence: i64,
+    pub materialized_through_sequence: Option<i64>,
+    pub byte_len: i64,
+    pub message_count: i64,
+    pub failure_reason: Option<String>,
+    pub opened_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct RecordingIngestBatchRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub stream: RecordId,
+    pub sequence: i64,
+    pub payload_format: String,
+    pub sha256: String,
+    pub relative_path: String,
+    pub byte_len: i64,
+    pub message_count: i64,
+    pub state: RecordingIngestBatchState,
+    pub created_at: DateTime<Utc>,
+    pub materialized_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
