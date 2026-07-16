@@ -34,6 +34,7 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     let store = GatewayControlStore::connect(config).await.unwrap();
 
     assert!(store.load_active_revision().await.unwrap().is_none());
+    assert!(store.load_active_revision_head().await.unwrap().is_none());
 
     let first = revision("gcp-first", "a".repeat(64), empty_control_plane());
     store.record_revision(&first).await.unwrap();
@@ -41,6 +42,9 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         store.load_active_revision().await.unwrap(),
         Some(first.clone())
     );
+    let first_head = store.load_active_revision_head().await.unwrap().unwrap();
+    assert_eq!(first_head.revision_id, first.revision_id);
+    assert_eq!(first_head.sha256, first.sha256);
     assert_eq!(store.revision_count().await.unwrap(), 1);
     assert_eq!(store.object_count_for_active_revision().await.unwrap(), 0);
 
@@ -57,6 +61,9 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         store.load_active_revision().await.unwrap(),
         Some(second.clone())
     );
+    let second_head = store.load_active_revision_head().await.unwrap().unwrap();
+    assert_eq!(second_head.revision_id, second.revision_id);
+    assert_eq!(second_head.sha256, second.sha256);
     assert_eq!(store.revision_count().await.unwrap(), 2);
     assert_eq!(store.object_count_for_active_revision().await.unwrap(), 1);
 

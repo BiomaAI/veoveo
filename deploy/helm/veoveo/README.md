@@ -74,6 +74,13 @@ the bootstrap Job and the running gateway. File references in the control plane
 must resolve beneath that directory. This keeps revision validation and runtime
 authentication on the same immutable input set.
 
+Each Helm revision runs installation bootstrap against the mounted control
+plane. Bootstrap validates the seed and publishes a new immutable database
+revision when its hash differs from the active revision. This is also the
+gateway schema upgrade path: an older active payload does not need to satisfy
+the new schema before the current seed replaces it. A matching hash still
+requires the stored active revision to pass full typed validation.
+
 Generate `refresh-delivery-key-b64` independently from all signing and session
 keys with `openssl rand -base64 32`, then store that base64 text as the Secret
 value. It must decode to exactly 32 bytes. The gateway uses it only to encrypt a

@@ -317,8 +317,13 @@ async fn main() -> anyhow::Result<()> {
                 .replace_database_editor(&runtime_username, &runtime_password.0)
                 .await?;
 
-            let (status, revision_id) = match control_store.load_active_revision().await? {
-                Some(active) if active.sha256 == sha256 => ("unchanged", active.revision_id),
+            let (status, revision_id) = match control_store.load_active_revision_head().await? {
+                Some(active) if active.sha256 == sha256 => {
+                    let active = control_store.load_active_revision().await?.context(
+                        "active gateway control plane matched the seed hash but failed validation",
+                    )?;
+                    ("unchanged", active.revision_id)
+                }
                 _ => {
                     let revision_id = new_gateway_control_plane_revision_id()?;
                     let revision = GatewayControlPlaneRevision {

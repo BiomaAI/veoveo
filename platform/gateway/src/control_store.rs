@@ -14,6 +14,12 @@ use veoveo_platform_store::{
 
 const ACTIVE_CONTROL_PLANE_RECORD: &str = "gateway_control_active:current";
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct GatewayControlPlaneRevisionHead {
+    pub revision_id: GatewayControlPlaneRevisionId,
+    pub sha256: String,
+}
+
 pub fn new_gateway_control_plane_revision_id() -> Result<GatewayControlPlaneRevisionId> {
     GatewayControlPlaneRevisionId::new(format!("gcp-{}", uuid::Uuid::now_v7()))
         .context("failed to construct UUIDv7 gateway control-plane revision id")
@@ -49,6 +55,29 @@ impl GatewayControlStore {
     }
 
     pub async fn load_active_revision(&self) -> Result<Option<GatewayControlPlaneRevision>> {
+        self.load_active_revision_record()
+            .await?
+            .map(revision_from_record)
+            .transpose()
+            .context("active gateway control-plane revision is invalid")
+    }
+
+    pub async fn load_active_revision_head(
+        &self,
+    ) -> Result<Option<GatewayControlPlaneRevisionHead>> {
+        self.load_active_revision_record()
+            .await?
+            .map(|record| -> Result<GatewayControlPlaneRevisionHead> {
+                Ok(GatewayControlPlaneRevisionHead {
+                    revision_id: GatewayControlPlaneRevisionId::new(record.revision_id)?,
+                    sha256: record.sha256,
+                })
+            })
+            .transpose()
+            .context("active gateway control-plane revision head is invalid")
+    }
+
+    async fn load_active_revision_record(&self) -> Result<Option<GatewayControlRevisionRecord>> {
         let mut response = self
             .platform
             .client()
@@ -73,13 +102,9 @@ impl GatewayControlStore {
             .context("failed to load the active gateway control-plane revision")?
             .check()
             .context("active gateway control-plane revision query failed")?;
-        let revision: Option<GatewayControlRevisionRecord> = response
+        response
             .take(0)
-            .context("failed to decode the active gateway control-plane revision")?;
-        revision
-            .map(revision_from_record)
-            .transpose()
-            .context("active gateway control-plane revision is invalid")
+            .context("failed to decode the active gateway control-plane revision")
     }
 
     pub async fn record_revision(&self, revision: &GatewayControlPlaneRevision) -> Result<()> {
