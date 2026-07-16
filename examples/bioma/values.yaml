@@ -11,6 +11,9 @@ gateway:
 consoleBff:
   oauthResource: https://veoveo.bioma.ai/mcp/admin
 
+clusterInspection:
+  enabled: true
+
 ingress:
   className: traefik
   host: veoveo.bioma.ai

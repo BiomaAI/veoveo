@@ -19,7 +19,7 @@ product dependency or canonical hostname.
   revocation.
 - Short-lived Ed25519 gateway-to-service identity assertions. Hosted servers receive
   only public verification keys.
-- A required SurrealDB `3.2.0` platform store for identity, policy, control revisions,
+- A required SurrealDB `3.2.1` platform store for identity, policy, control revisions,
   tasks, artifacts, recordings, agents, audit, and the transactional outbox.
 - A shared artifact plane with opaque UUIDv7 occurrence identities, tenant-local
   deduplication, user/group grants, and expiring revocable anyone-with-link shares.
@@ -61,7 +61,7 @@ Browser / MCP client
                                     |
                   +-----------------+-----------------+
                   |                                   |
-           SurrealDB 3.2.0                      S3 / RustFS bytes
+           SurrealDB 3.2.1                      S3 / RustFS bytes
 ```
 
 SurrealDB is the durable coordination authority. DuckDB is an analytical runtime,
@@ -202,7 +202,7 @@ acceptance sequence.
 
 ## Install With Helm
 
-The Helm chart is under `deploy/helm/veoveo`. It uses one SurrealDB 3.2.0 RocksDB
+The Helm chart is under `deploy/helm/veoveo`. It uses one SurrealDB 3.2.1 RocksDB
 StatefulSet, separate bootstrap/runtime Secrets, default-deny NetworkPolicy, optional
 strict service-mesh mTLS, a singleton persistent DuckDB workspace, governed recording
 storage, and operator-supplied telemetry/SIEM configuration.

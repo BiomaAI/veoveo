@@ -14,7 +14,7 @@ secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-surrealdb = { version = "=3.2.0", default-features = false, features = ["protocol-ws", "rustls"] }
+surrealdb = { version = "=3.2.1", default-features = false, features = ["protocol-ws", "rustls"] }
 thiserror = "2.0.18"
 tokio = { workspace = true, features = ["time"] }
 url.workspace = true

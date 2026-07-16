@@ -38,6 +38,26 @@ The public root redirects to the operations console:
 https://veoveo.bioma.ai/console/
 ```
 
+The console requests the operator, administrator, and Map administration
+scopes. Sign out and authenticate again after a deployment changes that scope
+set because an existing console session retains the scopes issued at login.
+
+The MCP page expands each hosted server into the tools, resource patterns,
+prompts, protocol capabilities, required scopes, and owned HTTP routes declared
+by the active gateway control plane. The Cluster page reads the live Kubernetes
+namespace through a dedicated read-only Role. It can list workloads, pods,
+services, ingress, storage claims, policies, disruption budgets, and ConfigMaps;
+it has no permission to read Secrets. Every inventory request also passes the
+gateway's `AdminRead` policy before the console contacts Kubernetes. Audit
+renders 25 events per page and can export the current filtered result as CSV.
+
+The Map page starts with the installation-owned OpenStreetMap El Salvador
+source declared in `k3d-values.yaml`. Catalog bootstrap is typed and idempotent:
+restarting Map preserves an existing source and registers it only when absent.
+The source is an acquisition authority, not an implicitly active release. Start
+an acquisition in the console, inspect the staged release, then activate it to
+move the validated projection into service.
+
 The object-store hostname is an S3 API endpoint. Its bucket root returns
 `AccessDenied` without credentials and is not a browser console.
 

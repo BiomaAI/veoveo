@@ -17,7 +17,7 @@ pub(super) use artifacts::{
     create_artifact_share_link, grant_artifact, revoke_artifact_grant, revoke_artifact_share_link,
     set_artifact_release_state,
 };
-pub(super) use console::read_console_snapshot;
+pub(super) use console::{authorize_console_cluster, read_console_snapshot};
 pub(super) use control_plane::{read_control_plane, update_control_plane};
 pub(super) use jwt_revocations::{prune_jwt_revocations, revoke_jwt};
 pub(crate) use server_proxy::proxy_server_admin;

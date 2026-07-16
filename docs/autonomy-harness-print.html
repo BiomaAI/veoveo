@@ -626,7 +626,7 @@
   </table>
   <h3 class="minor">Shared planes</h3>
   <ul class="bullets">
-    <li><b>Platform store.</b> One SurrealDB 3.2.0 node (RocksDB) is the durable coordination
+    <li><b>Platform store.</b> One SurrealDB 3.2.1 node (RocksDB) is the durable coordination
         authority: identity, policy, control-plane revisions, tasks, artifacts, recordings,
         map catalogs and releases, agents, wakes, audit evidence, and usage. The transactional
         outbox and replayable changefeed carry all cross-process work.</li>
@@ -791,7 +791,7 @@
       <tr><td class="mono">hosted MCP server</td><td>ours</td><td>A domain boundary with explicit request and response models, the MCP surfaces it needs, shared task and artifact contracts, and optional administration under its canonical mount.</td></tr>
       <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and logistics routing over governed, versioned releases; its administrative API owns sources, acquisition, activation, rollback, and mobility profiles.</td></tr>
       <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: everything the operation senses, remembers, and decides, fused into one durable, queryable model of reality. Every episode's context is a fresh slice of it.</td></tr>
-      <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.0 — the platform's memory: identity, policy, tasks, artifacts, recordings, map catalogs and releases, agents, audit, and the transactional outbox.</td></tr>
+      <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.1 — the platform's memory: identity, policy, tasks, artifacts, recordings, map catalogs and releases, agents, audit, and the transactional outbox.</td></tr>
       <tr><td class="mono">task runtime</td><td>ours</td><td>The ledger for long work: UUIDv7 task ids with atomic leases, transitions, results, and declared recovery per operation.</td></tr>
       <tr><td class="mono">ingest socket</td><td>OSS</td><td>Where every producer pushes: one gRPC endpoint (the Rerun proxy), rebroadcast live to anyone reading.</td></tr>
       <tr><td class="mono">persist-first writer</td><td>ours</td><td>Embeds the ingest socket and fsyncs every message to disk before anything else — the write happens first.</td></tr>

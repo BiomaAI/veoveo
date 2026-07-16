@@ -22,7 +22,7 @@ serviceAccount:
 surrealdb:
   image:
     repository: surrealdb/surrealdb
-    tag: v3.2.0
+    tag: v3.2.1
     digest: ""
   namespace: veoveo
   database: platform
@@ -163,6 +163,11 @@ perception:
       memory: 16Gi
       nvidia.com/gpu: "1"
 
+mapBootstrap:
+  enabled: false
+  tenantKey: installation
+  sources: []
+
 consoleBff:
   image:
     repository: veoveo/console-bff
@@ -174,6 +179,7 @@ consoleBff:
   oauthScopes:
     - operator:use
     - admin:manage
+    - map:admin
   resources:
     requests:
       cpu: 50m
@@ -181,6 +187,10 @@ consoleBff:
     limits:
       cpu: 500m
       memory: 512Mi
+
+clusterInspection:
+  enabled: false
+  kubernetesApiCidrs: []
 
 domainServices:
   - name: artifact-mcp

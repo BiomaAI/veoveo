@@ -114,6 +114,10 @@ impl Config {
         self.admin_url("console/snapshot")
     }
 
+    pub(crate) fn cluster_authorization_url(&self) -> Url {
+        self.admin_url("console/cluster")
+    }
+
     pub(crate) fn admin_url(&self, path: &str) -> Url {
         debug_assert!(!path.starts_with('/'));
         self.gateway_url

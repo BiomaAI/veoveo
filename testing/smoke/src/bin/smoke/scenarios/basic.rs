@@ -19,7 +19,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
             format!("127.0.0.1:{port}:8000").into(),
             "--tmpfs".into(),
             "/data:rw,size=1073741824,uid=65532,gid=65532,mode=0700".into(),
-            "surrealdb/surrealdb:v3.2.0".into(),
+            "surrealdb/surrealdb:v3.2.1".into(),
             "start".into(),
             "--bind".into(),
             "0.0.0.0:8000".into(),
@@ -42,7 +42,7 @@ pub(crate) async fn surreal_integration() -> Result<()> {
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
     if !ready {
-        bail!("timed out waiting for SurrealDB 3.2.0 at {ready_url}");
+        bail!("timed out waiting for SurrealDB 3.2.1 at {ready_url}");
     }
 
     let endpoint = format!("ws://127.0.0.1:{port}");
@@ -104,7 +104,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         [],
     )?;
     for expected in [
-        "image: surrealdb/surrealdb:v3.2.0",
+        "image: surrealdb/surrealdb:v3.2.1",
         "image: rustfs/rustfs:1.0.0-beta.8",
         "image: amazon/aws-cli:2.35.23",
         "name: mcp-gateway",
@@ -146,14 +146,11 @@ pub(crate) async fn helm_config() -> Result<()> {
         "host: objects-veoveo.bioma.ai",
         "https://veoveo.bioma.ai",
         "name: bioma-gateway-control-plane",
+        "name: recording-ingest",
     ] {
         contains(&bioma, expected)?;
     }
-    for forbidden in [
-        "name: recording-ingest",
-        "name: otel-collector",
-        "secretName: bioma-ingress-tls",
-    ] {
+    for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
         }

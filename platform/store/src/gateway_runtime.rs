@@ -667,14 +667,30 @@ impl PlatformStore {
     ) -> Result<(), StoreError> {
         debug_assert_eq!(record.resource_type, kind.resource_type());
         let outbox = gateway_audit_outbox(kind, &record);
-        self.db
-            .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("record", record.id.clone()))
-            .bind(("content", record))
-            .bind(("outbox", outbox))
-            .await?
-            .check()?;
-        Ok(())
+        const MAX_ATTEMPTS: u32 = 8;
+        for attempt in 0..MAX_ATTEMPTS {
+            let response = self
+                .db
+                .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+                .bind(("record", record.id.clone()))
+                .bind(("content", record.clone()))
+                .bind(("outbox", outbox.clone()))
+                .await
+                .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(()),
+                });
+            match response {
+                Ok(()) => return Ok(()),
+                Err(error)
+                    if is_retryable_transaction_failure(&error) && attempt + 1 < MAX_ATTEMPTS =>
+                {
+                    retry_backoff(attempt).await;
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        unreachable!("gateway audit attempts return or fail")
     }
 
     pub async fn gateway_audit_events(
@@ -994,5 +1010,7 @@ fn validate_refresh_pair(
 }
 
 async fn retry_backoff(attempt: u32) {
-    tokio::time::sleep(Duration::from_millis(1_u64 << attempt)).await;
+    let floor = 1_u64 << attempt;
+    let jitter = u64::from(Uuid::now_v7().as_bytes()[15]) % floor;
+    tokio::time::sleep(Duration::from_millis(floor + jitter)).await;
 }

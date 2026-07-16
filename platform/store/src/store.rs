@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use surrealdb::Surreal;
 use surrealdb::engine::remote::ws::{Client, Ws, Wss};
 use surrealdb::opt::{
@@ -27,7 +29,7 @@ pub(crate) fn primary_transaction_error(
 /// A connected, namespace-scoped handle to the installation platform store.
 #[derive(Clone, Debug)]
 pub struct PlatformStore {
-    pub(crate) db: Surreal<Client>,
+    pub(crate) db: Arc<Surreal<Client>>,
     config: StoreConfig,
 }
 
@@ -93,7 +95,10 @@ impl PlatformStore {
             .use_db(config.database())
             .await?;
 
-        let store = Self { db, config };
+        let store = Self {
+            db: Arc::new(db),
+            config,
+        };
         if store.config.migrate_on_connect() {
             store.migrate().await?;
         }
@@ -101,7 +106,7 @@ impl PlatformStore {
     }
 
     pub fn client(&self) -> &Surreal<Client> {
-        &self.db
+        self.db.as_ref()
     }
 
     pub fn config(&self) -> &StoreConfig {

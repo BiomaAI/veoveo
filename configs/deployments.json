@@ -11,7 +11,7 @@
       },
       "platform_store": {
         "engine": "surreal_db",
-        "version": "3.2.0",
+        "version": "3.2.1",
         "storage_engine": "rocks_db",
         "topology": "single_node",
         "database_ha": "out_of_scope",
@@ -98,7 +98,7 @@
       },
       "platform_store": {
         "engine": "surreal_db",
-        "version": "3.2.0",
+        "version": "3.2.1",
         "storage_engine": "rocks_db",
         "topology": "single_node",
         "database_ha": "out_of_scope",

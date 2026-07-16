@@ -1,14 +1,46 @@
-import type { InstallationSnapshot } from "./types";
+import type { InstallationSnapshot, McpServerSummary } from "./types";
 
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
+const mcpServer = (
+  id: string,
+  toolCount: number,
+  resourceCount: number,
+  promptCount: number,
+  profiles: string[],
+  state: McpServerSummary["state"] = "healthy",
+): McpServerSummary => ({
+  id,
+  name: id,
+  uriScheme: id,
+  transport: "streamable_http",
+  endpoint: `http://${id}-mcp:8799/${id}/mcp`,
+  state,
+  checkedAt: ago(0),
+  capabilities: {
+    tools: toolCount > 0,
+    resources: resourceCount > 0,
+    resourceTemplates: resourceCount > 0,
+    resourceSubscriptions: resourceCount > 0,
+    prompts: promptCount > 0,
+    completions: true,
+    tasks: true,
+    notifications: true,
+  },
+  tools: Array.from({ length: toolCount }, (_, index) => `${id}_tool_${index + 1}`),
+  compatibilityHelpers: [],
+  resources: Array.from({ length: resourceCount }, (_, index) => `${id}://resource/${index + 1}`),
+  prompts: Array.from({ length: promptCount }, (_, index) => `${id}-prompt-${index + 1}`),
+  requiredScopes: ["operator:use"],
+  ownedRoutes: [],
+  profiles,
+});
 
 export const demoSnapshot: InstallationSnapshot = {
   installation: {
     name: "Veoveo Operations",
     version: "0.1.0",
     offlineMode: false,
-    databaseTopology: "single-node",
     generatedAt: new Date(now).toISOString()
   },
   session: {
@@ -22,7 +54,7 @@ export const demoSnapshot: InstallationSnapshot = {
     ]
   },
   services: [
-    { id: "surreal", name: "SurrealDB", kind: "database", state: "healthy", detail: "RocksDB, single node", latencyMs: 4, checkedAt: ago(0) },
+    { id: "surreal", name: "SurrealDB", kind: "database", state: "healthy", detail: "Control store · RocksDB", latencyMs: 4, checkedAt: ago(0) },
     { id: "gateway", name: "MCP Gateway", kind: "gateway", state: "healthy", detail: "8 profiles active", latencyMs: 12, checkedAt: ago(0) },
     { id: "artifacts", name: "Artifact Plane", kind: "object_store", state: "healthy", detail: "RustFS reachable", latencyMs: 18, checkedAt: ago(0) },
     { id: "recording", name: "Recording Hub", kind: "mcp", state: "degraded", detail: "1 producer reconnecting", latencyMs: 27, checkedAt: ago(1) },
@@ -47,16 +79,16 @@ export const demoSnapshot: InstallationSnapshot = {
     { id: "catalog-curator", name: "Catalog Curator", profile: "data-steward", state: "idle", pendingWakes: 2, lastEpisodeAt: ago(91), detail: "Next heartbeat in 4m" }
   ],
   recordings: [
-    { id: "019f4d5b-b0ba-7d13-8b25-f09df48f3a83", application: "sumo-world", recordingKey: "luxembourg-morning", state: "open", segments: 7, byteLength: 1_940_402_118, startedAt: ago(82) },
+    { id: "019f4d5b-b0ba-7d13-8b25-f09df48f3a83", application: "traffic-world", recordingKey: "luxembourg-morning", state: "open", segments: 7, byteLength: 1_940_402_118, startedAt: ago(82) },
     { id: "019f4b88-0d0c-7dc7-a74d-cb8f197c80e8", application: "survey-drone-7", recordingKey: "ridge-east", state: "sealed", segments: 12, byteLength: 4_229_005_702, startedAt: ago(1440), endedAt: ago(1300) },
     { id: "019f4b12-a299-79ae-9817-a24d2f65cd6a", application: "pilot-agent", recordingKey: "episodes-2026-07-09", state: "sealed", segments: 4, byteLength: 229_014_806, startedAt: ago(640), endedAt: ago(90) }
   ],
   servers: [
-    { id: "media", name: "Media", transport: "streamable_http", endpoint: "http://media-mcp:8787", state: "healthy", tools: 4, resources: 6, prompts: 2, profiles: ["field-operator", "admin"] },
-    { id: "duckdb", name: "DuckDB", transport: "streamable_http", endpoint: "http://duckdb-mcp:8791", state: "healthy", tools: 8, resources: 5, prompts: 2, profiles: ["field-operator", "mobility-analyst", "admin"] },
-    { id: "frames", name: "Frames", transport: "streamable_http", endpoint: "http://frames-mcp:8793", state: "healthy", tools: 3, resources: 5, prompts: 3, profiles: ["field-operator", "admin"] },
-    { id: "map", name: "Map", transport: "streamable_http", endpoint: "http://map-mcp:8799", state: "healthy", tools: 13, resources: 8, prompts: 3, profiles: ["field-operator", "admin"] },
-    { id: "recording", name: "Recording", transport: "streamable_http", endpoint: "http://recording-mcp:8797", state: "degraded", tools: 5, resources: 9, prompts: 2, profiles: ["field-operator", "mobility-analyst", "admin"] }
+    mcpServer("media", 4, 6, 2, ["field-operator", "admin"]),
+    mcpServer("duckdb", 8, 5, 2, ["field-operator", "mobility-analyst", "admin"]),
+    mcpServer("frames", 3, 5, 3, ["field-operator", "admin"]),
+    mcpServer("map", 13, 8, 3, ["field-operator", "admin"]),
+    mcpServer("recording", 5, 9, 2, ["field-operator", "mobility-analyst", "admin"], "degraded")
   ],
   policies: [
     { id: "operations", name: "Operations access", revision: 12, state: "active", rules: 18, updatedAt: ago(46) },

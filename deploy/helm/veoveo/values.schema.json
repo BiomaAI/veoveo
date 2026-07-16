@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["global", "serviceAccount", "surrealdb", "objectStore", "gateway", "artifactService", "recording", "perception", "consoleBff", "domainServices", "telemetry", "ingress", "networkPolicy", "podDisruptionBudget"],
+  "required": ["global", "serviceAccount", "surrealdb", "objectStore", "gateway", "artifactService", "recording", "perception", "mapBootstrap", "consoleBff", "clusterInspection", "domainServices", "telemetry", "ingress", "networkPolicy", "podDisruptionBudget"],
   "properties": {
     "global": {
       "type": "object",
@@ -37,7 +37,7 @@
         "image": {
           "allOf": [
             {"$ref": "#/definitions/image"},
-            {"type": "object", "properties": {"tag": {"const": "v3.2.0"}}}
+            {"type": "object", "properties": {"tag": {"const": "v3.2.1"}}}
           ]
         },
         "namespace": {"type": "string", "minLength": 1},
@@ -145,7 +145,30 @@
       },
       "additionalProperties": false
     },
+    "mapBootstrap": {
+      "type": "object",
+      "required": ["enabled", "tenantKey", "sources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "tenantKey": {"type": "string", "minLength": 1},
+        "sources": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": false
+    },
     "consoleBff": {"$ref": "#/definitions/workload"},
+    "clusterInspection": {
+      "type": "object",
+      "required": ["enabled", "kubernetesApiCidrs"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "kubernetesApiCidrs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[0-9a-fA-F:.]+/[0-9]+$"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
     "domainServices": {
       "type": "array",
       "minItems": 0,

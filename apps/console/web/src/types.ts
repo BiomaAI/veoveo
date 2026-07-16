@@ -14,7 +14,6 @@ export interface InstallationSnapshot {
     name: string;
     version: string;
     offlineMode: boolean;
-    databaseTopology: "single-node";
     generatedAt: string;
   };
   session: {
@@ -128,13 +127,79 @@ export interface RecordingSummary {
 export interface McpServerSummary {
   id: string;
   name: string;
+  uriScheme: string;
   transport: "streamable_http" | "sse" | "stdio";
   endpoint: string;
   state: HealthState;
-  tools: number;
-  resources: number;
-  prompts: number;
+  checkedAt: string;
+  capabilities: {
+    tools: boolean;
+    resources: boolean;
+    resourceTemplates: boolean;
+    resourceSubscriptions: boolean;
+    prompts: boolean;
+    completions: boolean;
+    tasks: boolean;
+    notifications: boolean;
+  };
+  tools: string[];
+  compatibilityHelpers: string[];
+  resources: string[];
+  prompts: string[];
+  requiredScopes: string[];
+  ownedRoutes: Array<{ path: string; purpose: string }>;
   profiles: string[];
+}
+
+export interface ClusterSnapshot {
+  orchestrator: "Kubernetes";
+  namespace: string;
+  generatedAt: string;
+  workloads: ClusterWorkload[];
+  pods: ClusterPod[];
+  services: ClusterService[];
+  storage: ClusterStorage[];
+  ingresses: Array<{ name: string; className?: string; hosts: string[] }>;
+  networkPolicies: string[];
+  disruptionBudgets: string[];
+  configMaps: string[];
+}
+
+export interface ClusterWorkload {
+  name: string;
+  kind: "Deployment" | "StatefulSet" | "Job";
+  desired: number;
+  ready: number;
+  available: number;
+  images: string[];
+  createdAt?: string;
+}
+
+export interface ClusterPod {
+  name: string;
+  component?: string;
+  phase: string;
+  ready: number;
+  containers: number;
+  restarts: number;
+  node?: string;
+  images: string[];
+}
+
+export interface ClusterService {
+  name: string;
+  kind: string;
+  clusterIp?: string;
+  ports: string[];
+}
+
+export interface ClusterStorage {
+  name: string;
+  phase: string;
+  requested?: string;
+  capacity?: string;
+  storageClass?: string;
+  accessModes: string[];
 }
 
 export interface PolicySummary {

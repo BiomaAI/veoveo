@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Instant,
+};
 
 use axum::{
     Json,
@@ -8,7 +11,9 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use veoveo_mcp_contract::{GatewayAction, GatewayControlPlane};
+use veoveo_mcp_contract::{
+    Exposure, GatewayAction, GatewayControlPlane, OwnedRoutePurpose, ResourceSelector,
+};
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState,
     probe_gateway_server_health,
@@ -26,6 +31,31 @@ use crate::{
 };
 
 const SNAPSHOT_LIMIT: i64 = 200;
+
+pub(crate) async fn authorize_console_cluster(
+    State(state): State<AdminState>,
+    AxumPath(profile): AxumPath<String>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+) -> Response {
+    let started_at = Instant::now();
+    let Some(profile_id) = admin_profile_id(profile) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match authorize_admin_request(
+        &state,
+        &profile_id,
+        subject,
+        GatewayAction::AdminRead,
+        "admin/console/cluster",
+        BTreeMap::new(),
+        started_at,
+    )
+    .await
+    {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(response) => *response,
+    }
+}
 
 pub(crate) async fn read_console_snapshot(
     State(state): State<AdminState>,
@@ -158,7 +188,6 @@ struct InstallationSummary {
     name: String,
     version: &'static str,
     offline_mode: bool,
-    database_topology: &'static str,
     generated_at: DateTime<Utc>,
 }
 
@@ -288,14 +317,39 @@ struct RecordingSummary {
 struct ServerSummary {
     id: String,
     name: String,
+    uri_scheme: String,
     transport: &'static str,
     endpoint: String,
     state: GatewayServerHealthState,
     checked_at: DateTime<Utc>,
-    tools: usize,
-    resources: usize,
-    prompts: usize,
+    capabilities: ServerCapabilitiesSummary,
+    tools: Vec<String>,
+    compatibility_helpers: Vec<String>,
+    resources: Vec<String>,
+    prompts: Vec<String>,
+    required_scopes: Vec<String>,
+    owned_routes: Vec<ServerRouteSummary>,
     profiles: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ServerCapabilitiesSummary {
+    tools: bool,
+    resources: bool,
+    resource_templates: bool,
+    resource_subscriptions: bool,
+    prompts: bool,
+    completions: bool,
+    tasks: bool,
+    notifications: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ServerRouteSummary {
+    path: String,
+    purpose: String,
 }
 
 #[derive(Serialize)]
@@ -421,7 +475,7 @@ fn build_snapshot(
             name: "SurrealDB",
             kind: "database",
             state: "healthy",
-            detail: "RocksDB, single node".to_owned(),
+            detail: "Control store · RocksDB".to_owned(),
             checked_at: now,
         },
         ServiceSummary {
@@ -528,16 +582,65 @@ fn build_snapshot(
         .iter()
         .map(|server| {
             let health = server_health.get(&server.slug);
+            let resources = control
+                .profiles
+                .iter()
+                .filter_map(|profile| {
+                    profile
+                        .servers
+                        .iter()
+                        .find(|item| item.server == server.slug)
+                })
+                .flat_map(|exposure| match &exposure.resources {
+                    Exposure::All => vec![format!("{}://**", server.uri_scheme)],
+                    Exposure::Listed(selectors) => selectors
+                        .iter()
+                        .map(resource_selector_label)
+                        .collect::<Vec<_>>(),
+                    Exposure::None => Vec::new(),
+                })
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect();
             ServerSummary {
                 id: server.slug.to_string(),
                 name: server.slug.to_string(),
+                uri_scheme: server.uri_scheme.to_string(),
                 transport: "streamable_http",
                 endpoint: server.upstream.url.to_string(),
                 state: health.map_or(GatewayServerHealthState::Offline, |health| health.state),
                 checked_at: health.map_or(now, |health| health.checked_at),
-                tools: server.tools.len(),
-                resources: usize::from(server.capabilities.resources),
-                prompts: server.prompts.len(),
+                capabilities: ServerCapabilitiesSummary {
+                    tools: server.capabilities.tools,
+                    resources: server.capabilities.resources,
+                    resource_templates: server.capabilities.resource_templates,
+                    resource_subscriptions: server.capabilities.resource_subscriptions,
+                    prompts: server.capabilities.prompts,
+                    completions: server.capabilities.completions,
+                    tasks: server.capabilities.tasks,
+                    notifications: server.capabilities.notifications,
+                },
+                tools: server.tools.iter().map(ToString::to_string).collect(),
+                compatibility_helpers: server
+                    .compatibility_helpers
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                resources,
+                prompts: server.prompts.iter().map(ToString::to_string).collect(),
+                required_scopes: server
+                    .required_scopes
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                owned_routes: server
+                    .owned_routes
+                    .iter()
+                    .map(|route| ServerRouteSummary {
+                        path: route.path.to_string(),
+                        purpose: owned_route_purpose_label(route.purpose).to_owned(),
+                    })
+                    .collect(),
                 profiles: control
                     .profiles
                     .iter()
@@ -597,7 +700,6 @@ fn build_snapshot(
             name: "Veoveo".to_owned(),
             version: env!("CARGO_PKG_VERSION"),
             offline_mode,
-            database_topology: "single-node",
             generated_at: now,
         },
         session: SessionSummary {
@@ -619,6 +721,23 @@ fn build_snapshot(
         policies,
         audit,
     })
+}
+
+fn resource_selector_label(selector: &ResourceSelector) -> String {
+    match selector {
+        ResourceSelector::Scheme { scheme } => format!("{scheme}://**"),
+        ResourceSelector::UriPrefix { prefix } => format!("{prefix}**"),
+        ResourceSelector::Template { uri_template } => uri_template.to_string(),
+    }
+}
+
+const fn owned_route_purpose_label(purpose: OwnedRoutePurpose) -> &'static str {
+    match purpose {
+        OwnedRoutePurpose::Webhook => "webhook",
+        OwnedRoutePurpose::ArtifactBytes => "artifact_bytes",
+        OwnedRoutePurpose::ProviderFetchableFiles => "provider_fetchable_files",
+        OwnedRoutePurpose::Health => "health",
+    }
 }
 
 fn display_record(

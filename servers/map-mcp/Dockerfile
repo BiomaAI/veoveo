@@ -18,8 +18,8 @@ COPY platform ./platform
 COPY servers ./servers
 COPY testing ./testing
 COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,id=map-mcp-cargo-registry,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=map-mcp-cargo-git,target=/usr/local/cargo/git \
+RUN --mount=type=cache,id=map-mcp-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=map-mcp-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=map-mcp-target-bookworm,target=/app/target \
     cargo build --release --jobs 4 -p veoveo-map-mcp --bin server \
     && mkdir -p /out/lib \

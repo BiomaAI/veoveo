@@ -77,11 +77,35 @@ spec:
         - protocol: TCP
           port: 443
 {{- end }}
+{{- if and .Values.clusterInspection.enabled .Values.clusterInspection.kubernetesApiCidrs }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-console-kubernetes-api
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: console-bff
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range .Values.clusterInspection.kubernetesApiCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
 {{- if not .Values.global.offline }}
 ---
-# Kubernetes NetworkPolicy cannot match DNS names. View validates every remote
-# content URI against its configured HTTPS source host, while this policy gives
-# only that pod the TCP/443 path required for live 3D Tiles sources.
+# Kubernetes NetworkPolicy cannot match DNS names. View and Map validate remote
+# content URIs against configured HTTPS source hosts, while these policies give
+# only those pods the TCP/443 path required for their configured sources.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -93,6 +117,30 @@ spec:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: view-mcp
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "veoveo.fullname" . }}-map-https-egress
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: map-mcp
   policyTypes: [Egress]
   egress:
     - to:

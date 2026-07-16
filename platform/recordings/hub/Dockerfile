@@ -16,8 +16,8 @@ COPY platform ./platform
 COPY servers ./servers
 COPY testing ./testing
 COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target \
     cargo build --release --jobs 4 -p veoveo-recording-hub \
     --bin spooler --bin sensor-sim --bin hub-query \

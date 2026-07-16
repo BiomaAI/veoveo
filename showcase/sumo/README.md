@@ -28,7 +28,7 @@ images declare that architecture explicitly.
 - `sumo://congestion` supports subscriptions and resource-update notifications.
 - `/world/sumo/**` is pushed continuously to Recording Hub.
 
-Task state lives in the required SurrealDB 3.2.0 platform store. The server uses
+Task state lives in the required SurrealDB 3.2.1 platform store. The server uses
 Veoveo's final task extension and shared task runtime.
 
 ## Tests

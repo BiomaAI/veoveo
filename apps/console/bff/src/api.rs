@@ -129,6 +129,48 @@ pub(crate) async fn snapshot(
     (response_headers, body).into_response()
 }
 
+pub(crate) async fn authorize_cluster_inventory(
+    state: &AppState,
+    request_headers: &HeaderMap,
+) -> Result<HeaderMap, Response> {
+    let Some(session) = read_session(request_headers, &state.sessions) else {
+        return Err(unauthorized(state));
+    };
+    if session.is_expired(Utc::now().timestamp()) {
+        return Err(unauthorized(state));
+    }
+    let session = crate::oauth::upstream_session(state, session)
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, "console session refresh failed");
+            unauthorized(state)
+        })?;
+    let response_headers =
+        response_session_headers(state, &session).map_err(|status| status.into_response())?;
+    let upstream = state
+        .http
+        .get(state.config.cluster_authorization_url())
+        .header(HOST, state.config.gateway_host())
+        .bearer_auth(&session.session.access_token)
+        .send()
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "console Cluster authorization upstream failed");
+            (response_headers.clone(), StatusCode::BAD_GATEWAY).into_response()
+        })?;
+    match classify_snapshot_upstream(upstream.status()) {
+        SnapshotUpstreamDisposition::Success => Ok(response_headers),
+        SnapshotUpstreamDisposition::Unauthorized => Err(unauthorized(state)),
+        SnapshotUpstreamDisposition::Forbidden => {
+            Err((response_headers, StatusCode::FORBIDDEN).into_response())
+        }
+        SnapshotUpstreamDisposition::BadGateway => {
+            tracing::warn!(status = %upstream.status(), "console Cluster authorization returned an error");
+            Err((response_headers, StatusCode::BAD_GATEWAY).into_response())
+        }
+    }
+}
+
 fn classify_snapshot_upstream(status: reqwest::StatusCode) -> SnapshotUpstreamDisposition {
     match status {
         status if status.is_success() => SnapshotUpstreamDisposition::Success,

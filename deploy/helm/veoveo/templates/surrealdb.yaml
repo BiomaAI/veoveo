@@ -1,4 +1,4 @@
-# Veoveo supports one SurrealDB 3.2.0 RocksDB node. This StatefulSet does not
+# Veoveo supports one SurrealDB 3.2.1 RocksDB node. This StatefulSet does not
 # claim database HA; protect the PVC with the operator's backup policy.
 apiVersion: v1
 kind: Service

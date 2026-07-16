@@ -2,7 +2,7 @@
 
 This chart installs one autonomous enterprise Veoveo instance. Tenant ids are
 internal isolation boundaries; the chart has no connection to a vendor control
-plane. The platform store is exactly one SurrealDB 3.2.0 process backed by a
+plane. The platform store is exactly one SurrealDB 3.2.1 process backed by a
 RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 
@@ -23,6 +23,20 @@ tenant-scoped DuckDB Spatial projection and activated Valhalla routing builds.
 Release activation serializes projection changes within that process. Scaling
 Map requires an explicit projection-distribution design and is not enabled by
 raising the replica count.
+
+`mapBootstrap` can register installation-owned source records when Map starts.
+The JSON rendered from these values is decoded into the Map contract and rejects
+unknown fields. Registration is idempotent by source identity. Bootstrap does
+not download, validate, or activate a release; those remain governed Map
+operations performed by an authorized caller.
+
+`clusterInspection.enabled` gives the console BFF a namespaced read-only Role
+for Kubernetes inventory. The Role lists workloads, pods, services, ingress,
+persistent volume claims, network policies, disruption budgets, and ConfigMaps.
+It grants no access to Secrets and no mutation verbs. The console BFF requires a
+successful gateway `AdminRead` authorization for each inventory request. When
+NetworkPolicy is enabled, put the Kubernetes API endpoint ranges in
+`clusterInspection.kubernetesApiCidrs` to permit HTTPS from the console BFF.
 
 `time-mcp` runs as one temporal authority process with a persistent
 `ReadWriteOnce` volume for staged and active TZDB and leap-second products.

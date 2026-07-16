@@ -54,6 +54,9 @@ pub(super) struct Args {
     pub source_mount_root: PathBuf,
     #[arg(long, default_value = "/run/secrets/map")]
     pub source_secret_root: PathBuf,
+    /// Installation-owned source catalog to register once when entries are absent.
+    #[arg(long)]
+    pub bootstrap_catalog: Option<PathBuf>,
     #[arg(long, default_value_t = 268_435_456)]
     pub max_artifact_bytes: u64,
     #[arg(long, default_value_t = 17_179_869_184)]
