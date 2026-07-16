@@ -7,7 +7,18 @@ use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_task_runtime::StoreAuthLevel;
 
 #[derive(Parser)]
-#[command(name = "server", about = "Map MCP and administrative server")]
+#[command(name = "map-mcp", about = "Map MCP and administrative server")]
+pub(super) enum Cli {
+    /// Run the MCP and administrative server.
+    Serve(Box<Args>),
+    /// Validate a server bootstrap document without booting the server.
+    BootstrapValidate {
+        /// Path to a ServerBootstrapDocument JSON file.
+        path: PathBuf,
+    },
+}
+
+#[derive(clap::Args)]
 pub(super) struct Args {
     #[arg(long, default_value_t = 8799)]
     pub port: u16,

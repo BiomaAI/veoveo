@@ -9,6 +9,7 @@ pub mod access;
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod artifact_service;
+pub mod bootstrap;
 pub mod coordinates;
 pub mod deployment;
 pub mod duckdb;
@@ -39,6 +40,11 @@ pub use artifact_service::{
     CreateArtifactShareLinkRequest, GrantList, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
     PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
+};
+pub use bootstrap::{
+    SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,
+    SERVER_BOOTSTRAP_VALIDATE_COMMAND, ServerBootstrapDocument, ServerBootstrapError,
+    server_bootstrap_principal,
 };
 pub use coordinates::{
     CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,

@@ -499,6 +499,20 @@ collections. The server emits resource-update and resource-list-change
 notifications after relevant mutations. Subscription state is session local;
 durable long-running work uses task subscriptions.
 
+## Installation Bootstrap
+
+Map consumes the platform's generic server-bootstrap contract
+(`veoveo_mcp_contract::ServerBootstrapDocument`): a `server: map` envelope with
+a `tenant_key` and a Map-owned payload of `sources` and `mobility_profiles`.
+The deployment mounts the document at `/etc/veoveo/bootstrap/catalog.json` and
+passes `--bootstrap-catalog`; the Helm chart renders it generically from
+`serverBootstrap.map-mcp` without naming Map in core templates. Application is
+create-only and idempotent: existing sources and mobility-profile versions are
+skipped. The payload rejects unknown fields and mistargeted envelopes fail
+closed. `map-mcp bootstrap-validate <path>` validates a document without
+booting the server. Bootstrap never downloads, validates, or activates a
+release; those remain governed operations by an authorized caller.
+
 ## Administrative REST
 
 The same Axum process exposes administrative acquisition through a typed REST

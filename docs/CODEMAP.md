@@ -134,6 +134,7 @@ schema merely because the server is first-party.
 | `gateway/validation.rs` | fail-closed cross-reference and invariant validation |
 | `internal_auth.rs` | Ed25519 signing keys, JWKS trust, internal issuer/verifier |
 | `deployment.rs` | Connected/offline Kubernetes topology contract |
+| `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
@@ -482,3 +483,6 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change public routes in Helm ingress, then extend the Rust deployment smoke.
 - Change installation image/config content in Helm, the offline lock/builder, and
   deployment contract together.
+- Deliver install-time domain configuration through the generic `serverBootstrap` values and
+  the `mcp/contract` bootstrap envelope; the payload schema and `bootstrap-validate` verb live
+  in the owning `servers/*-mcp` crate, never in core templates.

@@ -24,11 +24,16 @@ Release activation serializes projection changes within that process. Scaling
 Map requires an explicit projection-distribution design and is not enabled by
 raising the replica count.
 
-`mapBootstrap` can register installation-owned source records when Map starts.
-The JSON rendered from these values is decoded into the Map contract and rejects
-unknown fields. Registration is idempotent by source identity. Bootstrap does
-not download, validate, or activate a release; those remain governed Map
-operations performed by an authorized caller.
+`serverBootstrap` delivers installation-time domain configuration to any MCP
+server component, keyed by domain-service name. Each entry renders a
+`{name}-bootstrap` ConfigMap mounted at the canonical
+`/etc/veoveo/bootstrap/catalog.json` and passed via `--bootstrap-catalog`.
+The document is a generic envelope (`server`, `tenantKey`, `payload`); the
+payload schema is owned by the server crate, rejects unknown fields, and can
+be checked before install with the server binary's `bootstrap-validate` verb.
+Application is idempotent at startup (Map applies create-only: existing
+sources and mobility-profile versions are skipped). Bootstrap never performs
+governed operations such as downloading, validating, or activating releases.
 
 `clusterInspection.enabled` gives the console BFF a namespaced read-only Role
 for Kubernetes inventory. The Role lists workloads, pods, services, ingress,
