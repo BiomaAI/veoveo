@@ -1,26 +1,22 @@
 /**
- * Host side of the MCP Apps (ext-apps 2026-01-26) postMessage protocol.
+ * Host side of the stable MCP Apps protocol.
  *
- * The app view runs in an opaque-origin iframe (`sandbox="allow-scripts"`,
- * no `allow-same-origin`), so messages are matched by the frame's window
- * identity plus the `"null"` origin string, and posts target `"*"` — the
- * window handle itself is per-frame, so this cannot leak across frames.
+ * The official AppBridge owns JSON-RPC validation, protocol negotiation, and
+ * lifecycle handling. Veoveo supplies the product policy around that bridge:
+ * app-scoped tool allowlisting, confirmed HTTPS links, inline display, and
+ * bounded frame sizing.
  */
+import {
+  AppBridge as McpAppBridge,
+  PostMessageTransport,
+} from "@modelcontextprotocol/ext-apps/app-bridge";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { callAppTool } from "../api";
 import type { AppDescriptor } from "../types";
 
-interface JsonRpcMessage {
-  jsonrpc?: string;
-  id?: number | string;
-  method?: string;
-  params?: Record<string, unknown>;
-  result?: unknown;
-  error?: { code: number; message: string };
-}
-
 export interface AppBridge {
   dispose: () => void;
-  notifyToolResult: (result: unknown) => void;
+  notifyToolResult: (result: CallToolResult) => void;
   notifyToolInput: (args: Record<string, unknown>) => void;
 }
 
@@ -28,91 +24,59 @@ const MAX_FRAME_HEIGHT = 1400;
 const MIN_FRAME_HEIGHT = 180;
 
 export function attachAppBridge(iframe: HTMLIFrameElement, app: AppDescriptor): AppBridge {
-  const post = (message: JsonRpcMessage) => {
-    iframe.contentWindow?.postMessage({ jsonrpc: "2.0", ...message }, "*");
-  };
+  if (!iframe.contentWindow) throw new Error("MCP App frame is not ready");
 
-  const respond = (id: number | string, result: unknown) => post({ id, result });
-  const respondError = (id: number | string, code: number, message: string) =>
-    post({ id, error: { code, message } });
+  const bridge = new McpAppBridge(
+    null,
+    { name: "veoveo-console", version: "0.1.0" },
+    { openLinks: {}, serverTools: {} },
+    {
+      hostContext: {
+        theme: "light",
+        displayMode: "inline",
+        availableDisplayModes: ["inline"],
+        locale: navigator.language,
+        platform: "web",
+        containerDimensions: { width: iframe.clientWidth },
+      },
+    },
+  );
 
-  const onMessage = (event: MessageEvent) => {
-    if (event.source !== iframe.contentWindow || event.origin !== "null") return;
-    const message = event.data as JsonRpcMessage;
-    if (!message || message.jsonrpc !== "2.0" || !message.method) return;
-    const { id, method, params } = message;
-
-    switch (method) {
-      case "ui/initialize": {
-        if (id === undefined) return;
-        respond(id, {
-          hostInfo: { name: "veoveo-console", version: "1.0.0" },
-          hostCapabilities: { toolCalling: true, openLinks: true },
-          hostContext: {
-            theme: "light",
-            displayMode: "inline",
-            locale: navigator.language,
-            containerDimensions: { width: iframe.clientWidth },
-          },
-        });
-        return;
-      }
-      case "ui/notifications/initialized":
-        return;
-      case "tools/call": {
-        if (id === undefined) return;
-        const name = typeof params?.name === "string" ? params.name : "";
-        const args = (params?.arguments ?? {}) as Record<string, unknown>;
-        if (!app.tools.some((tool) => tool.name === name)) {
-          respondError(id, -32602, `tool ${name} is not available to this app`);
-          return;
-        }
-        callAppTool(app.server, app.resourceUri, name, args)
-          .then((result) => respond(id, result))
-          .catch((cause: unknown) => {
-            respondError(id, -32000, cause instanceof Error ? cause.message : "tool call failed");
-          });
-        return;
-      }
-      case "ui/notifications/size-changed": {
-        const height = Number(params?.height);
-        if (Number.isFinite(height)) {
-          iframe.style.height = `${Math.min(MAX_FRAME_HEIGHT, Math.max(MIN_FRAME_HEIGHT, height))}px`;
-        }
-        return;
-      }
-      case "ui/open-link": {
-        const url = typeof params?.url === "string" ? params.url : "";
-        const confirmed =
-          url.startsWith("https://") &&
-          window.confirm(`This app wants to open:\n${url}\n\nOpen in a new tab?`);
-        if (confirmed) window.open(url, "_blank", "noopener,noreferrer");
-        if (id !== undefined) respond(id, { opened: confirmed });
-        return;
-      }
-      case "ui/request-display-mode": {
-        if (id !== undefined) respond(id, { displayMode: "inline" });
-        return;
-      }
-      default: {
-        if (id !== undefined) respondError(id, -32601, `method ${method} is not supported`);
-        return;
-      }
+  bridge.oncalltool = async ({ name, arguments: toolArguments }) => {
+    if (!app.tools.some((tool) => tool.name === name)) {
+      throw new Error(`tool ${name} is not available to this app`);
     }
+    return callAppTool(app.server, app.resourceUri, name, toolArguments ?? {});
   };
+  bridge.onopenlink = async ({ url }) => {
+    const confirmed =
+      url.startsWith("https://") &&
+      window.confirm(`This app wants to open:\n${url}\n\nOpen in a new tab?`);
+    if (!confirmed) return { isError: true };
+    window.open(url, "_blank", "noopener,noreferrer");
+    return {};
+  };
+  bridge.onrequestdisplaymode = async () => ({ mode: "inline" });
+  bridge.addEventListener("sizechange", ({ height }) => {
+    if (height === undefined || !Number.isFinite(height)) return;
+    iframe.style.height = `${Math.min(MAX_FRAME_HEIGHT, Math.max(MIN_FRAME_HEIGHT, height))}px`;
+  });
 
-  window.addEventListener("message", onMessage);
+  const transport = new PostMessageTransport(iframe.contentWindow, iframe.contentWindow);
+  transport.onerror = (error) => console.error("MCP App transport error", error);
+  void bridge.connect(transport).catch((error: unknown) => {
+    console.error("MCP App bridge failed", error);
+  });
 
   return {
     dispose: () => {
-      post({ method: "ui/resource-teardown", params: {} });
-      window.removeEventListener("message", onMessage);
+      void bridge.close();
     },
     notifyToolResult: (result) => {
-      post({ method: "ui/notifications/tool-result", params: { result } });
+      void bridge.sendToolResult(result);
     },
     notifyToolInput: (args) => {
-      post({ method: "ui/notifications/tool-input", params: { arguments: args } });
+      void bridge.sendToolInput({ arguments: args });
     },
   };
 }

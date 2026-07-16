@@ -1,4 +1,5 @@
 import { demoSnapshot } from "./demo";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type {
   AppCatalog,
   InstallationSnapshot,
@@ -270,8 +271,8 @@ export async function callAppTool(
   appUri: string,
   tool: string,
   toolArguments: Record<string, unknown>
-): Promise<unknown> {
-  return consoleMutation("apps/call", {
+): Promise<CallToolResult> {
+  return consoleMutation<CallToolResult>("apps/call", {
     method: "POST",
     body: JSON.stringify({ server, appUri, tool, arguments: toolArguments }),
   });
