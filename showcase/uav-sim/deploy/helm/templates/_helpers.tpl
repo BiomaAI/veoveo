@@ -49,7 +49,7 @@ seccompProfile:
 - name: CESIUM_ION_ACCESS_TOKEN
   valueFrom:
     secretKeyRef:
-      name: {{ .root.Values.platform.installationSecret }}
+      name: {{ .root.Values.platform.cesiumSecret }}
       key: {{ .root.Values.platform.cesiumTokenKey }}
 - name: UAV_SIM_WORLD_SOURCE
   value: {{ .root.Values.world.source | quote }}
