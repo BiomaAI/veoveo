@@ -101,8 +101,9 @@ pub use host::{
 };
 pub use internal_auth::{
     DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID, GATEWAY_INTERNAL_TOKEN_ISSUER,
-    GatewayInternalIdentity, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayInternalTokenVerifier, GatewayInternalTrustBundle, InternalTokenError,
+    GatewayInternalIdentity, GatewayInternalResourceIdentity, GatewayInternalResourceTokenVerifier,
+    GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
+    GatewayInternalTrustBundle, InternalTokenError, IssuedGatewayInternalResourceToken,
     IssuedGatewayInternalToken,
 };
 pub use pagination::{Page, PaginationError, paginate};

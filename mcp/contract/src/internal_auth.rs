@@ -13,7 +13,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    GatewayProfileId, IdentifierError, JwtId, Principal, PrincipalId, ServerSlug, TokenIssuer,
+    GatewayProfileId, IdentifierError, JwtId, Principal, PrincipalId, ProtectedResourceId,
+    ServerSlug, TokenIssuer,
 };
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
@@ -229,6 +230,176 @@ impl GatewayInternalTokenIssuer {
             bearer_token,
             identity,
         })
+    }
+
+    pub fn issue_resource(
+        &self,
+        protected_resource: ProtectedResourceId,
+        server: ServerSlug,
+        principal: Principal,
+        expires_at: DateTime<Utc>,
+    ) -> Result<IssuedGatewayInternalResourceToken, InternalTokenError> {
+        ensure_jwt_crypto_provider();
+        let now = Utc::now();
+        if expires_at <= now {
+            return Err(InternalTokenError::ExpiredDelegation);
+        }
+        let jwt_id =
+            JwtId::new(uuid::Uuid::new_v4().to_string()).map_err(InternalTokenError::Identifier)?;
+        let identity = GatewayInternalResourceIdentity {
+            issuer: self.issuer.clone(),
+            protected_resource,
+            server,
+            principal,
+            jwt_id,
+            issued_at: now,
+            not_before: now,
+            expires_at,
+        };
+        let claims = GatewayInternalResourceJwtClaims::from_identity(&identity);
+        let mut header = Header::new(Algorithm::EdDSA);
+        header.typ = Some("JWT".to_owned());
+        header.kid = Some(self.signing_key.key_id.clone());
+        let bearer_token = encode(
+            &header,
+            &claims,
+            &EncodingKey::from_ed_der(&self.signing_key.private_key_der),
+        )
+        .map_err(InternalTokenError::Jwt)?;
+        Ok(IssuedGatewayInternalResourceToken {
+            bearer_token,
+            identity,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GatewayInternalResourceIdentity {
+    pub issuer: TokenIssuer,
+    pub protected_resource: ProtectedResourceId,
+    pub server: ServerSlug,
+    pub principal: Principal,
+    pub jwt_id: JwtId,
+    pub issued_at: DateTime<Utc>,
+    pub not_before: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct IssuedGatewayInternalResourceToken {
+    pub bearer_token: String,
+    pub identity: GatewayInternalResourceIdentity,
+}
+
+impl fmt::Debug for IssuedGatewayInternalResourceToken {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("IssuedGatewayInternalResourceToken")
+            .field("bearer_token", &"<redacted>")
+            .field("identity", &self.identity)
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GatewayInternalResourceTokenVerifier {
+    issuer: TokenIssuer,
+    audience: ServerSlug,
+    trust_bundle: GatewayInternalTrustBundle,
+}
+
+impl GatewayInternalResourceTokenVerifier {
+    pub fn new(
+        issuer: TokenIssuer,
+        audience: ServerSlug,
+        trust_bundle: GatewayInternalTrustBundle,
+    ) -> Self {
+        Self {
+            issuer,
+            audience,
+            trust_bundle,
+        }
+    }
+
+    pub fn verify(
+        &self,
+        bearer_token: &str,
+    ) -> Result<GatewayInternalResourceIdentity, InternalTokenError> {
+        ensure_jwt_crypto_provider();
+        let header = decode_header(bearer_token).map_err(InternalTokenError::Jwt)?;
+        if header.alg != Algorithm::EdDSA {
+            return Err(InternalTokenError::UnsupportedTokenAlgorithm(header.alg));
+        }
+        let key_id = header.kid.ok_or(InternalTokenError::MissingKeyId)?;
+        let jwk = self
+            .trust_bundle
+            .keys
+            .get(&key_id)
+            .ok_or_else(|| InternalTokenError::UnknownKeyId(key_id.clone()))?;
+        let decoding_key = DecodingKey::from_jwk(jwk).map_err(InternalTokenError::Jwt)?;
+        let mut validation = Validation::new(Algorithm::EdDSA);
+        validation.algorithms = vec![Algorithm::EdDSA];
+        validation.validate_nbf = true;
+        validation.leeway = 0;
+        validation.set_issuer(&[self.issuer.as_str()]);
+        validation.set_audience(&[self.audience.as_str()]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "iat", "nbf", "jti"]);
+        let claims =
+            decode::<GatewayInternalResourceJwtClaims>(bearer_token, &decoding_key, &validation)
+                .map_err(InternalTokenError::Jwt)?
+                .claims;
+        if claims.server != self.audience {
+            return Err(InternalTokenError::AudienceMismatch {
+                expected: self.audience.clone(),
+                actual: claims.server,
+            });
+        }
+        if PrincipalId::new(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
+            != claims.principal.id
+        {
+            return Err(InternalTokenError::SubjectPrincipalMismatch);
+        }
+        Ok(GatewayInternalResourceIdentity {
+            issuer: claims.iss,
+            protected_resource: claims.protected_resource,
+            server: claims.server,
+            principal: claims.principal,
+            jwt_id: claims.jti,
+            issued_at: timestamp_to_datetime(claims.iat, "iat")?,
+            not_before: timestamp_to_datetime(claims.nbf, "nbf")?,
+            expires_at: timestamp_to_datetime(claims.exp, "exp")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct GatewayInternalResourceJwtClaims {
+    iss: TokenIssuer,
+    sub: String,
+    aud: String,
+    exp: i64,
+    nbf: i64,
+    iat: i64,
+    jti: JwtId,
+    protected_resource: ProtectedResourceId,
+    server: ServerSlug,
+    principal: Principal,
+}
+
+impl GatewayInternalResourceJwtClaims {
+    fn from_identity(identity: &GatewayInternalResourceIdentity) -> Self {
+        Self {
+            iss: identity.issuer.clone(),
+            sub: identity.principal.id.as_str().to_owned(),
+            aud: identity.server.as_str().to_owned(),
+            exp: identity.expires_at.timestamp(),
+            nbf: identity.not_before.timestamp(),
+            iat: identity.issued_at.timestamp(),
+            jti: identity.jwt_id.clone(),
+            protected_resource: identity.protected_resource.clone(),
+            server: identity.server.clone(),
+            principal: identity.principal.clone(),
+        }
     }
 }
 
@@ -522,6 +693,36 @@ mod tests {
             verified.principal.id.as_str(),
             "https://idp.example.com#user-1"
         );
+    }
+
+    #[test]
+    fn internal_resource_token_round_trips_without_a_synthetic_profile() {
+        let issuer = GatewayInternalTokenIssuer::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            signing_key("key-1"),
+        );
+        let issued = issuer
+            .issue_resource(
+                ProtectedResourceId::new("https://veoveo.example/ingest/recordings").unwrap(),
+                ServerSlug::new("recording-hub").unwrap(),
+                principal(),
+                Utc::now() + TimeDelta::minutes(5),
+            )
+            .unwrap();
+        assert!(!format!("{issued:?}").contains(&issued.bearer_token));
+
+        let verified = GatewayInternalResourceTokenVerifier::new(
+            TokenIssuer::new("veoveo-internal").unwrap(),
+            ServerSlug::new("recording-hub").unwrap(),
+            trust_bundle("key-1"),
+        )
+        .verify(&issued.bearer_token)
+        .unwrap();
+        assert_eq!(
+            verified.protected_resource.as_str(),
+            "https://veoveo.example/ingest/recordings"
+        );
+        assert_eq!(verified.server.as_str(), "recording-hub");
     }
 
     #[test]

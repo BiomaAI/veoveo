@@ -85,3 +85,29 @@ message RecordingIngestDiscovery {
   repeated RerunPayloadFormat payload_formats = 7;
 }
 
+// Gateway-to-hub envelopes carry policy-derived producer bindings. The hub
+// trusts them only when the request bears a valid gateway resource token.
+message AuthorizedRecordingProducer {
+  string producer_id = 1;
+  string oauth_client_id = 2;
+  string tenant_id = 3;
+  string dataset = 4;
+  repeated string allowed_application_ids = 5;
+  string classification = 6;
+  repeated string labels = 7;
+  uint64 maximum_stream_bytes = 8;
+}
+
+message AuthorizedOpenRecordingStreamRequest {
+  AuthorizedRecordingProducer producer = 1;
+  OpenRecordingStreamRequest request = 2;
+}
+
+message AuthorizedRecordingBatchRequest {
+  AuthorizedRecordingProducer producer = 1;
+  RecordingBatch batch = 2;
+}
+
+message AuthorizedFinishRecordingStreamRequest {
+  AuthorizedRecordingProducer producer = 1;
+}

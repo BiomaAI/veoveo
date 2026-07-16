@@ -110,7 +110,7 @@ impl PlatformStore {
             recording_key: draft.recording_key.clone(),
             dataset: draft.dataset.clone(),
             state: RecordingIngestStreamState::Open,
-            next_sequence: 0,
+            next_sequence: 1,
             materialized_through_sequence: None,
             byte_len: 0,
             message_count: 0,

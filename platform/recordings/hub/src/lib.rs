@@ -9,6 +9,8 @@
 
 pub mod catalog;
 pub mod config;
+pub mod ingest;
+pub mod ingest_http;
 pub mod query;
 pub mod sim;
 pub mod spool;
@@ -16,6 +18,8 @@ pub mod video;
 
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
+pub use ingest::{RecordingIngestService, RecordingIngestServiceConfig};
+pub use ingest_http::recording_ingest_internal_router;
 pub use query::{QueryResult, collect_segments, query_segments, query_tree};
 pub use sim::{
     Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,

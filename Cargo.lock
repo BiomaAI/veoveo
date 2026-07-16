@@ -10898,12 +10898,14 @@ name = "veoveo-recording-hub"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "base64 0.22.1",
  "chrono",
  "clap",
  "h264-reader",
  "hex",
  "mp4",
+ "prost",
  "re_build_info",
  "re_chunk_store",
  "re_dataframe",
@@ -10924,7 +10926,9 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-recording-protocol",
 ]
 
 [[package]]

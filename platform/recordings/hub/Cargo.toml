@@ -25,6 +25,7 @@ path = "src/bin/hub_smoke.rs"
 
 [dependencies]
 anyhow.workspace = true
+axum.workspace = true
 chrono.workspace = true
 clap.workspace = true
 hex.workspace = true
@@ -34,11 +35,14 @@ serde.workspace = true
 serde_json.workspace = true
 secrecy.workspace = true
 sha2.workspace = true
+prost.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
 veoveo-platform-store.workspace = true
+veoveo-mcp-contract.workspace = true
+veoveo-recording-protocol.workspace = true
 tempfile = "3"
 
 re_sdk.workspace = true

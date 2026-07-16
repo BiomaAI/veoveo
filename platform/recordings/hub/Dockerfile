@@ -34,7 +34,7 @@ RUN apt-get update \
 
 # The `rerun` CLI (freeze optimize/verify + `rerun server` catalog).
 RUN python3 -m venv /opt/rerun \
-    && /opt/rerun/bin/pip install --no-cache-dir "rerun-sdk==0.34.0" \
+    && /opt/rerun/bin/pip install --no-cache-dir "rerun-sdk==0.34.1" \
     && ln -s /opt/rerun/bin/rerun /usr/local/bin/rerun \
     && rerun --version
 
