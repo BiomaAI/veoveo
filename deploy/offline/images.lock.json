@@ -37,6 +37,8 @@
     {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "servers/recording-mcp/Dockerfile"},
     {"ref": "veoveo/time-mcp:0.1.0", "dockerfile": "servers/time-mcp/Dockerfile"},
     {"ref": "veoveo/timeseries-mcp:0.1.0", "dockerfile": "servers/timeseries-mcp/Dockerfile"},
+    {"ref": "veoveo/uav-sim-mcp:0.1.0", "dockerfile": "servers/uav-sim-mcp/Dockerfile"},
+    {"ref": "veoveo/uav-sim-runtime:6.0.1", "dockerfile": "showcase/uav-sim/runtime/Dockerfile"},
     {"ref": "veoveo/view-mcp:0.1.0", "dockerfile": "servers/view-mcp/Dockerfile"}
   ]
 }

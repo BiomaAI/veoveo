@@ -1,0 +1,149 @@
+{{- if .Values.interactive.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uav-sim
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "uav-sim.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "uav-sim.selectorLabels" . | nindent 8 }}
+        veoveo.ai/mcp-server: "true"
+        veoveo.ai/recording-producer: "true"
+    spec:
+      runtimeClassName: {{ .Values.scheduling.runtimeClassName }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "uav-sim.podSecurityContext" . | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.scheduling.nodeSelector | nindent 8 }}
+      {{- with .Values.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scheduling.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: isaac-sim
+          image: {{ include "uav-sim.image" (list . .Values.images.runtime) }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          securityContext:
+            {{- include "uav-sim.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "uav-sim.runtimeEnv" (dict "root" . "sessionId" .Values.session.id) | nindent 12 }}
+          ports:
+            - name: adapter
+              containerPort: 8810
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: adapter
+            failureThreshold: 180
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: adapter
+            failureThreshold: 6
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources.runtime | nindent 12 }}
+          volumeMounts:
+            - name: shared-memory
+              mountPath: /dev/shm
+            - name: runtime-cache
+              mountPath: /var/lib/veoveo/.cache
+            - name: runtime-data
+              mountPath: /var/lib/veoveo/.local/share
+            - name: tmp
+              mountPath: /tmp
+        - name: uav-sim-mcp
+          image: {{ include "uav-sim.image" (list . .Values.images.mcp) }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          args:
+            - --allowed-host
+            - uav-sim-mcp:{{ .Values.service.port }}
+          securityContext:
+            {{- include "uav-sim.containerSecurityContext" . | nindent 12 }}
+          env:
+            - name: PUBLIC_BASE_URL
+              value: {{ .Values.platform.publicBaseUrl | quote }}
+            - name: UAV_SIM_ADAPTER_URL
+              value: http://127.0.0.1:8810/
+            - name: UAV_SIM_ADAPTER_OPERATION_TIMEOUT_SECONDS
+              value: "3600"
+            - name: UAV_SIM_RECORDING_TENANT_KEY
+              value: {{ .Values.platform.recordingTenantKey | quote }}
+            - name: VEOVEO_SURREAL_ENDPOINT
+              value: {{ printf "ws://%s:8000" .Values.platform.surrealService | quote }}
+            - name: VEOVEO_SURREAL_NAMESPACE
+              value: {{ .Values.platform.surrealNamespace | quote }}
+            - name: VEOVEO_SURREAL_DATABASE
+              value: {{ .Values.platform.surrealDatabase | quote }}
+            - name: VEOVEO_SURREAL_AUTH_LEVEL
+              value: database
+            - name: VEOVEO_SURREAL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.platform.surrealRuntimeSecret }}
+                  key: username
+            - name: VEOVEO_SURREAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.platform.surrealRuntimeSecret }}
+                  key: password
+            - name: VEOVEO_INTERNAL_TRUST_JWKS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.platform.installationSecret }}
+                  key: internal-trust-jwks
+            - name: RUST_LOG
+              value: info
+          ports:
+            - name: mcp
+              containerPort: 8802
+          startupProbe:
+            httpGet:
+              path: /uav-sim/healthz
+              port: mcp
+              httpHeaders:
+                - name: Host
+                  value: uav-sim-mcp:{{ .Values.service.port }}
+            failureThreshold: 180
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /uav-sim/readyz
+              port: mcp
+              httpHeaders:
+                - name: Host
+                  value: uav-sim-mcp:{{ .Values.service.port }}
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources.mcp | nindent 12 }}
+      volumes:
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+        - name: runtime-cache
+          emptyDir: {}
+        - name: runtime-data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

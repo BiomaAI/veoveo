@@ -1,0 +1,16 @@
+{{- if .Values.interactive.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: uav-sim-mcp
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "uav-sim.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: mcp
+{{- end }}

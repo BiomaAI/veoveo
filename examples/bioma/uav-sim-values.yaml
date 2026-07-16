@@ -1,0 +1,12 @@
+platform:
+  instanceLabel: veoveo
+  publicBaseUrl: https://veoveo.bioma.ai
+  recordingTenantKey: bioma
+
+session:
+  id: bioma-uav
+  frameUri: frames://frame/bioma-uav-origin
+  origin:
+    latitudeDegrees: 13.6929
+    longitudeDegrees: -89.2182
+    ellipsoidHeightM: 700.0

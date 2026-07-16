@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "global",
+    "images",
+    "platform",
+    "world",
+    "session",
+    "interactive",
+    "batch",
+    "service",
+    "resources",
+    "scheduling",
+    "networkPolicy"
+  ],
+  "properties": {
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["production", "imagePullSecrets"],
+      "properties": {
+        "production": {"type": "boolean"},
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {"name": {"type": "string", "minLength": 1}}
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pullPolicy", "runtime", "mcp"],
+      "properties": {
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
+        "runtime": {"$ref": "#/definitions/image"},
+        "mcp": {"$ref": "#/definitions/image"}
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instanceLabel",
+        "publicBaseUrl",
+        "installationSecret",
+        "cesiumTokenKey",
+        "surrealService",
+        "surrealNamespace",
+        "surrealDatabase",
+        "surrealRuntimeSecret",
+        "recordingProxy",
+        "recordingTenantKey"
+      ],
+      "properties": {
+        "instanceLabel": {"type": "string", "minLength": 1},
+        "publicBaseUrl": {"type": "string", "pattern": "^https?://"},
+        "installationSecret": {"type": "string", "minLength": 1},
+        "cesiumTokenKey": {"const": "cesium-ion-access-token"},
+        "surrealService": {"type": "string", "minLength": 1},
+        "surrealNamespace": {"type": "string", "minLength": 1},
+        "surrealDatabase": {"type": "string", "minLength": 1},
+        "surrealRuntimeSecret": {"type": "string", "minLength": 1},
+        "recordingProxy": {"type": "string", "pattern": "^rerun\\+https?://"},
+        "recordingTenantKey": {"type": "string", "minLength": 1}
+      }
+    },
+    "world": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "cesiumIonAssetId", "cachePolicy"],
+      "properties": {
+        "source": {"const": "google_photorealistic_3d_tiles"},
+        "cesiumIonAssetId": {"const": 2275207},
+        "cachePolicy": {"const": "ephemeral"}
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "frameUri",
+        "origin",
+        "vehicleCount",
+        "physicsHz",
+        "renderingHz",
+        "tileReadyFrames",
+        "privacyConsent",
+        "camera"
+      ],
+      "properties": {
+        "id": {"$ref": "#/definitions/identity"},
+        "frameUri": {"type": "string", "pattern": "^frames://frame/[A-Za-z0-9_.-]+$"},
+        "origin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["latitudeDegrees", "longitudeDegrees", "ellipsoidHeightM"],
+          "properties": {
+            "latitudeDegrees": {"type": "number", "minimum": -90, "maximum": 90},
+            "longitudeDegrees": {"type": "number", "minimum": -180, "maximum": 180},
+            "ellipsoidHeightM": {"type": "number", "minimum": -1000, "maximum": 100000}
+          }
+        },
+        "vehicleCount": {"type": "integer", "minimum": 1, "maximum": 16},
+        "physicsHz": {"type": "integer", "minimum": 30, "maximum": 1000},
+        "renderingHz": {"type": "integer", "minimum": 1, "maximum": 120},
+        "tileReadyFrames": {"type": "integer", "minimum": 1, "maximum": 600},
+        "privacyConsent": {"type": "boolean"},
+        "camera": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height", "fps"],
+          "properties": {
+            "width": {"type": "integer", "minimum": 64, "maximum": 3840},
+            "height": {"type": "integer", "minimum": 64, "maximum": 2160},
+            "fps": {"type": "integer", "minimum": 1, "maximum": 60}
+          }
+        }
+      }
+    },
+    "interactive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {"enabled": {"type": "boolean"}}
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "sessionId",
+        "exitAfterSeconds",
+        "backoffLimit",
+        "ttlSecondsAfterFinished"
+      ],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "sessionId": {"$ref": "#/definitions/identity"},
+        "exitAfterSeconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
+        "backoffLimit": {"type": "integer", "minimum": 0, "maximum": 10},
+        "ttlSecondsAfterFinished": {"type": "integer", "minimum": 0}
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port"],
+      "properties": {"port": {"const": 8802}}
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime", "mcp"],
+      "properties": {
+        "runtime": {"type": "object"},
+        "mcp": {"type": "object"}
+      }
+    },
+    "scheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtimeClassName", "nodeSelector", "tolerations", "affinity"],
+      "properties": {
+        "runtimeClassName": {"type": "string", "minLength": 1},
+        "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
+        "tolerations": {"type": "array", "items": {"type": "object"}},
+        "affinity": {"type": "object"}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "dnsNamespaceSelector"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "dnsNamespaceSelector": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    }
+  },
+  "definitions": {
+    "identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$"}
+      }
+    }
+  }
+}
