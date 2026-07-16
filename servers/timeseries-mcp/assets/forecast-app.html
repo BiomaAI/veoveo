@@ -451,7 +451,9 @@ el("controls").addEventListener("submit", async (event) => {
 (async () => {
   try {
     const initialized = await bridge.request("ui/initialize", {
+      protocolVersion: "2026-01-26",
       appInfo: { name: "timeseries-forecast", version: "1.0.0" },
+      appCapabilities: { availableDisplayModes: ["inline"] },
     });
     bridge.notify("ui/notifications/initialized", {});
     applyHostContext(initialized && initialized.hostContext);
