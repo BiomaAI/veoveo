@@ -1,0 +1,13 @@
+{{- range $name, $bootstrap := .Values.serverBootstrap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-bootstrap
+  labels:
+    {{- include "veoveo.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+data:
+  catalog.json: |
+    {{- dict "server" $bootstrap.server "tenant_key" $bootstrap.tenantKey "payload" $bootstrap.payload | toJson | nindent 4 }}
+---
+{{- end }}
