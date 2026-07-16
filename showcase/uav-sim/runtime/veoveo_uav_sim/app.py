@@ -128,7 +128,7 @@ def run(config: RuntimeConfig) -> None:
 
         # Fixed unit quaternion for a forward-facing optical camera whose image
         # axes are right/down and whose optical axis is the vehicle's forward axis.
-        camera_rotation_wxyz = np.array([-0.5, -0.5, 0.5, 0.5])
+        camera_rotation_wxyz = np.array([[-0.5, -0.5, 0.5, 0.5]])
 
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
@@ -162,7 +162,7 @@ def run(config: RuntimeConfig) -> None:
             camera = RtxCamera(
                 f"/World/{vehicle_id}/body/front_camera",
                 tick_rate=float(config.camera_fps),
-                translations=np.array([0.25, 0.0, 0.05]),
+                translations=np.array([[0.25, 0.0, 0.05]]),
                 orientations=camera_rotation_wxyz,
             )
             camera.camera.set_focal_lengths(18.0)

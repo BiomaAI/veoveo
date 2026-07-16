@@ -37,11 +37,20 @@ RUN curl --fail --location --show-error \
 FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE}
 
 ARG RERUN_SDK_VERSION=0.34.1
+ARG AIOHAPPYEYEBALLS_VERSION=2.7.1
 ARG AIOHTTP_VERSION=3.14.1
+ARG AIOSIGNAL_VERSION=1.4.0
+ARG ATTRS_VERSION=26.1.0
 ARG AV_VERSION=18.0.0
+ARG FROZENLIST_VERSION=1.8.0
+ARG IDNA_VERSION=3.18
 ARG PYMAVLINK_VERSION=2.4.49
 ARG PYYAML_VERSION=6.0.3
 ARG TOML_VERSION=0.10.2
+ARG TYPING_EXTENSIONS_VERSION=4.16.0
+ARG YARL_VERSION=1.24.2
+ARG MULTIDICT_VERSION=6.7.1
+ARG PROPCACHE_VERSION=0.5.2
 ARG PSUTIL_VERSION=7.2.2
 ARG PYARROW_VERSION=25.0.0
 ARG LXML_VERSION=6.1.1
@@ -49,16 +58,25 @@ ARG FASTCRC_VERSION=0.3.6
 
 USER root
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
+      "aiohappyeyeballs==${AIOHAPPYEYEBALLS_VERSION}" \
       "aiohttp==${AIOHTTP_VERSION}" \
+      "aiosignal==${AIOSIGNAL_VERSION}" \
+      "attrs==${ATTRS_VERSION}" \
       "av==${AV_VERSION}" \
       "fastcrc==${FASTCRC_VERSION}" \
+      "frozenlist==${FROZENLIST_VERSION}" \
+      "idna==${IDNA_VERSION}" \
       "lxml==${LXML_VERSION}" \
+      "multidict==${MULTIDICT_VERSION}" \
+      "propcache==${PROPCACHE_VERSION}" \
       "psutil==${PSUTIL_VERSION}" \
       "pyarrow==${PYARROW_VERSION}" \
       "pymavlink==${PYMAVLINK_VERSION}" \
       "PyYAML==${PYYAML_VERSION}" \
       "rerun-sdk==${RERUN_SDK_VERSION}" \
-      "toml==${TOML_VERSION}"
+      "toml==${TOML_VERSION}" \
+      "typing-extensions==${TYPING_EXTENSIONS_VERSION}" \
+      "yarl==${YARL_VERSION}"
 
 COPY --from=upstream /src/cesium/ /opt/veoveo/extensions/
 COPY --from=upstream /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
