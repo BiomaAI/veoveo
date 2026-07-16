@@ -2,91 +2,252 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["global", "serviceAccount", "surrealdb", "objectStore", "gateway", "artifactService", "recording", "perception", "mapBootstrap", "consoleBff", "clusterInspection", "domainServices", "telemetry", "ingress", "networkPolicy", "podDisruptionBudget"],
+  "required": [
+    "global",
+    "serviceAccount",
+    "surrealdb",
+    "objectStore",
+    "gateway",
+    "artifactService",
+    "recording",
+    "perception",
+    "consoleBff",
+    "clusterInspection",
+    "domainServices",
+    "telemetry",
+    "ingress",
+    "networkPolicy",
+    "podDisruptionBudget"
+  ],
   "properties": {
     "global": {
       "type": "object",
-      "required": ["existingSecret", "publicBaseUrl", "offline"],
+      "required": [
+        "existingSecret",
+        "publicBaseUrl",
+        "offline"
+      ],
       "properties": {
-        "imageRegistry": {"type": "string"},
-        "imagePullSecrets": {"type": "array", "items": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}}},
-        "imagePullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
-        "defaultReplicas": {"type": "integer", "minimum": 1},
-        "existingSecret": {"type": "string", "minLength": 1},
-        "publicBaseUrl": {"type": "string", "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)"},
-        "offline": {"type": "boolean"},
-        "podAnnotations": {"type": "object"},
-        "podLabels": {"type": "object"},
+        "imageRegistry": {
+          "type": "string"
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "imagePullPolicy": {
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        },
+        "defaultReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publicBaseUrl": {
+          "type": "string",
+          "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)"
+        },
+        "offline": {
+          "type": "boolean"
+        },
+        "podAnnotations": {
+          "type": "object"
+        },
+        "podLabels": {
+          "type": "object"
+        },
         "serviceMesh": {
           "type": "object",
-          "required": ["enabled", "provider", "podAnnotations"],
+          "required": [
+            "enabled",
+            "provider",
+            "podAnnotations"
+          ],
           "properties": {
-            "enabled": {"type": "boolean"},
-            "provider": {"const": "istio"},
-            "podAnnotations": {"type": "object"}
+            "enabled": {
+              "type": "boolean"
+            },
+            "provider": {
+              "const": "istio"
+            },
+            "podAnnotations": {
+              "type": "object"
+            }
           },
           "additionalProperties": false
         }
       }
     },
-    "serviceAccount": {"type": "object"},
+    "serviceAccount": {
+      "type": "object"
+    },
     "surrealdb": {
       "type": "object",
-      "required": ["image", "namespace", "database", "adminExistingSecret", "runtimeExistingSecret", "persistence"],
+      "required": [
+        "image",
+        "namespace",
+        "database",
+        "adminExistingSecret",
+        "runtimeExistingSecret",
+        "persistence"
+      ],
       "properties": {
         "image": {
           "allOf": [
-            {"$ref": "#/definitions/image"},
-            {"type": "object", "properties": {"tag": {"const": "v3.2.1"}}}
+            {
+              "$ref": "#/definitions/image"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "tag": {
+                  "const": "v3.2.1"
+                }
+              }
+            }
           ]
         },
-        "namespace": {"type": "string", "minLength": 1},
-        "database": {"type": "string", "minLength": 1},
-        "adminExistingSecret": {"type": "string", "minLength": 1},
-        "runtimeExistingSecret": {"type": "string", "minLength": 1},
-        "persistence": {"$ref": "#/definitions/persistence"},
-        "resources": {"type": "object"}
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "database": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adminExistingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtimeExistingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "persistence": {
+          "$ref": "#/definitions/persistence"
+        },
+        "resources": {
+          "type": "object"
+        }
       }
     },
     "objectStore": {
       "type": "object",
-      "required": ["mode", "bucketInitImage", "rustfs", "externalS3"],
+      "required": [
+        "mode",
+        "bucketInitImage",
+        "rustfs",
+        "externalS3"
+      ],
       "properties": {
-        "mode": {"enum": ["rustfs", "externalS3"]},
-        "bucketInitImage": {"$ref": "#/definitions/image"},
+        "mode": {
+          "enum": [
+            "rustfs",
+            "externalS3"
+          ]
+        },
+        "bucketInitImage": {
+          "$ref": "#/definitions/image"
+        },
         "rustfs": {
           "type": "object",
-          "required": ["image", "bucket", "publicEndpoint", "persistence", "resources"],
+          "required": [
+            "image",
+            "bucket",
+            "publicEndpoint",
+            "persistence",
+            "resources"
+          ],
           "properties": {
-            "image": {"$ref": "#/definitions/image"},
-            "bucket": {"type": "string", "minLength": 1},
-            "publicEndpoint": {"type": "string", "pattern": "^(https://|http://([a-z0-9-]+\\.)?localhost(:[0-9]+)?)"},
-            "persistence": {"$ref": "#/definitions/persistence"},
-            "resources": {"type": "object"}
+            "image": {
+              "$ref": "#/definitions/image"
+            },
+            "bucket": {
+              "type": "string",
+              "minLength": 1
+            },
+            "publicEndpoint": {
+              "type": "string",
+              "pattern": "^(https://|http://([a-z0-9-]+\\.)?localhost(:[0-9]+)?)"
+            },
+            "persistence": {
+              "$ref": "#/definitions/persistence"
+            },
+            "resources": {
+              "type": "object"
+            }
           }
         },
         "externalS3": {
           "type": "object",
-          "required": ["endpoint", "publicEndpoint", "bucket", "region", "allowHttp"],
+          "required": [
+            "endpoint",
+            "publicEndpoint",
+            "bucket",
+            "region",
+            "allowHttp"
+          ],
           "properties": {
-            "endpoint": {"type": "string"},
-            "publicEndpoint": {"type": "string"},
-            "bucket": {"type": "string"},
-            "region": {"type": "string", "minLength": 1},
-            "allowHttp": {"type": "boolean"}
+            "endpoint": {
+              "type": "string"
+            },
+            "publicEndpoint": {
+              "type": "string"
+            },
+            "bucket": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string",
+              "minLength": 1
+            },
+            "allowHttp": {
+              "type": "boolean"
+            }
           }
         }
       },
       "allOf": [
         {
-          "if": {"properties": {"mode": {"const": "externalS3"}}},
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "externalS3"
+              }
+            }
+          },
           "then": {
             "properties": {
               "externalS3": {
                 "properties": {
-                  "endpoint": {"minLength": 1, "pattern": "^https://"},
-                  "publicEndpoint": {"minLength": 1, "pattern": "^https://"},
-                  "bucket": {"minLength": 1}
+                  "endpoint": {
+                    "minLength": 1,
+                    "pattern": "^https://"
+                  },
+                  "publicEndpoint": {
+                    "minLength": 1,
+                    "pattern": "^https://"
+                  },
+                  "bucket": {
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -96,65 +257,135 @@
     },
     "gateway": {
       "allOf": [
-        {"$ref": "#/definitions/workload"},
+        {
+          "$ref": "#/definitions/workload"
+        },
         {
           "type": "object",
-          "required": ["refreshDeliveryWindowSeconds"],
+          "required": [
+            "refreshDeliveryWindowSeconds"
+          ],
           "properties": {
-            "refreshDeliveryWindowSeconds": {"type": "integer", "minimum": 1, "maximum": 30}
+            "refreshDeliveryWindowSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            }
           }
         }
       ]
     },
-    "artifactService": {"$ref": "#/definitions/workload"},
+    "artifactService": {
+      "$ref": "#/definitions/workload"
+    },
     "recording": {
       "type": "object",
-      "required": ["enabled", "tenantKey", "classification", "labels", "route", "persistence", "hubImage", "mcpImage", "resources"],
+      "required": [
+        "enabled",
+        "tenantKey",
+        "classification",
+        "labels",
+        "route",
+        "persistence",
+        "hubImage",
+        "mcpImage",
+        "resources"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
-        "tenantKey": {"type": "string", "minLength": 1},
-        "classification": {"type": "string", "minLength": 1},
-        "labels": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
-        "route": {"type": "string", "pattern": "^[a-z0-9_]+="},
-        "persistence": {"$ref": "#/definitions/persistence"},
-        "hubImage": {"$ref": "#/definitions/image"},
-        "mcpImage": {"$ref": "#/definitions/image"},
-        "resources": {"type": "object"}
+        "enabled": {
+          "type": "boolean"
+        },
+        "tenantKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "classification": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "route": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+="
+        },
+        "persistence": {
+          "$ref": "#/definitions/persistence"
+        },
+        "hubImage": {
+          "$ref": "#/definitions/image"
+        },
+        "mcpImage": {
+          "$ref": "#/definitions/image"
+        },
+        "resources": {
+          "type": "object"
+        }
       }
     },
     "perception": {
       "type": "object",
-      "required": ["enabled", "replicas", "runtimeClassName", "image", "modelCache", "builderResources", "resources"],
+      "required": [
+        "enabled",
+        "replicas",
+        "runtimeClassName",
+        "image",
+        "modelCache",
+        "builderResources",
+        "resources"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
-        "replicas": {"type": "integer", "const": 1},
-        "runtimeClassName": {"type": "string", "minLength": 1},
-        "image": {"$ref": "#/definitions/image"},
-        "modelCache": {"$ref": "#/definitions/persistence"},
-        "builderResources": {"type": "object"},
-        "resources": {"type": "object"}
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "const": 1
+        },
+        "runtimeClassName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "modelCache": {
+          "$ref": "#/definitions/persistence"
+        },
+        "builderResources": {
+          "type": "object"
+        },
+        "resources": {
+          "type": "object"
+        }
       },
       "additionalProperties": false
     },
-    "mapBootstrap": {
-      "type": "object",
-      "required": ["enabled", "tenantKey", "sources"],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "tenantKey": {"type": "string", "minLength": 1},
-        "sources": {"type": "array", "items": {"type": "object"}}
-      },
-      "additionalProperties": false
+    "consoleBff": {
+      "$ref": "#/definitions/workload"
     },
-    "consoleBff": {"$ref": "#/definitions/workload"},
     "clusterInspection": {
       "type": "object",
-      "required": ["enabled", "kubernetesApiCidrs"],
+      "required": [
+        "enabled",
+        "kubernetesApiCidrs"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
+        "enabled": {
+          "type": "boolean"
+        },
         "kubernetesApiCidrs": {
           "type": "array",
-          "items": {"type": "string", "pattern": "^[0-9a-fA-F:.]+/[0-9]+$"},
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F:.]+/[0-9]+$"
+          },
           "uniqueItems": true
         }
       },
@@ -165,77 +396,229 @@
       "minItems": 0,
       "items": {
         "type": "object",
-        "required": ["name", "image", "port", "healthPath", "args"],
+        "required": [
+          "name",
+          "image",
+          "port",
+          "healthPath",
+          "args"
+        ],
         "properties": {
-          "name": {"type": "string", "pattern": "^[a-z0-9-]+$"},
-          "image": {"$ref": "#/definitions/image"},
-          "port": {"type": "integer", "minimum": 1, "maximum": 65535},
-          "healthPath": {"type": "string", "pattern": "^/"},
-          "args": {"type": "array", "items": {"type": "string"}},
-          "replicas": {"type": "integer", "minimum": 1},
-          "runtimeClassName": {"type": "string", "minLength": 1},
-          "duckdbSandbox": {"type": "boolean"},
-          "platformStore": {"type": "boolean"},
-          "persistence": {"$ref": "#/definitions/persistence"},
-          "persistenceMountPath": {"type": "string", "pattern": "^/"},
-          "sourceExchangeClaim": {"type": "string"},
-          "sourceSecretName": {"type": "string"},
-          "resources": {"type": "object"}
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "image": {
+            "$ref": "#/definitions/image"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "healthPath": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "replicas": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "runtimeClassName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "duckdbSandbox": {
+            "type": "boolean"
+          },
+          "platformStore": {
+            "type": "boolean"
+          },
+          "persistence": {
+            "$ref": "#/definitions/persistence"
+          },
+          "persistenceMountPath": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "sourceExchangeClaim": {
+            "type": "string"
+          },
+          "sourceSecretName": {
+            "type": "string"
+          },
+          "resources": {
+            "type": "object"
+          }
         }
       }
     },
-    "telemetry": {"type": "object"},
+    "telemetry": {
+      "type": "object"
+    },
     "ingress": {
       "type": "object",
-      "required": ["enabled", "className", "annotations", "publicShareAnnotations", "host", "objectStoreHost", "tls"],
+      "required": [
+        "enabled",
+        "className",
+        "annotations",
+        "publicShareAnnotations",
+        "host",
+        "objectStoreHost",
+        "tls"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
-        "className": {"type": "string"},
-        "annotations": {"type": "object", "additionalProperties": {"type": "string"}},
-        "publicShareAnnotations": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string"}},
-        "host": {"type": "string", "minLength": 1},
-        "objectStoreHost": {"type": "string", "minLength": 1},
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "publicShareAnnotations": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectStoreHost": {
+          "type": "string",
+          "minLength": 1
+        },
         "tls": {
           "type": "object",
-          "required": ["enabled", "secretName"],
+          "required": [
+            "enabled",
+            "secretName"
+          ],
           "properties": {
-            "enabled": {"type": "boolean"},
-            "secretName": {"type": "string", "minLength": 1}
+            "enabled": {
+              "type": "boolean"
+            },
+            "secretName": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "additionalProperties": false
         }
       },
       "additionalProperties": false
     },
-    "networkPolicy": {"type": "object"},
-    "podDisruptionBudget": {"type": "object"}
+    "networkPolicy": {
+      "type": "object"
+    },
+    "podDisruptionBudget": {
+      "type": "object"
+    },
+    "serverBootstrap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "server",
+          "tenantKey",
+          "payload"
+        ],
+        "properties": {
+          "server": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tenantKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "payload": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
   },
   "definitions": {
     "image": {
       "type": "object",
-      "required": ["repository", "tag", "digest"],
+      "required": [
+        "repository",
+        "tag",
+        "digest"
+      ],
       "properties": {
-        "repository": {"type": "string", "minLength": 1},
-        "tag": {"type": "string", "minLength": 1, "not": {"const": "latest"}},
-        "digest": {"type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$"}
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "latest"
+          }
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        }
       }
     },
     "persistence": {
       "type": "object",
-      "required": ["size", "accessModes"],
+      "required": [
+        "size",
+        "accessModes"
+      ],
       "properties": {
-        "size": {"type": "string", "minLength": 1},
-        "storageClass": {"type": "string"},
-        "accessModes": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "accessModes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "workload": {
       "type": "object",
-      "required": ["image", "replicas"],
+      "required": [
+        "image",
+        "replicas"
+      ],
       "properties": {
-        "image": {"$ref": "#/definitions/image"},
-        "replicas": {"type": "integer", "minimum": 1},
-        "resources": {"type": "object"}
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resources": {
+          "type": "object"
+        }
       }
     }
   }

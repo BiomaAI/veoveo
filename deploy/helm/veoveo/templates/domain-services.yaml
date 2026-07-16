@@ -55,8 +55,8 @@ spec:
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
-        {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
-        checksum/map-bootstrap: {{ toJson $.Values.mapBootstrap | sha256sum }}
+        {{- if hasKey $.Values.serverBootstrap $service.name }}
+        checksum/bootstrap: {{ toJson (index $.Values.serverBootstrap $service.name) | sha256sum }}
         {{- end }}
     spec:
       {{- if $service.runtimeClassName }}
@@ -75,9 +75,9 @@ spec:
           workingDir: /var/lib/veoveo/runtime
           args:
             {{- toYaml $service.args | nindent 12 }}
-            {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
+            {{- if hasKey $.Values.serverBootstrap $service.name }}
             - --bootstrap-catalog
-            - /etc/veoveo/map-bootstrap/catalog.json
+            - /etc/veoveo/bootstrap/catalog.json
             {{- end }}
           env:
             {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
@@ -168,9 +168,9 @@ spec:
               mountPath: /run/secrets/map
               readOnly: true
             {{- end }}
-            {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
-            - name: map-bootstrap
-              mountPath: /etc/veoveo/map-bootstrap
+            {{- if hasKey $.Values.serverBootstrap $service.name }}
+            - name: bootstrap
+              mountPath: /etc/veoveo/bootstrap
               readOnly: true
             {{- end }}
       volumes:
@@ -194,9 +194,9 @@ spec:
           secret:
             secretName: {{ $service.sourceSecretName }}
         {{- end }}
-        {{- if and (eq $service.name "map-mcp") $.Values.mapBootstrap.enabled }}
-        - name: map-bootstrap
+        {{- if hasKey $.Values.serverBootstrap $service.name }}
+        - name: bootstrap
           configMap:
-            name: map-bootstrap
+            name: {{ $service.name }}-bootstrap
         {{- end }}
 {{- end }}

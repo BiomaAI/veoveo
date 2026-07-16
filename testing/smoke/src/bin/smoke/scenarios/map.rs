@@ -83,6 +83,7 @@ pub(crate) async fn map_mcp(
             "-e".into(),
             format!("VEOVEO_INTERNAL_TRUST_JWKS={INTERNAL_TRUST_JWKS}").into(),
             map_image.into(),
+            "serve".into(),
             "--port".into(),
             port.to_string().into(),
             "--public-base-url".into(),
