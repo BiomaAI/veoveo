@@ -331,7 +331,12 @@ impl GatewayCatalog {
             .collect::<BTreeSet<_>>();
         if let Some(policy) = self.policy(&profile.policy_version) {
             for rule in &policy.rules {
-                if rule.profiles.is_empty() || rule.profiles.contains(&profile.id) {
+                if (rule.protected_resources.is_empty()
+                    && (rule.profiles.is_empty() || rule.profiles.contains(&profile.id)))
+                    || rule
+                        .protected_resources
+                        .contains(&profile.protected_resource)
+                {
                     scopes.extend(rule.required_scopes.iter().cloned());
                 }
             }

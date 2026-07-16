@@ -76,8 +76,8 @@ producer uses these canonical settings:
 recording-forwarder \
   --gateway-url https://veoveo.bioma.ai/ \
   --protected-resource https://veoveo.bioma.ai/ingest/recordings \
-  --client-id bioma-recording-producer \
-  --key-id bioma-recording-producer-2026 \
+  --client-id recording-producer \
+  --key-id recording-producer-2026 \
   --private-key-pem-file /run/secrets/recording-producer.pem \
   --queue-dir /var/lib/veoveo-recording-forwarder
 ```

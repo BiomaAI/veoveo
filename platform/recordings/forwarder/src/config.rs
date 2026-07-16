@@ -81,10 +81,15 @@ impl ForwarderConfig {
             "gateway URL must be an origin without a path, query, or fragment"
         );
         ensure!(
-            self.protected_resource.scheme() == "https"
+            (self.protected_resource.scheme() == "https"
+                || (self.protected_resource.scheme() == "http"
+                    && self
+                        .protected_resource
+                        .host_str()
+                        .is_some_and(is_loopback_host)))
                 && self.protected_resource.query().is_none()
                 && self.protected_resource.fragment().is_none(),
-            "recording ingest protected resource must be an HTTPS URI without a query or fragment"
+            "recording ingest protected resource must use HTTPS or loopback HTTP without a query or fragment"
         );
         ensure!(
             !self.client_id.trim().is_empty() && !self.key_id.trim().is_empty(),

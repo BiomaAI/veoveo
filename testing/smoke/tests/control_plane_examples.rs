@@ -70,7 +70,14 @@ fn bioma_keeps_the_canonical_surface_and_only_overrides_deployment_identity() {
     );
 
     normalize_bioma(&mut bioma);
-    for key in ["servers", "profiles", "policies", "data_labels", "secrets"] {
+    for key in [
+        "servers",
+        "profiles",
+        "recording_ingest_resources",
+        "policies",
+        "data_labels",
+        "secrets",
+    ] {
         assert_eq!(
             bioma[key], local[key],
             "Bioma `{key}` drifted from canonical"
