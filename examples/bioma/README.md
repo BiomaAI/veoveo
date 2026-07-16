@@ -38,8 +38,9 @@ The public root redirects to the operations console:
 https://veoveo.bioma.ai/console/
 ```
 
-The console requests the operator, administrator, and Map administration
-scopes. Sign out and authenticate again after a deployment changes that scope
+The console requests the operator and administrator scopes, Map administration,
+and the Map, Time, and View read scopes needed to inspect the complete admin MCP
+profile. Sign out and authenticate again after a deployment changes that scope
 set because an existing console session retains the scopes issued at login.
 
 The MCP page expands each hosted server into the tools, resource patterns,
