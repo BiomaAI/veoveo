@@ -309,11 +309,16 @@ and no-store API responses are applied by the BFF.
 
 ## Recordings And Agents
 
-The Recording Hub is a push-based durability service. Producers stream Rerun log
-messages into a private gRPC proxy. The spooler routes by application prefix, fsyncs open
-segments, keeps crash-decodable siblings, verifies frozen segments before replacement,
-and writes governed recording/segment catalog records. Raw ingest and files are not
-public ingress surfaces.
+The Recording Hub is a push-based durability service. Producers send native Rerun log
+messages to a loopback forwarder. The forwarder obtains an OAuth client-credentials token
+and uploads bounded, sequenced protobuf batches through the gateway. Public, local-network,
+and Kubernetes traffic use this same resource and protocol.
+
+The hub validates each complete Rerun payload, fsyncs it into a deterministic journal,
+and advances its SurrealDB checkpoint only after the journal rename is durable. One
+ordered materializer produces immutable RRD segments and writes governed catalog records
+under the stream's authenticated tenant, owner, dataset, classification, and labels. Raw
+Rerun ingest and files are not installation ingress surfaces.
 
 `recording-mcp` applies tenant/label authorization to discovery, query, subscription,
 and artifact publication. SUMO uses the same path: one serialized TraCI owner publishes

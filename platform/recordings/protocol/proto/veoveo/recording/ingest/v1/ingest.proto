@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package veoveo.recording.ingest.v1;
+
+// Rerun payload releases are explicit protocol values. A Rerun upgrade is a
+// hard-cut protocol revision rather than an implicit decoder change.
+enum RerunPayloadFormat {
+  RERUN_PAYLOAD_FORMAT_UNSPECIFIED = 0;
+  RERUN_PAYLOAD_FORMAT_RRD_0_34_1 = 1;
+}
+
+enum RecordingStreamState {
+  RECORDING_STREAM_STATE_UNSPECIFIED = 0;
+  RECORDING_STREAM_STATE_OPEN = 1;
+  RECORDING_STREAM_STATE_FINISHED = 2;
+  RECORDING_STREAM_STATE_FAILED = 3;
+}
+
+message OpenRecordingStreamRequest {
+  string source_stream_id = 1;
+  string application_id = 2;
+  string recording_id = 3;
+}
+
+message RecordingStream {
+  string stream_id = 1;
+  string recording_uri = 2;
+  RecordingStreamState state = 3;
+  uint64 next_sequence = 4;
+  uint64 durable_through_sequence = 5;
+  uint64 materialized_through_sequence = 6;
+  uint64 maximum_batch_bytes = 7;
+}
+
+message RecordingBatch {
+  uint64 sequence = 1;
+  RerunPayloadFormat payload_format = 2;
+  bytes encoded_rrd = 3;
+  bytes sha256 = 4;
+  uint64 message_count = 5;
+}
+
+message AppendRecordingBatchResult {
+  uint64 durable_through_sequence = 1;
+  uint64 materialized_through_sequence = 2;
+  bool duplicate = 3;
+}
+
+message FinishRecordingStreamRequest {}
+
+message FinishRecordingStreamResult {
+  RecordingStream stream = 1;
+}
+
+enum IngestErrorCode {
+  INGEST_ERROR_CODE_UNSPECIFIED = 0;
+  INGEST_ERROR_CODE_INVALID_REQUEST = 1;
+  INGEST_ERROR_CODE_UNAUTHORIZED = 2;
+  INGEST_ERROR_CODE_FORBIDDEN = 3;
+  INGEST_ERROR_CODE_STREAM_NOT_FOUND = 4;
+  INGEST_ERROR_CODE_STREAM_FINISHED = 5;
+  INGEST_ERROR_CODE_SEQUENCE_GAP = 6;
+  INGEST_ERROR_CODE_DIGEST_CONFLICT = 7;
+  INGEST_ERROR_CODE_PAYLOAD_TOO_LARGE = 8;
+  INGEST_ERROR_CODE_UNSUPPORTED_PAYLOAD = 9;
+  INGEST_ERROR_CODE_INVALID_RERUN_DATA = 10;
+  INGEST_ERROR_CODE_QUOTA_EXCEEDED = 11;
+  INGEST_ERROR_CODE_STORAGE_UNAVAILABLE = 12;
+}
+
+message IngestError {
+  IngestErrorCode code = 1;
+  string message = 2;
+  optional uint64 expected_sequence = 3;
+  optional uint64 retry_after_seconds = 4;
+}
+
+message RecordingIngestDiscovery {
+  string protocol_version = 1;
+  string protected_resource = 2;
+  string authorization_server = 3;
+  string required_scope = 4;
+  string streams_endpoint = 5;
+  uint64 maximum_batch_bytes = 6;
+  repeated RerunPayloadFormat payload_formats = 7;
+}
+
