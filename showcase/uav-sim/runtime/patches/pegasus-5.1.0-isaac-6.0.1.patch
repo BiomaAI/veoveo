@@ -1,6 +1,3 @@
-/tmp/veoveo-pegasus-original.patch:133: trailing whitespace.
-        aloc_matrix[0, :] = np.array(self._thrusters._rotor_constant)                                           
-warning: 1 line adds whitespace errors.
 diff --git a/extensions/pegasus.simulator/config/extension.toml b/extensions/pegasus.simulator/config/extension.toml
 index e72b503..1cf4013 100644
 --- a/extensions/pegasus.simulator/config/extension.toml
@@ -24,16 +21,13 @@ index a3661fe..bc0f293 100644
 -from omni.isaac.sensor import Camera
 +from isaacsim.sensors.camera import Camera
 diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
-index 711bd3b..070306f 100644
+index 711bd3b..5f6df59 100644
 --- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
 +++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
 @@ -9,2 +9 @@ import numpy as np
 -
 -from omni.isaac.dynamic_control import _dynamic_control
 +import omni.usd
-@@ -100 +99 @@ class Multirotor(Vehicle):
--        Method that computes and applies the forces to the vehicle in simulation based on the motor speed.
-+        Method that computes and applies the forces to the vehicle in simulation based on the motor speed. 
 @@ -108,3 +106,0 @@ class Multirotor(Vehicle):
 -        # Get the articulation root of the vehicle
 -        articulation = self.get_dc_interface().get_articulation(self._stage_prefix)
@@ -87,19 +81,13 @@ index 711bd3b..070306f 100644
 +            )
 +            relative_transform = rotor_transform * body_transform.GetInverse()
 +            relative_positions.append(relative_transform.ExtractTranslation())
-@@ -194 +166 @@ class Multirotor(Vehicle):
--
-+        
-@@ -196 +168 @@ class Multirotor(Vehicle):
--        aloc_matrix[0, :] = np.array(self._thrusters._rotor_constant)
-+        aloc_matrix[0, :] = np.array(self._thrusters._rotor_constant)                                           
 @@ -199,2 +171,2 @@ class Multirotor(Vehicle):
 -        aloc_matrix[1, :] = np.array([relative_poses[i].p[1] * self._thrusters._rotor_constant[i] for i in range(self._thrusters._num_rotors)])
 -        aloc_matrix[2, :] = np.array([-relative_poses[i].p[0] * self._thrusters._rotor_constant[i] for i in range(self._thrusters._num_rotors)])
 +        aloc_matrix[1, :] = np.array([relative_positions[i][1] * self._thrusters._rotor_constant[i] for i in range(self._thrusters._num_rotors)])
 +        aloc_matrix[2, :] = np.array([-relative_positions[i][0] * self._thrusters._rotor_constant[i] for i in range(self._thrusters._num_rotors)])
 diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
-index 836c5c3..d49fffc 100644
+index 836c5c3..66eac2c 100644
 --- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
 +++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
 @@ -13 +12,0 @@ from scipy.spatial.transform import Rotation
@@ -107,31 +95,13 @@ index 836c5c3..d49fffc 100644
 @@ -21 +20 @@ from isaacsim.core.api.robots.robot import Robot
 -from omni.isaac.dynamic_control import _dynamic_control
 +from isaacsim.core.experimental.prims import RigidPrim
-@@ -47 +46 @@ class Vehicle(Robot):
--
-+    
 @@ -97 +96 @@ class Vehicle(Robot):
 -        self._vehicle_dc_interface = None
 +        self._rigid_prims = {}
-@@ -127 +126 @@ class Vehicle(Robot):
--
-+        
-@@ -154 +153 @@ class Vehicle(Robot):
--
-+        
-@@ -170 +169 @@ class Vehicle(Robot):
--        Method that is invoked when a vehicle object gets destroyed. When this happens, we also invoke the
-+        Method that is invoked when a vehicle object gets destroyed. When this happens, we also invoke the 
-@@ -189 +188 @@ class Vehicle(Robot):
--
-+    
 @@ -233,3 +231,0 @@ class Vehicle(Robot):
 -            # Reset the DC interface
 -            self._vehicle_dc_interface = None
 -
-@@ -253 +249 @@ class Vehicle(Robot):
--        given by 'pos' (following a FLU) convention.
-+        given by 'pos' (following a FLU) convention. 
 @@ -261,5 +257,6 @@ class Vehicle(Robot):
 -        # Get the handle of the rigidbody that we will apply the force to
 -        rb = self.get_dc_interface().get_rigid_body(self._stage_prefix + body_part)
