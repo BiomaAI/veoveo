@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use anyhow::Context;
 use axum::{
     extract::{Query, State},
@@ -11,6 +13,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use veoveo_mcp_contract::ScopeName;
 
 use crate::{
     AppState,
@@ -127,6 +130,13 @@ pub(crate) async fn callback(
     let Some(refresh_token_expires_in) = token.refresh_token_expires_in else {
         return callback_error(&state, StatusCode::BAD_GATEWAY);
     };
+    let granted_scopes = match validated_granted_scopes(state.config.oauth_scopes(), &token.scope) {
+        Ok(scopes) => scopes,
+        Err(error) => {
+            tracing::error!(%error, "gateway token omitted required console scopes");
+            return callback_error(&state, StatusCode::BAD_GATEWAY);
+        }
+    };
     let expires_in = token.expires_in.min(MAX_ACCESS_TOKEN_SECONDS);
     let session_expires_in = refresh_token_expires_in.min(MAX_CONSOLE_SESSION_SECONDS);
     if session_expires_in == 0 {
@@ -138,6 +148,7 @@ pub(crate) async fn callback(
         access_expires_at: now + i64::try_from(expires_in).unwrap_or(0),
         refresh_token,
         refresh_expires_at: now + i64::try_from(session_expires_in).unwrap_or(0),
+        granted_scopes,
         csrf_token: match random_token() {
             Ok(value) => value,
             Err(error) => {
@@ -238,6 +249,7 @@ struct TokenResponse {
     access_token: String,
     token_type: String,
     expires_in: u64,
+    scope: String,
     refresh_token: Option<String>,
     refresh_token_expires_in: Option<u64>,
 }
@@ -269,6 +281,13 @@ pub(crate) async fn upstream_session(
     let now = Utc::now().timestamp();
     if session.is_expired(now) {
         anyhow::bail!("console session expired");
+    }
+    if !state
+        .config
+        .oauth_scopes()
+        .is_subset(&session.granted_scopes)
+    {
+        anyhow::bail!("console session lacks configured OAuth scopes");
     }
     if !session.should_refresh(now) {
         return Ok(UpstreamSession {
@@ -310,11 +329,13 @@ pub(crate) async fn upstream_session(
         anyhow::bail!("gateway returned an expired refresh token");
     }
     let access_expires_in = token.expires_in.min(MAX_ACCESS_TOKEN_SECONDS);
+    let granted_scopes = validated_granted_scopes(state.config.oauth_scopes(), &token.scope)?;
     let now = Utc::now().timestamp();
     session.access_token = token.access_token;
     session.access_expires_at = now + i64::try_from(access_expires_in).unwrap_or(0);
     session.refresh_token = refresh_token;
     session.refresh_expires_at = now + i64::try_from(refresh_expires_in).unwrap_or(0);
+    session.granted_scopes = granted_scopes;
     let encrypted = state
         .sessions
         .seal(&session, crate::session::SESSION_AAD)
@@ -325,11 +346,37 @@ pub(crate) async fn upstream_session(
     })
 }
 
+fn validated_granted_scopes(
+    required: &BTreeSet<ScopeName>,
+    value: &str,
+) -> anyhow::Result<BTreeSet<ScopeName>> {
+    let scopes = value
+        .split_ascii_whitespace()
+        .map(ScopeName::new)
+        .collect::<Result<BTreeSet<_>, _>>()
+        .context("gateway token returned an invalid scope set")?;
+    if !required.is_subset(&scopes) {
+        anyhow::bail!("gateway token omitted required console scopes");
+    }
+    Ok(scopes)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+
+    #[test]
+    fn granted_scopes_must_cover_the_console_configuration() {
+        let required = ["operator:use", "view:read"]
+            .into_iter()
+            .map(|scope| ScopeName::new(scope).unwrap())
+            .collect();
+        let granted = validated_granted_scopes(&required, "view:read operator:use").unwrap();
+        assert_eq!(granted, required);
+        assert!(validated_granted_scopes(&required, "operator:use").is_err());
+    }
 
     #[test]
     fn revocation_request_is_form_encoded_and_keeps_the_secret_out_of_the_url() {

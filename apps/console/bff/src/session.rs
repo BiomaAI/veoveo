@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::{Context, anyhow};
 use axum::http::{
@@ -11,6 +11,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use veoveo_mcp_contract::ScopeName;
 
 const NONCE_BYTES: usize = 24;
 const SESSION_COOKIE: &str = "veoveo_console";
@@ -89,6 +90,7 @@ pub(crate) struct ConsoleSession {
     pub(crate) access_expires_at: i64,
     pub(crate) refresh_token: String,
     pub(crate) refresh_expires_at: i64,
+    pub(crate) granted_scopes: BTreeSet<ScopeName>,
     pub(crate) csrf_token: String,
 }
 
@@ -192,6 +194,9 @@ mod tests {
             access_expires_at: 42,
             refresh_token: "secret-refresh-token".to_owned(),
             refresh_expires_at: 84,
+            granted_scopes: [ScopeName::new("operator:use").unwrap()]
+                .into_iter()
+                .collect(),
             csrf_token: "csrf-token".to_owned(),
         };
         let encoded = cipher.seal(&value, SESSION_AAD).unwrap();
@@ -200,6 +205,11 @@ mod tests {
         let decoded: ConsoleSession = cipher.open(&encoded, SESSION_AAD).unwrap();
         assert_eq!(decoded.access_token, "secret-token");
         assert_eq!(decoded.refresh_token, "secret-refresh-token");
+        assert!(
+            decoded
+                .granted_scopes
+                .contains(&ScopeName::new("operator:use").unwrap())
+        );
 
         let mut bytes = URL_SAFE_NO_PAD.decode(encoded).unwrap();
         *bytes.last_mut().unwrap() ^= 1;
@@ -218,6 +228,9 @@ mod tests {
             access_expires_at: 100,
             refresh_token: "refresh".to_owned(),
             refresh_expires_at: 200,
+            granted_scopes: [ScopeName::new("operator:use").unwrap()]
+                .into_iter()
+                .collect(),
             csrf_token: "csrf".to_owned(),
         };
         assert!(!session.should_refresh(69));
