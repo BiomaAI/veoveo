@@ -42,3 +42,4 @@ COPY --from=builder /out/frames-mcp /usr/local/bin/frames-mcp
 USER veoveo
 EXPOSE 8793
 ENTRYPOINT ["/usr/local/bin/frames-mcp"]
+CMD ["serve"]

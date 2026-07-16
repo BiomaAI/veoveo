@@ -18,6 +18,11 @@
       "sha256": "fe38d6195974620e87d7cdad32bb4b38d5933389523d56e75bbae23bcf4da55f",
       "source": "https://cesium.com/downloads/"
     },
+    "google_photorealistic_3d_tiles": {
+      "cesium_ion_asset_id": 2275207,
+      "source": "https://github.com/CesiumGS/cesium/blob/main/packages/engine/Source/Scene/createGooglePhotorealistic3DTileset.js",
+      "persistence": "ephemeral_only"
+    },
     "pegasus_simulator": {
       "version": "5.1.0",
       "commit": "644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",
@@ -30,6 +35,11 @@
       "commit": "d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
       "repository": "https://github.com/PX4/PX4-Autopilot.git",
       "source": "https://github.com/PX4/PX4-Autopilot/releases/tag/v1.17.0"
+    },
+    "px4_builder": {
+      "image": "px4io/px4-dev:v1.17.0",
+      "platform_digest": "sha256:82e3ddcf4bf3fa4dbc0be6489c6de4158d0efbc8530182c691184302027335ce",
+      "source": "https://docs.px4.io/main/en/test_and_ci/docker"
     },
     "rerun": {
       "version": "0.34.1",
@@ -48,6 +58,19 @@
       "required": false,
       "reason": "Isaac Sim 6.0.1 recommends ROS 2 Jazzy on Ubuntu 24.04; Phase 1 vehicle control uses MAVLink.",
       "source": "https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html"
+    },
+    "python_runtime": {
+      "aiohttp": "3.14.1",
+      "av": "18.0.0",
+      "fastcrc": "0.3.6",
+      "lxml": "6.1.1",
+      "psutil": "7.2.2",
+      "pyarrow": "25.0.0",
+      "pymavlink": "2.4.49",
+      "pyyaml": "6.0.3",
+      "rerun_sdk": "0.34.1",
+      "toml": "0.10.2",
+      "source": "https://pypi.org/"
     }
   }
 }
