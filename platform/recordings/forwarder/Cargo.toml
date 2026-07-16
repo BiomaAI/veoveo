@@ -1,0 +1,44 @@
+[package]
+name = "veoveo-recording-forwarder"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_recording_forwarder"
+path = "src/lib.rs"
+
+[[bin]]
+name = "recording-forwarder"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+hex.workspace = true
+jsonwebtoken.workspace = true
+prost.workspace = true
+reqwest = { workspace = true, features = ["form", "json", "rustls-no-provider"] }
+re_build_info.workspace = true
+re_grpc_server.workspace = true
+re_log_channel.workspace = true
+re_log_encoding.workspace = true
+re_log_types.workspace = true
+rustls.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true
+veoveo-recording-protocol.workspace = true
+
+[dev-dependencies]
+re_sdk.workspace = true
+re_sdk_types.workspace = true
+tempfile = "3.27.0"

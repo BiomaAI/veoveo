@@ -361,19 +361,25 @@ types.
 
 | File | Responsibility |
 |---|---|
-| `server.rs` | internal authenticated recording-ingest HTTP routes |
-| `journal.rs` | deterministic batch write/fsync/rename and restart reconciliation |
-| `materializer.rs` | ordered journal-to-RRD materialization |
+| `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
+| `ingest.rs` | producer authorization, journal durability, quota-bound append, restart reconciliation, and materialization |
 | `spool.rs` | segment encode/flush/fsync/freeze/recovery |
 | `catalog.rs` | per-stream identity, segment verification, and catalog publication |
-| `query.rs` | RRD and open-journal query/readback |
-| `config.rs` | validated ingest, journal, and materialization limits |
+| `query.rs` | governed RRD query/readback |
+| `config.rs` | validated raw gRPC spool and segment limits |
+| `bin/spooler.rs` | thin composition of internal ingest, raw cluster spool, catalog, and shutdown |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
 ### `platform/recordings/forwarder`
 
-Owns the loopback Rerun gRPC receiver, producer-side durable queue, OAuth
-`private_key_jwt` client, batching, retry, checkpoint resume, and bounded backpressure.
+| File | Responsibility |
+|---|---|
+| `src/batch.rs` | per-recording accumulation, complete RRD encoding, and byte-bounded splitting |
+| `src/queue.rs` | fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
+| `src/oauth.rs` | RFC 8414 discovery and `private_key_jwt` client-credentials tokens |
+| `src/client.rs` | typed protobuf discovery, open, append, and finish operations |
+| `src/runner.rs` | loopback Rerun receiver, retry loop, restart resume, and graceful drain |
+| `src/config.rs` | validated network, key, queue, batching, and shutdown configuration |
 
 ### `servers/recording-mcp`
 
