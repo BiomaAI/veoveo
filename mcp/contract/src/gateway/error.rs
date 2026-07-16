@@ -41,6 +41,11 @@ pub enum GatewayControlPlaneError {
         rule: PolicyRuleId,
         profile: GatewayProfileId,
     },
+    UnknownPolicyRuleProtectedResource {
+        policy: PolicyVersion,
+        rule: PolicyRuleId,
+        resource: ProtectedResourceId,
+    },
     UnknownPolicyRuleServer {
         policy: PolicyVersion,
         rule: PolicyRuleId,
@@ -410,6 +415,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "policy `{policy}` rule `{rule}` references unknown profile `{profile}`"
+            ),
+            Self::UnknownPolicyRuleProtectedResource {
+                policy,
+                rule,
+                resource,
+            } => write!(
+                f,
+                "policy `{policy}` rule `{rule}` references unknown protected resource `{resource}`"
             ),
             Self::UnknownPolicyRuleServer {
                 policy,

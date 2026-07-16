@@ -272,6 +272,11 @@ typed_id!(
     "Rerun application id admitted for a recording producer."
 );
 typed_id!(
+    RecordingIngestStreamId,
+    validate_uuid_v7,
+    "Canonical UUIDv7 identity of one authenticated recording ingest stream."
+);
+typed_id!(
     OAuthClientId,
     validate_claim_text,
     "Registered OAuth client id allowed to request gateway-profile tokens."

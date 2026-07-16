@@ -85,6 +85,15 @@ pub(super) struct ArtifactDownloadState {
     pub(super) artifact_service_url: String,
 }
 
+#[derive(Clone)]
+pub(super) struct RecordingIngestGatewayState {
+    pub(super) catalog: SharedCatalog,
+    pub(super) gateway_state: GatewayState,
+    pub(super) http: SharedHttpClient,
+    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+    pub(super) public_base_url: String,
+}
+
 #[derive(Debug, Serialize)]
 pub(super) struct Readiness {
     pub(super) status: &'static str,

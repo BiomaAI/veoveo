@@ -23,6 +23,8 @@ pub struct PolicyRule {
     #[serde(default)]
     pub profiles: BTreeSet<GatewayProfileId>,
     #[serde(default)]
+    pub protected_resources: BTreeSet<ProtectedResourceId>,
+    #[serde(default)]
     pub servers: BTreeSet<ServerSlug>,
     #[serde(default)]
     pub tools: BTreeSet<LocalToolName>,
@@ -79,6 +81,10 @@ pub enum GatewayAction {
     UsageRead,
     AdminRead,
     AdminWrite,
+    RecordingStreamOpen,
+    RecordingStreamStatus,
+    RecordingBatchAppend,
+    RecordingStreamFinish,
 }
 
 impl GatewayAction {
@@ -97,8 +103,25 @@ impl GatewayAction {
             Self::TasksGet => Some("tasks/get"),
             Self::TasksResult => Some("tasks/result"),
             Self::TasksCancel => Some("tasks/cancel"),
-            Self::ArtifactRead | Self::UsageRead | Self::AdminRead | Self::AdminWrite => None,
+            Self::ArtifactRead
+            | Self::UsageRead
+            | Self::AdminRead
+            | Self::AdminWrite
+            | Self::RecordingStreamOpen
+            | Self::RecordingStreamStatus
+            | Self::RecordingBatchAppend
+            | Self::RecordingStreamFinish => None,
         }
+    }
+
+    pub fn is_recording_ingest(self) -> bool {
+        matches!(
+            self,
+            Self::RecordingStreamOpen
+                | Self::RecordingStreamStatus
+                | Self::RecordingBatchAppend
+                | Self::RecordingStreamFinish
+        )
     }
 }
 
@@ -322,6 +345,13 @@ pub enum PolicyTarget {
         server: ServerSlug,
         usage_uri: ResourceUri,
     },
+    RecordingProducer {
+        producer: RecordingProducerId,
+    },
+    RecordingStream {
+        producer: RecordingProducerId,
+        stream_id: RecordingIngestStreamId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -449,6 +479,7 @@ pub enum AuthReasonCode {
     TokenSigningKeyUnavailable,
     TokenRevoked,
     AuthStateUnavailable,
+    PolicyDenied,
 }
 
 impl AuthReasonCode {
@@ -481,6 +512,7 @@ impl AuthReasonCode {
             Self::TokenSigningKeyUnavailable => "token_signing_key_unavailable",
             Self::TokenRevoked => "token_revoked",
             Self::AuthStateUnavailable => "auth_state_unavailable",
+            Self::PolicyDenied => "policy_denied",
         }
     }
 }

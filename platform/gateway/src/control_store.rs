@@ -428,6 +428,7 @@ mod tests {
                     effect: PolicyEffect::Allow,
                     actions: BTreeSet::from([GatewayAction::ToolsCall]),
                     profiles: BTreeSet::new(),
+                    protected_resources: BTreeSet::new(),
                     servers: BTreeSet::new(),
                     tools: BTreeSet::new(),
                     resource_schemes: BTreeSet::new(),

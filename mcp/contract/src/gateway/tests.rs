@@ -160,6 +160,7 @@ fn default_policy() -> PolicySet {
             effect: PolicyEffect::Allow,
             actions: BTreeSet::from([GatewayAction::ToolsCall]),
             profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+            protected_resources: BTreeSet::new(),
             servers: BTreeSet::from([ServerSlug::new("media").unwrap()]),
             tools: BTreeSet::from([LocalToolName::new("run").unwrap()]),
             resource_schemes: BTreeSet::new(),

@@ -339,6 +339,16 @@ impl GatewayCatalog {
             .map(|index| &self.control_plane.recording_ingest_resources[*index])
     }
 
+    pub fn recording_ingest_resources(&self) -> impl Iterator<Item = &RecordingIngestResource> {
+        self.control_plane.recording_ingest_resources.iter()
+    }
+
+    pub fn single_recording_ingest_resource(&self) -> Option<&RecordingIngestResource> {
+        let mut resources = self.control_plane.recording_ingest_resources.iter();
+        let resource = resources.next()?;
+        resources.next().is_none().then_some(resource)
+    }
+
     pub fn recording_ingest_resource_by_protected_resource(
         &self,
         resource: &str,
