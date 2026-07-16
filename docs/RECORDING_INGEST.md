@@ -54,8 +54,9 @@ exactly-once delivery.
 The external and local-network origin uses HTTPS. Bioma's public DNS reaches Cloudflare
 and its local DNS resolves the same `veoveo.bioma.ai` name to the installation's LAN
 Traefik address. Traefik presents a certificate for that canonical name in both cases.
-Kubernetes forwarders can use the internal gateway service when the installation's
-network policy or service mesh protects that hop.
+`examples/bioma/lan-values.yaml` enables this route while preserving the public resource
+identity. Kubernetes forwarders also use canonical HTTPS unless an internal gateway
+service presents a certificate valid for that same origin.
 
 Native Rerun gRPC is loopback-only at the forwarder. Recording Hub exposes an internal
 HTTP service to the gateway and has no NodePort or public raw proxy. A firewall or
