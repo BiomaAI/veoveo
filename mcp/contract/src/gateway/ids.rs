@@ -249,7 +249,27 @@ typed_id!(
 typed_id!(
     ProtectedResourceId,
     validate_claim_text,
-    "OAuth protected-resource identifier, usually the gateway profile URL."
+    "OAuth protected-resource URI for an MCP profile or platform data plane."
+);
+typed_id!(
+    ProtectedResourceName,
+    validate_path_id,
+    "Installation-local name for an OAuth protected resource."
+);
+typed_id!(
+    RecordingProducerId,
+    validate_path_id,
+    "Configured identity of one governed recording producer."
+);
+typed_id!(
+    RecordingDatasetName,
+    validate_gateway_name,
+    "Installation-owned dataset name assigned to a recording producer."
+);
+typed_id!(
+    RecordingApplicationId,
+    validate_claim_text,
+    "Rerun application id admitted for a recording producer."
 );
 typed_id!(
     OAuthClientId,

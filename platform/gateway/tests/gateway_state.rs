@@ -904,7 +904,7 @@ fn auth_audit_event(
         event_id: TraceId::new(id).unwrap(),
         timestamp,
         trace_id: TraceId::new(format!("trace-{id}")).unwrap(),
-        profile: profile.clone(),
+        profile: Some(profile.clone()),
         protected_resource: ProtectedResourceId::new("operator-resource").unwrap(),
         outcome: AuthOutcome::Allow,
         reason: AuthReasonCode::AuthAllow,

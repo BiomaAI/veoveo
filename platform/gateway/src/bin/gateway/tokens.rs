@@ -9,8 +9,9 @@ use jsonwebtoken::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    GatewayProfile, JwtId, OAuthClientId, Principal, PrincipalKind, ResourceAuthorizationServer,
-    ScopeName, SecretPurpose, SecretReferenceId, TenantId, TokenSubject,
+    JwtId, OAuthClientId, Principal, PrincipalKind, ProtectedResourceId,
+    ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, TenantId,
+    TokenSubject,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
 
@@ -59,7 +60,7 @@ impl std::fmt::Debug for IssuedAccessToken {
 pub(super) async fn issue_client_credentials_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
-    profile: &GatewayProfile,
+    protected_resource: &ProtectedResourceId,
     client_id: &OAuthClientId,
     service_tenant: Option<&TenantId>,
     scopes: &BTreeSet<ScopeName>,
@@ -68,7 +69,7 @@ pub(super) async fn issue_client_credentials_access_token(
     issue_access_token(
         catalog,
         authorization_server,
-        profile,
+        protected_resource,
         &subject,
         client_id,
         PrincipalKind::Service,
@@ -83,7 +84,7 @@ pub(super) async fn issue_client_credentials_access_token(
 pub(super) async fn issue_access_token(
     catalog: &GatewayCatalog,
     authorization_server: &ResourceAuthorizationServer,
-    profile: &GatewayProfile,
+    protected_resource: &ProtectedResourceId,
     subject: &TokenSubject,
     client_id: &OAuthClientId,
     principal_kind: PrincipalKind,
@@ -113,7 +114,7 @@ pub(super) async fn issue_access_token(
         iss: authorization_server.issuer.to_string(),
         sub: subject.to_string(),
         client_id: client_id.to_string(),
-        aud: profile.protected_resource.to_string(),
+        aud: protected_resource.to_string(),
         exp: unix_seconds(expires_at.timestamp())?,
         nbf: unix_seconds(now.timestamp())?,
         iat: unix_seconds(now.timestamp())?,

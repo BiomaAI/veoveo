@@ -5,9 +5,10 @@ use parking_lot::RwLock;
 use veoveo_mcp_contract::{
     AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
-    OidcClientRegistrationId, PolicySet, PolicyVersion, ResourceAuthorizationServer,
-    ResourceProjectionMode, SecretReference, SecretReferenceId, ServerManifest, ServerSlug,
-    TenantDefinition, TenantId,
+    OidcClientRegistrationId, PolicySet, PolicyVersion, ProtectedResourceName,
+    RecordingIngestResource, RecordingProducerId, RecordingProducerRegistration,
+    ResourceAuthorizationServer, ResourceProjectionMode, SecretReference, SecretReferenceId,
+    ServerManifest, ServerSlug, TenantDefinition, TenantId,
 };
 
 use crate::policy::{exposure_contains, resource_scheme};
@@ -75,6 +76,8 @@ pub struct GatewayCatalog {
     authorization_servers: BTreeMap<AuthorizationServerId, usize>,
     servers: BTreeMap<ServerSlug, usize>,
     profiles: BTreeMap<GatewayProfileId, usize>,
+    recording_ingest_resources: BTreeMap<ProtectedResourceName, usize>,
+    recording_producers: BTreeMap<RecordingProducerId, (usize, usize)>,
     policies: BTreeMap<PolicyVersion, usize>,
     data_labels: BTreeMap<DataLabelId, usize>,
     tenants: BTreeMap<TenantId, usize>,
@@ -110,6 +113,26 @@ impl GatewayCatalog {
             .iter()
             .enumerate()
             .map(|(index, profile)| (profile.id.clone(), index))
+            .collect();
+        let recording_ingest_resources = control_plane
+            .recording_ingest_resources
+            .iter()
+            .enumerate()
+            .map(|(index, resource)| (resource.id.clone(), index))
+            .collect();
+        let recording_producers = control_plane
+            .recording_ingest_resources
+            .iter()
+            .enumerate()
+            .flat_map(|(resource_index, resource)| {
+                resource
+                    .producers
+                    .iter()
+                    .enumerate()
+                    .map(move |(producer_index, producer)| {
+                        (producer.id.clone(), (resource_index, producer_index))
+                    })
+            })
             .collect();
         let policies = control_plane
             .policies
@@ -154,6 +177,8 @@ impl GatewayCatalog {
             authorization_servers,
             servers,
             profiles,
+            recording_ingest_resources,
+            recording_producers,
             policies,
             data_labels,
             tenants,
@@ -243,7 +268,9 @@ impl GatewayCatalog {
             .iter()
             .filter(|client| {
                 client.authorization_server == profile.authorization_server
-                    && client.allowed_profiles.contains(&profile.id)
+                    && client
+                        .allowed_resources
+                        .contains(&profile.protected_resource)
             })
             .collect()
     }
@@ -275,7 +302,9 @@ impl GatewayCatalog {
         self.control_plane.oidc_clients.iter().find(|client| {
             client.identity_provider == profile.identity_provider
                 && client.authorization_server == profile.authorization_server
-                && client.allowed_profiles.contains(&profile.id)
+                && client
+                    .allowed_resources
+                    .contains(&profile.protected_resource)
         })
     }
 
@@ -290,14 +319,57 @@ impl GatewayCatalog {
         &self,
         client: &OAuthClientRegistration,
     ) -> Option<&GatewayProfile> {
-        if client.allowed_profiles.len() != 1 {
+        if client.allowed_resources.len() != 1 {
             return None;
         }
-        client
-            .allowed_profiles
+        client.allowed_resources.iter().next().and_then(|resource| {
+            self.control_plane
+                .profiles
+                .iter()
+                .find(|profile| &profile.protected_resource == resource)
+        })
+    }
+
+    pub fn recording_ingest_resource(
+        &self,
+        id: &ProtectedResourceName,
+    ) -> Option<&RecordingIngestResource> {
+        self.recording_ingest_resources
+            .get(id)
+            .map(|index| &self.control_plane.recording_ingest_resources[*index])
+    }
+
+    pub fn recording_ingest_resource_by_protected_resource(
+        &self,
+        resource: &str,
+    ) -> Option<&RecordingIngestResource> {
+        self.control_plane
+            .recording_ingest_resources
             .iter()
-            .next()
-            .and_then(|profile_id| self.profile(profile_id))
+            .find(|candidate| candidate.protected_resource.as_str() == resource)
+    }
+
+    pub fn recording_producer(
+        &self,
+        producer_id: &RecordingProducerId,
+    ) -> Option<(&RecordingIngestResource, &RecordingProducerRegistration)> {
+        self.recording_producers
+            .get(producer_id)
+            .map(|(resource_index, producer_index)| {
+                let resource = &self.control_plane.recording_ingest_resources[*resource_index];
+                (resource, &resource.producers[*producer_index])
+            })
+    }
+
+    pub fn recording_producer_for_client<'a>(
+        &self,
+        resource: &'a RecordingIngestResource,
+        client_id: &OAuthClientId,
+    ) -> Option<&'a RecordingProducerRegistration> {
+        resource
+            .producers
+            .iter()
+            .find(|producer| &producer.oauth_client == client_id)
     }
 
     pub fn authorization_server_profiles(

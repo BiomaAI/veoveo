@@ -10,6 +10,9 @@ pub enum GatewayControlPlaneError {
     DuplicateServer(ServerSlug),
     DuplicateResourceScheme(ResourceScheme),
     DuplicateProfile(GatewayProfileId),
+    DuplicateRecordingIngestResource(ProtectedResourceName),
+    DuplicateProtectedResource(ProtectedResourceId),
+    DuplicateRecordingProducer(RecordingProducerId),
     DuplicatePolicy(PolicyVersion),
     DuplicateDataLabel(DataLabelId),
     DuplicateTenant(TenantId),
@@ -21,6 +24,10 @@ pub enum GatewayControlPlaneError {
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
+    InvalidRecordingIngestResource {
+        resource: ProtectedResourceName,
+        reason: String,
+    },
     DuplicateProfileServer {
         profile: GatewayProfileId,
         server: ServerSlug,
@@ -184,9 +191,9 @@ pub enum GatewayControlPlaneError {
         client: OAuthClientId,
         authorization_server: AuthorizationServerId,
     },
-    UnknownOAuthClientProfile {
+    UnknownOAuthClientResource {
         client: OAuthClientId,
-        profile: GatewayProfileId,
+        resource: ProtectedResourceId,
     },
     UnknownOAuthClientSecret {
         client: OAuthClientId,
@@ -197,13 +204,13 @@ pub enum GatewayControlPlaneError {
         secret: SecretReferenceId,
         purpose: SecretPurpose,
     },
-    OAuthClientProfileAuthorizationServerMismatch {
+    OAuthClientResourceAuthorizationServerMismatch {
         client: OAuthClientId,
-        profile: GatewayProfileId,
+        resource: ProtectedResourceId,
         client_authorization_server: AuthorizationServerId,
-        profile_authorization_server: AuthorizationServerId,
+        resource_authorization_server: AuthorizationServerId,
     },
-    OAuthClientWithoutAllowedProfiles(OAuthClientId),
+    OAuthClientWithoutAllowedResources(OAuthClientId),
     OAuthClientWithoutGrantTypes(OAuthClientId),
     OAuthClientWithoutAuthMethods(OAuthClientId),
     OAuthClientMissingRedirectUris {
@@ -221,7 +228,7 @@ pub enum GatewayControlPlaneError {
     },
     OAuthClientMissingAllowedScope {
         client: OAuthClientId,
-        profile: GatewayProfileId,
+        resource: ProtectedResourceId,
         scope: ScopeName,
     },
     OAuthClientFullMcpWithCompatibility {
@@ -254,22 +261,22 @@ pub enum GatewayControlPlaneError {
         authorization_server: AuthorizationServerId,
         authorization_server_identity_provider: Option<IdentityProviderId>,
     },
-    OidcClientWithoutAllowedProfiles(OidcClientRegistrationId),
-    UnknownOidcClientProfile {
+    OidcClientWithoutAllowedResources(OidcClientRegistrationId),
+    UnknownOidcClientResource {
         client: OidcClientRegistrationId,
-        profile: GatewayProfileId,
+        resource: ProtectedResourceId,
     },
-    OidcClientProfileAuthorizationServerMismatch {
+    OidcClientResourceAuthorizationServerMismatch {
         client: OidcClientRegistrationId,
-        profile: GatewayProfileId,
+        resource: ProtectedResourceId,
         client_authorization_server: AuthorizationServerId,
-        profile_authorization_server: AuthorizationServerId,
+        resource_authorization_server: AuthorizationServerId,
     },
-    OidcClientProfileIdentityProviderMismatch {
+    OidcClientResourceIdentityProviderMismatch {
         client: OidcClientRegistrationId,
-        profile: GatewayProfileId,
+        resource: ProtectedResourceId,
         client_identity_provider: IdentityProviderId,
-        profile_identity_provider: IdentityProviderId,
+        resource_identity_provider: IdentityProviderId,
     },
     UnknownOidcClientSecret {
         client: OidcClientRegistrationId,
@@ -358,6 +365,15 @@ impl fmt::Display for GatewayControlPlaneError {
                 write!(f, "duplicate server resource scheme `{scheme}`")
             }
             Self::DuplicateProfile(profile) => write!(f, "duplicate gateway profile `{profile}`"),
+            Self::DuplicateRecordingIngestResource(resource) => {
+                write!(f, "duplicate recording ingest resource `{resource}`")
+            }
+            Self::DuplicateProtectedResource(resource) => {
+                write!(f, "duplicate protected resource `{resource}`")
+            }
+            Self::DuplicateRecordingProducer(producer) => {
+                write!(f, "duplicate recording producer `{producer}`")
+            }
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateDataLabel(label) => write!(f, "duplicate data label `{label}`"),
             Self::DuplicateTenant(tenant) => write!(f, "duplicate tenant `{tenant}`"),
@@ -376,6 +392,10 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicateOidcClient(client) => {
                 write!(f, "duplicate OIDC client registration `{client}`")
             }
+            Self::InvalidRecordingIngestResource { resource, reason } => write!(
+                f,
+                "invalid recording ingest resource `{resource}`: {reason}"
+            ),
             Self::DuplicateProfileServer { profile, server } => write!(
                 f,
                 "gateway profile `{profile}` exposes server `{server}` more than once"
@@ -613,9 +633,9 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "OAuth client `{client}` references unknown resource authorization server `{authorization_server}`"
             ),
-            Self::UnknownOAuthClientProfile { client, profile } => write!(
+            Self::UnknownOAuthClientResource { client, resource } => write!(
                 f,
-                "OAuth client `{client}` references unknown gateway profile `{profile}`"
+                "OAuth client `{client}` references unknown protected resource `{resource}`"
             ),
             Self::UnknownOAuthClientSecret { client, secret } => write!(
                 f,
@@ -629,19 +649,19 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "OAuth client `{client}` references secret `{secret}` with invalid purpose `{purpose:?}`"
             ),
-            Self::OAuthClientProfileAuthorizationServerMismatch {
+            Self::OAuthClientResourceAuthorizationServerMismatch {
                 client,
-                profile,
+                resource,
                 client_authorization_server,
-                profile_authorization_server,
+                resource_authorization_server,
             } => write!(
                 f,
-                "OAuth client `{client}` uses resource authorization server `{client_authorization_server}` but profile `{profile}` uses `{profile_authorization_server}`"
+                "OAuth client `{client}` uses resource authorization server `{client_authorization_server}` but protected resource `{resource}` uses `{resource_authorization_server}`"
             ),
-            Self::OAuthClientWithoutAllowedProfiles(client) => {
+            Self::OAuthClientWithoutAllowedResources(client) => {
                 write!(
                     f,
-                    "OAuth client `{client}` does not allow any gateway profile"
+                    "OAuth client `{client}` does not allow any protected resource"
                 )
             }
             Self::OAuthClientWithoutGrantTypes(client) => {
@@ -677,11 +697,11 @@ impl fmt::Display for GatewayControlPlaneError {
             ),
             Self::OAuthClientMissingAllowedScope {
                 client,
-                profile,
+                resource,
                 scope,
             } => write!(
                 f,
-                "OAuth client `{client}` allows profile `{profile}` but does not allow required scope `{scope}`"
+                "OAuth client `{client}` allows protected resource `{resource}` but does not allow required scope `{scope}`"
             ),
             Self::OAuthClientFullMcpWithCompatibility { client } => write!(
                 f,
@@ -726,33 +746,33 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "OIDC client `{client}` uses identity provider `{identity_provider}` but resource authorization server `{authorization_server}` is bound to `{authorization_server_identity_provider:?}`"
             ),
-            Self::OidcClientWithoutAllowedProfiles(client) => {
+            Self::OidcClientWithoutAllowedResources(client) => {
                 write!(
                     f,
-                    "OIDC client `{client}` does not allow any gateway profile"
+                    "OIDC client `{client}` does not allow any protected resource"
                 )
             }
-            Self::UnknownOidcClientProfile { client, profile } => write!(
+            Self::UnknownOidcClientResource { client, resource } => write!(
                 f,
-                "OIDC client `{client}` references unknown gateway profile `{profile}`"
+                "OIDC client `{client}` references unknown protected resource `{resource}`"
             ),
-            Self::OidcClientProfileAuthorizationServerMismatch {
+            Self::OidcClientResourceAuthorizationServerMismatch {
                 client,
-                profile,
+                resource,
                 client_authorization_server,
-                profile_authorization_server,
+                resource_authorization_server,
             } => write!(
                 f,
-                "OIDC client `{client}` uses resource authorization server `{client_authorization_server}` but profile `{profile}` uses `{profile_authorization_server}`"
+                "OIDC client `{client}` uses resource authorization server `{client_authorization_server}` but protected resource `{resource}` uses `{resource_authorization_server}`"
             ),
-            Self::OidcClientProfileIdentityProviderMismatch {
+            Self::OidcClientResourceIdentityProviderMismatch {
                 client,
-                profile,
+                resource,
                 client_identity_provider,
-                profile_identity_provider,
+                resource_identity_provider,
             } => write!(
                 f,
-                "OIDC client `{client}` uses identity provider `{client_identity_provider}` but profile `{profile}` uses `{profile_identity_provider}`"
+                "OIDC client `{client}` uses identity provider `{client_identity_provider}` but protected resource `{resource}` uses `{resource_identity_provider}`"
             ),
             Self::UnknownOidcClientSecret { client, secret } => write!(
                 f,

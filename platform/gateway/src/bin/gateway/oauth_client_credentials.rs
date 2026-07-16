@@ -3,8 +3,8 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, OAuthClientAuthMethod, OAuthClientId,
-    OAuthGrantType, ResourceAuthorizationServer,
+    AuthOutcome, AuthReasonCode, OAuthClientAuthMethod, OAuthClientId, OAuthGrantType,
+    ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{ClientAssertionConfig, ClientAssertionVerifier, GatewayCatalog};
 
@@ -14,7 +14,8 @@ use crate::{
         TokenResponse, allowed_gateway_jwt_algorithms, load_jwks, oauth_error_response,
         token_response,
     },
-    oauth_grants::{TokenRequest, requested_token_scopes},
+    oauth::ResolvedOAuthResource,
+    oauth_grants::{TokenRequest, requested_client_credentials_scopes},
     runtime::{AppState, current_http_client},
     tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_client_credentials_access_token},
 };
@@ -25,19 +26,15 @@ const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
 pub(super) async fn token_endpoint_client_credentials(
     state: &AppState,
     catalog: &GatewayCatalog,
-    profile: &GatewayProfile,
+    resource: ResolvedOAuthResource<'_>,
     authorization_server: &ResourceAuthorizationServer,
     request: TokenRequest,
     started_at: Instant,
 ) -> axum::response::Response {
-    if request.grant_type != "client_credentials"
-        || !profile
-            .auth_modes
-            .contains(&AuthMode::OAuthClientCredentials)
-    {
+    if request.grant_type != "client_credentials" || !resource.supports_client_credentials() {
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
-            profile,
+            resource.audit_target(),
             AuthAuditRecord {
                 authorization_server: Some(authorization_server),
                 client_id: None,
@@ -55,7 +52,7 @@ pub(super) async fn token_endpoint_client_credentials(
         return oauth_error_response(
             StatusCode::BAD_REQUEST,
             "unsupported_grant_type",
-            "grant type is not supported for this gateway profile",
+            "grant type is not supported for this gateway resource",
         );
     }
 
@@ -64,7 +61,7 @@ pub(super) async fn token_endpoint_client_credentials(
         Err(_) => {
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: None,
@@ -89,7 +86,7 @@ pub(super) async fn token_endpoint_client_credentials(
     let Some(client) = catalog.oauth_client(&client_id) else {
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
-            profile,
+            resource.audit_target(),
             AuthAuditRecord {
                 authorization_server: Some(authorization_server),
                 client_id: Some(&client_id),
@@ -110,8 +107,10 @@ pub(super) async fn token_endpoint_client_credentials(
             "client authentication failed",
         );
     };
-    if client.authorization_server != profile.authorization_server
-        || !client.allowed_profiles.contains(&profile.id)
+    if &client.authorization_server != resource.authorization_server()
+        || !client
+            .allowed_resources
+            .contains(resource.protected_resource())
         || !client
             .grant_types
             .contains(&OAuthGrantType::ClientCredentials)
@@ -121,7 +120,7 @@ pub(super) async fn token_endpoint_client_credentials(
     {
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
-            profile,
+            resource.audit_target(),
             AuthAuditRecord {
                 authorization_server: Some(authorization_server),
                 client_id: Some(&client_id),
@@ -146,7 +145,7 @@ pub(super) async fn token_endpoint_client_credentials(
     if request.client_assertion_type.as_deref() != Some(CLIENT_ASSERTION_TYPE_JWT_BEARER) {
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
-            profile,
+            resource.audit_target(),
             AuthAuditRecord {
                 authorization_server: Some(authorization_server),
                 client_id: Some(&client_id),
@@ -170,7 +169,7 @@ pub(super) async fn token_endpoint_client_credentials(
     let Some(assertion) = request.client_assertion.as_deref() else {
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
-            profile,
+            resource.audit_target(),
             AuthAuditRecord {
                 authorization_server: Some(authorization_server),
                 client_id: Some(&client_id),
@@ -196,7 +195,7 @@ pub(super) async fn token_endpoint_client_credentials(
         tracing::error!(client = %client_id, "private-key JWT client is missing JWKS source");
         if let Err(err) = record_token_auth_audit(
             &state.gateway_state,
-            profile,
+            resource.audit_target(),
             AuthAuditRecord {
                 authorization_server: Some(authorization_server),
                 client_id: Some(&client_id),
@@ -224,7 +223,7 @@ pub(super) async fn token_endpoint_client_credentials(
             tracing::warn!(client = %client_id, "failed to load OAuth client JWKS: {err}");
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: Some(&client_id),
@@ -256,7 +255,7 @@ pub(super) async fn token_endpoint_client_credentials(
             tracing::error!("invalid client assertion verifier config: {err}");
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: Some(&client_id),
@@ -285,7 +284,7 @@ pub(super) async fn token_endpoint_client_credentials(
                 tracing::warn!(client = %client_id, "rejected OAuth client assertion: {err}");
                 if let Err(err) = record_token_auth_audit(
                     &state.gateway_state,
-                    profile,
+                    resource.audit_target(),
                     AuthAuditRecord {
                         authorization_server: Some(authorization_server),
                         client_id: Some(&client_id),
@@ -327,7 +326,7 @@ pub(super) async fn token_endpoint_client_credentials(
             );
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: Some(&client_id),
@@ -352,7 +351,7 @@ pub(super) async fn token_endpoint_client_credentials(
             tracing::error!("failed to record OAuth client assertion replay state: {err}");
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: Some(&client_id),
@@ -371,13 +370,18 @@ pub(super) async fn token_endpoint_client_credentials(
         }
     }
 
-    let scopes = match requested_token_scopes(catalog, profile, client, request.scope.as_deref()) {
+    let supported_scopes = resource.supported_scopes(catalog);
+    let scopes = match requested_client_credentials_scopes(
+        &supported_scopes,
+        client,
+        request.scope.as_deref(),
+    ) {
         Ok(scopes) => scopes,
         Err(err) => {
             tracing::warn!(client = %client_id, "rejected token scope request: {err}");
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: Some(&client_id),
@@ -403,7 +407,7 @@ pub(super) async fn token_endpoint_client_credentials(
     let token = match issue_client_credentials_access_token(
         catalog,
         authorization_server,
-        profile,
+        resource.protected_resource(),
         &client_id,
         client.tenant.as_ref(),
         &scopes,
@@ -415,7 +419,7 @@ pub(super) async fn token_endpoint_client_credentials(
             tracing::error!("failed to issue client credentials access token: {err}");
             if let Err(err) = record_token_auth_audit(
                 &state.gateway_state,
-                profile,
+                resource.audit_target(),
                 AuthAuditRecord {
                     authorization_server: Some(authorization_server),
                     client_id: Some(&client_id),
@@ -439,7 +443,7 @@ pub(super) async fn token_endpoint_client_credentials(
     };
     if let Err(err) = record_token_auth_audit(
         &state.gateway_state,
-        profile,
+        resource.audit_target(),
         AuthAuditRecord {
             authorization_server: Some(authorization_server),
             client_id: Some(&client_id),

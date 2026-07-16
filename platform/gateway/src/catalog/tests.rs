@@ -222,7 +222,10 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
             client_surface: OAuthClientSurface::FullMcp,
             allowed_compatibility_helpers: BTreeSet::new(),
             direct_task_call_adapter: false,
-            allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+            allowed_resources: BTreeSet::from([ProtectedResourceId::new(
+                "https://veoveo.example/mcp/operator",
+            )
+            .unwrap()]),
             grant_types: BTreeSet::from([
                 OAuthGrantType::AuthorizationCodePkce,
                 OAuthGrantType::RefreshToken,
@@ -250,7 +253,10 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
             client_surface: OAuthClientSurface::FullMcp,
             allowed_compatibility_helpers: BTreeSet::new(),
             direct_task_call_adapter: false,
-            allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+            allowed_resources: BTreeSet::from([ProtectedResourceId::new(
+                "https://veoveo.example/mcp/operator",
+            )
+            .unwrap()]),
             grant_types: BTreeSet::from([OAuthGrantType::ClientCredentials]),
             auth_methods: BTreeSet::from([OAuthClientAuthMethod::PrivateKeyJwt]),
             redirect_uris: vec![],
@@ -275,7 +281,10 @@ fn oidc_clients() -> Vec<IdentityProviderOidcClientRegistration> {
         id: OidcClientRegistrationId::new("enterprise").unwrap(),
         identity_provider: IdentityProviderId::new("enterprise").unwrap(),
         authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
-        allowed_profiles: BTreeSet::from([GatewayProfileId::new("default").unwrap()]),
+        allowed_resources: BTreeSet::from([ProtectedResourceId::new(
+            "https://veoveo.example/mcp/operator",
+        )
+        .unwrap()]),
         client_id: OidcClientId::new("veoveo").unwrap(),
         redirect_uri: OAuthRedirectUri::new("https://veoveo.example/oauth/callback").unwrap(),
         auth_method: OidcClientAuthMethod::ClientSecretPost,
@@ -304,6 +313,7 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest()],
         profiles: vec![profile],
+        recording_ingest_resources: Vec::new(),
         tenants: tenants(),
         policies: vec![policy],
         data_labels: data_labels(),
@@ -751,6 +761,7 @@ fn catalog_routes_server_owned_projected_ui_resources() {
         authorization_servers: vec![authorization_server()],
         servers: vec![media_manifest(), chart_server],
         profiles: vec![profile],
+        recording_ingest_resources: Vec::new(),
         tenants: tenants(),
         policies: vec![policy()],
         data_labels: data_labels(),
@@ -1010,6 +1021,7 @@ fn keeps_contract_validation_errors_visible() {
             profile.servers[0].server = ServerSlug::new("simulation").unwrap();
             profile
         }],
+        recording_ingest_resources: Vec::new(),
         tenants: tenants(),
         policies: vec![policy()],
         data_labels: data_labels(),

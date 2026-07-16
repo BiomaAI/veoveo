@@ -12,6 +12,15 @@ pub(crate) fn requested_token_scopes(
     client: &OAuthClientRegistration,
     raw_scope: Option<&str>,
 ) -> anyhow::Result<BTreeSet<ScopeName>> {
+    let profile_supported_scopes = catalog.profile_supported_scopes(profile);
+    requested_client_credentials_scopes(&profile_supported_scopes, client, raw_scope)
+}
+
+pub(crate) fn requested_client_credentials_scopes(
+    supported_scopes: &BTreeSet<ScopeName>,
+    client: &OAuthClientRegistration,
+    raw_scope: Option<&str>,
+) -> anyhow::Result<BTreeSet<ScopeName>> {
     let raw_scope = raw_scope.ok_or_else(|| anyhow!("scope is required"))?;
     let scopes = raw_scope
         .split_whitespace()
@@ -20,13 +29,12 @@ pub(crate) fn requested_token_scopes(
     if scopes.is_empty() {
         return Err(anyhow!("scope is required"));
     }
-    let profile_supported_scopes = catalog.profile_supported_scopes(profile);
     if !scopes.is_subset(&client.allowed_scopes) {
         return Err(anyhow!("requested scope is not allowed for OAuth client"));
     }
-    if !scopes.is_subset(&profile_supported_scopes) {
+    if !scopes.is_subset(supported_scopes) {
         return Err(anyhow!(
-            "requested scope is not supported by gateway profile"
+            "requested scope is not supported by protected resource"
         ));
     }
     Ok(scopes)
@@ -75,7 +83,9 @@ pub(crate) fn authorization_code_client_allowed(
     client: &OAuthClientRegistration,
 ) -> bool {
     client.authorization_server == profile.authorization_server
-        && client.allowed_profiles.contains(&profile.id)
+        && client
+            .allowed_resources
+            .contains(&profile.protected_resource)
         && client
             .grant_types
             .contains(&OAuthGrantType::AuthorizationCodePkce)

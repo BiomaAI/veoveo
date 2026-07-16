@@ -353,7 +353,8 @@ pub struct AuthAuditEvent {
     pub event_id: TraceId,
     pub timestamp: DateTime<Utc>,
     pub trace_id: TraceId,
-    pub profile: GatewayProfileId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<GatewayProfileId>,
     pub protected_resource: ProtectedResourceId,
     pub outcome: AuthOutcome,
     pub reason: AuthReasonCode,
