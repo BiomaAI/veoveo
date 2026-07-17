@@ -29,6 +29,19 @@ def run(config: RuntimeConfig) -> None:
             "width": config.camera_width,
             "height": config.camera_height,
             "sync_loads": True,
+            # Cesium's native USD schema plugin must be discovered before Kit
+            # initializes USD's schema registry. Enabling it after
+            # SimulationApp starts leaves the generated attributes untyped.
+            # The portable root also keeps every Kit write in the pod's
+            # ephemeral runtime-cache volume when running as a non-root user.
+            "extra_args": [
+                "--ext-folder",
+                config.extension_directory,
+                "--enable",
+                "cesium.usd.plugins",
+                "--portable-root",
+                "/var/lib/veoveo/.cache/kit-portable",
+            ],
         }
     )
 
@@ -85,6 +98,7 @@ def run(config: RuntimeConfig) -> None:
     simulation_time_s = 0.0
     commanders: dict[str, Px4Commander] = {}
     vehicles: dict[str, Multirotor] = {}
+    px4_backends: dict[str, PX4MavlinkBackend] = {}
     camera_sensors: dict[str, CameraSensor] = {}
 
     try:
@@ -132,23 +146,24 @@ def run(config: RuntimeConfig) -> None:
 
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
+            vehicle_prim_path = f"/World/uav_{index + 1}"
             multirotor_config = MultirotorConfig()
-            multirotor_config.backends = [
-                PX4MavlinkBackend(
-                    PX4MavlinkBackendConfig(
-                        {
-                            "vehicle_id": index,
-                            "px4_autolaunch": True,
-                            "px4_dir": config.px4_directory,
-                            "px4_vehicle_model": "gazebo-classic_iris",
-                            "enable_lockstep": True,
-                            "update_rate": float(config.physics_hz),
-                        }
-                    )
+            px4_backend = PX4MavlinkBackend(
+                PX4MavlinkBackendConfig(
+                    {
+                        "vehicle_id": index,
+                        "px4_autolaunch": True,
+                        "px4_dir": config.px4_directory,
+                        "px4_vehicle_model": "gazebo-classic_iris",
+                        "enable_lockstep": True,
+                        "update_rate": float(config.physics_hz),
+                    }
                 )
-            ]
+            )
+            px4_backends[vehicle_id] = px4_backend
+            multirotor_config.backends = [px4_backend]
             vehicle = Multirotor(
-                f"/World/{vehicle_id}",
+                vehicle_prim_path,
                 ROBOTS["Iris"],
                 index,
                 [float(index * 3), 0.0, 0.07],
@@ -160,7 +175,7 @@ def run(config: RuntimeConfig) -> None:
             commanders[vehicle_id] = commander
 
             camera = RtxCamera(
-                f"/World/{vehicle_id}/body/front_camera",
+                f"{vehicle_prim_path}/body/front_camera",
                 tick_rate=float(config.camera_fps),
                 translations=np.array([[0.25, 0.0, 0.05]]),
                 orientations=camera_rotation_wxyz,
@@ -236,6 +251,32 @@ def run(config: RuntimeConfig) -> None:
             vehicle_id: connection_executor.submit(commander.connect)
             for vehicle_id, commander in commanders.items()
         }
+
+        # The first RTX/Cesium render can compile shaders for longer than the
+        # PX4 connection deadline. Advance physics without rendering until the
+        # Simulator MAVLink and GCS handshakes are complete, then let the normal
+        # loop render Google Photorealistic 3D Tiles and camera frames.
+        px4_bootstrap_deadline = time.monotonic() + 120.0
+        while not all(future.done() for future in connection_futures.values()):
+            world.step(render=False)
+            # Pegasus 5.1 registers its backend through Isaac's deprecated
+            # callback bridge. Invoke the public backend update here as well
+            # during bootstrap because Isaac 6 can defer that callback until a
+            # rendered update, which would recreate the startup deadlock.
+            for px4_backend in px4_backends.values():
+                px4_backend.update(1.0 / config.physics_hz)
+            physics_step += 1
+            simulation_time_s = physics_step / config.physics_hz
+            state.advance(simulation_time_s, physics_step)
+            for vehicle_id, future in connection_futures.items():
+                if future.done() and future.exception() is not None:
+                    raise RuntimeError(
+                        f"PX4 connection failed for {vehicle_id}"
+                    ) from future.exception()
+            if time.monotonic() >= px4_bootstrap_deadline:
+                raise TimeoutError("PX4 bootstrap did not complete before rendering")
+            time.sleep(0.001)
+
         cesium_interface = acquire_cesium_omniverse_interface()
         tile_resident_frames = 0
         tile_started_at = time.monotonic()
