@@ -12,6 +12,7 @@ from .contracts import Waypoint
 
 PX4_CUSTOM_MAIN_MODE_AUTO = 4
 PX4_CUSTOM_SUB_MODE_AUTO_MISSION = 4
+GCS_HEARTBEAT_INTERVAL_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,23 +37,23 @@ class Px4Commander:
         self._landed_state = mavutil.mavlink.MAV_LANDED_STATE_UNDEFINED
         self._battery_percent = 100.0
         self._absolute_altitude_m = origin_height_m
+        self._last_gcs_heartbeat_at = 0.0
 
     def connect(self, timeout_seconds: float = 60.0) -> None:
         deadline = time.monotonic() + timeout_seconds
         with self._lock:
             self._connection = mavutil.mavlink_connection(
-                f"udpout:127.0.0.1:{18_570 + self.instance}",
+                f"udpin:127.0.0.1:{14_550 + self.instance}",
                 source_system=255,
                 source_component=mavutil.mavlink.MAV_COMP_ID_MISSIONPLANNER,
             )
+            # PX4's GCS channel binds 18570+instance and expects the GCS on
+            # 14550+instance. Pymavlink's input socket learns peers from
+            # received datagrams, but PX4 also needs the first heartbeat to
+            # learn this return path, so seed the pinned local endpoint.
+            self._connection.clients.add(("127.0.0.1", 18_570 + self.instance))
             while time.monotonic() < deadline:
-                self._connection.mav.heartbeat_send(
-                    mavutil.mavlink.MAV_TYPE_GCS,
-                    mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-                    0,
-                    0,
-                    mavutil.mavlink.MAV_STATE_ACTIVE,
-                )
+                self._send_gcs_heartbeat_locked()
                 message = self._connection.recv_match(type="HEARTBEAT", blocking=True, timeout=1.0)
                 if message is not None and message.get_srcSystem() == self._target_system:
                     self._target_component = message.get_srcComponent()
@@ -65,6 +66,7 @@ class Px4Commander:
         if self._lock.acquire(blocking=False):
             try:
                 if self._connection is not None:
+                    self._send_gcs_heartbeat_locked_if_due()
                     for _ in range(64):
                         message = self._connection.recv_match(blocking=False)
                         if message is None:
@@ -137,6 +139,7 @@ class Px4Commander:
             reached: set[int] = set()
             final_sequence = mission_items[-1]["sequence"]
             while time.monotonic() < deadline:
+                self._send_gcs_heartbeat_locked_if_due()
                 message = self._connection.recv_match(blocking=True, timeout=1.0)
                 if message is None:
                     continue
@@ -165,6 +168,7 @@ class Px4Commander:
 
     def _send_command_locked(self, command: int, *parameters: float) -> None:
         values = list(parameters) + [0.0] * (7 - len(parameters))
+        self._send_gcs_heartbeat_locked()
         self._connection.mav.command_long_send(
             self._target_system,
             self._target_component,
@@ -174,6 +178,7 @@ class Px4Commander:
         )
         deadline = time.monotonic() + 15.0
         while time.monotonic() < deadline:
+            self._send_gcs_heartbeat_locked_if_due()
             message = self._connection.recv_match(blocking=True, timeout=1.0)
             if message is None:
                 continue
@@ -203,6 +208,7 @@ class Px4Commander:
         )
         deadline = time.monotonic() + 60.0
         while time.monotonic() < deadline:
+            self._send_gcs_heartbeat_locked_if_due()
             message = self._connection.recv_match(blocking=True, timeout=1.0)
             if message is None:
                 continue
@@ -316,6 +322,20 @@ class Px4Commander:
             self._battery_percent = float(message.battery_remaining)
         elif message_type == "GLOBAL_POSITION_INT":
             self._absolute_altitude_m = float(message.alt) / 1_000.0
+
+    def _send_gcs_heartbeat_locked(self) -> None:
+        self._connection.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_GCS,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0,
+            0,
+            mavutil.mavlink.MAV_STATE_ACTIVE,
+        )
+        self._last_gcs_heartbeat_at = time.monotonic()
+
+    def _send_gcs_heartbeat_locked_if_due(self) -> None:
+        if time.monotonic() - self._last_gcs_heartbeat_at >= GCS_HEARTBEAT_INTERVAL_SECONDS:
+            self._send_gcs_heartbeat_locked()
 
     def _require_connection(self) -> None:
         if self._connection is None or not self._connected:
