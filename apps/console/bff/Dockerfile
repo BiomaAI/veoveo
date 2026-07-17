@@ -8,7 +8,7 @@ RUN --mount=type=cache,target=/root/.npm npm install --global npm@12.0.1 \
 COPY apps/console/web ./
 RUN npm run build
 
-FROM rust:1.97.0-slim AS rust-builder
+FROM rust:1.97.1-slim AS rust-builder
 
 WORKDIR /app
 RUN apt-get update \
