@@ -62,15 +62,22 @@ def main() -> None:
     base_ref = f"{registry}/veoveo/uav-sim-base:{BASE_VERSION}"
     runtime_ref = f"{registry}/veoveo/uav-sim-runtime:{revision}"
     mcp_ref = f"{registry}/veoveo/uav-sim-mcp:{revision}"
-    targets = [] if args.skip_base else ["uav-sim-base"]
-    targets.extend(["uav-sim-runtime", "uav-sim-mcp"])
-    command = [
+    if not args.skip_base:
+        run(
+            "docker",
+            "buildx",
+            "bake",
+            "uav-sim-base",
+            "--set",
+            f"uav-sim-base.tags={base_ref}",
+            "--push",
+        )
+    run(
         "docker",
         "buildx",
         "bake",
-        *targets,
-        "--set",
-        f"uav-sim-base.tags={base_ref}",
+        "uav-sim-runtime",
+        "uav-sim-mcp",
         "--set",
         f"uav-sim-runtime.tags={runtime_ref}",
         "--set",
@@ -78,8 +85,7 @@ def main() -> None:
         "--set",
         f"uav-sim-mcp.tags={mcp_ref}",
         "--push",
-    ]
-    run(*command)
+    )
     print(f"UAV base:    {base_ref}")
     print(f"UAV runtime: {runtime_ref}")
     print(f"UAV MCP:     {mcp_ref}")
