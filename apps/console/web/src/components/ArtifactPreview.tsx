@@ -64,6 +64,9 @@ function TextPreview({ url }: { url: string }) {
       signal: controller.signal,
     })
       .then(async (response) => {
+        if (response.status === 403) {
+          throw new Error("Preview access is not granted to this console session.");
+        }
         if (!response.ok) throw new Error(`Preview returned ${response.status}`);
         setTruncated(
           response.status === 206 ||
@@ -86,4 +89,3 @@ function TextPreview({ url }: { url: string }) {
     </div>
   );
 }
-
