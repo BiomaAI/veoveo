@@ -37,6 +37,17 @@ impl GatewayMcp {
         action: GatewayAction,
         task_id: &str,
     ) -> Result<CanonicalTaskRoute, McpError> {
+        let subject = self.authenticated(context)?;
+        self.authorize_canonical_task_for_subject(&subject, action, task_id)
+            .await
+    }
+
+    pub(super) async fn authorize_canonical_task_for_subject(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        task_id: &str,
+    ) -> Result<CanonicalTaskRoute, McpError> {
         let task_id = task_id
             .parse::<ProtocolTaskId>()
             .map_err(|error| mcp_invalid_params(format!("invalid canonical task id: {error}")))?;
@@ -57,7 +68,6 @@ impl GatewayMcp {
             .transpose()
             .map_err(|error| mcp_internal(format!("invalid canonical task record: {error}")))?
             .ok_or_else(|| mcp_invalid_params("unknown task id"))?;
-        let subject = self.authenticated(context)?;
         let labels = subject
             .principal
             .data_labels
@@ -90,8 +100,8 @@ impl GatewayMcp {
         let canonical_task_id = CanonicalTaskId::new(task_id.to_string())
             .map_err(|error| mcp_internal(format!("invalid canonical task id: {error}")))?;
         let subject = self
-            .authorize(
-                context,
+            .authorize_subject(
+                subject,
                 action,
                 PolicyTarget::Task {
                     server: server.clone(),
@@ -176,7 +186,19 @@ impl GatewayMcp {
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<AuthenticatedSubject, McpError> {
-        let (subject, decision) = self.evaluate_policy(context, action, target).await?;
+        let subject = self.authenticated(context)?;
+        self.authorize_subject(&subject, action, target).await
+    }
+
+    pub(super) async fn authorize_subject(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        target: PolicyTarget,
+    ) -> Result<AuthenticatedSubject, McpError> {
+        let (subject, decision) = self
+            .evaluate_policy_for_subject(subject, action, target)
+            .await?;
         if decision.effect == PolicyEffect::Allow {
             Ok(subject)
         } else {
@@ -200,17 +222,28 @@ impl GatewayMcp {
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<bool, McpError> {
-        let (_subject, decision) = self.evaluate_policy(context, action, target).await?;
+        let subject = self.authenticated(context)?;
+        self.allows_subject(&subject, action, target).await
+    }
+
+    pub(super) async fn allows_subject(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        target: PolicyTarget,
+    ) -> Result<bool, McpError> {
+        let (_subject, decision) = self
+            .evaluate_policy_for_subject(subject, action, target)
+            .await?;
         Ok(decision.effect == PolicyEffect::Allow)
     }
 
-    pub(super) async fn evaluate_policy(
+    pub(super) async fn evaluate_policy_for_subject(
         &self,
-        context: &RequestContext<RoleServer>,
+        subject: &AuthenticatedSubject,
         action: GatewayAction,
         target: PolicyTarget,
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
-        let subject = self.authenticated(context)?;
         let trace_id = TraceId::new(uuid::Uuid::new_v4().to_string())
             .map_err(|err| mcp_internal(format!("failed to create trace id: {err}")))?;
         let catalog = self.catalog.current();
@@ -242,7 +275,7 @@ impl GatewayMcp {
             })
             .await
             .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
-        Ok((subject, decision))
+        Ok((subject.clone(), decision))
     }
 
     pub(super) async fn authorize_tool(
@@ -253,6 +286,17 @@ impl GatewayMcp {
         tool: LocalToolName,
     ) -> Result<AuthenticatedSubject, McpError> {
         self.authorize(context, action, PolicyTarget::Tool { server, tool })
+            .await
+    }
+
+    pub(super) async fn authorize_tool_for_subject(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        server: ServerSlug,
+        tool: LocalToolName,
+    ) -> Result<AuthenticatedSubject, McpError> {
+        self.authorize_subject(subject, action, PolicyTarget::Tool { server, tool })
             .await
     }
 

@@ -236,8 +236,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -282,8 +284,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],

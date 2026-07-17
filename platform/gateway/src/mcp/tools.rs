@@ -332,6 +332,29 @@ pub(super) fn completed_tool_result(task: DetailedTask) -> Result<CallToolResult
     }
 }
 
+pub(super) fn project_detailed_task_resource_uris(
+    manifest: &veoveo_mcp_contract::ServerManifest,
+    task: &mut DetailedTask,
+) -> Result<(), McpError> {
+    let DetailedTask::Completed { result, .. } = task else {
+        return Ok(());
+    };
+    let value = Value::Object(result.clone().into_iter().collect());
+    let mut tool_result: CallToolResult = serde_json::from_value(value).map_err(|error| {
+        mcp_internal(format!(
+            "upstream completed task result was not a tool result: {error}"
+        ))
+    })?;
+    project_call_tool_resource_uris(manifest, &mut tool_result)?;
+    let projected = serde_json::to_value(tool_result)
+        .map_err(|error| mcp_internal(format!("failed to encode projected task result: {error}")))?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| mcp_internal("projected task result was not an object"))?;
+    *result = projected.into_iter().collect();
+    Ok(())
+}
+
 trait FinalTaskStatusExt {
     fn is_terminal(&self) -> bool;
 }

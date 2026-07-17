@@ -159,7 +159,7 @@ impl FinalTaskClient {
             .http
             .post(&self.endpoint)
             .header(CONTENT_TYPE, "application/json")
-            .header(ACCEPT, "application/json")
+            .header(ACCEPT, "application/json, text/event-stream")
             .header(HEADER_MCP_PROTOCOL_VERSION, PROTOCOL_VERSION)
             .header(HEADER_MCP_METHOD, method)
             .json(&json!({
@@ -176,7 +176,13 @@ impl FinalTaskClient {
         }
         let response = request.send().await?;
         let status = response.status();
-        let envelope: RpcResponse<T> = response.json().await?;
+        let body = response.bytes().await?;
+        let envelope: RpcResponse<T> = serde_json::from_slice(&body).map_err(|error| {
+            anyhow!(
+                "decoding task extension response from {} (HTTP {status}): {error}",
+                self.endpoint
+            )
+        })?;
         match (envelope.result, envelope.error) {
             (Some(result), None) if status.is_success() => Ok(result),
             (_, Some(error)) => Err(anyhow!(

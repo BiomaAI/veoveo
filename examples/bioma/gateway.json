@@ -1443,8 +1443,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1495,8 +1497,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1544,8 +1548,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -1596,8 +1602,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2072,8 +2080,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2111,8 +2121,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2147,8 +2159,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2186,8 +2200,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2222,8 +2238,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2260,8 +2278,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2295,8 +2315,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2333,8 +2355,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2371,8 +2395,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2419,8 +2445,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2464,8 +2492,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2512,8 +2542,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -2602,8 +2634,10 @@
           "actions": [
             "tools_call",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
-            "tasks_cancel"
+            "tasks_cancel",
+            "tasks_subscribe"
           ],
           "profiles": [
             "operator",
@@ -2707,8 +2741,10 @@
           "actions": [
             "tools_call",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
-            "tasks_cancel"
+            "tasks_cancel",
+            "tasks_subscribe"
           ],
           "profiles": [
             "operator",
@@ -2732,8 +2768,10 @@
           "actions": [
             "tools_call",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
-            "tasks_cancel"
+            "tasks_cancel",
+            "tasks_subscribe"
           ],
           "profiles": [
             "operator",
@@ -2874,8 +2912,10 @@
           "actions": [
             "tools_call",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
-            "tasks_cancel"
+            "tasks_cancel",
+            "tasks_subscribe"
           ],
           "profiles": [
             "operator",
@@ -2900,8 +2940,10 @@
           "actions": [
             "tools_call",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
-            "tasks_cancel"
+            "tasks_cancel",
+            "tasks_subscribe"
           ],
           "profiles": [
             "operator",
@@ -2972,8 +3014,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3013,8 +3057,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3051,8 +3097,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3092,8 +3140,10 @@
             "resources_templates_list",
             "resources_read",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3264,8 +3314,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3314,8 +3366,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "artifact_read",
             "usage_read"
           ],
@@ -3361,8 +3415,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "usage_read"
           ],
           "profiles": [
@@ -3419,8 +3475,10 @@
             "prompts_get",
             "completion_complete",
             "tasks_get",
+            "tasks_update",
             "tasks_result",
             "tasks_cancel",
+            "tasks_subscribe",
             "usage_read"
           ],
           "profiles": [

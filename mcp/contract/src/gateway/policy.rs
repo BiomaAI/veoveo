@@ -75,8 +75,10 @@ pub enum GatewayAction {
     PromptsGet,
     CompletionComplete,
     TasksGet,
+    TasksUpdate,
     TasksResult,
     TasksCancel,
+    TasksSubscribe,
     ArtifactRead,
     UsageRead,
     AdminRead,
@@ -101,8 +103,10 @@ impl GatewayAction {
             Self::PromptsGet => Some("prompts/get"),
             Self::CompletionComplete => Some("completion/complete"),
             Self::TasksGet => Some("tasks/get"),
+            Self::TasksUpdate => Some("tasks/update"),
             Self::TasksResult => Some("tasks/result"),
             Self::TasksCancel => Some("tasks/cancel"),
+            Self::TasksSubscribe => Some("subscriptions/listen"),
             Self::ArtifactRead
             | Self::UsageRead
             | Self::AdminRead
