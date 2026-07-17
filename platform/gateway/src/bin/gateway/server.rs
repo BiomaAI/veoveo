@@ -42,11 +42,12 @@ use super::{
     host::validate_host,
     oauth::{authorization_callback, authorize_endpoint, revoke_refresh_token, token_endpoint},
     recording_ingest::recording_ingest_router,
+    recording_playback::{playback_manifest, playback_segment},
     runtime::{
         AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
         ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
-        build_http_client, current_catalog, profile_id_from_gateway_path, run_gateway_retention_gc,
-        spawn_gateway_retention_gc_loop, spawn_refresh_delivery_gc_loop,
+        RecordingPlaybackState, build_http_client, current_catalog, profile_id_from_gateway_path,
+        run_gateway_retention_gc, spawn_gateway_retention_gc_loop, spawn_refresh_delivery_gc_loop,
     },
 };
 
@@ -176,6 +177,26 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             authenticate_mcp,
         ));
     router = router.merge(artifact_download_router);
+
+    let recording_playback_router = Router::new()
+        .route(
+            "/recordings/{profile}/{recording_id}/playback",
+            get(playback_manifest),
+        )
+        .route(
+            "/recordings/{profile}/{recording_id}/segments/{segment_id}",
+            get(playback_segment),
+        )
+        .with_state(RecordingPlaybackState {
+            catalog: catalog.clone(),
+            gateway_state: gateway_state.clone(),
+            internal_token_issuer: internal_token_issuer.clone(),
+        })
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_mcp,
+        ));
+    router = router.merge(recording_playback_router);
 
     let server_health = spawn_server_health_prober(catalog.clone(), ct.child_token());
     let console_stream =

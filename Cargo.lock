@@ -10484,6 +10484,7 @@ dependencies = [
  "tower-http 0.7.0",
  "tracing",
  "url",
+ "uuid",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",

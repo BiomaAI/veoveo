@@ -137,6 +137,24 @@ impl Config {
             .expect("validated profile and artifact id")
     }
 
+    pub(crate) fn recording_playback_url(&self, recording_id: &str) -> Url {
+        self.gateway_url
+            .join(&format!(
+                "/recordings/{}/{recording_id}/playback",
+                self.admin_profile
+            ))
+            .expect("validated profile and recording id")
+    }
+
+    pub(crate) fn recording_segment_url(&self, recording_id: &str, segment_id: &str) -> Url {
+        self.gateway_url
+            .join(&format!(
+                "/recordings/{}/{recording_id}/segments/{segment_id}",
+                self.admin_profile
+            ))
+            .expect("validated profile and recording/segment ids")
+    }
+
     pub(crate) fn gateway_host(&self) -> String {
         let host = self.public_base_url.host_str().expect("validated URL");
         match self.public_base_url.port() {

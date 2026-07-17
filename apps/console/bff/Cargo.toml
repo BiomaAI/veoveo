@@ -25,6 +25,7 @@ tokio = { workspace = true, features = ["full"] }
 tower-http = { workspace = true, features = ["set-header"] }
 tracing.workspace = true
 url.workspace = true
+uuid.workspace = true
 rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest", "reqwest-tls-no-provider"] }
 veoveo-mcp-apps-extension = { path = "../../../mcp/apps-extension" }
 veoveo-mcp-contract = { workspace = true }

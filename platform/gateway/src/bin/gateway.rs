@@ -22,6 +22,8 @@ mod oauth_client_credentials;
 mod oauth_grants;
 #[path = "gateway/recording_ingest.rs"]
 mod recording_ingest;
+#[path = "gateway/recording_playback.rs"]
+mod recording_playback;
 #[path = "gateway/runtime.rs"]
 mod runtime;
 #[path = "gateway/server.rs"]

@@ -84,6 +84,13 @@ pub(super) struct ArtifactDownloadState {
 }
 
 #[derive(Clone)]
+pub(super) struct RecordingPlaybackState {
+    pub(super) catalog: SharedCatalog,
+    pub(super) gateway_state: GatewayState,
+    pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+}
+
+#[derive(Clone)]
 pub(super) struct RecordingIngestGatewayState {
     pub(super) catalog: SharedCatalog,
     pub(super) gateway_state: GatewayState,
@@ -121,7 +128,7 @@ pub(super) fn public_authorization_server<'a>(
 pub(super) fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileId> {
     let mut segments = path.trim_start_matches('/').split('/');
     match segments.next()? {
-        "mcp" | "admin" | "artifacts" => {}
+        "mcp" | "admin" | "artifacts" | "recordings" => {}
         _ => return None,
     }
     let profile = segments.next()?;

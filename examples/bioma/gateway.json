@@ -523,6 +523,12 @@
       "required_scopes": [
         "operator:use"
       ],
+      "owned_routes": [
+        {
+          "path": "/recordings",
+          "purpose": "artifact_bytes"
+        }
+      ],
       "metadata": {
         "raw_ingest": "internal_only"
       }

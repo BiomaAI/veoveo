@@ -15,8 +15,8 @@ use veoveo_platform_store::{
 use veoveo_recording_hub::{inspect_segment, query_segments};
 
 use crate::contract::{
-    ManifestSegment, QueryRecordingOutput, QueryRecordingRequest, RecordingManifest, RecordingView,
-    SealRecordingOutput, SegmentView,
+    ManifestSegment, PlaybackManifest, PlaybackSegment, QueryRecordingOutput,
+    QueryRecordingRequest, RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
 };
 
 mod read;
@@ -152,6 +152,64 @@ impl RecordingService {
         ))
     }
 
+    pub async fn playback_manifest(
+        &self,
+        identity: &GatewayInternalIdentity,
+        recording_id: RecordingId,
+    ) -> Result<Option<PlaybackManifest>> {
+        let authority = RecordingReadAuthority::from_gateway(identity);
+        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
+            return Ok(None);
+        };
+        let Some((_, recording)) = self.visible_recording(identity, recording_id).await? else {
+            return Ok(None);
+        };
+        let segments = plan
+            .segments
+            .into_iter()
+            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
+            .map(|segment| {
+                Ok(PlaybackSegment {
+                    segment_id: segment.segment_id.to_string(),
+                    ordinal: segment.ordinal,
+                    byte_len: segment.byte_len,
+                    sha256: segment
+                        .sha256
+                        .context("playback segment is missing sha256")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Some(PlaybackManifest {
+            recording_id: recording_id.to_string(),
+            application_id: plan.application_id,
+            recording_key: plan.recording_key,
+            state: recording_state(plan.state).to_owned(),
+            started_at: recording.started_at.to_rfc3339(),
+            ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
+            segments,
+        }))
+    }
+
+    pub async fn playback_segment_path(
+        &self,
+        identity: &GatewayInternalIdentity,
+        recording_id: RecordingId,
+        segment_id: SegmentId,
+    ) -> Result<Option<PathBuf>> {
+        let authority = RecordingReadAuthority::from_gateway(identity);
+        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
+            return Ok(None);
+        };
+        Ok(plan
+            .segments
+            .into_iter()
+            .find(|segment| {
+                segment.segment_id == segment_id
+                    && matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed)
+            })
+            .map(|segment| segment.path))
+    }
+
     pub async fn query(
         &self,
         identity: &GatewayInternalIdentity,
@@ -216,7 +274,7 @@ impl RecordingService {
         ensure!(
             matches!(
                 recording.state,
-                RecordingState::Open | RecordingState::Sealing
+                RecordingState::Ready | RecordingState::Interrupted | RecordingState::Sealing
             ),
             "recording is not sealable from state {}",
             recording_state(recording.state)
@@ -306,6 +364,7 @@ impl RecordingService {
             });
         }
 
+        let sealed_at = Utc::now();
         let current = self
             .store
             .recording(platform_identity.tenant_id, recording_id)
@@ -319,7 +378,7 @@ impl RecordingService {
                 schema: "veoveo.recording-manifest/v1".to_owned(),
                 recording: recording_view,
                 segments: manifest_segments.clone(),
-                sealed_at: Utc::now().to_rfc3339(),
+                sealed_at: sealed_at.to_rfc3339(),
             };
             let bytes = serde_json::to_vec_pretty(&manifest)?;
             let metadata = self
@@ -357,7 +416,7 @@ impl RecordingService {
                 task_id: None,
                 manifest_artifact_id,
                 segments: bindings,
-                ended_at: Utc::now(),
+                sealed_at,
             })
             .await?;
         Ok(SealRecordingOutput {
@@ -427,7 +486,9 @@ impl RecordingService {
             classification: recording.classification,
             labels: recording.labels,
             started_at: recording.started_at.to_rfc3339(),
+            last_data_at: recording.last_data_at.to_rfc3339(),
             ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
+            sealed_at: recording.sealed_at.map(|value| value.to_rfc3339()),
             manifest_artifact_uri: recording.manifest_artifact.map(|record| {
                 artifact_uri(PlatformArtifactId::from_uuid(
                     record_uuid(&record, "artifact_occurrence")
@@ -569,9 +630,11 @@ fn artifact_uri(id: PlatformArtifactId) -> String {
 
 fn recording_state(state: RecordingState) -> &'static str {
     match state {
-        RecordingState::Open => "open",
+        RecordingState::Live => "live",
+        RecordingState::Ready => "ready",
         RecordingState::Sealing => "sealing",
         RecordingState::Sealed => "sealed",
+        RecordingState::Interrupted => "interrupted",
         RecordingState::Failed => "failed",
     }
 }

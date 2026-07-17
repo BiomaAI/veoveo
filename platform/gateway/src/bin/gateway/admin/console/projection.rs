@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     Exposure, GatewayControlPlane, OwnedRoutePurpose, ResourceSelector, ServerManifest,
 };
@@ -110,6 +110,34 @@ pub(crate) struct ArtifactSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) retention_expires_at: Option<DateTime<Utc>>,
     pub(crate) created_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) recording: Option<ArtifactRecordingSummary>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ArtifactRecordingSummary {
+    pub(crate) recording_id: String,
+    pub(crate) kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) segment_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) ordinal: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct ArtifactProvenanceEnvelope {
+    provenance: ArtifactProvenance,
+}
+
+#[derive(Deserialize)]
+struct ArtifactProvenance {
+    kind: String,
+    recording_id: String,
+    #[serde(default)]
+    segment_id: Option<String>,
+    #[serde(default)]
+    ordinal: Option<i64>,
 }
 
 #[derive(Clone, Serialize)]
@@ -162,8 +190,11 @@ pub(crate) struct RecordingSummary {
     pub(crate) segments: usize,
     pub(crate) byte_length: i64,
     pub(crate) started_at: DateTime<Utc>,
+    pub(crate) last_data_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) ended_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) sealed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -295,6 +326,28 @@ pub(crate) fn artifact_summary(
     share_links: Vec<ArtifactShareLinkSummary>,
     principal_names: &BTreeMap<String, String>,
 ) -> anyhow::Result<ArtifactSummary> {
+    let recording =
+        serde_json::from_value::<ArtifactProvenanceEnvelope>(serde_json::Value::Object(
+            artifact
+                .metadata
+                .as_map()
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+        ))
+        .ok()
+        .filter(|value| {
+            matches!(
+                value.provenance.kind.as_str(),
+                "recording_segment" | "recording_manifest"
+            )
+        })
+        .map(|value| ArtifactRecordingSummary {
+            recording_id: value.provenance.recording_id,
+            kind: value.provenance.kind,
+            segment_id: value.provenance.segment_id,
+            ordinal: value.provenance.ordinal,
+        });
     Ok(ArtifactSummary {
         id: record_key(&artifact.id)?,
         filename: artifact.filename.unwrap_or_else(|| "artifact".to_owned()),
@@ -311,6 +364,7 @@ pub(crate) fn artifact_summary(
         share_links,
         retention_expires_at: artifact.retention_expires_at,
         created_at: artifact.created_at,
+        recording,
     })
 }
 
@@ -347,7 +401,9 @@ pub(crate) fn recording_summary(
         segments,
         byte_length,
         started_at: recording.started_at,
+        last_data_at: recording.last_data_at,
         ended_at: recording.ended_at,
+        sealed_at: recording.sealed_at,
     })
 }
 

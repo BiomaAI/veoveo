@@ -4,9 +4,10 @@ use axum::{
     http::{
         HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode,
         header::{
-            CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY,
-            CONTENT_TYPE, ETAG, HOST, LAST_MODIFIED, LOCATION, REFERRER_POLICY,
-            X_CONTENT_TYPE_OPTIONS,
+            ACCEPT_RANGES, CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
+            CONTENT_SECURITY_POLICY, CONTENT_TYPE, ETAG, HOST, IF_MATCH, IF_MODIFIED_SINCE,
+            IF_NONE_MATCH, IF_RANGE, IF_UNMODIFIED_SINCE, LAST_MODIFIED, LOCATION, RANGE,
+            REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS,
         },
     },
     middleware::Next,
@@ -372,6 +373,7 @@ pub(crate) async fn download_artifact(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
+    method: Method,
 ) -> Response {
     let Ok(artifact_id) = ArtifactId::parse(artifact_id) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -384,14 +386,16 @@ pub(crate) async fn download_artifact(
         Ok(headers) => headers,
         Err(status) => return status.into_response(),
     };
-    let upstream = match state
-        .http
-        .get(state.config.artifact_download_url(&artifact_id.to_string()))
+    let mut request = state
+        .stream_http
+        .request(
+            method,
+            state.config.artifact_download_url(&artifact_id.to_string()),
+        )
         .header(HOST, state.config.gateway_host())
-        .bearer_auth(&session.session.access_token)
-        .send()
-        .await
-    {
+        .bearer_auth(&session.session.access_token);
+    request = forward_read_headers(request, &request_headers);
+    let upstream = match request.send().await {
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, "console artifact download upstream failed");
@@ -405,7 +409,9 @@ pub(crate) async fn download_artifact(
         LOCATION,
         CONTENT_TYPE,
         CONTENT_LENGTH,
+        CONTENT_RANGE,
         CONTENT_DISPOSITION,
+        ACCEPT_RANGES,
         CACHE_CONTROL,
         ETAG,
         LAST_MODIFIED,
@@ -422,6 +428,213 @@ pub(crate) async fn download_artifact(
     *response.status_mut() = status;
     *response.headers_mut() = headers;
     response
+}
+
+pub(crate) async fn preview_artifact(
+    State(state): State<AppState>,
+    Path(artifact_id): Path<String>,
+    request_headers: HeaderMap,
+    method: Method,
+) -> Response {
+    let Ok(artifact_id) = ArtifactId::parse(artifact_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let session = match upstream_session(&state, &request_headers).await {
+        Ok(session) => session,
+        Err(response) => return response,
+    };
+    let mut headers = match response_session_headers(&state, &session) {
+        Ok(headers) => headers,
+        Err(status) => return status.into_response(),
+    };
+    let request = forward_read_headers(
+        state
+            .stream_http
+            .request(
+                method.clone(),
+                state.config.artifact_download_url(&artifact_id.to_string()),
+            )
+            .header(HOST, state.config.gateway_host())
+            .bearer_auth(&session.session.access_token),
+        &request_headers,
+    );
+    let mut upstream = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, "console artifact preview authorization failed");
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        }
+    };
+    if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
+        return unauthorized(&state);
+    }
+    if upstream.status().is_redirection() {
+        let Some(location) = upstream
+            .headers()
+            .get(LOCATION)
+            .and_then(|value| value.to_str().ok())
+        else {
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        };
+        let Ok(url) = url::Url::parse(location) else {
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        };
+        if url.scheme() != "https" {
+            tracing::warn!(
+                scheme = url.scheme(),
+                "rejected non-HTTPS artifact preview redirect"
+            );
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        }
+        let request =
+            forward_read_headers(state.stream_http.request(method, url), &request_headers);
+        upstream = match request.send().await {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::error!(%error, "console artifact preview object read failed");
+                return (headers, StatusCode::BAD_GATEWAY).into_response();
+            }
+        };
+    }
+    for name in [
+        CONTENT_TYPE,
+        CONTENT_LENGTH,
+        CONTENT_RANGE,
+        ACCEPT_RANGES,
+        CACHE_CONTROL,
+        ETAG,
+        LAST_MODIFIED,
+    ] {
+        if let Some(value) = upstream.headers().get(&name) {
+            headers.insert(name, value.clone());
+        }
+    }
+    headers.insert(CONTENT_DISPOSITION, HeaderValue::from_static("inline"));
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    let status = upstream.status();
+    let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
+    *response.status_mut() = status;
+    *response.headers_mut() = headers;
+    response
+}
+
+pub(crate) async fn recording_playback_manifest(
+    State(state): State<AppState>,
+    Path(recording_id): Path<String>,
+    request_headers: HeaderMap,
+) -> Response {
+    let Ok(recording_id) = uuid::Uuid::parse_str(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if recording_id.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_recording_read(
+        &state,
+        &request_headers,
+        Method::GET,
+        state
+            .config
+            .recording_playback_url(&recording_id.to_string()),
+    )
+    .await
+}
+
+pub(crate) async fn recording_playback_segment(
+    State(state): State<AppState>,
+    Path((recording_id, segment_id)): Path<(String, String)>,
+    request_headers: HeaderMap,
+    method: Method,
+) -> Response {
+    let (Ok(recording_id), Ok(segment_id)) = (
+        uuid::Uuid::parse_str(&recording_id),
+        uuid::Uuid::parse_str(&segment_id),
+    ) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if recording_id.get_version_num() != 7 || segment_id.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    proxy_recording_read(
+        &state,
+        &request_headers,
+        method,
+        state
+            .config
+            .recording_segment_url(&recording_id.to_string(), &segment_id.to_string()),
+    )
+    .await
+}
+
+async fn proxy_recording_read(
+    state: &AppState,
+    request_headers: &HeaderMap,
+    method: Method,
+    url: url::Url,
+) -> Response {
+    let session = match upstream_session(state, request_headers).await {
+        Ok(session) => session,
+        Err(response) => return response,
+    };
+    let mut headers = match response_session_headers(state, &session) {
+        Ok(headers) => headers,
+        Err(status) => return status.into_response(),
+    };
+    let request = forward_read_headers(
+        state
+            .stream_http
+            .request(method, url)
+            .header(HOST, state.config.gateway_host())
+            .bearer_auth(&session.session.access_token),
+        request_headers,
+    );
+    let upstream = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::error!(%error, "console recording playback upstream failed");
+            return (headers, StatusCode::BAD_GATEWAY).into_response();
+        }
+    };
+    if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
+        return unauthorized(state);
+    }
+    for name in [
+        CONTENT_TYPE,
+        CONTENT_LENGTH,
+        CONTENT_RANGE,
+        ACCEPT_RANGES,
+        CACHE_CONTROL,
+        ETAG,
+        LAST_MODIFIED,
+    ] {
+        if let Some(value) = upstream.headers().get(&name) {
+            headers.insert(name, value.clone());
+        }
+    }
+    let status = upstream.status();
+    let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
+    *response.status_mut() = status;
+    *response.headers_mut() = headers;
+    response
+}
+
+fn forward_read_headers(
+    mut request: reqwest::RequestBuilder,
+    headers: &HeaderMap,
+) -> reqwest::RequestBuilder {
+    for name in [
+        RANGE,
+        IF_RANGE,
+        IF_MATCH,
+        IF_NONE_MATCH,
+        IF_MODIFIED_SINCE,
+        IF_UNMODIFIED_SINCE,
+    ] {
+        if let Some(value) = headers.get(&name) {
+            request = request.header(name, value);
+        }
+    }
+    request
 }
 
 /// Margin before access-token expiry at which the proxied SSE stream is cut.

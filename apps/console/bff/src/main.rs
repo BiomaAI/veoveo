@@ -27,6 +27,7 @@ use veoveo_mcp_contract::{TelemetryGuard, init_server_telemetry};
 struct AppState {
     config: Arc<Config>,
     http: reqwest::Client,
+    stream_http: reqwest::Client,
     cluster: Option<Arc<cluster::KubernetesClient>>,
     sessions: SessionCipher,
     mcp: Arc<mcp_client::McpSessionPool>,
@@ -45,11 +46,18 @@ async fn main() -> anyhow::Result<()> {
         .timeout(Duration::from_secs(15))
         .build()
         .context("building console HTTP client")?;
+    let stream_http = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .read_timeout(Duration::from_secs(60))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .context("building console streaming HTTP client")?;
     let cluster = cluster::KubernetesClient::from_env()?.map(Arc::new);
     let mcp = Arc::new(mcp_client::McpSessionPool::new()?);
     let state = AppState {
         config: config.clone(),
         http,
+        stream_http,
         cluster,
         sessions,
         mcp,
@@ -96,6 +104,18 @@ async fn main() -> anyhow::Result<()> {
             "/console/api/artifacts/{artifact_id}/download",
             get(api::download_artifact),
         )
+        .route(
+            "/console/api/artifacts/{artifact_id}/preview",
+            get(api::preview_artifact),
+        )
+        .route(
+            "/console/api/recordings/{recording_id}/playback",
+            get(api::recording_playback_manifest),
+        )
+        .route(
+            "/console/api/recordings/{recording_id}/segments/{segment_id}",
+            get(api::recording_playback_segment),
+        )
         .nest_service("/console", assets)
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))
         .with_state(state)
@@ -111,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::HeaderName::from_static("content-security-policy"),
             axum::http::HeaderValue::from_static(
-                "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
             ),
         ))
         .layer(SetResponseHeaderLayer::if_not_present(
