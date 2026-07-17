@@ -416,6 +416,14 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_runtime, expected)?;
     }
+    let px4_commander = fs::read_to_string("showcase/uav-sim/runtime/veoveo_uav_sim/px4.py")?;
+    for expected in [
+        "udpin:127.0.0.1:{14_550 + self.instance}",
+        "self._connection.clients.add((\"127.0.0.1\", 18_570 + self.instance))",
+        "GCS_HEARTBEAT_INTERVAL_SECONDS = 1.0",
+    ] {
+        contains(&px4_commander, expected)?;
+    }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
     contains(&gpu_device_plugin, "replicas: 3")?;
 
