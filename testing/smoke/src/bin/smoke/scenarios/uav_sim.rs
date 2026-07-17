@@ -8,7 +8,7 @@ const NAMESPACE: &str = "veoveo";
 const SESSION_ID: &str = "bioma-uav";
 const FRAME_URI: &str = "frames://frame/bioma-uav-origin";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
-const ACCEPTANCE_ALTITUDE_M: f64 = 120.0;
+const ACCEPTANCE_ALTITUDE_M: f64 = 300.0;
 
 pub(crate) async fn uav_sim_verify(
     conformance: &Path,
@@ -119,7 +119,7 @@ pub(crate) async fn uav_sim_verify(
         public_base_url,
         &token,
         &["flying"],
-        Duration::from_secs(180),
+        Duration::from_secs(360),
     )
     .await?;
     ensure!(
@@ -127,7 +127,7 @@ pub(crate) async fn uav_sim_verify(
             .pointer("/vehicles/0/enu/up_m")
             .and_then(Value::as_f64)
             .is_some_and(|up_m| up_m >= ACCEPTANCE_ALTITUDE_M - 5.0),
-        "UAV did not reach the 120 m aerial-tiles acceptance altitude: {state}"
+        "UAV did not reach the 300 m aerial-tiles acceptance altitude: {state}"
     );
     state = wait_for_aerial_camera_content(
         conformance,
@@ -250,7 +250,7 @@ pub(crate) async fn uav_sim_verify(
         public_base_url,
         &token,
         &["landed", "standby"],
-        Duration::from_secs(300),
+        Duration::from_secs(600),
     )
     .await?;
     assert_concurrent_gpu_workloads(context)?;

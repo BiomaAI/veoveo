@@ -265,7 +265,7 @@ The live test passes only when all of the following are true at once:
 2. Cesium authenticates and Google Photorealistic 3D Tiles become resident in
    the Isaac stage.
 3. Pegasus spawns a PX4-backed UAV against the declared frame.
-4. The UAV arms, climbs to the 120 m aerial acceptance altitude, follows a
+4. The UAV arms, climbs to the 300 m aerial acceptance altitude, follows a
    bounded mission, and lands.
 5. MCP resources, mutations, tasks, ownership, and notifications work through
    the gateway.
