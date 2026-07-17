@@ -29,9 +29,6 @@ spec:
     {{- include "veoveo.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: recording
   ports:
-    - name: rerun-ingest
-      port: 9876
-      targetPort: rerun-ingest
     - name: ingest-api
       port: 9878
       targetPort: ingest-api
@@ -88,7 +85,7 @@ spec:
           args:
             - spooler
             - --bind
-            - 0.0.0.0:9876
+            - 127.0.0.1:9876
             - --internal-ingest-bind
             - 0.0.0.0:9878
             - --spool-dir
@@ -124,8 +121,6 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: veoveo-recording-hub
           ports:
-            - name: rerun-ingest
-              containerPort: 9876
             - name: ingest-api
               containerPort: 9878
           readinessProbe:

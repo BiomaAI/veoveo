@@ -15,8 +15,7 @@ use veoveo_mcp_contract::{
 use veoveo_perception_mcp::{
     annotation::write_annotation_rrd,
     contract::{
-        AnalysisSource, AnalyzeRecordingRequest, ExtractClipRequest, RecordingVideoSelection,
-        SamplingPolicy,
+        AnalyzeRecordingRequest, ExtractClipRequest, RecordingVideoSelection, SamplingPolicy,
     },
     source::{materialize_video, recording_id_from_uri, validate_video_selection},
 };
@@ -70,10 +69,7 @@ impl PerceptionTaskInput {
     }
 
     fn recovery_class(&self) -> RecoveryClass {
-        match self.video().source {
-            AnalysisSource::Durable => RecoveryClass::Resume,
-            AnalysisSource::RecentProxy { .. } => RecoveryClass::InterruptedIndeterminate,
-        }
+        RecoveryClass::Resume
     }
 }
 
@@ -261,7 +257,6 @@ async fn run_task_inner(
     let materialize = materialize_video(
         state.recordings.clone(),
         authority,
-        state.recording_proxy_uri.clone(),
         video.clone(),
         state.source_limits.clone(),
     );
@@ -456,18 +451,6 @@ async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
 fn validate_input(state: &AppState, input: &PerceptionTaskInput) -> Result<()> {
     recording_id_from_uri(&input.video().recording_uri)?;
     validate_video_selection(input.video())?;
-    if let AnalysisSource::RecentProxy {
-        idle_ms,
-        capture_ms,
-    } = input.video().source
-    {
-        ensure!(idle_ms > 0, "recent proxy idle_ms must be positive");
-        ensure!(
-            capture_ms >= idle_ms
-                && Duration::from_millis(capture_ms) <= state.source_limits.max_recent_capture,
-            "recent proxy capture_ms is outside the allowed range"
-        );
-    }
     match input {
         PerceptionTaskInput::Analyze(request) => {
             ensure!(

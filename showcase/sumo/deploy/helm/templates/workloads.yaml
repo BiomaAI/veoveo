@@ -12,6 +12,19 @@ spec:
       storage: {{ .Values.persistence.size }}
 ---
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sumo-recording-forwarder
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.recordingForwarder.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.recordingForwarder.persistence.size }}
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: sumo
@@ -100,15 +113,63 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: sumo-mcp
-        veoveo.ai/recording-producer: "true"
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: recording-forwarder
+          restartPolicy: Always
+          image: {{ printf "%s:%s" .Values.images.forwarder.repository .Values.images.forwarder.tag }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          args:
+            - --gateway-url
+            - {{ printf "%s/" (trimSuffix "/" .Values.platform.publicBaseUrl) | quote }}
+            - --gateway-transport-url
+            - {{ printf "%s/" (trimSuffix "/" .Values.recordingForwarder.gatewayTransportUrl) | quote }}
+            - --protected-resource
+            - {{ printf "%s/ingest/recordings" (trimSuffix "/" .Values.platform.publicBaseUrl) | quote }}
+            - --client-id
+            - {{ .Values.recordingForwarder.clientId | quote }}
+            - --key-id
+            - {{ .Values.recordingForwarder.keyId | quote }}
+            - --signing-algorithm
+            - {{ .Values.recordingForwarder.signingAlgorithm | quote }}
+            - --private-key-pem-file
+            - /run/secrets/recording-producer/private-key.pem
+            - --queue-dir
+            - /var/lib/veoveo-recording-forwarder
+            - --maximum-queue-bytes
+            - {{ printf "%.0f" .Values.recordingForwarder.maximumQueueBytes | quote }}
+          env:
+            - name: RUST_LOG
+              value: info
+          startupProbe:
+            exec:
+              command: [nc, -z, 127.0.0.1, "9876"]
+            periodSeconds: 2
+            failureThreshold: 150
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+          resources:
+            {{- toYaml .Values.recordingForwarder.resources | nindent 12 }}
+          volumeMounts:
+            - name: recording-forwarder-queue
+              mountPath: /var/lib/veoveo-recording-forwarder
+            - name: recording-producer-key
+              mountPath: /run/secrets/recording-producer
+              readOnly: true
       containers:
         - name: sumo-mcp
           image: {{ printf "%s:%s" .Values.images.mcp.repository .Values.images.mcp.tag }}
@@ -122,8 +183,6 @@ spec:
             - sumo-mcp:8795
             - --allowed-host
             - 127.0.0.1:8895
-            - --hub-proxy
-            - {{ .Values.platform.recordingProxy | quote }}
             - --recording
             - sumo-live
             - --artifact-service-url
@@ -206,8 +265,18 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: recording-forwarder-queue
+          persistentVolumeClaim:
+            claimName: sumo-recording-forwarder
         - name: work
           persistentVolumeClaim:
             claimName: sumo-work
+        - name: recording-producer-key
+          secret:
+            secretName: {{ .Values.recordingForwarder.privateKey.existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.recordingForwarder.privateKey.key }}
+                path: private-key.pem
         - name: tmp
           emptyDir: {}

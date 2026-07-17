@@ -12,6 +12,10 @@ images:
     repository: veoveo/uav-sim-mcp
     tag: 0.1.0
     digest: ""
+  forwarder:
+    repository: veoveo/recording-forwarder
+    tag: 0.1.0
+    digest: ""
 
 platform:
   instanceLabel: veoveo
@@ -23,8 +27,28 @@ platform:
   surrealNamespace: veoveo
   surrealDatabase: platform
   surrealRuntimeSecret: veoveo-surreal-runtime
-  recordingProxy: rerun+http://recording-hub:9876/proxy
   recordingTenantKey: enterprise
+
+recordingForwarder:
+  gatewayTransportUrl: http://mcp-gateway:8788
+  clientId: recording-producer
+  keyId: recording-producer-2026
+  signingAlgorithm: rs256
+  privateKey:
+    existingSecret: veoveo-recording-producer
+    key: private-key.pem
+  maximumQueueBytes: 1073741824
+  persistence:
+    size: 5Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
 world:
   source: google_photorealistic_3d_tiles

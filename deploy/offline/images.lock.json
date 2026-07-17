@@ -33,6 +33,7 @@
     {"ref": "veoveo/map-mcp:0.1.0", "dockerfile": "servers/map-mcp/Dockerfile"},
     {"ref": "veoveo/optimization-mcp:0.1.0", "dockerfile": "servers/optimization-mcp/Dockerfile"},
     {"ref": "veoveo/perception-mcp:0.1.0", "dockerfile": "servers/perception-mcp/Dockerfile"},
+    {"ref": "veoveo/recording-forwarder:0.1.0", "dockerfile": "platform/recordings/forwarder/Dockerfile"},
     {"ref": "veoveo/recording-hub:0.1.0", "dockerfile": "platform/recordings/hub/Dockerfile"},
     {"ref": "veoveo/recording-mcp:0.1.0", "dockerfile": "servers/recording-mcp/Dockerfile"},
     {"ref": "veoveo/time-mcp:0.1.0", "dockerfile": "servers/time-mcp/Dockerfile"},

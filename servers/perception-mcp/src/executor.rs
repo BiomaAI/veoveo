@@ -356,7 +356,7 @@ mod tests {
     async fn typed_runner_request_preserves_rerun_index_origin() {
         use std::os::unix::fs::PermissionsExt as _;
 
-        use crate::contract::{AnalysisSource, ModelFormat, PipelineOperation, VideoTimelineKind};
+        use crate::contract::{ModelFormat, PipelineOperation, VideoTimelineKind};
 
         let workspace = tempfile::tempdir().unwrap();
         let runner = workspace.path().join("runner.sh");
@@ -382,7 +382,6 @@ mod tests {
                 start: 120,
                 end: 140,
             },
-            source: AnalysisSource::Durable,
         };
         let pipeline = PipelineConfig {
             id: "detect".to_owned(),

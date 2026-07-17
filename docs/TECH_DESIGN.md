@@ -67,9 +67,15 @@ artifact-service
   +-- S3-compatible blob storage
 
 recording-hub
-  +-- private Rerun gRPC ingest
-  +-- crash-decodable RRD segments
-  +-- SurrealDB recording/segment catalog
+  +-- gateway-authenticated protobuf ingest
+  +-- fsynced batch journal and monotonic checkpoints
+  +-- crash-decodable RRD materialization
+  +-- SurrealDB stream, recording, and segment catalog
+
+recording-forwarder
+  +-- producer-loopback Rerun gRPC receiver
+  +-- persistent bounded queue and replay
+  +-- OAuth private-key client and gateway upload
 ```
 
 Binary entrypoints parse configuration, initialize dependencies, assemble routers, and

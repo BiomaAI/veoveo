@@ -89,10 +89,14 @@ not part of this profile.
 
 The `.env` file must define `CLOUDFLARE_ACCOUNT_ID`,
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARED_TUNNEL_TOKEN`,
-`CESIUM_ION_ACCESS_TOKEN`, and `GOOGLE_MAPS_API_KEY`. The Cesium token is stored
-as `cesium-ion-access-token` in the least-privilege `veoveo-uav-sim-secrets`
-Secret for Isaac. The Google key remains the direct View MCP credential. The
-account token needs Tunnel:Edit and DNS:Edit for this account and zone. The
+`CESIUM_ION_ACCESS_TOKEN`, `GOOGLE_MAPS_API_KEY`,
+`VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM`, and
+`VEOVEO_RECORDING_PRODUCER_KEY_ID`. The Cesium token is stored as
+`cesium-ion-access-token` in the least-privilege `veoveo-uav-sim-secrets`
+Secret for Isaac. The recording key is stored only in
+`veoveo-recording-producer` and must match the public JWKS registered for the
+gateway OAuth client. The Google key remains the direct View MCP credential.
+The account token needs Tunnel:Edit and DNS:Edit for this account and zone. The
 tunnel token is stored only in the `bioma-cloudflared` Kubernetes Secret.
 
 ## Start Bioma
@@ -151,6 +155,8 @@ protected-resource identifier, certificate hostname, and ingest URL remain
 `https://veoveo.bioma.ai`. The firewall exposes Traefik TCP/443 to the producer
 subnets; it does not expose Recording Hub ports 9876 or 9878. Cloudflare Tunnel
 can remain active because its origin leg continues to use Traefik HTTP port 80.
+The producer runs `recording-forwarder` locally and sends its SDK's native Rerun
+gRPC stream to `rerun+http://127.0.0.1:9876/proxy`.
 
 ## Acceptance
 

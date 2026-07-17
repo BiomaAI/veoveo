@@ -6,6 +6,7 @@
     "global",
     "images",
     "platform",
+    "recordingForwarder",
     "world",
     "cache",
     "session",
@@ -37,11 +38,12 @@
     "images": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pullPolicy", "runtime", "mcp"],
+      "required": ["pullPolicy", "runtime", "mcp", "forwarder"],
       "properties": {
         "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
         "runtime": {"$ref": "#/definitions/image"},
-        "mcp": {"$ref": "#/definitions/image"}
+        "mcp": {"$ref": "#/definitions/image"},
+        "forwarder": {"$ref": "#/definitions/image"}
       }
     },
     "platform": {
@@ -57,7 +59,6 @@
         "surrealNamespace",
         "surrealDatabase",
         "surrealRuntimeSecret",
-        "recordingProxy",
         "recordingTenantKey"
       ],
       "properties": {
@@ -70,8 +71,48 @@
         "surrealNamespace": {"type": "string", "minLength": 1},
         "surrealDatabase": {"type": "string", "minLength": 1},
         "surrealRuntimeSecret": {"type": "string", "minLength": 1},
-        "recordingProxy": {"type": "string", "pattern": "^rerun\\+https?://"},
         "recordingTenantKey": {"type": "string", "minLength": 1}
+      }
+    },
+    "recordingForwarder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gatewayTransportUrl",
+        "clientId",
+        "keyId",
+        "signingAlgorithm",
+        "privateKey",
+        "maximumQueueBytes",
+        "persistence",
+        "resources"
+      ],
+      "properties": {
+        "gatewayTransportUrl": {"type": "string", "pattern": "^https?://[A-Za-z0-9._:-]+/?$"},
+        "clientId": {"type": "string", "minLength": 1},
+        "keyId": {"type": "string", "minLength": 1},
+        "signingAlgorithm": {"enum": ["rs256", "es256", "ed-dsa"]},
+        "privateKey": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingSecret", "key"],
+          "properties": {
+            "existingSecret": {"type": "string", "minLength": 1},
+            "key": {"type": "string", "minLength": 1}
+          }
+        },
+        "maximumQueueBytes": {"type": "integer", "minimum": 8388608},
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["size", "storageClass", "accessMode"],
+          "properties": {
+            "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"},
+            "storageClass": {"type": "string"},
+            "accessMode": {"enum": ["ReadWriteOnce", "ReadWriteMany"]}
+          }
+        },
+        "resources": {"type": "object"}
       }
     },
     "world": {

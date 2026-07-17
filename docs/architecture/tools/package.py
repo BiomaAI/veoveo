@@ -16,9 +16,9 @@ REPO = ARCH.parents[1]
 OUTPUT = REPO / "output" / "architecture"
 STAGING = REPO / "tmp" / "architecture-packages"
 VERSION = "0.1.0"
-REVISION_DATE = "2026-07-14"
-SOURCE_COMMIT = "b16cd92436980fb82e01d6e65ff0378d537f5412"
-FIXED_ZIP_TIME = (2026, 7, 14, 12, 0, 0)
+REVISION_DATE = "2026-07-17"
+SOURCE_COMMIT = "f19c1b2d68c1bf4f6ad133712746c5e377bb4f3a"
+FIXED_ZIP_TIME = (2026, 7, 17, 12, 0, 0)
 
 
 def digest(path: Path) -> str:
@@ -116,11 +116,11 @@ def prepare(package_kind: str) -> Path:
         "handling": "reference_baseline_no_client_data",
         "standards": {"uaf": "1.3", "sysml": "1.6", "uml": "2.5.1", "xmi": "2.5.1"},
         "counts": {
-            "software_resources": 50,
-            "interfaces": 33,
+            "software_resources": 56,
+            "interfaces": 38,
             "requirements": 18,
             "views": 11,
-            "pdf_pages": 24,
+            "pdf_pages": 26,
         },
     }
     (root / "RELEASE-MANIFEST.json").write_text(

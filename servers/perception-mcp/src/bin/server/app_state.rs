@@ -15,7 +15,6 @@ pub(super) struct AppState {
     pub(super) catalog: Arc<PipelineCatalog>,
     pub(super) executor: DeepStreamExecutor,
     pub(super) source_limits: VideoSourceLimits,
-    pub(super) recording_proxy_uri: String,
     pub(super) max_artifact_bytes: u64,
     pub(super) max_inline_resource_bytes: u64,
     pub(super) work_slots: Arc<tokio::sync::Semaphore>,

@@ -2,22 +2,23 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["images", "platform", "telemetry", "simulation", "service", "persistence", "resources"],
+  "required": ["images", "platform", "recordingForwarder", "telemetry", "simulation", "service", "persistence", "resources"],
   "properties": {
     "images": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pullPolicy", "sim", "mcp"],
+      "required": ["pullPolicy", "sim", "mcp", "forwarder"],
       "properties": {
         "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
         "sim": {"$ref": "#/definitions/image"},
-        "mcp": {"$ref": "#/definitions/image"}
+        "mcp": {"$ref": "#/definitions/image"},
+        "forwarder": {"$ref": "#/definitions/image"}
       }
     },
     "platform": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["publicBaseUrl", "surrealService", "surrealNamespace", "surrealDatabase", "surrealRuntimeSecret", "installationSecret", "artifactServiceUrl", "recordingProxy"],
+      "required": ["publicBaseUrl", "surrealService", "surrealNamespace", "surrealDatabase", "surrealRuntimeSecret", "installationSecret", "artifactServiceUrl"],
       "properties": {
         "publicBaseUrl": {"type": "string", "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)"},
         "surrealService": {"type": "string", "minLength": 1},
@@ -25,8 +26,30 @@
         "surrealDatabase": {"type": "string", "minLength": 1},
         "surrealRuntimeSecret": {"type": "string", "minLength": 1},
         "installationSecret": {"type": "string", "minLength": 1},
-        "artifactServiceUrl": {"type": "string", "pattern": "^http://"},
-        "recordingProxy": {"type": "string", "pattern": "^rerun\\+http://"}
+        "artifactServiceUrl": {"type": "string", "pattern": "^http://"}
+      }
+    },
+    "recordingForwarder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gatewayTransportUrl", "clientId", "keyId", "signingAlgorithm", "privateKey", "maximumQueueBytes", "persistence", "resources"],
+      "properties": {
+        "gatewayTransportUrl": {"type": "string", "pattern": "^https?://[A-Za-z0-9._:-]+/?$"},
+        "clientId": {"type": "string", "minLength": 1},
+        "keyId": {"type": "string", "minLength": 1},
+        "signingAlgorithm": {"enum": ["rs256", "es256", "ed-dsa"]},
+        "privateKey": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingSecret", "key"],
+          "properties": {
+            "existingSecret": {"type": "string", "minLength": 1},
+            "key": {"type": "string", "minLength": 1}
+          }
+        },
+        "maximumQueueBytes": {"type": "integer", "minimum": 8388608},
+        "persistence": {"$ref": "#/definitions/persistence"},
+        "resources": {"type": "object"}
       }
     },
     "telemetry": {
@@ -83,6 +106,15 @@
       "properties": {
         "repository": {"type": "string", "minLength": 1},
         "tag": {"type": "string", "minLength": 1, "not": {"const": "latest"}}
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size", "storageClass"],
+      "properties": {
+        "size": {"type": "string", "minLength": 1},
+        "storageClass": {"type": "string"}
       }
     }
   }

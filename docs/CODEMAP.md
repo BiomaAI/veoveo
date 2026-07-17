@@ -383,7 +383,7 @@ types.
 | `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |
 | `query.rs` | governed RRD query/readback |
 | `config.rs` | validated raw gRPC spool and segment limits |
-| `bin/spooler.rs` | thin composition of internal ingest, raw cluster spool, catalog, and shutdown |
+| `bin/spooler.rs` | thin composition of authenticated ingest, loopback Rerun receiver, catalog, and shutdown |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
 ### `platform/recordings/forwarder`
@@ -394,8 +394,9 @@ types.
 | `src/queue.rs` | fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
 | `src/oauth.rs` | RFC 8414 discovery and `private_key_jwt` client-credentials tokens |
 | `src/client.rs` | typed protobuf discovery, open, append, and finish operations |
-| `src/runner.rs` | loopback Rerun receiver, retry loop, restart resume, and graceful drain |
-| `src/config.rs` | validated network, key, queue, batching, and shutdown configuration |
+| `src/runner.rs` | canonical-host transport routing, loopback Rerun receiver, retry loop, restart resume, and graceful drain |
+| `src/config.rs` | validated identity origin, installation transport, key, queue, batching, and shutdown configuration |
+| `Dockerfile` | production sidecar image with the forwarder and loopback readiness utility |
 
 ### `servers/recording-mcp`
 

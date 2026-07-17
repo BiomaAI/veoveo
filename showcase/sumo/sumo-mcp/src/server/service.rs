@@ -474,7 +474,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             (40, 60),
         )),
     };
-    let publisher = RecordingPublisher::connect(&args.hub_proxy, &args.recording)?;
+    let publisher = RecordingPublisher::connect(&args.recording_proxy, &args.recording)?;
     let mut world = World {
         driver,
         publisher,

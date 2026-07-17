@@ -18,10 +18,12 @@ SHA-256 digest. Stream creation is idempotent under the producer's `source_strea
 Repeating an accepted sequence with the same digest succeeds without another append.
 A different digest conflicts, and a gap returns the next expected sequence.
 
-The public operations are discovery, open or resume, status, append, and finish. They do
-not expose raw recording bytes or proxy Rerun read operations. Finishing drains every
-durable batch into immutable RRD segments. Sealing and artifact publication remain
-governed Recording MCP operations.
+The public operations are discovery, open or resume, status, append, and
+finish. They do not expose raw recording bytes or proxy Rerun read operations.
+Each accepted batch is materialized as an immutable RRD segment before its
+append response advances the materialized checkpoint. Finishing closes the
+ordered stream. Sealing and artifact publication remain governed Recording MCP
+operations.
 
 ## Authentication and policy
 
@@ -37,16 +39,18 @@ network while disconnected from the Internet.
 
 ## Durability
 
-The forwarder removes a local batch only after Record Hub reports a durable checkpoint.
-Record Hub first validates the complete Rerun payload, then writes a deterministic batch
-journal file through fsync and atomic rename. A SurrealDB transaction records the batch
-digest and advances the stream checkpoint only after that file exists durably. Startup
-reconciliation completes a transaction interrupted after rename.
+The forwarder removes a local batch only after Recording Hub reports a durable
+checkpoint. Recording Hub first validates the complete Rerun payload, then
+writes a deterministic batch journal file through fsync and atomic rename. A
+SurrealDB transaction records the batch digest and advances the stream
+checkpoint only after that file exists durably. Startup reconciliation
+completes a transaction interrupted after rename.
 
-One ordered materializer converts journal batches into immutable RRD segments. Open
-queries include the unmaterialized journal tail. A batch journal file is eligible for
-removal only after a cataloged segment covers its sequence. This ordering provides
-at-least-once transport with append-once stored batches; it does not claim network-level
+One ordered materializer converts a journal batch into an immutable RRD segment
+before the append completes. A batch journal file is eligible for removal only
+after a cataloged segment covers its sequence. Startup replays any durable
+journal entry left between those steps. This ordering provides at-least-once
+transport with append-once stored batches; it does not claim network-level
 exactly-once delivery.
 
 ## Network routes
@@ -57,6 +61,13 @@ Traefik address. Traefik presents a certificate for that canonical name in both 
 `examples/bioma/lan-values.yaml` enables this route while preserving the public resource
 identity. Kubernetes forwarders also use canonical HTTPS unless an internal gateway
 service presents a certificate valid for that same origin.
+
+The Helm workloads set `--gateway-transport-url` to the private gateway
+ClusterIP route. This changes only the socket destination. Discovery results,
+OAuth issuer, client-assertion audience, protected resource, streams endpoint,
+and HTTP Host remain bound to the canonical public origin. NetworkPolicy
+confines that internal HTTP hop; service-mesh mTLS protects it when the
+installation enables the mesh.
 
 Native Rerun gRPC is loopback-only at the forwarder. Recording Hub exposes an internal
 HTTP service to the gateway and has no NodePort or public raw proxy. A firewall or
@@ -83,6 +94,11 @@ recording-forwarder \
   --queue-dir /var/lib/veoveo-recording-forwarder
 ```
 
+Kubernetes native sidecars use the same command with
+`--gateway-transport-url http://mcp-gateway:8788/`. Each sidecar mounts only its
+producer key and a dedicated persistent queue. Kubernetes starts the forwarder
+before the producer container and terminates it after the producer exits.
+
 The same command works on the local network when split-horizon DNS resolves
 `veoveo.bioma.ai` to the LAN ingress. The certificate and OAuth resource identity remain
 unchanged.
@@ -96,8 +112,5 @@ batch, resumes at the durable checkpoint, finishes the stream, then inspects the
 segment digest.
 
 ```sh
-cargo build -p veoveo-mcp-conformance --bin conformance \
-  -p veoveo-mcp-gateway --bin gateway \
-  -p veoveo-recording-hub --bin spooler
-cargo run -p veoveo-smoke --bin smoke -- recording-ingest
+just smoke-recording-ingest
 ```

@@ -1,4 +1,5 @@
-//! The hub spooler: an embedded Rerun gRPC proxy whose every message is also
+//! The hub spooler: authenticated batch ingest plus a loopback Rerun receiver
+//! whose every materialized message is also
 //! persisted durably to day-partitioned segment files. Because the proxy and
 //! the writer live in one process, the durable write is the first-class path —
 //! there is no reconnect window in which the ring buffer could drop data a
