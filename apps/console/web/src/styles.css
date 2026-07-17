@@ -320,7 +320,13 @@ a.button { text-decoration: none; }
 .artifact-rerun-viewer { position: relative; overflow: hidden; background: #111315; }
 .artifact-rerun-viewer .recording-viewer-state { min-height: 500px; }
 .artifact-preview-loading { height: 500px; display: flex; align-items: center; justify-content: center; gap: 9px; background: #111315; color: #b9c0c4; font-size: var(--text-xs); }
+.artifact-preview-checking { height: 120px; background: #f7f8f8; color: var(--muted); }
 .artifact-preview-error { display: block; padding: 18px; background: var(--red-soft); color: var(--red); font-size: var(--text-xs); line-height: 18px; }
+.artifact-preview-denied { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 11px; padding: 16px; background: #fff9ed; color: #795a22; }
+.artifact-preview-denied strong, .artifact-preview-denied span { display: block; }
+.artifact-preview-denied strong { margin-bottom: 4px; color: #533b14; font-size: var(--text-sm); }
+.artifact-preview-denied span { max-width: 720px; font-size: var(--text-xs); line-height: 19px; }
+.artifact-preview-denied code { overflow-wrap: anywhere; color: #5e461c; }
 .artifact-preview-audio { display: flex; align-items: center; gap: 9px; padding: 12px; color: var(--muted); }
 .artifact-preview-audio audio { width: 100%; min-width: 0; }
 .artifact-preview-pdf { height: 430px; }

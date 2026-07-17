@@ -17,10 +17,12 @@ import { ArtifactPreview } from "../components/ArtifactPreview";
 
 export function ArtifactDrawer({
   artifact,
+  principalId,
   onClose,
   onOpenRecording,
 }: {
   artifact: ArtifactSummary;
+  principalId: string;
   onClose: () => void;
   onOpenRecording: (recordingId: string) => void;
 }) {
@@ -134,7 +136,11 @@ export function ArtifactDrawer({
           <h3>Preview</h3>
           <span className="subdued">Governed by the active Console session</span>
         </div>
-        <ArtifactPreview artifact={artifact} />
+        <ArtifactPreview
+          key={`${artifact.id}:${artifact.authorizedGrants}`}
+          artifact={artifact}
+          principalId={principalId}
+        />
       </section>
       {artifact.recording && (
         <section>

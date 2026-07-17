@@ -1,19 +1,139 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Box, Download, FileQuestion, FileText, Image as ImageIcon, Music2, Video } from "lucide-react";
+import {
+  Box,
+  Download,
+  FileQuestion,
+  FileText,
+  Image as ImageIcon,
+  LockKeyhole,
+  Music2,
+  Video,
+} from "lucide-react";
 import { artifactDownloadUrl, artifactPreviewUrl } from "../api";
 import type { ArtifactSummary } from "../types";
 
 const TEXT_PREVIEW_BYTES = 256 * 1024;
 const GovernedRerunViewer = lazy(() => import("./GovernedRerunViewer"));
 
-export function ArtifactPreview({ artifact }: { artifact: ArtifactSummary }) {
-  const url = artifactPreviewUrl(artifact.id);
+export function ArtifactPreview({
+  artifact,
+  principalId,
+}: {
+  artifact: ArtifactSummary;
+  principalId: string;
+}) {
   const mediaType = artifact.mediaType.toLowerCase();
+  if (!hasInlinePreview(mediaType)) {
+    return (
+      <div className="artifact-preview artifact-preview-unsupported">
+        <FileQuestion size={24} />
+        <div>
+          <strong>No inline renderer for {artifact.mediaType}</strong>
+          <span>The governed file remains available for download.</span>
+        </div>
+        <a className="button button-secondary" href={artifactDownloadUrl(artifact.id)}>
+          <Download size={14} /> Download
+        </a>
+      </div>
+    );
+  }
+  return (
+    <AuthorizedArtifactPreview
+      artifact={artifact}
+      mediaType={mediaType}
+      principalId={principalId}
+    />
+  );
+}
+
+function AuthorizedArtifactPreview({
+  artifact,
+  mediaType,
+  principalId,
+}: {
+  artifact: ArtifactSummary;
+  mediaType: string;
+  principalId: string;
+}) {
+  const url = artifactPreviewUrl(artifact.id);
+  const [access, setAccess] = useState<"checking" | "allowed" | "denied" | "unavailable">(
+    "checking"
+  );
+  const [accessDetail, setAccessDetail] = useState<string>();
   const [mediaError, setMediaError] = useState<string>();
   const rerunSegments = useMemo(
     () => [{ ordinal: 0, byteLength: artifact.byteLength, url }],
     [artifact.byteLength, url]
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(url, {
+      credentials: "same-origin",
+      headers: { Range: "bytes=0-0" },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        await response.body?.cancel();
+        if (response.status === 401) {
+          window.location.assign("/auth/login");
+          return;
+        }
+        if (response.status === 403) {
+          setAccess("denied");
+          return;
+        }
+        if (!response.ok) {
+          setAccessDetail(`Preview authorization returned ${response.status}.`);
+          setAccess("unavailable");
+          return;
+        }
+        setAccess("allowed");
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) {
+          setAccessDetail(
+            cause instanceof Error ? cause.message : "Preview authorization failed."
+          );
+          setAccess("unavailable");
+        }
+      });
+    return () => controller.abort();
+  }, [url]);
+
+  if (access === "checking") {
+    return (
+      <div className="artifact-preview artifact-preview-loading artifact-preview-checking">
+        <div className="loading-mark" /> Checking governed preview access…
+      </div>
+    );
+  }
+  if (access === "denied") {
+    return (
+      <div className="artifact-preview artifact-preview-denied">
+        <LockKeyhole size={25} />
+        <div>
+          <strong>Preview access required</strong>
+          <span>
+            This private artifact is owned by <code>{artifact.owner}</code>. The active Console
+            principal <code>{principalId}</code> does not have a read grant.
+          </span>
+          <span>Ask an artifact administrator to grant read access, then reopen this preview.</span>
+        </div>
+      </div>
+    );
+  }
+  if (access === "unavailable") {
+    return (
+      <div className="artifact-preview artifact-preview-denied">
+        <FileQuestion size={25} />
+        <div>
+          <strong>Preview service unavailable</strong>
+          <span>{accessDetail ?? "The governed preview could not be authorized."}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (mediaType === "application/vnd.rerun.rrd") {
     return (
@@ -77,18 +197,7 @@ export function ArtifactPreview({ artifact }: { artifact: ArtifactSummary }) {
   ) {
     return <TextPreview url={url} />;
   }
-  return (
-    <div className="artifact-preview artifact-preview-unsupported">
-      <FileQuestion size={24} />
-      <div>
-        <strong>No inline renderer for {artifact.mediaType}</strong>
-        <span>The governed file remains available for download.</span>
-      </div>
-      <a className="button button-secondary" href={artifactDownloadUrl(artifact.id)}>
-        <Download size={14} /> Download
-      </a>
-    </div>
-  );
+  return null;
 }
 
 function TextPreview({ url }: { url: string }) {
@@ -127,5 +236,19 @@ function TextPreview({ url }: { url: string }) {
       <div><FileText size={13} /> {truncated ? "First 256 KB" : "Text preview"}</div>
       {error ? <span>{error}</span> : text === undefined ? <span>Loading preview…</span> : <pre>{text}</pre>}
     </div>
+  );
+}
+
+function hasInlinePreview(mediaType: string): boolean {
+  return (
+    mediaType === "application/vnd.rerun.rrd" ||
+    mediaType.startsWith("image/") ||
+    mediaType.startsWith("video/") ||
+    mediaType.startsWith("audio/") ||
+    mediaType === "application/pdf" ||
+    mediaType.startsWith("text/") ||
+    mediaType.includes("json") ||
+    mediaType.includes("xml") ||
+    mediaType.includes("yaml")
   );
 }
