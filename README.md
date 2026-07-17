@@ -188,11 +188,10 @@ just showcase-sumo-up
 just showcase-sumo-verify
 ```
 
-The cluster maps its canonical loopback ingress to `http://localhost:8780`,
-SUMO MCP verification to `127.0.0.1:8895`, and Recording Hub viewing to
-`127.0.0.1:9877`. See
+The cluster maps its canonical loopback ingress to `http://localhost:8780` and
+SUMO MCP verification to `127.0.0.1:8895`. See
 [`deploy/local/k3d/README.md`](deploy/local/k3d/README.md) for GPU validation,
-profile isolation, image import, and Rerun commands.
+profile isolation, and image import.
 
 The Bioma example deploys the complete installation in the `veoveo-bioma`
 cluster and connects `veoveo.bioma.ai` through Cloudflare Tunnel. Its recipes

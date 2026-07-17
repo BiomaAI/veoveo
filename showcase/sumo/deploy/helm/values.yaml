@@ -6,6 +6,9 @@ images:
   mcp:
     repository: veoveo/sumo-mcp
     tag: 0.1.0
+  forwarder:
+    repository: veoveo/recording-forwarder
+    tag: 0.1.0
 
 platform:
   publicBaseUrl: http://localhost:8780
@@ -15,7 +18,26 @@ platform:
   surrealRuntimeSecret: veoveo-surreal-runtime
   installationSecret: veoveo-installation-secrets
   artifactServiceUrl: http://artifact-service:8790
-  recordingProxy: rerun+http://recording-hub:9876/proxy
+
+recordingForwarder:
+  gatewayTransportUrl: http://mcp-gateway:8788
+  clientId: sumo-recording-producer
+  keyId: test-key
+  signingAlgorithm: rs256
+  privateKey:
+    existingSecret: veoveo-recording-producer
+    key: private-key.pem
+  maximumQueueBytes: 1073741824
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
 telemetry:
   enabled: false

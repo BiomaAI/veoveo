@@ -121,6 +121,16 @@ pub(crate) fn bioma_resources(context: &str) -> Result<()> {
     )?;
     kubectl_apply(
         context,
+        &secret_manifest(
+            "veoveo-recording-producer",
+            [(
+                "private-key.pem",
+                "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM",
+            )],
+        )?,
+    )?;
+    kubectl_apply(
+        context,
         &secret_manifest("bioma-cloudflared", [("token", "CLOUDFLARED_TUNNEL_TOKEN")])?,
     )?;
 

@@ -70,7 +70,7 @@
 <rect x="70" y="845" width="7" height="100" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="88" y="868" class="node-id" text-anchor="start">EXT-5</text>
 <text x="88" y="892" class="node-title" text-anchor="start">
-<tspan x="88" dy="0">World producer</tspan>
+<tspan x="88" dy="0">Recording producer</tspan>
 </text>
 <rect x="435" y="235" width="270" height="150" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="435" y="235" width="7" height="150" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -179,7 +179,7 @@
 <tspan x="1376" dy="0">Recording evidence</tspan>
 </text>
 <text x="1376" y="625" class="small" text-anchor="start">
-<tspan x="1376" dy="0">Private ingest; governed catalog; read authorization;</tspan>
+<tspan x="1376" dy="0">OAuth producer; gateway policy; governed catalog;</tspan>
 <tspan x="1376" dy="16">crash-decodable files</tspan>
 </text>
 <rect x="1358" y="730" width="470" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
@@ -203,6 +203,7 @@
 <tspan x="1376" dy="16">remote inference dependency</tspan>
 </text>
 <path d="M 340 295 L 435 310" class="edge"/>
+<path d="M 340 895 L 435 720" class="edge"/>
 <path d="M 705 720 L 805 310" class="edge"/>
 <path d="M 1255 310 L 1358 272" class="edge"/>
 <path d="M 1255 515 L 1358 447" class="edge"/>
@@ -211,5 +212,5 @@
 <text x="62" y="1174" class="body inverse" text-anchor="start">Fail-closed rule: unknown profiles, servers, methods, resources, task IDs, artifact IDs, issuers, keys, and policy targets are denied.</text>
 <rect x="28" y="1205" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1226" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1870" y="1226" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-08</text>
+<text x="1870" y="1226" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-08</text>
 </svg>

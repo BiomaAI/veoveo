@@ -2,6 +2,7 @@ group "default" {
   targets = [
     "mcp-gateway",
     "artifact-service",
+    "recording-forwarder",
     "recording-hub",
     "recording-mcp",
     "console-bff",
@@ -12,6 +13,7 @@ group "platform" {
   targets = [
     "mcp-gateway",
     "artifact-service",
+    "recording-forwarder",
     "recording-hub",
     "recording-mcp",
     "console-bff",
@@ -22,6 +24,7 @@ group "bioma" {
   targets = [
     "mcp-gateway",
     "artifact-service",
+    "recording-forwarder",
     "recording-hub",
     "recording-mcp",
     "console-bff",
@@ -45,6 +48,7 @@ group "sumo-showcase" {
   targets = [
     "mcp-gateway",
     "artifact-service",
+    "recording-forwarder",
     "recording-hub",
     "recording-mcp",
     "console-bff",
@@ -67,6 +71,12 @@ target "artifact-service" {
   inherits   = ["base"]
   dockerfile = "platform/artifacts/service/Dockerfile"
   tags       = ["veoveo/artifact-service:0.1.0"]
+}
+
+target "recording-forwarder" {
+  inherits   = ["base"]
+  dockerfile = "platform/recordings/forwarder/Dockerfile"
+  tags       = ["veoveo/recording-forwarder:0.1.0"]
 }
 
 target "recording-hub" {

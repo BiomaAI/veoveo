@@ -17,8 +17,6 @@ pub(super) struct Args {
     pub(super) artifact_service_url: String,
     #[arg(long, default_value = "/recordings")]
     pub(super) spool_dir: PathBuf,
-    #[arg(long, default_value = "rerun+http://recording-hub:9876/proxy")]
-    pub(super) recording_proxy_uri: String,
     #[arg(long, default_value = "/etc/veoveo/perception/catalog.json")]
     pub(super) pipeline_catalog: PathBuf,
     #[arg(long, default_value = "/usr/local/bin/perception-deepstream-runner")]
@@ -31,10 +29,6 @@ pub(super) struct Args {
     pub(super) max_encoded_video_bytes: u64,
     #[arg(long, default_value_t = 8_589_934_592)]
     pub(super) max_segment_bytes: u64,
-    #[arg(long, default_value_t = 1_000_000)]
-    pub(super) max_recent_messages: usize,
-    #[arg(long, default_value_t = 60)]
-    max_recent_capture_s: u64,
     #[arg(long, default_value_t = 100_000)]
     pub(super) max_result_frames: usize,
     #[arg(long, default_value_t = 10_000)]
@@ -83,10 +77,6 @@ impl Args {
 
     pub(super) fn runner_timeout(&self) -> Duration {
         Duration::from_secs(self.runner_timeout_s)
-    }
-
-    pub(super) fn max_recent_capture(&self) -> Duration {
-        Duration::from_secs(self.max_recent_capture_s)
     }
 }
 

@@ -14,7 +14,6 @@ spec:
         app.kubernetes.io/name: veoveo
         app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
         app.kubernetes.io/component: uav-sim-batch
-        veoveo.ai/recording-producer: "true"
     spec:
       runtimeClassName: {{ .Values.scheduling.runtimeClassName }}
       restartPolicy: Never
@@ -35,6 +34,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        {{- include "uav-sim.recordingForwarder" (dict "root" .) | nindent 8 }}
       containers:
         - name: isaac-sim
           image: {{ include "uav-sim.image" (list . .Values.images.runtime) }}
@@ -70,6 +71,16 @@ spec:
           {{- end }}
         - name: runtime-data
           emptyDir: {}
+        - name: recording-forwarder-queue
+          persistentVolumeClaim:
+            claimName: uav-sim-batch-recording-forwarder
+        - name: recording-producer-key
+          secret:
+            secretName: {{ .Values.recordingForwarder.privateKey.existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.recordingForwarder.privateKey.key }}
+                path: private-key.pem
         - name: tmp
           emptyDir: {}
 {{- end }}

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# Internal durable spooler image. The governed recording-mcp process is the
-# only public protocol reader; this image exposes raw Rerun ingest internally.
+# Internal durable recording image. The gateway is the only installation
+# ingest caller; native Rerun remains a container-loopback implementation port.
 FROM rust:1.97.1-slim AS builder
 
 WORKDIR /app
@@ -45,7 +45,6 @@ RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 COPY --from=builder /out/spooler /out/sensor-sim /out/hub-query /usr/local/bin/
 
 USER veoveo
-# Raw proxy ingest is internal-network only.
-EXPOSE 9876
+EXPOSE 9878
 ENTRYPOINT []
 CMD ["spooler", "--help"]

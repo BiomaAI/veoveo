@@ -22,6 +22,13 @@ pub struct ForwarderConfig {
     #[arg(long, env = "VEOVEO_GATEWAY_URL")]
     pub gateway_url: Url,
 
+    /// Optional physical gateway origin used inside the installation network.
+    ///
+    /// Discovery, OAuth audiences, protected-resource identity, and Host headers
+    /// continue to use `gateway_url`.
+    #[arg(long, env = "VEOVEO_RECORDING_GATEWAY_TRANSPORT_URL")]
+    pub gateway_transport_url: Option<Url>,
+
     /// Expected OAuth protected-resource URI from ingest discovery.
     #[arg(long, env = "VEOVEO_RECORDING_INGEST_RESOURCE")]
     pub protected_resource: Url,
@@ -80,6 +87,18 @@ impl ForwarderConfig {
                 && self.gateway_url.fragment().is_none(),
             "gateway URL must be an origin without a path, query, or fragment"
         );
+        if let Some(transport) = &self.gateway_transport_url {
+            ensure!(
+                matches!(transport.scheme(), "http" | "https")
+                    && transport.host_str().is_some()
+                    && transport.path() == "/"
+                    && transport.query().is_none()
+                    && transport.fragment().is_none()
+                    && transport.username().is_empty()
+                    && transport.password().is_none(),
+                "gateway transport URL must be an HTTP(S) origin without credentials, a path, query, or fragment"
+            );
+        }
         ensure!(
             (self.protected_resource.scheme() == "https"
                 || (self.protected_resource.scheme() == "http"
@@ -90,6 +109,10 @@ impl ForwarderConfig {
                 && self.protected_resource.query().is_none()
                 && self.protected_resource.fragment().is_none(),
             "recording ingest protected resource must use HTTPS or loopback HTTP without a query or fragment"
+        );
+        ensure!(
+            self.protected_resource.origin() == self.gateway_url.origin(),
+            "recording ingest protected resource must use the canonical gateway origin"
         );
         ensure!(
             !self.client_id.trim().is_empty() && !self.key_id.trim().is_empty(),
@@ -130,6 +153,12 @@ impl ForwarderConfig {
         Duration::from_millis(self.batch_flush_milliseconds)
     }
 
+    pub fn gateway_transport_url(&self) -> &Url {
+        self.gateway_transport_url
+            .as_ref()
+            .unwrap_or(&self.gateway_url)
+    }
+
     pub fn shutdown_drain_window(&self) -> Duration {
         Duration::from_secs(self.shutdown_drain_seconds)
     }
@@ -147,6 +176,7 @@ mod tests {
         ForwarderConfig {
             bind: "127.0.0.1:9876".parse().unwrap(),
             gateway_url: Url::parse("https://veoveo.example/").unwrap(),
+            gateway_transport_url: None,
             protected_resource: Url::parse("https://veoveo.example/ingest/recordings").unwrap(),
             client_id: "sensor-a".to_owned(),
             private_key_pem_file: PathBuf::from("/run/secrets/sensor-key.pem"),
@@ -166,6 +196,16 @@ mod tests {
         let mut config = config();
         assert!(config.validate().is_ok());
         config.bind = "0.0.0.0:9876".parse().unwrap();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn accepts_an_explicit_cluster_transport_without_changing_public_identity() {
+        let mut config = config();
+        config.gateway_transport_url = Some(Url::parse("http://mcp-gateway:8788/").unwrap());
+        assert!(config.validate().is_ok());
+
+        config.protected_resource = Url::parse("https://other.example/ingest/recordings").unwrap();
         assert!(config.validate().is_err());
     }
 }

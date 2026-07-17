@@ -6,14 +6,23 @@ plane. The platform store is exactly one SurrealDB 3.2.1 process backed by a
 RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 
-The recording workload is one pod with an internal-only Rerun ingest container
-and a governed MCP container sharing `recording.persistence`. The `recording-hub`
-ClusterIP carries the authenticated gateway API on port 9878. Raw Rerun traffic
-on port 9876 is limited to explicitly labeled in-cluster producers. No NodePort
-or Ingress exposes either port. `recording.idleTimeoutSeconds` closes a native
-publisher capture after its final message; the default is 15 seconds. Governed
-browser playback enters through the gateway and Console BFF, while
-`recording-mcp` reads the shared PVC without exposing it.
+The recording workload is one pod with Recording Hub and the governed MCP
+server sharing `recording.persistence`. The `recording-hub` ClusterIP carries
+only the authenticated gateway API on port 9878. Hub's native Rerun receiver
+binds to container loopback and has no Service, NodePort, or Ingress.
+
+Application charts use `recording-forwarder` sidecars. SUMO and UAV Simulation
+send native Rerun traffic to their pod's loopback receiver. Each forwarder keeps
+a persistent bounded queue, authenticates with `private_key_jwt`, and sends the
+versioned protobuf protocol to the gateway. The producer chart's
+`recordingForwarder.gatewayTransportUrl` selects the internal gateway route
+without changing the public OAuth issuer, protected resource, token audience,
+or Host identity.
+
+`recording.idleTimeoutSeconds` closes a loopback-native Hub capture after its
+final message; the default is 15 seconds. Governed browser playback enters
+through the gateway and Console BFF. `recording-mcp` reads the shared PVC
+without exposing it.
 
 `duckdb-mcp` is intentionally one replica with a persistent `ReadWriteOnce`
 workspace. It provides owner-scoped mutable analytical databases and arbitrary

@@ -39,8 +39,8 @@ pub(super) struct Args {
     pub(super) fake_vehicles: usize,
     #[arg(long, env = "SUMO_FAKE_SEED", default_value_t = 1)]
     pub(super) fake_seed: u64,
-    #[arg(long, default_value = "rerun+http://hub-spooler:9876/proxy")]
-    pub(super) hub_proxy: String,
+    #[arg(long, default_value = "rerun+http://127.0.0.1:9876/proxy")]
+    pub(super) recording_proxy: String,
     #[arg(long, default_value = "sumo-live")]
     pub(super) recording: String,
     #[arg(long, default_value_t = 100)]

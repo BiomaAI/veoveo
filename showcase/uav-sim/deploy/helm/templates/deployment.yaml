@@ -17,7 +17,6 @@ spec:
       labels:
         {{- include "uav-sim.selectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
-        veoveo.ai/recording-producer: "true"
     spec:
       runtimeClassName: {{ .Values.scheduling.runtimeClassName }}
       automountServiceAccountToken: false
@@ -37,6 +36,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        {{- include "uav-sim.recordingForwarder" (dict "root" .) | nindent 8 }}
       containers:
         - name: isaac-sim
           image: {{ include "uav-sim.image" (list . .Values.images.runtime) }}
@@ -161,6 +162,16 @@ spec:
           {{- end }}
         - name: runtime-data
           emptyDir: {}
+        - name: recording-forwarder-queue
+          persistentVolumeClaim:
+            claimName: uav-sim-recording-forwarder
+        - name: recording-producer-key
+          secret:
+            secretName: {{ .Values.recordingForwarder.privateKey.existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.recordingForwarder.privateKey.key }}
+                path: private-key.pem
         - name: tmp
           emptyDir: {}
 {{- end }}
