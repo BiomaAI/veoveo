@@ -461,6 +461,7 @@ pub(super) async fn cmd_task_call(
         DetailedTask::Completed { result, .. } => {
             let result: CallToolResult =
                 serde_json::from_value(Value::Object(result.into_iter().collect()))?;
+            ensure_call_tool_succeeded(&result)?;
             print_call_tool_result(&result);
             Ok(())
         }
@@ -540,6 +541,26 @@ fn print_call_tool_result(result: &CallToolResult) -> Vec<String> {
         println!("structured: {structured}");
     }
     outputs
+}
+
+fn ensure_call_tool_succeeded(result: &CallToolResult) -> Result<()> {
+    if result.is_error != Some(true) {
+        return Ok(());
+    }
+    let detail = result
+        .content
+        .iter()
+        .filter_map(|block| match block {
+            ContentBlock::Text(text) => Some(text.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Err(anyhow!(if detail.is_empty() {
+        "tool task completed with an error result".to_owned()
+    } else {
+        detail
+    }))
 }
 
 fn extension_for_mime(mime_type: Option<&str>) -> &'static str {

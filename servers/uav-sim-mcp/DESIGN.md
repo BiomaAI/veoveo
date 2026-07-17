@@ -200,11 +200,13 @@ co-located recording adapter converts them into typed Rerun entities under:
 
 It pushes to the private Recording Hub endpoint using the repository-pinned
 Rerun SDK. Camera output is H.264 Annex B with simulation timestamps. The
-adapter reports only its private application and recording keys. The UAV MCP
-resolves those keys through the platform recording catalog and publishes only
-the canonical UUIDv7 `recording://recordings/{recording_id}` identity. That URI
-becomes the input to Perception MCP. Native Recording Hub ports are not exposed
-publicly.
+encoder emits a decoder-reentrant IDR with repeated SPS/PPS once per second of
+simulation time, which gives Perception's bounded recent-proxy capture a stable
+preroll point under GPU load. The adapter reports only its private application
+and recording keys. The UAV MCP resolves those keys through the platform
+recording catalog and publishes only the canonical UUIDv7
+`recording://recordings/{recording_id}` identity. That URI becomes the input to
+Perception MCP. Native Recording Hub ports are not exposed publicly.
 
 ## Kubernetes deployment
 

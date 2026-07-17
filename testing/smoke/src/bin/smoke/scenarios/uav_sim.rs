@@ -192,8 +192,8 @@ pub(crate) async fn uav_sim_verify(
         .get("simulation_time_s")
         .and_then(Value::as_f64)
         .context("UAV state omitted simulation_time_s")?;
-    let range_start = ((simulation_time_s - 2.0).max(0.0) * 1_000_000_000.0) as i64;
-    let range_end = ((simulation_time_s + 6.0) * 1_000_000_000.0) as i64;
+    let range_start = ((simulation_time_s + 5.0) * 1_000_000_000.0) as i64;
+    let range_end = ((simulation_time_s + 30.0) * 1_000_000_000.0) as i64;
     let perception = task_tool(
         conformance,
         public_base_url,
@@ -205,7 +205,7 @@ pub(crate) async fn uav_sim_verify(
                 "entity_path": camera_entity,
                 "timeline": "simulation_time",
                 "range": {"start": range_start, "end": range_end},
-                "source": {"mode": "recent_proxy", "idle_ms": 750, "capture_ms": 10_000}
+                "source": {"mode": "recent_proxy", "idle_ms": 5_000, "capture_ms": 30_000}
             },
             "pipeline_id": "traffic-object-detection",
             "sampling": {"mode": "maximum_frames", "count": 8},
@@ -352,7 +352,7 @@ async fn call_tool(
         Duration::from_secs(120),
     )
     .await?;
-    structured_output(&output)
+    structured_output(&output).with_context(|| format!("tool {tool} returned invalid output"))
 }
 
 async fn task_tool(
@@ -372,7 +372,7 @@ async fn task_tool(
         timeout,
     )
     .await?;
-    structured_output(&output)
+    structured_output(&output).with_context(|| format!("task tool {tool} returned invalid output"))
 }
 
 async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
@@ -439,7 +439,7 @@ fn structured_output(output: &str) -> Result<Value> {
     let encoded = output
         .lines()
         .find_map(|line| line.strip_prefix("structured: "))
-        .context("conformance output omitted structured content")?;
+        .with_context(|| format!("conformance output omitted structured content:\n{output}"))?;
     serde_json::from_str(encoded).context("decoding structured MCP output")
 }
 
