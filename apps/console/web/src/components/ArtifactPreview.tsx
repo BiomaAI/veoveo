@@ -1,18 +1,43 @@
-import { useEffect, useState } from "react";
-import { FileText, Image as ImageIcon, Music2, Video } from "lucide-react";
-import { artifactPreviewUrl } from "../api";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Box, Download, FileQuestion, FileText, Image as ImageIcon, Music2, Video } from "lucide-react";
+import { artifactDownloadUrl, artifactPreviewUrl } from "../api";
 import type { ArtifactSummary } from "../types";
 
 const TEXT_PREVIEW_BYTES = 256 * 1024;
+const GovernedRerunViewer = lazy(() => import("./GovernedRerunViewer"));
 
 export function ArtifactPreview({ artifact }: { artifact: ArtifactSummary }) {
   const url = artifactPreviewUrl(artifact.id);
   const mediaType = artifact.mediaType.toLowerCase();
+  const [mediaError, setMediaError] = useState<string>();
+  const rerunSegments = useMemo(
+    () => [{ ordinal: 0, byteLength: artifact.byteLength, url }],
+    [artifact.byteLength, url]
+  );
+
+  if (mediaType === "application/vnd.rerun.rrd") {
+    return (
+      <div className="artifact-preview artifact-preview-rerun">
+        <div className="artifact-preview-label"><Box size={13} /> Interactive Rerun preview</div>
+        <div className="artifact-rerun-viewer">
+          <Suspense fallback={<div className="artifact-preview-loading"><div className="loading-mark" /> Loading Rerun 0.34.1…</div>}>
+            <GovernedRerunViewer
+              key={artifact.id}
+              recordingId={`artifact ${artifact.id}`}
+              segments={rerunSegments}
+            />
+          </Suspense>
+        </div>
+      </div>
+    );
+  }
 
   if (mediaType.startsWith("image/")) {
     return (
       <div className="artifact-preview artifact-preview-media">
-        <img src={url} alt={`Preview of ${artifact.filename}`} />
+        {mediaError
+          ? <span className="artifact-preview-error">{mediaError}</span>
+          : <img src={url} alt={`Preview of ${artifact.filename}`} onError={() => setMediaError("The image preview could not be loaded with this session's access.")} />}
         <span><ImageIcon size={13} /> Image preview</span>
       </div>
     );
@@ -20,7 +45,9 @@ export function ArtifactPreview({ artifact }: { artifact: ArtifactSummary }) {
   if (mediaType.startsWith("video/")) {
     return (
       <div className="artifact-preview artifact-preview-media">
-        <video src={url} controls preload="metadata" />
+        {mediaError
+          ? <span className="artifact-preview-error">{mediaError}</span>
+          : <video src={url} controls preload="metadata" onError={() => setMediaError("The video preview could not be loaded with this session's access.")} />}
         <span><Video size={13} /> Video preview</span>
       </div>
     );
@@ -29,7 +56,9 @@ export function ArtifactPreview({ artifact }: { artifact: ArtifactSummary }) {
     return (
       <div className="artifact-preview artifact-preview-audio">
         <Music2 size={24} />
-        <audio src={url} controls preload="metadata" />
+        {mediaError
+          ? <span className="artifact-preview-error">{mediaError}</span>
+          : <audio src={url} controls preload="metadata" onError={() => setMediaError("The audio preview could not be loaded with this session's access.")} />}
       </div>
     );
   }
@@ -48,7 +77,18 @@ export function ArtifactPreview({ artifact }: { artifact: ArtifactSummary }) {
   ) {
     return <TextPreview url={url} />;
   }
-  return null;
+  return (
+    <div className="artifact-preview artifact-preview-unsupported">
+      <FileQuestion size={24} />
+      <div>
+        <strong>No inline renderer for {artifact.mediaType}</strong>
+        <span>The governed file remains available for download.</span>
+      </div>
+      <a className="button button-secondary" href={artifactDownloadUrl(artifact.id)}>
+        <Download size={14} /> Download
+      </a>
+    </div>
+  );
 }
 
 function TextPreview({ url }: { url: string }) {

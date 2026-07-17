@@ -5,17 +5,19 @@ export function DrawerShell({
   title,
   subtitle,
   onClose,
+  width = "default",
   children
 }: {
   title: string;
   subtitle: string;
   onClose: () => void;
+  width?: "default" | "wide";
   children: ReactNode;
 }) {
   return (
     <div className="drawer-layer">
       <button className="drawer-scrim" aria-label="Close details" onClick={onClose} />
-      <aside className="drawer" aria-label={`${title} details`}>
+      <aside className={width === "wide" ? "drawer drawer-wide" : "drawer"} aria-label={`${title} details`}>
         <header>
           <div>
             <span>{subtitle}</span>

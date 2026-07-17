@@ -81,9 +81,9 @@ export const demoSnapshot: InstallationSnapshot = {
     { id: "catalog-curator", name: "Catalog Curator", profile: "data-steward", state: "idle", pendingWakes: 2, lastEpisodeAt: ago(91), detail: "Next heartbeat in 4m" }
   ],
   recordings: [
-    { id: "019f4d5b-b0ba-7d13-8b25-f09df48f3a83", application: "traffic-world", recordingKey: "luxembourg-morning", state: "live", segments: 7, byteLength: 1_940_402_118, startedAt: ago(82), lastDataAt: ago(0) },
-    { id: "019f4b88-0d0c-7dc7-a74d-cb8f197c80e8", application: "survey-drone-7", recordingKey: "ridge-east", state: "sealed", segments: 12, byteLength: 4_229_005_702, startedAt: ago(1440), lastDataAt: ago(1300), endedAt: ago(1300), sealedAt: ago(1290) },
-    { id: "019f4b12-a299-79ae-9817-a24d2f65cd6a", application: "pilot-agent", recordingKey: "episodes-2026-07-09", state: "sealed", segments: 4, byteLength: 229_014_806, startedAt: ago(640), lastDataAt: ago(90), endedAt: ago(90), sealedAt: ago(80) }
+    { id: "019f4d5b-b0ba-7d13-8b25-f09df48f3a83", application: "traffic-world", recordingKey: "luxembourg-morning", state: "live", segmentCount: 8, playableSegmentCount: 7, playableByteLength: 1_940_402_118, startedAt: ago(82), lastDataAt: ago(0) },
+    { id: "019f4b88-0d0c-7dc7-a74d-cb8f197c80e8", application: "survey-drone-7", recordingKey: "ridge-east", state: "sealed", segmentCount: 12, playableSegmentCount: 12, playableByteLength: 4_229_005_702, startedAt: ago(1440), lastDataAt: ago(1300), endedAt: ago(1300), sealedAt: ago(1290) },
+    { id: "019f4b12-a299-79ae-9817-a24d2f65cd6a", application: "pilot-agent", recordingKey: "episodes-2026-07-09", state: "sealed", segmentCount: 4, playableSegmentCount: 4, playableByteLength: 229_014_806, startedAt: ago(640), lastDataAt: ago(90), endedAt: ago(90), sealedAt: ago(80) }
   ],
   servers: [
     mcpServer("media", 4, 6, 2, ["field-operator", "admin"]),
