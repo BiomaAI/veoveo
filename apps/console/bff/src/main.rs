@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
             get(api::recording_playback_manifest),
         )
         .route(
-            "/console/api/recordings/{recording_id}/segments/{segment_id}",
+            "/console/api/recordings/{recording_id}/segments/{segment_id}/data.rrd",
             get(api::recording_playback_segment),
         )
         .nest_service("/console", assets)

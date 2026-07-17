@@ -633,7 +633,7 @@ async fn main() -> anyhow::Result<()> {
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
         .route(
-            "/{recording_id}/segments/{segment_id}",
+            "/{recording_id}/segments/{segment_id}/data.rrd",
             get(playback_segment),
         )
         .layer(middleware::from_fn_with_state(auth_state, authenticate));
