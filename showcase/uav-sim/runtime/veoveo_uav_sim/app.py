@@ -51,6 +51,7 @@ def run(config: RuntimeConfig) -> None:
     import omni.usd
     from isaacsim.core.api import World
     from isaacsim.sensors.experimental.rtx import CameraSensor, RtxCamera
+    from omni.kit.viewport.utility import get_active_viewport
     from pxr import Usd
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
@@ -100,6 +101,7 @@ def run(config: RuntimeConfig) -> None:
     vehicles: dict[str, Multirotor] = {}
     px4_backends: dict[str, PX4MavlinkBackend] = {}
     camera_sensors: dict[str, CameraSensor] = {}
+    primary_camera_path: str | None = None
 
     try:
         recording = RecordingPublisher(config)
@@ -171,11 +173,25 @@ def run(config: RuntimeConfig) -> None:
                 config=multirotor_config,
             )
             vehicles[vehicle_id] = vehicle
+
+            # Pegasus's Iris asset binds two MDL materials over plain HTTP.
+            # The UAV geometry remains functional without those cosmetic
+            # bindings, and deactivating them keeps the production image
+            # self-contained under the chart's HTTPS-only egress policy.
+            for looks_path in (
+                f"{vehicle_prim_path}/body/Looks",
+                *(f"{vehicle_prim_path}/rotor{rotor}/Looks" for rotor in range(4)),
+            ):
+                looks = stage.GetPrimAtPath(looks_path)
+                if looks.IsValid():
+                    looks.SetActive(False)
+
             commander = Px4Commander(index, config.origin_ellipsoid_height_m)
             commanders[vehicle_id] = commander
 
+            camera_path = f"{vehicle_prim_path}/body/front_camera"
             camera = RtxCamera(
-                f"{vehicle_prim_path}/body/front_camera",
+                camera_path,
                 tick_rate=float(config.camera_fps),
                 translations=np.array([[0.25, 0.0, 0.05]]),
                 orientations=camera_rotation_wxyz,
@@ -187,7 +203,16 @@ def run(config: RuntimeConfig) -> None:
                 resolution=(config.camera_height, config.camera_width),
                 annotators=["rgb"],
             )
+            if primary_camera_path is None:
+                primary_camera_path = camera_path
             recording.add_camera(vehicle_id)
+
+        viewport = get_active_viewport()
+        if viewport is None or primary_camera_path is None:
+            raise RuntimeError("Cesium requires an active UAV viewport camera")
+        # Cesium for Omniverse drives tile selection from Kit viewports. The
+        # RTX sensor render product alone is not a Cesium streaming camera.
+        viewport.set_active_camera(primary_camera_path)
 
         world.reset()
 
