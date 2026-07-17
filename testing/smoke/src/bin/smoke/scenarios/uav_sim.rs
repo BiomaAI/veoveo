@@ -129,6 +129,13 @@ pub(crate) async fn uav_sim_verify(
             .is_some_and(|up_m| up_m >= ACCEPTANCE_ALTITUDE_M - 5.0),
         "UAV did not reach the 120 m aerial-tiles acceptance altitude: {state}"
     );
+    state = wait_for_aerial_camera_content(
+        conformance,
+        public_base_url,
+        &token,
+        Duration::from_secs(60),
+    )
+    .await?;
 
     let origin = state
         .get("georeference_origin")
@@ -316,14 +323,10 @@ fn assert_world_ready(state: &Value) -> Result<()> {
                 .and_then(Value::as_f64)
                 .is_some_and(|value| value >= 2.0)
             && state
-                .pointer("/cameras/0/dynamic_range")
-                .and_then(Value::as_u64)
-                .is_some_and(|value| value >= 8)
-            && state
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
                 .is_some_and(|value| value >= 0.02),
-        "Isaac nadir camera does not contain visible image content: {state}"
+        "Isaac nadir camera is not operational: {state}"
     );
     Ok(())
 }
@@ -359,6 +362,44 @@ async fn wait_for_flight_state(
         );
         if tokio::time::Instant::now() >= deadline {
             bail!("PX4 did not reach {accepted:?} within {timeout:?}; final state: {state}");
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+}
+
+async fn wait_for_aerial_camera_content(
+    conformance: &Path,
+    base: &str,
+    token: &str,
+    timeout: Duration,
+) -> Result<Value> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let state = simulation_state(conformance, base, token).await?;
+        let camera_has_detail = state
+            .pointer("/cameras/0/mean_luma")
+            .and_then(Value::as_f64)
+            .is_some_and(|value| value >= 2.0)
+            && state
+                .pointer("/cameras/0/dynamic_range")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| value >= 8)
+            && state
+                .pointer("/cameras/0/non_black_fraction")
+                .and_then(Value::as_f64)
+                .is_some_and(|value| value >= 0.02);
+        if camera_has_detail {
+            return Ok(state);
+        }
+        ensure!(
+            json_string(&state, "/cameras/0/lifecycle")? != "failed",
+            "Isaac nadir camera failed before aerial content became visible: {state}"
+        );
+        if tokio::time::Instant::now() >= deadline {
+            bail!(
+                "Isaac nadir camera did not show detailed Google tiles within {timeout:?}; \
+                 final state: {state}"
+            );
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }

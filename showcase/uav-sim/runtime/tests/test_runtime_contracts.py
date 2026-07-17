@@ -110,6 +110,7 @@ class AdapterContractTests(unittest.TestCase):
 class CameraQualityTests(unittest.TestCase):
     def test_black_camera_frame_is_not_visible(self) -> None:
         quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
+        self.assertFalse(quality.operational)
         self.assertFalse(quality.visible)
         self.assertEqual(quality.mean_luma, 0.0)
         self.assertEqual(quality.dynamic_range, 0)
@@ -119,6 +120,7 @@ class CameraQualityTests(unittest.TestCase):
         frame = np.zeros((48, 64, 3), dtype=np.uint8)
         frame[8:40, 8:56] = (32, 128, 224)
         quality = measure_camera_frame(frame)
+        self.assertTrue(quality.operational)
         self.assertTrue(quality.visible)
         self.assertGreater(quality.mean_luma, 2.0)
         self.assertGreater(quality.dynamic_range, 8)
@@ -127,6 +129,7 @@ class CameraQualityTests(unittest.TestCase):
     def test_uniform_bright_frame_is_not_visible_content(self) -> None:
         frame = np.full((48, 64, 3), 128, dtype=np.uint8)
         quality = measure_camera_frame(frame)
+        self.assertTrue(quality.operational)
         self.assertFalse(quality.visible)
         self.assertEqual(quality.dynamic_range, 0)
 

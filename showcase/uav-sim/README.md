@@ -94,10 +94,12 @@ The stage authors a deterministic dome light and distant sun for headless RTX
 rendering. The canonical UAV sensor is a nadir camera at `camera/down`, with
 image up aligned to vehicle forward. Camera readiness is based on the exact
 RGB8 bytes sent to H.264: three consecutive frames must contain measurable
-luma, dynamic range, and non-black pixels. Black frames are withheld from the
-video stream, and a camera that remains black for 30 seconds after Google tiles
-become resident fails readiness instead of producing an apparently successful
-recording.
+luma and non-black pixels. This operational gate permits takeoff from the
+nearly uniform launch surface. The live acceptance separately requires scene
+detail after the vehicle reaches 120 m. Frames without visible detail are
+withheld from the video stream, and a camera that remains black for 30 seconds
+after Google tiles become resident fails readiness instead of producing an
+apparently successful recording.
 
 ## Verification layers
 
