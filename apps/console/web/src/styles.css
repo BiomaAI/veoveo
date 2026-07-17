@@ -120,7 +120,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .panel { min-width: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden; }
 .panel-wide { min-width: 0; }
 .full-panel { min-height: calc(100vh - 129px); }
-.recordings-workspace { min-height: calc(100vh - 129px); display: grid; grid-template-columns: minmax(310px, 390px) minmax(0, 1fr); gap: 14px; }
+.recordings-workspace { height: calc(100vh - 129px); min-height: 680px; display: grid; grid-template-columns: minmax(310px, 390px) minmax(0, 1fr); gap: 14px; }
 .recordings-browser, .recording-player-panel { min-height: 0; }
 .recordings-browser { display: flex; flex-direction: column; }
 .recording-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 10px; border-bottom: 1px solid var(--border); }
@@ -414,7 +414,7 @@ a.button { text-decoration: none; }
   .pagination { align-items: flex-start; flex-direction: column; }
   .map-admin-layout { grid-template-columns: 1fr; gap: 10px; }
   .map-admin-layout > .full-panel, .map-admin-layout > .action-error { grid-column: auto; }
-  .recordings-workspace { grid-template-columns: 1fr; min-height: 0; }
+  .recordings-workspace { height: auto; grid-template-columns: 1fr; min-height: 0; }
   .recording-list { max-height: 360px; }
   .recording-viewer { min-height: 520px; }
   .coverage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
