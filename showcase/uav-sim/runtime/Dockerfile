@@ -2,6 +2,7 @@
 ARG TARGETPLATFORM=linux/amd64
 ARG PX4_BUILDER_IMAGE=px4io/px4-dev:v1.17.0@sha256:82e3ddcf4bf3fa4dbc0be6489c6de4158d0efbc8530182c691184302027335ce
 ARG ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.0.1@sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb
+ARG UAV_SIM_BASE_IMAGE=veoveo/uav-sim-base:isaac-6.0.1-cesium-0.29.0-pegasus-5.1.0-px4-1.17.0
 
 FROM --platform=${TARGETPLATFORM} ${PX4_BUILDER_IMAGE} AS upstream
 
@@ -101,7 +102,7 @@ ENV ACCEPT_EULA=Y \
 EXPOSE 8810
 USER 10001:10001
 
-FROM runtime-base AS runtime
+FROM ${UAV_SIM_BASE_IMAGE} AS runtime
 
 ARG SOURCE_REVISION=local
 LABEL org.opencontainers.image.revision="${SOURCE_REVISION}"

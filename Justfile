@@ -416,7 +416,8 @@ showcase-uav-sim-test:
 
 # Build the immutable UAV dependency base, thin runtime, and UAV MCP images.
 showcase-uav-sim-build:
-    docker buildx bake uav-sim-base uav-sim-runtime uav-sim-mcp
+    docker buildx bake uav-sim-base
+    docker buildx bake uav-sim-runtime uav-sim-mcp
 
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:

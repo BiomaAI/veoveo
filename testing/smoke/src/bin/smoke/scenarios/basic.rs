@@ -416,7 +416,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "git -C pegasus apply --unidiff-zero --check",
         "rerun-sdk==${RERUN_SDK_VERSION}",
         "AS runtime-base",
-        "FROM runtime-base AS runtime",
+        "ARG UAV_SIM_BASE_IMAGE=veoveo/uav-sim-base:",
+        "FROM ${UAV_SIM_BASE_IMAGE} AS runtime",
         "org.opencontainers.image.revision=",
         "USER 10001:10001",
     ] {
@@ -461,6 +462,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "git\", \"status\", \"--porcelain",
         "uav-sim-base.tags=",
         "uav-sim-runtime.tags=",
+        "uav-sim-runtime.args.UAV_SIM_BASE_IMAGE=",
         "uav-sim-runtime.args.SOURCE_REVISION=",
         "uav-sim-mcp.tags=",
         "\"--push\"",
