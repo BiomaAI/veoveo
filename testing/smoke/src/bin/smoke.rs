@@ -435,6 +435,17 @@ enum Cmd {
         #[arg(long, default_value = "k3d-veoveo-sumo")]
         context: String,
     },
+    /// Verify Isaac, Google 3D Tiles, PX4, Recording Hub, View, and Perception in Bioma.
+    UavSimVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        /// Kubernetes context owned by the Bioma development cluster.
+        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        context: String,
+        /// Public Bioma base URL used for OAuth and MCP.
+        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        public_base_url: String,
+    },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
     PerceptionGpu {
         /// Environment file used by the active k3d profile and direct assertion signer.
@@ -676,6 +687,11 @@ async fn main() -> Result<()> {
             conformance_bin,
             context,
         } => sumo_verify(&conformance_bin, &context).await,
+        Cmd::UavSimVerify {
+            conformance_bin,
+            context,
+            public_base_url,
+        } => uav_sim_verify(&conformance_bin, &context, &public_base_url).await,
         Cmd::PerceptionGpu { env_file, work_dir } => perception_gpu(&env_file, &work_dir).await,
     }
 }

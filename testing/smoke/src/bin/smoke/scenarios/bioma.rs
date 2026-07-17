@@ -28,6 +28,7 @@ const BIOMA_DEPLOYMENTS: &[&str] = &[
     "time-mcp",
     "datasheet-mcp",
     "chart-mcp",
+    "uav-sim",
     "rerun-bridge",
     "cloudflared",
 ];
@@ -103,11 +104,19 @@ pub(crate) fn bioma_resources(context: &str) -> Result<()> {
                 ("object-store-access-key", "VEOVEO_OBJECT_STORE_ACCESS_KEY"),
                 ("object-store-secret-key", "VEOVEO_OBJECT_STORE_SECRET_KEY"),
                 ("media-provider-api-key", "MEDIA_PROVIDER_API_KEY"),
+                ("google-maps-api-key", "GOOGLE_MAPS_API_KEY"),
                 (
                     "media-provider-webhook-secret",
                     "MEDIA_PROVIDER_WEBHOOK_SECRET",
                 ),
             ],
+        )?,
+    )?;
+    kubectl_apply(
+        context,
+        &secret_manifest(
+            "veoveo-uav-sim-secrets",
+            [("cesium-ion-access-token", "CESIUM_ION_ACCESS_TOKEN")],
         )?,
     )?;
     kubectl_apply(
@@ -135,7 +144,7 @@ pub(crate) async fn bioma_verify(
     for deployment in BIOMA_DEPLOYMENTS {
         assert_available_deployment(context, deployment)?;
     }
-    assert_gpu_capacity(context, 2)?;
+    assert_gpu_capacity(context, 3)?;
 
     let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
     ensure!(
@@ -197,7 +206,7 @@ pub(crate) async fn bioma_verify(
     );
 
     println!(
-        "Bioma verify ok: the full server catalog is available, both GPU workloads are schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, and Perception are concurrently schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
     );
     Ok(())
 }
@@ -317,12 +326,46 @@ fn secret_manifest<const N: usize>(name: &str, mappings: [(&str, &str); N]) -> R
 }
 
 fn required_secret(name: &str) -> Result<SecretString> {
-    let value = env::var(name).with_context(|| format!("required environment variable {name}"))?;
+    let value = match env::var(name) {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => secret_from_main_worktree(name)?.with_context(|| {
+            format!("required environment variable {name} is absent from the process and main worktree .env")
+        })?,
+        Err(error) => return Err(error).with_context(|| format!("reading environment variable {name}")),
+    };
     ensure!(
         !value.trim().is_empty(),
         "required environment variable {name} is empty"
     );
     Ok(SecretString::from(value))
+}
+
+fn secret_from_main_worktree(name: &str) -> Result<Option<String>> {
+    let output = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .output()
+        .context("discovering the main Git worktree")?;
+    ensure!(output.status.success(), "git worktree list failed");
+    let listing = String::from_utf8(output.stdout).context("decoding git worktree list")?;
+    let Some(main_worktree) = listing
+        .lines()
+        .find_map(|line| line.strip_prefix("worktree "))
+    else {
+        return Ok(None);
+    };
+    let environment_file = Path::new(main_worktree).join(".env");
+    if !environment_file.is_file() {
+        return Ok(None);
+    }
+    for item in dotenvy::from_path_iter(&environment_file)
+        .with_context(|| format!("reading {}", environment_file.display()))?
+    {
+        let (key, value) = item.context("decoding main worktree .env")?;
+        if key == name {
+            return Ok(Some(value));
+        }
+    }
+    Ok(None)
 }
 
 fn kubectl_apply(context: &str, manifest: &Value) -> Result<()> {

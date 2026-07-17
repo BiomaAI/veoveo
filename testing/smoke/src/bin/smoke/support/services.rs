@@ -129,6 +129,7 @@ pub(crate) fn spawn_frames_smoke(
     ChildGuard::spawn(
         frames,
         [
+            "serve".into(),
             "--port".into(),
             port.to_string().into(),
             "--public-base-url".into(),
