@@ -56,7 +56,9 @@ seccompProfile:
 - name: UAV_SIM_CESIUM_ION_ASSET_ID
   value: {{ printf "%.0f" .root.Values.world.cesiumIonAssetId | quote }}
 - name: UAV_SIM_TILE_CACHE_POLICY
-  value: {{ .root.Values.world.cachePolicy | quote }}
+  value: {{ .root.Values.cache.policy | quote }}
+- name: XDG_CACHE_HOME
+  value: {{ printf "/var/lib/veoveo/runtime-cache/%s" .root.Values.cache.version | quote }}
 - name: UAV_SIM_SESSION_ID
   value: {{ .sessionId | quote }}
 - name: UAV_SIM_FRAME_URI
@@ -81,6 +83,26 @@ seccompProfile:
   value: {{ .root.Values.session.camera.height | quote }}
 - name: UAV_SIM_CAMERA_FPS
   value: {{ .root.Values.session.camera.fps | quote }}
+- name: UAV_SIM_CAMERA_FOCAL_LENGTH_MM
+  value: {{ .root.Values.session.camera.optics.focalLengthMm | quote }}
+- name: UAV_SIM_CAMERA_CLIPPING_NEAR_M
+  value: {{ .root.Values.session.camera.optics.clippingRangeM.near | quote }}
+- name: UAV_SIM_CAMERA_CLIPPING_FAR_M
+  value: {{ .root.Values.session.camera.optics.clippingRangeM.far | quote }}
+- name: UAV_SIM_CAMERA_TRANSLATION_X_M
+  value: {{ .root.Values.session.camera.mount.translationM.x | quote }}
+- name: UAV_SIM_CAMERA_TRANSLATION_Y_M
+  value: {{ .root.Values.session.camera.mount.translationM.y | quote }}
+- name: UAV_SIM_CAMERA_TRANSLATION_Z_M
+  value: {{ .root.Values.session.camera.mount.translationM.z | quote }}
+- name: UAV_SIM_CAMERA_ORIENTATION_W
+  value: {{ .root.Values.session.camera.mount.orientationWxyz.w | quote }}
+- name: UAV_SIM_CAMERA_ORIENTATION_X
+  value: {{ .root.Values.session.camera.mount.orientationWxyz.x | quote }}
+- name: UAV_SIM_CAMERA_ORIENTATION_Y
+  value: {{ .root.Values.session.camera.mount.orientationWxyz.y | quote }}
+- name: UAV_SIM_CAMERA_ORIENTATION_Z
+  value: {{ .root.Values.session.camera.mount.orientationWxyz.z | quote }}
 - name: UAV_SIM_RECORDING_PROXY
   value: {{ .root.Values.platform.recordingProxy | quote }}
 - name: UAV_SIM_RECORDING_KEY

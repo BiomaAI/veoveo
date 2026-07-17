@@ -100,9 +100,9 @@ class RecordingPublisher:
         camera = H264CameraStream(
             self._recording,
             entity_path,
-            self._config.camera_width,
-            self._config.camera_height,
-            self._config.camera_fps,
+            self._config.camera.width,
+            self._config.camera.height,
+            self._config.camera.fps,
         )
         self._cameras[vehicle_id] = camera
         return camera

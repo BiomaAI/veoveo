@@ -78,7 +78,7 @@ spec:
             - name: shared-memory
               mountPath: /dev/shm
             - name: runtime-cache
-              mountPath: /var/lib/veoveo/.cache
+              mountPath: /var/lib/veoveo/runtime-cache
             - name: runtime-data
               mountPath: /var/lib/veoveo/.local/share
             - name: tmp
@@ -153,7 +153,12 @@ spec:
             medium: Memory
             sizeLimit: 8Gi
         - name: runtime-cache
+          {{- if eq .Values.cache.policy "persistent" }}
+          persistentVolumeClaim:
+            claimName: uav-sim-runtime-cache
+          {{- else }}
           emptyDir: {}
+          {{- end }}
         - name: runtime-data
           emptyDir: {}
         - name: tmp

@@ -225,7 +225,16 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: UAV_SIM_CESIUM_ION_ASSET_ID",
         "value: \"2275207\"",
         "name: UAV_SIM_TILE_CACHE_POLICY",
-        "value: \"ephemeral\"",
+        "value: \"persistent\"",
+        "name: XDG_CACHE_HOME",
+        "/var/lib/veoveo/runtime-cache/isaac-6.0.1-cesium-0.29.0-v1",
+        "kind: PersistentVolumeClaim",
+        "name: uav-sim-runtime-cache",
+        "claimName: uav-sim-runtime-cache",
+        "name: UAV_SIM_CAMERA_FOCAL_LENGTH_MM",
+        "value: \"8\"",
+        "name: UAV_SIM_CAMERA_ORIENTATION_W",
+        "value: \"0.7071067811865476\"",
         "name: UAV_SIM_RECORDING_TENANT_KEY",
         "value: \"bioma\"",
         "name: ROS_DISTRO",
@@ -240,11 +249,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_sim, expected)?;
     }
-    for forbidden in [
-        "kind: PersistentVolumeClaim",
-        "persistentVolumeClaim:",
-        "GOOGLE_MAPS_API_KEY",
-    ] {
+    for forbidden in ["GOOGLE_MAPS_API_KEY"] {
         if uav_sim.contains(forbidden) {
             bail!("UAV simulation render must not contain `{forbidden}`");
         }
@@ -277,6 +282,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: UAV_SIM_EXIT_AFTER_SECONDS",
         "runtimeClassName: nvidia",
         "name: CESIUM_ION_ACCESS_TOKEN",
+        "name: uav-sim-batch-runtime-cache",
+        "claimName: uav-sim-batch-runtime-cache",
     ] {
         contains(&uav_batch, expected)?;
     }
@@ -310,6 +317,10 @@ pub(crate) async fn helm_config() -> Result<()> {
     let bioma_cluster = fs::read_to_string("examples/bioma/k3d.yaml")?;
     contains(&bioma_cluster, "name: veoveo-bioma")?;
     contains(&bioma_cluster, "127.0.0.1:8781:80")?;
+    contains(&bioma_cluster, "name: veoveo-registry.localhost")?;
+    contains(&bioma_cluster, "hostPort: \"5001\"")?;
+    contains(&bioma_cluster, "registry:3.1.1@sha256:")?;
+    contains(&bioma_cluster, "disableImageVolume: true")?;
     let tunnel: Value = serde_json::from_str(&fs::read_to_string(
         "examples/bioma/cloudflare-tunnel.json",
     )?)?;
@@ -380,6 +391,14 @@ pub(crate) async fn helm_config() -> Result<()> {
                 .and_then(Value::as_u64)
                 == Some(2_275_207)
             && uav_dependencies
+                .pointer("/components/google_photorealistic_3d_tiles/persistence")
+                .and_then(Value::as_str)
+                == Some("versioned_runtime_cache")
+            && uav_dependencies
+                .pointer("/components/oci_distribution_registry/version")
+                .and_then(Value::as_str)
+                == Some("3.1.1")
+            && uav_dependencies
                 .pointer("/components/python_runtime/lxml")
                 .and_then(Value::as_str)
                 == Some("6.0.2"),
@@ -397,6 +416,9 @@ pub(crate) async fn helm_config() -> Result<()> {
         "lxml-6.0.2-cp312-cp312",
         "git -C pegasus apply --unidiff-zero --check",
         "rerun-sdk==${RERUN_SDK_VERSION}",
+        "AS runtime-base",
+        "FROM runtime-base AS runtime",
+        "org.opencontainers.image.revision=",
         "USER 10001:10001",
     ] {
         contains(&uav_runtime_dockerfile, expected)?;
@@ -435,6 +457,32 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
     contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
+    let uav_publish = fs::read_to_string("showcase/uav-sim/deploy/publish-images.py")?;
+    for expected in [
+        "git\", \"status\", \"--porcelain",
+        "uav-sim-base.tags=",
+        "uav-sim-runtime.tags=",
+        "uav-sim-runtime.args.SOURCE_REVISION=",
+        "uav-sim-mcp.tags=",
+        "\"--push\"",
+    ] {
+        contains(&uav_publish, expected)?;
+    }
+    let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
+        "showcase/uav-sim/scenarios/bioma-aerial.json",
+    )?)?;
+    ensure!(
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v1")
+            && uav_scenario
+                .pointer("/takeoff/relative_altitude_m")
+                .and_then(Value::as_f64)
+                == Some(300.0)
+            && uav_scenario
+                .pointer("/mission/speed_mps")
+                .and_then(Value::as_f64)
+                == Some(3.0),
+        "runtime-loaded UAV scenario omitted the canonical mission"
+    );
     for dockerfile in [
         "agents/kernel/Dockerfile",
         "apps/console/bff/Dockerfile",

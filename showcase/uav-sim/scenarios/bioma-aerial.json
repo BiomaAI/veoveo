@@ -1,0 +1,33 @@
+{
+  "schema": "veoveo.uav-sim-acceptance/v1",
+  "session_id": "bioma-uav",
+  "frame_uri": "frames://frame/bioma-uav-origin",
+  "vehicle_id": "uav-1",
+  "takeoff": {
+    "relative_altitude_m": 300.0,
+    "minimum_reached_altitude_m": 295.0,
+    "state_timeout_seconds": 360
+  },
+  "camera": {
+    "detail_timeout_seconds": 60,
+    "minimum_mean_luma": 2.0,
+    "minimum_dynamic_range": 8,
+    "minimum_non_black_fraction": 0.02
+  },
+  "mission": {
+    "longitude_offset_degrees": 0.00002,
+    "relative_altitude_m": 300.0,
+    "speed_mps": 3.0,
+    "hold_seconds": 0.5,
+    "task_timeout_seconds": 1200
+  },
+  "perception": {
+    "range_lead_seconds": 5.0,
+    "range_duration_seconds": 25.0,
+    "idle_ms": 5000,
+    "capture_ms": 30000,
+    "maximum_frames": 8,
+    "task_timeout_seconds": 600
+  },
+  "landing_timeout_seconds": 600
+}

@@ -439,6 +439,9 @@ enum Cmd {
     UavSimVerify {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
+        /// Runtime-loaded mission and acceptance parameters.
+        #[arg(long, default_value = "showcase/uav-sim/scenarios/bioma-aerial.json")]
+        scenario: PathBuf,
         /// Kubernetes context owned by the Bioma development cluster.
         #[arg(long, default_value = "k3d-veoveo-bioma")]
         context: String,
@@ -689,9 +692,10 @@ async fn main() -> Result<()> {
         } => sumo_verify(&conformance_bin, &context).await,
         Cmd::UavSimVerify {
             conformance_bin,
+            scenario,
             context,
             public_base_url,
-        } => uav_sim_verify(&conformance_bin, &context, &public_base_url).await,
+        } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
         Cmd::PerceptionGpu { env_file, work_dir } => perception_gpu(&env_file, &work_dir).await,
     }
 }

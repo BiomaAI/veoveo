@@ -10,6 +10,12 @@ The optional Bioma profile uses a second cluster and explicit Kubernetes context
 See [`examples/bioma/README.md`](../../../examples/bioma/README.md) for the
 concurrent Isaac Sim, View, Perception, and public-tunnel proof.
 
+The Bioma cluster creates a pinned OCI Distribution registry on loopback port
+5001 and disables k3d's image-import volume. UAV images use full Git revisions
+as tags. The Isaac dependency base remains stable, while registry blob
+deduplication moves only the thin runtime layers changed by a commit. The
+remaining platform images retain the existing import path.
+
 The development ingress has one canonical origin: `http://localhost:8780`.
 Loopback HTTP is deliberate for the disposable local cluster. Fielded profiles
 remain HTTPS-only and terminate TLS at their Kubernetes Ingress.
@@ -41,7 +47,8 @@ helm version
 
 Check the published SHA-256 files before installing downloaded binaries. The
 repository dependency policy requires an upstream release check whenever one of
-these versions is changed.
+these versions is changed. `versions.env` also pins the OCI Distribution image
+used by the Bioma cluster.
 
 ## GPU cluster
 

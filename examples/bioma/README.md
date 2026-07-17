@@ -14,12 +14,12 @@ kubectl context cannot redirect a recipe into another installation.
 
 - `values.yaml` owns Bioma's public origins and gateway ConfigMap identity.
 - `gateway.json` owns the Entra application, tenant mapping, and MCP profiles.
-- `k3d.yaml` owns the cluster and its loopback port.
+- `k3d.yaml` owns the cluster, loopback ingress, and pinned local OCI registry.
 - `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
   cluster and bootstraps the canonical UAV ENU frame without changing the
   server catalog.
-- `uav-sim-values.yaml` binds the Isaac session to that frame and the Bioma
-  recording tenant.
+- `uav-sim-values.yaml` binds the Isaac session to that frame, the typed nadir
+  camera, and the Bioma recording tenant.
 - `lan-values.yaml` enables canonical-host TLS at Traefik for direct LAN access.
 - `cloudflare-tunnel.json` is the desired remote tunnel ingress configuration.
 - `tunnel.yaml` runs the connector inside the Bioma cluster.
@@ -103,6 +103,7 @@ just bioma-k3d-create
 just bioma-build
 just bioma-import
 just bioma-resources
+just bioma-uav-sim-publish
 just bioma-platform-up
 just bioma-tunnel-up
 ```
@@ -110,9 +111,12 @@ just bioma-tunnel-up
 `bioma-resources` reads the required Veoveo, media-provider, Cesium, Google, and
 Cloudflare values from the main worktree `.env`, applies Kubernetes Secrets over
 stdin, and never writes their plaintext to a repository or temporary manifest.
-`bioma-build` and `bioma-import` cover every image used by the platform and UAV
-releases. `bioma-platform-up` installs both charts and waits for Isaac tile and
-PX4 readiness without suspending View or Perception.
+`bioma-build` and `bioma-import` cover the platform images.
+`bioma-uav-sim-publish` pushes the immutable UAV dependency base and thin
+commit-addressed runtime and MCP images to the cluster-managed OCI registry.
+OCI blob deduplication avoids another 20+ GB cluster import when only runtime
+source changes. `bioma-platform-up` deploys the exact Git commit and waits for
+Isaac tile and PX4 readiness without suspending View or Perception.
 
 ## Local-network recording producers
 
@@ -167,7 +171,9 @@ just bioma-uav-sim-verify
 The UAV check requires Google Photorealistic 3D Tiles to be resident inside
 Isaac, flies a PX4 mission, verifies the governed recording, processes the
 camera stream through Perception, and confirms all three GPU deployments remain
-available.
+available. Its default mission comes from
+`showcase/uav-sim/scenarios/bioma-aerial.json`; editing that file requires no
+Isaac build or deployment.
 
 The Access page reports policy sets from the active gateway control-plane
 revision. Policies are not independent CRUD records. Edit `gateway.json`,

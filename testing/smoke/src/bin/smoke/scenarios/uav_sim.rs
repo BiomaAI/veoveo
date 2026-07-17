@@ -1,20 +1,159 @@
 use std::process::Stdio;
 
 use anyhow::ensure;
+use serde::Deserialize;
 
 use super::*;
 
 const NAMESPACE: &str = "veoveo";
-const SESSION_ID: &str = "bioma-uav";
-const FRAME_URI: &str = "frames://frame/bioma-uav-origin";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
-const ACCEPTANCE_ALTITUDE_M: f64 = 300.0;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UavAcceptanceScenario {
+    schema: String,
+    session_id: String,
+    frame_uri: String,
+    vehicle_id: String,
+    takeoff: TakeoffScenario,
+    camera: CameraAcceptance,
+    mission: MissionScenario,
+    perception: PerceptionScenario,
+    landing_timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TakeoffScenario {
+    relative_altitude_m: f64,
+    minimum_reached_altitude_m: f64,
+    state_timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CameraAcceptance {
+    detail_timeout_seconds: u64,
+    minimum_mean_luma: f64,
+    minimum_dynamic_range: u64,
+    minimum_non_black_fraction: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MissionScenario {
+    longitude_offset_degrees: f64,
+    relative_altitude_m: f64,
+    speed_mps: f64,
+    hold_seconds: f64,
+    task_timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PerceptionScenario {
+    range_lead_seconds: f64,
+    range_duration_seconds: f64,
+    idle_ms: u64,
+    capture_ms: u64,
+    maximum_frames: u64,
+    task_timeout_seconds: u64,
+}
+
+impl UavAcceptanceScenario {
+    fn load(path: &Path) -> Result<Self> {
+        let bytes = fs::read(path)
+            .with_context(|| format!("reading UAV acceptance scenario {}", path.display()))?;
+        let scenario: Self = serde_json::from_slice(&bytes)
+            .with_context(|| format!("decoding UAV acceptance scenario {}", path.display()))?;
+        scenario.validate()?;
+        Ok(scenario)
+    }
+
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.schema == "veoveo.uav-sim-acceptance/v1",
+            "unsupported UAV acceptance scenario schema {:?}",
+            self.schema
+        );
+        validate_identity("session_id", &self.session_id)?;
+        validate_identity("vehicle_id", &self.vehicle_id)?;
+        ensure!(
+            self.frame_uri.starts_with("frames://frame/")
+                && self.frame_uri.len() > "frames://frame/".len(),
+            "frame_uri must use frames://frame/{{frame_id}}"
+        );
+        ensure!(
+            self.takeoff.relative_altitude_m.is_finite()
+                && (1.0..=10_000.0).contains(&self.takeoff.relative_altitude_m),
+            "takeoff.relative_altitude_m must be between 1 and 10000"
+        );
+        ensure!(
+            self.takeoff.minimum_reached_altitude_m.is_finite()
+                && self.takeoff.minimum_reached_altitude_m > 0.0
+                && self.takeoff.minimum_reached_altitude_m <= self.takeoff.relative_altitude_m,
+            "takeoff.minimum_reached_altitude_m must be positive and no higher than takeoff"
+        );
+        ensure!(
+            self.takeoff.state_timeout_seconds > 0
+                && self.camera.detail_timeout_seconds > 0
+                && self.mission.task_timeout_seconds > 0
+                && self.perception.task_timeout_seconds > 0
+                && self.landing_timeout_seconds > 0,
+            "scenario timeouts must be positive"
+        );
+        ensure!(
+            self.camera.minimum_mean_luma.is_finite()
+                && (0.0..=255.0).contains(&self.camera.minimum_mean_luma)
+                && self.camera.minimum_dynamic_range <= 255
+                && self.camera.minimum_non_black_fraction.is_finite()
+                && (0.0..=1.0).contains(&self.camera.minimum_non_black_fraction),
+            "camera thresholds are outside RGB8 bounds"
+        );
+        ensure!(
+            self.mission.longitude_offset_degrees.is_finite()
+                && self.mission.longitude_offset_degrees.abs() <= 1.0
+                && self.mission.longitude_offset_degrees != 0.0
+                && self.mission.relative_altitude_m.is_finite()
+                && (1.0..=10_000.0).contains(&self.mission.relative_altitude_m)
+                && self.mission.speed_mps.is_finite()
+                && (0.1..=100.0).contains(&self.mission.speed_mps)
+                && self.mission.hold_seconds.is_finite()
+                && (0.0..=3_600.0).contains(&self.mission.hold_seconds),
+            "mission parameters are outside the accepted flight envelope"
+        );
+        ensure!(
+            self.perception.range_lead_seconds.is_finite()
+                && self.perception.range_lead_seconds >= 0.0
+                && self.perception.range_duration_seconds.is_finite()
+                && self.perception.range_duration_seconds > 0.0
+                && self.perception.idle_ms > 0
+                && self.perception.capture_ms > 0
+                && (1..=10_000).contains(&self.perception.maximum_frames),
+            "perception parameters must define a positive bounded capture"
+        );
+        Ok(())
+    }
+}
+
+fn validate_identity(name: &str, value: &str) -> Result<()> {
+    ensure!(
+        (1..=128).contains(&value.len())
+            && value
+                .bytes()
+                .all(|byte| { byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.') }),
+        "{name} must contain 1-128 ASCII letters, digits, underscores, dashes, or dots"
+    );
+    Ok(())
+}
 
 pub(crate) async fn uav_sim_verify(
     conformance: &Path,
+    scenario_path: &Path,
     context: &str,
     public_base_url: &str,
 ) -> Result<()> {
+    let scenario = UavAcceptanceScenario::load(scenario_path)?;
     if conformance == Path::new("target/debug/conformance") {
         run_checked(
             Path::new("cargo"),
@@ -66,16 +205,23 @@ pub(crate) async fn uav_sim_verify(
         conformance,
         public_base_url,
         &token,
-        &["resource", FRAME_URI],
+        &["resource", &scenario.frame_uri],
         Duration::from_secs(60),
     )
     .await?;
-    for expected in ["bioma-uav-origin", "13.6929", "-89.2182", "700.0", "enu"] {
+    for expected in ["13.6929", "-89.2182", "700.0", "enu"] {
         contains(&frame, expected)?;
     }
+    contains(
+        &frame,
+        scenario
+            .frame_uri
+            .strip_prefix("frames://frame/")
+            .context("validated frame URI omitted its frame identity")?,
+    )?;
 
-    let mut state = simulation_state(conformance, public_base_url, &token).await?;
-    assert_world_ready(&state)?;
+    let mut state = simulation_state(conformance, public_base_url, &token, &scenario).await?;
+    assert_world_ready(&state, &scenario)?;
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
         .strip_prefix("recording://recordings/")
@@ -91,7 +237,10 @@ pub(crate) async fn uav_sim_verify(
         public_base_url,
         &token,
         "uav-sim__arm_vehicle",
-        serde_json::json!({"session_id": SESSION_ID, "vehicle_id": "uav-1"}),
+        serde_json::json!({
+            "session_id": scenario.session_id,
+            "vehicle_id": scenario.vehicle_id
+        }),
     )
     .await?;
     wait_for_flight_state(
@@ -100,6 +249,7 @@ pub(crate) async fn uav_sim_verify(
         &token,
         &["armed"],
         Duration::from_secs(60),
+        &scenario,
     )
     .await?;
     call_tool(
@@ -108,9 +258,9 @@ pub(crate) async fn uav_sim_verify(
         &token,
         "uav-sim__takeoff_vehicle",
         serde_json::json!({
-            "session_id": SESSION_ID,
-            "vehicle_id": "uav-1",
-            "relative_altitude_m": ACCEPTANCE_ALTITUDE_M
+            "session_id": scenario.session_id,
+            "vehicle_id": scenario.vehicle_id,
+            "relative_altitude_m": scenario.takeoff.relative_altitude_m
         }),
     )
     .await?;
@@ -119,21 +269,23 @@ pub(crate) async fn uav_sim_verify(
         public_base_url,
         &token,
         &["flying"],
-        Duration::from_secs(360),
+        Duration::from_secs(scenario.takeoff.state_timeout_seconds),
+        &scenario,
     )
     .await?;
     ensure!(
         state
             .pointer("/vehicles/0/enu/up_m")
             .and_then(Value::as_f64)
-            .is_some_and(|up_m| up_m >= ACCEPTANCE_ALTITUDE_M - 5.0),
-        "UAV did not reach the 300 m aerial-tiles acceptance altitude: {state}"
+            .is_some_and(|up_m| up_m >= scenario.takeoff.minimum_reached_altitude_m),
+        "UAV did not reach the configured aerial-tiles acceptance altitude: {state}"
     );
     state = wait_for_aerial_camera_content(
         conformance,
         public_base_url,
         &token,
-        Duration::from_secs(60),
+        Duration::from_secs(scenario.camera.detail_timeout_seconds),
+        &scenario,
     )
     .await?;
 
@@ -145,19 +297,21 @@ pub(crate) async fn uav_sim_verify(
     let longitude = json_number(origin, "longitude_degrees")?;
     let height = json_number(origin, "ellipsoid_height_m")?;
     let mission = serde_json::json!({
-        "session_id": SESSION_ID,
+        "session_id": scenario.session_id,
         "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
-        "frame_uri": FRAME_URI,
+        "frame_uri": scenario.frame_uri,
         "vehicles": [{
-            "vehicle_id": "uav-1",
+            "vehicle_id": scenario.vehicle_id,
             "waypoints": [{
                 "position": {
                     "latitude_degrees": latitude,
-                    "longitude_degrees": longitude + 0.00002,
-                    "ellipsoid_height_m": height + ACCEPTANCE_ALTITUDE_M
+                    "longitude_degrees": longitude
+                        + scenario.mission.longitude_offset_degrees,
+                    "ellipsoid_height_m": height
+                        + scenario.mission.relative_altitude_m
                 },
-                "speed_mps": 3.0,
-                "hold_seconds": 0.5
+                "speed_mps": scenario.mission.speed_mps,
+                "hold_seconds": scenario.mission.hold_seconds
             }]
         }]
     });
@@ -167,7 +321,7 @@ pub(crate) async fn uav_sim_verify(
         &token,
         "uav-sim__execute_mission",
         mission,
-        Duration::from_secs(1_200),
+        Duration::from_secs(scenario.mission.task_timeout_seconds),
     )
     .await?;
     ensure!(
@@ -202,13 +356,17 @@ pub(crate) async fn uav_sim_verify(
         "Recording Hub returned no UAV world rows: {recording}"
     );
 
-    state = simulation_state(conformance, public_base_url, &token).await?;
+    state = simulation_state(conformance, public_base_url, &token, &scenario).await?;
     let simulation_time_s = state
         .get("simulation_time_s")
         .and_then(Value::as_f64)
         .context("UAV state omitted simulation_time_s")?;
-    let range_start = ((simulation_time_s + 5.0) * 1_000_000_000.0) as i64;
-    let range_end = ((simulation_time_s + 30.0) * 1_000_000_000.0) as i64;
+    let range_start =
+        ((simulation_time_s + scenario.perception.range_lead_seconds) * 1_000_000_000.0) as i64;
+    let range_end = ((simulation_time_s
+        + scenario.perception.range_lead_seconds
+        + scenario.perception.range_duration_seconds)
+        * 1_000_000_000.0) as i64;
     let perception = task_tool(
         conformance,
         public_base_url,
@@ -220,13 +378,20 @@ pub(crate) async fn uav_sim_verify(
                 "entity_path": camera_entity,
                 "timeline": "simulation_time",
                 "range": {"start": range_start, "end": range_end},
-                "source": {"mode": "recent_proxy", "idle_ms": 5_000, "capture_ms": 30_000}
+                "source": {
+                    "mode": "recent_proxy",
+                    "idle_ms": scenario.perception.idle_ms,
+                    "capture_ms": scenario.perception.capture_ms
+                }
             },
             "pipeline_id": "traffic-object-detection",
-            "sampling": {"mode": "maximum_frames", "count": 8},
+            "sampling": {
+                "mode": "maximum_frames",
+                "count": scenario.perception.maximum_frames
+            },
             "include_source_clip": false
         }),
-        Duration::from_secs(600),
+        Duration::from_secs(scenario.perception.task_timeout_seconds),
     )
     .await?;
     ensure!(
@@ -242,7 +407,10 @@ pub(crate) async fn uav_sim_verify(
         public_base_url,
         &token,
         "uav-sim__land_vehicle",
-        serde_json::json!({"session_id": SESSION_ID, "vehicle_id": "uav-1"}),
+        serde_json::json!({
+            "session_id": scenario.session_id,
+            "vehicle_id": scenario.vehicle_id
+        }),
     )
     .await?;
     wait_for_flight_state(
@@ -250,7 +418,8 @@ pub(crate) async fn uav_sim_verify(
         public_base_url,
         &token,
         &["landed", "standby"],
-        Duration::from_secs(600),
+        Duration::from_secs(scenario.landing_timeout_seconds),
+        &scenario,
     )
     .await?;
     assert_concurrent_gpu_workloads(context)?;
@@ -282,7 +451,7 @@ fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
     Ok(())
 }
 
-fn assert_world_ready(state: &Value) -> Result<()> {
+fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result<()> {
     ensure!(
         matches!(
             json_string(state, "/lifecycle")?,
@@ -291,7 +460,7 @@ fn assert_world_ready(state: &Value) -> Result<()> {
         "UAV session is not ready: {state}"
     );
     ensure!(
-        json_string(state, "/frame_uri")? == FRAME_URI,
+        json_string(state, "/frame_uri")? == scenario.frame_uri,
         "UAV session uses the wrong Frames identity: {state}"
     );
     ensure!(
@@ -321,23 +490,32 @@ fn assert_world_ready(state: &Value) -> Result<()> {
             && state
                 .pointer("/cameras/0/mean_luma")
                 .and_then(Value::as_f64)
-                .is_some_and(|value| value >= 2.0)
+                .is_some_and(|value| value >= scenario.camera.minimum_mean_luma)
+            && state
+                .pointer("/cameras/0/dynamic_range")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| value >= scenario.camera.minimum_dynamic_range)
             && state
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
-                .is_some_and(|value| value >= 0.02),
+                .is_some_and(|value| { value >= scenario.camera.minimum_non_black_fraction }),
         "Isaac nadir camera is not operational: {state}"
     );
     Ok(())
 }
 
-async fn simulation_state(conformance: &Path, base: &str, token: &str) -> Result<Value> {
+async fn simulation_state(
+    conformance: &Path,
+    base: &str,
+    token: &str,
+    scenario: &UavAcceptanceScenario,
+) -> Result<Value> {
     call_tool(
         conformance,
         base,
         token,
         "uav-sim__get_simulation_state",
-        serde_json::json!({"session_id": SESSION_ID}),
+        serde_json::json!({"session_id": scenario.session_id}),
     )
     .await
 }
@@ -348,10 +526,11 @@ async fn wait_for_flight_state(
     token: &str,
     accepted: &[&str],
     timeout: Duration,
+    scenario: &UavAcceptanceScenario,
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let state = simulation_state(conformance, base, token).await?;
+        let state = simulation_state(conformance, base, token, scenario).await?;
         let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
         if accepted.contains(&flight_state) {
             return Ok(state);
@@ -372,22 +551,23 @@ async fn wait_for_aerial_camera_content(
     base: &str,
     token: &str,
     timeout: Duration,
+    scenario: &UavAcceptanceScenario,
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let state = simulation_state(conformance, base, token).await?;
+        let state = simulation_state(conformance, base, token, scenario).await?;
         let camera_has_detail = state
             .pointer("/cameras/0/mean_luma")
             .and_then(Value::as_f64)
-            .is_some_and(|value| value >= 2.0)
+            .is_some_and(|value| value >= scenario.camera.minimum_mean_luma)
             && state
                 .pointer("/cameras/0/dynamic_range")
                 .and_then(Value::as_u64)
-                .is_some_and(|value| value >= 8)
+                .is_some_and(|value| value >= scenario.camera.minimum_dynamic_range)
             && state
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
-                .is_some_and(|value| value >= 0.02);
+                .is_some_and(|value| value >= scenario.camera.minimum_non_black_fraction);
         if camera_has_detail {
             return Ok(state);
         }
@@ -524,4 +704,33 @@ fn json_number(object: &serde_json::Map<String, Value>, key: &str) -> Result<f64
         .get(key)
         .and_then(Value::as_f64)
         .with_context(|| format!("georeference_origin omitted numeric {key}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn canonical_scenario() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../showcase/uav-sim/scenarios/bioma-aerial.json")
+    }
+
+    #[test]
+    fn canonical_mission_is_runtime_loaded_and_validated() {
+        let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
+        assert_eq!(scenario.session_id, "bioma-uav");
+        assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
+        assert_eq!(scenario.mission.speed_mps, 3.0);
+    }
+
+    #[test]
+    fn mission_file_is_outside_the_isaac_image_build_context() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let scenario = canonical_scenario().canonicalize().unwrap();
+        let runtime_context = root
+            .join("showcase/uav-sim/runtime")
+            .canonicalize()
+            .unwrap();
+        assert!(!scenario.starts_with(runtime_context));
+    }
 }

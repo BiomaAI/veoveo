@@ -7,6 +7,7 @@
     "images",
     "platform",
     "world",
+    "cache",
     "session",
     "interactive",
     "batch",
@@ -76,11 +77,30 @@
     "world": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "cesiumIonAssetId", "cachePolicy"],
+      "required": ["source", "cesiumIonAssetId"],
       "properties": {
         "source": {"const": "google_photorealistic_3d_tiles"},
-        "cesiumIonAssetId": {"const": 2275207},
-        "cachePolicy": {"const": "ephemeral"}
+        "cesiumIonAssetId": {"const": 2275207}
+      }
+    },
+    "cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "version", "size", "storageClass", "accessMode"],
+      "properties": {
+        "policy": {"enum": ["ephemeral", "persistent"]},
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "size": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$"
+        },
+        "storageClass": {"type": "string"},
+        "accessMode": {"enum": ["ReadWriteOnce", "ReadWriteMany"]}
       }
     },
     "session": {
@@ -118,11 +138,41 @@
         "camera": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["width", "height", "fps"],
+          "required": ["width", "height", "fps", "optics", "mount"],
           "properties": {
             "width": {"type": "integer", "minimum": 64, "maximum": 3840},
             "height": {"type": "integer", "minimum": 64, "maximum": 2160},
-            "fps": {"type": "integer", "minimum": 1, "maximum": 60}
+            "fps": {"type": "integer", "minimum": 1, "maximum": 60},
+            "optics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["focalLengthMm", "clippingRangeM"],
+              "properties": {
+                "focalLengthMm": {
+                  "type": "number",
+                  "minimum": 0.1,
+                  "maximum": 1000
+                },
+                "clippingRangeM": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["near", "far"],
+                  "properties": {
+                    "near": {"type": "number", "minimum": 0.001, "maximum": 10000},
+                    "far": {"type": "number", "minimum": 0.01, "maximum": 10000000}
+                  }
+                }
+              }
+            },
+            "mount": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["translationM", "orientationWxyz"],
+              "properties": {
+                "translationM": {"$ref": "#/definitions/vector3"},
+                "orientationWxyz": {"$ref": "#/definitions/quaternion"}
+              }
+            }
           }
         }
       }
@@ -202,6 +252,27 @@
         "repository": {"type": "string", "minLength": 1},
         "tag": {"type": "string", "minLength": 1},
         "digest": {"type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "vector3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number", "minimum": -100, "maximum": 100},
+        "y": {"type": "number", "minimum": -100, "maximum": 100},
+        "z": {"type": "number", "minimum": -100, "maximum": 100}
+      }
+    },
+    "quaternion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["w", "x", "y", "z"],
+      "properties": {
+        "w": {"type": "number", "minimum": -1, "maximum": 1},
+        "x": {"type": "number", "minimum": -1, "maximum": 1},
+        "y": {"type": "number", "minimum": -1, "maximum": 1},
+        "z": {"type": "number", "minimum": -1, "maximum": 1}
       }
     }
   }

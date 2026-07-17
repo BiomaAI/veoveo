@@ -36,7 +36,7 @@ RUN curl --fail --location --show-error \
 COPY patches/cesium-0.29.0-preinstalled-vendor.patch /tmp/cesium.patch
 RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium.patch
 
-FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE}
+FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE} AS runtime-base
 
 ARG RERUN_SDK_VERSION=0.34.1
 ARG AIOHAPPYEYEBALLS_VERSION=2.7.1
@@ -82,8 +82,6 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
 
 COPY --from=upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
 COPY --from=upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
-COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
-COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
 
 RUN groupadd --gid 10001 veoveo \
     && useradd --uid 10001 --gid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
@@ -102,4 +100,13 @@ ENV ACCEPT_EULA=Y \
 
 EXPOSE 8810
 USER 10001:10001
+
+FROM runtime-base AS runtime
+
+ARG SOURCE_REVISION=local
+LABEL org.opencontainers.image.revision="${SOURCE_REVISION}"
+
+COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
+COPY --chown=10001:10001 --chmod=0555 entrypoint.py /opt/veoveo/uav-sim/entrypoint.py
+
 ENTRYPOINT ["/isaac-sim/python.sh", "/opt/veoveo/uav-sim/entrypoint.py"]

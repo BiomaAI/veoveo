@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-07-16",
+  "verified_at": "2026-07-17",
   "architecture": "linux/amd64",
   "components": {
     "isaac_sim": {
@@ -21,7 +21,13 @@
     "google_photorealistic_3d_tiles": {
       "cesium_ion_asset_id": 2275207,
       "source": "https://github.com/CesiumGS/cesium/blob/main/packages/engine/Source/Scene/createGooglePhotorealistic3DTileset.js",
-      "persistence": "ephemeral_only"
+      "persistence": "versioned_runtime_cache"
+    },
+    "oci_distribution_registry": {
+      "version": "3.1.1",
+      "image": "docker.io/library/registry:3.1.1",
+      "index_digest": "sha256:1be55279f18a2fe1a74edf2664cac61c1bea305b7b4642dab412e7affdcb3e33",
+      "source": "https://github.com/distribution/distribution/releases/tag/v3.1.1"
     },
     "pegasus_simulator": {
       "version": "5.1.0",
