@@ -191,6 +191,9 @@ target "uav-sim-runtime" {
   platforms  = ["linux/amd64"]
   target     = "runtime"
   tags       = ["veoveo/uav-sim-runtime:6.0.1"]
+  args = {
+    UAV_SIM_BASE_IMAGE = "veoveo/uav-sim-base:isaac-6.0.1-cesium-0.29.0-pegasus-5.1.0-px4-1.17.0"
+  }
 }
 
 target "uav-sim-mcp" {

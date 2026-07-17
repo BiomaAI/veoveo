@@ -162,9 +162,11 @@ to share files. Runtime data and shared memory remain ephemeral.
 
 `publish-images.py` refuses a dirty worktree, tags the thin runtime and MCP
 images with the full Git commit, and pushes through OCI. The stable dependency
-base tag contains Isaac, Cesium, Pegasus, PX4, and Python wheels. A runtime-only
-change rebuilds the final source-copy layer and the registry transfers only
-missing blobs. Edit `scenarios/bioma-aerial.json` and rerun
+base tag contains Isaac, Cesium, Pegasus, PX4, and Python wheels. The runtime
+Docker stage starts from that published base reference, which lets a clean
+builder pull the immutable layers instead of rebuilding the dependency stage.
+A runtime-only change rebuilds the final source-copy layer and the registry
+transfers only missing blobs. Edit `scenarios/bioma-aerial.json` and rerun
 `just bioma-uav-sim-verify`; a mission-only change performs no image build,
 push, or Helm rollout.
 

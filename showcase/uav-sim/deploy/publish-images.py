@@ -81,6 +81,8 @@ def main() -> None:
         "--set",
         f"uav-sim-runtime.tags={runtime_ref}",
         "--set",
+        f"uav-sim-runtime.args.UAV_SIM_BASE_IMAGE={base_ref}",
+        "--set",
         f"uav-sim-runtime.args.SOURCE_REVISION={revision}",
         "--set",
         f"uav-sim-mcp.tags={mcp_ref}",

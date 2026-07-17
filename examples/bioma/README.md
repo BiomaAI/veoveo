@@ -114,7 +114,8 @@ stdin, and never writes their plaintext to a repository or temporary manifest.
 `bioma-build` and `bioma-import` cover the platform images.
 `bioma-uav-sim-publish` pushes the immutable UAV dependency base and thin
 commit-addressed runtime and MCP images to the cluster-managed OCI registry.
-OCI blob deduplication avoids another 20+ GB cluster import when only runtime
+The runtime build pulls that base by its versioned registry reference. OCI blob
+deduplication avoids another 20+ GB build or cluster import when only runtime
 source changes. `bioma-platform-up` deploys the exact Git commit and waits for
 Isaac tile and PX4 readiness without suspending View or Perception.
 
