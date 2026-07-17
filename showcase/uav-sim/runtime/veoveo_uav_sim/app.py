@@ -306,6 +306,20 @@ def run(config: RuntimeConfig) -> None:
             time.sleep(0.001)
 
         cesium_interface = acquire_cesium_omniverse_interface()
+
+        def update_cesium_viewport() -> None:
+            # Cesium's extension enumerates viewport *windows* on every Kit
+            # update. Headless Isaac still has an active viewport API for the
+            # UAV camera, but no window, so its automatic update submits an
+            # empty list. Restore the sensor viewport after every Kit update,
+            # using the same native frame contract as the extension.
+            cesium_viewport = CesiumViewport()
+            cesium_viewport.viewMatrix = viewport.view
+            cesium_viewport.projMatrix = viewport.projection
+            cesium_viewport.width = float(viewport.resolution[0])
+            cesium_viewport.height = float(viewport.resolution[1])
+            cesium_interface.on_update_frame([cesium_viewport], False)
+
         tile_resident_frames = 0
         tile_started_at = time.monotonic()
         render_interval = max(1, round(config.physics_hz / config.rendering_hz))
@@ -319,8 +333,10 @@ def run(config: RuntimeConfig) -> None:
                 physics_step += 1
                 simulation_time_s = physics_step / config.physics_hz
                 state.advance(simulation_time_s, physics_step)
+                update_cesium_viewport()
             else:
                 simulation_app.update()
+                update_cesium_viewport()
                 time.sleep(0.005)
                 continue
 
@@ -365,19 +381,6 @@ def run(config: RuntimeConfig) -> None:
                         )
 
             if render:
-                # Cesium's extension enumerates viewport *windows* when it
-                # updates native tile selection. Headless Isaac still has an
-                # active viewport API for the UAV camera, but no window, so
-                # submit that viewport explicitly after the rendered update.
-                # This is the same native frame contract used by the extension
-                # and keeps Google Photorealistic 3D Tiles driven by the
-                # sensor's current view and projection matrices.
-                cesium_viewport = CesiumViewport()
-                cesium_viewport.viewMatrix = viewport.view
-                cesium_viewport.projMatrix = viewport.projection
-                cesium_viewport.width = float(viewport.resolution[0])
-                cesium_viewport.height = float(viewport.resolution[1])
-                cesium_interface.on_update_frame([cesium_viewport], False)
                 statistics = cesium_interface.get_render_statistics()
                 resident = int(statistics.tiles_loaded)
                 loading = int(statistics.tiles_loading_worker) + int(
