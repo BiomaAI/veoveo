@@ -93,6 +93,14 @@ pub(crate) async fn uav_sim_verify(
         serde_json::json!({"session_id": SESSION_ID, "vehicle_id": "uav-1"}),
     )
     .await?;
+    wait_for_flight_state(
+        conformance,
+        public_base_url,
+        &token,
+        &["armed"],
+        Duration::from_secs(60),
+    )
+    .await?;
     call_tool(
         conformance,
         public_base_url,
