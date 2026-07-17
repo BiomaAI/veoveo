@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 ARG TARGETPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} rust:1.97.0-slim-bookworm@sha256:b07b1bc9cb80ea8f48f304fe469feb759f54cfd30c6ec545a1b0ec3af822daf0 AS builder
+FROM --platform=${TARGETPLATFORM} rust:1.97.1-slim-bookworm@sha256:99e09cb2284e2ddbb73a995deee3e91783fd04d177602ccf6eab326d778ee777 AS builder
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./

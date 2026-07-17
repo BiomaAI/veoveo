@@ -14,7 +14,7 @@ RUN apt-get update \
         build-essential ca-certificates cmake curl libjson-c-dev pkg-config \
     && rm -rf /var/lib/apt/lists/* \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-        | sh -s -- -y --profile minimal --default-toolchain 1.97.0
+        | sh -s -- -y --profile minimal --default-toolchain 1.97.1
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
