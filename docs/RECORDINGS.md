@@ -31,8 +31,10 @@ surface. The gateway applies the same recording resource policy and audit path,
 then issues a short-lived internal assertion. The Console BFF retains the user
 session and streams the authorized segment bytes with byte-range support. The
 browser receives ordered same-origin URLs, never filesystem paths, gateway
-bearers, or object-store credentials. The Console loads the matching Rerun
-0.34.1 WASM viewer only after a recording is selected.
+bearers, or object-store credentials. The Console fetches those bytes with its
+existing BFF session and writes each ordered segment into an isolated Rerun data
+channel. The matching Rerun 0.34.1 WASM viewer loads only after a recording is
+selected.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not

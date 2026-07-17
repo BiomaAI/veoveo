@@ -18,7 +18,7 @@ import type {
   RecordingSummary,
 } from "../types";
 
-const RerunWebViewer = lazy(() => import("@rerun-io/web-viewer-react"));
+const GovernedRerunViewer = lazy(() => import("../components/GovernedRerunViewer"));
 
 type RecordingStateFilter = "all" | RecordingSummary["state"];
 
@@ -120,11 +120,18 @@ export function RecordingsView({
     onRecordingSelect(recordingId);
   };
 
-  const segmentUrls =
-    manifest?.segments
-      .slice()
-      .sort((left, right) => left.ordinal - right.ordinal)
-      .map((segment) => recordingSegmentUrl(manifest.recording_id, segment.segment_id)) ?? [];
+  const playbackSegments = useMemo(
+    () =>
+      manifest?.segments
+        .slice()
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map((segment) => ({
+          ordinal: segment.ordinal,
+          byteLength: segment.byte_len,
+          url: recordingSegmentUrl(manifest.recording_id, segment.segment_id),
+        })) ?? [],
+    [manifest]
+  );
 
   return (
     <div className="recordings-workspace">
@@ -204,18 +211,15 @@ export function RecordingsView({
                 <div className="recording-viewer-state"><div className="loading-mark" /><span>Authorizing recording segments…</span></div>
               ) : playbackError ? (
                 <div className="recording-viewer-state recording-viewer-error"><strong>Playback unavailable</strong><span>{playbackError}</span></div>
-              ) : segmentUrls.length === 0 ? (
+              ) : playbackSegments.length === 0 ? (
                 <div className="recording-viewer-state"><FileStack size={30} /><strong>No stable segment is available yet.</strong><span>Live data becomes playable after Recording Hub freezes its first segment.</span></div>
               ) : (
                 <ViewerBoundary recordingId={selected.id}>
                   <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.34.1…</span></div>}>
-                    <RerunWebViewer
+                    <GovernedRerunViewer
                       key={selected.id}
-                      rrd={segmentUrls}
-                      width="100%"
-                      height="100%"
-                      hide_welcome_screen
-                      follow_if_http={false}
+                      recordingId={selected.id}
+                      segments={playbackSegments}
                     />
                   </Suspense>
                 </ViewerBoundary>
@@ -224,7 +228,7 @@ export function RecordingsView({
             {manifest && (
               <footer className="recording-player-footer">
                 <Play size={14} />
-                <span>{manifest.segments.length} authorized RRD segment{manifest.segments.length === 1 ? "" : "s"} supplied in ordinal order.</span>
+                <span>{manifest.segments.length} authorized RRD segment{manifest.segments.length === 1 ? "" : "s"} available in ordinal order.</span>
               </footer>
             )}
           </>
