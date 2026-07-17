@@ -407,7 +407,7 @@ showcase-sumo-test:
 # Test the UAV MCP contract and pod-private Python adapter without a GPU.
 showcase-uav-sim-test:
     cargo test -p veoveo-uav-sim-mcp --all-targets
-    PYTHONPATH=showcase/uav-sim/runtime python3 -m unittest discover -s showcase/uav-sim/runtime/tests -v
+    PYTHONPATH=showcase/uav-sim/runtime uv run --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 
 # Build the pinned Isaac runtime and UAV MCP images.
 showcase-uav-sim-build:

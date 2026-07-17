@@ -67,6 +67,8 @@ class AdapterApplication:
         ready = (
             snapshot["lifecycle"] in {"ready", "running", "paused"}
             and snapshot["tiles"]["lifecycle"] == "ready"
+            and bool(snapshot["cameras"])
+            and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             and snapshot["recordings"][0]["active"]

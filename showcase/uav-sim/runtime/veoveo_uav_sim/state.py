@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
+from .camera_quality import CameraFrameQuality
 
 
 def _timestamp() -> str:
@@ -50,6 +51,23 @@ class RuntimeState:
                 "loading_tiles": 0,
                 "failed_tiles": 0,
             },
+            "cameras": [
+                {
+                    "vehicle_id": f"uav-{index + 1}",
+                    "entity_path": (
+                        f"/world/uav-sim/{config.session_id}/vehicle/"
+                        f"uav-{index + 1}/camera/front"
+                    ),
+                    "lifecycle": "warming",
+                    "width": config.camera_width,
+                    "height": config.camera_height,
+                    "frames_observed": 0,
+                    "mean_luma": 0.0,
+                    "dynamic_range": 0,
+                    "non_black_fraction": 0.0,
+                }
+                for index in range(config.vehicle_count)
+            ],
             "vehicles": [],
             "recordings": [
                 {
@@ -106,6 +124,32 @@ class RuntimeState:
             self._state["simulation_time_s"] = simulation_time_s
             self._state["physics_step"] = physics_step
             self._touch()
+
+    def update_camera(
+        self,
+        vehicle_id: str,
+        lifecycle: str,
+        frames_observed: int,
+        quality: CameraFrameQuality,
+        diagnostic: str | None = None,
+    ) -> None:
+        with self._condition:
+            for camera in self._state["cameras"]:
+                if camera["vehicle_id"] == vehicle_id:
+                    camera.update(
+                        lifecycle=lifecycle,
+                        frames_observed=max(0, frames_observed),
+                        mean_luma=quality.mean_luma,
+                        dynamic_range=quality.dynamic_range,
+                        non_black_fraction=quality.non_black_fraction,
+                    )
+                    if diagnostic:
+                        camera["diagnostic"] = diagnostic
+                    else:
+                        camera.pop("diagnostic", None)
+                    self._touch()
+                    return
+            raise ValueError(f"unknown camera vehicle {vehicle_id!r}")
 
     def update_vehicles(self, vehicles: list[VehicleTelemetry]) -> None:
         with self._condition:

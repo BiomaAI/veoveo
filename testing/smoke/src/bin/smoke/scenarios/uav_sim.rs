@@ -297,6 +297,26 @@ fn assert_world_ready(state: &Value) -> Result<()> {
             == Some(true),
         "PX4 is not connected: {state}"
     );
+    ensure!(
+        json_string(state, "/cameras/0/lifecycle")? == "ready"
+            && state
+                .pointer("/cameras/0/frames_observed")
+                .and_then(Value::as_u64)
+                .is_some_and(|count| count >= 3)
+            && state
+                .pointer("/cameras/0/mean_luma")
+                .and_then(Value::as_f64)
+                .is_some_and(|value| value >= 2.0)
+            && state
+                .pointer("/cameras/0/dynamic_range")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| value >= 8)
+            && state
+                .pointer("/cameras/0/non_black_fraction")
+                .and_then(Value::as_f64)
+                .is_some_and(|value| value >= 0.02),
+        "Isaac front camera does not contain visible image content: {state}"
+    );
     Ok(())
 }
 

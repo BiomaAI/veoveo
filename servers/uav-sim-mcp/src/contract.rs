@@ -133,6 +133,15 @@ pub enum TileLifecycle {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum CameraLifecycle {
+    Warming,
+    Ready,
+    Degraded,
+    Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum VehicleFlightState {
     Initializing,
     Standby,
@@ -220,6 +229,24 @@ pub struct VehicleState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct CameraState {
+    pub vehicle_id: VehicleId,
+    pub entity_path: String,
+    pub lifecycle: CameraLifecycle,
+    pub width: u32,
+    pub height: u32,
+    pub frames_observed: u64,
+    #[schemars(range(min = 0.0, max = 255.0))]
+    pub mean_luma: f32,
+    pub dynamic_range: u8,
+    #[schemars(range(min = 0.0, max = 1.0))]
+    pub non_black_fraction: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RecordingState {
     pub recording_id: RecordingId,
     pub recording_uri: String,
@@ -238,6 +265,7 @@ pub struct SimulationState {
     pub frame_uri: String,
     pub georeference_origin: Wgs84Position,
     pub tiles: TileState,
+    pub cameras: Vec<CameraState>,
     pub vehicles: Vec<VehicleState>,
     pub recordings: Vec<RecordingState>,
     pub updated_at: DateTime<Utc>,

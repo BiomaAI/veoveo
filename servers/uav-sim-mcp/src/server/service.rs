@@ -42,10 +42,10 @@ use veoveo_task_runtime::{
 
 use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
-    CaptureDatasetRequest, CommandAcknowledgement, DurableOperation, ExecuteMissionRequest,
-    RunScenarioRequest, SessionId, SessionRequest, SimulationCommand, SimulationLifecycle,
-    SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle, TileState, VehicleId,
-    VehicleRequest, VehicleState, Wgs84Position,
+    CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement, DurableOperation,
+    ExecuteMissionRequest, RunScenarioRequest, SessionId, SessionRequest, SimulationCommand,
+    SimulationLifecycle, SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle,
+    TileState, VehicleId, VehicleRequest, VehicleState, Wgs84Position,
 };
 use crate::uris;
 
@@ -132,7 +132,7 @@ impl UavSimMcp {
 impl UavSimMcp {
     #[tool(
         title = "Get UAV simulation state",
-        description = "Read the current typed session, Google Photorealistic 3D Tiles, recording, and vehicle state.",
+        description = "Read the current typed session, Google Photorealistic 3D Tiles, camera-content health, recording, and vehicle state.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SimulationState>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -755,7 +755,12 @@ async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
     match state.adapter.state().await {
         Ok(simulation)
             if simulation.lifecycle != SimulationLifecycle::Failed
-                && simulation.tiles.lifecycle == TileLifecycle::Ready =>
+                && simulation.tiles.lifecycle == TileLifecycle::Ready
+                && !simulation.cameras.is_empty()
+                && simulation
+                    .cameras
+                    .iter()
+                    .all(|camera| camera.lifecycle == CameraLifecycle::Ready) =>
         {
             StatusCode::OK
         }
@@ -788,6 +793,18 @@ fn fake_state() -> anyhow::Result<SimulationState> {
             failed_tiles: 0,
             diagnostic: None,
         },
+        cameras: vec![CameraState {
+            vehicle_id: VehicleId::new("uav-1")?,
+            entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/front".to_owned(),
+            lifecycle: CameraLifecycle::Ready,
+            width: 640,
+            height: 480,
+            frames_observed: 10,
+            mean_luma: 96.0,
+            dynamic_range: 224,
+            non_black_fraction: 0.95,
+            diagnostic: None,
+        }],
         vehicles: vec![VehicleState {
             vehicle_id: VehicleId::new("uav-1")?,
             flight_state: crate::contract::VehicleFlightState::Standby,
@@ -1042,6 +1059,12 @@ mod tests {
         let state = fake_state().unwrap();
         assert_eq!(state.tiles.lifecycle, TileLifecycle::Ready);
         assert_eq!(state.tiles.source, "google_photorealistic_3d_tiles");
+        assert!(
+            state
+                .cameras
+                .iter()
+                .all(|camera| camera.lifecycle == CameraLifecycle::Ready)
+        );
         assert!(state.vehicles.iter().all(|vehicle| vehicle.px4_connected));
     }
 

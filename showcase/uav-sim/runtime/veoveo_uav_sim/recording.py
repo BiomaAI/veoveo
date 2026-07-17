@@ -8,6 +8,7 @@ import numpy as np
 import rerun as rr
 
 from .config import RuntimeConfig
+from .camera_quality import CameraFrameQuality, normalize_rgb_frame
 from .state import VehicleTelemetry
 
 
@@ -44,9 +45,7 @@ class H264CameraStream:
         )
 
     def encode(self, rgb: np.ndarray, simulation_time_s: float, physics_step: int) -> None:
-        if rgb.dtype != np.uint8:
-            rgb = np.clip(rgb, 0, 255).astype(np.uint8)
-        frame = av.VideoFrame.from_ndarray(rgb, format="rgb24")
+        frame = av.VideoFrame.from_ndarray(normalize_rgb_frame(rgb), format="rgb24")
         for packet in self._stream.encode(frame):
             self._set_time(simulation_time_s, physics_step)
             self._recording.log(
@@ -170,6 +169,26 @@ class RecordingPublisher:
         base = f"{self._root}/tiles"
         self._recording.log(f"{base}/resident", rr.Scalars([resident_tiles]))
         self._recording.log(f"{base}/loading", rr.Scalars([loading_tiles]))
+        self._recording.log(f"{base}/lifecycle", rr.TextLog(lifecycle))
+
+    def log_camera_quality(
+        self,
+        vehicle_id: str,
+        quality: CameraFrameQuality,
+        lifecycle: str,
+        simulation_time_s: float,
+        physics_step: int,
+    ) -> None:
+        self._set_time(simulation_time_s, physics_step)
+        base = f"{self._root}/vehicle/{vehicle_id}/camera/front/quality"
+        self._recording.log(f"{base}/mean_luma", rr.Scalars([quality.mean_luma]))
+        self._recording.log(
+            f"{base}/dynamic_range", rr.Scalars([quality.dynamic_range])
+        )
+        self._recording.log(
+            f"{base}/non_black_fraction",
+            rr.Scalars([quality.non_black_fraction]),
+        )
         self._recording.log(f"{base}/lifecycle", rr.TextLog(lifecycle))
 
     def log_mission(self, mission_id: str, lifecycle: str, detail: dict[str, object]) -> None:
