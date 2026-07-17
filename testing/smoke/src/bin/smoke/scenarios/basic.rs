@@ -404,6 +404,16 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     contains(&cesium_patch, "metadata.version(\"lxml\")")?;
     contains(&cesium_patch, "never mutate a Kit installation")?;
+    let uav_runtime = fs::read_to_string("showcase/uav-sim/runtime/veoveo_uav_sim/app.py")?;
+    for expected in [
+        "/CesiumServers/IonOfficial",
+        "https://api.cesium.com/",
+        "cesium_data.GetSelectedIonServerRel().SetTargets",
+        "cesium_interface.on_stage_change(0)",
+        "cesium_interface.on_update_frame([cesium_viewport], False)",
+    ] {
+        contains(&uav_runtime, expected)?;
+    }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
     contains(&gpu_device_plugin, "replicas: 3")?;
 
