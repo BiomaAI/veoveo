@@ -198,11 +198,14 @@ def run(config: RuntimeConfig) -> None:
             stage.SetEditTarget(previous_target)
 
         # Fixed unit quaternion for a nadir camera. Its optical axis follows
-        # vehicle down, while image up follows the vehicle's forward axis.
+        # vehicle down, while image up follows the vehicle's forward axis. The
+        # camera sits beyond the Iris propeller envelope because an above-body
+        # nadir mount sees only the airframe while the vehicle is on the ground.
         inverse_sqrt_two = 0.7071067811865476
         camera_rotation_wxyz = np.array(
             [[inverse_sqrt_two, 0.0, 0.0, -inverse_sqrt_two]]
         )
+        camera_translation_xyz = np.array([[0.60, 0.0, 0.05]])
 
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
@@ -251,7 +254,7 @@ def run(config: RuntimeConfig) -> None:
             camera = RtxCamera(
                 camera_path,
                 tick_rate=float(config.camera_fps),
-                translations=np.array([[0.25, 0.0, 0.05]]),
+                translations=camera_translation_xyz,
                 orientations=camera_rotation_wxyz,
             )
             camera.camera.set_focal_lengths(18.0)
