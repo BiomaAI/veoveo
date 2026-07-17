@@ -306,6 +306,13 @@ def run(config: RuntimeConfig) -> None:
             time.sleep(0.001)
 
         cesium_interface = acquire_cesium_omniverse_interface()
+        # The Cesium extension starts before this headless application authors
+        # its runtime-only tileset. Rebind the completed stage through Cesium's
+        # public lifecycle contract so its native asset registry enumerates the
+        # session-layer Google tileset deterministically instead of depending
+        # on a UI-era USD notice sequence.
+        cesium_interface.on_stage_change(0)
+        cesium_interface.on_stage_change(omni.usd.get_context().get_stage_id())
 
         def update_cesium_viewport() -> None:
             # Cesium's extension enumerates viewport *windows* on every Kit
