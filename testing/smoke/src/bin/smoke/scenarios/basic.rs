@@ -320,7 +320,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     contains(&bioma_cluster, "name: veoveo-registry.localhost")?;
     contains(&bioma_cluster, "hostPort: \"5001\"")?;
     contains(&bioma_cluster, "registry:3.1.1@sha256:")?;
-    contains(&bioma_cluster, "disableImageVolume: true")?;
     let tunnel: Value = serde_json::from_str(&fs::read_to_string(
         "examples/bioma/cloudflare-tunnel.json",
     )?)?;

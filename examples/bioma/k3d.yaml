@@ -28,7 +28,6 @@ env:
       - server:*
 options:
   k3d:
-    disableImageVolume: true
     wait: true
     timeout: 180s
   kubeconfig:
