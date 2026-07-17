@@ -80,13 +80,13 @@ class Px4Commander:
             flight_state = "landing"
         elif self._landed_state == mavutil.mavlink.MAV_LANDED_STATE_IN_AIR:
             flight_state = "flying"
+        elif self._armed:
+            flight_state = "armed"
         elif (
             self._landed_state == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
             and self._has_flown
         ):
             flight_state = "landed"
-        elif self._armed:
-            flight_state = "armed"
         elif self._connected:
             flight_state = "standby"
         else:
