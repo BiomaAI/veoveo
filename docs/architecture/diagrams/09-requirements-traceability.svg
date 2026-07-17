@@ -68,7 +68,8 @@
 <text x="1275" y="274" class="small" text-anchor="start">VV-SVC-001</text>
 <text x="1465" y="268" class="tiny" text-anchor="start">
 <tspan x="1465" dy="0">VV-CMP-001, VV-CMP-011, VV-CMP-012, VV-CMP-016, VV-CMP-017,</tspan>
-<tspan x="1465" dy="13">VV-CMP-019, VV-CMP-020, VV-CMP-022, VV-CMP-023, VV-CMP-025</tspan>
+<tspan x="1465" dy="13">VV-CMP-019, VV-CMP-020, VV-CMP-022, VV-CMP-023, VV-CMP-025,</tspan>
+<tspan x="1465" dy="13">VV-CMP-052, VV-CMP-054</tspan>
 </text>
 <text x="2005" y="268" class="tiny" text-anchor="start">
 <tspan x="2005" dy="0">configs/gateway.local.json;</tspan>
@@ -172,18 +173,21 @@
 <rect x="1995" y="585" width="370" height="68" rx="0" fill="#ffffff" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <text x="45" y="612" class="node-id" text-anchor="start">VV-REQ-007</text>
 <text x="200" y="608" class="tiny" text-anchor="start">
-<tspan x="200" dy="0">World and sensor producers shall push Rerun log streams into a private durable recording</tspan>
-<tspan x="200" dy="13">boundary that preserves crash-decodable evidence.</tspan>
+<tspan x="200" dy="0">World and sensor producers shall push Rerun log streams through an authenticated gateway</tspan>
+<tspan x="200" dy="13">boundary that preserves durable checkpoints and crash-decodable evidence.</tspan>
 </text>
 <text x="895" y="614" class="small" text-anchor="start">VV-CAP-004</text>
 <text x="1085" y="614" class="small" text-anchor="start">VV-OPA-005</text>
 <text x="1275" y="614" class="small" text-anchor="start">VV-SVC-005</text>
 <text x="1465" y="608" class="tiny" text-anchor="start">
-<tspan x="1465" dy="0">VV-CMP-005, VV-CMP-015, VV-CMP-023, VV-CMP-047</tspan>
+<tspan x="1465" dy="0">VV-CMP-001, VV-CMP-005, VV-CMP-015, VV-CMP-023, VV-CMP-047,</tspan>
+<tspan x="1465" dy="13">VV-CMP-051, VV-CMP-053, VV-CMP-055</tspan>
 </text>
 <text x="2005" y="608" class="tiny" text-anchor="start">
-<tspan x="2005" dy="0">platform/recordings/hub tests; testing/smoke hub</tspan>
-<tspan x="2005" dy="13">scenario; docs/RECORDINGS.md</tspan>
+<tspan x="2005" dy="0">platform/recordings/forwarder tests;</tspan>
+<tspan x="2005" dy="13">platform/recordings/hub tests; testing/smoke</tspan>
+<tspan x="2005" dy="13">recording-ingest scenario;</tspan>
+<tspan x="2005" dy="13">docs/RECORDING_INGEST.md</tspan>
 </text>
 <rect x="35" y="653" width="150" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
 <rect x="190" y="653" width="690" height="68" rx="0" fill="#edf1f2" stroke="#c7d1d5" stroke-width="0.7" opacity="1"/>
@@ -432,5 +436,5 @@
 </text>
 <rect x="28" y="1465" width="2344" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1486" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-09</text>
+<text x="2370" y="1486" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-09</text>
 </svg>

@@ -106,5 +106,5 @@
 <text x="58" y="990" class="body inverse" text-anchor="start">Every transition carries canonical identity and policy context; durable work and outputs remain addressable after the initiating episode ends.</text>
 <rect x="28" y="1045" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-03</text>
+<text x="1770" y="1066" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-03</text>
 </svg>

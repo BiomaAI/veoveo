@@ -50,14 +50,14 @@
 </text>
 <rect x="390" y="600" width="390" height="180" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="390" y="600" width="7" height="180" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="408" y="623" class="node-id" text-anchor="start">VV-CMP-016..027</text>
+<text x="408" y="623" class="node-id" text-anchor="start">VV-CMP-016..027/049/050/054</text>
 <text x="408" y="647" class="node-title" text-anchor="start">
 <tspan x="408" dy="0">Hosted domain servers</tspan>
 </text>
 <text x="408" y="670" class="small" text-anchor="start">
-<tspan x="408" dy="0">Artifact, frames, DuckDB, media, map,</tspan>
-<tspan x="408" dy="16">optimization, perception, recording,</tspan>
-<tspan x="408" dy="16">timeseries, datasheet, charts, rerun.</tspan>
+<tspan x="408" dy="0">Artifact, frames, analytics, media, map,</tspan>
+<tspan x="408" dy="16">perception, recording, time, view, UAV</tspan>
+<tspan x="408" dy="16">simulation, and other governed domains.</tspan>
 </text>
 <rect x="920" y="600" width="390" height="180" rx="9" fill="#e7e1ef" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="920" y="600" width="7" height="180" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -103,11 +103,13 @@
 <rect x="35" y="715" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="53" y="738" class="node-id" text-anchor="start">EXT-3</text>
 <text x="53" y="762" class="node-title" text-anchor="start">
-<tspan x="53" dy="0">Sensor / simulator</tspan>
+<tspan x="53" dy="0">Sensor + recording</tspan>
+<tspan x="53" dy="18">forwarder</tspan>
 </text>
-<text x="53" y="785" class="small" text-anchor="start">
-<tspan x="53" dy="0">Private push of Rerun world</tspan>
-<tspan x="53" dy="16">streams</tspan>
+<text x="53" y="799" class="small" text-anchor="start">
+<tspan x="53" dy="0">Producer-loopback Rerun and</tspan>
+<tspan x="53" dy="16">OAuth-authenticated gateway</tspan>
+<tspan x="53" dy="16">upload</tspan>
 </text>
 <rect x="1415" y="180" width="250" height="135" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1415" y="180" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -140,7 +142,7 @@
 </text>
 <path d="M 285 245 L 560 245 L 560 250 L 610 250" class="edge"/>
 <path d="M 285 495 L 350 495 L 350 447 L 390 447" class="edge"/>
-<path d="M 285 780 L 335 780 L 335 690 L 920 690" class="edge-muted"/>
+<path d="M 285 780 L 335 780 L 335 447 L 390 447" class="edge-muted"/>
 <path d="M 1415 245 L 1160 245 L 1160 415 L 780 415" class="edge"/>
 <path d="M 1415 495 L 1360 495 L 1360 690 L 780 690" class="edge"/>
 <path d="M 1415 780 L 1360 780 L 1360 720 L 1310 720" class="edge-muted"/>
@@ -149,8 +151,9 @@
 <path d="M 585 530 L 585 600" class="edge"/>
 <path d="M 1115 530 L 1115 600" class="edge"/>
 <path d="M 780 690 L 920 690" class="edge"/>
+<path d="M 780 447 L 850 447 L 850 690 L 920 690" class="edge"/>
 <path d="M 845 830 L 585 780" class="edge-muted"/>
 <rect x="28" y="1045" width="1644" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1066" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1670" y="1066" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-01</text>
+<text x="1670" y="1066" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-01</text>
 </svg>

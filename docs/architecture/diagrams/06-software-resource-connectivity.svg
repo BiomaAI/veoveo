@@ -43,9 +43,10 @@
 </text>
 <rect x="52" y="755" width="216" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="52" y="755" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="70" y="778" class="node-id" text-anchor="start">EXT-5</text>
+<text x="70" y="778" class="node-id" text-anchor="start">EXT-5 / VV-CMP-051</text>
 <text x="70" y="802" class="node-title" text-anchor="start">
-<tspan x="70" dy="0">Sensor / simulator</tspan>
+<tspan x="70" dy="0">Sensor + recording</tspan>
+<tspan x="70" dy="18">forwarder</tspan>
 </text>
 <rect x="52" y="900" width="216" height="108" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="52" y="900" width="7" height="108" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -183,6 +184,13 @@
 <text x="850" y="597" class="node-title" text-anchor="start">
 <tspan x="850" dy="0">View</tspan>
 </text>
+<rect x="964" y="550" width="122" height="92" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="964" y="550" width="7" height="92" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="982" y="573" class="node-id" text-anchor="start">VV-CMP-054</text>
+<text x="982" y="597" class="node-title" text-anchor="start">
+<tspan x="982" dy="0">UAV</tspan>
+<tspan x="982" dy="18">Simulation</tspan>
+</text>
 <rect x="705" y="790" width="250" height="135" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="705" y="790" width="7" height="135" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="723" y="813" class="node-id" text-anchor="start">VV-CMP-004</text>
@@ -200,8 +208,8 @@
 <tspan x="993" dy="0">Recording Hub</tspan>
 </text>
 <text x="993" y="860" class="small" text-anchor="start">
-<tspan x="993" dy="0">Private Rerun ingest and RRD</tspan>
-<tspan x="993" dy="16">spool.</tspan>
+<tspan x="993" dy="0">Authorized batch journal and</tspan>
+<tspan x="993" dy="16">immutable RRD materialization.</tspan>
 </text>
 <rect x="705" y="965" width="520" height="120" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="705" y="965" width="7" height="120" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
@@ -273,22 +281,33 @@
 </text>
 <rect x="1318" y="835" width="245" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="1318" y="835" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
-<text x="1336" y="858" class="node-id" text-anchor="start">VV-CMP-042</text>
+<text x="1336" y="858" class="node-id" text-anchor="start">VV-CMP-056</text>
 <text x="1336" y="882" class="node-title" text-anchor="start">
-<tspan x="1336" dy="0">OTel collector</tspan>
+<tspan x="1336" dy="0">UAV simulator stack</tspan>
 </text>
 <text x="1336" y="905" class="small" text-anchor="start">
-<tspan x="1336" dy="0">Approved operational signals</tspan>
+<tspan x="1336" dy="0">Isaac, Cesium, Pegasus, and</tspan>
+<tspan x="1336" dy="16">PX4</tspan>
+</text>
+<rect x="1585" y="835" width="245" height="165" rx="9" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+<rect x="1585" y="835" width="7" height="165" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
+<text x="1603" y="858" class="node-id" text-anchor="start">VV-CMP-042</text>
+<text x="1603" y="882" class="node-title" text-anchor="start">
+<tspan x="1603" dy="0">OTel collector</tspan>
+</text>
+<text x="1603" y="905" class="small" text-anchor="start">
+<tspan x="1603" dy="0">Approved operational signals</tspan>
 </text>
 <path d="M 268 230 L 360 450" class="edge"/>
 <path d="M 268 375 L 360 730" class="edge"/>
 <path d="M 268 520 L 360 730" class="edge"/>
 <path d="M 268 665 L 705 392" class="edge"/>
-<path d="M 268 810 L 975 855" class="edge-muted"/>
+<path d="M 268 810 L 360 730" class="edge-muted"/>
 <path d="M 268 955 L 1590 945" class="edge-muted"/>
 <path d="M 485 310 L 485 390" class="edge"/>
 <path d="M 485 540 L 485 650" class="edge"/>
 <path d="M 610 730 L 705 500" class="edge"/>
+<path d="M 610 730 L 975 855" class="edge"/>
 <path d="M 955 855 L 1318 257" class="edge"/>
 <path d="M 955 855 L 1585 257" class="edge"/>
 <path d="M 1098 855 L 1318 477" class="edge"/>
@@ -297,5 +316,5 @@
 <path d="M 1130 500 L 1585 477" class="edge-muted"/>
 <rect x="28" y="1185" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1206" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1870" y="1206" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-06</text>
+<text x="1870" y="1206" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-06</text>
 </svg>

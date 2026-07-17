@@ -118,5 +118,5 @@
 <text x="60" y="1017" class="body inverse" text-anchor="start">Deployment invariant: one enterprise installation owns identity mapping, policy, persistence, artifacts, recordings, telemetry, secrets, ingress, and lifecycle.</text>
 <rect x="28" y="1065" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1086" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1086" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-07</text>
+<text x="1770" y="1086" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-07</text>
 </svg>
