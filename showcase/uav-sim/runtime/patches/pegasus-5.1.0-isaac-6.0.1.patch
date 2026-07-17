@@ -8,11 +8,11 @@ index e72b503..1cf4013 100644
 +"isaacsim.core.experimental.prims" = {}
 +"isaacsim.core.utils" = {}
 +"isaacsim.sensors.camera" = {}
-@@ -50,2 +53,2 @@ name = "pegasus.simulator"
+@@ -49,4 +52,0 @@ name = "pegasus.simulator"
+-[python.pipapi]
 -requirements = ["numpy", "scipy", "pymavlink", "pyyaml", "toml"]
 -use_online_index = true
-+requirements = ["pymavlink==2.4.49", "pyyaml==6.0.3", "toml==0.10.2"]
-+use_online_index = false
+-
 diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/graphs/ros2_camera_graph.py b/extensions/pegasus.simulator/pegasus/simulator/logic/graphs/ros2_camera_graph.py
 index a3661fe..bc0f293 100644
 --- a/extensions/pegasus.simulator/pegasus/simulator/logic/graphs/ros2_camera_graph.py
@@ -171,3 +171,85 @@ index 836c5c3..66eac2c 100644
 +            body = RigidPrim(path)
 +            self._rigid_prims[path] = body
 +        return body
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
+index 5f6df59..252c3c1 100644
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/multirotor.py
+@@ -86,6 +86,12 @@ class Multirotor(Vehicle):
+         self._thrusters = config.thrust_curve
+         self._drag = config.drag
+
++        # Experimental RigidPrim wrappers must exist before the first physics
++        # play event so Isaac can populate their tensor views.
++        self.get_rigid_prim("/body")
++        for rotor_index in range(self._thrusters._num_rotors):
++            self.get_rigid_prim(f"/rotor{rotor_index}")
++
+     def start(self):
+         """In this case we do not need to do anything extra when the simulation starts"""
+         pass
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
+index 66eac2c..a7fb957 100644
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/vehicles/vehicle.py
+@@ -255,6 +255,8 @@ class Vehicle(Robot):
+         """
+
+         body = self.get_rigid_prim(body_part)
++        if not body.is_physics_tensor_entity_valid():
++            return
+         body.apply_forces_and_torques_at_pos(
+             forces=np.asarray([force], dtype=np.float32),
+             positions=np.asarray([pos], dtype=np.float32),
+@@ -270,6 +272,8 @@ class Vehicle(Robot):
+         """
+
+         body = self.get_rigid_prim(body_part)
++        if not body.is_physics_tensor_entity_valid():
++            return
+         body.apply_forces_and_torques_at_pos(
+             torques=np.asarray([torque], dtype=np.float32),
+             local_frame=True,
+@@ -288,6 +292,8 @@ class Vehicle(Robot):
+         """
+
+         body = self.get_rigid_prim("/body")
++        if not body.is_physics_tensor_entity_valid():
++            return
+         positions, orientations = body.get_world_poses()
+         linear_velocities, angular_velocities = body.get_velocities()
+         position = positions.numpy()[0]
+@@ -396,6 +402,11 @@ class Vehicle(Robot):
+         path = self._stage_prefix + body_part
+         body = self._rigid_prims.get(path)
+-        if body is None:
+-            body = RigidPrim(path)
+-            self._rigid_prims[path] = body
++        if body is None or not body.is_physics_tensor_entity_valid():
++            refreshed = RigidPrim(path)
++            # Before the first physics-ready event, keep one subscribed
++            # wrapper. Once physics is ready, replace it with the wrapper
++            # whose tensor view was populated immediately.
++            if body is None or refreshed.is_physics_tensor_entity_valid():
++                body = refreshed
++                self._rigid_prims[path] = body
+         return body
+diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py b/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py
+--- a/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py
++++ b/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_mavlink_backend.py
+@@ -590,3 +590,14 @@ class PX4MavlinkBackend(Backend):
++        if self._connection is None or not self._is_running:
++            return
++
+         if not self._received_first_hearbeat:
+             self.wait_for_first_hearbeat()
+-            return
++            # PX4 1.17 waits for the first Simulator MAVLink sensor frame
++            # before it publishes a heartbeat. Start that exchange instead
++            # of deadlocking while both endpoints wait for each other.
++            if not self._received_first_hearbeat:
++                self.send_heartbeat()
++                self._current_utime += int(dt * 1000000)
++                self.send_sensor_msgs(self._current_utime)
++                self.send_gps_msgs(self._current_utime)
++                return

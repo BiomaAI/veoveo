@@ -33,6 +33,8 @@ RUN curl --fail --location --show-error \
     && echo "${CESIUM_SHA256}  /tmp/cesium.zip" | sha256sum --check --strict \
     && mkdir -p /src/cesium \
     && unzip -q /tmp/cesium.zip -d /src/cesium
+COPY patches/cesium-0.29.0-preinstalled-vendor.patch /tmp/cesium.patch
+RUN patch --directory=/src/cesium --strip=1 < /tmp/cesium.patch
 
 FROM --platform=${TARGETPLATFORM} ${ISAAC_SIM_IMAGE}
 
@@ -53,10 +55,10 @@ ARG MULTIDICT_VERSION=6.7.1
 ARG PROPCACHE_VERSION=0.5.2
 ARG PSUTIL_VERSION=7.2.2
 ARG PYARROW_VERSION=25.0.0
-ARG LXML_VERSION=6.1.1
 ARG FASTCRC_VERSION=0.3.6
 
 USER root
+COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "aiohappyeyeballs==${AIOHAPPYEYEBALLS_VERSION}" \
       "aiohttp==${AIOHTTP_VERSION}" \
@@ -66,7 +68,6 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "fastcrc==${FASTCRC_VERSION}" \
       "frozenlist==${FROZENLIST_VERSION}" \
       "idna==${IDNA_VERSION}" \
-      "lxml==${LXML_VERSION}" \
       "multidict==${MULTIDICT_VERSION}" \
       "propcache==${PROPCACHE_VERSION}" \
       "psutil==${PSUTIL_VERSION}" \
@@ -76,9 +77,9 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "rerun-sdk==${RERUN_SDK_VERSION}" \
       "toml==${TOML_VERSION}" \
       "typing-extensions==${TYPING_EXTENSIONS_VERSION}" \
-      "yarl==${YARL_VERSION}"
+      "yarl==${YARL_VERSION}" \
+      /opt/veoveo/extensions/cesium.omniverse/vendor/lxml-6.0.2-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
 
-COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
 COPY --from=upstream --chown=10001:10001 /src/pegasus/extensions/pegasus.simulator/ /opt/veoveo/extensions/pegasus.simulator/
 COPY --from=upstream --chown=10001:10001 /src/px4/ /opt/veoveo/px4/
 COPY --chown=10001:10001 veoveo_uav_sim/ /opt/veoveo/uav-sim/veoveo_uav_sim/
@@ -92,6 +93,7 @@ RUN groupadd --gid 10001 veoveo \
 
 ENV ACCEPT_EULA=Y \
     HOME=/var/lib/veoveo \
+    MAVLINK20=1 \
     PYTHONPATH=/opt/veoveo/uav-sim \
     UAV_SIM_EXTENSION_DIRECTORY=/opt/veoveo/extensions \
     UAV_SIM_PX4_DIRECTORY=/opt/veoveo/px4 \
