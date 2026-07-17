@@ -24,8 +24,8 @@ use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, AuditEventRecord,
     ChangefeedCursor, ChangefeedEntry, PlatformStore, PlatformTable, PrincipalRecord, RecordId,
-    RecordingRecord, SegmentRecord, ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord,
-    decode_changefeed_entry, deterministic_tenant_id,
+    RecordingRecord, SegmentRecord, SegmentState, ShareLinkRecord, TaskRecord, Value as DbValue,
+    WakeRecord, decode_changefeed_entry, deterministic_tenant_id,
 };
 
 use super::projection::{
@@ -471,7 +471,7 @@ struct ConsoleStreamState {
     agents: BTreeMap<String, AgentRecord>,
     wakes: BTreeMap<String, (String, bool)>,
     recordings: BTreeMap<String, RecordingRecord>,
-    segments: BTreeMap<String, (String, i64)>,
+    segments: BTreeMap<String, (String, i64, SegmentState)>,
 }
 
 impl ConsoleStreamState {
@@ -541,7 +541,11 @@ impl ConsoleStreamState {
         for segment in &projection.segments {
             segments.insert(
                 record_key(&segment.id)?,
-                (record_key(&segment.recording)?, segment.byte_len),
+                (
+                    record_key(&segment.recording)?,
+                    segment.byte_len,
+                    segment.state,
+                ),
             );
         }
         Ok(Self {
@@ -698,7 +702,7 @@ impl ConsoleStreamState {
                         let recording = record_key(&segment.recording)?;
                         self.segments.insert(
                             record_key(&segment.id)?,
-                            (recording.clone(), segment.byte_len),
+                            (recording.clone(), segment.byte_len, segment.state),
                         );
                         self.emit_recording(&recording, versionstamp, rank)
                     }
@@ -759,11 +763,14 @@ impl ConsoleStreamState {
                     },
                     PlatformTable::Recording => {
                         self.recordings.remove(&key);
-                        self.segments.retain(|_, (recording, _)| *recording != key);
+                        self.segments
+                            .retain(|_, (recording, _, _)| *recording != key);
                         Ok(out("recording", delete_payload(&key)))
                     }
                     PlatformTable::Segment => match self.segments.remove(&key) {
-                        Some((recording, _)) => self.emit_recording(&recording, versionstamp, rank),
+                        Some((recording, _, _)) => {
+                            self.emit_recording(&recording, versionstamp, rank)
+                        }
                         None => Ok(None),
                     },
                     PlatformTable::AuditEvent => Ok(None),
@@ -856,14 +863,26 @@ impl ConsoleStreamState {
         let Some(recording) = self.recordings.get(id) else {
             return Ok(None);
         };
-        let (count, bytes) = self
+        let (segment_count, playable_segment_count, playable_byte_length) = self
             .segments
             .values()
-            .filter(|(recording, _)| recording == id)
-            .fold((0usize, 0i64), |(count, total), (_, bytes)| {
-                (count + 1, total + bytes)
-            });
-        let summary = recording_summary(recording.clone(), count, bytes)?;
+            .filter(|(recording, _, _)| recording == id)
+            .fold(
+                (0usize, 0usize, 0i64),
+                |(total, playable, bytes), (_, byte_len, state)| {
+                    if matches!(state, SegmentState::Frozen | SegmentState::Sealed) {
+                        (total + 1, playable + 1, bytes + byte_len)
+                    } else {
+                        (total + 1, playable, bytes)
+                    }
+                },
+            );
+        let summary = recording_summary(
+            recording.clone(),
+            segment_count,
+            playable_segment_count,
+            playable_byte_length,
+        )?;
         Ok(Some(OutEvent {
             versionstamp,
             rank,

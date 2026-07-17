@@ -81,7 +81,7 @@ export interface ArtifactSummary {
   createdAt: string;
   recording?: {
     recordingId: string;
-    kind: "recording_segment" | "recording_manifest";
+    kind: string;
     segmentId?: string;
     ordinal?: number;
   };
@@ -130,8 +130,9 @@ export interface RecordingSummary {
   application: string;
   recordingKey: string;
   state: "live" | "ready" | "sealing" | "sealed" | "interrupted" | "failed";
-  segments: number;
-  byteLength: number;
+  segmentCount: number;
+  playableSegmentCount: number;
+  playableByteLength: number;
   startedAt: string;
   lastDataAt: string;
   endedAt?: string;

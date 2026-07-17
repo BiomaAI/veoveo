@@ -43,6 +43,12 @@ export function ArtifactDrawer({
 
   const pending =
     setReleaseState.isPending || grantAccess.isPending || revokeGrant.isPending || createLink.isPending || revokeLink.isPending;
+  const recordingRelationTitle =
+    artifact.recording?.kind === "recording_manifest"
+      ? "Recording manifest"
+      : artifact.recording?.kind === "recording_segment"
+        ? `Recording segment ${artifact.recording.ordinal ?? ""}`.trim()
+        : "Derived from recording";
 
   const copyId = async () => {
     await navigator.clipboard.writeText(`artifact://${artifact.id}`);
@@ -119,23 +125,32 @@ export function ArtifactDrawer({
     window.setTimeout(() => setLinkCopied(false), 1500);
   };
 
-  return <DrawerShell title={artifact.filename} subtitle="Artifact" onClose={onClose}>
+  return <DrawerShell title={artifact.filename} subtitle="Artifact" onClose={onClose} width="wide">
     <div className="drawer-body">
       <div className="drawer-status"><StatusPill value={artifact.releaseState} /><span>{formatBytes(artifact.byteLength)}</span><span>{artifact.mediaType}</span></div>
       {actionError && <div className="action-error">{actionError}</div>}
+      <section className="artifact-preview-section">
+        <div className="drawer-section-head">
+          <h3>Preview</h3>
+          <span className="subdued">Governed by the active Console session</span>
+        </div>
+        <ArtifactPreview artifact={artifact} />
+      </section>
       {artifact.recording && (
         <section>
           <div className="recording-artifact-callout">
             <FileStack size={22} />
             <div>
-              <strong>{artifact.recording.kind === "recording_manifest" ? "Recording manifest" : `Recording segment ${artifact.recording.ordinal ?? ""}`}</strong>
-              <span>Open the complete ordered capture in the Rerun workspace.</span>
+              <strong>{recordingRelationTitle}</strong>
+              <span>
+                {artifact.recording.kind.replaceAll("_", " ")} · open the complete ordered capture
+                in the Rerun workspace.
+              </span>
             </div>
             <button className="button button-primary" onClick={() => onOpenRecording(artifact.recording!.recordingId)}>Open recording</button>
           </div>
         </section>
       )}
-      <ArtifactPreview artifact={artifact} />
       <section>
         <h3>Identity</h3>
         <button className="copy-field" onClick={() => void copyId()}><span className="mono">artifact://{artifact.id}</span>{copied ? <Check size={15} /> : <Copy size={15} />}</button>
@@ -174,6 +189,6 @@ export function ArtifactDrawer({
         </div>
       </section>
     </div>
-    <footer className="drawer-footer"><a className="button button-secondary" href={artifactDownloadUrl(artifact.id)}><Download size={15} /> Download</a></footer>
+    <footer className="drawer-footer"><a className="button button-secondary" href={artifactDownloadUrl(artifact.id)}><Download size={15} /> Download original</a></footer>
   </DrawerShell>;
 }

@@ -187,8 +187,9 @@ pub(crate) struct RecordingSummary {
     pub(crate) application: String,
     pub(crate) recording_key: String,
     pub(crate) state: veoveo_platform_store::RecordingState,
-    pub(crate) segments: usize,
-    pub(crate) byte_length: i64,
+    pub(crate) segment_count: usize,
+    pub(crate) playable_segment_count: usize,
+    pub(crate) playable_byte_length: i64,
     pub(crate) started_at: DateTime<Utc>,
     pub(crate) last_data_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -336,12 +337,6 @@ pub(crate) fn artifact_summary(
                 .collect(),
         ))
         .ok()
-        .filter(|value| {
-            matches!(
-                value.provenance.kind.as_str(),
-                "recording_segment" | "recording_manifest"
-            )
-        })
         .map(|value| ArtifactRecordingSummary {
             recording_id: value.provenance.recording_id,
             kind: value.provenance.kind,
@@ -390,16 +385,18 @@ pub(crate) fn agent_summary(
 
 pub(crate) fn recording_summary(
     recording: RecordingRecord,
-    segments: usize,
-    byte_length: i64,
+    segment_count: usize,
+    playable_segment_count: usize,
+    playable_byte_length: i64,
 ) -> anyhow::Result<RecordingSummary> {
     Ok(RecordingSummary {
         id: record_key(&recording.id)?,
         application: recording.application_id,
         recording_key: recording.recording_key,
         state: recording.state,
-        segments,
-        byte_length,
+        segment_count,
+        playable_segment_count,
+        playable_byte_length,
         started_at: recording.started_at,
         last_data_at: recording.last_data_at,
         ended_at: recording.ended_at,

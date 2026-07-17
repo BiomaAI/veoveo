@@ -232,7 +232,7 @@ export function App() {
         </main>
       </div>
 
-      {currentArtifact && <ArtifactDrawer artifact={currentArtifact} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
+      {currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
         setSelectedArtifact(undefined);
         navigate("recordings", recordingId);
       }} />}

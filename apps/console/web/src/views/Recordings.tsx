@@ -8,7 +8,7 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from "react";
-import { FileStack, Play, Search } from "lucide-react";
+import { Check, Copy, FileStack, Play, RefreshCw, Search } from "lucide-react";
 import { loadRecordingPlayback, recordingSegmentUrl } from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatBytes, formatDate } from "../format";
@@ -30,6 +30,28 @@ const lifecycleDetail: Record<RecordingSummary["state"], string> = {
   interrupted: "Producer stopped without a clean boundary",
   failed: "Recording processing failed",
 };
+
+function initialRecordingSelection(
+  recordings: RecordingSummary[],
+  requestedId?: string
+): string | undefined {
+  const requested = requestedId
+    ? recordings.find(
+        (recording) =>
+          recording.id === requestedId || recording.recordingKey === requestedId
+      )
+    : undefined;
+  return (
+    requested?.id ??
+    recordings.find(
+      (recording) =>
+        (recording.state === "ready" || recording.state === "sealed") &&
+        recording.playableSegmentCount > 0
+    )?.id ??
+    recordings.find((recording) => recording.playableSegmentCount > 0)?.id ??
+    recordings[0]?.id
+  );
+}
 
 class ViewerBoundary extends Component<
   { children: ReactNode; recordingId: string },
@@ -73,12 +95,18 @@ export function RecordingsView({
   initialRecordingId?: string;
   onRecordingSelect: (recordingId: string) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | undefined>(initialRecordingId);
+  const firstSelectedId = initialRecordingSelection(
+    snapshot.recordings,
+    initialRecordingId
+  );
+  const [selectedId, setSelectedId] = useState<string | undefined>(firstSelectedId);
   const [query, setQuery] = useState("");
   const [stateFilter, setStateFilter] = useState<RecordingStateFilter>("all");
   const [manifest, setManifest] = useState<RecordingPlaybackManifest>();
-  const [loading, setLoading] = useState(Boolean(initialRecordingId));
+  const [loading, setLoading] = useState(Boolean(firstSelectedId));
   const [playbackError, setPlaybackError] = useState<string>();
+  const [reloadToken, setReloadToken] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const recordings = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -92,13 +120,23 @@ export function RecordingsView({
     );
   }, [query, snapshot.recordings, stateFilter]);
 
-  const selected = snapshot.recordings.find((recording) => recording.id === selectedId);
+  const resolvedSelectedId = snapshot.recordings.some(
+    (recording) => recording.id === selectedId
+  )
+    ? selectedId
+    : initialRecordingSelection(snapshot.recordings);
+  const selected = snapshot.recordings.find(
+    (recording) => recording.id === resolvedSelectedId
+  );
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!resolvedSelectedId) return;
     const controller = new AbortController();
-    void loadRecordingPlayback(selectedId, controller.signal)
-      .then(setManifest)
+    void loadRecordingPlayback(resolvedSelectedId, controller.signal)
+      .then((value) => {
+        setManifest(value);
+        setPlaybackError(undefined);
+      })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
           setPlaybackError(cause instanceof Error ? cause.message : "Playback failed");
@@ -109,15 +147,35 @@ export function RecordingsView({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [selected?.byteLength, selected?.segments, selected?.state, selectedId]);
+  }, [
+    reloadToken,
+    selected?.playableByteLength,
+    selected?.playableSegmentCount,
+    selected?.state,
+    resolvedSelectedId,
+  ]);
 
   const selectRecording = (recordingId: string) => {
-    if (recordingId === selectedId) return;
+    if (recordingId === resolvedSelectedId) return;
     setManifest(undefined);
     setPlaybackError(undefined);
     setLoading(true);
     setSelectedId(recordingId);
     onRecordingSelect(recordingId);
+  };
+
+  const reloadPlayback = () => {
+    setManifest(undefined);
+    setPlaybackError(undefined);
+    setLoading(true);
+    setReloadToken((value) => value + 1);
+  };
+
+  const copyRecordingUri = async () => {
+    if (!selected) return;
+    await navigator.clipboard.writeText(`recording://recordings/${selected.id}`);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
   };
 
   const playbackSegments = useMemo(
@@ -166,18 +224,21 @@ export function RecordingsView({
           {recordings.map((recording) => (
             <button
               key={recording.id}
-              className={recording.id === selectedId ? "recording-card recording-card-active" : "recording-card"}
+              className={recording.id === resolvedSelectedId ? "recording-card recording-card-active" : "recording-card"}
               onClick={() => selectRecording(recording.id)}
-              aria-pressed={recording.id === selectedId}
+              aria-pressed={recording.id === resolvedSelectedId}
             >
               <div className="recording-card-head">
                 <strong>{recording.recordingKey}</strong>
                 <StatusPill value={recording.state} />
               </div>
               <span>{recording.application}</span>
+              <span className="recording-card-id mono">Catalog ID · {recording.id}</span>
               <div className="recording-card-metrics">
-                <span>{recording.segments} segments</span>
-                <span>{formatBytes(recording.byteLength)}</span>
+                <span>
+                  {recording.playableSegmentCount}/{recording.segmentCount} playable
+                </span>
+                <span>{formatBytes(recording.playableByteLength)}</span>
                 <span>{formatDate(recording.startedAt)}</span>
               </div>
             </button>
@@ -191,15 +252,26 @@ export function RecordingsView({
           <>
             <header className="recording-player-header">
               <div>
-                <span>Rerun playback</span>
+                <span>Rerun recording · {selected.application}</span>
                 <h2>{selected.recordingKey}</h2>
+                <button
+                  className="recording-uri"
+                  onClick={() => void copyRecordingUri()}
+                  title="Copy canonical recording URI"
+                >
+                  <span className="mono">recording://recordings/{selected.id}</span>
+                  {copied ? <Check size={13} /> : <Copy size={13} />}
+                </button>
               </div>
               <StatusPill value={selected.state} />
             </header>
             <div className="recording-facts">
               <div><span>Lifecycle</span><strong>{lifecycleDetail[selected.state]}</strong></div>
-              <div><span>Segments</span><strong>{selected.segments}</strong></div>
-              <div><span>Size</span><strong>{formatBytes(selected.byteLength)}</strong></div>
+              <div>
+                <span>Playable segments</span>
+                <strong>{selected.playableSegmentCount} of {selected.segmentCount}</strong>
+              </div>
+              <div><span>Playable size</span><strong>{formatBytes(selected.playableByteLength)}</strong></div>
               <div><span>Started</span><strong>{formatDate(selected.startedAt)}</strong></div>
               <div>
                 <span>Ended</span>
@@ -210,9 +282,45 @@ export function RecordingsView({
               {loading ? (
                 <div className="recording-viewer-state"><div className="loading-mark" /><span>Authorizing recording segments…</span></div>
               ) : playbackError ? (
-                <div className="recording-viewer-state recording-viewer-error"><strong>Playback unavailable</strong><span>{playbackError}</span></div>
+                <div className="recording-viewer-state recording-viewer-error">
+                  <strong>Playback unavailable</strong>
+                  <span>{playbackError}</span>
+                  <button className="button button-secondary" onClick={reloadPlayback}>
+                    <RefreshCw size={14} /> Retry
+                  </button>
+                </div>
               ) : playbackSegments.length === 0 ? (
-                <div className="recording-viewer-state"><FileStack size={30} /><strong>No stable segment is available yet.</strong><span>Live data becomes playable after Recording Hub freezes its first segment.</span></div>
+                selected.state === "live" ? (
+                  <div className="recording-viewer-state">
+                    <FileStack size={30} />
+                    <strong>Live capture has no frozen segment yet.</strong>
+                    <span>
+                      This producer is connected. Playback will appear here when Recording Hub
+                      freezes its first segment.
+                    </span>
+                  </div>
+                ) : selected.playableSegmentCount > 0 ? (
+                  <div className="recording-viewer-state recording-viewer-error">
+                    <strong>Playback manifest is inconsistent.</strong>
+                    <span>
+                      The catalog reports {selected.playableSegmentCount} playable segment
+                      {selected.playableSegmentCount === 1 ? "" : "s"}, but the playback manifest
+                      returned none.
+                    </span>
+                    <button className="button button-secondary" onClick={reloadPlayback}>
+                      <RefreshCw size={14} /> Reload manifest
+                    </button>
+                  </div>
+                ) : (
+                  <div className="recording-viewer-state">
+                    <FileStack size={30} />
+                    <strong>This recording has no playable data.</strong>
+                    <span>
+                      Its lifecycle is {selected.state}; no frozen or sealed RRD segment is
+                      available.
+                    </span>
+                  </div>
+                )
               ) : (
                 <ViewerBoundary recordingId={selected.id}>
                   <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.34.1…</span></div>}>
