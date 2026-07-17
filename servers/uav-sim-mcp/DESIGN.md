@@ -55,6 +55,13 @@ Cesium requires the token on its tileset schema. The adapter authors it only
 into the anonymous session layer, clears the attribute during shutdown, and
 never exports that layer.
 
+Headless startup authors Cesium's typed `IonOfficial` server prim before the
+tileset and binds asset `2275207` to that server. Interactive Kit normally does
+this from a stage-opened UI callback, but Isaac enables the extension after its
+stage is open. The runtime then reloads Cesium's native stage registry and
+feeds the active UAV camera through the native viewport contract on every Kit
+update.
+
 ## Spatial frames
 
 Every session names one durable `frames://frame/{frame_id}` origin. Installation
