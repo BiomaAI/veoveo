@@ -272,6 +272,8 @@ def run(config: RuntimeConfig) -> None:
                 timeline.play()
                 for offset in range(steps):
                     world.step(render=(offset == steps - 1))
+                    for px4_backend in px4_backends.values():
+                        px4_backend.update(1.0 / config.physics_hz)
                     physics_step += 1
                     simulation_time_s = physics_step / config.physics_hz
                 timeline.pause()
@@ -356,6 +358,13 @@ def run(config: RuntimeConfig) -> None:
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
                 world.step(render=render)
+                # Pegasus 5.1 wires backend updates through an Isaac callback
+                # that Isaac 6 no longer invokes reliably. Keep PX4 lockstep
+                # synchronized on every physics step, not only during boot;
+                # otherwise PX4 receives MAVLink commands while its simulated
+                # clock and Commander work queue remain frozen.
+                for px4_backend in px4_backends.values():
+                    px4_backend.update(1.0 / config.physics_hz)
                 physics_step += 1
                 simulation_time_s = physics_step / config.physics_hz
                 state.advance(simulation_time_s, physics_step)
