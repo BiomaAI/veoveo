@@ -106,7 +106,7 @@ def run(config: RuntimeConfig) -> None:
     simulation_time_s = 0.0
     commanders: dict[str, Px4Commander] = {}
     vehicles: dict[str, Multirotor] = {}
-    px4_backends: dict[str, PX4MavlinkBackend] = {}
+    vehicle_callback_prefixes: dict[str, str] = {}
     camera_sensors: dict[str, CameraSensor] = {}
     primary_camera_path: str | None = None
 
@@ -184,7 +184,6 @@ def run(config: RuntimeConfig) -> None:
                     }
                 )
             )
-            px4_backends[vehicle_id] = px4_backend
             multirotor_config.backends = [px4_backend]
             vehicle = Multirotor(
                 vehicle_prim_path,
@@ -195,6 +194,7 @@ def run(config: RuntimeConfig) -> None:
                 config=multirotor_config,
             )
             vehicles[vehicle_id] = vehicle
+            vehicle_callback_prefixes[vehicle_id] = vehicle_prim_path
 
             # Pegasus's Iris asset binds two MDL materials over plain HTTP.
             # The UAV geometry remains functional without those cosmetic
@@ -238,6 +238,29 @@ def run(config: RuntimeConfig) -> None:
 
         world.reset()
 
+        def bind_pegasus_physics_callbacks() -> None:
+            # Isaac 6 recreates its physics simulation interface during reset.
+            # Pegasus 5.1 registers callback subscriptions before that first
+            # reset, leaving them attached to the retired interface. Rebind the
+            # complete vehicle contract to the active interface so state,
+            # sensors, dynamics, ground truth, and PX4 advance exactly once per
+            # physics step.
+            for vehicle_id, vehicle in vehicles.items():
+                prefix = vehicle_callback_prefixes[vehicle_id]
+                callbacks = (
+                    ("/state", vehicle.update_state),
+                    ("/update", vehicle.update),
+                    ("/Sensors", vehicle.update_sensors),
+                    ("/mav_state", vehicle.update_sim_state),
+                )
+                for suffix, callback in callbacks:
+                    callback_name = prefix + suffix
+                    if world.physics_callback_exists(callback_name):
+                        world.remove_physics_callback(callback_name)
+                    world.add_physics_callback(callback_name, callback)
+
+        bind_pegasus_physics_callbacks()
+
         def pause() -> None:
             def action() -> None:
                 timeline.pause()
@@ -258,6 +281,7 @@ def run(config: RuntimeConfig) -> None:
                 assert world is not None
                 was_playing = timeline.is_playing()
                 world.reset()
+                bind_pegasus_physics_callbacks()
                 physics_step = 0
                 simulation_time_s = 0.0
                 state.advance(simulation_time_s, physics_step)
@@ -272,8 +296,6 @@ def run(config: RuntimeConfig) -> None:
                 timeline.play()
                 for offset in range(steps):
                     world.step(render=(offset == steps - 1))
-                    for px4_backend in px4_backends.values():
-                        px4_backend.update(1.0 / config.physics_hz)
                     physics_step += 1
                     simulation_time_s = physics_step / config.physics_hz
                 timeline.pause()
@@ -308,12 +330,6 @@ def run(config: RuntimeConfig) -> None:
         px4_bootstrap_deadline = time.monotonic() + 120.0
         while not all(future.done() for future in connection_futures.values()):
             world.step(render=False)
-            # Pegasus 5.1 registers its backend through Isaac's deprecated
-            # callback bridge. Invoke the public backend update here as well
-            # during bootstrap because Isaac 6 can defer that callback until a
-            # rendered update, which would recreate the startup deadlock.
-            for px4_backend in px4_backends.values():
-                px4_backend.update(1.0 / config.physics_hz)
             physics_step += 1
             simulation_time_s = physics_step / config.physics_hz
             state.advance(simulation_time_s, physics_step)
@@ -358,13 +374,6 @@ def run(config: RuntimeConfig) -> None:
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
                 world.step(render=render)
-                # Pegasus 5.1 wires backend updates through an Isaac callback
-                # that Isaac 6 no longer invokes reliably. Keep PX4 lockstep
-                # synchronized on every physics step, not only during boot;
-                # otherwise PX4 receives MAVLink commands while its simulated
-                # clock and Commander work queue remain frozen.
-                for px4_backend in px4_backends.values():
-                    px4_backend.update(1.0 / config.physics_hz)
                 physics_step += 1
                 simulation_time_s = physics_step / config.physics_hz
                 state.advance(simulation_time_s, physics_step)
