@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from pymavlink import mavutil
 
 from .contracts import Waypoint
+from .geo import horizontal_distance_m
 
 
-PX4_CUSTOM_MAIN_MODE_AUTO = 4
-PX4_CUSTOM_SUB_MODE_AUTO_MISSION = 4
 GCS_HEARTBEAT_INTERVAL_SECONDS = 1.0
+WAYPOINT_HORIZONTAL_TOLERANCE_M = 1.0
+WAYPOINT_VERTICAL_TOLERANCE_M = 0.75
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,8 +37,11 @@ class Px4Commander:
         self._has_flown = False
         self._landed_state = mavutil.mavlink.MAV_LANDED_STATE_UNDEFINED
         self._battery_percent = 100.0
+        self._latitude_degrees: float | None = None
+        self._longitude_degrees: float | None = None
         self._absolute_altitude_m = origin_height_m
         self._last_gcs_heartbeat_at = 0.0
+        self._mission_interrupt = threading.Event()
 
     def connect(self, timeout_seconds: float = 60.0) -> None:
         deadline = time.monotonic() + timeout_seconds
@@ -120,49 +124,51 @@ class Px4Commander:
         )
 
     def land(self) -> None:
-        self._command(
-            mavutil.mavlink.MAV_CMD_NAV_LAND,
-            0.0,
-            0.0,
-            0.0,
-            math.nan,
-            math.nan,
-            math.nan,
-            math.nan,
-        )
+        self._mission_interrupt.set()
+        try:
+            self._command(
+                mavutil.mavlink.MAV_CMD_NAV_LAND,
+                0.0,
+                0.0,
+                0.0,
+                math.nan,
+                math.nan,
+                math.nan,
+                math.nan,
+            )
+        finally:
+            self._mission_interrupt.clear()
 
     def execute_mission(self, waypoints: tuple[Waypoint, ...], timeout_seconds: float = 1_800.0) -> int:
         with self._lock:
             self._require_connection()
-            mission_items, waypoint_sequences = self._mission_items(waypoints)
-            self._upload_mission(mission_items)
-            self._send_command_locked(
-                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-                float(PX4_CUSTOM_MAIN_MODE_AUTO),
-                float(PX4_CUSTOM_SUB_MODE_AUTO_MISSION),
-            )
+            if self._mission_interrupt.is_set():
+                raise RuntimeError(f"mission on {self.vehicle_id} was interrupted")
             if not self._armed:
                 self._send_command_locked(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0)
 
             deadline = time.monotonic() + timeout_seconds
-            reached: set[int] = set()
-            final_sequence = mission_items[-1]["sequence"]
-            while time.monotonic() < deadline:
-                self._send_gcs_heartbeat_locked_if_due()
-                message = self._connection.recv_match(blocking=True, timeout=1.0)
-                if message is None:
-                    continue
-                self._consume(message)
-                if message.get_type() == "MISSION_ITEM_REACHED":
-                    sequence = int(message.seq)
-                    if sequence in waypoint_sequences:
-                        reached.add(sequence)
-                    if sequence == final_sequence:
-                        return len(waypoints)
-                elif message.get_type() == "MISSION_CURRENT" and int(message.seq) > final_sequence:
-                    return len(waypoints)
-            raise TimeoutError(f"mission on {self.vehicle_id} did not complete")
+            completed = 0
+            for waypoint in waypoints:
+                self._send_reposition_locked(waypoint)
+                reached_at: float | None = None
+                while time.monotonic() < deadline:
+                    if self._mission_interrupt.is_set():
+                        raise RuntimeError(f"mission on {self.vehicle_id} was interrupted")
+                    self._send_gcs_heartbeat_locked_if_due()
+                    message = self._connection.recv_match(blocking=True, timeout=1.0)
+                    if message is not None:
+                        self._consume(message)
+                    if not self._waypoint_reached_locked(waypoint):
+                        reached_at = None
+                        continue
+                    reached_at = reached_at or time.monotonic()
+                    if time.monotonic() - reached_at >= waypoint.hold_seconds:
+                        completed += 1
+                        break
+                else:
+                    raise TimeoutError(f"mission on {self.vehicle_id} did not complete")
+            return completed
 
     def close(self) -> None:
         with self._lock:
@@ -186,6 +192,28 @@ class Px4Commander:
             0,
             *values[:7],
         )
+        self._await_command_ack_locked(command)
+
+    def _send_reposition_locked(self, waypoint: Waypoint) -> None:
+        self._send_gcs_heartbeat_locked()
+        self._connection.mav.command_int_send(
+            self._target_system,
+            self._target_component,
+            mavutil.mavlink.MAV_FRAME_GLOBAL_INT,
+            mavutil.mavlink.MAV_CMD_DO_REPOSITION,
+            0,
+            0,
+            waypoint.speed_mps,
+            float(mavutil.mavlink.MAV_DO_REPOSITION_FLAGS_CHANGE_MODE),
+            0.0,
+            math.nan,
+            round(waypoint.latitude_degrees * 10_000_000),
+            round(waypoint.longitude_degrees * 10_000_000),
+            waypoint.ellipsoid_height_m,
+        )
+        self._await_command_ack_locked(mavutil.mavlink.MAV_CMD_DO_REPOSITION)
+
+    def _await_command_ack_locked(self, command: int) -> None:
         deadline = time.monotonic() + 15.0
         while time.monotonic() < deadline:
             self._send_gcs_heartbeat_locked_if_due()
@@ -204,118 +232,20 @@ class Px4Commander:
             return
         raise TimeoutError(f"PX4 did not acknowledge MAVLink command {command}")
 
-    def _upload_mission(self, mission_items: list[dict[str, float | int]]) -> None:
-        self._connection.mav.mission_clear_all_send(
-            self._target_system,
-            self._target_component,
-            mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
+    def _waypoint_reached_locked(self, waypoint: Waypoint) -> bool:
+        if self._latitude_degrees is None or self._longitude_degrees is None:
+            return False
+        horizontal_error = horizontal_distance_m(
+            self._latitude_degrees,
+            self._longitude_degrees,
+            waypoint.latitude_degrees,
+            waypoint.longitude_degrees,
         )
-        self._connection.mav.mission_count_send(
-            self._target_system,
-            self._target_component,
-            len(mission_items),
-            mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
+        vertical_error = abs(self._absolute_altitude_m - waypoint.ellipsoid_height_m)
+        return (
+            horizontal_error <= WAYPOINT_HORIZONTAL_TOLERANCE_M
+            and vertical_error <= WAYPOINT_VERTICAL_TOLERANCE_M
         )
-        deadline = time.monotonic() + 60.0
-        while time.monotonic() < deadline:
-            self._send_gcs_heartbeat_locked_if_due()
-            message = self._connection.recv_match(blocking=True, timeout=1.0)
-            if message is None:
-                continue
-            self._consume(message)
-            message_type = message.get_type()
-            if message_type in {"MISSION_REQUEST", "MISSION_REQUEST_INT"}:
-                sequence = int(message.seq)
-                if not 0 <= sequence < len(mission_items):
-                    raise RuntimeError(f"PX4 requested invalid mission item {sequence}")
-                self._send_mission_item(mission_items[sequence])
-            elif message_type == "MISSION_ACK":
-                if int(message.type) != mavutil.mavlink.MAV_MISSION_ACCEPTED:
-                    raise RuntimeError(f"PX4 rejected mission with result {message.type}")
-                return
-        raise TimeoutError("PX4 mission upload did not finish")
-
-    def _send_mission_item(self, item: dict[str, float | int]) -> None:
-        self._connection.mav.mission_item_int_send(
-            self._target_system,
-            self._target_component,
-            int(item["sequence"]),
-            int(item["frame"]),
-            int(item["command"]),
-            1 if int(item["sequence"]) == 0 else 0,
-            1,
-            float(item["param1"]),
-            float(item["param2"]),
-            float(item["param3"]),
-            float(item["param4"]),
-            int(item["x"]),
-            int(item["y"]),
-            float(item["z"]),
-            mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
-        )
-
-    def _mission_items(
-        self,
-        waypoints: tuple[Waypoint, ...],
-    ) -> tuple[list[dict[str, float | int]], set[int]]:
-        items: list[dict[str, float | int]] = []
-        waypoint_sequences: set[int] = set()
-        for index, waypoint in enumerate(waypoints):
-            items.append(
-                Px4Commander._item(
-                    len(items),
-                    mavutil.mavlink.MAV_FRAME_MISSION,
-                    mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
-                    param1=1.0,
-                    param2=waypoint.speed_mps,
-                )
-            )
-            command = (
-                mavutil.mavlink.MAV_CMD_NAV_TAKEOFF
-                if index == 0 and not self._has_flown
-                else mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
-            )
-            sequence = len(items)
-            items.append(
-                Px4Commander._item(
-                    sequence,
-                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
-                    command,
-                    param1=waypoint.hold_seconds,
-                    x=round(waypoint.latitude_degrees * 10_000_000),
-                    y=round(waypoint.longitude_degrees * 10_000_000),
-                    z=waypoint.ellipsoid_height_m - self._origin_height_m,
-                )
-            )
-            waypoint_sequences.add(sequence)
-        return items, waypoint_sequences
-
-    @staticmethod
-    def _item(
-        sequence: int,
-        frame: int,
-        command: int,
-        *,
-        param1: float = 0.0,
-        param2: float = 0.0,
-        param3: float = 0.0,
-        param4: float = math.nan,
-        x: int = 0,
-        y: int = 0,
-        z: float = 0.0,
-    ) -> dict[str, float | int]:
-        return {
-            "sequence": sequence,
-            "frame": frame,
-            "command": command,
-            "param1": param1,
-            "param2": param2,
-            "param3": param3,
-            "param4": param4,
-            "x": x,
-            "y": y,
-            "z": z,
-        }
 
     def _consume(self, message) -> None:
         message_type = message.get_type()
@@ -331,6 +261,8 @@ class Px4Commander:
         elif message_type == "SYS_STATUS" and int(message.battery_remaining) >= 0:
             self._battery_percent = float(message.battery_remaining)
         elif message_type == "GLOBAL_POSITION_INT":
+            self._latitude_degrees = float(message.lat) / 10_000_000.0
+            self._longitude_degrees = float(message.lon) / 10_000_000.0
             self._absolute_altitude_m = float(message.alt) / 1_000.0
 
     def _send_gcs_heartbeat_locked(self) -> None:

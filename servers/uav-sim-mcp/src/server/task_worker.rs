@@ -138,7 +138,7 @@ async fn execute_operation(
 ) {
     let result = tokio::select! {
         result = async {
-            state.adapter.lock().await.execute(&operation).await
+            state.adapter.execute(&operation).await
         } => result.map_err(|error| error.to_string()),
         () = cancellation.cancelled() => {
             transition(&state, &task_id, TaskTransition::Cancelled).await;

@@ -8,6 +8,25 @@ WGS84_F = 1.0 / 298.257_223_563
 WGS84_E2 = WGS84_F * (2.0 - WGS84_F)
 
 
+def horizontal_distance_m(
+    latitude_a: float,
+    longitude_a: float,
+    latitude_b: float,
+    longitude_b: float,
+) -> float:
+    latitude_a_radians = math.radians(latitude_a)
+    latitude_b_radians = math.radians(latitude_b)
+    latitude_delta = latitude_b_radians - latitude_a_radians
+    longitude_delta = math.radians(longitude_b - longitude_a)
+    haversine = (
+        math.sin(latitude_delta / 2.0) ** 2
+        + math.cos(latitude_a_radians)
+        * math.cos(latitude_b_radians)
+        * math.sin(longitude_delta / 2.0) ** 2
+    )
+    return 2.0 * WGS84_A * math.asin(min(1.0, math.sqrt(haversine)))
+
+
 def geodetic_to_ecef(latitude_degrees: float, longitude_degrees: float, height_m: float) -> tuple[float, float, float]:
     latitude = math.radians(latitude_degrees)
     longitude = math.radians(longitude_degrees)

@@ -93,11 +93,21 @@ incompatible frame information fails session creation.
 
 The pod-local GCS link binds `14550 + instance` and seeds the matching PX4
 endpoint at `18570 + instance`. This preserves one bidirectional MAVLink peer
-for heartbeat, command acknowledgement, mission upload, and mission progress.
-The adapter maintains a one-second GCS heartbeat while the vehicle is live.
-Commands fail unless PX4 returns an explicit accepted acknowledgement. Arm
-completion also requires the subsequent PX4 heartbeat to report the armed
-state, which makes an immediate takeoff command deterministic.
+for heartbeat, command acknowledgement, waypoint control, and vehicle state.
+The adapter sends each WGS84 waypoint as `MAV_CMD_DO_REPOSITION` through
+`COMMAND_INT` with `MAV_FRAME_GLOBAL_INT`, then verifies horizontal position,
+absolute altitude, and the requested hold interval from PX4 telemetry. This
+keeps an already-airborne vehicle out of PX4 AUTO Mission mode. The adapter
+maintains a one-second GCS heartbeat while the vehicle is live. Commands fail
+unless PX4 returns an explicit accepted acknowledgement. Arm completion also
+requires the subsequent PX4 heartbeat to report the armed state, which makes
+an immediate takeoff command deterministic. A land command interrupts an
+active waypoint loop before acquiring the MAVLink command channel.
+
+The HTTP adapter is concurrency-safe. A durable operation does not hold the MCP
+server's adapter boundary, so task reads, readiness probes, state resources,
+and emergency land commands remain available throughout a mission. The fake
+adapter keeps its own narrow mutex because its in-memory state is mutable.
 
 ## Typed domain model
 
