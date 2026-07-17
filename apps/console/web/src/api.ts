@@ -10,6 +10,7 @@ import type {
   MapSourceSummary,
   ClusterSnapshot,
   ReleaseState,
+  RecordingPlaybackManifest,
   ShareLinkCreated,
 } from "./types";
 
@@ -165,6 +166,39 @@ export async function revokeArtifactShareLink(artifactId: string, linkId: string
 
 export function artifactDownloadUrl(artifactId: string): string {
   return `/console/api/artifacts/${encodeURIComponent(artifactId)}/download`;
+}
+
+export function artifactPreviewUrl(artifactId: string): string {
+  return `/console/api/artifacts/${encodeURIComponent(artifactId)}/preview`;
+}
+
+export async function loadRecordingPlayback(
+  recordingId: string,
+  signal?: AbortSignal
+): Promise<RecordingPlaybackManifest> {
+  const response = await fetch(
+    `/console/api/recordings/${encodeURIComponent(recordingId)}/playback`,
+    {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal,
+    }
+  );
+  if (response.status === 401) {
+    window.location.assign("/auth/login");
+    throw new Error("Authentication required");
+  }
+  if (response.status === 403) {
+    throw new Error("Playback is not permitted by the active recording policy.");
+  }
+  if (!response.ok) {
+    throw new Error(`Recording playback returned ${response.status}`);
+  }
+  return response.json() as Promise<RecordingPlaybackManifest>;
+}
+
+export function recordingSegmentUrl(recordingId: string, segmentId: string): string {
+  return `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}`;
 }
 
 export async function mapAdminQuery<T>(path: string, signal?: AbortSignal): Promise<T> {

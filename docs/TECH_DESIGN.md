@@ -307,6 +307,12 @@ The React application receives installation projections and one-time share URLs,
 gateway bearer. CSP, frame denial, MIME sniff prevention, same-origin referrer policy,
 and no-store API responses are applied by the BFF.
 
+Recording playback remains inside this boundary. The BFF exposes authorized same-origin
+manifest and segment routes, including byte ranges, while the gateway evaluates the
+canonical `recording://` resource policy and audits every access. The browser lazily loads
+the Rerun viewer version that matches the RRD producer. Artifact previews use a separate
+inline route and keep text reads bounded.
+
 ## Recordings And Agents
 
 The Recording Hub is a push-based durability service. Producers send native Rerun log
