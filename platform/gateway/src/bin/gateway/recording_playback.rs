@@ -176,7 +176,7 @@ async fn proxy_playback(
     };
     let path = match &segment_id {
         Some(segment_id) => {
-            format!("/recordings/{recording_id}/segments/{segment_id}")
+            format!("/recordings/{recording_id}/segments/{segment_id}/data.rrd")
         }
         None => format!("/recordings/{recording_id}/playback"),
     };
