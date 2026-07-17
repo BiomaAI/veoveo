@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.uav-sim-acceptance/v1",
+  "schema": "veoveo.uav-sim-acceptance/v2",
   "session_id": "bioma-uav",
   "frame_uri": "frames://frame/bioma-uav-origin",
   "vehicle_id": "uav-1",
@@ -10,9 +10,15 @@
   },
   "camera": {
     "detail_timeout_seconds": 60,
-    "minimum_mean_luma": 2.0,
-    "minimum_dynamic_range": 8,
-    "minimum_non_black_fraction": 0.02
+    "operational": {
+      "minimum_mean_luma": 2.0,
+      "minimum_non_black_fraction": 0.02
+    },
+    "aerial_detail": {
+      "minimum_mean_luma": 2.0,
+      "minimum_dynamic_range": 8,
+      "minimum_non_black_fraction": 0.02
+    }
   },
   "mission": {
     "longitude_offset_degrees": 0.00002,

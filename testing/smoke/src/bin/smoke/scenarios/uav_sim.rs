@@ -34,6 +34,20 @@ struct TakeoffScenario {
 #[serde(deny_unknown_fields)]
 struct CameraAcceptance {
     detail_timeout_seconds: u64,
+    operational: OperationalCameraAcceptance,
+    aerial_detail: AerialCameraAcceptance,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OperationalCameraAcceptance {
+    minimum_mean_luma: f64,
+    minimum_non_black_fraction: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AerialCameraAcceptance {
     minimum_mean_luma: f64,
     minimum_dynamic_range: u64,
     minimum_non_black_fraction: f64,
@@ -72,7 +86,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v1",
+            self.schema == "veoveo.uav-sim-acceptance/v2",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -103,11 +117,23 @@ impl UavAcceptanceScenario {
             "scenario timeouts must be positive"
         );
         ensure!(
-            self.camera.minimum_mean_luma.is_finite()
-                && (0.0..=255.0).contains(&self.camera.minimum_mean_luma)
-                && self.camera.minimum_dynamic_range <= 255
-                && self.camera.minimum_non_black_fraction.is_finite()
-                && (0.0..=1.0).contains(&self.camera.minimum_non_black_fraction),
+            self.camera.operational.minimum_mean_luma.is_finite()
+                && (0.0..=255.0).contains(&self.camera.operational.minimum_mean_luma)
+                && self
+                    .camera
+                    .operational
+                    .minimum_non_black_fraction
+                    .is_finite()
+                && (0.0..=1.0).contains(&self.camera.operational.minimum_non_black_fraction)
+                && self.camera.aerial_detail.minimum_mean_luma.is_finite()
+                && (0.0..=255.0).contains(&self.camera.aerial_detail.minimum_mean_luma)
+                && self.camera.aerial_detail.minimum_dynamic_range <= 255
+                && self
+                    .camera
+                    .aerial_detail
+                    .minimum_non_black_fraction
+                    .is_finite()
+                && (0.0..=1.0).contains(&self.camera.aerial_detail.minimum_non_black_fraction),
             "camera thresholds are outside RGB8 bounds"
         );
         ensure!(
@@ -490,15 +516,13 @@ fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result
             && state
                 .pointer("/cameras/0/mean_luma")
                 .and_then(Value::as_f64)
-                .is_some_and(|value| value >= scenario.camera.minimum_mean_luma)
-            && state
-                .pointer("/cameras/0/dynamic_range")
-                .and_then(Value::as_u64)
-                .is_some_and(|value| value >= scenario.camera.minimum_dynamic_range)
+                .is_some_and(|value| value >= scenario.camera.operational.minimum_mean_luma)
             && state
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
-                .is_some_and(|value| { value >= scenario.camera.minimum_non_black_fraction }),
+                .is_some_and(|value| {
+                    value >= scenario.camera.operational.minimum_non_black_fraction
+                }),
         "Isaac nadir camera is not operational: {state}"
     );
     Ok(())
@@ -559,15 +583,17 @@ async fn wait_for_aerial_camera_content(
         let camera_has_detail = state
             .pointer("/cameras/0/mean_luma")
             .and_then(Value::as_f64)
-            .is_some_and(|value| value >= scenario.camera.minimum_mean_luma)
+            .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_mean_luma)
             && state
                 .pointer("/cameras/0/dynamic_range")
                 .and_then(Value::as_u64)
-                .is_some_and(|value| value >= scenario.camera.minimum_dynamic_range)
+                .is_some_and(|value| value >= scenario.camera.aerial_detail.minimum_dynamic_range)
             && state
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
-                .is_some_and(|value| value >= scenario.camera.minimum_non_black_fraction);
+                .is_some_and(|value| {
+                    value >= scenario.camera.aerial_detail.minimum_non_black_fraction
+                });
         if camera_has_detail {
             return Ok(state);
         }
@@ -721,6 +747,7 @@ mod tests {
         assert_eq!(scenario.session_id, "bioma-uav");
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
+        assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
     }
 
     #[test]
