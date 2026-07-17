@@ -79,6 +79,12 @@ export interface ArtifactSummary {
   shareLinks: ArtifactShareLinkSummary[];
   retentionExpiresAt?: string;
   createdAt: string;
+  recording?: {
+    recordingId: string;
+    kind: "recording_segment" | "recording_manifest";
+    segmentId?: string;
+    ordinal?: number;
+  };
 }
 
 export interface ArtifactGrantSummary {
@@ -123,11 +129,28 @@ export interface RecordingSummary {
   id: string;
   application: string;
   recordingKey: string;
-  state: "open" | "sealed" | "failed";
+  state: "live" | "ready" | "sealing" | "sealed" | "interrupted" | "failed";
   segments: number;
   byteLength: number;
   startedAt: string;
+  lastDataAt: string;
   endedAt?: string;
+  sealedAt?: string;
+}
+
+export interface RecordingPlaybackManifest {
+  recording_id: string;
+  application_id: string;
+  recording_key: string;
+  state: RecordingSummary["state"];
+  started_at: string;
+  ended_at?: string;
+  segments: Array<{
+    segment_id: string;
+    ordinal: number;
+    byte_len: number;
+    sha256: string;
+  }>;
 }
 
 export interface McpServerSummary {

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Check, Copy, Download, Link2, Trash2, UserRound } from "lucide-react";
+import { Check, Copy, Download, FileStack, Link2, Trash2, UserRound } from "lucide-react";
 import { DrawerShell } from "./DrawerShell";
 import { StatusPill } from "../components/primitives";
 import { useConfirm } from "../components/confirm";
@@ -13,8 +13,17 @@ import {
   useSetArtifactReleaseState,
 } from "../queries";
 import type { ArtifactSummary, ReleaseState } from "../types";
+import { ArtifactPreview } from "../components/ArtifactPreview";
 
-export function ArtifactDrawer({ artifact, onClose }: { artifact: ArtifactSummary; onClose: () => void }) {
+export function ArtifactDrawer({
+  artifact,
+  onClose,
+  onOpenRecording,
+}: {
+  artifact: ArtifactSummary;
+  onClose: () => void;
+  onOpenRecording: (recordingId: string) => void;
+}) {
   const confirm = useConfirm();
   const setReleaseState = useSetArtifactReleaseState();
   const grantAccess = useGrantArtifact();
@@ -114,6 +123,20 @@ export function ArtifactDrawer({ artifact, onClose }: { artifact: ArtifactSummar
     <div className="drawer-body">
       <div className="drawer-status"><StatusPill value={artifact.releaseState} /><span>{formatBytes(artifact.byteLength)}</span><span>{artifact.mediaType}</span></div>
       {actionError && <div className="action-error">{actionError}</div>}
+      {artifact.recording ? (
+        <section>
+          <div className="recording-artifact-callout">
+            <FileStack size={22} />
+            <div>
+              <strong>{artifact.recording.kind === "recording_manifest" ? "Recording manifest" : `Recording segment ${artifact.recording.ordinal ?? ""}`}</strong>
+              <span>Open the complete ordered capture in the Rerun workspace.</span>
+            </div>
+            <button className="button button-primary" onClick={() => onOpenRecording(artifact.recording!.recordingId)}>Open recording</button>
+          </div>
+        </section>
+      ) : (
+        <ArtifactPreview artifact={artifact} />
+      )}
       <section>
         <h3>Identity</h3>
         <button className="copy-field" onClick={() => void copyId()}><span className="mono">artifact://{artifact.id}</span>{copied ? <Check size={15} /> : <Copy size={15} />}</button>

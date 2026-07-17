@@ -52,9 +52,13 @@ const navItems = [
 
 type ViewId = (typeof navItems)[number]["id"];
 
-function initialView(): ViewId {
-  const value = window.location.hash.replace(/^#\/?/, "");
-  return navItems.some((item) => item.id === value) ? (value as ViewId) : "overview";
+function initialRoute(): { view: ViewId; recordingId?: string } {
+  const [value, recordingId] = window.location.hash.replace(/^#\/?/, "").split("/");
+  const view = navItems.some((item) => item.id === value) ? (value as ViewId) : "overview";
+  return {
+    view,
+    recordingId: view === "recordings" && recordingId ? recordingId : undefined,
+  };
 }
 
 function logoSource(logo: string): string {
@@ -62,13 +66,15 @@ function logoSource(logo: string): string {
 }
 
 export function App() {
+  const initial = initialRoute();
   const queryClient = useQueryClient();
   const { data: snapshot, error, isLoading, isFetching } = useSnapshot();
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
-  const [view, setView] = useState<ViewId>(initialView);
+  const [view, setView] = useState<ViewId>(initial.view);
   const [mobileNav, setMobileNav] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactSummary>();
   const [selectedTask, setSelectedTask] = useState<TaskSummary>();
+  const [selectedRecordingId, setSelectedRecordingId] = useState<string | undefined>(initial.recordingId);
   const [signOutError, setSignOutError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -126,10 +132,15 @@ export function App() {
     );
   }
 
-  const navigate = (next: ViewId) => {
+  const navigate = (next: ViewId, recordingId?: string) => {
     setView(next);
+    setSelectedRecordingId(recordingId);
     setMobileNav(false);
-    window.history.replaceState(null, "", `#/${next}`);
+    window.history.replaceState(
+      null,
+      "",
+      recordingId ? `#/${next}/${encodeURIComponent(recordingId)}` : `#/${next}`
+    );
   };
 
   const title = navItems.find((item) => item.id === view)?.label ?? "Overview";
@@ -208,7 +219,10 @@ export function App() {
           {view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
           {view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} />}
           {view === "agents" && <AgentsView snapshot={snapshot} />}
-          {view === "recordings" && <RecordingsView snapshot={snapshot} />}
+          {view === "recordings" && <RecordingsView snapshot={snapshot} initialRecordingId={selectedRecordingId} onRecordingSelect={(recordingId) => {
+            setSelectedRecordingId(recordingId);
+            window.history.replaceState(null, "", `#/recordings/${encodeURIComponent(recordingId)}`);
+          }} />}
           {view === "mcp" && <McpView snapshot={snapshot} />}
           {view === "apps" && <AppsView />}
           {view === "map" && <MapDataView />}
@@ -218,7 +232,10 @@ export function App() {
         </main>
       </div>
 
-      {currentArtifact && <ArtifactDrawer artifact={currentArtifact} onClose={() => setSelectedArtifact(undefined)} />}
+      {currentArtifact && <ArtifactDrawer artifact={currentArtifact} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
+        setSelectedArtifact(undefined);
+        navigate("recordings", recordingId);
+      }} />}
       {currentTask && <TaskDrawer task={currentTask} onClose={() => setSelectedTask(undefined)} />}
     </div>
   );

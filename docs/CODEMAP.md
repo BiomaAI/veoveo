@@ -242,6 +242,7 @@ The runtime is the source of truth. The extension is transport only.
 | `admin/console/health.rs` | background MCP server health prober and cache |
 | `admin/server_proxy.rs` | generic policy-checked proxy to a hosted server's contract-defined admin API |
 | `artifact_download.rs` | authorized/audited large download proxy |
+| `recording_playback.rs` | authorized/audited recording manifest and ordered segment-byte proxy |
 | `audit.rs` | common admin authorization and operation audit helpers |
 
 `gateway.rs` remains the thin CLI/serve entrypoint.
@@ -378,8 +379,8 @@ types.
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
 | `ingest.rs` | producer authorization, journal durability, quota-bound append, restart reconciliation, and materialization |
-| `spool.rs` | segment encode/flush/fsync/freeze/recovery |
-| `catalog.rs` | per-stream identity, segment verification, and catalog publication |
+| `spool.rs` | segment encode/flush/fsync/freeze, idle completion, and recovery |
+| `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |
 | `query.rs` | governed RRD query/readback |
 | `config.rs` | validated raw gRPC spool and segment limits |
 | `bin/spooler.rs` | thin composition of internal ingest, raw cluster spool, catalog, and shutdown |
@@ -398,9 +399,11 @@ types.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query/publication types, `service.rs` owns authorized MCP behavior,
-`uris.rs` owns recording identities, and `bin/server/state.rs` composes platform store,
-spool access, subscriptions, and artifact publication.
+`contract.rs` owns query, publication, and playback manifest types. `service.rs` owns
+authorized MCP and playback behavior, `uris.rs` owns recording identities, and
+`bin/server.rs` exposes authenticated same-origin RRD bytes beside the MCP route.
+`bin/server/state.rs` composes platform store, spool access, subscriptions, and artifact
+publication.
 
 ### `servers/perception-mcp`
 
@@ -474,7 +477,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot, SSE stream proxy, mutation, download, and explicit server-admin BFF projections |
+| `api.rs` | snapshot, SSE, mutation, artifact preview/download, and recording playback BFF projections |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool-call proxy |
 | `config.rs` | validated public/gateway/resource configuration |
 
@@ -483,8 +486,10 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | File | Responsibility |
 |---|---|
 | `App.tsx` | application shell: navigation, topbar, view routing, drawer mounting |
-| `views/` | one module per operational view (overview, work, artifacts, agents, recordings, MCP, map, access, audit, cluster) |
+| `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
+| `views/` | remaining operational views (overview, work, artifacts, agents, MCP, map, access, audit, cluster) |
 | `drawers/` | artifact and task detail drawers with mutation workflows |
+| `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF artifact previews |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/map/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |

@@ -9,7 +9,11 @@ The spooler partitions files as `{dataset}/{day}/{recording}.rrd`, fsyncs live
 data, rolls segments before the artifact-plane upload ceiling, and never
 truncates an existing file. A restart creates an `.rN` sibling. On startup it
 decodes and hashes every segment, reconciles crash-safe footer-less files, and
-fails closed on corruption or a mismatch with the SurrealDB catalog.
+fails closed on corruption or a mismatch with the SurrealDB catalog. A native
+publisher becomes `ready` after the configured idle grace closes its final
+segment. The authenticated batch protocol marks the recording ready when its
+finish request has drained. A recovered row without either completion boundary
+is `interrupted`; new data resumes it as `live`.
 
 `recording-mcp` is the governed control plane. It exposes catalog, recording,
 and segment resources; prompt and completion support; resource subscriptions;
@@ -18,6 +22,17 @@ bounded temporal queries; and synchronous idempotent sealing. Sealing requires
 artifact occurrences for every segment and a JSON manifest, stages those
 occurrence identities, then changes the recording and its segments to `sealed`
 while publishing the durable outbox event in the same SurrealDB transaction.
+`started_at` is the first cataloged producer message, `ended_at` is the capture
+boundary, and `sealed_at` records later publication. These timestamps are not
+interchangeable.
+
+The recording server also owns authenticated HTTP playback routes beside its MCP
+surface. The gateway applies the same recording resource policy and audit path,
+then issues a short-lived internal assertion. The Console BFF retains the user
+session and streams the authorized segment bytes with byte-range support. The
+browser receives ordered same-origin URLs, never filesystem paths, gateway
+bearers, or object-store credentials. The Console loads the matching Rerun
+0.34.1 WASM viewer only after a recording is selected.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not
