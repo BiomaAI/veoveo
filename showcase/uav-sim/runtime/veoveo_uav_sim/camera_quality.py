@@ -15,6 +15,7 @@ class CameraFrameQuality:
     mean_luma: float
     dynamic_range: int
     non_black_fraction: float
+    operational: bool
     visible: bool
 
 
@@ -51,14 +52,15 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
         if normalized.shape[0] and normalized.shape[1]
         else 0.0
     )
-    visible = (
+    operational = (
         mean_luma >= MIN_MEAN_LUMA
-        and dynamic_range >= MIN_DYNAMIC_RANGE
         and non_black_fraction >= MIN_NON_BLACK_FRACTION
     )
+    visible = operational and dynamic_range >= MIN_DYNAMIC_RANGE
     return CameraFrameQuality(
         mean_luma=mean_luma,
         dynamic_range=dynamic_range,
         non_black_fraction=non_black_fraction,
+        operational=operational,
         visible=visible,
     )

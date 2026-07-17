@@ -112,7 +112,7 @@ def run(config: RuntimeConfig) -> None:
     vehicle_callback_prefixes: dict[str, str] = {}
     camera_sensors: dict[str, CameraSensor] = {}
     camera_frames_observed: dict[str, int] = {}
-    camera_visible_streaks: dict[str, int] = {}
+    camera_operational_streaks: dict[str, int] = {}
     camera_black_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
@@ -265,7 +265,7 @@ def run(config: RuntimeConfig) -> None:
                 annotators=["rgb"],
             )
             camera_frames_observed[vehicle_id] = 0
-            camera_visible_streaks[vehicle_id] = 0
+            camera_operational_streaks[vehicle_id] = 0
             camera_black_streaks_after_tiles[vehicle_id] = 0
             if primary_camera_path is None:
                 primary_camera_path = camera_path
@@ -464,9 +464,9 @@ def run(config: RuntimeConfig) -> None:
                         rgb = normalize_rgb_frame(pixels.numpy())
                         quality = measure_camera_frame(rgb)
                         camera_frames_observed[vehicle_id] += 1
-                        camera_visible_streaks[vehicle_id] = (
-                            camera_visible_streaks[vehicle_id] + 1
-                            if quality.visible
+                        camera_operational_streaks[vehicle_id] = (
+                            camera_operational_streaks[vehicle_id] + 1
+                            if quality.operational
                             else 0
                         )
                         tiles_ready = (
@@ -474,10 +474,10 @@ def run(config: RuntimeConfig) -> None:
                         )
                         camera_black_streaks_after_tiles[vehicle_id] = (
                             camera_black_streaks_after_tiles[vehicle_id] + 1
-                            if tiles_ready and not quality.visible
+                            if tiles_ready and not quality.operational
                             else 0
                         )
-                        if camera_visible_streaks[vehicle_id] >= 3:
+                        if camera_operational_streaks[vehicle_id] >= 3:
                             camera_was_ready.add(vehicle_id)
                             camera_lifecycle = "ready"
                         elif vehicle_id in camera_was_ready:
@@ -485,8 +485,8 @@ def run(config: RuntimeConfig) -> None:
                         else:
                             camera_lifecycle = "warming"
                         diagnostic = (
-                            "camera RGB frame does not contain visible image content"
-                            if not quality.visible
+                            "camera RGB frame is black"
+                            if not quality.operational
                             else None
                         )
                         state.update_camera(
