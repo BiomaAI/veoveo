@@ -95,6 +95,16 @@ class Px4Commander:
 
     def arm(self) -> None:
         self._command(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0)
+        deadline = time.monotonic() + 15.0
+        with self._lock:
+            while time.monotonic() < deadline:
+                self._send_gcs_heartbeat_locked_if_due()
+                message = self._connection.recv_match(blocking=True, timeout=1.0)
+                if message is not None:
+                    self._consume(message)
+                if self._armed:
+                    return
+        raise TimeoutError(f"PX4 did not report {self.vehicle_id} armed")
 
     def takeoff(self, relative_altitude_m: float) -> None:
         target_altitude = max(self._absolute_altitude_m, self._origin_height_m) + relative_altitude_m
