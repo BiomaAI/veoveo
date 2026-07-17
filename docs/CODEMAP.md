@@ -488,7 +488,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `App.tsx` | application shell: navigation, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
 | `views/` | remaining operational views (overview, work, artifacts, agents, MCP, map, access, audit, cluster) |
-| `drawers/` | artifact and task detail drawers with mutation workflows |
+| `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
+| `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF artifact previews |
 | `components/GovernedRerunViewer.tsx` | authenticated ordered RRD delivery into isolated Rerun data channels |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |

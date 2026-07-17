@@ -123,7 +123,7 @@ export function ArtifactDrawer({
     <div className="drawer-body">
       <div className="drawer-status"><StatusPill value={artifact.releaseState} /><span>{formatBytes(artifact.byteLength)}</span><span>{artifact.mediaType}</span></div>
       {actionError && <div className="action-error">{actionError}</div>}
-      {artifact.recording ? (
+      {artifact.recording && (
         <section>
           <div className="recording-artifact-callout">
             <FileStack size={22} />
@@ -134,9 +134,8 @@ export function ArtifactDrawer({
             <button className="button button-primary" onClick={() => onOpenRecording(artifact.recording!.recordingId)}>Open recording</button>
           </div>
         </section>
-      ) : (
-        <ArtifactPreview artifact={artifact} />
       )}
+      <ArtifactPreview artifact={artifact} />
       <section>
         <h3>Identity</h3>
         <button className="copy-field" onClick={() => void copyId()}><span className="mono">artifact://{artifact.id}</span>{copied ? <Check size={15} /> : <Copy size={15} />}</button>
