@@ -490,6 +490,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `views/` | remaining operational views (overview, work, artifacts, agents, MCP, map, access, audit, cluster) |
 | `drawers/` | artifact and task detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF artifact previews |
+| `components/GovernedRerunViewer.tsx` | authenticated ordered RRD delivery into isolated Rerun data channels |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/map/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |

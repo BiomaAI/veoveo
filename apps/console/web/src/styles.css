@@ -144,7 +144,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .recording-facts span { color: var(--muted); font-size: var(--text-2xs); }
 .recording-facts strong { margin-top: 2px; color: #30373b; font-size: var(--text-xs); font-weight: 620; }
 .recording-viewer { flex: 1; min-height: 560px; position: relative; overflow: hidden; background: #111315; }
-.recording-viewer > .rerun-web-viewer, .recording-viewer > .rerun-web-viewer canvas { width: 100% !important; height: 100% !important; }
+.recording-viewer > .rerun-web-viewer, .rerun-web-viewer-host, .rerun-web-viewer-host canvas { width: 100% !important; height: 100% !important; }
+.rerun-web-viewer { position: relative; }
+.recording-viewer-overlay { position: absolute; inset: 0; min-height: 0; background: rgba(17, 19, 21, 0.94); }
 .recording-viewer-state, .recording-empty-player { height: 100%; min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 28px; color: #b9c0c4; text-align: center; }
 .recording-viewer-state strong { color: #f2f4f5; font-size: var(--text-sm); }
 .recording-viewer-state span { max-width: 520px; color: #969fa4; font-size: var(--text-xs); line-height: 18px; }
