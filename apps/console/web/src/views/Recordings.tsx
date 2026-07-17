@@ -109,7 +109,7 @@ export function RecordingsView({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [selectedId]);
+  }, [selected?.byteLength, selected?.segments, selected?.state, selectedId]);
 
   const selectRecording = (recordingId: string) => {
     if (recordingId === selectedId) return;
