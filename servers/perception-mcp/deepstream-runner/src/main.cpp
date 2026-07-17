@@ -280,8 +280,8 @@ Request parse_request(const std::filesystem::path &request_path,
     fail("requested range is reversed");
   }
   request.decode_start_index = required_i64(root.get(), "decode_start_index");
-  if (request.decode_start_index > request.requested_range.start) {
-    fail("decode start is after the requested range");
+  if (request.decode_start_index > request.requested_range.end) {
+    fail("decode start is after the requested range end");
   }
   request.sampling =
       parse_sampling(required_member(root.get(), "sampling", json_type_object));
