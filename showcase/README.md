@@ -15,5 +15,7 @@ Task entry points for every showcase live in the root `Justfile`, namespaced
 `just showcase-sumo-test`, `showcase-sumo-smoke`, `showcase-sumo-up`, and
 `showcase-sumo-verify`.
 
-The UAV simulation recipes use the `showcase-uav-sim-*` namespace. Its live
-acceptance requires NVIDIA registry access and `CESIUM_ION_ACCESS_TOKEN`.
+The UAV runtime uses `just showcase-uav-sim-test` and
+`showcase-uav-sim-build`. Its Bioma-bound live proof is
+`just bioma-uav-sim-verify` and requires NVIDIA registry access plus
+`CESIUM_ION_ACCESS_TOKEN`.

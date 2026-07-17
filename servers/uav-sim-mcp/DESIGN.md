@@ -48,18 +48,22 @@ georeference used by the stage. View MCP's direct Google source is an
 independent capability and cannot satisfy UAV simulation acceptance.
 
 The Isaac container receives `CESIUM_ION_ACCESS_TOKEN` from a Kubernetes
-Secret key named `cesium-ion-access-token`. The value is never accepted as a
-tool argument, stored in a ConfigMap, written into a USD layer, returned by a
-resource, or included in a log field.
+Secret dedicated to the UAV runtime, under the key
+`cesium-ion-access-token`. The value is never accepted as a tool argument,
+stored in a ConfigMap, returned by a resource, or included in a log field.
+Cesium requires the token on its tileset schema. The adapter authors it only
+into the anonymous session layer, clears the attribute during shutdown, and
+never exports that layer.
 
 ## Spatial frames
 
-Every session names one durable `frames://frame/{frame_id}` origin. Startup
-materializes that immutable definition once and configures the Cesium
-georeference plus Pegasus world origin from it. The adapter performs high-rate
-ENU/NED conversion locally from the materialized definition and attaches the
-frame URI to recorded transforms. It does not make MCP calls in the physics
-loop.
+Every session names one durable `frames://frame/{frame_id}` origin. Installation
+bootstrap creates that definition through Frames MCP before the simulator
+becomes ready. The UAV chart supplies the same typed origin to the Cesium
+georeference and Pegasus world. Live acceptance reads the durable resource and
+requires it to agree with simulator state. The adapter performs high-rate
+ENU/NED conversion locally and attaches the frame URI to recorded transforms.
+It does not make MCP calls in the physics loop.
 
 The canonical chain is:
 
@@ -163,8 +167,11 @@ co-located recording adapter converts them into typed Rerun entities under:
 
 It pushes to the private Recording Hub endpoint using the repository-pinned
 Rerun SDK. Camera output is H.264 Annex B with simulation timestamps. The
-governed recording identity becomes available through Recording MCP and is the
-input to Perception MCP. Native Recording Hub ports are not exposed publicly.
+adapter reports only its private application and recording keys. The UAV MCP
+resolves those keys through the platform recording catalog and publishes only
+the canonical UUIDv7 `recording://recordings/{recording_id}` identity. That URI
+becomes the input to Perception MCP. Native Recording Hub ports are not exposed
+publicly.
 
 ## Kubernetes deployment
 
@@ -178,6 +185,11 @@ replace View or Perception. Bioma runs Isaac, View, and Perception concurrently,
 and Kubernetes places every declared request on available cluster capacity.
 Optional affinity and tolerations select capable nodes without imposing an
 exclusive node topology.
+
+GPU discovery remains a cluster concern. Fielded installations provide the
+standard resource and runtime class with the pinned NVIDIA GPU Operator;
+development k3d provides the same contract through its device-plugin manifest.
+The UAV chart does not install or own node-level drivers.
 
 Simulator, MAVLink, ROS 2, and RTSP ports use private Services or pod-local
 transport. Only the MCP HTTP endpoint is registered with the gateway. WebRTC is
@@ -193,8 +205,9 @@ uses the Isaac image's non-root user, and accepts only Secret references for
 credentials.
 
 NetworkPolicy permits Cesium ion and required NVIDIA asset egress, internal
-SurrealDB and artifact/recording traffic, the gateway-to-MCP path, and declared
-autonomy data-plane peers. The MCP server never proxies arbitrary URLs.
+SurrealDB and recording traffic, and the gateway-to-MCP path. A future autonomy
+data-plane Service must declare its peers explicitly. The MCP server never
+proxies arbitrary URLs.
 
 ## Acceptance
 

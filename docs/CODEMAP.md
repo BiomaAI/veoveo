@@ -307,6 +307,15 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, and recording references |
 
+### UAV Simulation Integration
+
+| Path | Responsibility |
+|---|---|
+| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 image, Cesium/Pegasus compatibility, PX4 process lifecycle, pod-private adapter, and Rerun publication |
+| `showcase/uav-sim/deploy/helm/` | interactive Isaac-plus-MCP Deployment, Isaac batch Job, Secret references, GPU requests, ephemeral tile storage, and network policy |
+| `examples/bioma/uav-sim-values.yaml` | Bioma session, Frames origin, public gateway origin, and recording tenant binding |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU workload acceptance |
+
 ### Geospatial Domains
 
 The geospatial hard cut has three canonical servers:

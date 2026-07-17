@@ -8,7 +8,7 @@ installed.
 
 The optional Bioma profile uses a second cluster and explicit Kubernetes context.
 See [`examples/bioma/README.md`](../../../examples/bioma/README.md) for the
-concurrent SUMO and public-tunnel proof.
+concurrent Isaac Sim, View, Perception, and public-tunnel proof.
 
 The development ingress has one canonical origin: `http://localhost:8780`.
 Loopback HTTP is deliberate for the disposable local cluster. Fielded profiles
@@ -48,6 +48,11 @@ these versions is changed.
 The node image combines K3s with the NVIDIA Container Toolkit. The cluster passes
 the host GPU through to its server node and installs NVIDIA's Kubernetes device
 plugin with `FAIL_ON_INIT_ERROR=true`. GPU workloads do not have a CPU fallback.
+The Bioma node profile publishes three time-sliced allocations from that device
+because Isaac Sim, View, and Perception run at the same time. Each workload still
+requests one ordinary `nvidia.com/gpu` resource. Time-slicing provides
+schedulability, not memory or fault isolation; a fielded cluster may instead
+provide three physical GPUs or an operator-selected partitioning policy.
 
 ```bash
 nvidia-smi

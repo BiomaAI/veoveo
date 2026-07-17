@@ -127,6 +127,20 @@ Large batch results use the artifact plane. The task obtains a bounded write
 capability, publishes the result, and returns typed metadata. It does not expose
 object-store paths or unaudited content URLs.
 
+## Installation Bootstrap
+
+`frames-mcp serve --bootstrap-catalog <path>` accepts the shared typed bootstrap
+envelope at startup. The document must target the `frames` server and contains a
+bounded list of complete frame definitions. Bootstrap is create-only and
+idempotent: an absent frame is inserted, while an existing frame is preserved.
+It never updates a durable origin implicitly.
+
+`frames-mcp bootstrap-validate <path>` checks the same envelope without opening
+the database. Unknown fields, duplicate identifiers, invalid WGS84 coordinates,
+unsupported frame kinds, and a document targeting another server fail closed.
+Helm mounts the envelope through the generic `serverBootstrap` contract; the
+chart does not interpret the domain payload.
+
 ## Authentication And Isolation
 
 The hosted endpoint requires a gateway-signed internal identity and a forwarded
@@ -167,6 +181,7 @@ servers/frames-mcp/
       server.rs
       server/
         app_state.rs
+        bootstrap.rs
         config.rs
         host.rs
         internal_auth.rs
