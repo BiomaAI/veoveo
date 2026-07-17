@@ -50,6 +50,8 @@ def run(config: RuntimeConfig) -> None:
     import omni.timeline
     import omni.usd
     from isaacsim.core.api import World
+    from isaacsim.core.api.materials import PhysicsMaterial
+    from isaacsim.core.api.objects import GroundPlane
     from isaacsim.sensors.experimental.rtx import CameraSensor, RtxCamera
     from omni.kit.viewport.utility import get_active_viewport
     from pxr import Usd
@@ -116,6 +118,22 @@ def run(config: RuntimeConfig) -> None:
             physics_dt=1.0 / config.physics_hz,
             rendering_dt=1.0 / config.rendering_hz,
             stage_units_in_meters=1.0,
+        )
+        launch_surface_material = PhysicsMaterial(
+            prim_path="/World/Physics_Materials/uav_launch_surface",
+            static_friction=1.0,
+            dynamic_friction=0.8,
+            restitution=0.0,
+        )
+        world.scene.add(
+            GroundPlane(
+                prim_path="/World/uav_launch_surface",
+                name="uav_launch_surface",
+                size=40.0,
+                z_position=0.0,
+                visible=False,
+                physics_material=launch_surface_material,
+            )
         )
         pegasus = PegasusInterface()
         pegasus._world = world
