@@ -89,7 +89,12 @@ impl McpSessionPool {
             self.http.clone(),
             StreamableHttpClientTransportConfig::with_uri(config.oauth_resource().to_string())
                 .auth_header(access_token.to_owned())
-                .reinit_on_expired_session(false),
+                // The gateway keeps MCP sessions in memory; a gateway restart
+                // discards them all while this pool still holds the old
+                // session ID. Let rmcp redo the handshake and replay the
+                // failed request instead of pinning HTTP 404 until the
+                // access token rotates.
+                .reinit_on_expired_session(true),
         );
         let session: McpSession = Arc::new(
             ConsoleHostHandler
@@ -105,6 +110,21 @@ impl McpSessionPool {
             },
         );
         Ok(session)
+    }
+
+    /// Drop `stale` from the pool (if it is still the cached entry for this
+    /// token) so the next `session` call builds a fresh one. Used after a
+    /// transport-level failure that outlived rmcp's own single-attempt
+    /// expired-session recovery, e.g. a session whose worker task has died.
+    pub(crate) async fn invalidate(&self, access_token: &str, stale: &McpSession) {
+        let key = fingerprint(access_token);
+        let mut sessions = self.sessions.lock().await;
+        if let Some(cached) = sessions.get(&key)
+            && Arc::ptr_eq(&cached.session, stale)
+        {
+            let cached = sessions.remove(&key).expect("entry observed under lock");
+            cached.session.cancellation_token().cancel();
+        }
     }
 }
 

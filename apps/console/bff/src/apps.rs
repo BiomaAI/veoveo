@@ -61,46 +61,78 @@ fn app_uri_server(uri: &str) -> Option<&str> {
     (!server.is_empty() && !page.is_empty()).then_some(server)
 }
 
-async fn apps_session(
+/// Transport-level failures mean the pooled session's connection is gone
+/// (rmcp's single-attempt expired-session recovery has already run inside
+/// the transport); a server-side `McpError` means the session is healthy
+/// and retrying would re-execute work.
+fn is_transport_error(error: &rmcp::ServiceError) -> bool {
+    matches!(
+        error,
+        rmcp::ServiceError::TransportSend(_) | rmcp::ServiceError::TransportClosed
+    )
+}
+
+/// Run `operation` against the pooled gateway MCP session, rebuilding the
+/// session and retrying once when the transport is dead (e.g. the gateway
+/// restarted and discarded every session). Returns the session actually
+/// used so callers can issue follow-up calls without re-entering the pool.
+async fn with_apps_session<T, F>(
     state: &AppState,
     request_headers: &HeaderMap,
-) -> Result<McpSession, Response> {
-    let session = api::upstream_session_for_apps(state, request_headers).await?;
-    state
-        .mcp
-        .session(
-            &state.config,
-            &session.session.access_token,
-            session.session.access_expires_at,
-        )
-        .await
-        .map_err(|error| {
-            tracing::error!(%error, "console apps MCP session failed");
-            StatusCode::BAD_GATEWAY.into_response()
-        })
+    operation: impl Fn(McpSession) -> F,
+) -> Result<(McpSession, Result<T, rmcp::ServiceError>), Response>
+where
+    F: Future<Output = Result<T, rmcp::ServiceError>>,
+{
+    let upstream = api::upstream_session_for_apps(state, request_headers).await?;
+    let mut retried = false;
+    loop {
+        let mcp = state
+            .mcp
+            .session(
+                &state.config,
+                &upstream.session.access_token,
+                upstream.session.access_expires_at,
+            )
+            .await
+            .map_err(|error| {
+                tracing::error!(%error, "console apps MCP session failed");
+                StatusCode::BAD_GATEWAY.into_response()
+            })?;
+        match operation(mcp.clone()).await {
+            Err(error) if is_transport_error(&error) && !retried => {
+                retried = true;
+                tracing::warn!(
+                    %error,
+                    "console apps MCP transport failed; retrying on a fresh session"
+                );
+                state
+                    .mcp
+                    .invalidate(&upstream.session.access_token, &mcp)
+                    .await;
+            }
+            result => return Ok((mcp, result)),
+        }
+    }
 }
 
 pub(crate) async fn list_apps(
     State(state): State<AppState>,
     request_headers: HeaderMap,
 ) -> Response {
-    let mcp = match apps_session(&state, &request_headers).await {
-        Ok(mcp) => mcp,
+    let listing = with_apps_session(&state, &request_headers, |mcp| async move {
+        let resources = mcp.list_all_resources().await?;
+        let tools = mcp.list_all_tools().await?;
+        Ok((resources, tools))
+    })
+    .await;
+    let (resources, tools) = match listing {
+        Ok((_, Ok(listing))) => listing,
+        Ok((_, Err(error))) => {
+            tracing::error!(%error, "console apps listing failed");
+            return StatusCode::BAD_GATEWAY.into_response();
+        }
         Err(response) => return response,
-    };
-    let resources = match mcp.list_all_resources().await {
-        Ok(resources) => resources,
-        Err(error) => {
-            tracing::error!(%error, "console apps resource listing failed");
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
-    };
-    let tools = match mcp.list_all_tools().await {
-        Ok(tools) => tools,
-        Err(error) => {
-            tracing::error!(%error, "console apps tool listing failed");
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
     };
     let mut apps = Vec::new();
     for resource in resources
@@ -153,21 +185,19 @@ pub(crate) async fn app_frame(
     if app_uri_server(&query.uri).is_none() {
         return StatusCode::BAD_REQUEST.into_response();
     }
-    let mcp = match apps_session(&state, &request_headers).await {
-        Ok(mcp) => mcp,
-        Err(response) => return response,
-    };
-    let result = match mcp
-        .read_resource(rmcp::model::ReadResourceRequestParams::new(
-            query.uri.as_str(),
-        ))
-        .await
-    {
-        Ok(result) => result,
-        Err(error) => {
+    let uri = query.uri.as_str();
+    let read = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
+            .await
+    })
+    .await;
+    let result = match read {
+        Ok((_, Ok(result))) => result,
+        Ok((_, Err(error))) => {
             tracing::warn!(%error, uri = %query.uri, "console app frame read failed");
             return StatusCode::NOT_FOUND.into_response();
         }
+        Err(response) => return response,
     };
     let Some(html) = result.contents.iter().find_map(|contents| match contents {
         rmcp::model::ResourceContents::TextResourceContents {
@@ -246,17 +276,21 @@ pub(crate) async fn call_app_tool(
             "tool arguments exceed the cap",
         );
     }
-    let mcp = match apps_session(&state, &request_headers).await {
-        Ok(mcp) => mcp,
-        Err(response) => return response,
-    };
     let gateway_tool = format!("{}__{}", request.server, request.tool);
-    let tools = match mcp.list_all_tools().await {
-        Ok(tools) => tools,
-        Err(error) => {
+    let listing = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.list_all_tools().await
+    })
+    .await;
+    // The tool call below deliberately stays single-shot on the session the
+    // listing just proved healthy: tool calls are not idempotent, so only
+    // rmcp's own in-transport replay may retry them.
+    let (mcp, tools) = match listing {
+        Ok((mcp, Ok(tools))) => (mcp, tools),
+        Ok((_, Err(error))) => {
             tracing::error!(%error, "console apps tool listing failed");
             return StatusCode::BAD_GATEWAY.into_response();
         }
+        Err(response) => return response,
     };
     let Some(tool) = tools.iter().find(|tool| tool.name.as_ref() == gateway_tool) else {
         return call_error(StatusCode::NOT_FOUND, "unknown tool for this app");
@@ -301,6 +335,22 @@ pub(crate) async fn call_app_tool(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_transport_failures_are_safe_to_retry() {
+        assert!(is_transport_error(&rmcp::ServiceError::TransportClosed));
+        assert!(is_transport_error(&rmcp::ServiceError::TransportSend(
+            rmcp::transport::DynamicTransportError::from_parts(
+                "test",
+                std::any::TypeId::of::<()>(),
+                Box::new(std::io::Error::other("connection lost")),
+            ),
+        )));
+        assert!(!is_transport_error(&rmcp::ServiceError::UnexpectedResponse));
+        assert!(!is_transport_error(&rmcp::ServiceError::Cancelled {
+            reason: Some("caller cancelled the operation".to_owned()),
+        }));
+    }
 
     #[test]
     fn app_uri_ownership_is_the_first_path_segment() {
