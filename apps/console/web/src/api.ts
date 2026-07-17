@@ -198,7 +198,8 @@ export async function loadRecordingPlayback(
 }
 
 export function recordingSegmentUrl(recordingId: string, segmentId: string): string {
-  return `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}`;
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/segments/${encodeURIComponent(segmentId)}`;
+  return new URL(path, window.location.origin).toString();
 }
 
 export async function mapAdminQuery<T>(path: string, signal?: AbortSignal): Promise<T> {

@@ -224,7 +224,7 @@ export function RecordingsView({
             {manifest && (
               <footer className="recording-player-footer">
                 <Play size={14} />
-                <span>{manifest.segments.length} authorized RRD segment{manifest.segments.length === 1 ? "" : "s"} loaded in ordinal order.</span>
+                <span>{manifest.segments.length} authorized RRD segment{manifest.segments.length === 1 ? "" : "s"} supplied in ordinal order.</span>
               </footer>
             )}
           </>
