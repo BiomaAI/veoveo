@@ -286,6 +286,7 @@
         "classification",
         "labels",
         "route",
+        "idleTimeoutSeconds",
         "persistence",
         "hubImage",
         "mcpImage",
@@ -314,6 +315,11 @@
         "route": {
           "type": "string",
           "pattern": "^[a-z0-9_]+="
+        },
+        "idleTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
         },
         "persistence": {
           "$ref": "#/definitions/persistence"

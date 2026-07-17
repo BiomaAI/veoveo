@@ -53,7 +53,7 @@ pub struct RecordingSeal {
     pub task_id: Option<TaskId>,
     pub manifest_artifact_id: ArtifactId,
     pub segments: Vec<SegmentSealBinding>,
-    pub ended_at: DateTime<Utc>,
+    pub sealed_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
@@ -71,7 +71,9 @@ struct RecordingContent {
     seal_task: Option<RecordId>,
     failure_reason: Option<String>,
     started_at: DateTime<Utc>,
+    last_data_at: DateTime<Utc>,
     ended_at: Option<DateTime<Utc>>,
+    sealed_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     revision: i64,
@@ -128,7 +130,7 @@ impl PlatformStore {
             dataset: draft.dataset.clone(),
             application_id: draft.application_id.clone(),
             recording_key: draft.recording_key.clone(),
-            state: RecordingState::Open,
+            state: RecordingState::Live,
             classification: draft.classification.clone(),
             labels: draft.labels.clone(),
             metadata: OpenObject::new(draft.metadata.clone()),
@@ -136,7 +138,9 @@ impl PlatformStore {
             seal_task: None,
             failure_reason: None,
             started_at: draft.started_at,
+            last_data_at: draft.started_at,
             ended_at: None,
+            sealed_at: None,
             created_at: now,
             updated_at: now,
             revision: 0,
@@ -145,7 +149,7 @@ impl PlatformStore {
             &draft.identity,
             id,
             "recording.created",
-            RecordingState::Open,
+            RecordingState::Live,
         );
         let result = self
             .db
@@ -239,11 +243,19 @@ impl PlatformStore {
                 reason: "must be non-negative",
             });
         }
-        let recording = self
+        let mut recording = self
             .recording(draft.identity.tenant_id, draft.recording_id)
             .await?
             .ok_or_else(|| StoreError::RecordingNotFound(draft.recording_id.to_string()))?;
-        if recording.state != RecordingState::Open {
+        if matches!(
+            recording.state,
+            RecordingState::Ready | RecordingState::Interrupted
+        ) {
+            recording = self
+                .resume_recording(&draft.identity, draft.recording_id)
+                .await?;
+        }
+        if recording.state != RecordingState::Live {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: draft.recording_id.to_string(),
                 state: recording_state_name(recording.state).to_owned(),
@@ -374,10 +386,118 @@ impl PlatformStore {
             .bind(("outbox", outbox))
             .await?
             .check()?;
-        self.segment(identity.tenant_id, segment_id)
+        let segment = self.segment(identity.tenant_id, segment_id).await?.ok_or(
+            StoreError::MissingRecord {
+                operation: "segment freeze readback",
+            },
+        )?;
+        let recording_id = recording_id_from_record(&segment.recording)?;
+        let activity_at = end_time.unwrap_or_else(Utc::now);
+        self.db
+            .query("UPDATE ONLY $recording SET last_data_at = $activity_at, updated_at = time::now(), revision += 1 WHERE tenant = $tenant AND state = 'live' RETURN NONE;")
+            .bind(("recording", recording_id.record_id()))
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind(("activity_at", activity_at))
+            .await?
+            .check()?;
+        Ok(segment)
+    }
+
+    pub async fn finish_recording(
+        &self,
+        identity: &PlatformIdentity,
+        recording_id: RecordingId,
+        ended_at: DateTime<Utc>,
+    ) -> Result<RecordingRecord, StoreError> {
+        let existing = self
+            .recording(identity.tenant_id, recording_id)
+            .await?
+            .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
+        if existing.state == RecordingState::Ready {
+            return Ok(existing);
+        }
+        if existing.state != RecordingState::Live {
+            return Err(StoreError::RecordingStateConflict {
+                recording_id: recording_id.to_string(),
+                state: recording_state_name(existing.state).to_owned(),
+                target: "ready",
+            });
+        }
+        let segments = self
+            .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENT_LIMIT)
+            .await?;
+        if segments.is_empty()
+            || segments
+                .iter()
+                .any(|segment| segment.state != SegmentState::Frozen)
+        {
+            return Err(StoreError::RecordingStateConflict {
+                recording_id: recording_id.to_string(),
+                state: "contains non-frozen segments".to_owned(),
+                target: "ready",
+            });
+        }
+        let ended_at = ended_at.max(existing.last_data_at);
+        let outbox = recording_event(
+            identity,
+            recording_id,
+            "recording.ready",
+            RecordingState::Ready,
+        );
+        self.db
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'live' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'ready', ended_at = $ended_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("recording", recording_id.record_id()))
+            .bind(("revision", existing.revision))
+            .bind(("ended_at", ended_at))
+            .bind(("outbox", outbox))
+            .await?
+            .check()?;
+        self.recording(identity.tenant_id, recording_id)
             .await?
             .ok_or(StoreError::MissingRecord {
-                operation: "segment freeze readback",
+                operation: "finish recording readback",
+            })
+    }
+
+    async fn resume_recording(
+        &self,
+        identity: &PlatformIdentity,
+        recording_id: RecordingId,
+    ) -> Result<RecordingRecord, StoreError> {
+        let existing = self
+            .recording(identity.tenant_id, recording_id)
+            .await?
+            .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
+        if existing.state == RecordingState::Live {
+            return Ok(existing);
+        }
+        if !matches!(
+            existing.state,
+            RecordingState::Ready | RecordingState::Interrupted
+        ) {
+            return Err(StoreError::RecordingStateConflict {
+                recording_id: recording_id.to_string(),
+                state: recording_state_name(existing.state).to_owned(),
+                target: "live",
+            });
+        }
+        let outbox = recording_event(
+            identity,
+            recording_id,
+            "recording.resumed",
+            RecordingState::Live,
+        );
+        self.db
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'live', ended_at = NONE, sealed_at = NONE, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("recording", recording_id.record_id()))
+            .bind(("revision", existing.revision))
+            .bind(("outbox", outbox))
+            .await?
+            .check()?;
+        self.recording(identity.tenant_id, recording_id)
+            .await?
+            .ok_or(StoreError::MissingRecord {
+                operation: "resume recording readback",
             })
     }
 
@@ -452,7 +572,10 @@ impl PlatformStore {
         {
             return Ok(existing);
         }
-        if existing.state != RecordingState::Open {
+        if !matches!(
+            existing.state,
+            RecordingState::Ready | RecordingState::Interrupted
+        ) {
             return Err(StoreError::RecordingStateConflict {
                 recording_id: recording_id.to_string(),
                 state: recording_state_name(existing.state).to_owned(),
@@ -481,7 +604,7 @@ impl PlatformStore {
         );
         self
             .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'open' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealing', seal_task = $task, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealing', seal_task = $task, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("task", task_id.map(TaskId::record_id)))
@@ -556,7 +679,7 @@ impl PlatformStore {
                 " UPDATE ONLY $segment_{index} SET state = 'sealed', artifact = $artifact_{index}, updated_at = time::now(), revision += 1 RETURN NONE;"
             ));
         }
-        sql.push_str(" UPDATE ONLY $recording SET state = 'sealed', manifest_artifact = $manifest, ended_at = $ended_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;");
+        sql.push_str(" UPDATE ONLY $recording SET state = 'sealed', manifest_artifact = $manifest, sealed_at = $sealed_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;");
         let outbox = recording_event(
             &seal.identity,
             seal.recording_id,
@@ -569,7 +692,7 @@ impl PlatformStore {
             .bind(("recording", seal.recording_id.record_id()))
             .bind(("revision", existing.revision))
             .bind(("manifest", seal.manifest_artifact_id.record_id()))
-            .bind(("ended_at", seal.ended_at))
+            .bind(("sealed_at", seal.sealed_at))
             .bind(("outbox", outbox));
         for (index, binding) in seal.segments.iter().enumerate() {
             query = query
@@ -779,9 +902,11 @@ fn validate_name(field: &'static str, value: &str, max_bytes: usize) -> Result<(
 
 fn recording_state_name(state: RecordingState) -> &'static str {
     match state {
-        RecordingState::Open => "open",
+        RecordingState::Live => "live",
+        RecordingState::Ready => "ready",
         RecordingState::Sealing => "sealing",
         RecordingState::Sealed => "sealed",
+        RecordingState::Interrupted => "interrupted",
         RecordingState::Failed => "failed",
     }
 }

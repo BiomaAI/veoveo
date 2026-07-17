@@ -272,9 +272,11 @@ string_enum! {
 
 string_enum! {
     pub enum RecordingState {
-        Open => "open",
+        Live => "live",
+        Ready => "ready",
         Sealing => "sealing",
         Sealed => "sealed",
+        Interrupted => "interrupted",
         Failed => "failed",
     }
 }
@@ -1069,7 +1071,9 @@ pub struct RecordingRecord {
     pub seal_task: Option<RecordId>,
     pub failure_reason: Option<String>,
     pub started_at: DateTime<Utc>,
+    pub last_data_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
+    pub sealed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub revision: i64,

@@ -50,6 +50,9 @@ struct Args {
     segment_max_bytes: u64,
     #[arg(long, default_value_t = 3600)]
     segment_max_age_s: u64,
+    /// Finish and expose a recording after this many seconds without data.
+    #[arg(long, default_value_t = 15)]
+    recording_idle_timeout_s: u64,
     #[arg(long, default_value_t = 250)]
     flush_interval_ms: u64,
     /// Fsync live segments on every scheduled flush.
@@ -162,6 +165,7 @@ fn main() -> Result<()> {
         datasets,
         segment_max_bytes: args.segment_max_bytes,
         segment_max_age_s: args.segment_max_age_s,
+        recording_idle_timeout_s: args.recording_idle_timeout_s,
         flush_interval_ms: args.flush_interval_ms,
         fsync_on_flush: args.fsync_on_flush,
         live_queue_limit_bytes: args.live_queue_limit_bytes,

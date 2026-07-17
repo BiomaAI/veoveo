@@ -222,6 +222,13 @@ impl RecordingIngestService {
             .store
             .finish_recording_ingest_stream(identity.tenant_id, stream_id)
             .await?;
+        self.store
+            .finish_recording(
+                &identity,
+                typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?,
+                stream.finished_at.unwrap_or_else(chrono::Utc::now),
+            )
+            .await?;
         self.stream_response(&stream)
     }
 
