@@ -3,18 +3,18 @@ architecture:
   id: VV-MODEL-001
   title: Veoveo UAF 1.3 / SysML 1.6 Reference Architecture
   version: 0.1.0
-  revision_date: 2026-07-14
+  revision_date: 2026-07-17
   handling: reference_baseline_no_client_data
   source_repository: veoveo
-  source_commit: b16cd92436980fb82e01d6e65ff0378d537f5412
+  source_commit: f19c1b2d68c1bf4f6ad133712746c5e377bb4f3a
 
 scope:
-  rust_workspace_packages: 28
-  gateway_server_identities: 14
-  software_resources: 50
-  interfaces: 33
+  rust_workspace_packages: 32
+  gateway_server_identities: 15
+  software_resources: 56
+  interfaces: 38
   requirements: 18
-  actual_resource_configurations: 4
+  actual_resource_configurations: 3
   includes:
     - first_party_buildable_components
     - canonical_hosted_mcp_servers

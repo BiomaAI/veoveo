@@ -135,5 +135,5 @@
 <text x="110" y="1125" class="small inverse" text-anchor="start">Provider invariant: a late signed webhook may reconcile provider state and billing, but it cannot replace a locally cancelled task result or create outputs.</text>
 <rect x="28" y="1145" width="1844" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1166" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1870" y="1166" class="tiny" text-anchor="end">Revision 2026-07-14 | VV-VIEW-10</text>
+<text x="1870" y="1166" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-10</text>
 </svg>

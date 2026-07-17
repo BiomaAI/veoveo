@@ -19,8 +19,8 @@ CATALOGS = ARCH / "catalogs"
 DIAGRAMS = ARCH / "diagrams"
 MODEL = ARCH / "model"
 VERSION = "0.1.0"
-REVISION_DATE = "2026-07-14"
-SOURCE_COMMIT = "b16cd92436980fb82e01d6e65ff0378d537f5412"
+REVISION_DATE = "2026-07-17"
+SOURCE_COMMIT = "f19c1b2d68c1bf4f6ad133712746c5e377bb4f3a"
 
 
 def read_csv(name: str) -> list[dict[str, str]]:
@@ -173,7 +173,7 @@ SERVICES = [
     (
         "VV-SVC-005",
         "Recording durability service",
-        "Accepts world streams and maintains crash-decodable governed recordings.",
+        "Authenticates world streams and maintains crash-decodable governed recordings.",
     ),
     (
         "VV-SVC-006",
@@ -524,9 +524,9 @@ def diagram_context() -> None:
         600,
         390,
         180,
-        "VV-CMP-016..027",
+        "VV-CMP-016..027/049/050/054",
         "Hosted domain servers",
-        "Artifact, frames, DuckDB, media, map, optimization, perception, recording, timeseries, datasheet, charts, rerun.",
+        "Artifact, frames, analytics, media, map, perception, recording, time, view, UAV simulation, and other governed domains.",
         fill="#eee5d8",
         body_width=40,
     )
@@ -556,7 +556,12 @@ def diagram_context() -> None:
     actors = [
         (35, 180, "Operator / architect", "Browser administration and formal review"),
         (35, 430, "MCP client / agent", "Profile-scoped tools, resources, prompts, tasks"),
-        (35, 715, "Sensor / simulator", "Private push of Rerun world streams"),
+        (
+            35,
+            715,
+            "Sensor + recording forwarder",
+            "Producer-loopback Rerun and OAuth-authenticated gateway upload",
+        ),
         (1415, 180, "Enterprise IdP", "OIDC identity, claims, keys"),
         (1415, 430, "Media provider", "Submission API and signed terminal webhook"),
         (1415, 715, "SIEM / operations", "Approved telemetry and audit evidence"),
@@ -576,7 +581,7 @@ def diagram_context() -> None:
         )
     svg.path("M 285 245 L 560 245 L 560 250 L 610 250")
     svg.path("M 285 495 L 350 495 L 350 447 L 390 447")
-    svg.path("M 285 780 L 335 780 L 335 690 L 920 690", cls="edge-muted")
+    svg.path("M 285 780 L 335 780 L 335 447 L 390 447", cls="edge-muted")
     svg.path("M 1415 245 L 1160 245 L 1160 415 L 780 415")
     svg.path("M 1415 495 L 1360 495 L 1360 690 L 780 690")
     svg.path("M 1415 780 L 1360 780 L 1360 720 L 1310 720", cls="edge-muted")
@@ -585,6 +590,7 @@ def diagram_context() -> None:
     svg.line(585, 530, 585, 600)
     svg.line(1115, 530, 1115, 600)
     svg.line(780, 690, 920, 690)
+    svg.path("M 780 447 L 850 447 L 850 690 L 920 690")
     svg.line(845, 830, 585, 780, cls="edge-muted")
     svg.save("01-enterprise-context.svg")
 
@@ -745,10 +751,10 @@ def diagram_services() -> None:
             )
         y += h + 22
     mappings = [
-        ("VV-SVC-001/002", "VV-CMP-001, 011, 041"),
+        ("VV-SVC-001/002", "VV-CMP-001, 011, 041, 052"),
         ("VV-SVC-003", "VV-CMP-008, 009, 012, 038"),
-        ("VV-SVC-004/005", "VV-CMP-004, 005, 014-016, 023, 039, 047"),
-        ("VV-SVC-006/011/012", "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050"),
+        ("VV-SVC-004/005", "VV-CMP-001, 004, 005, 014-016, 023, 039, 047, 051, 053"),
+        ("VV-SVC-006/011/012", "VV-CMP-017-022, 024-026, 031, 032, 044-046, 049, 050, 054-056"),
         ("VV-SVC-007/008/009/010", "VV-CMP-002, 003, 006, 007, 033-037, 040, 042, 048"),
     ]
     svg.text(42, 1080, "Principal realization allocations", cls="label")
@@ -775,26 +781,26 @@ def diagram_resource_structure() -> None:
         ("User and control surfaces", ["VV-CMP-001", "VV-CMP-002", "VV-CMP-003"], "#d9ebe7", 4),
         (
             "Core platform libraries and services",
-            [f"VV-CMP-{i:03d}" for i in range(4, 16)],
+            [f"VV-CMP-{i:03d}" for i in range(4, 16)] + ["VV-CMP-051", "VV-CMP-052", "VV-CMP-053"],
             "#deebf2",
-            4,
+            5,
         ),
         (
             "Hosted MCP domains",
-            [f"VV-CMP-{i:03d}" for i in range(16, 28)] + ["VV-CMP-049", "VV-CMP-050"],
+            [f"VV-CMP-{i:03d}" for i in range(16, 28)] + ["VV-CMP-049", "VV-CMP-050", "VV-CMP-054"],
             "#eee5d8",
             4,
         ),
         (
             "Showcase and internal executors",
-            [f"VV-CMP-{i:03d}" for i in range(28, 33)],
+            [f"VV-CMP-{i:03d}" for i in range(28, 33)] + ["VV-CMP-055"],
             "#e7e1ef",
-            5,
+            6,
         ),
         ("Verification and deployment", [f"VV-CMP-{i:03d}" for i in range(33, 38)], "#e9e7db", 5),
         (
             "External platform and execution resources",
-            [f"VV-CMP-{i:03d}" for i in range(38, 49)],
+            [f"VV-CMP-{i:03d}" for i in range(38, 49)] + ["VV-CMP-056"],
             "#f0dfdc",
             4,
         ),
@@ -846,7 +852,7 @@ def diagram_connectivity() -> None:
             ("EXT-2", "MCP / OAuth client"),
             ("VV-CMP-041", "Enterprise IdP"),
             ("VV-CMP-043", "Media provider"),
-            ("EXT-5", "Sensor / simulator"),
+            ("EXT-5 / VV-CMP-051", "Sensor + recording forwarder"),
             ("EXT-6", "SIEM / telemetry"),
         ]
     ):
@@ -912,6 +918,7 @@ def diagram_connectivity() -> None:
         ("VV-CMP-013/027", "Rerun bridge"),
         ("VV-CMP-049", "Time"),
         ("VV-CMP-050", "View"),
+        ("VV-CMP-054", "UAV Simulation"),
     ]
     for index, (ident, title) in enumerate(hosted):
         col, row = index % 4, index // 4
@@ -944,7 +951,7 @@ def diagram_connectivity() -> None:
         135,
         "VV-CMP-005",
         "Recording Hub",
-        "Private Rerun ingest and RRD spool.",
+        "Authorized batch journal and immutable RRD materialization.",
         fill="#eee5d8",
         body_width=26,
     )
@@ -969,6 +976,7 @@ def diagram_connectivity() -> None:
         ("VV-CMP-045", "DuckDB + Spatial", "Owner analytical workspaces"),
         ("VV-CMP-046", "Map toolchain", "Routing and acquisition"),
         ("VV-CMP-044", "DeepStream / TensorRT", "Local GPU inference"),
+        ("VV-CMP-056", "UAV simulator stack", "Isaac, Cesium, Pegasus, and PX4"),
         ("VV-CMP-042", "OTel collector", "Approved operational signals"),
     ]
     for index, (ident, title, body) in enumerate(resources):
@@ -989,11 +997,12 @@ def diagram_connectivity() -> None:
     svg.path("M 268 375 L 360 730")
     svg.path("M 268 520 L 360 730")
     svg.path("M 268 665 L 705 392")
-    svg.path("M 268 810 L 975 855", cls="edge-muted")
+    svg.path("M 268 810 L 360 730", cls="edge-muted")
     svg.path("M 268 955 L 1590 945", cls="edge-muted")
     svg.line(485, 310, 485, 390)
     svg.line(485, 540, 485, 650)
     svg.path("M 610 730 L 705 500")
+    svg.path("M 610 730 L 975 855")
     svg.path("M 955 855 L 1318 257")
     svg.path("M 955 855 L 1585 257")
     svg.path("M 1098 855 L 1318 477")
@@ -1134,7 +1143,7 @@ def diagram_security() -> None:
         "OAuth client",
         "Signed provider",
         "Link bearer",
-        "World producer",
+        "Recording producer",
     ]
     for i, name in enumerate(external):
         svg.card(
@@ -1208,7 +1217,7 @@ def diagram_security() -> None:
         (
             "VV-CMP-047",
             "Recording evidence",
-            "Private ingest; governed catalog; read authorization; crash-decodable files",
+            "OAuth producer; gateway policy; governed catalog; crash-decodable files",
         ),
         (
             "VV-CMP-045/046",
@@ -1235,6 +1244,7 @@ def diagram_security() -> None:
             max_lines=3,
         )
     svg.line(340, 295, 435, 310)
+    svg.line(340, 895, 435, 720)
     svg.line(705, 720, 805, 310)
     svg.line(1255, 310, 1358, 272)
     svg.line(1255, 515, 1358, 447)
