@@ -77,13 +77,7 @@ impl UavSimMcp {
     }
 
     async fn current_state(&self) -> Result<SimulationState, McpError> {
-        self.state
-            .adapter
-            .lock()
-            .await
-            .state()
-            .await
-            .map_err(internal)
+        self.state.adapter.state().await.map_err(internal)
     }
 
     async fn state_for(&self, session_id: &SessionId) -> Result<SimulationState, McpError> {
@@ -102,8 +96,6 @@ impl UavSimMcp {
         let result = self
             .state
             .adapter
-            .lock()
-            .await
             .command(&command)
             .await
             .map_err(invalid)?;
@@ -668,10 +660,10 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             tasks.platform_store().clone(),
             &args.recording_tenant_key,
         )?),
-        AdapterKind::Fake => Adapter::Fake(FakeAdapter::new(fake_state()?)),
+        AdapterKind::Fake => Adapter::Fake(Arc::new(Mutex::new(FakeAdapter::new(fake_state()?)))),
     };
     let state = Arc::new(AppState {
-        adapter: Arc::new(Mutex::new(adapter)),
+        adapter: Arc::new(adapter),
         tasks,
         subscribers: SubscriptionHub::new(),
     });
@@ -760,7 +752,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
-    match state.adapter.lock().await.state().await {
+    match state.adapter.state().await {
         Ok(simulation)
             if simulation.lifecycle != SimulationLifecycle::Failed
                 && simulation.tiles.lifecycle == TileLifecycle::Ready =>

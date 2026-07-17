@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
-from veoveo_uav_sim.geo import enu_to_geodetic
+from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 
 
 VALID_ENVIRONMENT = {
@@ -87,6 +87,11 @@ class AdapterContractTests(unittest.TestCase):
         self.assertAlmostEqual(latitude, 13.6929, places=8)
         self.assertAlmostEqual(longitude, -89.2182, places=8)
         self.assertAlmostEqual(height, 700.0, places=4)
+
+    def test_horizontal_distance_resolves_short_uav_waypoints(self) -> None:
+        distance = horizontal_distance_m(13.6929, -89.2182, 13.6929, -89.21818)
+        self.assertGreater(distance, 2.0)
+        self.assertLess(distance, 2.3)
 
 
 if __name__ == "__main__":

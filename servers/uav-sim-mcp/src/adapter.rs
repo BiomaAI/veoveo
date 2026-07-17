@@ -1,9 +1,11 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode, Url};
 use serde::Deserialize;
 use thiserror::Error;
+use tokio::sync::Mutex;
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
     deterministic_tenant_id,
@@ -519,36 +521,37 @@ impl FakeAdapter {
     }
 }
 
+#[derive(Clone)]
 pub enum Adapter {
     Http(HttpAdapter),
-    Fake(FakeAdapter),
+    Fake(Arc<Mutex<FakeAdapter>>),
 }
 
 impl Adapter {
-    pub async fn state(&mut self) -> Result<SimulationState, AdapterError> {
+    pub async fn state(&self) -> Result<SimulationState, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.state().await,
-            Self::Fake(adapter) => Ok(adapter.state()),
+            Self::Fake(adapter) => Ok(adapter.lock().await.state()),
         }
     }
 
     pub async fn command(
-        &mut self,
+        &self,
         command: &SimulationCommand,
     ) -> Result<CommandAcknowledgement, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.command(command).await,
-            Self::Fake(adapter) => adapter.command(command),
+            Self::Fake(adapter) => adapter.lock().await.command(command),
         }
     }
 
     pub async fn execute(
-        &mut self,
+        &self,
         operation: &DurableOperation,
     ) -> Result<DurableOperationResult, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.execute(operation).await,
-            Self::Fake(adapter) => adapter.execute(operation),
+            Self::Fake(adapter) => adapter.lock().await.execute(operation),
         }
     }
 }
