@@ -16,7 +16,10 @@ kubectl context cannot redirect a recipe into another installation.
 - `gateway.json` owns the Entra application, tenant mapping, and MCP profiles.
 - `k3d.yaml` owns the cluster and its loopback port.
 - `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
-  cluster without changing the server catalog.
+  cluster and bootstraps the canonical UAV ENU frame without changing the
+  server catalog.
+- `uav-sim-values.yaml` binds the Isaac session to that frame and the Bioma
+  recording tenant.
 - `lan-values.yaml` enables canonical-host TLS at Traefik for direct LAN access.
 - `cloudflare-tunnel.json` is the desired remote tunnel ingress configuration.
 - `tunnel.yaml` runs the connector inside the Bioma cluster.
@@ -25,13 +28,14 @@ The Bioma cluster deploys the complete Veoveo installation: the gateway,
 artifact and recording planes, console, and every hosted MCP server in
 `gateway.json`.
 
-View and Perception each request one NVIDIA GPU allocation. The k3d node device
-plugin publishes two time-sliced allocations from the physical GPU, while both
-pods retain the normal `nvidia.com/gpu: 1` request and the `nvidia` runtime
-class. Perception compiles the bundled TrafficCamNet ONNX model into a
-GPU-specific TensorRT engine on first startup and keeps that engine in its
-model-cache volume. View starts with a local reference tileset; fielded layer
-catalogs can select authenticated HTTPS or Google Photorealistic 3D Tiles.
+Isaac Sim, View, and Perception each request one NVIDIA GPU allocation. The k3d
+node device plugin publishes three time-sliced allocations from the physical
+GPU, while all three pods retain the normal `nvidia.com/gpu: 1` request and the
+`nvidia` runtime class. No release scales down another GPU service. Perception
+compiles the bundled TrafficCamNet ONNX model into a GPU-specific TensorRT
+engine on first startup and keeps that engine in its model-cache volume. View
+retains its direct Google Maps Platform path. Isaac loads Google Photorealistic
+3D Tiles through Cesium ion as a separate core world contract.
 
 The public root redirects to the operations console:
 
@@ -84,9 +88,12 @@ Universal SSL certificate covers `*.bioma.ai`. A nested
 not part of this profile.
 
 The `.env` file must define `CLOUDFLARE_ACCOUNT_ID`,
-`CLOUDFLARE_API_TOKEN`, and `CLOUDFLARED_TUNNEL_TOKEN`. The account token needs
-Tunnel:Edit and DNS:Edit for this account and zone. The tunnel token is stored
-only in the `bioma-cloudflared` Kubernetes Secret.
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARED_TUNNEL_TOKEN`,
+`CESIUM_ION_ACCESS_TOKEN`, and `GOOGLE_MAPS_API_KEY`. The Cesium token is stored
+as `cesium-ion-access-token` in the least-privilege `veoveo-uav-sim-secrets`
+Secret for Isaac. The Google key remains the direct View MCP credential. The
+account token needs Tunnel:Edit and DNS:Edit for this account and zone. The
+tunnel token is stored only in the `bioma-cloudflared` Kubernetes Secret.
 
 ## Start Bioma
 
@@ -100,10 +107,12 @@ just bioma-platform-up
 just bioma-tunnel-up
 ```
 
-`bioma-resources` reads the required Veoveo, media-provider, and Cloudflare
-values from `.env`, applies Kubernetes Secrets over stdin, and never writes
-their plaintext to a repository or temporary manifest. `bioma-build` and
-`bioma-import` cover every image used by the release.
+`bioma-resources` reads the required Veoveo, media-provider, Cesium, Google, and
+Cloudflare values from the main worktree `.env`, applies Kubernetes Secrets over
+stdin, and never writes their plaintext to a repository or temporary manifest.
+`bioma-build` and `bioma-import` cover every image used by the platform and UAV
+releases. `bioma-platform-up` installs both charts and waits for Isaac tile and
+PX4 readiness without suspending View or Perception.
 
 ## Local-network recording producers
 
@@ -146,9 +155,19 @@ Run the installation check after the release and tunnel are active:
 just bioma-verify
 ```
 
-The Bioma check requires every deployment, two allocatable NVIDIA GPU shares,
+The Bioma check requires every deployment, three allocatable NVIDIA GPU shares,
 a healthy public edge, and the Bioma authorization-server key at the public
-JWKS endpoint.
+JWKS endpoint. Run the core UAV delivery proof separately after the simulation
+is ready:
+
+```bash
+just bioma-uav-sim-verify
+```
+
+The UAV check requires Google Photorealistic 3D Tiles to be resident inside
+Isaac, flies a PX4 mission, verifies the governed recording, processes the
+camera stream through Perception, and confirms all three GPU deployments remain
+available.
 
 The Access page reports policy sets from the active gateway control-plane
 revision. Policies are not independent CRUD records. Edit `gateway.json`,
