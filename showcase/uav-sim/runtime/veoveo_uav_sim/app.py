@@ -67,7 +67,10 @@ def run(config: RuntimeConfig) -> None:
         if not extension_manager.is_extension_enabled(extension):
             raise RuntimeError(f"failed to enable required extension {extension}")
 
-    from cesium.omniverse.bindings import acquire_cesium_omniverse_interface
+    from cesium.omniverse.bindings import (
+        Viewport as CesiumViewport,
+        acquire_cesium_omniverse_interface,
+    )
     from cesium.omniverse.usdUtils import (
         add_tileset_ion,
         get_or_create_cesium_georeference,
@@ -362,6 +365,19 @@ def run(config: RuntimeConfig) -> None:
                         )
 
             if render:
+                # Cesium's extension enumerates viewport *windows* when it
+                # updates native tile selection. Headless Isaac still has an
+                # active viewport API for the UAV camera, but no window, so
+                # submit that viewport explicitly after the rendered update.
+                # This is the same native frame contract used by the extension
+                # and keeps Google Photorealistic 3D Tiles driven by the
+                # sensor's current view and projection matrices.
+                cesium_viewport = CesiumViewport()
+                cesium_viewport.viewMatrix = viewport.view
+                cesium_viewport.projMatrix = viewport.projection
+                cesium_viewport.width = float(viewport.resolution[0])
+                cesium_viewport.height = float(viewport.resolution[1])
+                cesium_interface.on_update_frame([cesium_viewport], False)
                 statistics = cesium_interface.get_render_statistics()
                 resident = int(statistics.tiles_loaded)
                 loading = int(statistics.tiles_loading_worker) + int(
