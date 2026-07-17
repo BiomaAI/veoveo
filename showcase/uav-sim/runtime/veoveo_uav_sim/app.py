@@ -73,9 +73,13 @@ def run(config: RuntimeConfig) -> None:
     )
     from cesium.omniverse.usdUtils import (
         add_tileset_ion,
+        get_or_create_cesium_data,
         get_or_create_cesium_georeference,
     )
-    from cesium.usd.plugins.CesiumUsdSchemas import Tileset as CesiumTileset
+    from cesium.usd.plugins.CesiumUsdSchemas import (
+        IonServer as CesiumIonServer,
+        Tileset as CesiumTileset,
+    )
     from pegasus.simulator.logic.backends.px4_mavlink_backend import (
         PX4MavlinkBackend,
         PX4MavlinkBackendConfig,
@@ -127,6 +131,21 @@ def run(config: RuntimeConfig) -> None:
         # Cesium's runtime schema. It is cleared on shutdown and never exported.
         stage.SetEditTarget(Usd.EditTarget(stage.GetSessionLayer()))
         try:
+            # The interactive Cesium extension normally creates this typed
+            # server prim from its USD stage-opened callback. SimulationApp's
+            # stage is already open when this headless runtime enables the
+            # extension, so author the same official ion endpoint explicitly.
+            # Without the binding, Cesium deliberately creates an inert asset-0
+            # tileset because its ion API URL is empty.
+            ion_server_path = "/CesiumServers/IonOfficial"
+            ion_server = CesiumIonServer.Define(stage, ion_server_path)
+            ion_server.GetDisplayNameAttr().Set("ion.cesium.com")
+            ion_server.GetIonServerUrlAttr().Set("https://ion.cesium.com/")
+            ion_server.GetIonServerApiUrlAttr().Set("https://api.cesium.com/")
+            ion_server.GetIonServerApplicationIdAttr().Set(413)
+            cesium_data = get_or_create_cesium_data()
+            cesium_data.GetSelectedIonServerRel().SetTargets([ion_server_path])
+
             georeference = get_or_create_cesium_georeference()
             georeference.GetGeoreferenceOriginLatitudeAttr().Set(
                 config.origin_latitude_degrees
