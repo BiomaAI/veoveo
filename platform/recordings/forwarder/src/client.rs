@@ -35,12 +35,15 @@ impl RecordingIngestClient {
     pub async fn discover(
         http: reqwest::Client,
         gateway_url: &Url,
+        gateway_transport_url: &Url,
         expected_protected_resource: &Url,
-        token_builder: impl FnOnce(Url) -> Result<OAuthTokenProvider>,
+        token_builder: impl FnOnce(Url, Url) -> Result<OAuthTokenProvider>,
     ) -> Result<Self> {
         let discovery_url = gateway_url.join(DISCOVERY_PATH.trim_start_matches('/'))?;
+        let discovery_transport_url =
+            transport_url(gateway_url, gateway_transport_url, &discovery_url)?;
         let response = http
-            .get(discovery_url)
+            .get(discovery_transport_url)
             .send()
             .await
             .context("requesting recording ingest discovery")?
@@ -59,9 +62,15 @@ impl RecordingIngestClient {
             "gateway advertised a zero batch limit"
         );
         let issuer = Url::parse(&discovery.authorization_server)?;
+        ensure!(
+            issuer.origin() == gateway_url.origin(),
+            "recording ingest authorization server is not same-origin with the gateway"
+        );
         let metadata_url = authorization_server_metadata_url(&issuer)?;
+        let metadata_transport_url =
+            transport_url(gateway_url, gateway_transport_url, &metadata_url)?;
         let metadata = http
-            .get(metadata_url)
+            .get(metadata_transport_url)
             .send()
             .await
             .context("requesting OAuth authorization-server metadata")?
@@ -73,13 +82,24 @@ impl RecordingIngestClient {
             "OAuth issuer metadata mismatch"
         );
         let token_endpoint = Url::parse(&metadata.token_endpoint)?;
-        let streams_endpoint = Url::parse(&discovery.streams_endpoint)?;
         ensure!(
-            streams_endpoint.origin() == gateway_url.origin()
-                && streams_endpoint.path() == STREAMS_PATH,
+            token_endpoint.origin() == gateway_url.origin(),
+            "recording ingest token endpoint is not same-origin with the gateway"
+        );
+        let token_transport_endpoint =
+            transport_url(gateway_url, gateway_transport_url, &token_endpoint)?;
+        let canonical_streams_endpoint = Url::parse(&discovery.streams_endpoint)?;
+        ensure!(
+            canonical_streams_endpoint.origin() == gateway_url.origin()
+                && canonical_streams_endpoint.path() == STREAMS_PATH,
             "gateway advertised a non-canonical or cross-origin streams endpoint"
         );
-        let tokens = token_builder(token_endpoint)?;
+        let streams_endpoint = transport_url(
+            gateway_url,
+            gateway_transport_url,
+            &canonical_streams_endpoint,
+        )?;
+        let tokens = token_builder(token_endpoint, token_transport_endpoint)?;
         Ok(Self {
             http,
             streams_endpoint,
@@ -187,6 +207,18 @@ impl RecordingIngestClient {
             .into());
         }
     }
+}
+
+fn transport_url(canonical_gateway: &Url, gateway_transport: &Url, target: &Url) -> Result<Url> {
+    ensure!(
+        target.origin() == canonical_gateway.origin(),
+        "cannot route a cross-origin recording ingest endpoint"
+    );
+    let mut transport = gateway_transport.clone();
+    transport.set_path(target.path());
+    transport.set_query(target.query());
+    transport.set_fragment(None);
+    Ok(transport)
 }
 
 fn ensure_media_type(headers: &reqwest::header::HeaderMap) -> Result<()> {

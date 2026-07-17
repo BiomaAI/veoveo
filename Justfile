@@ -16,7 +16,7 @@ smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRAR
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
-bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
+bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-forwarder:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
 bioma-registry := "veoveo-registry.localhost:5001"
 
 # List available recipes.
@@ -86,7 +86,7 @@ test-perception:
 
 # DeepStream 9 / NVDEC / TensorRT / Recording Hub / final MCP task smoke.
 smoke-perception-gpu env_file='.env' work_dir='output/perception/work':
-    cargo build -p veoveo-smoke --bin smoke
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-recording-forwarder --bin recording-forwarder
     {{smoke}} perception-gpu --env-file '{{env_file}}' --work-dir '{{work_dir}}'
 
 # Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
@@ -197,6 +197,11 @@ smoke-gateway-http:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
     {{smoke}} gateway-http --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
+# Prove producer OAuth, gateway policy, retry checkpoints, and Hub materialization.
+smoke-recording-ingest:
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway -p veoveo-recording-hub --bin spooler
+    {{smoke}} recording-ingest --conformance-bin target/debug/conformance --gateway-bin target/debug/gateway --hub-bin target/debug/spooler --control-plane {{gateway-smoke-control-plane}}
+
 # Smoke-test OTLP HTTP log and trace export from the gateway.
 smoke-otel:
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway
@@ -268,7 +273,7 @@ smoke-agent-pilot:
 # Run the real Pilot against the active local k3d stack with Cloudflare credentials from .env.
 agent-pilot-local data_dir="output/pilot-data":
     cargo build -p veoveo-agent-kernel --bin agent
-    PILOT_GATEWAY_URL="${PILOT_GATEWAY_URL:-http://localhost:8780}" target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}} --viewer-tee rerun+http://127.0.0.1:9877/proxy
+    PILOT_GATEWAY_URL="${PILOT_GATEWAY_URL:-http://localhost:8780}" target/debug/agent run --manifest configs/agents/pilot/manifest.json --data-dir {{data_dir}}
 
 # Smoke-test a continuously-running agent sleeping on a long gateway task and waking from its completion push.
 smoke-agent-sleep-wake:
@@ -429,7 +434,7 @@ showcase-sumo-build:
 
 # Import the showcase images into the active k3d node.
 showcase-sumo-import:
-    {{k3d}} image import --cluster veoveo-sumo veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0
+    {{k3d}} image import --cluster veoveo-sumo veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-forwarder:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0
     docker save veoveo/sumo-sim:1.27.1 veoveo/sumo-mcp:0.1.0 | docker exec -i k3d-veoveo-sumo-server-0 ctr -n k8s.io images import -
 
 # Apply disposable credentials and the SUMO-owned gateway profile.
@@ -448,10 +453,6 @@ showcase-sumo-up:
 # Stop only the SUMO profile while retaining the local platform.
 showcase-sumo-down:
     {{helm}} --kube-context {{sumo-kube-context}} uninstall sumo --namespace veoveo
-
-# Launch Rerun against the loopback Recording Hub projection.
-showcase-sumo-view:
-    test -n "${MAPBOX_ACCESS_TOKEN:-}"; RERUN_MAPBOX_ACCESS_TOKEN="$MAPBOX_ACCESS_TOKEN" rerun --connect rerun+http://127.0.0.1:9877/proxy
 
 # End-to-end verify: full SUMO showcase up, world durable in hub, served MCP driven e2e.
 showcase-sumo-verify:

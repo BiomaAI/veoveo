@@ -12,7 +12,8 @@ CESIUM_ION_ACCESS_TOKEN
   -> Cesium ion
   -> Google Photorealistic 3D Tiles in Isaac Sim
   -> Pegasus vehicles and PX4 SITL
-  -> UAV Simulation MCP and Recording Hub
+  -> UAV Simulation MCP and authenticated recording forwarder
+  -> Recording Hub
   -> View, Perception, agents, and governed artifacts
 ```
 
@@ -37,13 +38,19 @@ The simulator chart installs beside the normal Veoveo chart. It references the
 existing SurrealDB, artifact, recording, gateway-trust, and installation Secret
 contracts rather than creating alternate platform services.
 
+The Isaac runtime sends Rerun only to a producer-local forwarder. Interactive
+and batch workloads have separate durable queue claims. Each forwarder
+authenticates through the gateway before Recording Hub accepts a versioned
+protobuf batch; no Hub raw-ingest Service exists.
+
 ## Credentials
 
-Local Bioma provisioning reads `CESIUM_ION_ACCESS_TOKEN` from the main
-worktree's `.env` and writes it to the dedicated `veoveo-uav-sim-secrets`
-Secret as `cesium-ion-access-token`. The platform installation Secret remains
+Local Bioma provisioning reads `CESIUM_ION_ACCESS_TOKEN` and
+`VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM` from the main worktree's `.env`.
+It writes them to the dedicated `veoveo-uav-sim-secrets` and
+`veoveo-recording-producer` Secrets. The platform installation Secret remains
 the authority for gateway trust. Helm accepts only Secret names and keys. It
-never accepts the token value.
+never accepts either credential value.
 
 The runtime does not accept `GOOGLE_MAPS_API_KEY`. Cesium for Omniverse loads
 ion asset `2275207`, the canonical Google Photorealistic 3D Tiles asset, with
@@ -132,6 +139,8 @@ into an overlay:
 ```dotenv
 CESIUM_ION_ACCESS_TOKEN=
 GOOGLE_MAPS_API_KEY=
+VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM=
+VEOVEO_RECORDING_PRODUCER_KEY_ID=recording-producer-2026
 ```
 
 The first credential belongs to Isaac/Cesium. The second remains owned by View
@@ -172,10 +181,10 @@ push, or Helm rollout.
 
 Development deployments derive the image tag from the same Git commit. A
 production render sets
-`global.production=true` and must provide `images.runtime.digest` plus
-`images.mcp.digest`; Helm fails before producing a manifest when either digest
-is absent. CI records the published digests in the deployment values rather
-than treating a tag as immutable.
+`global.production=true` and must provide `images.runtime.digest`,
+`images.mcp.digest`, and `images.forwarder.digest`; Helm fails before producing
+a manifest when a digest is absent. CI records the published digests in the
+deployment values rather than treating a tag as immutable.
 
 Run the credentialed acceptance after all three GPU deployments are available:
 

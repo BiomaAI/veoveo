@@ -1380,7 +1380,9 @@
           "tenant": "bioma",
           "dataset": "recordings",
           "allowed_application_ids": [
-            "veoveo-sensor"
+            "veoveo-sensor",
+            "veoveo-video-test",
+            "veoveo-uav-sim"
           ],
           "classification": "internal",
           "labels": [],
@@ -1391,7 +1393,6 @@
             "maximum_stream_bytes": 2147483648
           },
           "retention": {
-            "journal_grace_seconds": 86400,
             "open_stream_days": 7
           },
           "enabled": true,
