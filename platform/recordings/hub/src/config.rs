@@ -78,6 +78,9 @@ pub struct SpoolerConfig {
     /// Freeze a live segment once it is older than this (seconds).
     #[serde(default = "default_segment_max_age_s")]
     pub segment_max_age_s: u64,
+    /// Finish a recording after this many seconds without producer data.
+    #[serde(default = "default_recording_idle_timeout_s")]
+    pub recording_idle_timeout_s: u64,
     /// Flush buffered writes to the OS at most this often (milliseconds).
     #[serde(default = "default_flush_interval_ms")]
     pub flush_interval_ms: u64,
@@ -97,6 +100,9 @@ fn default_segment_max_bytes() -> u64 {
 }
 fn default_segment_max_age_s() -> u64 {
     3600
+}
+fn default_recording_idle_timeout_s() -> u64 {
+    15
 }
 fn default_flush_interval_ms() -> u64 {
     250
@@ -122,6 +128,10 @@ impl SpoolerConfig {
         ensure!(
             self.segment_max_age_s >= 1,
             "segment_max_age_s must be at least 1"
+        );
+        ensure!(
+            self.recording_idle_timeout_s >= 1,
+            "recording_idle_timeout_s must be at least 1"
         );
         ensure!(
             self.flush_interval_ms >= 1,
@@ -150,6 +160,10 @@ impl SpoolerConfig {
         Duration::from_secs(self.segment_max_age_s)
     }
 
+    pub fn recording_idle_timeout(&self) -> Duration {
+        Duration::from_secs(self.recording_idle_timeout_s)
+    }
+
     /// Resolve the dataset for a producer application id by longest-prefix match,
     /// falling back to the quarantine dataset.
     pub fn dataset_for(&self, application_id: &str) -> DatasetName {
@@ -175,6 +189,7 @@ mod tests {
             datasets: routes,
             segment_max_bytes: default_segment_max_bytes(),
             segment_max_age_s: default_segment_max_age_s(),
+            recording_idle_timeout_s: default_recording_idle_timeout_s(),
             flush_interval_ms: default_flush_interval_ms(),
             fsync_on_flush: default_fsync_on_flush(),
             live_queue_limit_bytes: default_live_queue_limit_bytes(),

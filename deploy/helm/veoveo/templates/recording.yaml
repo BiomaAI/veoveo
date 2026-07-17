@@ -97,6 +97,8 @@ spec:
             - /recordings/.ingest-journal
             - --route
             - {{ .Values.recording.route | quote }}
+            - --recording-idle-timeout-s
+            - {{ .Values.recording.idleTimeoutSeconds | quote }}
             - --rerun-bin
             - /usr/local/bin/rerun
           env:

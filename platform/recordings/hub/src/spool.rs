@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use re_build_info::CrateVersion;
 use re_log_channel::{DataSourceMessage, LogReceiver, RecvTimeoutError};
 use re_log_encoding::EncodingOptions;
@@ -31,12 +31,14 @@ use crate::config::{DatasetName, SpoolerConfig};
 pub trait SegmentCatalog: Send {
     fn segment_opened(&mut self, segment: &OpenedSegment) -> Result<()>;
     fn segment_frozen(&mut self, segment: &FrozenSegment) -> Result<()>;
+    fn recording_finished(&mut self, key: &SegmentKey, ended_at: DateTime<Utc>) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
 pub struct OpenedSegment {
     pub key: SegmentKey,
     pub path: PathBuf,
+    pub started_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +48,7 @@ pub struct FrozenSegment {
     pub byte_len: u64,
     pub message_count: u64,
     pub sha256: String,
+    pub ended_at: DateTime<Utc>,
 }
 
 #[derive(Default)]
@@ -57,6 +60,10 @@ impl SegmentCatalog for NoopCatalog {
     }
 
     fn segment_frozen(&mut self, _segment: &FrozenSegment) -> Result<()> {
+        Ok(())
+    }
+
+    fn recording_finished(&mut self, _key: &SegmentKey, _ended_at: DateTime<Utc>) -> Result<()> {
         Ok(())
     }
 }
@@ -85,6 +92,9 @@ struct SegmentWriter {
     encoder: Option<Encoder<BufWriter<File>>>,
     sync_file: File,
     opened_at: Instant,
+    last_message_at: Instant,
+    started_at: DateTime<Utc>,
+    last_data_at: DateTime<Utc>,
     bytes: u64,
     messages: u64,
 }
@@ -107,11 +117,15 @@ impl SegmentWriter {
             BufWriter::with_capacity(1024 * 1024, file),
         )
         .with_context(|| format!("opening encoder for {}", path.display()))?;
+        let now = Utc::now();
         Ok(Self {
             path,
             encoder: Some(encoder),
             sync_file,
             opened_at: Instant::now(),
+            last_message_at: Instant::now(),
+            started_at: now,
+            last_data_at: now,
             bytes: 0,
             messages: 0,
         })
@@ -127,6 +141,8 @@ impl SegmentWriter {
             .with_context(|| format!("appending to {}", self.path.display()))?;
         self.bytes += n;
         self.messages += 1;
+        self.last_message_at = Instant::now();
+        self.last_data_at = Utc::now();
         Ok(n)
     }
 
@@ -255,6 +271,7 @@ impl Spooler {
             self.catalog.segment_opened(&OpenedSegment {
                 key: key.clone(),
                 path,
+                started_at: writer.started_at,
             })?;
             self.counters.segments_opened += 1;
             self.writers.insert(key.clone(), writer);
@@ -277,6 +294,16 @@ impl Spooler {
     /// Freeze segments that have outgrown their size or age budget, opening a
     /// fresh `.rN` sibling for any continued traffic on that key.
     pub fn freeze_due(&mut self) -> Result<()> {
+        let idle_timeout = self.config.recording_idle_timeout();
+        let idle: Vec<SegmentKey> = self
+            .writers
+            .iter()
+            .filter(|(_, writer)| writer.last_message_at.elapsed() >= idle_timeout)
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in idle {
+            self.freeze_key(&key, true)?;
+        }
         let max_bytes = self.config.segment_max_bytes;
         let max_age = self.config.segment_max_age();
         let due: Vec<SegmentKey> = self
@@ -286,21 +313,22 @@ impl Spooler {
             .map(|(k, _)| k.clone())
             .collect();
         for key in due {
-            self.freeze_key(&key)?;
+            self.freeze_key(&key, false)?;
         }
         Ok(())
     }
 
-    /// Freeze and close every segment (shutdown).
+    /// Freeze and close every segment at shutdown, recording a clean capture
+    /// boundary. A later producer reconnect resumes the same recording.
     pub fn freeze_all(&mut self) -> Result<()> {
         let keys: Vec<SegmentKey> = self.writers.keys().cloned().collect();
         for key in keys {
-            self.freeze_key(&key)?;
+            self.freeze_key(&key, true)?;
         }
         Ok(())
     }
 
-    fn freeze_key(&mut self, key: &SegmentKey) -> Result<()> {
+    fn freeze_key(&mut self, key: &SegmentKey, finish_recording: bool) -> Result<()> {
         if let Some(mut writer) = self.writers.remove(key) {
             writer.finish(self.config.fsync_on_flush)?;
             self.counters.segments_frozen += 1;
@@ -325,7 +353,11 @@ impl Spooler {
                 byte_len: inspection.byte_len,
                 message_count: writer.messages,
                 sha256: inspection.sha256,
+                ended_at: writer.last_data_at,
             })?;
+            if finish_recording {
+                self.catalog.recording_finished(key, writer.last_data_at)?;
+            }
             tracing::info!(
                 dataset = key.dataset.as_str(),
                 recording = key.recording,

@@ -620,5 +620,6 @@ def run(config: RuntimeConfig) -> None:
                 "Recording Hub publisher",
                 lambda: recording.close(simulation_time_s, physics_step),
             )
+            state.set_recording_active(False)
         state.set_lifecycle("stopped")
         _cleanup("Isaac SimulationApp", simulation_app.close)

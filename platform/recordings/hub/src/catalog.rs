@@ -10,7 +10,7 @@ use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use re_dataframe::{ChunkStoreConfig, QueryEngine};
 use sha2::{Digest, Sha256};
 use veoveo_platform_store::{
@@ -92,6 +92,7 @@ impl PlatformCatalog {
             let opened = OpenedSegment {
                 key: key.clone(),
                 path: path.clone(),
+                started_at: Utc::now(),
             };
             let segment = self.register_opened(&opened).await?;
             match segment.state {
@@ -145,12 +146,7 @@ impl PlatformCatalog {
                         serde_json::json!(segment.key.dataset.as_str()),
                     ),
                 ]),
-                started_at: segment
-                    .key
-                    .day
-                    .and_hms_opt(0, 0, 0)
-                    .expect("midnight is valid")
-                    .and_utc(),
+                started_at: segment.started_at,
             })
             .await?;
         let recording_id = recording_id(&recording.id)?;
@@ -209,7 +205,7 @@ impl PlatformCatalog {
                 i64::try_from(frozen.byte_len).context("segment exceeds i64 byte length")?,
                 i64::try_from(frozen.message_count).context("segment exceeds i64 message count")?,
                 &frozen.sha256,
-                Some(Utc::now()),
+                Some(frozen.ended_at),
             )
             .await?;
         Ok(())
@@ -230,6 +226,22 @@ impl SegmentCatalog for PlatformCatalog {
         let segment = segment.clone();
         self.runtime
             .block_on(async move { this.register_frozen(&segment).await })
+    }
+
+    fn recording_finished(&mut self, key: &SegmentKey, ended_at: DateTime<Utc>) -> Result<()> {
+        let this = self.clone();
+        let key = key.clone();
+        self.runtime.block_on(async move {
+            let recording = this
+                .store
+                .recording_by_key(this.identity.tenant_id, &key.application_id, &key.recording)
+                .await?
+                .context("finished recording has no catalog entry")?;
+            this.store
+                .finish_recording(&this.identity, recording_id(&recording.id)?, ended_at)
+                .await?;
+            Result::<()>::Ok(())
+        })
     }
 }
 

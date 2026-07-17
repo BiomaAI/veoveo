@@ -1003,6 +1003,13 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         )
         .await
         .unwrap();
+    let capture_ended_at = Utc::now();
+    let ready = store
+        .finish_recording(&identity, recording_id, capture_ended_at)
+        .await
+        .unwrap();
+    assert_eq!(ready.state, RecordingState::Ready);
+    assert_eq!(ready.ended_at, Some(capture_ended_at));
     assert_eq!(
         store
             .begin_recording_seal(&identity, recording_id, None)
@@ -1065,11 +1072,13 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
                     artifact_id: second_artifact,
                 },
             ],
-            ended_at: Utc::now(),
+            sealed_at: Utc::now(),
         })
         .await
         .unwrap();
     assert_eq!(sealed.state, RecordingState::Sealed);
+    assert_eq!(sealed.ended_at, Some(capture_ended_at));
+    assert!(sealed.sealed_at.is_some());
     assert_eq!(
         sealed.manifest_artifact,
         Some(manifest_artifact.record_id())

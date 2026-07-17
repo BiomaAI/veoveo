@@ -109,6 +109,7 @@ recording:
   classification: unclassified
   labels: []
   route: world=
+  idleTimeoutSeconds: 15
   persistence:
     size: 100Gi
     storageClass: ""

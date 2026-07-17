@@ -283,6 +283,7 @@ async fn child_spooler(
         datasets,
         segment_max_bytes,
         segment_max_age_s: 3_600,
+        recording_idle_timeout_s: 3_600,
         flush_interval_ms: 10,
         fsync_on_flush: true,
         live_queue_limit_bytes: 256 * 1024 * 1024,

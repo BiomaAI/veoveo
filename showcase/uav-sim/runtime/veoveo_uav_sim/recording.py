@@ -201,6 +201,10 @@ class RecordingPublisher:
         for camera in self._cameras.values():
             camera.close(simulation_time_s, physics_step)
         self._recording.flush()
+        # Closing the network sink is the producer's explicit capture boundary.
+        # Recording Hub freezes the final segment after its short idle grace
+        # period and records the timestamp of the last received message.
+        self._recording.disconnect()
 
     def _set_time(self, simulation_time_s: float, physics_step: int) -> None:
         self._recording.set_time("simulation_time", duration=simulation_time_s)
