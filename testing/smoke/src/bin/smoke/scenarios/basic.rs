@@ -473,7 +473,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "showcase/uav-sim/scenarios/bioma-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v1")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v2")
             && uav_scenario
                 .pointer("/takeoff/relative_altitude_m")
                 .and_then(Value::as_f64)
