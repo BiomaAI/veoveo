@@ -28,7 +28,14 @@ class H264CameraStream:
         self._stream.height = height
         self._stream.pix_fmt = "yuv420p"
         self._stream.max_b_frames = 0
-        self._stream.options = {"preset": "ultrafast", "tune": "zerolatency"}
+        self._stream.codec_context.gop_size = fps
+        self._stream.options = {
+            "preset": "ultrafast",
+            "tune": "zerolatency",
+            "x264-params": (
+                f"keyint={fps}:min-keyint={fps}:scenecut=0:repeat-headers=1"
+            ),
+        }
         self._recording.log(
             entity_path,
             rr.VideoStream(codec=rr.VideoCodec.H264),
