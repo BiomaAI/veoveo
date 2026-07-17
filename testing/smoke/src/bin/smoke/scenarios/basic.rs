@@ -234,6 +234,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: rmw_fastrtps_cpp",
         "name: LD_LIBRARY_PATH",
         "value: /isaac-sim/exts/isaacsim.ros2.core/jazzy/lib",
+        "http://127.0.0.1:8810/healthz",
+        "http://127.0.0.1:8810/readyz",
         "nvidia.com/gpu: 1",
     ] {
         contains(&uav_sim, expected)?;

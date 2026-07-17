@@ -49,15 +49,27 @@ spec:
             - name: adapter
               containerPort: 8810
           startupProbe:
-            httpGet:
-              path: /healthz
-              port: adapter
+            exec:
+              command:
+                - /usr/bin/curl
+                - --fail
+                - --silent
+                - --show-error
+                - --max-time
+                - "1"
+                - http://127.0.0.1:8810/healthz
             failureThreshold: 180
             periodSeconds: 10
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: adapter
+            exec:
+              command:
+                - /usr/bin/curl
+                - --fail
+                - --silent
+                - --show-error
+                - --max-time
+                - "1"
+                - http://127.0.0.1:8810/readyz
             failureThreshold: 6
             periodSeconds: 10
           resources:
