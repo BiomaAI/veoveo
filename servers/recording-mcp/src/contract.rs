@@ -41,7 +41,9 @@ pub struct RecordingView {
     pub classification: String,
     pub labels: Vec<String>,
     pub started_at: String,
+    pub last_data_at: String,
     pub ended_at: Option<String>,
+    pub sealed_at: Option<String>,
     pub manifest_artifact_uri: Option<String>,
     pub segment_count: usize,
 }
@@ -72,6 +74,25 @@ pub struct SealRecordingOutput {
     pub recording_id: String,
     pub manifest_artifact_uri: String,
     pub segment_artifact_uris: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct PlaybackManifest {
+    pub recording_id: String,
+    pub application_id: String,
+    pub recording_key: String,
+    pub state: String,
+    pub started_at: String,
+    pub ended_at: Option<String>,
+    pub segments: Vec<PlaybackSegment>,
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct PlaybackSegment {
+    pub segment_id: String,
+    pub ordinal: i64,
+    pub byte_len: u64,
+    pub sha256: String,
 }
 
 #[derive(Clone, Debug, Serialize)]

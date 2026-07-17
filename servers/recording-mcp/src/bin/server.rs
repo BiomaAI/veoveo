@@ -2,7 +2,15 @@ use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
+use axum::{
+    Extension, Router,
+    body::Body,
+    extract::{Path, State},
+    http::{HeaderMap, Method, Request, StatusCode, header},
+    middleware,
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use clap::Parser;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -23,13 +31,15 @@ use rmcp::{
 };
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
+use tower::ServiceExt;
+use tower_http::services::ServeFile;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
 };
-use veoveo_platform_store::{PlatformStore, RecordingId, StoreConfig, StoreCredentials};
+use veoveo_platform_store::{PlatformStore, RecordingId, SegmentId, StoreConfig, StoreCredentials};
 use veoveo_recording_mcp::{
     RecordingService,
     contract::{
@@ -468,6 +478,95 @@ async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
     }
 }
 
+async fn playback_manifest(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    Path(recording_id): Path<String>,
+) -> Response {
+    let Ok(recording_id) = parse_recording_id(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match state
+        .recordings
+        .playback_manifest(&identity, recording_id)
+        .await
+    {
+        Ok(Some(manifest)) => axum::Json(manifest).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "recording playback manifest failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+async fn playback_segment(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    Path((recording_id, segment_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    let Ok(recording_id) = parse_recording_id(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Ok(segment_id) = uuid::Uuid::parse_str(&segment_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if segment_id.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = match state
+        .recordings
+        .playback_segment_path(&identity, recording_id, SegmentId::from_uuid(segment_id))
+        .await
+    {
+        Ok(Some(path)) => path,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %recording_id, %segment_id, "recording segment authorization failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut request = Request::builder().method(method).uri("/");
+    for name in [
+        header::RANGE,
+        header::IF_RANGE,
+        header::IF_MATCH,
+        header::IF_NONE_MATCH,
+        header::IF_MODIFIED_SINCE,
+        header::IF_UNMODIFIED_SINCE,
+    ] {
+        if let Some(value) = headers.get(&name) {
+            request = request.header(name, value);
+        }
+    }
+    let request = match request.body(Body::empty()) {
+        Ok(request) => request,
+        Err(error) => {
+            tracing::error!(%error, "failed to build recording segment request");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    match ServeFile::new(path).oneshot(request).await {
+        Ok(mut response) => {
+            response.headers_mut().insert(
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/vnd.rerun.rrd"),
+            );
+            response.headers_mut().insert(
+                header::CACHE_CONTROL,
+                header::HeaderValue::from_static("private, no-store"),
+            );
+            response.map(Body::new)
+        }
+        Err(error) => {
+            tracing::error!(%error, "recording segment read failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
@@ -523,17 +622,26 @@ async fn main() -> anyhow::Result<()> {
             .with_allowed_hosts(allowed_hosts)
             .with_cancellation_token(cancellation.child_token()),
     );
+    let auth_state = InternalAuthState { verifier };
     let mcp = Router::new()
         .route_service("/", service.clone())
         .route_service("/{*path}", service)
         .layer(middleware::from_fn_with_state(
-            InternalAuthState { verifier },
+            auth_state.clone(),
             authenticate,
         ));
+    let playback = Router::new()
+        .route("/{recording_id}/playback", get(playback_manifest))
+        .route(
+            "/{recording_id}/segments/{segment_id}",
+            get(playback_segment),
+        )
+        .layer(middleware::from_fn_with_state(auth_state, authenticate));
     let router = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
         .nest("/mcp", mcp)
+        .nest("/recordings", playback)
         .with_state(state)
         .layer(
             TraceLayer::new_for_http()

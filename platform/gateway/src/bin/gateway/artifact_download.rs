@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, time::Instant};
 use axum::{
     body::Body,
     extract::{Extension, Path, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{HeaderMap, Method, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use chrono::{TimeDelta, Utc};
@@ -21,6 +21,8 @@ pub(super) async fn download_artifact(
     State(state): State<ArtifactDownloadState>,
     Path((profile, artifact_id)): Path<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
+    method: Method,
+    request_headers: HeaderMap,
 ) -> Response {
     let started_at = Instant::now();
     let Ok(profile) = GatewayProfileId::new(profile) else {
@@ -118,12 +120,22 @@ pub(super) async fn download_artifact(
         "{}/artifacts/{artifact_id}/download",
         state.artifact_service_url
     );
-    let upstream = match current_http_client(&state.http)
-        .get(url)
-        .bearer_auth(internal_token.bearer_token)
-        .send()
-        .await
-    {
+    let mut request = current_http_client(&state.http)
+        .request(method, url)
+        .bearer_auth(internal_token.bearer_token);
+    for name in [
+        header::RANGE,
+        header::IF_RANGE,
+        header::IF_MATCH,
+        header::IF_NONE_MATCH,
+        header::IF_MODIFIED_SINCE,
+        header::IF_UNMODIFIED_SINCE,
+    ] {
+        if let Some(value) = request_headers.get(&name) {
+            request = request.header(name, value);
+        }
+    }
+    let upstream = match request.send().await {
         Ok(response) => response,
         Err(error) => {
             tracing::error!(artifact_id = %artifact_id, "artifact service download failed: {error}");
@@ -141,7 +153,9 @@ fn proxy_download_response(upstream: reqwest::Response) -> Response {
         header::LOCATION,
         header::CONTENT_TYPE,
         header::CONTENT_LENGTH,
+        header::CONTENT_RANGE,
         header::CONTENT_DISPOSITION,
+        header::ACCEPT_RANGES,
         header::CACHE_CONTROL,
         header::ETAG,
         header::LAST_MODIFIED,
