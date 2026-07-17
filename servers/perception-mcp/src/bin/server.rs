@@ -685,13 +685,8 @@ async fn main() -> anyhow::Result<()> {
         max_samples: args.max_video_samples,
         max_encoded_bytes: args.max_encoded_video_bytes,
         max_segment_bytes: args.max_segment_bytes,
-        max_recent_messages: args.max_recent_messages,
-        max_recent_capture: args.max_recent_capture(),
     };
     source_limits.validate()?;
-    args.recording_proxy_uri
-        .parse::<re_uri::ProxyUri>()
-        .map_err(|error| anyhow::anyhow!("invalid recording proxy URI: {error}"))?;
     anyhow::ensure!(
         args.max_artifact_bytes > 0,
         "max_artifact_bytes must be non-zero"
@@ -711,7 +706,6 @@ async fn main() -> anyhow::Result<()> {
         catalog,
         executor,
         source_limits,
-        recording_proxy_uri: args.recording_proxy_uri.clone(),
         max_artifact_bytes: args.max_artifact_bytes,
         max_inline_resource_bytes: args.max_inline_resource_bytes,
         work_slots: Arc::new(tokio::sync::Semaphore::new(args.max_concurrent_jobs)),

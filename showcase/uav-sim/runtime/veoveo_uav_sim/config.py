@@ -201,7 +201,7 @@ class RuntimeConfig:
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),
             px4_directory=os.environ.get("UAV_SIM_PX4_DIRECTORY", "/opt/veoveo/px4"),
             recording_proxy=os.environ.get(
-                "UAV_SIM_RECORDING_PROXY", "rerun+http://recording-hub:9876/proxy"
+                "UAV_SIM_RECORDING_PROXY", "rerun+http://127.0.0.1:9876/proxy"
             ),
             recording_key=recording_key,
             camera=CameraConfig.from_environment(),

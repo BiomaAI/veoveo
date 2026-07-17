@@ -20,17 +20,18 @@ camera / sensor producer
         |
         | Rerun VideoStream: H.264 Annex B samples + timestamps + keyframes
         v
-recording-hub:9876/proxy  (private Rerun gRPC endpoint)
+recording-forwarder:9876/proxy  (producer loopback only)
         |
-        +---------------- bounded recent replay ------------------+
-        |                                                         |
-        v                                                         v
-live spool -> frozen .rrd -> restart .rN -> sealed artifacts  perception task
-        |                                                         |
-        +------ authorized logical-recording read plan -----------+
-                                                                  |
-                       keyframe scan + no-transcode MP4 remux      |
-                                                                  v
+        | authenticated versioned protobuf batches
+        v
+gateway -> recording-hub -> frozen .rrd -> sealed artifacts
+                                |
+                                | authorized logical-recording read plan
+                                v
+                         perception task
+                                |
+                         keyframe scan + no-transcode MP4 remux
+                                v
                      nvv4l2decoder -> nvstreammux -> nvinfer
                                                 -> optional nvtracker
                                                                   |
@@ -38,12 +39,12 @@ live spool -> frozen .rrd -> restart .rN -> sealed artifacts  perception task
                    typed JSON + derived RRD annotations + artifacts
 ```
 
-The Rerun proxy is transport and bounded replay, not durable storage or an
-authorization boundary. The recording hub is the only raw ingress service and
-is private to the installation network. It persists the exact Rerun log stream
-as RRD segments and catalogs those segments in SurrealDB. A logical Rerun
-recording is identified by application ID plus recording ID and may span the
-base RRD file and any `.rN` restart siblings.
+The Rerun receiver is a producer-local transport, not durable storage or an
+authorization boundary. The forwarder authenticates to the gateway and sends
+versioned protobuf batches. Recording Hub materializes each accepted batch as
+an immutable RRD segment and catalogs it in SurrealDB. A logical Rerun recording
+is identified by application ID plus recording ID and may span multiple
+segments.
 
 Perception first authorizes the canonical
 `recording://recordings/{uuidv7}` identity against its tenant and labels. A
@@ -51,12 +52,8 @@ durable task then re-resolves that identity and reads only frozen or sealed
 segments; it never persists a filesystem path or bearer token. All authorized
 physical segments are loaded as one logical Rerun store before video is
 selected, so an IDR in one segment can decode a requested P-frame in the next.
-
-`source: {"mode":"recent_proxy"}` is an explicit alternative. It authorizes
-the recording in the catalog first, filters the raw proxy stream immediately by
-application and recording IDs, and applies capture, idle, message, sample, and
-byte limits. Because proxy memory is transient, these tasks use
-`interrupted_indeterminate` recovery and are never replayed after a crash.
+There is no live-proxy read mode. Perception tasks have one resumable source
+contract and operate only on frozen or sealed segments.
 
 Video ranges use inclusive timeline bounds. A decoder-reentrant keyframe may
 precede the requested start as preroll or fall just after it when the requested
@@ -96,10 +93,11 @@ stream.log(
 )?;
 ```
 
-The test sends valid H.264 through the actual Rerun proxy, restarts the spooler,
-requests a P-frame from the second physical segment, finds its IDR in the first
-segment, remuxes both samples, and decodes the resulting MP4 when FFmpeg is
-available.
+The test sends valid H.264 through the Hub's loopback Rerun receiver, restarts
+the spooler, requests a P-frame from the second physical segment, finds its IDR
+in the first segment, remuxes both samples, and decodes the resulting MP4 when
+FFmpeg is available. The authenticated gateway ingest smoke separately proves
+the production forwarder-to-Hub boundary.
 
 ## Extraction and original time
 

@@ -107,7 +107,6 @@ spec:
       labels:
         {{- include "veoveo.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: perception-mcp
-        veoveo.ai/recording-producer: "true"
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
     spec:
@@ -164,8 +163,6 @@ spec:
             - http://artifact-service:8790
             - --spool-dir
             - /recordings
-            - --recording-proxy-uri
-            - rerun+http://recording-hub:9876/proxy
             - --pipeline-catalog
             - /etc/veoveo/perception/catalog.json
           env:

@@ -25,6 +25,7 @@ use super::*;
 const SAMPLE_H264_NAME: &str = "sample_720p.h264";
 const SAMPLE_FRAME_COUNT: usize = 90;
 const RECORDING_PROXY: &str = "rerun+http://127.0.0.1:9876/proxy";
+const RECORDING_FORWARDER: &str = "target/debug/recording-forwarder";
 const PERCEPTION_MCP_URL: &str = "http://127.0.0.1:8797/perception/mcp";
 const PERCEPTION_READY_URL: &str = "http://127.0.0.1:8797/perception/readyz";
 
@@ -39,6 +40,23 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
     let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
+    let tmpdir = smoke_tmpdir()?;
+    let mut cleanup = TmpDirGuard::new(tmpdir.clone());
+    let producer_key = tmpdir.join("recording-producer.pem");
+    let queue_dir = tmpdir.join("forwarder-queue");
+    let forwarder_log = tmpdir.join("recording-forwarder.log");
+    std::fs::create_dir_all(&queue_dir)?;
+    std::fs::write(
+        &producer_key,
+        required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM")?,
+    )?;
+    let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
+    let producer_client_id = optional_environment(
+        &environment,
+        "VEOVEO_RECORDING_PRODUCER_CLIENT_ID",
+        "recording-producer",
+    );
+    let producer_key_id = required_environment(&environment, "VEOVEO_RECORDING_PRODUCER_KEY_ID")?;
 
     run_checked(
         Path::new("kubectl"),
@@ -53,7 +71,32 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
         [],
     )
     .context("perception GPU smoke requires the active k3d perception profile")?;
-    let _recording_forward = PortForwardGuard::spawn("recording-ingest", 9876, 9876)?;
+    let _recording_forwarder = ChildGuard::spawn(
+        Path::new(RECORDING_FORWARDER),
+        [
+            "--gateway-url".into(),
+            format!("{gateway_url}/").into(),
+            "--protected-resource".into(),
+            format!("{gateway_url}/ingest/recordings").into(),
+            "--client-id".into(),
+            producer_client_id.into(),
+            "--key-id".into(),
+            producer_key_id.into(),
+            "--private-key-pem-file".into(),
+            producer_key.as_os_str().to_os_string(),
+            "--queue-dir".into(),
+            queue_dir.as_os_str().to_os_string(),
+        ],
+        [],
+        &forwarder_log,
+    )
+    .with_context(|| {
+        format!(
+            "starting authenticated recording forwarder; logs: {}",
+            forwarder_log.display()
+        )
+    })?;
+    wait_for_recording_forwarder(&forwarder_log).await?;
     let _perception_forward = PortForwardGuard::spawn("perception-mcp", 8797, 8797)?;
     let _surreal_forward = PortForwardGuard::spawn("surrealdb", 8000, 8000)?;
     wait_for_perception().await?;
@@ -66,8 +109,7 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
             "recording_uri": format!("recording://recordings/{recording_id}"),
             "entity_path": "/world/camera/front",
             "timeline": "sensor_time",
-            "range": {"start": 0, "end": 3_000_000_000_i64},
-            "source": {"mode": "recent_proxy", "idle_ms": 500, "capture_ms": 5_000}
+            "range": {"start": 0, "end": 3_000_000_000_i64}
         },
         "pipeline_id": "detect-objects",
         "sampling": {"mode": "every_nth", "step": 3},
@@ -122,6 +164,7 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
     println!(
         "perception GPU smoke ok: recording {recording_id}, {processed_frames} frames, {detection_count} detections, typed artifacts published"
     );
+    cleanup.remove_on_drop();
     Ok(())
 }
 
@@ -141,6 +184,33 @@ fn required_environment<'a>(
         .map(String::as_str)
         .filter(|value| !value.trim().is_empty())
         .with_context(|| format!("environment file does not define {name}"))
+}
+
+fn optional_environment<'a>(
+    environment: &'a BTreeMap<String, String>,
+    name: &str,
+    default: &'a str,
+) -> &'a str {
+    environment
+        .get(name)
+        .map(String::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(default)
+}
+
+async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
+    for _ in 0..100 {
+        if tokio::net::TcpStream::connect("127.0.0.1:9876")
+            .await
+            .is_ok()
+        {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let output = std::fs::read_to_string(log)
+        .unwrap_or_else(|error| format!("failed to read forwarder log: {error}"));
+    bail!("recording forwarder did not accept loopback Rerun traffic\n{output}")
 }
 
 fn validate_perception_workspace(environment: &BTreeMap<String, String>) -> Result<()> {
@@ -364,19 +434,24 @@ struct PortForwardGuard {
 }
 
 impl PortForwardGuard {
-    fn spawn(service: &str, local_port: u16, remote_port: u16) -> Result<Self> {
+    fn spawn(resource: &str, local_port: u16, remote_port: u16) -> Result<Self> {
+        let resource = if resource.contains('/') {
+            resource.to_owned()
+        } else {
+            format!("service/{resource}")
+        };
         let child = Command::new("kubectl")
             .args([
                 "-n",
                 "veoveo",
                 "port-forward",
-                &format!("service/{service}"),
+                &resource,
                 &format!("{local_port}:{remote_port}"),
             ])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .with_context(|| format!("starting port-forward for service/{service}"))?;
+            .with_context(|| format!("starting port-forward for {resource}"))?;
         Ok(Self { child })
     }
 }

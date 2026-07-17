@@ -82,13 +82,6 @@ spec:
           port: 8796
         - protocol: TCP
           port: 9878
-    - from:
-        - podSelector:
-            matchLabels:
-              veoveo.ai/recording-producer: "true"
-      ports:
-        - protocol: TCP
-          port: 9876
   egress:
     - to:
         - podSelector:

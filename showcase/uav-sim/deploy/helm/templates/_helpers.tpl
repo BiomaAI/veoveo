@@ -103,8 +103,6 @@ seccompProfile:
   value: {{ .root.Values.session.camera.mount.orientationWxyz.y | quote }}
 - name: UAV_SIM_CAMERA_ORIENTATION_Z
   value: {{ .root.Values.session.camera.mount.orientationWxyz.z | quote }}
-- name: UAV_SIM_RECORDING_PROXY
-  value: {{ .root.Values.platform.recordingProxy | quote }}
 - name: UAV_SIM_RECORDING_KEY
   valueFrom:
     fieldRef:
@@ -121,4 +119,49 @@ seccompProfile:
 - name: PRIVACY_CONSENT
   value: "Y"
 {{- end }}
+{{- end }}
+
+{{- define "uav-sim.recordingForwarder" -}}
+- name: recording-forwarder
+  restartPolicy: Always
+  image: {{ include "uav-sim.image" (list .root .root.Values.images.forwarder) }}
+  imagePullPolicy: {{ .root.Values.images.pullPolicy }}
+  args:
+    - --gateway-url
+    - {{ printf "%s/" (trimSuffix "/" .root.Values.platform.publicBaseUrl) | quote }}
+    - --gateway-transport-url
+    - {{ printf "%s/" (trimSuffix "/" .root.Values.recordingForwarder.gatewayTransportUrl) | quote }}
+    - --protected-resource
+    - {{ printf "%s/ingest/recordings" (trimSuffix "/" .root.Values.platform.publicBaseUrl) | quote }}
+    - --client-id
+    - {{ .root.Values.recordingForwarder.clientId | quote }}
+    - --key-id
+    - {{ .root.Values.recordingForwarder.keyId | quote }}
+    - --signing-algorithm
+    - {{ .root.Values.recordingForwarder.signingAlgorithm | quote }}
+    - --private-key-pem-file
+    - /run/secrets/recording-producer/private-key.pem
+    - --queue-dir
+    - /var/lib/veoveo-recording-forwarder
+    - --maximum-queue-bytes
+    - {{ printf "%.0f" .root.Values.recordingForwarder.maximumQueueBytes | quote }}
+  env:
+    - name: RUST_LOG
+      value: info
+  startupProbe:
+    exec:
+      command: [nc, -z, 127.0.0.1, "9876"]
+    periodSeconds: 2
+    failureThreshold: 150
+  securityContext:
+    {{- include "uav-sim.containerSecurityContext" .root | nindent 4 }}
+    readOnlyRootFilesystem: true
+  resources:
+    {{- toYaml .root.Values.recordingForwarder.resources | nindent 4 }}
+  volumeMounts:
+    - name: recording-forwarder-queue
+      mountPath: /var/lib/veoveo-recording-forwarder
+    - name: recording-producer-key
+      mountPath: /run/secrets/recording-producer
+      readOnly: true
 {{- end }}

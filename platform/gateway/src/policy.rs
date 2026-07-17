@@ -828,7 +828,6 @@ mod recording_ingest_tests {
                 maximum_stream_bytes: 500_000,
             },
             retention: RecordingRetentionPolicy {
-                journal_grace_seconds: 3_600,
                 open_stream_days: 7,
             },
             enabled: true,

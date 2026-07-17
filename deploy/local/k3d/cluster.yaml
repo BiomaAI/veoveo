@@ -14,9 +14,6 @@ ports:
   - port: 127.0.0.1:8895:30895
     nodeFilters:
       - loadbalancer
-  - port: 127.0.0.1:9877:30877
-    nodeFilters:
-      - loadbalancer
 env:
   - envVar: NVIDIA_VISIBLE_DEVICES=all
     nodeFilters:

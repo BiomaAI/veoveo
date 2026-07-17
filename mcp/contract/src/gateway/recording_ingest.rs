@@ -48,6 +48,5 @@ pub struct RecordingProducerQuotas {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RecordingRetentionPolicy {
-    pub journal_grace_seconds: u32,
     pub open_stream_days: u32,
 }

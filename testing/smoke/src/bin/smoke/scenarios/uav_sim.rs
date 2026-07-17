@@ -68,8 +68,6 @@ struct MissionScenario {
 struct PerceptionScenario {
     range_lead_seconds: f64,
     range_duration_seconds: f64,
-    idle_ms: u64,
-    capture_ms: u64,
     maximum_frames: u64,
     task_timeout_seconds: u64,
 }
@@ -153,8 +151,6 @@ impl UavAcceptanceScenario {
                 && self.perception.range_lead_seconds >= 0.0
                 && self.perception.range_duration_seconds.is_finite()
                 && self.perception.range_duration_seconds > 0.0
-                && self.perception.idle_ms > 0
-                && self.perception.capture_ms > 0
                 && (1..=10_000).contains(&self.perception.maximum_frames),
             "perception parameters must define a positive bounded capture"
         );
@@ -403,12 +399,7 @@ pub(crate) async fn uav_sim_verify(
                 "recording_uri": recording_uri,
                 "entity_path": camera_entity,
                 "timeline": "simulation_time",
-                "range": {"start": range_start, "end": range_end},
-                "source": {
-                    "mode": "recent_proxy",
-                    "idle_ms": scenario.perception.idle_ms,
-                    "capture_ms": scenario.perception.capture_ms
-                }
+                "range": {"start": range_start, "end": range_end}
             },
             "pipeline_id": "traffic-object-detection",
             "sampling": {

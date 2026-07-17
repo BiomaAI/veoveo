@@ -28,7 +28,8 @@ pub(crate) async fn recording_ingest(
     let gateway_port = reserve_local_port()?;
     let hub_grpc_port = reserve_local_port()?;
     let hub_api_port = reserve_local_port()?;
-    let gateway_base = format!("http://127.0.0.1:{gateway_port}");
+    let gateway_base = format!("http://localhost:{gateway_port}");
+    let gateway_transport_base = format!("http://127.0.0.1:{gateway_port}");
     let hub_base = format!("http://127.0.0.1:{hub_api_port}");
     let protected_resource = format!("{gateway_base}/ingest/recordings");
     let control_plane = tmpdir.join("gateway.recording-ingest.json");
@@ -104,8 +105,16 @@ pub(crate) async fn recording_ingest(
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
 
-    let http = reqwest::Client::new();
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::HOST,
+        reqwest::header::HeaderValue::from_str(&format!("localhost:{gateway_port}"))?,
+    );
+    let http = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()?;
     let gateway_url = Url::parse(&format!("{gateway_base}/"))?;
+    let gateway_transport_url = Url::parse(&format!("{gateway_transport_base}/"))?;
     let protected_resource_url = Url::parse(&protected_resource)?;
     let token_http = http.clone();
     let token_resource = protected_resource_url.clone();
@@ -113,11 +122,13 @@ pub(crate) async fn recording_ingest(
     let client = RecordingIngestClient::discover(
         http,
         &gateway_url,
+        &gateway_transport_url,
         &protected_resource_url,
-        move |token_endpoint| {
+        move |token_endpoint, token_transport_endpoint| {
             OAuthTokenProvider::new(
                 token_http,
                 token_endpoint,
+                token_transport_endpoint,
                 token_resource,
                 "smoke-recording-producer".to_owned(),
                 "test-key".to_owned(),

@@ -12,8 +12,6 @@ pub struct RecordingVideoSelection {
     /// Rerun duration, timestamp, or sequence timeline.
     pub timeline: String,
     pub range: IndexRange,
-    #[serde(default)]
-    pub source: AnalysisSource,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
@@ -21,22 +19,6 @@ pub struct RecordingVideoSelection {
 pub struct IndexRange {
     pub start: i64,
     pub end: i64,
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "mode", rename_all = "snake_case")]
-pub enum AnalysisSource {
-    /// Read immutable frozen/sealed RRD segments from the recording spool.
-    #[default]
-    Durable,
-    /// Read the recording hub proxy's bounded recent replay and settle after an
-    /// idle interval. This source is intentionally not resumable after a crash.
-    RecentProxy {
-        #[serde(default = "default_recent_idle_ms")]
-        idle_ms: u64,
-        #[serde(default = "default_recent_capture_ms")]
-        capture_ms: u64,
-    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
@@ -207,12 +189,4 @@ pub struct AnalysisView {
     pub output: Option<AnalyzeRecordingOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-}
-
-fn default_recent_idle_ms() -> u64 {
-    750
-}
-
-fn default_recent_capture_ms() -> u64 {
-    10_000
 }

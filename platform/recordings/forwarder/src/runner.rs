@@ -11,6 +11,7 @@ use anyhow::{Context, Result, ensure};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use re_log_channel::{DataSourceMessage, RecvTimeoutError};
 use re_log_types::{LogMsg, StoreId, StoreKind};
+use reqwest::header::{HOST, HeaderMap, HeaderValue};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -27,8 +28,14 @@ use crate::{
 pub async fn run(config: ForwarderConfig) -> Result<()> {
     config.validate()?;
     let _ = rustls::crypto::ring::default_provider().install_default();
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        HOST,
+        HeaderValue::from_str(&canonical_authority(&config.gateway_url)?)?,
+    );
     let http = reqwest::Client::builder()
-        .https_only(config.gateway_url.scheme() == "https")
+        .default_headers(headers)
+        .https_only(config.gateway_transport_url().scheme() == "https")
         .build()?;
     let private_key_pem_file = config.private_key_pem_file.clone();
     let client_id = config.client_id.clone();
@@ -38,11 +45,13 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     let client = RecordingIngestClient::discover(
         http.clone(),
         &config.gateway_url,
+        config.gateway_transport_url(),
         &config.protected_resource,
-        move |token_endpoint| {
+        move |token_endpoint, token_transport_endpoint| {
             OAuthTokenProvider::new(
                 http,
                 token_endpoint,
+                token_transport_endpoint,
                 protected_resource,
                 client_id,
                 key_id,
@@ -100,9 +109,14 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     let mut accumulators = HashMap::<StoreId, RecordingAccumulator>::new();
     let mut flush = tokio::time::interval(config.flush_interval());
     flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
     loop {
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => break,
+            signal = &mut shutdown => {
+                signal?;
+                break;
+            }
             _ = flush.tick() => {
                 flush_accumulators(&mut accumulators, &queue, client.maximum_batch_bytes()).await?;
             }
@@ -162,6 +176,36 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         warn!("shutdown drain did not complete; durable batches remain queued for restart");
     }
     Ok(())
+}
+
+#[cfg(unix)]
+async fn shutdown_signal() -> Result<()> {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut terminate = signal(SignalKind::terminate())?;
+    tokio::select! {
+        result = tokio::signal::ctrl_c() => result?,
+        _ = terminate.recv() => {}
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() -> Result<()> {
+    tokio::signal::ctrl_c().await?;
+    Ok(())
+}
+
+fn canonical_authority(url: &url::Url) -> Result<String> {
+    let host = url.host().context("canonical gateway URL has no host")?;
+    let host = match host {
+        url::Host::Ipv6(address) => format!("[{address}]"),
+        other => other.to_string(),
+    };
+    Ok(match url.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host,
+    })
 }
 
 async fn flush_accumulators(

@@ -26,7 +26,8 @@ images declare that architecture explicitly.
   through task-bound write capabilities.
 - `sumo://state` and `sumo://scenario` are typed resources.
 - `sumo://congestion` supports subscriptions and resource-update notifications.
-- `/world/sumo/**` is pushed continuously to Recording Hub.
+- `/world/sumo/**` is pushed continuously through an authenticated recording
+  forwarder and retained by Recording Hub.
 
 Task state lives in the required SurrealDB 3.2.1 platform store. The server uses
 Veoveo's final task extension and shared task runtime.
@@ -86,25 +87,12 @@ The showcase chart leaves telemetry disabled because the minimal local platform
 does not install a collector. Set `telemetry.enabled=true` and configure its
 endpoint when a profile installs the collector.
 
-## Visualize with Rerun
-
-Local Helm values project Recording Hub to `127.0.0.1:9877`. Put the canonical
-Mapbox token in the repository root `.env`:
-
-```dotenv
-MAPBOX_ACCESS_TOKEN=pk.example
-```
-
-Launch the viewer:
-
-```bash
-just showcase-sumo-view
-```
-
-The recipe maps the canonical value to Rerun's
-`RERUN_MAPBOX_ACCESS_TOKEN` variable and connects to the hub. Add
-`/world/sumo/vehicles` to a Map view. The `/world/sumo/network` entity uses
-SUMO's local Cartesian frame and belongs in a 3D view.
+`sumo-mcp` sends native Rerun traffic only to the forwarder on pod loopback.
+The forwarder keeps its bounded durable queue on
+`sumo-recording-forwarder`, authenticates to the canonical gateway with the
+`sumo-recording-producer` private key, and uses the internal gateway Service as
+its transport route. The public OAuth issuer, protected-resource URI,
+assertion audience, and Host identity remain `http://localhost:8780`.
 
 ## Layout
 

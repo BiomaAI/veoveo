@@ -39,6 +39,7 @@ struct ClientAssertionClaims<'a> {
 pub struct OAuthTokenProvider {
     http: reqwest::Client,
     token_endpoint: Url,
+    token_transport_endpoint: Url,
     protected_resource: Url,
     client_id: String,
     key_id: String,
@@ -56,6 +57,7 @@ impl OAuthTokenProvider {
     pub fn new(
         http: reqwest::Client,
         token_endpoint: Url,
+        token_transport_endpoint: Url,
         protected_resource: Url,
         client_id: String,
         key_id: String,
@@ -69,6 +71,11 @@ impl OAuthTokenProvider {
                         .host_str()
                         .is_some_and(|host| { matches!(host, "localhost" | "127.0.0.1" | "::1") })),
             "OAuth token endpoint must use HTTPS or loopback HTTP"
+        );
+        ensure!(
+            matches!(token_transport_endpoint.scheme(), "http" | "https")
+                && token_transport_endpoint.host_str().is_some(),
+            "OAuth token transport endpoint must use HTTP(S)"
         );
         let pem = std::fs::read(private_key_pem_file).with_context(|| {
             format!(
@@ -84,6 +91,7 @@ impl OAuthTokenProvider {
         Ok(Self {
             http,
             token_endpoint,
+            token_transport_endpoint,
             protected_resource,
             client_id,
             key_id,
@@ -119,7 +127,7 @@ impl OAuthTokenProvider {
         )?;
         let response = self
             .http
-            .post(self.token_endpoint.clone())
+            .post(self.token_transport_endpoint.clone())
             .form(&[
                 ("grant_type", "client_credentials"),
                 ("client_id", self.client_id.as_str()),

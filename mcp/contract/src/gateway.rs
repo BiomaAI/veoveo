@@ -326,7 +326,6 @@ impl GatewayControlPlane {
                     || producer.quotas.maximum_batches_per_minute == 0
                     || producer.quotas.maximum_bytes_per_day == 0
                     || producer.quotas.maximum_stream_bytes == 0
-                    || producer.retention.journal_grace_seconds == 0
                     || producer.retention.open_stream_days == 0
                 {
                     return Err(GatewayControlPlaneError::InvalidRecordingIngestResource {

@@ -120,25 +120,6 @@ kubectl --context k3d-veoveo-sumo -n veoveo rollout restart deployment/sumo-mcp
 helm --kube-context k3d-veoveo-sumo -n veoveo list
 ```
 
-## Rerun
-
-The local values expose Recording Hub through `127.0.0.1:9877`. Put the
-canonical token in the repository root `.env` file:
-
-```dotenv
-MAPBOX_ACCESS_TOKEN=pk.example
-```
-
-The Justfile loads `.env` and maps that value to Rerun's required variable:
-
-```bash
-just showcase-sumo-view
-```
-
-Rerun connects to `rerun+http://127.0.0.1:9877/proxy`. Add
-`/world/sumo/vehicles` to a Map view for the Mapbox projection. The local
-Cartesian road geometry at `/world/sumo/network` belongs in a 3D view.
-
 ## Cleanup
 
 Remove one simulator without disturbing the platform:
