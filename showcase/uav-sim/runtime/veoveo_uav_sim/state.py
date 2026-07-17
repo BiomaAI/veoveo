@@ -56,7 +56,7 @@ class RuntimeState:
                     "vehicle_id": f"uav-{index + 1}",
                     "entity_path": (
                         f"/world/uav-sim/{config.session_id}/vehicle/"
-                        f"uav-{index + 1}/camera/front"
+                        f"uav-{index + 1}/camera/down"
                     ),
                     "lifecycle": "warming",
                     "width": config.camera_width,
@@ -75,7 +75,7 @@ class RuntimeState:
                     "recording_key": str(config.recording_key),
                     "active": True,
                     "camera_streams": [
-                        f"/world/uav-sim/{config.session_id}/vehicle/uav-{index + 1}/camera/front"
+                        f"/world/uav-sim/{config.session_id}/vehicle/uav-{index + 1}/camera/down"
                         for index in range(config.vehicle_count)
                     ],
                     "started_at": started_at,

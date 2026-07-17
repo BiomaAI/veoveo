@@ -615,7 +615,7 @@ mod tests {
             },
             cameras: vec![CameraState {
                 vehicle_id: VehicleId::new("uav-1").unwrap(),
-                entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/front".to_owned(),
+                entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down".to_owned(),
                 lifecycle: CameraLifecycle::Ready,
                 width: 640,
                 height: 480,
@@ -704,7 +704,7 @@ mod tests {
             "application_id": "veoveo-uav-sim",
             "recording_key": "019f7122-3d89-7d21-8312-8940d1e0f510",
             "active": true,
-            "camera_streams": ["/world/uav-sim/session-alpha/vehicle/uav-1/camera/front"],
+            "camera_streams": ["/world/uav-sim/session-alpha/vehicle/uav-1/camera/down"],
             "started_at": "2026-07-16T18:00:00Z"
         }))
         .unwrap();

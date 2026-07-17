@@ -795,7 +795,7 @@ fn fake_state() -> anyhow::Result<SimulationState> {
         },
         cameras: vec![CameraState {
             vehicle_id: VehicleId::new("uav-1")?,
-            entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/front".to_owned(),
+            entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/down".to_owned(),
             lifecycle: CameraLifecycle::Ready,
             width: 640,
             height: 480,

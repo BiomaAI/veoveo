@@ -170,7 +170,7 @@ class AdapterApplication:
         if operation.operation == "capture_dataset":
             duration = self._duration(operation)
             supported = {
-                "camera/front",
+                "camera/down",
                 "imu",
                 "pose",
                 "vehicle_state",
