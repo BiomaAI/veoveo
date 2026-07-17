@@ -1,0 +1,35 @@
+{{- if and (eq .Values.cache.policy "persistent") .Values.interactive.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uav-sim-runtime-cache
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.cache.accessMode }}
+  {{- with .Values.cache.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.cache.size }}
+{{- end }}
+{{- if and (eq .Values.cache.policy "persistent") .Values.batch.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uav-sim-batch-runtime-cache
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.cache.accessMode }}
+  {{- with .Values.cache.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.cache.size }}
+{{- end }}

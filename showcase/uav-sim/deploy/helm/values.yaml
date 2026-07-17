@@ -29,7 +29,13 @@ platform:
 world:
   source: google_photorealistic_3d_tiles
   cesiumIonAssetId: 2275207
-  cachePolicy: ephemeral
+
+cache:
+  policy: persistent
+  version: isaac-6.0.1-cesium-0.29.0-v1
+  size: 40Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
 
 session:
   id: bioma-uav
@@ -47,6 +53,21 @@ session:
     width: 640
     height: 480
     fps: 20
+    optics:
+      focalLengthMm: 8.0
+      clippingRangeM:
+        near: 0.05
+        far: 100000.0
+    mount:
+      translationM:
+        x: 0.60
+        "y": 0.0
+        z: 0.05
+      orientationWxyz:
+        w: 0.7071067811865476
+        x: 0.0
+        "y": 0.0
+        z: -0.7071067811865476
 
 interactive:
   enabled: true

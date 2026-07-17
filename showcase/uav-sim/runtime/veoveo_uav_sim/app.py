@@ -26,21 +26,21 @@ def run(config: RuntimeConfig) -> None:
         {
             "headless": True,
             "renderer": "RaytracedLighting",
-            "width": config.camera_width,
-            "height": config.camera_height,
+            "width": config.camera.width,
+            "height": config.camera.height,
             "sync_loads": True,
             # Cesium's native USD schema plugin must be discovered before Kit
             # initializes USD's schema registry. Enabling it after
             # SimulationApp starts leaves the generated attributes untyped.
-            # The portable root also keeps every Kit write in the pod's
-            # ephemeral runtime-cache volume when running as a non-root user.
+            # The portable root keeps every Kit write in the pod's selected
+            # versioned runtime-cache directory when running as a non-root user.
             "extra_args": [
                 "--ext-folder",
                 config.extension_directory,
                 "--enable",
                 "cesium.usd.plugins",
                 "--portable-root",
-                "/var/lib/veoveo/.cache/kit-portable",
+                str(config.cache_directory / "kit-portable"),
             ],
         }
     )
@@ -197,15 +197,8 @@ def run(config: RuntimeConfig) -> None:
         finally:
             stage.SetEditTarget(previous_target)
 
-        # Fixed unit quaternion for a nadir camera. Its optical axis follows
-        # vehicle down, while image up follows the vehicle's forward axis. The
-        # camera sits beyond the Iris propeller envelope because an above-body
-        # nadir mount sees only the airframe while the vehicle is on the ground.
-        inverse_sqrt_two = 0.7071067811865476
-        camera_rotation_wxyz = np.array(
-            [[inverse_sqrt_two, 0.0, 0.0, -inverse_sqrt_two]]
-        )
-        camera_translation_xyz = np.array([[0.60, 0.0, 0.05]])
+        camera_rotation_wxyz = np.array([config.camera.mount.orientation_wxyz])
+        camera_translation_xyz = np.array([config.camera.mount.translation_xyz_m])
 
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
@@ -253,17 +246,17 @@ def run(config: RuntimeConfig) -> None:
             camera_path = f"{vehicle_prim_path}/body/down_camera"
             camera = RtxCamera(
                 camera_path,
-                tick_rate=float(config.camera_fps),
+                tick_rate=float(config.camera.fps),
                 translations=camera_translation_xyz,
                 orientations=camera_rotation_wxyz,
             )
-            # A wide aerial lens keeps the acceptance flight centered on the
-            # surrounding Google-tile context instead of a single large roof.
-            camera.camera.set_focal_lengths(8.0)
-            camera.camera.set_clipping_ranges(0.05, 100_000.0)
+            camera.camera.set_focal_lengths(config.camera.focal_length_mm)
+            camera.camera.set_clipping_ranges(
+                config.camera.clipping_near_m, config.camera.clipping_far_m
+            )
             camera_sensors[vehicle_id] = CameraSensor(
                 camera,
-                resolution=(config.camera_height, config.camera_width),
+                resolution=(config.camera.height, config.camera.width),
                 annotators=["rgb"],
             )
             camera_frames_observed[vehicle_id] = 0
@@ -411,7 +404,7 @@ def run(config: RuntimeConfig) -> None:
         tile_resident_frames = 0
         tile_started_at = time.monotonic()
         render_interval = max(1, round(config.physics_hz / config.rendering_hz))
-        camera_interval = max(1, round(config.physics_hz / config.camera_fps))
+        camera_interval = max(1, round(config.physics_hz / config.camera.fps))
 
         while simulation_app.is_running():
             command_queue.drain()
@@ -510,7 +503,7 @@ def run(config: RuntimeConfig) -> None:
                                 rgb, simulation_time_s, physics_step
                             )
                         if camera_black_streaks_after_tiles[vehicle_id] >= (
-                            config.camera_fps * 30
+                            config.camera.fps * 30
                         ):
                             state.update_camera(
                                 vehicle_id,

@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 import uuid
 from dataclasses import dataclass
+from enum import Enum
+from math import sqrt
+from pathlib import Path
 
 
 GOOGLE_PHOTOREALISTIC_3D_TILES_ION_ASSET_ID = 2_275_207
@@ -41,6 +44,84 @@ def _identity(name: str, value: str) -> str:
     return value
 
 
+class TileCachePolicy(str, Enum):
+    EPHEMERAL = "ephemeral"
+    PERSISTENT = "persistent"
+
+
+@dataclass(frozen=True, slots=True)
+class CameraMount:
+    translation_xyz_m: tuple[float, float, float]
+    orientation_wxyz: tuple[float, float, float, float]
+
+    def __post_init__(self) -> None:
+        norm = sqrt(sum(component * component for component in self.orientation_wxyz))
+        if abs(norm - 1.0) > 1e-6:
+            raise ValueError(
+                "UAV_SIM_CAMERA_ORIENTATION_WXYZ must be a unit quaternion"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class CameraConfig:
+    width: int
+    height: int
+    fps: int
+    focal_length_mm: float
+    clipping_near_m: float
+    clipping_far_m: float
+    mount: CameraMount
+
+    def __post_init__(self) -> None:
+        if self.clipping_near_m >= self.clipping_far_m:
+            raise ValueError(
+                "UAV_SIM_CAMERA_CLIPPING_NEAR_M must be less than "
+                "UAV_SIM_CAMERA_CLIPPING_FAR_M"
+            )
+
+    @classmethod
+    def from_environment(cls) -> "CameraConfig":
+        inverse_sqrt_two = 0.7071067811865476
+        mount = CameraMount(
+            translation_xyz_m=(
+                _float("UAV_SIM_CAMERA_TRANSLATION_X_M", "0.60", -100.0, 100.0),
+                _float("UAV_SIM_CAMERA_TRANSLATION_Y_M", "0.0", -100.0, 100.0),
+                _float("UAV_SIM_CAMERA_TRANSLATION_Z_M", "0.05", -100.0, 100.0),
+            ),
+            orientation_wxyz=(
+                _float(
+                    "UAV_SIM_CAMERA_ORIENTATION_W",
+                    str(inverse_sqrt_two),
+                    -1.0,
+                    1.0,
+                ),
+                _float("UAV_SIM_CAMERA_ORIENTATION_X", "0.0", -1.0, 1.0),
+                _float("UAV_SIM_CAMERA_ORIENTATION_Y", "0.0", -1.0, 1.0),
+                _float(
+                    "UAV_SIM_CAMERA_ORIENTATION_Z",
+                    str(-inverse_sqrt_two),
+                    -1.0,
+                    1.0,
+                ),
+            ),
+        )
+        return cls(
+            width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
+            height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
+            fps=_int("UAV_SIM_CAMERA_FPS", "20", 1, 60),
+            focal_length_mm=_float(
+                "UAV_SIM_CAMERA_FOCAL_LENGTH_MM", "8.0", 0.1, 1_000.0
+            ),
+            clipping_near_m=_float(
+                "UAV_SIM_CAMERA_CLIPPING_NEAR_M", "0.05", 0.001, 10_000.0
+            ),
+            clipping_far_m=_float(
+                "UAV_SIM_CAMERA_CLIPPING_FAR_M", "100000.0", 0.01, 10_000_000.0
+            ),
+            mount=mount,
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     session_id: str
@@ -50,6 +131,8 @@ class RuntimeConfig:
     origin_ellipsoid_height_m: float
     cesium_ion_access_token: str
     cesium_ion_asset_id: int
+    tile_cache_policy: TileCachePolicy
+    cache_directory: Path
     vehicle_count: int
     adapter_host: str
     adapter_port: int
@@ -59,9 +142,7 @@ class RuntimeConfig:
     px4_directory: str
     recording_proxy: str
     recording_key: uuid.UUID
-    camera_width: int
-    camera_height: int
-    camera_fps: int
+    camera: CameraConfig
     extension_directory: str
     exit_after_seconds: float | None
 
@@ -87,10 +168,19 @@ class RuntimeConfig:
             raise ValueError(
                 "UAV_SIM_CESIUM_ION_ASSET_ID must identify Google Photorealistic 3D Tiles"
             )
-        if _required("UAV_SIM_TILE_CACHE_POLICY") != "ephemeral":
-            raise ValueError("UAV_SIM_TILE_CACHE_POLICY must be ephemeral")
+        try:
+            cache_policy = TileCachePolicy(_required("UAV_SIM_TILE_CACHE_POLICY"))
+        except ValueError as error:
+            raise ValueError(
+                "UAV_SIM_TILE_CACHE_POLICY must be ephemeral or persistent"
+            ) from error
 
         recording_key = uuid.UUID(_required("UAV_SIM_RECORDING_KEY"))
+        cache_directory = Path(
+            os.environ.get("XDG_CACHE_HOME", "/var/lib/veoveo/.cache")
+        )
+        if not cache_directory.is_absolute() or ".." in cache_directory.parts:
+            raise ValueError("XDG_CACHE_HOME must be an absolute normalized path")
         return cls(
             session_id=session_id,
             frame_uri=frame_uri,
@@ -101,6 +191,8 @@ class RuntimeConfig:
             ),
             cesium_ion_access_token=_required("CESIUM_ION_ACCESS_TOKEN"),
             cesium_ion_asset_id=asset_id,
+            tile_cache_policy=cache_policy,
+            cache_directory=cache_directory,
             vehicle_count=_int("UAV_SIM_VEHICLE_COUNT", "1", 1, 16),
             adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "127.0.0.1"),
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
@@ -112,9 +204,7 @@ class RuntimeConfig:
                 "UAV_SIM_RECORDING_PROXY", "rerun+http://recording-hub:9876/proxy"
             ),
             recording_key=recording_key,
-            camera_width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
-            camera_height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
-            camera_fps=_int("UAV_SIM_CAMERA_FPS", "20", 1, 60),
+            camera=CameraConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
             ),

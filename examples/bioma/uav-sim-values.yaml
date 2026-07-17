@@ -11,3 +11,22 @@ session:
     latitudeDegrees: 13.6929
     longitudeDegrees: -89.2182
     ellipsoidHeightM: 700.0
+  camera:
+    width: 640
+    height: 480
+    fps: 20
+    optics:
+      focalLengthMm: 8.0
+      clippingRangeM:
+        near: 0.05
+        far: 100000.0
+    mount:
+      translationM:
+        x: 0.60
+        "y": 0.0
+        z: 0.05
+      orientationWxyz:
+        w: 0.7071067811865476
+        x: 0.0
+        "y": 0.0
+        z: -0.7071067811865476

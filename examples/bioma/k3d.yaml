@@ -11,6 +11,14 @@ ports:
   - port: 127.0.0.1:8781:80
     nodeFilters:
       - loadbalancer
+registries:
+  create:
+    name: veoveo-registry.localhost
+    host: 127.0.0.1
+    hostPort: "5001"
+    image: docker.io/library/registry:3.1.1@sha256:1be55279f18a2fe1a74edf2664cac61c1bea305b7b4642dab412e7affdcb3e33
+    volumes:
+      - veoveo-bioma-registry:/var/lib/registry
 env:
   - envVar: NVIDIA_VISIBLE_DEVICES=all
     nodeFilters:
@@ -20,6 +28,7 @@ env:
       - server:*
 options:
   k3d:
+    disableImageVolume: true
     wait: true
     timeout: 180s
   kubeconfig:

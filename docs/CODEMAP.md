@@ -311,10 +311,11 @@ Current MCP crates under `servers/` are indexed here:
 
 | Path | Responsibility |
 |---|---|
-| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 image, Cesium/Pegasus compatibility, PX4 process lifecycle, pod-private adapter, and Rerun publication |
-| `showcase/uav-sim/deploy/helm/` | interactive Isaac-plus-MCP Deployment, Isaac batch Job, Secret references, GPU requests, ephemeral tile storage, and network policy |
-| `examples/bioma/uav-sim-values.yaml` | Bioma session, Frames origin, public gateway origin, and recording tenant binding |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU workload acceptance |
+| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, pod-private adapter, and Rerun publication |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication plus interactive and batch Helm workloads, versioned persistent caches, typed camera configuration, GPU requests, and network policy |
+| `showcase/uav-sim/scenarios/` | strongly typed runtime-loaded live mission and acceptance parameters that remain outside the Isaac image context |
+| `examples/bioma/uav-sim-values.yaml` | Bioma session, Frames origin, camera optics and mount, public gateway origin, and recording tenant binding |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | scenario validation and credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU workload acceptance |
 
 ### Geospatial Domains
 

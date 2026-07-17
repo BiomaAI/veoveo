@@ -23,10 +23,13 @@ complementary and does not replace the tiles loaded inside Isaac.
 
 - [`../../servers/uav-sim-mcp/DESIGN.md`](../../servers/uav-sim-mcp/DESIGN.md)
   owns the provider-neutral MCP contract.
-- `runtime/` owns the immutable Isaac, Cesium, Pegasus, and PX4 image, the
-  pod-private typed adapter, and conversion of sensor and world state into
-  Rerun.
-- `deploy/helm/` owns interactive and batch Kubernetes workloads.
+- `runtime/` owns the immutable Isaac, Cesium, Pegasus, and PX4 dependency
+  base, the thin runtime overlay, the pod-private typed adapter, and conversion
+  of sensor and world state into Rerun.
+- `deploy/` owns commit-addressed OCI publication and the interactive and batch
+  Kubernetes workloads.
+- `scenarios/` owns runtime-loaded live mission and acceptance inputs. These
+  files are deliberately outside the Isaac image build context.
 - `dependencies.lock.json` records every upstream version, commit, digest, and
   verification source used by the image and chart.
 
@@ -92,14 +95,16 @@ Isaac 6 recreates the underlying subscription interface.
 
 The stage authors a deterministic dome light and distant sun for headless RTX
 rendering. The canonical UAV sensor is a nadir camera at `camera/down`, with
-image up aligned to vehicle forward. Camera readiness is based on the exact
-RGB8 bytes sent to H.264: three consecutive frames must contain measurable
-luma and non-black pixels. This operational gate permits takeoff from the
-nearly uniform launch surface. The live acceptance separately requires scene
-detail after the vehicle reaches 300 m. Frames without visible detail are
-withheld from the video stream, and a camera that remains black for 30 seconds
-after Google tiles become resident fails readiness instead of producing an
-apparently successful recording.
+image up aligned to vehicle forward. Helm values carry its resolution, frame
+rate, focal length, clipping range, translation, and unit quaternion through
+validated runtime fields. Camera readiness is based on the exact RGB8 bytes
+sent to H.264: three consecutive frames must contain measurable luma and
+non-black pixels. This operational gate permits takeoff from the nearly uniform
+launch surface. The live scenario separately requires scene detail after the
+configured climb. Frames without visible detail are withheld from the video
+stream, and a camera that remains black for 30 seconds after Google tiles
+become resident fails readiness instead of producing an apparently successful
+recording.
 
 ## Verification layers
 
@@ -111,10 +116,10 @@ contains only short dispatch recipes.
   patch, and PX4 startup.
 - Helm tests render interactive and batch workloads and reject plaintext token
   values.
-- Live acceptance loads Google Photorealistic 3D Tiles inside Isaac, climbs to
-  300 m above the declared origin with a wide 8 mm nadir camera, flies a
-  bounded PX4 mission, retains its Rerun recording, and runs Perception while
-  View remains healthy.
+- Live acceptance loads Google Photorealistic 3D Tiles inside Isaac, reads its
+  climb, camera thresholds, waypoint, and perception capture from
+  `scenarios/bioma-aerial.json`, retains its Rerun recording, and runs
+  Perception while View remains healthy.
 
 The live test is the release proof. Fixture tiles exercise offline code paths
 but cannot replace it.
@@ -138,20 +143,33 @@ just showcase-uav-sim-build
 just helm-check
 ```
 
-The normal Bioma flow provisions the Secret, imports both UAV images, installs
-the platform chart, and then installs the UAV chart beside it:
+The normal Bioma flow provisions the Secret, imports the smaller platform
+images, publishes the UAV dependency base and commit-addressed overlays to the
+k3d-managed OCI registry, and installs the two charts:
 
 ```bash
 just bioma-resources
+just bioma-uav-sim-publish
 just bioma-platform-up
 ```
 
 Interactive mode creates one `uav-sim` Deployment containing the Isaac runtime
-and UAV MCP sidecar. Batch mode creates an Isaac-only Job. Both use ephemeral
-cache, data, and shared-memory volumes. Google tile bytes are not retained on a
-PVC.
+and UAV MCP sidecar. Batch mode creates an Isaac-only Job. The workloads use
+separate persistent runtime-cache claims, and `cache.version` places every
+Isaac, shader, and Cesium cache generation beneath its own directory. Changing
+the cache version starts clean without allowing interactive and batch writers
+to share files. Runtime data and shared memory remain ephemeral.
 
-Development values use the locally built tags. A production render sets
+`publish-images.py` refuses a dirty worktree, tags the thin runtime and MCP
+images with the full Git commit, and pushes through OCI. The stable dependency
+base tag contains Isaac, Cesium, Pegasus, PX4, and Python wheels. A runtime-only
+change rebuilds the final source-copy layer and the registry transfers only
+missing blobs. Edit `scenarios/bioma-aerial.json` and rerun
+`just bioma-uav-sim-verify`; a mission-only change performs no image build,
+push, or Helm rollout.
+
+Development deployments derive the image tag from the same Git commit. A
+production render sets
 `global.production=true` and must provide `images.runtime.digest` plus
 `images.mcp.digest`; Helm fails before producing a manifest when either digest
 is absent. CI records the published digests in the deployment values rather

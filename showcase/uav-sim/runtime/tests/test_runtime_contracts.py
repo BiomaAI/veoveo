@@ -19,7 +19,7 @@ VALID_ENVIRONMENT = {
     "UAV_SIM_FRAME_URI": "frames://frame/bioma-uav-origin",
     "UAV_SIM_RECORDING_KEY": "019f7122-3d89-7d21-8312-8940d1e0f510",
     "UAV_SIM_SESSION_ID": "bioma-uav",
-    "UAV_SIM_TILE_CACHE_POLICY": "ephemeral",
+    "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
 }
 
@@ -30,6 +30,7 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_asset_id, 2_275_207)
         self.assertEqual(config.frame_uri, "frames://frame/bioma-uav-origin")
+        self.assertEqual(config.tile_cache_policy.value, "persistent")
 
         invalid = {**VALID_ENVIRONMENT, "UAV_SIM_CESIUM_ION_ASSET_ID": "1"}
         with patch.dict(os.environ, invalid, clear=True):
@@ -50,6 +51,43 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertTrue(camera_path.endswith("/camera/down"))
         self.assertEqual(recording_path, camera_path)
         self.assertNotIn("front", camera_path)
+
+    def test_camera_optics_and_mount_are_typed_runtime_inputs(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_CAMERA_FOCAL_LENGTH_MM": "12.5",
+            "UAV_SIM_CAMERA_CLIPPING_NEAR_M": "0.1",
+            "UAV_SIM_CAMERA_CLIPPING_FAR_M": "50000",
+            "UAV_SIM_CAMERA_TRANSLATION_X_M": "0.75",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            camera = RuntimeConfig.from_environment().camera
+        self.assertEqual(camera.focal_length_mm, 12.5)
+        self.assertEqual(camera.clipping_near_m, 0.1)
+        self.assertEqual(camera.clipping_far_m, 50_000.0)
+        self.assertEqual(camera.mount.translation_xyz_m, (0.75, 0.0, 0.05))
+
+    def test_camera_mount_rejects_a_non_unit_quaternion(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_CAMERA_ORIENTATION_W": "1",
+            "UAV_SIM_CAMERA_ORIENTATION_X": "1",
+            "UAV_SIM_CAMERA_ORIENTATION_Y": "0",
+            "UAV_SIM_CAMERA_ORIENTATION_Z": "0",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "unit quaternion"):
+                RuntimeConfig.from_environment()
+
+    def test_camera_clipping_range_must_be_ordered(self) -> None:
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_CAMERA_CLIPPING_NEAR_M": "10",
+            "UAV_SIM_CAMERA_CLIPPING_FAR_M": "1",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "must be less than"):
+                RuntimeConfig.from_environment()
 
 
 class AdapterContractTests(unittest.TestCase):

@@ -16,7 +16,8 @@ smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRAR
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
-bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0 veoveo/uav-sim-runtime:6.0.1 veoveo/uav-sim-mcp:0.1.0"
+bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
+bioma-registry := "k3d-veoveo-registry.localhost:5001"
 
 # List available recipes.
 default:
@@ -318,9 +319,13 @@ clusters-status:
 bioma-build:
     docker buildx bake bioma
 
-# Import the complete Veoveo installation into the Bioma cluster.
+# Import the platform images into the Bioma cluster.
 bioma-import:
     {{k3d}} image import --cluster veoveo-bioma {{bioma-images}}
+
+# Publish commit-addressed UAV images to Bioma's incremental OCI registry.
+bioma-uav-sim-publish:
+    showcase/uav-sim/deploy/publish-images.py --registry {{bioma-registry}}
 
 # Apply Bioma's control plane and environment-backed Kubernetes Secrets.
 bioma-resources:
@@ -330,12 +335,12 @@ bioma-resources:
 # Install the Bioma-owned platform release in its isolated cluster.
 bioma-platform-up:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --wait --timeout 12m
-    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --wait --timeout 30m
+    revision="$$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="$${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="$${revision}" --wait --timeout 30m
 
 # Install Bioma with canonical-host TLS for direct LAN and split-horizon DNS access.
 bioma-platform-up-lan:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --values examples/bioma/lan-values.yaml --wait --timeout 12m
-    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --wait --timeout 30m
+    revision="$$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="$${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="$${revision}" --wait --timeout 30m
 
 # Connect the Bioma cluster to its remote-managed Cloudflare Tunnel.
 bioma-tunnel-up:
@@ -348,9 +353,9 @@ bioma-verify:
     {{smoke}} bioma-verify --context {{bioma-kube-context}}
 
 # Run the live Isaac/PX4/Google 3D Tiles/Recording/Perception acceptance path.
-bioma-uav-sim-verify:
+bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/bioma-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
-    {{smoke}} uav-sim-verify --context {{bioma-kube-context}}
+    {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
 
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':
@@ -409,9 +414,9 @@ showcase-uav-sim-test:
     cargo test -p veoveo-uav-sim-mcp --all-targets
     PYTHONPATH=showcase/uav-sim/runtime uv run --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 
-# Build the pinned Isaac runtime and UAV MCP images.
+# Build the immutable UAV dependency base, thin runtime, and UAV MCP images.
 showcase-uav-sim-build:
-    docker buildx bake uav-sim-runtime uav-sim-mcp
+    docker buildx bake uav-sim-base uav-sim-runtime uav-sim-mcp
 
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:

@@ -59,8 +59,8 @@ class RuntimeState:
                         f"uav-{index + 1}/camera/down"
                     ),
                     "lifecycle": "warming",
-                    "width": config.camera_width,
-                    "height": config.camera_height,
+                    "width": config.camera.width,
+                    "height": config.camera.height,
                     "frames_observed": 0,
                     "mean_luma": 0.0,
                     "dynamic_range": 0,
