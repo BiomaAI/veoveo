@@ -83,6 +83,14 @@ local ENU  -- explicit axis mapping --> PX4 NED
 Axes, handedness, units, ellipsoid height, and origin are recorded. Missing or
 incompatible frame information fails session creation.
 
+## PX4 control link
+
+The pod-local GCS link binds `14550 + instance` and seeds the matching PX4
+endpoint at `18570 + instance`. This preserves one bidirectional MAVLink peer
+for heartbeat, command acknowledgement, mission upload, and mission progress.
+The adapter maintains a one-second GCS heartbeat while the vehicle is live.
+Commands fail unless PX4 returns an explicit accepted acknowledgement.
+
 ## Typed domain model
 
 The controlled vocabulary includes:
