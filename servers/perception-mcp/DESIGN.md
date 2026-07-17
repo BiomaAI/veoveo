@@ -58,6 +58,12 @@ application and recording IDs, and applies capture, idle, message, sample, and
 byte limits. Because proxy memory is transient, these tasks use
 `interrupted_indeterminate` recovery and are never replayed after a crash.
 
+Video ranges use inclusive timeline bounds. A decoder-reentrant keyframe may
+precede the requested start as preroll or fall just after it when the requested
+start lies between discrete camera samples. The decode start must remain at or
+before the requested end, and Perception publishes only frames inside the
+requested range.
+
 ## Canonical video ingest profile
 
 The current production runner accepts one profile:
