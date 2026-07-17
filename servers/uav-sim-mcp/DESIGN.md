@@ -62,6 +62,12 @@ stage is open. The runtime then reloads Cesium's native stage registry and
 feeds the active UAV camera through the native viewport contract on every Kit
 update.
 
+Cesium's streamed mesh is not the simulator's collision authority. Isaac adds
+a bounded, invisible launch and landing surface at the typed local origin so a
+PX4 vehicle has deterministic physical support before arming. This surface is
+an initialization mechanism; Google Photorealistic 3D Tiles remain the core
+rendered world and their product use is not narrowed by this contract.
+
 ## Spatial frames
 
 Every session names one durable `frames://frame/{frame_id}` origin. Installation

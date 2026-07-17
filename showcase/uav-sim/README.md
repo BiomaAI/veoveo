@@ -47,6 +47,12 @@ ion asset `2275207`, the canonical Google Photorealistic 3D Tiles asset, with
 the ion token. The token is authored only into the anonymous USD session layer
 required by Cesium, cleared during shutdown, and never exported.
 
+Streamed tile geometry remains the core rendered world. The runtime adds one
+bounded, invisible collision surface at the configured local origin for PX4
+launch and landing because Cesium's streamed mesh is not an Isaac physics
+authority. The surface does not replace, filter, or prescribe how the tiles
+are used.
+
 NVIDIA registry credentials use a normal `imagePullSecret`. `ACCEPT_EULA=Y` is
 set explicitly for the Isaac container. Privacy consent remains a separate
 operator decision.
@@ -80,7 +86,9 @@ not select an older Isaac image.
 
 PX4 1.17.0 and pymavlink use MAVLink 2 exclusively. A render-free physics
 bootstrap completes the simulator and commander handshakes before the first
-RTX/Cesium render can compile shaders.
+RTX/Cesium render can compile shaders. The runtime rebinds Pegasus's state,
+sensor, dynamics, and MAVLink callbacks after each Isaac physics reset because
+Isaac 6 recreates the underlying subscription interface.
 
 ## Verification layers
 

@@ -253,3 +253,6 @@ diff --git a/extensions/pegasus.simulator/pegasus/simulator/logic/backends/px4_m
 +                self.send_sensor_msgs(self._current_utime)
 +                self.send_gps_msgs(self._current_utime)
 +                return
+@@ -717 +728 @@ class PX4MavlinkBackend(Backend):
+-                self._sensor_data.altitude,
++                self._sensor_data.temperature,
