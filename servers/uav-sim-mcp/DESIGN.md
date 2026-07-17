@@ -119,6 +119,9 @@ The controlled vocabulary includes:
   `stopped`, or `failed`.
 - `TileLoadState`: `connecting`, `streaming`, `ready`, or `failed` with counts
   and a redacted diagnostic.
+- `CameraLifecycle`: `warming`, `ready`, `degraded`, or `failed`, accompanied by
+  frame count, mean luma, dynamic range, and non-black-pixel fraction measured
+  from the exact RGB8 image delivered to the H.264 encoder.
 - `VehicleFlightState`: `initializing`, `standby`, `armed`, `taking_off`,
   `flying`, `landing`, `landed`, or `failed`.
 - WGS84, local ENU, PX4 NED, velocity, attitude, battery, collision, sensor, and
@@ -135,7 +138,7 @@ may appear only as bounded, explicitly labeled diagnostic metadata.
 
 | Tool | Behavior |
 |---|---|
-| `get_simulation_state` | Reads the current session, tile, recording, and vehicle summary. |
+| `get_simulation_state` | Reads the current session, tile, camera-content, recording, and vehicle summary. |
 | `pause_simulation` | Pauses one running session. |
 | `resume_simulation` | Resumes one paused session. |
 | `reset_simulation` | Resets the stage and vehicles to the declared scenario start. |
@@ -184,15 +187,16 @@ the shared usage model.
 ### Prompts and completions
 
 `uav-sim-mission-plan` prepares a typed mission request against declared
-vehicles and frames. `uav-sim-session-review` inspects tile, vehicle, collision,
-mission, recording, and task evidence. Completions resolve visible session,
+vehicles and frames. `uav-sim-session-review` inspects tile, camera-content,
+vehicle, collision, mission, recording, and task evidence. Completions resolve visible session,
 vehicle, mission, and task identities without crossing tenant ownership.
 
 ## Recording integration
 
-The simulator emits camera streams, poses, transforms, IMU values, vehicle
-state, mission state, collision events, and tile-loading diagnostics. The
-co-located recording adapter converts them into typed Rerun entities under:
+The simulator emits camera streams, camera-content health, poses, transforms,
+IMU values, vehicle state, mission state, collision events, and tile-loading
+diagnostics. The co-located recording adapter converts them into typed Rerun
+entities under:
 
 ```text
 /world/uav-sim/{session_id}/...
@@ -206,7 +210,11 @@ preroll point under GPU load. The adapter reports only its private application
 and recording keys. The UAV MCP resolves those keys through the platform
 recording catalog and publishes only the canonical UUIDv7
 `recording://recordings/{recording_id}` identity. That URI becomes the input to
-Perception MCP. Native Recording Hub ports are not exposed publicly.
+Perception MCP. The runtime publishes video samples only when the measured RGB8
+frame contains visible content. Runtime and MCP readiness require three
+consecutive visible frames, and a camera that remains black for 30 seconds
+after Google tiles become resident fails the simulation. Native Recording Hub
+ports are not exposed publicly.
 
 ## Kubernetes deployment
 
@@ -260,8 +268,10 @@ The live test passes only when all of the following are true at once:
 5. MCP resources, mutations, tasks, ownership, and notifications work through
    the gateway.
 6. Camera, pose, telemetry, mission, and tile state reach Recording Hub.
-7. Perception reads the governed H.264 recording and publishes derived output.
-8. No credential appears in a rendered manifest, resource, task result, log,
+7. Camera content passes the RGB8 luma, dynamic-range, and non-black-pixel
+   acceptance gate before the session becomes ready.
+8. Perception reads the governed H.264 recording and publishes derived output.
+9. No credential appears in a rendered manifest, resource, task result, log,
    USD layer, or retained artifact.
 
 Missing credentials, unavailable tiles, unsupported Pegasus APIs, PX4 startup

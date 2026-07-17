@@ -54,7 +54,7 @@ def run(config: RuntimeConfig) -> None:
     from isaacsim.core.api.objects import GroundPlane
     from isaacsim.sensors.experimental.rtx import CameraSensor, RtxCamera
     from omni.kit.viewport.utility import get_active_viewport
-    from pxr import Usd
+    from pxr import Gf, Usd, UsdGeom, UsdLux
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
     extension_manager.add_path(config.extension_directory)
@@ -91,6 +91,7 @@ def run(config: RuntimeConfig) -> None:
     from pegasus.simulator.params import ROBOTS
 
     from .command_queue import MainThreadQueue
+    from .camera_quality import measure_camera_frame, normalize_rgb_frame
     from .px4 import Px4Commander
     from .recording import RecordingPublisher
     from .server import AdapterApplication, AdapterServer, TimelineControls
@@ -110,6 +111,10 @@ def run(config: RuntimeConfig) -> None:
     vehicles: dict[str, Multirotor] = {}
     vehicle_callback_prefixes: dict[str, str] = {}
     camera_sensors: dict[str, CameraSensor] = {}
+    camera_frames_observed: dict[str, int] = {}
+    camera_visible_streaks: dict[str, int] = {}
+    camera_black_streaks_after_tiles: dict[str, int] = {}
+    camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
 
     try:
@@ -144,6 +149,16 @@ def run(config: RuntimeConfig) -> None:
         )
 
         stage = omni.usd.get_context().get_stage()
+        stage.DefinePrim("/World/Environment", "Xform")
+        sky = UsdLux.DomeLight.Define(stage, "/World/Environment/Sky")
+        sky.CreateIntensityAttr(1000.0)
+        sun = UsdLux.DistantLight.Define(stage, "/World/Environment/Sun")
+        sun.CreateIntensityAttr(500.0)
+        sun.CreateAngleAttr(0.53)
+        UsdGeom.Xformable(sun.GetPrim()).AddRotateXYZOp().Set(
+            Gf.Vec3f(-45.0, -45.0, 0.0)
+        )
+
         previous_target = stage.GetEditTarget()
         # The token is authored only into the anonymous session layer required by
         # Cesium's runtime schema. It is cleared on shutdown and never exported.
@@ -243,6 +258,9 @@ def run(config: RuntimeConfig) -> None:
                 resolution=(config.camera_height, config.camera_width),
                 annotators=["rgb"],
             )
+            camera_frames_observed[vehicle_id] = 0
+            camera_visible_streaks[vehicle_id] = 0
+            camera_black_streaks_after_tiles[vehicle_id] = 0
             if primary_camera_path is None:
                 primary_camera_path = camera_path
             recording.add_camera(vehicle_id)
@@ -437,10 +455,69 @@ def run(config: RuntimeConfig) -> None:
                 for vehicle_id, sensor in camera_sensors.items():
                     pixels, _information = sensor.get_data("rgb")
                     if pixels is not None:
-                        rgb = pixels.numpy()[..., :3]
-                        recording.camera(vehicle_id).encode(
-                            rgb, simulation_time_s, physics_step
+                        rgb = normalize_rgb_frame(pixels.numpy())
+                        quality = measure_camera_frame(rgb)
+                        camera_frames_observed[vehicle_id] += 1
+                        camera_visible_streaks[vehicle_id] = (
+                            camera_visible_streaks[vehicle_id] + 1
+                            if quality.visible
+                            else 0
                         )
+                        tiles_ready = (
+                            state.snapshot()["tiles"]["lifecycle"] == "ready"
+                        )
+                        camera_black_streaks_after_tiles[vehicle_id] = (
+                            camera_black_streaks_after_tiles[vehicle_id] + 1
+                            if tiles_ready and not quality.visible
+                            else 0
+                        )
+                        if camera_visible_streaks[vehicle_id] >= 3:
+                            camera_was_ready.add(vehicle_id)
+                            camera_lifecycle = "ready"
+                        elif vehicle_id in camera_was_ready:
+                            camera_lifecycle = "degraded"
+                        else:
+                            camera_lifecycle = "warming"
+                        diagnostic = (
+                            "camera RGB frame does not contain visible image content"
+                            if not quality.visible
+                            else None
+                        )
+                        state.update_camera(
+                            vehicle_id,
+                            camera_lifecycle,
+                            camera_frames_observed[vehicle_id],
+                            quality,
+                            diagnostic,
+                        )
+                        recording.log_camera_quality(
+                            vehicle_id,
+                            quality,
+                            camera_lifecycle,
+                            simulation_time_s,
+                            physics_step,
+                        )
+                        if quality.visible:
+                            recording.camera(vehicle_id).encode(
+                                rgb, simulation_time_s, physics_step
+                            )
+                        if camera_black_streaks_after_tiles[vehicle_id] >= (
+                            config.camera_fps * 30
+                        ):
+                            state.update_camera(
+                                vehicle_id,
+                                "failed",
+                                camera_frames_observed[vehicle_id],
+                                quality,
+                                (
+                                    "camera remained black for 30 seconds after "
+                                    "Google 3D Tiles became ready"
+                                ),
+                            )
+                            raise RuntimeError(
+                                f"front camera for {vehicle_id} remained black after "
+                                "Google 3D Tiles became ready"
+                            )
 
             if render:
                 statistics = cesium_interface.get_render_statistics()
@@ -477,15 +554,24 @@ def run(config: RuntimeConfig) -> None:
             if (
                 snapshot["lifecycle"] == "starting"
                 and snapshot["tiles"]["lifecycle"] == "ready"
+                and snapshot["cameras"]
+                and all(
+                    camera["lifecycle"] == "ready"
+                    for camera in snapshot["cameras"]
+                )
                 and snapshot["vehicles"]
                 and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             ):
                 state.set_lifecycle("running")
                 LOGGER.info(
-                    "UAV simulation ready: session=%s vehicles=%d resident_tiles=%d",
+                    (
+                        "UAV simulation ready: session=%s vehicles=%d "
+                        "resident_tiles=%d camera_mean_luma=%.2f"
+                    ),
                     config.session_id,
                     config.vehicle_count,
                     snapshot["tiles"]["resident_tiles"],
+                    snapshot["cameras"][0]["mean_luma"],
                 )
 
             if (

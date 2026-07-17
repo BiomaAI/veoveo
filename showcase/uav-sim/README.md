@@ -90,6 +90,13 @@ RTX/Cesium render can compile shaders. The runtime rebinds Pegasus's state,
 sensor, dynamics, and MAVLink callbacks after each Isaac physics reset because
 Isaac 6 recreates the underlying subscription interface.
 
+The stage authors a deterministic dome light and distant sun for headless RTX
+rendering. Camera readiness is based on the exact RGB8 bytes sent to H.264:
+three consecutive frames must contain measurable luma, dynamic range, and
+non-black pixels. Black frames are withheld from the video stream, and a
+camera that remains black for 30 seconds after Google tiles become resident
+fails readiness instead of producing an apparently successful recording.
+
 ## Verification layers
 
 The central Rust smoke harness owns orchestration and assertions. The Justfile

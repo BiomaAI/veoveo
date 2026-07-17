@@ -13,10 +13,10 @@ use veoveo_platform_store::{
 
 use crate::{
     contract::{
-        CaptureDatasetResult, CommandAcknowledgement, DurableOperation, DurableOperationResult,
-        MissionId, MissionLifecycle, MissionResult, RecordingId, RecordingState, ScenarioResult,
-        SessionId, SimulationCommand, SimulationLifecycle, SimulationState, TileState,
-        VehicleFlightState, VehicleState, Wgs84Position,
+        CameraState, CaptureDatasetResult, CommandAcknowledgement, DurableOperation,
+        DurableOperationResult, MissionId, MissionLifecycle, MissionResult, RecordingId,
+        RecordingState, ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle,
+        SimulationState, TileState, VehicleFlightState, VehicleState, Wgs84Position,
     },
     uris,
 };
@@ -45,6 +45,7 @@ struct AdapterSimulationState {
     frame_uri: String,
     georeference_origin: Wgs84Position,
     tiles: TileState,
+    cameras: Vec<CameraState>,
     vehicles: Vec<VehicleState>,
     recordings: Vec<AdapterRecordingState>,
     updated_at: DateTime<Utc>,
@@ -151,6 +152,7 @@ impl HttpAdapter {
             frame_uri: state.frame_uri,
             georeference_origin: state.georeference_origin,
             tiles: state.tiles,
+            cameras: state.cameras,
             vehicles: state.vehicles,
             recordings,
             updated_at: state.updated_at,
@@ -586,8 +588,8 @@ mod tests {
 
     use super::*;
     use crate::contract::{
-        EnuVector, NedVector, QuaternionXyzw, SessionId, StepSimulationRequest, TileLifecycle,
-        TileState, VehicleId, VehicleState, Wgs84Position,
+        CameraLifecycle, CameraState, EnuVector, NedVector, QuaternionXyzw, SessionId,
+        StepSimulationRequest, TileLifecycle, TileState, VehicleId, VehicleState, Wgs84Position,
     };
 
     fn fake_state() -> SimulationState {
@@ -611,6 +613,18 @@ mod tests {
                 failed_tiles: 0,
                 diagnostic: None,
             },
+            cameras: vec![CameraState {
+                vehicle_id: VehicleId::new("uav-1").unwrap(),
+                entity_path: "/world/uav-sim/session-alpha/vehicle/uav-1/camera/front".to_owned(),
+                lifecycle: CameraLifecycle::Ready,
+                width: 640,
+                height: 480,
+                frames_observed: 10,
+                mean_luma: 96.0,
+                dynamic_range: 224,
+                non_black_fraction: 0.95,
+                diagnostic: None,
+            }],
             vehicles: vec![VehicleState {
                 vehicle_id: VehicleId::new("uav-1").unwrap(),
                 flight_state: VehicleFlightState::Standby,

@@ -4,6 +4,9 @@ import os
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+
+from veoveo_uav_sim.camera_quality import measure_camera_frame, normalize_rgb_frame
 from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
@@ -92,6 +95,36 @@ class AdapterContractTests(unittest.TestCase):
         distance = horizontal_distance_m(13.6929, -89.2182, 13.6929, -89.21818)
         self.assertGreater(distance, 2.0)
         self.assertLess(distance, 2.3)
+
+
+class CameraQualityTests(unittest.TestCase):
+    def test_black_camera_frame_is_not_visible(self) -> None:
+        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
+        self.assertFalse(quality.visible)
+        self.assertEqual(quality.mean_luma, 0.0)
+        self.assertEqual(quality.dynamic_range, 0)
+        self.assertEqual(quality.non_black_fraction, 0.0)
+
+    def test_visible_camera_frame_is_accepted(self) -> None:
+        frame = np.zeros((48, 64, 3), dtype=np.uint8)
+        frame[8:40, 8:56] = (32, 128, 224)
+        quality = measure_camera_frame(frame)
+        self.assertTrue(quality.visible)
+        self.assertGreater(quality.mean_luma, 2.0)
+        self.assertGreater(quality.dynamic_range, 8)
+        self.assertGreater(quality.non_black_fraction, 0.02)
+
+    def test_uniform_bright_frame_is_not_visible_content(self) -> None:
+        frame = np.full((48, 64, 3), 128, dtype=np.uint8)
+        quality = measure_camera_frame(frame)
+        self.assertFalse(quality.visible)
+        self.assertEqual(quality.dynamic_range, 0)
+
+    def test_normalized_float_rgb_is_scaled_before_encoding(self) -> None:
+        frame = np.full((4, 4, 3), 0.5, dtype=np.float32)
+        normalized = normalize_rgb_frame(frame)
+        self.assertEqual(normalized.dtype, np.uint8)
+        self.assertEqual(int(normalized[0, 0, 0]), 128)
 
 
 if __name__ == "__main__":
