@@ -8,6 +8,7 @@ const NAMESPACE: &str = "veoveo";
 const SESSION_ID: &str = "bioma-uav";
 const FRAME_URI: &str = "frames://frame/bioma-uav-origin";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
+const ACCEPTANCE_ALTITUDE_M: f64 = 120.0;
 
 pub(crate) async fn uav_sim_verify(
     conformance: &Path,
@@ -109,7 +110,7 @@ pub(crate) async fn uav_sim_verify(
         serde_json::json!({
             "session_id": SESSION_ID,
             "vehicle_id": "uav-1",
-            "relative_altitude_m": 5.0
+            "relative_altitude_m": ACCEPTANCE_ALTITUDE_M
         }),
     )
     .await?;
@@ -121,6 +122,13 @@ pub(crate) async fn uav_sim_verify(
         Duration::from_secs(180),
     )
     .await?;
+    ensure!(
+        state
+            .pointer("/vehicles/0/enu/up_m")
+            .and_then(Value::as_f64)
+            .is_some_and(|up_m| up_m >= ACCEPTANCE_ALTITUDE_M - 5.0),
+        "UAV did not reach the 120 m aerial-tiles acceptance altitude: {state}"
+    );
 
     let origin = state
         .get("georeference_origin")
@@ -139,7 +147,7 @@ pub(crate) async fn uav_sim_verify(
                 "position": {
                     "latitude_degrees": latitude,
                     "longitude_degrees": longitude + 0.00002,
-                    "ellipsoid_height_m": height + 5.0
+                    "ellipsoid_height_m": height + ACCEPTANCE_ALTITUDE_M
                 },
                 "speed_mps": 3.0,
                 "hold_seconds": 0.5
@@ -315,7 +323,7 @@ fn assert_world_ready(state: &Value) -> Result<()> {
                 .pointer("/cameras/0/non_black_fraction")
                 .and_then(Value::as_f64)
                 .is_some_and(|value| value >= 0.02),
-        "Isaac front camera does not contain visible image content: {state}"
+        "Isaac nadir camera does not contain visible image content: {state}"
     );
     Ok(())
 }

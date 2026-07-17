@@ -96,7 +96,7 @@ class RecordingPublisher:
         return str(self._config.recording_key)
 
     def add_camera(self, vehicle_id: str) -> H264CameraStream:
-        entity_path = f"{self._root}/vehicle/{vehicle_id}/camera/front"
+        entity_path = f"{self._root}/vehicle/{vehicle_id}/camera/down"
         camera = H264CameraStream(
             self._recording,
             entity_path,
@@ -180,7 +180,7 @@ class RecordingPublisher:
         physics_step: int,
     ) -> None:
         self._set_time(simulation_time_s, physics_step)
-        base = f"{self._root}/vehicle/{vehicle_id}/camera/front/quality"
+        base = f"{self._root}/vehicle/{vehicle_id}/camera/down/quality"
         self._recording.log(f"{base}/mean_luma", rr.Scalars([quality.mean_luma]))
         self._recording.log(
             f"{base}/dynamic_range", rr.Scalars([quality.dynamic_range])

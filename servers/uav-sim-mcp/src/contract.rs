@@ -455,7 +455,7 @@ mod tests {
         let operation = DurableOperation::CaptureDataset(CaptureDatasetRequest {
             session_id: SessionId::new("session-alpha").unwrap(),
             duration_seconds: 10.0,
-            sensors: vec!["front-camera".to_owned()],
+            sensors: vec!["down-camera".to_owned()],
         });
         assert_eq!(operation.task_type(), "capture_dataset");
     }

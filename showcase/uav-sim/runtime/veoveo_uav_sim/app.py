@@ -197,9 +197,12 @@ def run(config: RuntimeConfig) -> None:
         finally:
             stage.SetEditTarget(previous_target)
 
-        # Fixed unit quaternion for a forward-facing optical camera whose image
-        # axes are right/down and whose optical axis is the vehicle's forward axis.
-        camera_rotation_wxyz = np.array([[-0.5, -0.5, 0.5, 0.5]])
+        # Fixed unit quaternion for a nadir camera. Its optical axis follows
+        # vehicle down, while image up follows the vehicle's forward axis.
+        inverse_sqrt_two = 0.7071067811865476
+        camera_rotation_wxyz = np.array(
+            [[inverse_sqrt_two, 0.0, 0.0, -inverse_sqrt_two]]
+        )
 
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
@@ -244,7 +247,7 @@ def run(config: RuntimeConfig) -> None:
             commander = Px4Commander(index, config.origin_ellipsoid_height_m)
             commanders[vehicle_id] = commander
 
-            camera_path = f"{vehicle_prim_path}/body/front_camera"
+            camera_path = f"{vehicle_prim_path}/body/down_camera"
             camera = RtxCamera(
                 camera_path,
                 tick_rate=float(config.camera_fps),
@@ -515,7 +518,7 @@ def run(config: RuntimeConfig) -> None:
                                 ),
                             )
                             raise RuntimeError(
-                                f"front camera for {vehicle_id} remained black after "
+                                f"down camera for {vehicle_id} remained black after "
                                 "Google 3D Tiles became ready"
                             )
 

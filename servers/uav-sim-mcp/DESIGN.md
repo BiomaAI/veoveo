@@ -193,10 +193,11 @@ vehicle, mission, and task identities without crossing tenant ownership.
 
 ## Recording integration
 
-The simulator emits camera streams, camera-content health, poses, transforms,
-IMU values, vehicle state, mission state, collision events, and tile-loading
-diagnostics. The co-located recording adapter converts them into typed Rerun
-entities under:
+The simulator emits a nadir `camera/down` stream, camera-content health, poses,
+transforms, IMU values, vehicle state, mission state, collision events, and
+tile-loading diagnostics. Image up follows vehicle forward, which keeps aerial
+recordings oriented with the flight path. The co-located recording adapter
+converts these values into typed Rerun entities under:
 
 ```text
 /world/uav-sim/{session_id}/...
@@ -264,7 +265,8 @@ The live test passes only when all of the following are true at once:
 2. Cesium authenticates and Google Photorealistic 3D Tiles become resident in
    the Isaac stage.
 3. Pegasus spawns a PX4-backed UAV against the declared frame.
-4. The UAV arms, takes off, follows a bounded mission, and lands.
+4. The UAV arms, climbs to the 120 m aerial acceptance altitude, follows a
+   bounded mission, and lands.
 5. MCP resources, mutations, tasks, ownership, and notifications work through
    the gateway.
 6. Camera, pose, telemetry, mission, and tile state reach Recording Hub.

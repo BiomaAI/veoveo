@@ -10,6 +10,7 @@ from veoveo_uav_sim.camera_quality import measure_camera_frame, normalize_rgb_fr
 from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.state import RuntimeState
 
 
 VALID_ENVIRONMENT = {
@@ -40,6 +41,15 @@ class RuntimeConfigTests(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_access_token, "test-token")
+
+    def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            state = RuntimeState(RuntimeConfig.from_environment()).snapshot()
+        camera_path = state["cameras"][0]["entity_path"]
+        recording_path = state["recordings"][0]["camera_streams"][0]
+        self.assertTrue(camera_path.endswith("/camera/down"))
+        self.assertEqual(recording_path, camera_path)
+        self.assertNotIn("front", camera_path)
 
 
 class AdapterContractTests(unittest.TestCase):
