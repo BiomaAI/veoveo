@@ -96,7 +96,7 @@ image up aligned to vehicle forward. Camera readiness is based on the exact
 RGB8 bytes sent to H.264: three consecutive frames must contain measurable
 luma and non-black pixels. This operational gate permits takeoff from the
 nearly uniform launch surface. The live acceptance separately requires scene
-detail after the vehicle reaches 120 m. Frames without visible detail are
+detail after the vehicle reaches 300 m. Frames without visible detail are
 withheld from the video stream, and a camera that remains black for 30 seconds
 after Google tiles become resident fails readiness instead of producing an
 apparently successful recording.
@@ -112,9 +112,9 @@ contains only short dispatch recipes.
 - Helm tests render interactive and batch workloads and reject plaintext token
   values.
 - Live acceptance loads Google Photorealistic 3D Tiles inside Isaac, climbs to
-  120 m above the declared origin for an aerial nadir view, flies a bounded PX4
-  mission, retains its Rerun recording, and runs Perception while View remains
-  healthy.
+  300 m above the declared origin with a wide 8 mm nadir camera, flies a
+  bounded PX4 mission, retains its Rerun recording, and runs Perception while
+  View remains healthy.
 
 The live test is the release proof. Fixture tiles exercise offline code paths
 but cannot replace it.

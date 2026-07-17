@@ -257,7 +257,9 @@ def run(config: RuntimeConfig) -> None:
                 translations=camera_translation_xyz,
                 orientations=camera_rotation_wxyz,
             )
-            camera.camera.set_focal_lengths(18.0)
+            # A wide aerial lens keeps the acceptance flight centered on the
+            # surrounding Google-tile context instead of a single large roof.
+            camera.camera.set_focal_lengths(8.0)
             camera.camera.set_clipping_ranges(0.05, 100_000.0)
             camera_sensors[vehicle_id] = CameraSensor(
                 camera,
