@@ -609,9 +609,11 @@ fn server_supports_gateway_action(server: &ServerManifest, action: GatewayAction
         }
         GatewayAction::PromptsList | GatewayAction::PromptsGet => server.capabilities.prompts,
         GatewayAction::CompletionComplete => server.capabilities.completions,
-        GatewayAction::TasksGet | GatewayAction::TasksResult | GatewayAction::TasksCancel => {
-            server.capabilities.tasks
-        }
+        GatewayAction::TasksGet
+        | GatewayAction::TasksUpdate
+        | GatewayAction::TasksResult
+        | GatewayAction::TasksCancel
+        | GatewayAction::TasksSubscribe => server.capabilities.tasks,
         GatewayAction::ArtifactRead | GatewayAction::UsageRead => server.capabilities.resources,
         GatewayAction::AdminRead | GatewayAction::AdminWrite => true,
         GatewayAction::RecordingStreamOpen

@@ -21,7 +21,7 @@ pub use control_store::{
 };
 pub use mcp::{
     FinalTaskClient, GatewayMcp, GatewayServerHealth, GatewayServerHealthState,
-    build_upstream_http_client, probe_gateway_server_health,
+    GatewayTaskExtension, build_upstream_http_client, probe_gateway_server_health,
 };
 pub use metadata::{
     AuthorizationExtensionMetadata, AuthorizationServerMetadata, GatewayMetadataError,

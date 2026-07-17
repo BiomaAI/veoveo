@@ -6,6 +6,7 @@ mod info;
 mod progress;
 mod prompts;
 mod resources;
+mod task_extension;
 mod tasks;
 mod tools;
 mod upstream;
@@ -46,6 +47,7 @@ use upstream_cache::{UpstreamCacheKey, UpstreamConnection, UpstreamConnectionCac
 
 pub use final_tasks::FinalTaskClient;
 pub use health::{GatewayServerHealth, GatewayServerHealthState, probe_gateway_server_health};
+pub use task_extension::GatewayTaskExtension;
 
 pub(super) const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;

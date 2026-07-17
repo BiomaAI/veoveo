@@ -25,12 +25,12 @@ The gateway discovers these surfaces from upstream servers and projects them int
 profile. It prefixes tool names only at the aggregation boundary, for example local
 `run` becomes `media__run`. Resource URIs keep their owning scheme.
 
-Full-MCP clients receive the standard task surface whenever a profile exposes a
-task-capable server. The gateway currently projects the hosted server's final task
-extension onto that surface without changing task identity. The shared runtime still
-owns policy checks and retention. Audit follows the existing task path, and completion
-remains webhook-only. This projection is the migration boundary until hosted servers
-implement the standard task handlers directly.
+Full-MCP clients can use the final task extension directly through a gateway profile.
+The gateway routes task-augmented tool calls, get, update, cancel, and subscriptions to
+the owning server without changing the canonical task identity. It applies profile
+exposure, ownership, policy, audit, and resource-URI projection at that boundary. The
+standard MCP task surface is an additive projection over the same upstream extension
+for clients that negotiate it.
 
 Some registered clients are explicitly `tools_compat`. Their narrow projections are
 implemented over the same upstream operation contract, task ID, policy decision, audit

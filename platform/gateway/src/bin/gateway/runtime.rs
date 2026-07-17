@@ -1,11 +1,9 @@
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::{Context, anyhow};
+use axum::Router;
 use chrono::{DateTime, TimeDelta, Utc};
 use parking_lot::RwLock;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpService, session::local::LocalSessionManager,
-};
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
@@ -13,8 +11,8 @@ use veoveo_mcp_contract::{
     ResourceAuthorizationServer, ServerSlug,
 };
 use veoveo_mcp_gateway::{
-    GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayMcp,
-    GatewayRefreshDeliveryWindow, GatewayState, RefreshTokenDeliveryCipher,
+    GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayRefreshDeliveryWindow,
+    GatewayState, RefreshTokenDeliveryCipher,
 };
 use veoveo_platform_store::PlatformStore;
 
@@ -23,7 +21,7 @@ const REFRESH_DELIVERY_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 pub(super) type SharedCatalog = GatewayCatalogHandle;
 pub(super) type SharedHttpClient = Arc<RwLock<reqwest::Client>>;
-pub(super) type ProfileMcpService = StreamableHttpService<GatewayMcp, LocalSessionManager>;
+pub(super) type ProfileMcpService = Router;
 pub(super) type SharedProfileMcpServices =
     Arc<RwLock<BTreeMap<GatewayProfileId, ProfileMcpService>>>;
 

@@ -703,8 +703,10 @@ Policy should grant only the actions a profile needs:
 - `resources_templates_list`
 - `resources_read`
 - `tasks_get`
-- final task get/listen
+- `tasks_update`
+- `tasks_result`
 - `tasks_cancel`
+- `tasks_subscribe`
 - `artifact_read`
 - `usage_read`
 

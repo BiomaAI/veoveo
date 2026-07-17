@@ -16,6 +16,7 @@ use rmcp::transport::streamable_http_server::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use tokio_util::sync::CancellationToken;
+use tower::ServiceExt;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
@@ -23,7 +24,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayMcp,
-    GatewayRefreshDeliveryWindow, RefreshTokenDeliveryCipher,
+    GatewayRefreshDeliveryWindow, GatewayTaskExtension, RefreshTokenDeliveryCipher,
 };
 
 use super::{
@@ -298,7 +299,7 @@ async fn dynamic_mcp_profile(
             .or_insert_with(|| build_profile_mcp_service(&state, profile_id))
             .clone()
     };
-    service.handle(request).await.into_response()
+    service.oneshot(request).await.into_response()
 }
 
 fn build_profile_mcp_service(
@@ -306,7 +307,7 @@ fn build_profile_mcp_service(
     profile_id: GatewayProfileId,
 ) -> ProfileMcpService {
     let internal_token_issuer = state.internal_token_issuer.clone();
-    StreamableHttpService::new(
+    let mcp_service = StreamableHttpService::new(
         {
             let catalog = state.catalog.clone();
             let gateway_state = state.gateway_state.clone();
@@ -326,7 +327,37 @@ fn build_profile_mcp_service(
         StreamableHttpServerConfig::default()
             .with_allowed_hosts(state.allowed_hosts.iter().cloned())
             .with_cancellation_token(state.cancellation_token.child_token()),
-    )
+    );
+    let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(
+        Arc::new(GatewayTaskExtension::new(GatewayMcp::new(
+            state.catalog.clone(),
+            profile_id,
+            state.gateway_state.clone(),
+            state.platform_store.clone(),
+            state.internal_token_issuer.clone(),
+        ))),
+        veoveo_mcp_task_extension::ServerDiscovery::new(
+            BTreeMap::from([
+                ("tools".to_owned(), serde_json::json!({})),
+                ("resources".to_owned(), serde_json::json!({})),
+            ]),
+            veoveo_mcp_task_extension::Implementation {
+                name: "veoveo-mcp-gateway".to_owned(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+            },
+            Some(
+                "Profile-aware canonical task routing across governed Veoveo MCP servers."
+                    .to_owned(),
+            ),
+        ),
+    ));
+    Router::new()
+        .route_service("/", mcp_service.clone())
+        .route_service("/{*path}", mcp_service)
+        .layer(middleware::from_fn_with_state(
+            task_extension,
+            veoveo_mcp_task_extension::task_extension_middleware::<GatewayTaskExtension>,
+        ))
 }
 
 async fn readyz(State(state): State<AppState>) -> Json<Readiness> {

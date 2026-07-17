@@ -597,7 +597,7 @@ fn auth_modes_expose_mcp_extension_ids() {
 }
 
 #[test]
-fn gateway_actions_expose_subscription_mcp_methods() {
+fn gateway_actions_expose_resource_and_task_extension_methods() {
     assert_eq!(
         GatewayAction::ResourcesSubscribe.mcp_method(),
         Some("resources/subscribe")
@@ -605,6 +605,14 @@ fn gateway_actions_expose_subscription_mcp_methods() {
     assert_eq!(
         GatewayAction::ResourcesUnsubscribe.mcp_method(),
         Some("resources/unsubscribe")
+    );
+    assert_eq!(
+        GatewayAction::TasksUpdate.mcp_method(),
+        Some("tasks/update")
+    );
+    assert_eq!(
+        GatewayAction::TasksSubscribe.mcp_method(),
+        Some("subscriptions/listen")
     );
 }
 
