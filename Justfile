@@ -17,7 +17,7 @@ default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
 bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
-bioma-registry := "k3d-veoveo-registry.localhost:5001"
+bioma-registry := "veoveo-registry.localhost:5001"
 
 # List available recipes.
 default:

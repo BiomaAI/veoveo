@@ -45,7 +45,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--registry",
-        default="k3d-veoveo-registry.localhost:5001",
+        default="veoveo-registry.localhost:5001",
         help="OCI registry host, port, and optional repository prefix",
     )
     parser.add_argument(
