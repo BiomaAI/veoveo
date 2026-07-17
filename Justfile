@@ -404,6 +404,15 @@ e2e public_base_url output_dir='output/e2e':
 showcase-sumo-test:
     cargo test -p veoveo-sumo-mcp
 
+# Test the UAV MCP contract and pod-private Python adapter without a GPU.
+showcase-uav-sim-test:
+    cargo test -p veoveo-uav-sim-mcp --all-targets
+    PYTHONPATH=showcase/uav-sim/runtime python3 -m unittest discover -s showcase/uav-sim/runtime/tests -v
+
+# Build the pinned Isaac runtime and UAV MCP images.
+showcase-uav-sim-build:
+    docker buildx bake uav-sim-runtime uav-sim-mcp
+
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:
     cargo run -p veoveo-smoke -- sumo-push

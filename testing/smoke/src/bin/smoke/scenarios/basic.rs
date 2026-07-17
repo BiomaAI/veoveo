@@ -83,7 +83,11 @@ pub(crate) async fn surreal_integration() -> Result<()> {
 }
 
 pub(crate) async fn helm_config() -> Result<()> {
-    for chart in ["deploy/helm/veoveo", "showcase/sumo/deploy/helm"] {
+    for chart in [
+        "deploy/helm/veoveo",
+        "showcase/sumo/deploy/helm",
+        "showcase/uav-sim/deploy/helm",
+    ] {
         run_checked(Path::new("helm"), ["lint".into(), chart.into()], [])
             .with_context(|| format!("linting Helm chart {chart}"))?;
     }
@@ -155,12 +159,24 @@ pub(crate) async fn helm_config() -> Result<()> {
         "https://veoveo.bioma.ai",
         "name: bioma-gateway-control-plane",
         "name: recording-hub",
+        "name: frames-mcp-bootstrap",
+        "bioma-uav-origin",
+        r#""view_coordinates":{"x":"right","y":"forward","z":"up"}"#,
+        "name: view-mcp",
+        "name: perception-mcp",
     ] {
         contains(&bioma, expected)?;
     }
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
+        }
+    }
+    let bioma_tunnel = fs::read_to_string("examples/bioma/tunnel.yaml")?;
+    contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
+    for forbidden in ["--token", "$(TUNNEL_TOKEN)"] {
+        if bioma_tunnel.contains(forbidden) {
+            bail!("Bioma tunnel must not expose its token through `{forbidden}`");
         }
     }
 
@@ -183,6 +199,107 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     contains(&bioma_lan, "secretName: bioma-lan-ingress-tls")?;
     contains(&bioma_lan, "host: veoveo.bioma.ai")?;
+
+    let uav_sim = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "uav-sim".into(),
+            "showcase/uav-sim/deploy/helm".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "examples/bioma/uav-sim-values.yaml".into(),
+        ],
+        [],
+    )?;
+    for expected in [
+        "name: uav-sim-mcp",
+        "name: isaac-sim",
+        "image: veoveo/uav-sim-runtime:6.0.1",
+        "image: veoveo/uav-sim-mcp:0.1.0",
+        "runtimeClassName: nvidia",
+        "name: CESIUM_ION_ACCESS_TOKEN",
+        "name: veoveo-uav-sim-secrets",
+        "key: cesium-ion-access-token",
+        "name: UAV_SIM_CESIUM_ION_ASSET_ID",
+        "value: \"2275207\"",
+        "name: UAV_SIM_TILE_CACHE_POLICY",
+        "value: \"ephemeral\"",
+        "name: UAV_SIM_RECORDING_TENANT_KEY",
+        "value: \"bioma\"",
+        "name: ROS_DISTRO",
+        "value: jazzy",
+        "name: RMW_IMPLEMENTATION",
+        "value: rmw_fastrtps_cpp",
+        "name: LD_LIBRARY_PATH",
+        "value: /isaac-sim/exts/isaacsim.ros2.core/jazzy/lib",
+        "nvidia.com/gpu: 1",
+    ] {
+        contains(&uav_sim, expected)?;
+    }
+    for forbidden in [
+        "kind: PersistentVolumeClaim",
+        "persistentVolumeClaim:",
+        "GOOGLE_MAPS_API_KEY",
+    ] {
+        if uav_sim.contains(forbidden) {
+            bail!("UAV simulation render must not contain `{forbidden}`");
+        }
+    }
+    ensure!(
+        uav_sim.matches("name: CESIUM_ION_ACCESS_TOKEN").count() == 1,
+        "interactive UAV render must inject the Cesium ion token exactly once"
+    );
+
+    let uav_batch = run_checked(
+        Path::new("helm"),
+        [
+            "template".into(),
+            "uav-sim".into(),
+            "showcase/uav-sim/deploy/helm".into(),
+            "--namespace".into(),
+            "veoveo".into(),
+            "--values".into(),
+            "examples/bioma/uav-sim-values.yaml".into(),
+            "--set".into(),
+            "interactive.enabled=false".into(),
+            "--set".into(),
+            "batch.enabled=true".into(),
+        ],
+        [],
+    )?;
+    for expected in [
+        "kind: Job",
+        "name: uav-sim-bioma-uav-batch",
+        "name: UAV_SIM_EXIT_AFTER_SECONDS",
+        "runtimeClassName: nvidia",
+        "name: CESIUM_ION_ACCESS_TOKEN",
+    ] {
+        contains(&uav_batch, expected)?;
+    }
+    for forbidden in ["kind: Service", "name: uav-sim-mcp"] {
+        if uav_batch.contains(forbidden) {
+            bail!("batch UAV render must not contain `{forbidden}`");
+        }
+    }
+
+    let production_without_digests = Command::new("helm")
+        .args([
+            "template",
+            "uav-sim",
+            "showcase/uav-sim/deploy/helm",
+            "--values",
+            "examples/bioma/uav-sim-values.yaml",
+            "--set",
+            "global.production=true",
+        ])
+        .output()
+        .context("rendering the production UAV chart without image digests")?;
+    ensure!(
+        !production_without_digests.status.success(),
+        "production UAV render must reject mutable image tags"
+    );
 
     let sumo_cluster = fs::read_to_string("deploy/local/k3d/cluster.yaml")?;
     contains(&sumo_cluster, "name: veoveo-sumo")?;
@@ -236,12 +353,68 @@ pub(crate) async fn helm_config() -> Result<()> {
         bail!("SUMO chart must not export telemetry when its profile disables telemetry");
     }
 
+    let uav_dependencies: Value = serde_json::from_str(&fs::read_to_string(
+        "showcase/uav-sim/dependencies.lock.json",
+    )?)?;
+    ensure!(
+        uav_dependencies
+            .pointer("/components/isaac_sim/version")
+            .and_then(Value::as_str)
+            == Some("6.0.1")
+            && uav_dependencies
+                .pointer("/components/cesium_for_omniverse/version")
+                .and_then(Value::as_str)
+                == Some("0.29.0")
+            && uav_dependencies
+                .pointer("/components/pegasus_simulator/version")
+                .and_then(Value::as_str)
+                == Some("5.1.0")
+            && uav_dependencies
+                .pointer("/components/px4_autopilot/version")
+                .and_then(Value::as_str)
+                == Some("1.17.0")
+            && uav_dependencies
+                .pointer("/components/google_photorealistic_3d_tiles/cesium_ion_asset_id")
+                .and_then(Value::as_u64)
+                == Some(2_275_207)
+            && uav_dependencies
+                .pointer("/components/python_runtime/lxml")
+                .and_then(Value::as_str)
+                == Some("6.0.2"),
+        "UAV dependency lock omitted a canonical release or Google tiles identity"
+    );
+    let uav_runtime_dockerfile = fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?;
+    for expected in [
+        "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",
+        "px4io/px4-dev:v1.17.0@sha256:",
+        "PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
+        "PEGASUS_COMMIT=644da37e9d5268e5f9a34e78bdcfd57a8bab82b4",
+        "CESIUM_VERSION=0.29.0",
+        "sha256sum --check --strict",
+        "cesium-0.29.0-preinstalled-vendor.patch",
+        "lxml-6.0.2-cp312-cp312",
+        "git -C pegasus apply --unidiff-zero --check",
+        "rerun-sdk==${RERUN_SDK_VERSION}",
+        "USER 10001:10001",
+    ] {
+        contains(&uav_runtime_dockerfile, expected)?;
+    }
+    let cesium_patch = fs::read_to_string(
+        "showcase/uav-sim/runtime/patches/cesium-0.29.0-preinstalled-vendor.patch",
+    )?;
+    contains(&cesium_patch, "metadata.version(\"lxml\")")?;
+    contains(&cesium_patch, "never mutate a Kit installation")?;
+    let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
+    contains(&gpu_device_plugin, "replicas: 3")?;
+
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
     contains(&gateway_dockerfile, "find /app/target -name 'libduckdb.so'")?;
     contains(
         &gateway_dockerfile,
         "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
     )?;
+    let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
+    contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
     for dockerfile in [
         "agents/kernel/Dockerfile",
         "apps/console/bff/Dockerfile",
@@ -258,6 +431,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "servers/recording-mcp/Dockerfile",
         "servers/timeseries-mcp/Dockerfile",
         "servers/time-mcp/Dockerfile",
+        "servers/uav-sim-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
         let contents = fs::read_to_string(dockerfile)?;
