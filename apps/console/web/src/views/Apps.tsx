@@ -1,16 +1,17 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { LayoutGrid } from "lucide-react";
 import { EmptyState, SectionHeader } from "../components/primitives";
 import { AppFrame } from "../apps/AppFrame";
-import { loadApps } from "../api";
+import { useApps } from "../queries";
 import type { AppDescriptor } from "../types";
 
-export function AppsView() {
-  const { data, error, isLoading } = useQuery({
-    queryKey: ["apps"] as const,
-    queryFn: ({ signal }) => loadApps(signal),
-  });
-  const [selectedUri, setSelectedUri] = useState<string>();
+export function AppsView({
+  selectedUri,
+  onSelect,
+}: {
+  selectedUri?: string;
+  onSelect: (app: AppDescriptor) => void;
+}) {
+  const { data, error, isLoading } = useApps();
 
   if (isLoading) {
     return (
@@ -32,32 +33,38 @@ export function AppsView() {
       </section>
     );
   }
-  const selected: AppDescriptor =
-    apps.find((app) => app.resourceUri === selectedUri) ?? apps[0];
+
+  const selected = selectedUri
+    ? apps.find((app) => app.resourceUri === selectedUri)
+    : undefined;
+  if (!selected) {
+    return (
+      <section className="panel full-panel">
+        <SectionHeader title="Apps" count={apps.length} />
+        <p className="panel-intro">
+          Interactive views shipped by hosted MCP servers, rendered in an isolated sandbox.
+        </p>
+        <div className="app-catalog">
+          {apps.map((app) => (
+            <button key={app.resourceUri} className="app-card" onClick={() => onSelect(app)}>
+              {app.icons?.[0] ? (
+                <img src={app.icons[0]} alt="" width={28} height={28} />
+              ) : (
+                <LayoutGrid size={28} />
+              )}
+              <strong>{app.title ?? app.name}</strong>
+              <span className="mono subdued">{app.server}</span>
+              {app.description && <p>{app.description}</p>}
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="panel full-panel">
-      <SectionHeader
-        title="Apps"
-        count={apps.length}
-        actions={
-          apps.length > 1 ? (
-            <label className="filter-control">
-              <select
-                value={selected.resourceUri}
-                onChange={(event) => setSelectedUri(event.target.value)}
-                aria-label="App"
-              >
-                {apps.map((app) => (
-                  <option key={app.resourceUri} value={app.resourceUri}>
-                    {app.server} · {app.title ?? app.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : undefined
-        }
-      />
+      <SectionHeader title={selected.title ?? selected.name} />
       <p className="panel-intro">
         {selected.description ??
           "Interactive view shipped by the MCP server, rendered in an isolated sandbox."}{" "}

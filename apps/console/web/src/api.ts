@@ -1,13 +1,8 @@
 import { demoSnapshot } from "./demo";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import type {
   AppCatalog,
   InstallationSnapshot,
-  MapActiveReleaseSummary,
-  MapAcquisitionSummary,
-  MapMobilityProfileSummary,
-  MapReleaseSummary,
-  MapSourceSummary,
   ClusterSnapshot,
   ReleaseState,
   RecordingPlaybackManifest,
@@ -83,7 +78,13 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
     throw new Error("This operation is not permitted by the active console scopes and policy.");
   }
   if (!response.ok) {
-    throw new Error(`Console API returned ${response.status}`);
+    let detail: string | undefined;
+    try {
+      detail = ((await response.json()) as { error?: string }).error;
+    } catch {
+      detail = undefined;
+    }
+    throw new Error(detail ?? `Console API returned ${response.status}`);
   }
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
   if (rotatedToken) csrfToken = rotatedToken;
@@ -211,85 +212,6 @@ export function recordingLiveSegmentUrl(
   return new URL(path, window.location.origin).toString();
 }
 
-export async function mapAdminQuery<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/console/api/map/${path.replace(/^\/+/, "")}`, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal,
-  });
-  if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
-  }
-  if (response.status === 403) {
-    throw new Error("Map administration requires the map:admin scope. Sign out and authenticate again after the console scope configuration is updated.");
-  }
-  if (!response.ok) throw new Error(`Map administration returned ${response.status}`);
-  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
-  if (rotatedToken) csrfToken = rotatedToken;
-  return response.json() as Promise<T>;
-}
-
-interface MapAdminPage<T> { items: T[]; next_cursor?: string }
-export const loadMapSources = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapSourceSummary>>("sources?limit=200", signal)).items;
-export const loadMapAcquisitions = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapAcquisitionSummary>>("acquisitions?limit=200", signal)).items;
-export const loadMapReleases = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapReleaseSummary>>("releases?limit=200", signal)).items;
-export const loadMapMobilityProfiles = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapMobilityProfileSummary>>("mobility-profiles?limit=200", signal)).items;
-export const loadMapActiveReleases = async (signal?: AbortSignal) => (await mapAdminQuery<MapAdminPage<MapActiveReleaseSummary>>("active-releases?limit=200", signal)).items;
-
-export const loadMapAdministration = async (signal?: AbortSignal) => {
-  const [sources, acquisitions, releases, mobilityProfiles, activeReleases] = await Promise.all([
-    loadMapSources(signal),
-    loadMapAcquisitions(signal),
-    loadMapReleases(signal),
-    loadMapMobilityProfiles(signal),
-    loadMapActiveReleases(signal),
-  ]);
-  return { sources, acquisitions, releases, mobilityProfiles, activeReleases };
-};
-
-export async function registerMapSource(source: unknown): Promise<MapSourceSummary> {
-  return consoleMutation("map/sources", {
-    method: "POST",
-    body: JSON.stringify({ source, idempotency_key: crypto.randomUUID() }),
-  });
-}
-
-export async function registerMapMobilityProfile(profile: unknown): Promise<MapMobilityProfileSummary> {
-  return consoleMutation("map/mobility-profiles", {
-    method: "POST",
-    body: JSON.stringify({ profile, idempotency_key: crypto.randomUUID() }),
-  });
-}
-
-export async function startMapAcquisition(
-  sourceId: string,
-  coverage: { west: number; south: number; east: number; north: number },
-): Promise<MapAcquisitionSummary> {
-  return consoleMutation("map/acquisitions", {
-    method: "POST",
-    body: JSON.stringify({
-      source_id: sourceId,
-      requested_coverage: coverage,
-      idempotency_key: crypto.randomUUID(),
-    }),
-  });
-}
-
-export async function mutateMapRelease(
-  release: MapReleaseSummary,
-  action: "activate" | "rollback" | "quarantine",
-  activePointerVersion: number,
-): Promise<unknown> {
-  return consoleMutation(`map/releases/${encodeURIComponent(release.release_id)}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({
-      expected_record_version: release.record_version,
-      expected_active_pointer_version: activePointerVersion,
-    }),
-  });
-}
-
 export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {
   const response = await fetch("/console/api/apps", {
     credentials: "same-origin",
@@ -319,5 +241,16 @@ export async function callAppTool(
   return consoleMutation<CallToolResult>("apps/call", {
     method: "POST",
     body: JSON.stringify({ server, appUri, tool, arguments: toolArguments }),
+  });
+}
+
+export async function readAppResource(
+  server: string,
+  appUri: string,
+  uri: string
+): Promise<ReadResourceResult> {
+  return consoleMutation<ReadResourceResult>("apps/read", {
+    method: "POST",
+    body: JSON.stringify({ server, appUri, uri }),
   });
 }

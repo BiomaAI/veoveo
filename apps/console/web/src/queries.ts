@@ -3,28 +3,23 @@ import {
   cancelTask,
   createArtifactShareLink,
   grantArtifact,
+  loadApps,
   loadCluster,
-  loadMapAdministration,
   loadSnapshot,
-  mutateMapRelease,
-  registerMapMobilityProfile,
-  registerMapSource,
   revokeArtifactGrant,
   revokeArtifactShareLink,
   setArtifactReleaseState,
-  startMapAcquisition,
 } from "./api";
 import type {
   ArtifactSummary,
   InstallationSnapshot,
-  MapReleaseSummary,
   ReleaseState,
   ShareLinkCreated,
 } from "./types";
 
 export const queryKeys = {
   snapshot: ["snapshot"] as const,
-  mapAdmin: ["mapAdmin"] as const,
+  apps: ["apps"] as const,
   cluster: ["cluster"] as const,
 };
 
@@ -45,10 +40,14 @@ export function useCluster() {
   });
 }
 
-export function useMapAdministration() {
+// The MCP app catalog is discovery data: it changes when servers deploy,
+// not while the operator works, so a session-long cache with explicit
+// refresh mirrors the snapshot query's behavior.
+export function useApps() {
   return useQuery({
-    queryKey: queryKeys.mapAdmin,
-    queryFn: ({ signal }) => loadMapAdministration(signal),
+    queryKey: queryKeys.apps,
+    queryFn: ({ signal }) => loadApps(signal),
+    staleTime: Infinity,
   });
 }
 
@@ -187,46 +186,4 @@ export function useRevokeShareLink() {
       }));
     },
   });
-}
-
-function useMapMutation<Args>(mutationFn: (args: Args) => Promise<unknown>) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn,
-    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.mapAdmin }),
-  });
-}
-
-export function useRegisterMapSource() {
-  return useMapMutation((source: unknown) => registerMapSource(source));
-}
-
-export function useRegisterMapMobilityProfile() {
-  return useMapMutation((profile: unknown) => registerMapMobilityProfile(profile));
-}
-
-export function useStartMapAcquisition() {
-  return useMapMutation(
-    ({
-      sourceId,
-      coverage,
-    }: {
-      sourceId: string;
-      coverage: { west: number; south: number; east: number; north: number };
-    }) => startMapAcquisition(sourceId, coverage)
-  );
-}
-
-export function useMutateMapRelease() {
-  return useMapMutation(
-    ({
-      release,
-      action,
-      activePointerVersion,
-    }: {
-      release: MapReleaseSummary;
-      action: "activate" | "rollback" | "quarantine";
-      activePointerVersion: number;
-    }) => mutateMapRelease(release, action, activePointerVersion)
-  );
 }

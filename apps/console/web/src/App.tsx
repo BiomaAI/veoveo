@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   Activity,
   Archive,
@@ -9,7 +9,6 @@ import {
   KeyRound,
   LayoutGrid,
   LogOut,
-  MapPinned,
   Menu,
   Network,
   Palette,
@@ -21,7 +20,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { logoutConsole } from "./api";
 import { useConsoleLiveStream } from "./live";
-import { queryKeys, useSnapshot } from "./queries";
+import { queryKeys, useApps, useSnapshot } from "./queries";
 import { Overview } from "./views/Overview";
 import { WorkView } from "./views/Work";
 import { ArtifactsView } from "./views/Artifacts";
@@ -29,15 +28,16 @@ import { AgentsView } from "./views/Agents";
 import { RecordingsView } from "./views/Recordings";
 import { McpView } from "./views/Mcp";
 import { AppsView } from "./views/Apps";
-import { MapDataView } from "./views/MapData";
 import { AccessView } from "./views/Access";
 import { AuditView } from "./views/Audit";
 import { ClusterView } from "./views/Cluster";
 import { ArtifactDrawer } from "./drawers/ArtifactDrawer";
 import { TaskDrawer } from "./drawers/TaskDrawer";
-import type { ArtifactSummary, TaskSummary } from "./types";
+import type { AppDescriptor, ArtifactSummary, TaskSummary } from "./types";
 import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 
+// Platform-plane views only. Domain servers contribute their own entries
+// through the MCP app catalog — never add a domain page here.
 const navItems = [
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "work", label: "Work", icon: Activity },
@@ -46,7 +46,6 @@ const navItems = [
   { id: "recordings", label: "Recordings", icon: FileStack },
   { id: "mcp", label: "MCP", icon: Network },
   { id: "apps", label: "Apps", icon: LayoutGrid },
-  { id: "map", label: "Map data", icon: MapPinned },
   { id: "access", label: "Access", icon: ShieldCheck },
   { id: "audit", label: "Audit", icon: KeyRound },
   { id: "cluster", label: "Cluster", icon: Boxes }
@@ -54,12 +53,17 @@ const navItems = [
 
 type ViewId = (typeof navItems)[number]["id"];
 
-function initialRoute(): { view: ViewId; recordingId?: string } {
-  const [value, recordingId] = window.location.hash.replace(/^#\/?/, "").split("/");
+function appRoute(resourceUri: string): string {
+  return `#/apps/${resourceUri.replace(/^ui:\/\//, "")}`;
+}
+
+function initialRoute(): { view: ViewId; recordingId?: string; appUri?: string } {
+  const [value, ...rest] = window.location.hash.replace(/^#\/?/, "").split("/");
   const view = navItems.some((item) => item.id === value) ? (value as ViewId) : "overview";
   return {
     view,
-    recordingId: view === "recordings" && recordingId ? recordingId : undefined,
+    recordingId: view === "recordings" && rest[0] ? rest[0] : undefined,
+    appUri: view === "apps" && rest.length >= 2 ? `ui://${rest.join("/")}` : undefined,
   };
 }
 
@@ -72,8 +76,10 @@ export function App() {
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
   const { data: snapshot, error, isLoading, isFetching } = useSnapshot();
+  const { data: appsCatalog } = useApps();
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
   const [view, setView] = useState<ViewId>(initial.view);
+  const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);
   const [mobileNav, setMobileNav] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<ArtifactSummary>();
   const [selectedTask, setSelectedTask] = useState<TaskSummary>();
@@ -138,6 +144,7 @@ export function App() {
   const navigate = (next: ViewId, recordingId?: string) => {
     setView(next);
     setSelectedRecordingId(recordingId);
+    setSelectedAppUri(undefined);
     setMobileNav(false);
     window.history.replaceState(
       null,
@@ -146,7 +153,22 @@ export function App() {
     );
   };
 
-  const title = navItems.find((item) => item.id === view)?.label ?? "Overview";
+  const navigateApp = (app: AppDescriptor) => {
+    setView("apps");
+    setSelectedAppUri(app.resourceUri);
+    setSelectedRecordingId(undefined);
+    setMobileNav(false);
+    window.history.replaceState(null, "", appRoute(app.resourceUri));
+  };
+
+  const apps = appsCatalog?.apps ?? [];
+  const selectedApp = selectedAppUri
+    ? apps.find((app) => app.resourceUri === selectedAppUri)
+    : undefined;
+  const title =
+    view === "apps" && selectedApp
+      ? selectedApp.title ?? selectedApp.name
+      : navItems.find((item) => item.id === view)?.label ?? "Overview";
   const currentArtifact = selectedArtifact && snapshot.artifacts.find((item) => item.id === selectedArtifact.id);
   const currentTask = selectedTask && snapshot.tasks.find((item) => item.id === selectedTask.id);
 
@@ -169,10 +191,30 @@ export function App() {
         </div>
         <nav aria-label="Primary navigation">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={view === id ? "nav-active" : ""} onClick={() => navigate(id)}>
-              <Icon size={17} />
-              <span>{label}</span>
-            </button>
+            <Fragment key={id}>
+              <button
+                className={view === id && !(id === "apps" && selectedApp) ? "nav-active" : ""}
+                onClick={() => navigate(id)}
+              >
+                <Icon size={17} />
+                <span>{label}</span>
+              </button>
+              {id === "apps" &&
+                apps.map((app) => (
+                  <button
+                    key={app.resourceUri}
+                    className={`nav-app ${view === "apps" && selectedApp?.resourceUri === app.resourceUri ? "nav-active" : ""}`}
+                    onClick={() => navigateApp(app)}
+                  >
+                    {app.icons?.[0] ? (
+                      <img src={app.icons[0]} alt="" width={17} height={17} />
+                    ) : (
+                      <LayoutGrid size={17} />
+                    )}
+                    <span>{app.title ?? app.name}</span>
+                  </button>
+                ))}
+            </Fragment>
           ))}
         </nav>
         <div className="sidebar-foot">
@@ -241,8 +283,7 @@ export function App() {
             window.history.replaceState(null, "", `#/recordings/${encodeURIComponent(recordingId)}`);
           }} />}
           {view === "mcp" && <McpView snapshot={snapshot} />}
-          {view === "apps" && <AppsView />}
-          {view === "map" && <MapDataView />}
+          {view === "apps" && <AppsView selectedUri={selectedAppUri} onSelect={navigateApp} />}
           {view === "access" && <AccessView snapshot={snapshot} />}
           {view === "audit" && <AuditView snapshot={snapshot} />}
           {view === "cluster" && <ClusterView snapshot={snapshot} />}

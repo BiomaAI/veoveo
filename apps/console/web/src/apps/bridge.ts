@@ -11,7 +11,7 @@ import {
   PostMessageTransport,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { callAppTool } from "../api";
+import { callAppTool, readAppResource } from "../api";
 import type { AppDescriptor } from "../types";
 import type { AppTheme } from "../theme";
 
@@ -34,7 +34,7 @@ export function attachAppBridge(
   const bridge = new McpAppBridge(
     null,
     { name: "veoveo-console", version: "0.1.0" },
-    { openLinks: {}, serverTools: {} },
+    { openLinks: {}, serverTools: {}, serverResources: {} },
     {
       hostContext: {
         theme,
@@ -52,6 +52,12 @@ export function attachAppBridge(
       throw new Error(`tool ${name} is not available to this app`);
     }
     return callAppTool(app.server, app.resourceUri, name, toolArguments ?? {});
+  };
+  bridge.onreadresource = async ({ uri }) => {
+    if (!uri.startsWith(`${app.server}://`) && !uri.startsWith(`ui://${app.server}/`)) {
+      throw new Error(`resource ${uri} is not owned by this app's server`);
+    }
+    return readAppResource(app.server, app.resourceUri, uri);
   };
   bridge.onopenlink = async ({ url }) => {
     const confirmed =

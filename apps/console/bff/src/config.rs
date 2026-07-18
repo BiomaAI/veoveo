@@ -155,11 +155,7 @@ impl Config {
             .expect("validated profile and recording id")
     }
 
-    pub(crate) fn recording_live_segment_url(
-        &self,
-        recording_id: &str,
-        segment_id: &str,
-    ) -> Url {
+    pub(crate) fn recording_live_segment_url(&self, recording_id: &str, segment_id: &str) -> Url {
         self.gateway_url
             .join(&format!(
                 "/recordings/{}/{recording_id}/segments/{segment_id}/live.rrd",

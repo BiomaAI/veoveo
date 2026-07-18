@@ -1,5 +1,7 @@
 pub const DATASETS_URI: &str = "map://datasets";
 pub const SOURCES_URI: &str = "map://sources";
+pub const ACQUISITIONS_URI: &str = "map://acquisitions";
+pub const ACTIVE_RELEASES_URI: &str = "map://active-releases";
 pub const LOCATIONS_URI: &str = "map://locations";
 pub const FACILITIES_URI: &str = "map://facilities";
 pub const MOBILITY_PROFILES_URI: &str = "map://mobility-profiles";
@@ -8,6 +10,7 @@ pub const ROUTES_URI: &str = "map://routes";
 pub const MATRICES_URI: &str = "map://matrices";
 
 pub const SOURCE_TEMPLATE: &str = "map://source/{source_id}";
+pub const ACQUISITION_TEMPLATE: &str = "map://acquisition/{acquisition_id}";
 pub const DATASET_TEMPLATE: &str = "map://dataset/{dataset_id}";
 pub const RELEASE_TEMPLATE: &str = "map://dataset/{dataset_id}/release/{release_id}";
 pub const LOCATION_TEMPLATE: &str = "map://location/{location_id}";
@@ -18,8 +21,16 @@ pub const ROUTE_TEMPLATE: &str = "map://route/{route_id}";
 pub const MATRIX_TEMPLATE: &str = "map://matrix/{matrix_id}";
 pub const ARTIFACT_TEMPLATE: &str = "map://artifact/{artifact_id}";
 
+/// The map administration MCP App view. The slug segment matches the
+/// gateway's ServerOwned `ui://{slug}/{page}` projection.
+pub const ADMIN_APP_URI: &str = "ui://map/admin.html";
+
 pub fn source_uri(id: &str) -> String {
     format!("map://source/{id}")
+}
+
+pub fn acquisition_uri(id: &str) -> String {
+    format!("map://acquisition/{id}")
 }
 
 pub fn dataset_uri(id: &str) -> String {

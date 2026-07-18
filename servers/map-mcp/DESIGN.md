@@ -6,8 +6,10 @@ This document is the canonical design and operational contract for the
 `map-mcp` is Veoveo's Earth geography and logistics-routing domain. Agents use
 one strongly typed MCP surface to find places, inspect facilities and borders,
 work with coordinates, apply transport restrictions, calculate routes, build
-matrices, and inspect reachable areas. Source administration runs through REST
-on the same server and through the Console projection of that API.
+matrices, and inspect reachable areas. Source administration runs through the
+same MCP surface: `map:admin`-scoped tools for mutations, `map://` resources
+for reads, and the `ui://map/admin.html` MCP App view that hosts render
+(see `mcp/apps-extension/DESIGN.md`).
 
 ## Status
 
@@ -16,8 +18,8 @@ Implemented in this workspace.
 The implementation includes the Map domain contract, SurrealDB records,
 tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
 governed network planner, source acquisition, release activation, MCP discovery
-surfaces, administrative REST, gateway proxying, Console workflows, Helm, and
-offline image registration.
+surfaces, administrative MCP tools, the administration MCP App view, gateway
+proxying, Helm, and offline image registration.
 
 The canonical service identity is:
 
@@ -27,7 +29,7 @@ folder      servers/map-mcp
 slug        map
 URI scheme  map
 MCP         /map/mcp
-admin REST  /map/admin
+admin app   ui://map/admin.html
 health      /map/healthz
 ```
 
@@ -63,7 +65,7 @@ mcp-gateway
   | signed internal identity
   v
 map-mcp container
-  |-- MCP protocol and administrative REST
+  |-- MCP protocol, administrative tools, and the admin app view
   |-- source catalog and release service
   |-- PROJ and GeographicLib calculations
   |-- DuckDB Spatial analytical projection
@@ -291,7 +293,7 @@ ids from source identity and source feature identity.
 
 ### Acquisition Jobs
 
-`POST /map/admin/acquisitions` accepts a registered source id, a requested
+The `start_acquisition` tool accepts a registered source id, a requested
 WGS84 bounding box, an idempotency key, and an optional
 `expected_source_digest_sha256`. When supplied, the digest is verified against
 the downloaded bytes before a release is staged.
@@ -355,7 +357,7 @@ The SurrealDB state and pointer share one database transaction and establish the
 canonical active release. DuckDB and filesystem projections reconcile after
 that catalog commit. A projection failure returns an error while preserving the
 canonical release, and calling `activate` again with current record versions
-performs an idempotent reconciliation. The Console exposes this as `Reconcile`.
+performs an idempotent reconciliation. The admin app exposes this as `Reconcile`.
 
 Map deploys as one replica with one persistent `ReadWriteOnce` volume. The
 activation mutex serializes local product switches inside that process.
@@ -513,54 +515,39 @@ closed. `map-mcp bootstrap-validate <path>` validates a document without
 booting the server. Bootstrap never downloads, validates, or activates a
 release; those remain governed operations by an authorized caller.
 
-## Administrative REST
+## Administration Over MCP
 
-The same Axum process exposes administrative acquisition through a typed REST
-tree protected by the gateway-signed identity and `map:admin`.
+Administration crosses the same MCP boundary as every other operation
+(`mcp/apps-extension/DESIGN.md` owns the contract). Mutations are
+`map:admin`-scoped tools implemented in `administration.rs` and exposed from
+`mcp.rs`:
 
-| Method and path | Purpose |
+| Tool | Purpose |
 |---|---|
-| `GET /map/admin/sources` | list sources with `enabled` and `adapter_kind` filters |
-| `GET /map/admin/sources/{source_id}` | read one source |
-| `POST /map/admin/sources` | register one source |
-| `PUT /map/admin/sources/{source_id}` | replace source configuration under expected version |
-| `POST /map/admin/sources/{source_id}/disable` | disable future acquisition |
-| `GET /map/admin/acquisitions` | list jobs with source and status filters |
-| `GET /map/admin/acquisitions/{acquisition_id}` | read one job |
-| `POST /map/admin/acquisitions` | start a snapshot acquisition |
-| `POST /map/admin/acquisitions/{acquisition_id}/cancel` | request cancellation |
-| `GET /map/admin/releases` | list releases with dataset, source, and state filters |
-| `GET /map/admin/releases/{release_id}` | read one release |
-| `GET /map/admin/active-releases` | read active pointers and their record versions |
-| `POST /map/admin/releases/{release_id}/activate` | activate staged data or reconcile the active projection |
-| `POST /map/admin/releases/{release_id}/rollback` | activate a retained release |
-| `POST /map/admin/releases/{release_id}/quarantine` | quarantine an inactive release |
-| `GET /map/admin/mobility-profiles` | list profiles, optionally by family |
-| `GET /map/admin/mobility-profiles/{profile_id}/versions/{version}` | read an immutable profile version |
-| `POST /map/admin/mobility-profiles` | register an immutable profile version |
+| `register_source` | register one governed source (idempotent on identical re-registration) |
+| `replace_source` | replace source configuration under an expected record version |
+| `disable_source` | disable future acquisition under an expected record version |
+| `start_acquisition` | start a snapshot acquisition with an idempotency key |
+| `cancel_acquisition` | request cancellation of a running job |
+| `activate_release` | activate staged data or reconcile the active projection |
+| `rollback_release` | activate a retained release |
+| `quarantine_release` | quarantine an inactive release |
+| `register_mobility_profile` | register an immutable profile version |
 
-Lists use opaque `map-admin-v1` cursors, default to 50 records, and cap a page at
-200. Creation requests use idempotency keys. Source and release mutations use
-expected record versions. Activation also uses the expected active-pointer
-version. Semantic validation can return `400`; JSON extraction can return
-`422`; concurrency conflicts return `409`.
+Administrative reads are resources: `map://sources`, `map://datasets`,
+`map://acquisitions` and `map://acquisition/{acquisition_id}` (map:admin),
+`map://active-releases` (map:admin), and `map://mobility-profiles`. Creation
+tools use idempotency keys; source and release mutations use expected record
+versions; activation also uses the expected active-pointer version.
+Validation failures surface as MCP invalid-params errors and concurrency
+conflicts name the changed version.
 
-The gateway proxies only the catalog-resolved generic path:
-
-```text
-/admin/{profile}/servers/map/...
-```
-
-It accepts bounded GET, HEAD, POST, and PUT requests, replaces internal identity
-headers, signs the authenticated principal, and writes the generic gateway
-audit outcome. Catalog resolution determines the upstream service.
-
-The Console BFF exposes the same operations beneath
-`/console/api/map/{path}`. The React page lists sources, acquisitions, releases,
-active pointers, and mobility profiles. It can register raw typed source and
-profile documents, start and cancel acquisitions, activate, reconcile,
-rollback, and quarantine releases. The BFF retains gateway credentials and
-mediates every browser operation.
+The administration app view ships as `ui://map/admin.html` from
+`assets/admin-app.html`: a self-contained document listed for `map:admin`
+identities, linked to every administrative tool, discovered and hosted by any
+MCP Apps host. The gateway projects it under `resource_projection:
+server_owned`, and the Console renders it from its generic app catalog — no
+map-specific console page, BFF route, or REST router exists.
 
 ## Isolation And Security
 
@@ -570,9 +557,9 @@ tables include `tenant_key` in their primary keys, and every active-release
 lookup is tenant constrained.
 
 The public server validates the Host authority and a gateway-signed internal
-token. Tool handlers enforce domain scopes again after gateway policy. The
-administrative router has its own scope gate. Secret references are bounded
-identifiers; MCP resources and Console payloads expose those references.
+token. Tool handlers enforce domain scopes again after gateway policy;
+administrative tools and resources require `map:admin`. Secret references are
+bounded identifiers; MCP resources expose those references.
 
 Health reports DuckDB Spatial verification and both the supervised Valhalla
 process and its loopback health. A failed routing process makes the Map health

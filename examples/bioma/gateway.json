@@ -320,18 +320,28 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "notifications": true,
+        "apps": true
       },
       "tools": [
+        "activate_release",
+        "cancel_acquisition",
+        "disable_source",
         "geodesic_direct",
         "geodesic_inverse",
         "inspect_corridor",
         "inspect_location",
         "publish_restriction",
+        "quarantine_release",
         "reachable_area",
+        "register_mobility_profile",
+        "register_source",
+        "replace_source",
+        "rollback_release",
         "route",
         "route_matrix",
         "search_locations",
+        "start_acquisition",
         "transform_crs",
         "validate_geofence",
         "validate_route",
@@ -345,7 +355,8 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {}
+      "metadata": {},
+      "resource_projection": "server_owned"
     },
     {
       "slug": "view",
@@ -662,7 +673,6 @@
           "completions": "enabled",
           "tasks": "enabled"
         },
-
         {
           "server": "perception",
           "tools": {
@@ -791,7 +801,22 @@
         {
           "server": "map",
           "tools": {
-            "mode": "all"
+            "mode": "listed",
+            "items": [
+              "geodesic_direct",
+              "geodesic_inverse",
+              "inspect_corridor",
+              "inspect_location",
+              "publish_restriction",
+              "reachable_area",
+              "route",
+              "route_matrix",
+              "search_locations",
+              "transform_crs",
+              "validate_geofence",
+              "validate_route",
+              "withdraw_restriction"
+            ]
           },
           "resources": {
             "mode": "listed",
@@ -1022,7 +1047,6 @@
           "completions": "enabled",
           "tasks": "enabled"
         },
-
         {
           "server": "perception",
           "tools": {
@@ -1185,6 +1209,10 @@
               {
                 "kind": "scheme",
                 "scheme": "map"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://map/"
               }
             ]
           },
@@ -2844,14 +2872,24 @@
           "id": "allow_map_administration",
           "effect": "allow",
           "actions": [
-            "admin_read",
-            "admin_write"
+            "tools_call"
           ],
           "profiles": [
             "admin"
           ],
           "servers": [
             "map"
+          ],
+          "tools": [
+            "activate_release",
+            "cancel_acquisition",
+            "disable_source",
+            "quarantine_release",
+            "register_mobility_profile",
+            "register_source",
+            "replace_source",
+            "rollback_release",
+            "start_acquisition"
           ],
           "required_scopes": [
             "operator:use",
