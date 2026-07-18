@@ -110,6 +110,8 @@ recording:
   labels: []
   route: world=
   idleTimeoutSeconds: 15
+  segmentMaxBytes: 201326592
+  segmentMaxAgeSeconds: 3600
   persistence:
     size: 100Gi
     storageClass: ""

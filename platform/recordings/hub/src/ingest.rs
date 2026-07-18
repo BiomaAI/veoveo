@@ -292,6 +292,23 @@ impl RecordingIngestService {
                 if !stream_entry.file_type()?.is_dir() {
                     continue;
                 }
+                let journals = std::fs::read_dir(stream_entry.path())?
+                    .filter_map(|entry| match entry {
+                        Ok(entry)
+                            if entry.file_type().is_ok_and(|kind| kind.is_file())
+                                && entry.path().extension().and_then(|value| value.to_str())
+                                    == Some("pb") =>
+                        {
+                            Some(Ok(entry.path()))
+                        }
+                        Ok(_) => None,
+                        Err(error) => Some(Err(error)),
+                    })
+                    .collect::<std::io::Result<Vec<_>>>()?;
+                if journals.is_empty() {
+                    remove_directory_if_exists(&stream_entry.path())?;
+                    continue;
+                }
                 let stream_id = RecordingIngestStreamId::from_uuid(uuid::Uuid::parse_str(
                     stream_entry.file_name().to_string_lossy().as_ref(),
                 )?);
@@ -301,21 +318,11 @@ impl RecordingIngestService {
                     .await?
                     .context("journal references an unknown recording ingest stream")?;
                 let identity = identity_from_stream(&stream)?;
-                for journal_entry in std::fs::read_dir(stream_entry.path())? {
-                    let journal_entry = journal_entry?;
-                    if journal_entry
-                        .path()
-                        .extension()
-                        .and_then(|value| value.to_str())
-                        != Some("pb")
-                    {
-                        continue;
-                    }
-                    let bytes = std::fs::read(journal_entry.path())?;
+                for journal_path in journals {
+                    let bytes = std::fs::read(&journal_path)?;
                     let batch = RecordingBatch::decode(bytes.as_slice())?;
                     batch.validate(self.config.maximum_batch_bytes)?;
-                    let relative_path = journal_entry
-                        .path()
+                    let relative_path = journal_path
                         .strip_prefix(&self.config.journal_root)?
                         .to_str()
                         .context("journal path is not UTF-8")?
@@ -342,11 +349,11 @@ impl RecordingIngestService {
                             stream_id,
                             &outcome.stream,
                             &batch,
-                            &journal_entry.path(),
+                            &journal_path,
                         )
                         .await?;
                     } else {
-                        remove_if_exists(&journal_entry.path())?;
+                        remove_if_exists(&journal_path)?;
                     }
                     reconciled += 1;
                 }
@@ -908,13 +915,15 @@ fn identity_from_stream(stream: &RecordingIngestStreamRecord) -> Result<Platform
 
 trait TypedRecordId: Sized {
     const TABLE: &'static str;
+    const UUID_VERSION: usize;
     fn from_uuid(value: uuid::Uuid) -> Self;
 }
 
 macro_rules! typed_record_id {
-    ($type:ty) => {
+    ($type:ty, $version:literal) => {
         impl TypedRecordId for $type {
             const TABLE: &'static str = <$type>::TABLE;
+            const UUID_VERSION: usize = $version;
             fn from_uuid(value: uuid::Uuid) -> Self {
                 <$type>::from_uuid(value)
             }
@@ -922,11 +931,11 @@ macro_rules! typed_record_id {
     };
 }
 
-typed_record_id!(TenantId);
-typed_record_id!(PrincipalId);
-typed_record_id!(RecordingId);
-typed_record_id!(SegmentId);
-typed_record_id!(RecordingIngestStreamId);
+typed_record_id!(TenantId, 5);
+typed_record_id!(PrincipalId, 5);
+typed_record_id!(RecordingId, 7);
+typed_record_id!(SegmentId, 7);
+typed_record_id!(RecordingIngestStreamId, 7);
 
 fn typed_record_uuid<T: TypedRecordId>(record: &RecordId, expected_table: &str) -> Result<T> {
     ensure!(
@@ -939,7 +948,10 @@ fn typed_record_uuid<T: TypedRecordId>(record: &RecordId, expected_table: &str) 
         other => anyhow::bail!("record key is not a UUID: {other:?}"),
     };
     let uuid = uuid::Uuid::parse_str(&raw)?;
-    ensure!(uuid.get_version_num() == 7, "record ID is not UUIDv7");
+    ensure!(
+        uuid.get_version_num() == T::UUID_VERSION,
+        "record ID has the wrong UUID version"
+    );
     Ok(T::from_uuid(uuid))
 }
 

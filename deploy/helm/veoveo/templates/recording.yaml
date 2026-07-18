@@ -96,6 +96,10 @@ spec:
             - {{ .Values.recording.route | quote }}
             - --recording-idle-timeout-s
             - {{ .Values.recording.idleTimeoutSeconds | quote }}
+            - --segment-max-bytes
+            - {{ printf "%.0f" .Values.recording.segmentMaxBytes | quote }}
+            - --segment-max-age-s
+            - {{ printf "%.0f" .Values.recording.segmentMaxAgeSeconds | quote }}
             - --rerun-bin
             - /usr/local/bin/rerun
           env:
