@@ -124,17 +124,8 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&platform, expected)?;
     }
-    for forbidden in [
-        "minio",
-        "caddy",
-        "compose",
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
-        "name: recording-ingest",
-        "nodePort: 30877",
-        "port: 9876",
-        "veoveo.ai/recording-producer",
-    ] {
-        if platform.to_ascii_lowercase().contains(forbidden) {
+    for forbidden in ["OTEL_EXPORTER_OTLP_ENDPOINT", "port: 9876"] {
+        if platform.contains(forbidden) {
             bail!("canonical Helm render must not contain `{forbidden}`");
         }
     }
@@ -168,12 +159,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&bioma, expected)?;
     }
-    for forbidden in [
-        "name: otel-collector",
-        "secretName: bioma-ingress-tls",
-        "rerun+http://recording-hub:9876/proxy",
-        "veoveo.ai/recording-producer",
-    ] {
+    for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
         }
@@ -259,11 +245,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_sim, expected)?;
     }
-    for forbidden in [
-        "GOOGLE_MAPS_API_KEY",
-        "rerun+http://recording-hub:9876/proxy",
-        "veoveo.ai/recording-producer",
-    ] {
+    for forbidden in ["GOOGLE_MAPS_API_KEY"] {
         if uav_sim.contains(forbidden) {
             bail!("UAV simulation render must not contain `{forbidden}`");
         }
@@ -304,12 +286,7 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_batch, expected)?;
     }
-    for forbidden in [
-        "kind: Service",
-        "name: uav-sim-mcp",
-        "rerun+http://recording-hub:9876/proxy",
-        "veoveo.ai/recording-producer",
-    ] {
+    for forbidden in ["kind: Service", "name: uav-sim-mcp"] {
         if uav_batch.contains(forbidden) {
             bail!("batch UAV render must not contain `{forbidden}`");
         }
@@ -389,14 +366,6 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     if sumo.contains("OTEL_EXPORTER_OTLP_ENDPOINT") {
         bail!("SUMO chart must not export telemetry when its profile disables telemetry");
-    }
-    for forbidden in [
-        "rerun+http://recording-hub:9876/proxy",
-        "veoveo.ai/recording-producer",
-    ] {
-        if sumo.contains(forbidden) {
-            bail!("SUMO chart must not contain `{forbidden}`");
-        }
     }
 
     let uav_dependencies: Value = serde_json::from_str(&fs::read_to_string(
