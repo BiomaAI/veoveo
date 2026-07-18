@@ -13,6 +13,12 @@ interface ViewerStatus {
   error?: string;
 }
 
+interface ViewerSession {
+  viewer: WebViewer;
+  ready: Promise<void>;
+  loadedSegments: Set<string>;
+}
+
 async function fetchSegment(
   segment: GovernedRerunSegment,
   signal: AbortSignal
@@ -43,59 +49,80 @@ export default function GovernedRerunViewer({
   segments: GovernedRerunSegment[];
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const session = useRef<ViewerSession>(null);
   const [status, setStatus] = useState<ViewerStatus>({
     loaded: 0,
     total: segments.length,
   });
 
   useEffect(() => {
-    const controller = new AbortController();
     const viewer = new WebViewer();
-    const channels: LogChannel[] = [];
-    let disposed = false;
-
-    void (async () => {
-      await viewer.start(null, host.current, {
+    const current: ViewerSession = {
+      viewer,
+      loadedSegments: new Set(),
+      ready: viewer.start(null, host.current, {
         width: "100%",
         height: "100%",
         hide_welcome_screen: true,
         allow_fullscreen: true,
-      });
-      if (disposed) {
-        viewer.stop();
-        return;
-      }
-      setStatus({ loaded: 0, total: segments.length });
+      }),
+    };
+    session.current = current;
+
+    return () => {
+      if (session.current === current) session.current = null;
+      viewer.stop();
+    };
+  }, [recordingId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const current = session.current;
+    if (!current) return;
+
+    setStatus({
+      loaded: current.loadedSegments.size,
+      total: segments.length,
+    });
+
+    void (async () => {
+      await current.ready;
 
       for (const segment of segments) {
-        const bytes = await fetchSegment(segment, controller.signal);
-        if (disposed) return;
+        if (current.loadedSegments.has(segment.url)) continue;
 
-        const channel = viewer.open_channel(
+        const bytes = await fetchSegment(segment, controller.signal);
+        if (controller.signal.aborted || session.current !== current) return;
+        if (!current.viewer.ready) {
+          throw new Error(
+            `Rerun stopped before segment ${segment.ordinal + 1} could be opened.`
+          );
+        }
+
+        const channel: LogChannel = current.viewer.open_channel(
           `recording ${recordingId} · segment ${segment.ordinal + 1}`
         );
-        channels.push(channel);
         channel.send_rrd(bytes);
         channel.close();
-        setStatus((current) => ({
-          loaded: current.loaded + 1,
-          total: current.total,
-        }));
+        current.loadedSegments.add(segment.url);
+        setStatus({
+          loaded: current.loadedSegments.size,
+          total: segments.length,
+        });
       }
     })().catch((cause: unknown) => {
-      if (!disposed && !controller.signal.aborted) {
+      if (!controller.signal.aborted && session.current === current) {
         const message = cause instanceof Error ? cause.message : "Rerun playback failed";
         console.error("Authenticated Rerun playback failed", cause);
-        setStatus({ loaded: 0, total: segments.length, error: message });
+        setStatus({
+          loaded: current.loadedSegments.size,
+          total: segments.length,
+          error: message,
+        });
       }
     });
 
-    return () => {
-      disposed = true;
-      controller.abort();
-      for (const channel of channels) channel.close();
-      viewer.stop();
-    };
+    return () => controller.abort();
   }, [recordingId, segments]);
 
   return (
