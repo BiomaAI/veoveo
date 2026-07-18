@@ -3,7 +3,7 @@ import { WebViewer } from "@rerun-io/web-viewer";
 
 export interface GovernedRerunSource {
   mode: "live" | "replay";
-  url: string;
+  urls: string[];
 }
 
 type ViewerStatus =
@@ -48,7 +48,7 @@ export default function GovernedRerunViewer({
           if (openTimeout !== undefined) window.clearTimeout(openTimeout);
           setStatus({ state: "open" });
         });
-        viewer.open(source.url, { follow_if_http: source.mode === "live" });
+        viewer.open(source.urls, { follow_if_http: source.mode === "live" });
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -68,7 +68,7 @@ export default function GovernedRerunViewer({
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
     };
-  }, [recordingId, source.mode, source.url]);
+  }, [recordingId, source]);
 
   return (
     <div className="rerun-web-viewer">
@@ -84,7 +84,7 @@ export default function GovernedRerunViewer({
           <strong>{source.mode === "live" ? "Connecting to live capture" : "Preparing replay"}</strong>
           <span>
             {source.mode === "live"
-              ? "Following the active governed RRD segment."
+              ? "Loading captured history and following the active governed RRD segment."
               : "Normalizing authorized segments into one Rerun timeline."}
           </span>
         </div>
