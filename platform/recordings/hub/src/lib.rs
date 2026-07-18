@@ -18,7 +18,10 @@ pub mod video;
 
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
-pub use ingest::{RecordingIngestService, RecordingIngestServiceConfig};
+pub use ingest::{
+    RecordingIngestService, RecordingIngestServiceConfig, ingest_part_sequence,
+    ingest_segment_parts_directory, live_segment_byte_len,
+};
 pub use ingest_http::recording_ingest_internal_router;
 pub use query::{QueryResult, collect_segments, query_segments, query_tree};
 pub use sim::{

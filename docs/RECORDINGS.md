@@ -8,12 +8,13 @@ Neither Kubernetes Services nor public ingress expose its loopback Rerun
 receiver.
 
 Recording Hub fsyncs each validated batch journal before advancing its
-SurrealDB checkpoint, then materializes ordered RRD segments under
-`{dataset}/{day}/{recording}.rrd`. It rolls segments before the artifact-plane
-upload ceiling and never truncates an existing file. A restart creates an
-`.rN` sibling. Startup reconciles journal checkpoints, decodes and hashes every
-segment, repairs crash-safe footer-less files, and fails closed on corruption
-or a catalog mismatch.
+SurrealDB checkpoint, then materializes immutable ordered parts beneath one
+cataloged writing segment. It re-encodes those parts into a complete RRD when
+byte or age limits roll the segment, before the artifact-plane upload ceiling.
+The loopback-native path writes RRD segments directly and never truncates an
+existing file; a restart creates an `.rN` sibling. Startup reconciles journal
+checkpoints, decodes and hashes every segment, repairs crash-safe footer-less
+files, and fails closed on corruption or a catalog mismatch.
 
 The authenticated batch protocol marks a recording `ready` once its finish
 request has drained. A loopback-native publisher becomes `ready` after the
@@ -41,12 +42,14 @@ RRD and repairs sparse keyframe markers before Rerun opens it. This projection
 prevents physical segment boundaries from becoming video-cache boundaries.
 
 Live playback is a distinct governed projection. The manifest identifies the
-current writing segment, and its ticketed response tails flushed RRD bytes while
-Recording Hub is still writing the file. Rerun opens that HTTP response in
-following mode, so camera and telemetry data appear before segment freeze. A
-segment rollover selects the new writing identity; completed playback returns
-to the normalized stable projection. Frozen and sealed source segments remain
-the durable authority in both cases.
+current writing segment. Its ticketed response tails flushed RRD bytes for a
+direct native producer, or decodes authenticated ingest parts in order and
+re-encodes them as one continuous stream. Rerun opens that HTTP response in
+following mode, so camera and telemetry data appear before segment freeze.
+A segment rollover closes the response with a valid footer and selects the new
+writing identity; completed playback returns to the normalized stable
+projection. Frozen and sealed source segments remain the durable authority in
+both cases.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not

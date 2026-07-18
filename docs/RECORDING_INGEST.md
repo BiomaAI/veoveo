@@ -20,10 +20,12 @@ A different digest conflicts, and a gap returns the next expected sequence.
 
 The public operations are discovery, open or resume, status, append, and
 finish. They do not expose raw recording bytes or proxy Rerun read operations.
-Each accepted batch is materialized as an immutable RRD segment before its
-append response advances the materialized checkpoint. Finishing closes the
-ordered stream. Sealing and artifact publication remain governed Recording MCP
-operations.
+Each accepted batch is materialized as an immutable ordered part of the current
+writing segment before its append response advances the materialized
+checkpoint. Segment byte and age limits merge those complete parts into one
+ordinary immutable RRD segment and open the next writing segment. Finishing
+freezes the remaining parts and closes the ordered stream. Sealing and artifact
+publication remain governed Recording MCP operations.
 
 ## Authentication and policy
 
@@ -46,12 +48,21 @@ SurrealDB transaction records the batch digest and advances the stream
 checkpoint only after that file exists durably. Startup reconciliation
 completes a transaction interrupted after rename.
 
-One ordered materializer converts a journal batch into an immutable RRD segment
-before the append completes. A batch journal file is eligible for removal only
-after a cataloged segment covers its sequence. Startup replays any durable
-journal entry left between those steps. This ordering provides at-least-once
-transport with append-once stored batches; it does not claim network-level
-exactly-once delivery.
+One ordered materializer converts a journal batch into an immutable sequence
+part beneath one cataloged writing segment before the append completes. A batch
+journal file is eligible for removal only after its sequence part exists
+durably. Startup replays any durable journal entry left between those steps.
+Segment rollover re-encodes the ordered parts into one complete RRD through
+fsync and atomic rename before freezing the catalog row. This ordering provides
+at-least-once transport with append-once stored batches; it does not claim
+network-level exactly-once delivery.
+
+The writing row is also the live playback identity. Recording MCP decodes new
+parts in sequence and emits one footer-less RRD response that remains open as
+additional batches arrive. A rollover ends that response with a valid RRD
+footer; the Console then selects the next writing segment from the governed
+manifest. Batch boundaries never appear as catalog segments or independent
+recordings.
 
 ## Network routes
 
@@ -108,8 +119,8 @@ unchanged.
 The Rust smoke harness starts an isolated SurrealDB with Recording Hub and the gateway.
 The producer forwarder client executes the complete contract against those services. The
 harness confirms discovery and private-key JWT token issuance. It retries a native RRD
-batch, resumes at the durable checkpoint, finishes the stream, then inspects the immutable
-segment digest.
+batch, resumes at the durable checkpoint, finishes the stream, then inspects the merged
+immutable segment digest.
 
 ```sh
 just smoke-recording-ingest
