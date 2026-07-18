@@ -45,7 +45,10 @@ Live playback is a distinct governed projection. The manifest identifies the
 current writing segment. Its ticketed response tails flushed RRD bytes for a
 direct native producer, or decodes authenticated ingest parts in order and
 re-encodes them as one continuous stream. Rerun opens that HTTP response in
-following mode, so camera and telemetry data appear before segment freeze.
+following mode, so camera and telemetry data appear before segment freeze. An
+encoded camera producer repeats its codec and pinhole metadata with every
+keyframe because a live Hub segment must remain independently viewable after
+the original static timeline was written.
 A segment rollover closes the response with a valid footer and selects the new
 writing identity; completed playback returns to the normalized stable
 projection. Frozen and sealed source segments remain the durable authority in
