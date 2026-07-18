@@ -1417,7 +1417,7 @@
             "veoveo-video-test",
             "veoveo-uav-sim"
           ],
-          "classification": "internal",
+          "classification": "unclassified",
           "labels": [],
           "quotas": {
             "maximum_concurrent_streams": 8,
