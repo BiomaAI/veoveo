@@ -28,7 +28,7 @@
     "task_timeout_seconds": 1200
   },
   "perception": {
-    "range_lead_seconds": 5.0,
+    "range_lag_seconds": 10.0,
     "range_duration_seconds": 25.0,
     "maximum_frames": 8,
     "task_timeout_seconds": 600
