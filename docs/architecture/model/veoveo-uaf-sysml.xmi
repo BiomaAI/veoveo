@@ -129,7 +129,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-004-COMMENT" body="Enforces tenant, label, grant, release, retention, share-link, and write-capability policy for governed artifact occurrences and bytes." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-005" name="Recording Hub">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-005-COMMENT" body="Accepts gateway-authorized versioned recording batches, journals durable checkpoints, materializes crash-decodable RRD segments, verifies frozen segments, and catalogs governed recordings." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-005-COMMENT" body="Accepts gateway-authorized recording batches, journals small durable RRD parts, and publishes keyframe-aligned immutable archive shards through one footer-writing object-store compaction pass." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-006" name="Agent kernel">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-006-COMMENT" body="Runs bounded autonomous episodes with MCP tools, elicitation, memory, replay, budgets, recording, and detach/resume behavior." />
@@ -183,7 +183,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-022-COMMENT" body="Authorizes recorded sensor data, extracts bounded clips, runs local detection and tracking, and publishes detection and tracking results plus derived RRD annotations." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-023" name="Recording MCP server">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-023-COMMENT" body="Applies tenant and label authorization to recording discovery, query, sealing, subscriptions, prompts, and artifact publication." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-023-COMMENT" body="Applies tenant and label authorization to recording discovery, query, sealing, subscriptions, artifact publication, range-capable archive windows, and bounded-history live following." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-024" name="Timeseries MCP server">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-024-COMMENT" body="Runs forecasting as durable work and publishes forecast artifacts and RRD output." />
@@ -255,7 +255,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-046-COMMENT" body="Builds and serves routing tiles, transforms geospatial data, and validates transit datasets under the Map MCP owner." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-047" name="Rerun data model and transport">
-        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-047-COMMENT" body="Carries world logs into producer-local forwarders, persists RRD segments, supports queries, and renders recording evidence." />
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-047-COMMENT" body="Carries world logs into producer-local forwarders, encodes footer-indexed RRD shards, supports range-oriented reads and live following, and renders recording evidence." />
       </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-048" name="Container execution environment">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-048-COMMENT" body="Runs isolated service images, networks, volumes, secrets, resource limits, GPUs, and deployment health controls." />

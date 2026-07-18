@@ -409,7 +409,7 @@
 <text x="595.5" y="1778" class="body" text-anchor="start">
 <tspan x="595.5" dy="0">Rerun data model and transport</tspan>
 </text>
-<text x="1079.0" y="1753" class="tiny" text-anchor="end">Rerun 0.34.x libraries and proxy protocol</text>
+<text x="1079.0" y="1753" class="tiny" text-anchor="end">Rerun 0.34.1 libraries and proxy protocol</text>
 <rect x="1109.0" y="1732" width="511.5" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1109.0" y="1732" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1125.0" y="1753" class="node-id" text-anchor="start">VV-CMP-048</text>

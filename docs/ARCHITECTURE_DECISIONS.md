@@ -78,11 +78,17 @@ installation service, NodePort, or public route. The forwarder and hub retain ba
 until a monotonic durable checkpoint makes replay idempotent.
 
 Durability begins with a validated, fsynced batch journal and its SurrealDB checkpoint.
-RRD segments are an ordered materialization of that journal. Open queries include the
-unmaterialized tail, while finishing waits for complete materialization. Frozen and
-sealed RRD segments remain the governed long-term recording authority.
-Console live playback may tail the authorized writing segment after each Hub flush;
-completed replay is a normalized projection over the frozen or sealed authority.
+Small RRD parts are the ordered write-path materialization of that journal. They remain
+internal. Finishing and rollover run one fail-closed object-store compaction pass that
+publishes an immutable, footer-indexed archive shard. The normal shard boundary is one
+hour or 192 MiB of unoptimized input, and video rollover starts the next shard at a
+keyframe-bearing batch. Frozen and sealed archive shards remain the governed long-term
+recording authority.
+
+Console live playback receives bounded recent history and follows the authorized writing
+segment after each Hub flush. Completed playback reads one selected archive window
+directly through range-capable authorized routes. No request path rebuilds or concatenates
+the whole recording.
 
 ## Task execution and provider completion
 

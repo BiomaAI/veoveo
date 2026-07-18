@@ -388,6 +388,9 @@ types.
 | `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |
 | `query.rs` | governed RRD query/readback |
 | `config.rs` | validated raw gRPC spool and segment limits |
+| `archive.rs` | one-time object-store compaction, GoP rebatching, footer encoding, and atomic archive publication |
+| `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and keyframe-aligned rollover |
+| `spool.rs` | direct loopback writer, keyframe-aligned rollover, and archive freeze |
 | `bin/spooler.rs` | thin composition of authenticated ingest, loopback Rerun receiver, catalog, and shutdown |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
@@ -405,10 +408,11 @@ types.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query, publication, and playback manifest types. `service.rs` owns
-authorized MCP and playback behavior, `live_playback.rs` projects direct writers and
-ordered ingest parts as continuous RRD streams, `uris.rs` owns recording identities, and
-`bin/server.rs` exposes authenticated same-origin RRD bytes beside the MCP route.
+`contract.rs` owns query, publication, archive-window, and live manifest types.
+`service.rs` owns authorized MCP and playback behavior. `live_playback.rs` retains static
+context, filters bounded temporal history, and follows direct writers or ordered ingest
+parts as one RRD stream. `uris.rs` owns recording identities, and `bin/server.rs` exposes
+authenticated range-capable archive shards and live RRD bytes beside the MCP route.
 `bin/server/state.rs` composes platform store, spool access, subscriptions, and artifact
 publication.
 

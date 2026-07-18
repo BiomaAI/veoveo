@@ -328,13 +328,16 @@ and Kubernetes traffic use this same resource and protocol.
 
 The hub validates each complete Rerun payload, fsyncs it into a deterministic journal,
 and advances its SurrealDB checkpoint only after the journal rename is durable. One
-ordered materializer produces immutable RRD segments and writes governed catalog records
-under the stream's authenticated tenant, owner, dataset, classification, and labels. Raw
-Rerun ingest and files are not installation ingress surfaces.
+ordered materializer compacts hour-or-192-MiB input windows with Rerun's object-store
+profile, aligns video rollover to a keyframe-bearing batch, writes the footer manifest,
+and publishes immutable RRD archive shards under the stream's authenticated tenant,
+owner, dataset, classification, and labels. Raw Rerun ingest, durable parts, and
+filesystem paths are not installation ingress or read surfaces.
 
 `recording-mcp` applies tenant/label authorization to discovery, query, subscription,
-and artifact publication. SUMO uses the same path: one serialized TraCI owner publishes
-Rerun world frames and exposes traffic controls, resources, and tasks.
+artifact publication, range-capable archive-window reads, and bounded-history live
+following. SUMO uses the same path: one serialized TraCI owner publishes Rerun world
+frames and exposes traffic controls, resources, and tasks.
 
 The agent kernel runs bounded episodes and persists scheduling through
 `veoveo-agent-runtime`. Tool tasks detach at episode end; durable descriptors, watcher
