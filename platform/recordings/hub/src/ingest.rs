@@ -79,6 +79,22 @@ pub fn ingest_part_sequence(path: &Path) -> Option<u64> {
     name.strip_suffix(".rrd")?.parse().ok()
 }
 
+pub(crate) fn is_authenticated_ingest_path(path: &Path) -> bool {
+    path.ancestors().any(|ancestor| {
+        let Some(name) = ancestor.file_name().and_then(|value| value.to_str()) else {
+            return false;
+        };
+        let Some((_, suffix)) = name.split_once(".ingest-") else {
+            return false;
+        };
+        let stream_id = suffix.chars().take(36).collect::<String>();
+        if suffix.chars().nth(36) != Some('-') {
+            return false;
+        }
+        uuid::Uuid::parse_str(&stream_id).is_ok_and(|value| value.get_version_num() == 7)
+    })
+}
+
 pub fn live_segment_byte_len(segment_path: &Path) -> Result<u64> {
     if segment_path.exists() {
         return Ok(std::fs::metadata(segment_path)?.len());
@@ -991,6 +1007,20 @@ mod tests {
             .map(|path| ingest_part_sequence(&path).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(sequences, [1, 9, 42]);
+    }
+
+    #[test]
+    fn authenticated_ingest_paths_require_a_stream_uuid() {
+        let stream_id = uuid::Uuid::now_v7();
+        assert!(is_authenticated_ingest_path(Path::new(&format!(
+            "/spool/world/run.ingest-{stream_id}-s0.rrd"
+        ))));
+        assert!(is_authenticated_ingest_path(Path::new(&format!(
+            "/spool/world/run.ingest-{stream_id}-s0.rrd.parts/00000000000000000001.rrd"
+        ))));
+        assert!(!is_authenticated_ingest_path(Path::new(
+            "/spool/world/run.ingest-camera.rrd"
+        )));
     }
 
     #[test]
