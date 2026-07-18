@@ -186,19 +186,26 @@ export function RecordingsView({
   const playbackSource = useMemo(() => {
     if (!manifest) return undefined;
     if (manifest.live_segment) {
+      const liveUrl = recordingLiveSegmentUrl(
+        manifest.recording_id,
+        manifest.playback_ticket,
+        manifest.live_segment.segment_id
+      );
       return {
         mode: "live" as const,
-        url: recordingLiveSegmentUrl(
-          manifest.recording_id,
-          manifest.playback_ticket,
-          manifest.live_segment.segment_id
-        ),
+        urls:
+          manifest.segments.length > 0
+            ? [
+                recordingReplayUrl(manifest.recording_id, manifest.playback_ticket),
+                liveUrl,
+              ]
+            : [liveUrl],
       };
     }
     if (manifest.segments.length > 0) {
       return {
         mode: "replay" as const,
-        url: recordingReplayUrl(manifest.recording_id, manifest.playback_ticket),
+        urls: [recordingReplayUrl(manifest.recording_id, manifest.playback_ticket)],
       };
     }
     return undefined;
@@ -338,7 +345,7 @@ export function RecordingsView({
                 <ViewerBoundary recordingId={selected.id}>
                   <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.34.1…</span></div>}>
                     <GovernedRerunViewer
-                      key={`${selected.id}:${playbackSource.mode}:${playbackSource.url}`}
+                      key={`${selected.id}:${playbackSource.mode}:${playbackSource.urls.join(":")}`}
                       recordingId={selected.id}
                       source={playbackSource}
                     />
@@ -351,7 +358,7 @@ export function RecordingsView({
                 <Play size={14} />
                 <span>
                   {manifest.live_segment
-                    ? `Live · following active segment ${manifest.live_segment.ordinal + 1}`
+                    ? `Live · ${manifest.segments.length} captured segment${manifest.segments.length === 1 ? "" : "s"} loaded; following active segment ${manifest.live_segment.ordinal + 1}.`
                     : `${manifest.segments.length} authorized RRD segment${manifest.segments.length === 1 ? "" : "s"} normalized into one replay timeline.`}
                 </span>
               </footer>
