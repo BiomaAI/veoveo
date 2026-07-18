@@ -12,8 +12,12 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::Utc;
+use jsonwebtoken::jwk::JwkSet;
+use veoveo_mcp_contract::ResourceAuthorizationServer;
 use veoveo_mcp_contract::{AuthOutcome, AuthReasonCode, GatewayProfileId};
-use veoveo_mcp_gateway::{AuthenticatedSubject, BearerToken, JwtAuthConfig, JwtVerifier};
+use veoveo_mcp_gateway::{
+    AuthenticatedSubject, BearerToken, GatewayCatalog, JwtAuthConfig, JwtVerifier,
+};
 
 use crate::{
     audit::{auth_audit_error_response, record_auth_audit, unauthorized},
@@ -160,7 +164,14 @@ pub(super) async fn authenticate_mcp(
     };
 
     let http = current_http_client(&state.http);
-    let jwks = match load_jwks(&http, &authorization_server.jwks).await {
+    let jwks = match load_resource_authorization_jwks(
+        &catalog,
+        authorization_server,
+        &state.public_base_url,
+        &http,
+    )
+    .await
+    {
         Ok(jwks) => jwks,
         Err(err) => {
             tracing::warn!("failed to load resource authorization server JWKS: {err}");
@@ -290,4 +301,19 @@ pub(super) async fn authenticate_mcp(
         .extensions_mut()
         .insert::<AuthenticatedSubject>(subject);
     next.run(request).await
+}
+
+pub(super) async fn load_resource_authorization_jwks(
+    catalog: &GatewayCatalog,
+    authorization_server: &ResourceAuthorizationServer,
+    public_base_url: &str,
+    http: &reqwest::Client,
+) -> anyhow::Result<JwkSet> {
+    if public_authorization_server(catalog, public_base_url)
+        .is_some_and(|hosted| hosted.id == authorization_server.id)
+    {
+        authorization_server_jwks_from_signing_key(catalog, authorization_server).await
+    } else {
+        load_jwks(http, &authorization_server.jwks).await
+    }
 }
