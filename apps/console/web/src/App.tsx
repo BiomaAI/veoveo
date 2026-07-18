@@ -12,6 +12,7 @@ import {
   MapPinned,
   Menu,
   Network,
+  Palette,
   RefreshCw,
   ShieldCheck,
   Users,
@@ -35,6 +36,7 @@ import { ClusterView } from "./views/Cluster";
 import { ArtifactDrawer } from "./drawers/ArtifactDrawer";
 import { TaskDrawer } from "./drawers/TaskDrawer";
 import type { ArtifactSummary, TaskSummary } from "./types";
+import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 
 const navItems = [
   { id: "overview", label: "Overview", icon: Gauge },
@@ -67,6 +69,7 @@ function logoSource(logo: string): string {
 
 export function App() {
   const initial = initialRoute();
+  const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
   const { data: snapshot, error, isLoading, isFetching } = useSnapshot();
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
@@ -85,7 +88,7 @@ export function App() {
     if (!installation) return;
     document.title = `${installation.name} Console`;
     if (installation.accentColor) {
-      document.documentElement.style.setProperty("--accent", installation.accentColor);
+      document.documentElement.style.setProperty("--brand-accent", installation.accentColor);
     }
     if (installation.logo) {
       const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
@@ -195,6 +198,20 @@ export function App() {
             </div>
           </div>
           <div className="topbar-actions">
+            <label className="theme-select" title="Console theme">
+              <Palette size={15} />
+              <select
+                value={theme}
+                onChange={(event) => setTheme(event.target.value as ConsoleTheme)}
+                aria-label="Console theme"
+              >
+                {consoleThemes.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="tenant-select">
               <Users size={15} />
               <select value={snapshot.session.tenantId} aria-label="Tenant" disabled={snapshot.session.availableTenants.length <= 1}>
