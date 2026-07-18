@@ -20,12 +20,16 @@ use serde_json::json;
 use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, paginate};
 
 use crate::{
+    administration::{self, AdminOpError},
     contract::{
-        CorridorInspectionOutput, CorridorInspectionRequest, DatasetReleaseId, FacilityId,
+        AcquisitionId, AcquisitionJob, CancelAcquisitionRequest, CorridorInspectionOutput,
+        CorridorInspectionRequest, CreateAcquisitionRequest, CreateMobilityProfileRequest,
+        CreateSourceRequest, DatasetReleaseId, DisableSourceRequest, FacilityId,
         GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
         InspectLocationOutput, InspectLocationRequest, LocationId, MapDatasetId, MapSourceId,
-        MobilityProfileId, PublishRestrictionRequest, ReachableArea, ReachableAreaRequest,
-        RegisteredSource, RestrictionId, RestrictionMutationOutput, RouteId, RouteMatrix,
+        MobilityProfile, MobilityProfileId, PublishRestrictionRequest, ReachableArea,
+        ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest, ReleaseMutationResponse,
+        ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput, RouteId, RouteMatrix,
         RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest, RouteValidation,
         SearchLocationsOutput, SearchLocationsRequest, TransformCrsOutput, TransformCrsRequest,
         ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
@@ -39,6 +43,23 @@ use crate::{
 };
 
 const LIST_PAGE_SIZE: usize = 100;
+
+/// Tools the map administration app may invoke; each is linked to the app
+/// view in `list_tools` and scope-gated to `map:admin` in its handler.
+const ADMIN_TOOLS: &[&str] = &[
+    "register_source",
+    "replace_source",
+    "disable_source",
+    "start_acquisition",
+    "cancel_acquisition",
+    "register_mobility_profile",
+    "activate_release",
+    "rollback_release",
+    "quarantine_release",
+];
+
+/// Self-contained icon for the admin app (lucide `map-pinned` outline).
+const ADMIN_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0YTdkZDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTggOGMwIDMuNjEzLTMuODY5IDcuNDI5LTUuMzkzIDguNzk1YTEgMSAwIDAgMS0xLjIxNCAwQzkuODcgMTUuNDI5IDYgMTEuNjEzIDYgOGE2IDYgMCAwIDEgMTIgMCIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iMiIvPjxwYXRoIGQ9Ik04LjcxNCAxNGgtMy43MWExIDEgMCAwIDAtLjk0OC42ODNsLTIuMDA0IDZBMSAxIDAgMCAwIDMgMjJoMThhMSAxIDAgMCAwIC45NDgtMS4zMTZsLTItNmExIDEgMCAwIDAtLjk0OS0uNjg0aC0zLjcxMiIvPjwvc3ZnPg==";
 
 #[derive(Clone)]
 pub struct MapMcp {
@@ -336,12 +357,202 @@ impl MapMcp {
             .await;
         structured_result("withdrew restriction".to_owned(), &output)
     }
+
+    #[tool(
+        title = "Register map source",
+        description = "Register a governed authoritative map source. Requires the map:admin scope; idempotent on identical re-registration.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RegisteredSource>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn register_source(
+        &self,
+        Parameters(request): Parameters<CreateSourceRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let source = administration::register_source(&self.state, &scope, request)
+            .await
+            .map_err(admin_error)?;
+        structured_result(format!("registered source {}", source.source_id), &source)
+    }
+
+    #[tool(
+        title = "Replace map source",
+        description = "Replace a registered map source under optimistic concurrency. Requires the map:admin scope.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RegisteredSource>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn replace_source(
+        &self,
+        Parameters(request): Parameters<ReplaceSourceRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let source = administration::replace_source(&self.state, &scope, request)
+            .await
+            .map_err(admin_error)?;
+        structured_result(format!("replaced source {}", source.source_id), &source)
+    }
+
+    #[tool(
+        title = "Disable map source",
+        description = "Disable a registered map source under optimistic concurrency so no new acquisitions can start from it. Requires the map:admin scope.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<RegisteredSource>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn disable_source(
+        &self,
+        Parameters(request): Parameters<DisableSourceRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let source = administration::disable_source(&self.state, &scope, request)
+            .await
+            .map_err(admin_error)?;
+        structured_result(format!("disabled source {}", source.source_id), &source)
+    }
+
+    #[tool(
+        title = "Start map acquisition",
+        description = "Start a governed acquisition job that stages a dataset release for an explicit WGS84 coverage box. Requires the map:admin scope. Poll map://acquisition/{acquisition_id} for progress.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<AcquisitionJob>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = true)
+    )]
+    async fn start_acquisition(
+        &self,
+        Parameters(request): Parameters<CreateAcquisitionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let caller = internal_caller(&context)?;
+        let job = administration::start_acquisition(&self.state, scope, caller, request)
+            .await
+            .map_err(admin_error)?;
+        structured_result(format!("started acquisition {}", job.acquisition_id), &job)
+    }
+
+    #[tool(
+        title = "Cancel map acquisition",
+        description = "Request cancellation of a running acquisition job. Requires the map:admin scope.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<AcquisitionJob>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn cancel_acquisition(
+        &self,
+        Parameters(request): Parameters<CancelAcquisitionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let job = administration::cancel_acquisition(&self.state, &scope, request)
+            .await
+            .map_err(admin_error)?;
+        structured_result(
+            format!("cancellation requested for {}", job.acquisition_id),
+            &job,
+        )
+    }
+
+    #[tool(
+        title = "Register mobility profile",
+        description = "Register a new versioned human or vehicle mobility profile. Requires the map:admin scope; idempotent on identical re-registration.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MobilityProfile>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn register_mobility_profile(
+        &self,
+        Parameters(request): Parameters<CreateMobilityProfileRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let profile = administration::register_mobility_profile(&self.state, &scope, request)
+            .await
+            .map_err(admin_error)?;
+        let metadata = profile.metadata();
+        structured_result(
+            format!(
+                "registered mobility profile {} v{}",
+                metadata.profile_id, metadata.version
+            ),
+            &profile,
+        )
+    }
+
+    #[tool(
+        title = "Activate dataset release",
+        description = "Activate a staged dataset release (or reconcile the current active release) under optimistic concurrency, rebuilding routing products. Requires the map:admin scope.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ReleaseMutationResponse>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn activate_release(
+        &self,
+        Parameters(request): Parameters<ReleaseMutationRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let output = administration::activate_release(&self.state, &scope, request, false)
+            .await
+            .map_err(admin_error)?;
+        structured_result(
+            format!("activated release {}", output.release.release_id),
+            &output,
+        )
+    }
+
+    #[tool(
+        title = "Roll back dataset release",
+        description = "Roll the active pointer back to an earlier release under optimistic concurrency, rebuilding routing products. Requires the map:admin scope.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ReleaseMutationResponse>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn rollback_release(
+        &self,
+        Parameters(request): Parameters<ReleaseMutationRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let output = administration::activate_release(&self.state, &scope, request, true)
+            .await
+            .map_err(admin_error)?;
+        structured_result(
+            format!("rolled back to release {}", output.release.release_id),
+            &output,
+        )
+    }
+
+    #[tool(
+        title = "Quarantine dataset release",
+        description = "Quarantine a non-active dataset release and invalidate routes derived from it. Quarantined releases can never be activated. Requires the map:admin scope.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ReleaseMutationResponse>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn quarantine_release(
+        &self,
+        Parameters(request): Parameters<ReleaseMutationRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let scope = self.admin_scope(&context).await?;
+        let output = administration::quarantine_release(&self.state, &scope, request)
+            .await
+            .map_err(admin_error)?;
+        structured_result(
+            format!("quarantined release {}", output.release.release_id),
+            &output,
+        )
+    }
+
+    async fn admin_scope(
+        &self,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<crate::catalog::MapScope, McpError> {
+        let identity = require_scope(context, "map:admin")?;
+        self.state.scope(&identity).await.map_err(internal)
+    }
 }
 
 #[tool_handler]
 impl ServerHandler for MapMcp {
     fn get_info(&self) -> ServerInfo {
-        let capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
@@ -349,11 +560,12 @@ impl ServerHandler for MapMcp {
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. The server never fabricates a straight-line route when transport coverage is unavailable."
+            "Earth geography and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. The server never fabricates a straight-line route when transport coverage is unavailable. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
                 .to_owned(),
         );
         info
@@ -366,6 +578,24 @@ impl ServerHandler for MapMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        // The #[tool] macro has no meta attribute; app links attach here.
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                if ADMIN_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::ADMIN_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -382,6 +612,27 @@ impl ServerHandler for MapMcp {
         let identity = require_scope(&context, "map:dataset:read")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let mut resources = root_resources();
+        if identity_has_scope(&identity, "map:admin") {
+            resources.push(
+                veoveo_mcp_apps_extension::app_resource(uris::ADMIN_APP_URI, "map-admin-app")
+                    .with_title("Map data")
+                    .with_description(
+                        "Interactive MCP App governing map sources, acquisitions, dataset \
+                         releases, and mobility profiles.",
+                    )
+                    .with_icons(vec![rmcp::model::Icon::new(ADMIN_APP_ICON)]),
+            );
+            resources.push(json_resource_descriptor(
+                uris::ACQUISITIONS_URI.to_owned(),
+                "Map acquisitions".to_owned(),
+                "Governed acquisition jobs (map:admin).",
+            ));
+            resources.push(json_resource_descriptor(
+                uris::ACTIVE_RELEASES_URI.to_owned(),
+                "Active releases".to_owned(),
+                "Active dataset release pointers (map:admin).",
+            ));
+        }
         for source in self
             .state
             .catalog
@@ -506,6 +757,11 @@ impl ServerHandler for MapMcp {
                 "Authorized source provenance.",
             ),
             template(
+                uris::ACQUISITION_TEMPLATE,
+                "Map acquisition",
+                "Governed acquisition job (map:admin).",
+            ),
+            template(
                 uris::DATASET_TEMPLATE,
                 "Map dataset",
                 "Release index for one dataset.",
@@ -560,9 +816,59 @@ impl ServerHandler for MapMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
+        let uri = request.uri.as_str();
+        // Administration resources carry the admin scope, not dataset read.
+        if uri == uris::ADMIN_APP_URI {
+            require_scope(&context, "map:admin")?;
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(
+                    uri,
+                    include_str!("../assets/admin-app.html"),
+                ),
+            ]));
+        }
+        if uri == uris::ACQUISITIONS_URI {
+            let identity = require_scope(&context, "map:admin")?;
+            let scope = self.state.scope(&identity).await.map_err(internal)?;
+            self.state
+                .acquisitions
+                .reconcile_interrupted(&scope)
+                .await
+                .map_err(internal)?;
+            let jobs = self
+                .state
+                .catalog
+                .list_acquisitions(&scope)
+                .await
+                .map_err(internal)?;
+            return json_resource(uri, &jobs);
+        }
+        if uri == uris::ACTIVE_RELEASES_URI {
+            let identity = require_scope(&context, "map:admin")?;
+            let scope = self.state.scope(&identity).await.map_err(internal)?;
+            let pointers = self
+                .state
+                .catalog
+                .list_active_releases(&scope)
+                .await
+                .map_err(internal)?;
+            return json_resource(uri, &pointers);
+        }
+        if let Some(value) = uris::parse_single(uri, "map://acquisition/") {
+            let identity = require_scope(&context, "map:admin")?;
+            let scope = self.state.scope(&identity).await.map_err(internal)?;
+            let id = AcquisitionId::parse(value).map_err(invalid_params)?;
+            let job = self
+                .state
+                .catalog
+                .acquisition(&scope, &id)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| not_found("acquisition"))?;
+            return json_resource(uri, &job);
+        }
         let identity = require_scope(&context, "map:dataset:read")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let uri = request.uri.as_str();
         match uri {
             uris::SOURCES_URI => {
                 let sources = self
@@ -916,17 +1222,32 @@ fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, 
     })
 }
 
+fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {
+    identity
+        .principal
+        .scopes
+        .iter()
+        .any(|scope| scope.as_str() == required)
+}
+
+fn admin_error(error: AdminOpError) -> McpError {
+    match error {
+        AdminOpError::BadRequest(message) => McpError::invalid_params(message, None),
+        AdminOpError::Conflict(message) => McpError::invalid_params(message, None),
+        AdminOpError::NotFound(message) => McpError::resource_not_found(message, None),
+        AdminOpError::Internal(error) => {
+            tracing::error!("Map administrative operation failed: {error:#}");
+            McpError::internal_error("Map administrative operation failed", None)
+        }
+    }
+}
+
 fn require_scope(
     context: &RequestContext<RoleServer>,
     required: &str,
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
-    if !identity
-        .principal
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
-    {
+    if !identity_has_scope(&identity, required) {
         return Err(McpError::invalid_request(
             format!("scope `{required}` is required"),
             None,

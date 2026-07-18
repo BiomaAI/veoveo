@@ -91,6 +91,18 @@ pub(crate) fn project_gateway_resource_uri_for_upstream(
             return Ok(Some(gateway_resource_uri(&resource.uri)?));
         }
     }
+    // Identity-projected schemes round-trip without appearing in the
+    // listing, so template-instantiated and artifact URIs stay readable
+    // under ServerOwned projection. Only `ui://` (and foreign-scheme)
+    // URIs are ambiguous enough to require the listing scan above.
+    if let Some((scheme, _)) = split_resource_uri(gateway_uri)
+        && (scheme == server.uri_scheme.as_str()
+            || scheme == "http"
+            || scheme == "https"
+            || scheme == "data")
+    {
+        return Ok(Some(gateway_resource_uri(gateway_uri)?));
+    }
     Ok(None)
 }
 
@@ -446,6 +458,35 @@ mod tests {
         .unwrap();
 
         assert_eq!(upstream_uri.as_str(), "ui://vendor/chart-view.html");
+    }
+
+    #[test]
+    fn server_owned_projection_falls_back_to_identity_for_own_scheme_uris() {
+        let server = test_server("map", "map", ResourceProjectionMode::ServerOwned);
+        let listed_only = vec![Resource::new("ui://map/admin.html", "map-admin-app")];
+
+        // Template-instantiated and artifact URIs are never listed but
+        // project identically, so reads must still resolve.
+        let unlisted = project_gateway_resource_uri_for_upstream(
+            &server,
+            "map://acquisition/acq-1",
+            &listed_only,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(unlisted.as_str(), "map://acquisition/acq-1");
+
+        // Unlisted ui:// views stay unresolvable: view existence is defined
+        // by the listing.
+        assert!(
+            project_gateway_resource_uri_for_upstream(
+                &server,
+                "ui://map/other.html",
+                &listed_only,
+            )
+            .unwrap()
+            .is_none()
+        );
     }
 
     #[test]

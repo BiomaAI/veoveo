@@ -13,7 +13,7 @@ use anyhow::Context;
 use axum::{
     Router, middleware,
     response::Redirect,
-    routing::{any, delete, get, post, put},
+    routing::{delete, get, post, put},
 };
 use config::Config;
 use session::SessionCipher;
@@ -88,8 +88,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/console/api/apps", get(apps::list_apps))
         .route("/console/api/apps/frame", get(apps::app_frame))
         .route("/console/api/apps/call", post(apps::call_app_tool))
+        .route("/console/api/apps/read", post(apps::read_app_resource))
         .route("/console/api/cluster", get(cluster::snapshot))
-        .route("/console/api/map/{*path}", any(api::map_admin))
         .route(
             "/console/api/tasks/{task_id}/cancel",
             post(api::cancel_task),

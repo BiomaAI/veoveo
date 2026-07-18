@@ -258,64 +258,6 @@ export interface AuditSummary {
   traceId?: string;
 }
 
-export interface MapSourceSummary {
-  source_id: string;
-  dataset_id: string;
-  name: string;
-  adapter_kind: string;
-  authority: string;
-  acquisition_model: string;
-  map_families: string[];
-  enabled: boolean;
-  record_version: number;
-  updated_at: string;
-  [key: string]: unknown;
-}
-
-export interface MapAcquisitionSummary {
-  acquisition_id: string;
-  source_id: string;
-  status: string;
-  progress: { phase: string; completed_units: number; total_units?: number; message: string };
-  staged_release_id?: string;
-  created_at: string;
-  updated_at: string;
-  record_version: number;
-}
-
-export interface MapReleaseSummary {
-  release_id: string;
-  dataset_id: string;
-  source_id: string;
-  version_label: string;
-  state: "staged" | "active" | "retired" | "quarantined";
-  record_version: number;
-  updated_at: string;
-  quality_report_uri: string;
-}
-
-export interface MapActiveReleaseSummary {
-  dataset_id: string;
-  release_id: string;
-  previous_release_id?: string;
-  record_version: number;
-  activated_at: string;
-}
-
-export interface MapMobilityProfileSummary {
-  family: string;
-  profile: {
-    metadata: {
-      profile_id: string;
-      name: string;
-      version: number;
-      valid_from: string;
-      valid_until?: string;
-    };
-    [key: string]: unknown;
-  };
-}
-
 export interface AppToolDescriptor {
   name: string;
   title?: string;
@@ -329,6 +271,7 @@ export interface AppDescriptor {
   name: string;
   title?: string;
   description?: string;
+  icons?: string[];
   tools: AppToolDescriptor[];
 }
 

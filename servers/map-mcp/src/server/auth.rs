@@ -4,7 +4,7 @@ use axum::{
     middleware::Next,
     response::IntoResponse,
 };
-use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier};
+use veoveo_mcp_contract::GatewayInternalTokenVerifier;
 
 #[derive(Clone)]
 pub(crate) struct ForwardedBearer(pub String);
@@ -12,11 +12,6 @@ pub(crate) struct ForwardedBearer(pub String);
 #[derive(Clone)]
 pub(super) struct InternalAuthState {
     pub verifier: GatewayInternalTokenVerifier,
-}
-
-#[derive(Clone)]
-pub(super) struct AdminAuthState {
-    pub required_scope: String,
 }
 
 pub(super) async fn authenticate_internal(
@@ -38,27 +33,6 @@ pub(super) async fn authenticate_internal(
     };
     request.extensions_mut().insert(ForwardedBearer(token));
     request.extensions_mut().insert(identity);
-    next.run(request).await
-}
-
-pub(super) async fn authorize_admin(
-    State(state): State<AdminAuthState>,
-    request: Request,
-    next: Next,
-) -> axum::response::Response {
-    let allowed = request
-        .extensions()
-        .get::<GatewayInternalIdentity>()
-        .is_some_and(|identity| {
-            identity
-                .principal
-                .scopes
-                .iter()
-                .any(|scope| scope.as_str() == state.required_scope)
-        });
-    if !allowed {
-        return (StatusCode::FORBIDDEN, "map administrative scope required").into_response();
-    }
     next.run(request).await
 }
 

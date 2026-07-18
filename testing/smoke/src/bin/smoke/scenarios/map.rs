@@ -1,14 +1,8 @@
-use std::{collections::BTreeSet, ffi::OsString, path::Path};
+use std::{ffi::OsString, path::Path};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{TimeDelta, Utc};
 use reqwest::header::HOST;
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayProfileId, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject,
-};
 
 use super::*;
 
@@ -133,11 +127,17 @@ pub(crate) async fn map_mcp(
         "tool `route`",
         "tool `route_matrix`",
         "tool `geodesic_inverse`",
+        "tool `register_source`",
+        "tool `activate_release`",
         "prompt `prepare_route_request`",
         "template: map://dataset/{dataset_id}",
+        "template: map://acquisition/{acquisition_id}",
     ] {
         contains(&info, expected)?;
     }
+    // The apps contract: extension declared, admin view listed and readable,
+    // admin tools linked to it.
+    run_map_mcp(conformance, &mcp_url, ["apps-check".into()])?;
     assert_direct_mcp_denied(
         conformance,
         &mcp_url,
@@ -168,19 +168,9 @@ pub(crate) async fn map_mcp(
     contains(&geodesic, "distance")?;
     contains(&geodesic, "geographiclib-rs:wgs84")?;
 
-    let admin_token = issue_map_token(&[
-        "operator:use",
-        "map:admin",
-        "map:dataset:read",
-        "map:route",
-        "map:restriction:publish",
-        "map:restriction:withdraw",
-    ])?;
-    let client = reqwest::Client::new();
     let authority_source = register_source(
-        &client,
-        &base,
-        &admin_token,
+        conformance,
+        &mcp_url,
         SourceFixture {
             name: "Authoritative smoke fixture",
             adapter_kind: "authority_vector",
@@ -190,18 +180,16 @@ pub(crate) async fn map_mcp(
             idempotency_key: "map-smoke-source-authority",
             maximum_elapsed_seconds: 60,
         },
-    )
-    .await?;
+    )?;
     let authority_release = acquire_and_activate(
-        &client,
-        &base,
-        &admin_token,
+        conformance,
+        &mcp_url,
         &authority_source,
         &source_dir.join("authority.geojson"),
         "map-smoke-acquisition-authority",
     )
     .await?;
-    assert_digest_mismatch_fails(&client, &base, &admin_token, &authority_source.source_id).await?;
+    assert_digest_mismatch_fails(conformance, &mcp_url, &authority_source.source_id).await?;
 
     let search = run_map_mcp(
         conformance,
@@ -240,9 +228,8 @@ pub(crate) async fn map_mcp(
     contains(&facilities, "Warehouse Alpha")?;
 
     let osm_source = register_source(
-        &client,
-        &base,
-        &admin_token,
+        conformance,
+        &mcp_url,
         SourceFixture {
             name: "OpenStreetMap routing smoke fixture",
             adapter_kind: "open_street_map",
@@ -252,24 +239,20 @@ pub(crate) async fn map_mcp(
             idempotency_key: "map-smoke-source-osm",
             maximum_elapsed_seconds: 120,
         },
-    )
-    .await?;
+    )?;
     let osm_release = acquire_and_activate(
-        &client,
-        &base,
-        &admin_token,
+        conformance,
+        &mcp_url,
         &osm_source,
         &source_dir.join("routing.osm.pbf"),
         "map-smoke-acquisition-osm",
     )
     .await?;
-    let road_route_id =
-        assert_road_route_workflow(conformance, &mcp_url, &client, &base, &admin_token).await?;
+    let road_route_id = assert_road_route_workflow(conformance, &mcp_url).await?;
 
     let network_source = register_source(
-        &client,
-        &base,
-        &admin_token,
+        conformance,
+        &mcp_url,
         SourceFixture {
             name: "Governed network smoke fixture",
             adapter_kind: "authority_vector",
@@ -279,19 +262,16 @@ pub(crate) async fn map_mcp(
             idempotency_key: "map-smoke-source-network",
             maximum_elapsed_seconds: 60,
         },
-    )
-    .await?;
+    )?;
     let network_release = acquire_and_activate(
-        &client,
-        &base,
-        &admin_token,
+        conformance,
+        &mcp_url,
         &network_source,
         &source_dir.join("network.geojson"),
         "map-smoke-acquisition-network",
     )
     .await?;
-    let maritime_route_id =
-        assert_governed_graph_workflow(conformance, &mcp_url, &client, &base, &admin_token).await?;
+    let maritime_route_id = assert_governed_graph_workflow(conformance, &mcp_url).await?;
 
     cleanup.remove_on_drop();
     println!(
@@ -318,6 +298,7 @@ struct SourceFixture<'a> {
 
 struct RegisteredFixture {
     source_id: String,
+    dataset_id: String,
 }
 
 struct ActivatedFixture {
@@ -361,19 +342,19 @@ fn prepare_source_fixtures(
     Ok(())
 }
 
-async fn register_source(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+fn register_source(
+    conformance: &Path,
+    mcp_url: &str,
     fixture: SourceFixture<'_>,
 ) -> Result<RegisteredFixture> {
     let source_id = format!("source-{}", uuid::Uuid::now_v7());
     let dataset_id = format!("dataset-{}", uuid::Uuid::now_v7());
     let now = Utc::now();
-    let response: Value = client
-        .post(format!("{base}/map/admin/sources"))
-        .bearer_auth(token)
-        .json(&serde_json::json!({
+    let output = call_map_tool(
+        conformance,
+        mcp_url,
+        "register_source",
+        &serde_json::json!({
             "source": {
                 "source_id": source_id,
                 "dataset_id": dataset_id,
@@ -405,30 +386,30 @@ async fn register_source(
                 "updated_at": now
             },
             "idempotency_key": fixture.idempotency_key
-        }))
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+        }),
+    )?;
+    let response = structured_output(&output)?;
     if response.get("source_id").and_then(Value::as_str) != Some(source_id.as_str()) {
         bail!("Map source response had the wrong identity: {response}");
     }
-    Ok(RegisteredFixture { source_id })
+    Ok(RegisteredFixture {
+        source_id,
+        dataset_id,
+    })
 }
 
-async fn start_acquisition(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+fn start_acquisition(
+    conformance: &Path,
+    mcp_url: &str,
     source_id: &str,
     expected_digest: &str,
     idempotency_key: &str,
 ) -> Result<String> {
-    let acquisition: Value = client
-        .post(format!("{base}/map/admin/acquisitions"))
-        .bearer_auth(token)
-        .json(&serde_json::json!({
+    let output = call_map_tool(
+        conformance,
+        mcp_url,
+        "start_acquisition",
+        &serde_json::json!({
             "source_id": source_id,
             "requested_coverage": {
                 "west": -89.23,
@@ -438,13 +419,9 @@ async fn start_acquisition(
             },
             "expected_source_digest_sha256": expected_digest,
             "idempotency_key": idempotency_key
-        }))
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
-    acquisition
+        }),
+    )?;
+    structured_output(&output)?
         .get("acquisition_id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
@@ -452,37 +429,31 @@ async fn start_acquisition(
 }
 
 async fn acquire_and_activate(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+    conformance: &Path,
+    mcp_url: &str,
     source: &RegisteredFixture,
     source_path: &Path,
     idempotency_key: &str,
 ) -> Result<ActivatedFixture> {
     let digest = hex::encode(Sha256::digest(fs::read(source_path)?));
     let acquisition_id = start_acquisition(
-        client,
-        base,
-        token,
+        conformance,
+        mcp_url,
         &source.source_id,
         &digest,
         idempotency_key,
-    )
-    .await?;
-    let completed = wait_for_acquisition(client, base, token, &acquisition_id).await?;
+    )?;
+    let completed = wait_for_acquisition(conformance, mcp_url, &acquisition_id).await?;
     let release_id = completed
         .get("staged_release_id")
         .and_then(Value::as_str)
         .context("successful Map acquisition omitted staged_release_id")?
         .to_owned();
-    let release: Value = client
-        .get(format!("{base}/map/admin/releases/{release_id}"))
-        .bearer_auth(token)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let release = read_map_resource(
+        conformance,
+        mcp_url,
+        &format!("map://dataset/{}/release/{release_id}", source.dataset_id),
+    )?;
     if release.get("source_digest_sha256").and_then(Value::as_str) != Some(digest.as_str()) {
         bail!("staged release did not retain the verified source digest: {release}");
     }
@@ -490,18 +461,17 @@ async fn acquire_and_activate(
         .get("record_version")
         .and_then(Value::as_u64)
         .context("staged release omitted record_version")?;
-    let activated: Value = client
-        .post(format!("{base}/map/admin/releases/{release_id}/activate"))
-        .bearer_auth(token)
-        .json(&serde_json::json!({
+    let output = call_map_tool(
+        conformance,
+        mcp_url,
+        "activate_release",
+        &serde_json::json!({
+            "release_id": release_id,
             "expected_record_version": release_version,
             "expected_active_pointer_version": 0
-        }))
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+        }),
+    )?;
+    let activated = structured_output(&output)?;
     if activated.pointer("/release/state").and_then(Value::as_str) != Some("active") {
         bail!("Map activation did not return an active release: {activated}");
     }
@@ -509,21 +479,18 @@ async fn acquire_and_activate(
 }
 
 async fn assert_digest_mismatch_fails(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+    conformance: &Path,
+    mcp_url: &str,
     source_id: &str,
 ) -> Result<()> {
     let acquisition_id = start_acquisition(
-        client,
-        base,
-        token,
+        conformance,
+        mcp_url,
         source_id,
         &"0".repeat(64),
         "map-smoke-acquisition-bad-digest",
-    )
-    .await?;
-    let failed = wait_for_acquisition_terminal(client, base, token, &acquisition_id).await?;
+    )?;
+    let failed = wait_for_acquisition_terminal(conformance, mcp_url, &acquisition_id).await?;
     if failed.get("status").and_then(Value::as_str) != Some("failed")
         || failed
             .get("staged_release_id")
@@ -534,10 +501,9 @@ async fn assert_digest_mismatch_fails(
     Ok(())
 }
 
-async fn create_profile(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+fn create_profile(
+    conformance: &Path,
+    mcp_url: &str,
     profile: Value,
     idempotency_key: &str,
 ) -> Result<String> {
@@ -545,18 +511,16 @@ async fn create_profile(
         .pointer("/profile/metadata/profile_id")
         .and_then(Value::as_str)
         .context("test mobility profile omitted profile_id")?;
-    let created: Value = client
-        .post(format!("{base}/map/admin/mobility-profiles"))
-        .bearer_auth(token)
-        .json(&serde_json::json!({
+    let output = call_map_tool(
+        conformance,
+        mcp_url,
+        "register_mobility_profile",
+        &serde_json::json!({
             "profile": profile,
             "idempotency_key": idempotency_key
-        }))
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+        }),
+    )?;
+    let created = structured_output(&output)?;
     if created
         .pointer("/profile/metadata/profile_id")
         .and_then(Value::as_str)
@@ -567,13 +531,7 @@ async fn create_profile(
     Ok(expected_id.to_owned())
 }
 
-async fn assert_road_route_workflow(
-    conformance: &Path,
-    mcp_url: &str,
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
-) -> Result<String> {
+async fn assert_road_route_workflow(conformance: &Path, mcp_url: &str) -> Result<String> {
     let profile_id = format!("mobility-{}", uuid::Uuid::now_v7());
     let profile = serde_json::json!({
         "family": "road_vehicle",
@@ -606,7 +564,7 @@ async fn assert_road_route_workflow(
             "unpaved_allowed": false
         }
     });
-    create_profile(client, base, token, profile, "map-smoke-profile-road").await?;
+    create_profile(conformance, mcp_url, profile, "map-smoke-profile-road")?;
     let request = serde_json::json!({
         "mobility_profile_id": profile_id,
         "mobility_profile_version": 1,
@@ -664,13 +622,7 @@ async fn assert_road_route_workflow(
     Ok(route_id)
 }
 
-async fn assert_governed_graph_workflow(
-    conformance: &Path,
-    mcp_url: &str,
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
-) -> Result<String> {
+async fn assert_governed_graph_workflow(conformance: &Path, mcp_url: &str) -> Result<String> {
     let profile_id = format!("mobility-{}", uuid::Uuid::now_v7());
     let profile = serde_json::json!({
         "family": "surface_vessel",
@@ -703,7 +655,7 @@ async fn assert_governed_graph_workflow(
             "berth_requirements": []
         }
     });
-    create_profile(client, base, token, profile, "map-smoke-profile-vessel").await?;
+    create_profile(conformance, mcp_url, profile, "map-smoke-profile-vessel")?;
 
     let restriction_id = format!("restriction-{}", uuid::Uuid::now_v7());
     let restriction = serde_json::json!({
@@ -849,12 +801,11 @@ fn structured_output(output: &str) -> Result<Value> {
 }
 
 async fn wait_for_acquisition(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+    conformance: &Path,
+    mcp_url: &str,
     acquisition_id: &str,
 ) -> Result<Value> {
-    let value = wait_for_acquisition_terminal(client, base, token, acquisition_id).await?;
+    let value = wait_for_acquisition_terminal(conformance, mcp_url, acquisition_id).await?;
     if value.get("status").and_then(Value::as_str) != Some("succeeded") {
         bail!("Map acquisition reached a terminal failure: {value}");
     }
@@ -862,26 +813,30 @@ async fn wait_for_acquisition(
 }
 
 async fn wait_for_acquisition_terminal(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
+    conformance: &Path,
+    mcp_url: &str,
     acquisition_id: &str,
 ) -> Result<Value> {
+    let uri = format!("map://acquisition/{acquisition_id}");
     for _ in 0..600 {
-        let value: Value = client
-            .get(format!("{base}/map/admin/acquisitions/{acquisition_id}"))
-            .bearer_auth(token)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let value = read_map_resource(conformance, mcp_url, &uri)?;
         match value.get("status").and_then(Value::as_str) {
             Some("succeeded" | "failed" | "cancelled") => return Ok(value),
             _ => tokio::time::sleep(Duration::from_millis(250)).await,
         }
     }
     bail!("timed out waiting for Map acquisition {acquisition_id}")
+}
+
+/// The conformance `resource` command prints the resource value as pretty
+/// JSON after any progress lines; parse from the first JSON delimiter.
+fn read_map_resource(conformance: &Path, mcp_url: &str, uri: &str) -> Result<Value> {
+    let output = run_map_mcp(conformance, mcp_url, ["resource".into(), uri.into()])?;
+    let start = output
+        .find(['{', '['])
+        .with_context(|| format!("resource {uri} output contained no JSON: {output}"))?;
+    serde_json::from_str(output[start..].trim())
+        .with_context(|| format!("decoding resource {uri} JSON"))
 }
 
 fn run_map_mcp(
@@ -896,6 +851,8 @@ fn run_map_mcp(
         "map".into(),
         "--internal-scope".into(),
         "operator:use".into(),
+        "--internal-scope".into(),
+        "map:admin".into(),
         "--internal-scope".into(),
         "map:dataset:read".into(),
         "--internal-scope".into(),
@@ -915,39 +872,4 @@ fn run_map_mcp(
             INTERNAL_SIGNING_KEY_DER_B64.into(),
         )],
     )
-}
-
-fn issue_map_token(scopes: &[&str]) -> Result<String> {
-    let private_key = STANDARD.decode(INTERNAL_SIGNING_KEY_DER_B64)?;
-    let issuer = GatewayInternalTokenIssuer::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        GatewayInternalSigningKey::new("veoveo-internal-1", private_key)?,
-    );
-    let principal_issuer = TokenIssuer::new("https://conformance.veoveo.local")?;
-    let subject = TokenSubject::new("conformance")?;
-    let principal = Principal {
-        id: PrincipalId::new(format!("{principal_issuer}#{subject}"))?,
-        kind: PrincipalKind::Service,
-        issuer: principal_issuer,
-        subject,
-        tenant: Some(TenantId::new("local")?),
-        groups: BTreeSet::new(),
-        group_roles: BTreeSet::new(),
-        roles: BTreeSet::new(),
-        scopes: scopes
-            .iter()
-            .map(|scope| ScopeName::new(*scope))
-            .collect::<Result<_, _>>()?,
-        data_labels: BTreeSet::new(),
-        assurances: BTreeSet::new(),
-        authenticated_at: Some(Utc::now()),
-    };
-    Ok(issuer
-        .issue(
-            GatewayProfileId::new("admin")?,
-            ServerSlug::new("map")?,
-            principal,
-            Utc::now() + TimeDelta::minutes(30),
-        )?
-        .bearer_token)
 }

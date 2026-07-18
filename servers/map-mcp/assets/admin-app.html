@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Map data administration</title>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --panel: #ffffff;
+    --ink: #1d2126;
+    --ink-secondary: #5b6570;
+    --ink-muted: #8a929b;
+    --grid: #e8eaec;
+    --panel-border: #dfe2e4;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --danger: #c93f3e;
+    --ok: #1baf7a;
+    --warn: #b97e00;
+    --chip: #f0f1f2;
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --panel: #212220;
+    --ink: #e8e8e6;
+    --ink-secondary: #a8adb3;
+    --ink-muted: #7c8288;
+    --grid: #32343a;
+    --panel-border: #3a3d42;
+    --accent: #3987e5;
+    --accent-ink: #ffffff;
+    --danger: #e66767;
+    --ok: #199e70;
+    --warn: #c98500;
+    --chip: #2b2d2b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--surface); color: var(--ink);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { padding: 12px 14px 16px; }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; }
+  h2 { margin: 0; font-size: 13px; font-weight: 650; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .subtitle { color: var(--ink-secondary); font-size: 12px; }
+  section { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 7px;
+    padding: 10px 12px 12px; margin-bottom: 10px; }
+  .section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .section-head .count { color: var(--ink-muted); font-size: 12px; }
+  .section-head .spacer { flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--ink-muted); font-weight: 600; padding: 3px 8px 5px 0;
+    border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; }
+  .muted { color: var(--ink-muted); }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 11px; background: var(--chip); }
+  .pill.ok { color: var(--ok); }
+  .pill.warn { color: var(--warn); }
+  .pill.bad { color: var(--danger); }
+  button { padding: 4px 10px; border: 1px solid var(--panel-border); border-radius: 5px;
+    background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.confirm { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .row-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+  form.acquire { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  label { display: flex; flex-direction: column; gap: 3px; color: var(--ink-secondary); font-size: 11px; }
+  input, select, textarea { padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 5px;
+    background: var(--surface); color: var(--ink); font: inherit; }
+  input[type="number"] { width: 88px; }
+  textarea { width: 100%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; resize: vertical; }
+  details { margin-top: 8px; }
+  details summary { cursor: pointer; color: var(--ink-secondary); font-size: 12px; font-weight: 600; }
+  details form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  details form button { align-self: flex-start; }
+  .error { display: none; margin-top: 8px; padding: 6px 9px; border-radius: 5px; font-size: 12px;
+    border: 1px solid var(--danger); color: var(--danger); white-space: pre-wrap; }
+  .empty { color: var(--ink-muted); padding: 8px 0; font-size: 12px; }
+  #boot { color: var(--ink-muted); padding: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>Map data administration</h1>
+      <div class="subtitle" id="subtitle">Loading governed map catalog…</div>
+    </div>
+    <button id="refresh" hidden>Refresh</button>
+  </div>
+  <div id="boot">Loading governed map catalog…</div>
+  <div id="main" hidden>
+
+    <section id="sources-section">
+      <div class="section-head"><h2>Authoritative sources</h2><span class="count" id="sources-count"></span></div>
+      <div id="sources-table"></div>
+      <details>
+        <summary>Register source</summary>
+        <form id="source-form">
+          <label>Canonical RegisteredSource JSON
+            <textarea id="source-json" rows="8" spellcheck="false" required></textarea>
+          </label>
+          <button class="primary" type="submit">Register source</button>
+        </form>
+      </details>
+      <div class="error" id="sources-error"></div>
+    </section>
+
+    <section id="acquisitions-section">
+      <div class="section-head"><h2>Acquisitions</h2><span class="count" id="acquisitions-count"></span></div>
+      <form class="acquire" id="acquire-form">
+        <label>Source
+          <select id="acquire-source" required></select>
+        </label>
+        <label>West <input id="bbox-west" type="number" step="any" min="-180" max="180" placeholder="-180…180" required></label>
+        <label>South <input id="bbox-south" type="number" step="any" min="-90" max="90" placeholder="-90…90" required></label>
+        <label>East <input id="bbox-east" type="number" step="any" min="-180" max="180" placeholder="-180…180" required></label>
+        <label>North <input id="bbox-north" type="number" step="any" min="-90" max="90" placeholder="-90…90" required></label>
+        <button class="primary" type="submit" id="acquire-submit">Start acquisition</button>
+      </form>
+      <div id="acquisitions-table"></div>
+      <div class="error" id="acquisitions-error"></div>
+    </section>
+
+    <section id="releases-section">
+      <div class="section-head"><h2>Dataset releases</h2><span class="count" id="releases-count"></span></div>
+      <div id="releases-table"></div>
+      <div class="error" id="releases-error"></div>
+    </section>
+
+    <section id="profiles-section">
+      <div class="section-head"><h2>Mobility profiles</h2><span class="count" id="profiles-count"></span></div>
+      <div id="profiles-table"></div>
+      <details>
+        <summary>Register mobility profile</summary>
+        <form id="profile-form">
+          <label>Canonical MobilityProfile JSON
+            <textarea id="profile-json" rows="8" spellcheck="false" required></textarea>
+          </label>
+          <button class="primary" type="submit">Register profile version</button>
+        </form>
+      </details>
+      <div class="error" id="profiles-error"></div>
+    </section>
+
+  </div>
+  <div class="error" id="boot-error"></div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------- bridge --
+ * View side of the MCP Apps (ext-apps 2026-01-26) postMessage protocol.
+ * The host is the only counterparty; the frame runs in an opaque origin, so
+ * postMessage targets "*" and inbound messages are trusted only for shape.
+ */
+const bridge = (() => {
+  let nextId = 1;
+  const pending = new Map();
+  const notificationHandlers = new Map();
+
+  function post(message) {
+    window.parent.postMessage(message, "*");
+  }
+  function request(method, params) {
+    return new Promise((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+      post({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+      const waiter = pending.get(message.id);
+      if (!waiter) return;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message || "host error"));
+      else waiter.resolve(message.result);
+      return;
+    }
+    if (message.method) {
+      const handler = notificationHandlers.get(message.method);
+      if (handler) handler(message.params, message.id);
+      else if (message.id !== undefined) {
+        post({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "method not found" } });
+      }
+    }
+  });
+  return {
+    request,
+    notify: (method, params) => post({ jsonrpc: "2.0", method, params }),
+    on: (method, handler) => notificationHandlers.set(method, handler),
+    post,
+  };
+})();
+
+/* ----------------------------------------------------------------- state -- */
+const state = {
+  sources: [],
+  datasets: {},
+  activeReleases: [],
+  acquisitions: [],
+  profiles: [],
+};
+let pendingConfirm = null;
+let pollTimer = null;
+// Action errors stay visible across background polls; load errors clear as
+// soon as their resource loads again.
+const actionErrors = new Set();
+
+const el = (id) => document.getElementById(id);
+const ACTIVE_ACQUISITION = new Set(["queued", "running", "cancel_requested"]);
+
+function idempotencyKey() {
+  if (crypto.randomUUID) return idempotencyKey();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/* ------------------------------------------------------------- transport -- */
+async function readJsonResource(uri) {
+  const result = await bridge.request("resources/read", { uri });
+  const contents = (result && result.contents) || [];
+  const text = contents.length ? contents[0].text : undefined;
+  if (typeof text !== "string") throw new Error(`resource ${uri} returned no text`);
+  return JSON.parse(text);
+}
+
+async function callTool(name, args) {
+  const result = await bridge.request("tools/call", { name, arguments: args });
+  return (result && (result.structuredContent || result.structured_content)) || result;
+}
+
+/* ------------------------------------------------------------- rendering -- */
+function pillClass(value) {
+  if (["active", "succeeded", "complete"].includes(value)) return "pill ok";
+  if (["failed", "quarantined", "cancelled"].includes(value)) return "pill bad";
+  if (["running", "queued", "staged", "cancel_requested"].includes(value)) return "pill warn";
+  return "pill";
+}
+
+function cellText(tag, text, className) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+function renderTable(mount, headers, rows, emptyText) {
+  const host = el(mount);
+  host.replaceChildren();
+  if (!rows.length) {
+    host.append(cellText("div", emptyText, "empty"));
+    return;
+  }
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const header of headers) headRow.append(cellText("th", header));
+  thead.append(headRow);
+  const tbody = document.createElement("tbody");
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    for (const cell of row) {
+      const td = document.createElement("td");
+      if (cell instanceof Node) td.append(cell);
+      else td.append(document.createTextNode(cell == null ? "" : String(cell)));
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  host.append(table);
+}
+
+function idCell(name, id) {
+  const wrap = document.createElement("div");
+  wrap.append(cellText("strong", name));
+  wrap.append(document.createElement("br"));
+  wrap.append(cellText("span", id, "mono muted"));
+  return wrap;
+}
+
+function pillCell(value) {
+  return cellText("span", value, pillClass(value));
+}
+
+function renderSources() {
+  el("sources-count").textContent = String(state.sources.length);
+  renderTable(
+    "sources-table",
+    ["Source", "Adapter", "Authority", "Families", "State", "Version"],
+    state.sources.map((source) => [
+      idCell(source.name, source.source_id),
+      cellText("span", source.adapter_kind, "mono"),
+      source.authority,
+      (source.map_families || []).join(", "),
+      pillCell(source.enabled ? "active" : "disabled"),
+      `r${source.record_version}`,
+    ]),
+    "No governed map sources are registered."
+  );
+  const select = el("acquire-source");
+  const previous = select.value;
+  select.replaceChildren();
+  for (const source of state.sources.filter((candidate) => candidate.enabled)) {
+    const option = document.createElement("option");
+    option.value = source.source_id;
+    option.textContent = source.name;
+    select.append(option);
+  }
+  if (previous) select.value = previous;
+}
+
+function actionButton(label, danger, onRun) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    const key = `${label}:${onRun.key}`;
+    if (pendingConfirm === key) {
+      pendingConfirm = null;
+      onRun();
+    } else {
+      pendingConfirm = key;
+      button.textContent = "Confirm?";
+      button.className = danger ? "confirm" : "primary";
+      setTimeout(() => {
+        pendingConfirm = null;
+        button.textContent = label;
+        button.className = "";
+      }, 4000);
+    }
+  });
+  return button;
+}
+
+function renderAcquisitions() {
+  el("acquisitions-count").textContent = String(state.acquisitions.length);
+  renderTable(
+    "acquisitions-table",
+    ["Acquisition", "Source", "Status", "Phase", "Message", "Updated", ""],
+    state.acquisitions.map((job) => {
+      const actions = document.createElement("div");
+      actions.className = "row-actions";
+      if (ACTIVE_ACQUISITION.has(job.status) && job.status !== "cancel_requested") {
+        const cancel = actionButton("Cancel", true, Object.assign(
+          () => runAction("acquisitions-error", () =>
+            callTool("cancel_acquisition", { acquisition_id: job.acquisition_id })),
+          { key: job.acquisition_id }
+        ));
+        actions.append(cancel);
+      }
+      return [
+        cellText("span", job.acquisition_id, "mono"),
+        cellText("span", job.source_id, "mono"),
+        pillCell(job.status),
+        job.progress ? job.progress.phase : "",
+        cellText("span", job.progress ? job.progress.message : "", "muted"),
+        formatDate(job.updated_at),
+        actions,
+      ];
+    }),
+    "No acquisition jobs. Start one above to stage a dataset release."
+  );
+}
+
+function flattenedReleases() {
+  const releases = [];
+  for (const list of Object.values(state.datasets)) releases.push(...list);
+  releases.sort((left, right) =>
+    left.dataset_id === right.dataset_id
+      ? right.record_version - left.record_version
+      : left.dataset_id.localeCompare(right.dataset_id));
+  return releases;
+}
+
+function renderReleases() {
+  const releases = flattenedReleases();
+  el("releases-count").textContent = String(releases.length);
+  renderTable(
+    "releases-table",
+    ["Release", "Dataset", "Version", "State", "Record", "Actions"],
+    releases.map((release) => {
+      const pointer = state.activeReleases.find((candidate) => candidate.dataset_id === release.dataset_id);
+      const pointerVersion = pointer ? pointer.record_version : 0;
+      const lifecycle = {
+        release_id: release.release_id,
+        expected_record_version: release.record_version,
+        expected_active_pointer_version: pointerVersion,
+      };
+      const actions = document.createElement("div");
+      actions.className = "row-actions";
+      const act = (label, tool, danger) => {
+        const button = actionButton(label, danger, Object.assign(
+          () => runAction("releases-error", () => callTool(tool, lifecycle)),
+          { key: release.release_id }
+        ));
+        actions.append(button);
+      };
+      if (release.state === "staged") act("Activate", "activate_release", false);
+      if (release.state === "active") act("Reconcile", "activate_release", false);
+      if (release.state !== "quarantined" && release.state !== "active") {
+        act("Rollback", "rollback_release", true);
+        act("Quarantine", "quarantine_release", true);
+      }
+      return [
+        cellText("span", release.release_id, "mono"),
+        cellText("span", release.dataset_id, "mono"),
+        release.version_label,
+        pillCell(release.state),
+        `r${release.record_version}`,
+        actions,
+      ];
+    }),
+    "No dataset releases. Successful acquisitions stage releases here."
+  );
+}
+
+function renderProfiles() {
+  el("profiles-count").textContent = String(state.profiles.length);
+  renderTable(
+    "profiles-table",
+    ["Profile", "Family", "Version", "Valid from"],
+    state.profiles.map((entry) => {
+      const metadata = entry.profile && entry.profile.metadata ? entry.profile.metadata : {};
+      return [
+        idCell(metadata.name || "", metadata.profile_id || ""),
+        cellText("span", entry.family, "mono"),
+        `v${metadata.version}`,
+        formatDate(metadata.valid_from),
+      ];
+    }),
+    "No human or vehicle mobility profiles are registered."
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+}
+
+function renderAll() {
+  renderSources();
+  renderAcquisitions();
+  renderReleases();
+  renderProfiles();
+  el("subtitle").textContent =
+    `${state.sources.length} source(s) · ${state.acquisitions.length} acquisition(s) · ` +
+    `${flattenedReleases().length} release(s) · ${state.profiles.length} mobility profile(s)`;
+  reportSize();
+}
+
+/* ------------------------------------------------------------- data flow -- */
+function showError(id, message, sticky) {
+  const node = el(id);
+  node.textContent = message;
+  node.style.display = "block";
+  if (sticky) actionErrors.add(id);
+  reportSize();
+}
+
+function clearError(id) {
+  el(id).style.display = "none";
+  actionErrors.delete(id);
+}
+
+async function loadAll() {
+  const loaders = [
+    ["sources-error", "map://sources", (data) => { state.sources = data; }],
+    ["releases-error", "map://datasets", (data) => { state.datasets = data; }],
+    ["releases-error", "map://active-releases", (data) => { state.activeReleases = data; }],
+    ["acquisitions-error", "map://acquisitions", (data) => { state.acquisitions = data; }],
+    ["profiles-error", "map://mobility-profiles", (data) => { state.profiles = data; }],
+  ];
+  let failed = false;
+  await Promise.all(loaders.map(async ([errorId, uri, apply]) => {
+    try {
+      apply(await readJsonResource(uri));
+      if (!actionErrors.has(errorId)) clearError(errorId);
+    } catch (cause) {
+      failed = true;
+      showError(errorId, `Failed to load ${uri}: ${cause.message}`);
+    }
+  }));
+  el("boot").hidden = true;
+  el("main").hidden = false;
+  el("refresh").hidden = false;
+  renderAll();
+  schedulePoll();
+  return !failed;
+}
+
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  if (state.acquisitions.some((job) => ACTIVE_ACQUISITION.has(job.status))) {
+    pollTimer = setTimeout(() => { void loadAll(); }, 5000);
+  }
+}
+
+async function runAction(errorId, operation) {
+  clearError(errorId);
+  try {
+    await operation();
+    await loadAll();
+  } catch (cause) {
+    showError(errorId, cause.message, true);
+  }
+}
+
+/* --------------------------------------------------------------- actions -- */
+el("refresh").addEventListener("click", () => { void loadAll(); });
+
+el("source-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  let source;
+  try {
+    source = JSON.parse(el("source-json").value);
+  } catch (cause) {
+    showError("sources-error", `Source JSON is invalid: ${cause.message}`);
+    return;
+  }
+  void runAction("sources-error", async () => {
+    await callTool("register_source", { source, idempotency_key: idempotencyKey() });
+    el("source-json").value = "";
+  });
+});
+
+el("profile-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  let profile;
+  try {
+    profile = JSON.parse(el("profile-json").value);
+  } catch (cause) {
+    showError("profiles-error", `Profile JSON is invalid: ${cause.message}`);
+    return;
+  }
+  void runAction("profiles-error", async () => {
+    await callTool("register_mobility_profile", { profile, idempotency_key: idempotencyKey() });
+    el("profile-json").value = "";
+  });
+});
+
+el("acquire-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const coverage = {
+    west: Number(el("bbox-west").value),
+    south: Number(el("bbox-south").value),
+    east: Number(el("bbox-east").value),
+    north: Number(el("bbox-north").value),
+  };
+  const submit = el("acquire-submit");
+  submit.disabled = true;
+  void runAction("acquisitions-error", () =>
+    callTool("start_acquisition", {
+      source_id: el("acquire-source").value,
+      requested_coverage: coverage,
+      idempotency_key: idempotencyKey(),
+    })
+  ).finally(() => { submit.disabled = false; });
+});
+
+/* ------------------------------------------------------------- lifecycle -- */
+function reportSize() {
+  bridge.notify("ui/notifications/size-changed", {
+    height: Math.ceil(document.documentElement.getBoundingClientRect().height) + 8,
+  });
+}
+
+function applyHostContext(context) {
+  if (!context) return;
+  if (context.theme === "dark" || context.theme === "light") {
+    document.documentElement.dataset.theme = context.theme;
+  }
+}
+
+bridge.on("ui/notifications/host-context-changed", (params) => {
+  applyHostContext(params && (params.hostContext || params));
+});
+bridge.on("ui/notifications/tool-result", () => { void loadAll(); });
+bridge.on("ui/notifications/tool-input", () => {});
+bridge.on("ui/notifications/tool-cancelled", () => {});
+bridge.on("ui/resource-teardown", (_params, id) => {
+  clearTimeout(pollTimer);
+  if (id !== undefined) bridge.post({ jsonrpc: "2.0", id, result: {} });
+});
+
+(async () => {
+  try {
+    const initialized = await bridge.request("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      appInfo: { name: "map-admin", version: "1.0.0" },
+      appCapabilities: { availableDisplayModes: ["inline"] },
+    });
+    bridge.notify("ui/notifications/initialized", {});
+    applyHostContext(initialized && initialized.hostContext);
+    await loadAll();
+  } catch (cause) {
+    el("boot").hidden = true;
+    showError("boot-error", `Host initialization failed: ${cause.message}`);
+  }
+})();
+</script>
+</body>
+</html>

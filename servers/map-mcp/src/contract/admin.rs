@@ -3,65 +3,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AcquisitionId, DatasetRelease, DatasetReleaseId, DatasetReleaseState, MapDatasetId,
-    MapSourceId, MobilityFamily, MobilityProfile, MobilityProfileId, RegisteredSource,
-    SourceAdapterKind, Wgs84BoundingBox,
+    AcquisitionId, DatasetRelease, DatasetReleaseId, MapDatasetId, MapSourceId, MobilityProfile,
+    RegisteredSource, Wgs84BoundingBox,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct AdminPage<T> {
-    pub items: Vec<T>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub next_cursor: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-pub struct SourceListQuery {
-    pub cursor: Option<String>,
-    pub limit: Option<usize>,
-    pub enabled: Option<bool>,
-    pub adapter_kind: Option<SourceAdapterKind>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-pub struct AcquisitionListQuery {
-    pub cursor: Option<String>,
-    pub limit: Option<usize>,
-    pub source_id: Option<MapSourceId>,
-    pub status: Option<AcquisitionStatus>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-pub struct ReleaseListQuery {
-    pub cursor: Option<String>,
-    pub limit: Option<usize>,
-    pub dataset_id: Option<MapDatasetId>,
-    pub source_id: Option<MapSourceId>,
-    pub state: Option<DatasetReleaseState>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-pub struct ActiveReleaseListQuery {
-    pub cursor: Option<String>,
-    pub limit: Option<usize>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ActiveReleasePointer {
-    pub dataset_id: MapDatasetId,
-    pub release_id: DatasetReleaseId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub previous_release_id: Option<DatasetReleaseId>,
-    pub record_version: u64,
-    pub activated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-pub struct MobilityProfileListQuery {
-    pub cursor: Option<String>,
-    pub limit: Option<usize>,
-    pub family: Option<MobilityFamily>,
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CreateSourceRequest {
@@ -76,7 +20,8 @@ pub struct ReplaceSourceRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct SourceMutationRequest {
+pub struct DisableSourceRequest {
+    pub source_id: MapSourceId,
     pub expected_record_version: u64,
 }
 
@@ -89,16 +34,15 @@ pub struct CreateAcquisitionRequest {
     pub idempotency_key: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CancelAcquisitionRequest {
+    pub acquisition_id: AcquisitionId,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CreateMobilityProfileRequest {
     pub profile: MobilityProfile,
     pub idempotency_key: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct MobilityProfilePath {
-    pub profile_id: MobilityProfileId,
-    pub version: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -157,7 +101,18 @@ pub struct AcquisitionJob {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ActiveReleasePointer {
+    pub dataset_id: MapDatasetId,
+    pub release_id: DatasetReleaseId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_release_id: Option<DatasetReleaseId>,
+    pub record_version: u64,
+    pub activated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ReleaseMutationRequest {
+    pub release_id: DatasetReleaseId,
     pub expected_record_version: u64,
     pub expected_active_pointer_version: u64,
 }
@@ -166,18 +121,4 @@ pub struct ReleaseMutationRequest {
 pub struct ReleaseMutationResponse {
     pub release: DatasetRelease,
     pub invalidated_route_count: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct AdminError {
-    pub code: String,
-    pub message: String,
-    pub retryable: bool,
-    pub trace_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub acquisition_id: Option<AcquisitionId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_id: Option<MapSourceId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub release_id: Option<DatasetReleaseId>,
 }

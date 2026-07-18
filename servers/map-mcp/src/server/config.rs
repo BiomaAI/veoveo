@@ -76,8 +76,6 @@ pub(super) struct Args {
     pub allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]
     pub allowed_hosts: Vec<String>,
-    #[arg(long, default_value = "map:admin")]
-    pub admin_scope: String,
     #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
     pub surreal_endpoint: String,
     #[arg(long = "surreal-namespace", env = "VEOVEO_SURREAL_NAMESPACE")]

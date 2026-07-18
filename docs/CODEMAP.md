@@ -24,6 +24,7 @@ MCP designs live with the crate whose public contract they specify:
 |---|---|
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
+| [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | planning problem models and optimization |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
@@ -114,7 +115,10 @@ MCP Apps (SEP-1865 / ext-apps "2026-01-26") support: pinned protocol
 constants (`io.modelcontextprotocol/ui`, `text/html;profile=mcp-app`), typed
 `_meta.ui` shapes, server helpers (capability declaration, `ui://` app
 resources, tool links), and host helpers (capability declaration, app
-detection, visibility checks).
+detection, visibility checks). `mcp/apps-extension/DESIGN.md` is the
+canonical server↔core↔UI contract: domain reads are resources, domain
+mutations are tools, domain views are `ui://` apps — never bespoke admin
+REST or hardcoded console pages.
 
 
 ### `mcp/contract`
@@ -283,7 +287,8 @@ The Rust MCP server pattern is intentionally consistent:
 | `state.rs` | server-local provider and domain models, not task persistence |
 | `uris.rs` | canonical server resource identities |
 | `artifacts.rs` | task-bound capability preparation/redemption |
-| `admin/` | optional contract-defined domain administration under the server mount |
+| `administration.rs` | transport-neutral domain administration behind `map:…`-style admin-scoped MCP tools |
+| `assets/` | self-contained `ui://` MCP App views served through `read_resource` |
 | `bin/server/config.rs` | validated CLI/environment configuration |
 | `bin/server/internal_auth.rs` | required gateway assertion middleware |
 | `bin/server/ownership.rs` | principal/tenant/label task ownership |
@@ -479,22 +484,22 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
 | `api.rs` | snapshot, SSE, mutation, artifact preview/download, and recording playback BFF projections |
-| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool-call proxy |
+| `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool-call and same-server resource-read proxies |
 | `config.rs` | validated public/gateway/resource configuration |
 
 ### `apps/console/web/src`
 
 | File | Responsibility |
 |---|---|
-| `App.tsx` | application shell: navigation, topbar, view routing, drawer mounting |
+| `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `views/` | remaining operational views (overview, work, artifacts, agents, MCP, map, access, audit, cluster) |
+| `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | bounded text and inline image/audio/video/PDF previews with explicit governed-access failures |
 | `components/GovernedRerunViewer.tsx` | authenticated ordered RRD delivery into isolated Rerun data channels |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
-| `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/map/cluster queries, mutation hooks with targeted cache patches |
+| `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
 | `apps/` | MCP Apps host: sandboxed iframe component and the postMessage bridge |
@@ -527,8 +532,9 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change MCP Apps protocol constants or helpers in `mcp/apps-extension`; app views live beside
   their server (`servers/{server}-mcp/assets/`), and the console host surface in
   `apps/console/bff` (`apps.rs`) plus `apps/console/web/src/apps/`.
-- Change a domain admin API in its owning server, retain the generic gateway proxy, and
-  add an explicit Console BFF projection when the browser represents that workflow.
+- Change a domain administrative surface in its owning server as scope-gated MCP tools and
+  resources, and represent it in the browser through the server's MCP App view — never a
+  bespoke admin REST router, BFF proxy route, or hardcoded console page.
 - Change browser behavior through `apps/console/bff` plus `apps/console/web`; do not expose gateway
   tokens to JavaScript.
 - Change public routes in Helm ingress, then extend the Rust deployment smoke.

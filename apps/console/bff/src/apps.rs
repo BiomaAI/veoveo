@@ -35,6 +35,10 @@ struct AppDescriptor {
     title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    /// Self-contained `data:` icon sources only — the console shell's CSP
+    /// does not fetch remote images, and apps are self-contained by contract.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    icons: Vec<String>,
     tools: Vec<AppToolDescriptor>,
 }
 
@@ -59,6 +63,20 @@ fn app_uri_server(uri: &str) -> Option<&str> {
     }
     let (server, page) = path.split_once('/')?;
     (!server.is_empty() && !page.is_empty()).then_some(server)
+}
+
+/// A view may read only resources its own server owns: the server's
+/// `{server}://…` scheme, or another of the server's projected `ui://…`
+/// views. Gateway policy remains the authoritative second wall.
+fn app_resource_uri_allowed(server: &str, uri: &str) -> bool {
+    if uri.contains("..") {
+        return false;
+    }
+    let own_scheme = uri
+        .strip_prefix(server)
+        .and_then(|rest| rest.strip_prefix("://"))
+        .is_some_and(|rest| !rest.is_empty());
+    own_scheme || app_uri_server(uri) == Some(server)
 }
 
 /// Transport-level failures mean the pooled session's connection is gone
@@ -166,6 +184,13 @@ pub(crate) async fn list_apps(
             name: resource.name.clone(),
             title: resource.title.clone(),
             description: resource.description.as_deref().map(ToOwned::to_owned),
+            icons: resource
+                .icons
+                .iter()
+                .flatten()
+                .filter(|icon| icon.src.starts_with("data:image/"))
+                .map(|icon| icon.src.clone())
+                .collect(),
             tools,
         });
     }
@@ -226,6 +251,62 @@ pub(crate) async fn app_frame(
         HeaderValue::from_static("nosniff"),
     );
     (StatusCode::OK, headers, html).into_response()
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ReadAppResourceRequest {
+    server: String,
+    app_uri: String,
+    uri: String,
+}
+
+/// `resources/read` proxied for an app view. The allowlist mirrors
+/// `call_app_tool`: the view must belong to the named server and may only
+/// read that server's own resources.
+pub(crate) async fn read_app_resource(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Json(request): Json<ReadAppResourceRequest>,
+) -> Response {
+    if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
+        return call_error(
+            StatusCode::BAD_REQUEST,
+            "app uri does not belong to the server",
+        );
+    }
+    if !app_resource_uri_allowed(&request.server, &request.uri) {
+        return call_error(
+            StatusCode::FORBIDDEN,
+            "resource is not owned by this app's server",
+        );
+    }
+    let uri = request.uri.as_str();
+    let read = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
+            .await
+    })
+    .await;
+    let result = match read {
+        Ok((_, Ok(result))) => result,
+        Ok((_, Err(error))) => {
+            return call_error(
+                StatusCode::BAD_GATEWAY,
+                &format!("resource read failed: {error}"),
+            );
+        }
+        Err(response) => return response,
+    };
+    let Ok(body) = serde_json::to_vec(&result) else {
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    if body.len() > MAX_CALL_RESULT_BYTES {
+        return call_error(StatusCode::BAD_GATEWAY, "resource read exceeds the cap");
+    }
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert("cache-control", HeaderValue::from_static("no-store"));
+    (StatusCode::OK, headers, body).into_response()
 }
 
 #[derive(Deserialize)]
@@ -367,5 +448,20 @@ mod tests {
         assert_eq!(app_uri_server("ui:///page.html"), None);
         assert_eq!(app_uri_server("timeseries://artifact/x"), None);
         assert_eq!(app_uri_server("ui://timeseries/../admin.html"), None);
+    }
+
+    #[test]
+    fn app_resource_reads_are_limited_to_the_owning_server() {
+        assert!(app_resource_uri_allowed("map", "map://sources"));
+        assert!(app_resource_uri_allowed("map", "map://acquisition/acq-1"));
+        assert!(app_resource_uri_allowed("map", "ui://map/admin.html"));
+        assert!(!app_resource_uri_allowed("map", "map://"));
+        assert!(!app_resource_uri_allowed("map", "timeseries://usage"));
+        assert!(!app_resource_uri_allowed(
+            "map",
+            "ui://timeseries/forecast.html"
+        ));
+        assert!(!app_resource_uri_allowed("map", "map://../escape"));
+        assert!(!app_resource_uri_allowed("time", "timeseries://usage"));
     }
 }
