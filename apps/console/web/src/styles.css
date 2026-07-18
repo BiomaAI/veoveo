@@ -188,6 +188,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .user-menu strong { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
 
 .content { width: min(1500px, 100%); margin: 0 auto; padding: 20px 24px 40px; }
+.content-recordings { width: 100%; margin: 0; padding: 14px; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 .metric { min-width: 0; padding: 15px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .metric-label { color: var(--muted); font-size: var(--text-sm); line-height: 18px; }
@@ -197,7 +198,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .panel { min-width: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden; }
 .panel-wide { min-width: 0; }
 .full-panel { min-height: calc(100vh - 129px); }
-.recordings-workspace { height: calc(100vh - 129px); min-height: 680px; display: grid; grid-template-columns: minmax(310px, 390px) minmax(0, 1fr); gap: 14px; }
+.recordings-workspace { height: calc(100vh - 96px); min-height: 680px; display: grid; grid-template-columns: clamp(320px, 20vw, 420px) minmax(0, 1fr); gap: 14px; }
 .recordings-browser, .recording-player-panel { min-height: 0; }
 .recordings-browser { display: flex; flex-direction: column; }
 .recording-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 10px; border-bottom: 1px solid var(--border); }

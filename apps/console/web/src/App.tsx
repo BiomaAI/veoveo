@@ -231,7 +231,7 @@ export function App() {
           </div>
         </header>
 
-        <main className="content">
+        <main className={view === "recordings" ? "content content-recordings" : "content"}>
           {view === "overview" && <Overview snapshot={snapshot} onArtifact={setSelectedArtifact} onTask={setSelectedTask} />}
           {view === "work" && <WorkView tasks={snapshot.tasks} onSelect={setSelectedTask} />}
           {view === "artifacts" && <ArtifactsView artifacts={snapshot.artifacts} onSelect={setSelectedArtifact} />}
