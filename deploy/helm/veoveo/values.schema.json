@@ -287,6 +287,8 @@
         "labels",
         "route",
         "idleTimeoutSeconds",
+        "segmentMaxBytes",
+        "segmentMaxAgeSeconds",
         "persistence",
         "hubImage",
         "mcpImage",
@@ -320,6 +322,15 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 3600
+        },
+        "segmentMaxBytes": {
+          "type": "integer",
+          "minimum": 8388608,
+          "maximum": 251658240
+        },
+        "segmentMaxAgeSeconds": {
+          "type": "integer",
+          "minimum": 1
         },
         "persistence": {
           "$ref": "#/definitions/persistence"
