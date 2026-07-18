@@ -33,7 +33,8 @@ use veoveo_recording_protocol::{
 
 use crate::{
     audit::{AuthAuditTarget, auth_audit_error_response, record_resource_auth_audit},
-    http_util::{allowed_gateway_jwt_algorithms, load_jwks},
+    auth::load_resource_authorization_jwks,
+    http_util::allowed_gateway_jwt_algorithms,
     runtime::{RecordingIngestGatewayState, current_catalog, current_http_client},
 };
 
@@ -370,7 +371,8 @@ async fn authenticate(
         profile: None,
         protected_resource: &resource.protected_resource,
     };
-    let Some(authorization_server) = current_catalog(&state.catalog)
+    let catalog = current_catalog(&state.catalog);
+    let Some(authorization_server) = catalog
         .authorization_server(&resource.authorization_server)
         .cloned()
     else {
@@ -412,9 +414,11 @@ async fn authenticate(
             .await);
         }
     };
-    let jwks = match load_jwks(
+    let jwks = match load_resource_authorization_jwks(
+        &catalog,
+        &authorization_server,
+        &state.public_base_url,
         &current_http_client(&state.http),
-        &authorization_server.jwks,
     )
     .await
     {
