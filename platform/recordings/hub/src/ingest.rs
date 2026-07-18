@@ -1,12 +1,15 @@
 //! Authenticated batch journal and materializer for external recording streams.
 
+use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Cursor, Write};
+use std::io::{BufReader, BufWriter, Cursor, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result, ensure};
 use prost::Message;
-use re_log_encoding::Decoder;
+use re_build_info::CrateVersion;
+use re_log_encoding::{Decoder, EncodingOptions, rrd::Encoder};
 use re_log_types::{LogMsg, StoreKind};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
@@ -16,7 +19,7 @@ use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,
     RecordingDraft, RecordingId, RecordingIngestBatchDraft, RecordingIngestBatchState,
     RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, SegmentDraft,
-    SegmentId, SegmentState, TenantId,
+    SegmentId, SegmentRecord, SegmentState, TenantId,
 };
 use veoveo_recording_protocol::{
     DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
@@ -34,6 +37,8 @@ pub struct RecordingIngestServiceConfig {
     pub spool_root: PathBuf,
     pub protected_resource: ProtectedResourceId,
     pub maximum_batch_bytes: u64,
+    pub segment_max_bytes: u64,
+    pub segment_max_age_seconds: u64,
 }
 
 impl RecordingIngestServiceConfig {
@@ -48,6 +53,14 @@ impl RecordingIngestServiceConfig {
             "maximum batch bytes must be in 1..={DEFAULT_MAXIMUM_BATCH_BYTES}"
         );
         ensure!(
+            self.segment_max_bytes >= self.maximum_batch_bytes,
+            "segment maximum bytes must hold at least one maximum-size batch"
+        );
+        ensure!(
+            self.segment_max_age_seconds > 0,
+            "segment maximum age must be positive"
+        );
+        ensure!(
             self.journal_root != self.spool_root,
             "journal and spool roots must be distinct"
         );
@@ -55,10 +68,33 @@ impl RecordingIngestServiceConfig {
     }
 }
 
+pub fn ingest_segment_parts_directory(segment_path: &Path) -> PathBuf {
+    let mut value = OsString::from(segment_path.as_os_str());
+    value.push(".parts");
+    PathBuf::from(value)
+}
+
+pub fn ingest_part_sequence(path: &Path) -> Option<u64> {
+    let name = path.file_name()?.to_str()?;
+    name.strip_suffix(".rrd")?.parse().ok()
+}
+
+pub fn live_segment_byte_len(segment_path: &Path) -> Result<u64> {
+    if segment_path.exists() {
+        return Ok(std::fs::metadata(segment_path)?.len());
+    }
+    ingest_part_paths(&ingest_segment_parts_directory(segment_path))?
+        .into_iter()
+        .try_fold(0_u64, |total, path| {
+            Ok(total.saturating_add(std::fs::metadata(path)?.len()))
+        })
+}
+
 #[derive(Clone)]
 pub struct RecordingIngestService {
     store: PlatformStore,
     config: RecordingIngestServiceConfig,
+    materialization: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl RecordingIngestService {
@@ -72,7 +108,11 @@ impl RecordingIngestService {
         let mut config = config;
         config.journal_root = config.journal_root.canonicalize()?;
         config.spool_root = config.spool_root.canonicalize()?;
-        Ok(Self { store, config })
+        Ok(Self {
+            store,
+            config,
+            materialization: Arc::new(tokio::sync::Mutex::new(())),
+        })
     }
 
     pub async fn open(
@@ -150,6 +190,7 @@ impl RecordingIngestService {
     ) -> Result<AppendRecordingBatchResult> {
         batch.validate(self.config.maximum_batch_bytes)?;
         let identity = self.authorize(gateway, producer, None).await?;
+        let _guard = self.materialization.lock().await;
         let stream = self
             .authorized_stream(&identity, producer, stream_id)
             .await?;
@@ -216,7 +257,11 @@ impl RecordingIngestService {
         stream_id: RecordingIngestStreamId,
     ) -> Result<RecordingStream> {
         let identity = self.authorize(gateway, producer, None).await?;
-        self.authorized_stream(&identity, producer, stream_id)
+        let _guard = self.materialization.lock().await;
+        let open_stream = self
+            .authorized_stream(&identity, producer, stream_id)
+            .await?;
+        self.freeze_active_segment(&identity, stream_id, &open_stream)
             .await?;
         let stream = self
             .store
@@ -435,6 +480,68 @@ impl RecordingIngestService {
         batch: &RecordingBatch,
         journal_path: &Path,
     ) -> Result<RecordingIngestStreamRecord> {
+        let (segment, path) = self.active_segment(identity, stream_id, stream).await?;
+        let parts_directory = ingest_segment_parts_directory(&path);
+        std::fs::create_dir_all(&parts_directory)?;
+        let part_path = parts_directory.join(format!("{:020}.rrd", batch.sequence));
+        publish_segment(&part_path, &batch.encoded_rrd)?;
+        let inspection = inspect_segment(&part_path)?;
+        ensure!(
+            inspection.application_id == stream.application_id
+                && inspection.recording_key == stream.recording_key
+                && inspection.sha256 == hex::encode(&batch.sha256),
+            "materialized ingest part identity or digest changed"
+        );
+        let stream = self
+            .store
+            .mark_recording_ingest_materialized(identity.tenant_id, stream_id, batch.sequence)
+            .await?;
+        remove_if_exists(journal_path)?;
+        if self.segment_is_due(&segment, &parts_directory)? {
+            self.freeze_segment(identity, segment, &path).await?;
+        }
+        Ok(stream)
+    }
+
+    async fn active_segment(
+        &self,
+        identity: &PlatformIdentity,
+        stream_id: RecordingIngestStreamId,
+        stream: &RecordingIngestStreamRecord,
+    ) -> Result<(SegmentRecord, PathBuf)> {
+        let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
+        let segments = self
+            .store
+            .recording_segments(identity.tenant_id, recording_id, 10_000)
+            .await?;
+        if let Some(segment) = segments
+            .iter()
+            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
+            .max_by_key(|segment| segment.ordinal)
+        {
+            let path = self.segment_path(segment)?;
+            if path.exists() {
+                remove_directory_if_exists(&ingest_segment_parts_directory(&path))?;
+            }
+        }
+        if let Some(segment) = segments
+            .iter()
+            .filter(|segment| segment.state == SegmentState::Writing)
+            .max_by_key(|segment| segment.ordinal)
+            .cloned()
+        {
+            let path = self.segment_path(&segment)?;
+            if path.exists() {
+                self.freeze_segment(identity, segment, &path).await?;
+            } else {
+                return Ok((segment, path));
+            }
+        }
+        let ordinal = segments
+            .iter()
+            .map(|segment| segment.ordinal)
+            .max()
+            .map_or(0, |ordinal| ordinal + 1);
         let directory = self
             .config
             .spool_root
@@ -442,63 +549,97 @@ impl RecordingIngestService {
             .join(stream.opened_at.date_naive().format("%Y-%m-%d").to_string());
         std::fs::create_dir_all(&directory)?;
         let path = directory.join(format!(
-            "{}.ingest-{}-{:020}.rrd",
+            "{}.ingest-{}-s{ordinal}.rrd",
             sanitize(&stream.recording_key),
-            stream_id,
-            batch.sequence
+            stream_id
         ));
-        publish_segment(&path, &batch.encoded_rrd)?;
-        let inspection = inspect_segment(&path)?;
-        ensure!(
-            inspection.application_id == stream.application_id
-                && inspection.recording_key == stream.recording_key
-                && inspection.sha256 == hex::encode(&batch.sha256),
-            "materialized segment identity or digest changed"
-        );
-        let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         let relative_path = path
             .strip_prefix(&self.config.spool_root)?
             .to_str()
             .context("segment path is not UTF-8")?
             .to_owned();
-        let segment = match self
+        let segment = self
             .store
-            .segment_by_key(identity.tenant_id, recording_id, &relative_path)
-            .await?
-        {
-            Some(segment) => segment,
-            None => {
-                self.store
-                    .open_segment(SegmentDraft {
-                        identity: identity.clone(),
-                        recording_id,
-                        segment_key: relative_path.clone(),
-                        ordinal: i64::try_from(batch.sequence - 1)?,
-                        relative_path,
-                        start_time: Some(stream.opened_at),
-                    })
-                    .await?
-            }
-        };
-        if segment.state == SegmentState::Writing {
-            let segment_id = typed_record_uuid::<SegmentId>(&segment.id, SegmentId::TABLE)?;
-            self.store
-                .freeze_segment(
-                    identity,
-                    segment_id,
-                    i64::try_from(inspection.byte_len)?,
-                    i64::try_from(batch.message_count)?,
-                    &inspection.sha256,
-                    Some(chrono::Utc::now()),
-                )
-                .await?;
-        }
-        let stream = self
-            .store
-            .mark_recording_ingest_materialized(identity.tenant_id, stream_id, batch.sequence)
+            .open_segment(SegmentDraft {
+                identity: identity.clone(),
+                recording_id,
+                segment_key: relative_path.clone(),
+                ordinal,
+                relative_path,
+                start_time: Some(chrono::Utc::now()),
+            })
             .await?;
-        remove_if_exists(journal_path)?;
-        Ok(stream)
+        Ok((segment, path))
+    }
+
+    async fn freeze_active_segment(
+        &self,
+        identity: &PlatformIdentity,
+        _stream_id: RecordingIngestStreamId,
+        stream: &RecordingIngestStreamRecord,
+    ) -> Result<()> {
+        let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
+        let segments = self
+            .store
+            .recording_segments(identity.tenant_id, recording_id, 10_000)
+            .await?;
+        if let Some(segment) = segments
+            .into_iter()
+            .filter(|segment| segment.state == SegmentState::Writing)
+            .max_by_key(|segment| segment.ordinal)
+        {
+            let path = self.segment_path(&segment)?;
+            self.freeze_segment(identity, segment, &path).await?;
+        }
+        Ok(())
+    }
+
+    async fn freeze_segment(
+        &self,
+        identity: &PlatformIdentity,
+        segment: SegmentRecord,
+        path: &Path,
+    ) -> Result<()> {
+        let parts_directory = ingest_segment_parts_directory(path);
+        let (message_count, ended_at) = if path.exists() {
+            (count_segment_messages(path)?, chrono::Utc::now())
+        } else {
+            merge_ingest_parts(&parts_directory, path)?
+        };
+        let inspection = inspect_segment(path)?;
+        self.store
+            .freeze_segment(
+                identity,
+                typed_record_uuid::<SegmentId>(&segment.id, SegmentId::TABLE)?,
+                i64::try_from(inspection.byte_len)?,
+                i64::try_from(message_count)?,
+                &inspection.sha256,
+                Some(ended_at),
+            )
+            .await?;
+        remove_directory_if_exists(&parts_directory)?;
+        Ok(())
+    }
+
+    fn segment_is_due(&self, segment: &SegmentRecord, parts_directory: &Path) -> Result<bool> {
+        let bytes =
+            ingest_part_paths(parts_directory)?
+                .into_iter()
+                .try_fold(0_u64, |total, path| {
+                    Ok::<_, anyhow::Error>(total.saturating_add(std::fs::metadata(path)?.len()))
+                })?;
+        let age = chrono::Utc::now() - segment.start_time.unwrap_or(segment.created_at);
+        Ok(bytes >= self.config.segment_max_bytes
+            || age.num_seconds() >= i64::try_from(self.config.segment_max_age_seconds)?)
+    }
+
+    fn segment_path(&self, segment: &SegmentRecord) -> Result<PathBuf> {
+        let path = self.config.spool_root.join(&segment.relative_path);
+        ensure!(
+            path.starts_with(&self.config.spool_root),
+            "segment path escapes the recording spool"
+        );
+        Ok(path)
     }
 
     fn stream_response(&self, stream: &RecordingIngestStreamRecord) -> Result<RecordingStream> {
@@ -626,9 +767,110 @@ fn publish_segment(path: &Path, bytes: &[u8]) -> Result<()> {
     sync_directory(directory)
 }
 
+fn ingest_part_paths(parts_directory: &Path) -> Result<Vec<PathBuf>> {
+    if !parts_directory.exists() {
+        return Ok(Vec::new());
+    }
+    let mut parts = std::fs::read_dir(parts_directory)?
+        .map(|entry| {
+            let entry = entry?;
+            ensure!(
+                entry.file_type()?.is_file(),
+                "ingest parts directory contains a non-file entry"
+            );
+            let path = entry.path();
+            let sequence = ingest_part_sequence(&path)
+                .with_context(|| format!("invalid ingest part name {}", path.display()))?;
+            Ok((sequence, path))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    parts.sort_by_key(|(sequence, _)| *sequence);
+    for pair in parts.windows(2) {
+        ensure!(
+            pair[0].0 < pair[1].0,
+            "ingest parts contain a duplicate sequence"
+        );
+    }
+    Ok(parts.into_iter().map(|(_, path)| path).collect())
+}
+
+fn merge_ingest_parts(
+    parts_directory: &Path,
+    final_path: &Path,
+) -> Result<(u64, chrono::DateTime<chrono::Utc>)> {
+    let parts = ingest_part_paths(parts_directory)?;
+    ensure!(
+        !parts.is_empty(),
+        "cannot freeze an ingest segment without parts"
+    );
+    let parent = final_path
+        .parent()
+        .context("ingest segment path has no parent")?;
+    let temporary = final_path.with_extension(format!("rrd.{}.tmp", uuid::Uuid::now_v7()));
+    let file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary)?;
+    let mut encoder = Encoder::new_eager(
+        CrateVersion::LOCAL,
+        EncodingOptions::PROTOBUF_COMPRESSED,
+        BufWriter::with_capacity(1024 * 1024, file),
+    )
+    .with_context(|| format!("opening ingest segment encoder {}", temporary.display()))?;
+    let mut message_count = 0_u64;
+    for part in parts {
+        let file =
+            File::open(&part).with_context(|| format!("opening ingest part {}", part.display()))?;
+        let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
+            .with_context(|| format!("decoding ingest part {}", part.display()))?;
+        for message in decoder {
+            let message =
+                message.with_context(|| format!("decoding ingest part {}", part.display()))?;
+            encoder
+                .append(&message)
+                .with_context(|| format!("merging ingest part {}", part.display()))?;
+            message_count += 1;
+        }
+    }
+    encoder
+        .finish()
+        .context("finishing merged ingest segment")?;
+    let mut writer = encoder
+        .into_inner()
+        .context("extracting merged ingest segment writer")?;
+    writer.flush()?;
+    let file = writer
+        .into_inner()
+        .map_err(|error| anyhow::anyhow!("flushing merged ingest segment: {error}"))?;
+    file.sync_all()?;
+    std::fs::rename(&temporary, final_path)?;
+    sync_directory(parent)?;
+    Ok((message_count, chrono::Utc::now()))
+}
+
+fn count_segment_messages(path: &Path) -> Result<u64> {
+    let file = File::open(path).with_context(|| format!("opening segment {}", path.display()))?;
+    let mut decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
+        .with_context(|| format!("decoding segment {}", path.display()))?;
+    decoder.try_fold(0_u64, |count, message| {
+        let _message = message.with_context(|| format!("decoding segment {}", path.display()))?;
+        Ok(count + 1)
+    })
+}
+
 fn remove_if_exists(path: &Path) -> Result<()> {
     if path.exists() {
         std::fs::remove_file(path)?;
+        if let Some(parent) = path.parent() {
+            sync_directory(parent)?;
+        }
+    }
+    Ok(())
+}
+
+fn remove_directory_if_exists(path: &Path) -> Result<()> {
+    if path.exists() {
+        std::fs::remove_dir_all(path)?;
         if let Some(parent) = path.parent() {
             sync_directory(parent)?;
         }
@@ -704,6 +946,8 @@ fn typed_record_uuid<T: TypedRecordId>(record: &RecordId, expected_table: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use re_sdk::RecordingStreamBuilder;
+    use re_sdk_types::archetypes::Scalars;
 
     #[test]
     fn segment_filename_is_confined() {
@@ -717,7 +961,69 @@ mod tests {
             spool_root: PathBuf::from("/spool"),
             protected_resource: ProtectedResourceId::new("https://example.test/ingest").unwrap(),
             maximum_batch_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
+            segment_max_bytes: DEFAULT_MAXIMUM_BATCH_BYTES + 1,
+            segment_max_age_seconds: 60,
         };
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn ingest_parts_are_ordered_by_sequence() {
+        let directory = tempfile::tempdir().unwrap();
+        for sequence in [9, 1, 42] {
+            std::fs::write(directory.path().join(format!("{sequence:020}.rrd")), []).unwrap();
+        }
+        let sequences = ingest_part_paths(directory.path())
+            .unwrap()
+            .into_iter()
+            .map(|path| ingest_part_sequence(&path).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(sequences, [1, 9, 42]);
+    }
+
+    #[test]
+    fn ingest_parts_merge_into_one_decodable_rrd() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(43.0))
+            .unwrap();
+        let messages = storage.take();
+        let store_info = messages
+            .iter()
+            .find(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+            .unwrap();
+        let data = messages
+            .iter()
+            .filter(|message| !matches!(message, LogMsg::SetStoreInfo(_)))
+            .collect::<Vec<_>>();
+        assert!(!data.is_empty());
+
+        let directory = tempfile::tempdir().unwrap();
+        let final_path = directory.path().join("segment.rrd");
+        let parts = ingest_segment_parts_directory(&final_path);
+        std::fs::create_dir(&parts).unwrap();
+        for sequence in 0..2 {
+            let mut encoder = Encoder::new_eager(
+                CrateVersion::LOCAL,
+                EncodingOptions::PROTOBUF_COMPRESSED,
+                Vec::new(),
+            )
+            .unwrap();
+            encoder.append(store_info).unwrap();
+            encoder.append(data[0]).unwrap();
+            encoder.finish().unwrap();
+            let bytes = encoder.into_inner().unwrap();
+            std::fs::write(parts.join(format!("{sequence:020}.rrd")), bytes).unwrap();
+        }
+
+        let (message_count, _) = merge_ingest_parts(&parts, &final_path).unwrap();
+        assert_eq!(message_count, 4);
+        assert_eq!(count_segment_messages(&final_path).unwrap(), 4);
     }
 }

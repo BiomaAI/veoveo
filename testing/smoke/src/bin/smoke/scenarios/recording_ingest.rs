@@ -1,4 +1,6 @@
 use anyhow::ensure;
+use re_log_encoding::Decoder;
+use re_log_types::LogMsg;
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::Scalars;
 use url::Url;
@@ -183,16 +185,25 @@ pub(crate) async fn recording_ingest(
             && duplicate.duplicate,
         "idempotent recording retry was not acknowledged: {duplicate:?}"
     );
+    let mut second_batch = batch.clone();
+    second_batch.sequence = 2;
+    let appended = client.append(&opened.stream_id, &second_batch).await?;
+    ensure!(
+        appended.durable_through_sequence == 2
+            && appended.materialized_through_sequence == 2
+            && !appended.duplicate,
+        "second recording batch was not durably materialized: {appended:?}"
+    );
 
     let resumed = client.open(&request).await?;
     ensure!(
-        resumed.stream_id == opened.stream_id && resumed.next_sequence == 2,
+        resumed.stream_id == opened.stream_id && resumed.next_sequence == 3,
         "recording stream did not resume from its durable checkpoint: {resumed:?}"
     );
     let finished = client.finish(&opened.stream_id).await?;
     let finished = finished.stream.context("finish response omitted stream")?;
     ensure!(
-        finished.state == i32::from(RecordingStreamState::Finished) && finished.next_sequence == 2,
+        finished.state == i32::from(RecordingStreamState::Finished) && finished.next_sequence == 3,
         "recording stream did not finish at its durable checkpoint: {finished:?}"
     );
 
@@ -204,15 +215,21 @@ pub(crate) async fn recording_ingest(
     let inspection = inspect_segment(&segments[0])?;
     ensure!(
         inspection.application_id == request.application_id
-            && inspection.recording_key == request.recording_id
-            && inspection.sha256 == hex::encode(&batch.sha256),
-        "materialized segment changed recording identity or digest: {inspection:?}"
+            && inspection.recording_key == request.recording_id,
+        "materialized segment changed recording identity: {inspection:?}"
+    );
+    let decoded =
+        Decoder::<LogMsg>::decode_eager(std::io::BufReader::new(File::open(&segments[0])?))?
+            .collect::<Result<Vec<_>, _>>()?;
+    ensure!(
+        decoded.len() as u64 == batch.message_count + second_batch.message_count,
+        "two ingest batches did not merge into one complete segment: {inspection:?}"
     );
 
     gateway_child.stop();
     hub_child.stop();
     cleanup.remove_on_drop();
-    println!("recording ingest smoke ok: OAuth retry checkpoint materialized and resumed");
+    println!("recording ingest smoke ok: OAuth retry checkpoint merged and resumed");
     Ok(())
 }
 

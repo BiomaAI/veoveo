@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use axum::{
     Extension, Router,
@@ -12,7 +11,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use bytes::Bytes;
 use clap::Parser;
 use futures::stream;
 use rmcp::{
@@ -33,7 +31,6 @@ use rmcp::{
     },
 };
 use serde::Serialize;
-use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 use tower_http::services::ServeFile;
@@ -44,6 +41,7 @@ use veoveo_mcp_contract::{
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
 };
 use veoveo_platform_store::{PlatformStore, RecordingId, SegmentId, StoreConfig, StoreCredentials};
+use veoveo_recording_mcp::live_playback::stream_live_rrd;
 use veoveo_recording_mcp::{
     RecordingService,
     contract::{
@@ -615,26 +613,9 @@ async fn playback_live_segment(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let file = match tokio::fs::File::open(&path).await {
-        Ok(file) => file,
-        Err(error) => {
-            tracing::error!(%error, path = %path.display(), "live recording segment open failed");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let stream = stream::try_unfold(
-        (file, vec![0_u8; 64 * 1024]),
-        |(mut file, mut buffer)| async move {
-            loop {
-                let read = file.read(&mut buffer).await?;
-                if read > 0 {
-                    let chunk = Bytes::copy_from_slice(&buffer[..read]);
-                    return Ok::<_, std::io::Error>(Some((chunk, (file, buffer))));
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-        },
-    );
+    let stream = stream::unfold(stream_live_rrd(path), |mut receiver| async move {
+        receiver.recv().await.map(|item| (item, receiver))
+    });
     let mut response = rrd_response(Body::from_stream(stream));
     response.headers_mut().insert(
         header::HeaderName::from_static("x-accel-buffering"),

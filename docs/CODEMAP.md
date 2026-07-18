@@ -383,7 +383,7 @@ types.
 | File | Responsibility |
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error projection |
-| `ingest.rs` | producer authorization, journal durability, quota-bound append, restart reconciliation, and materialization |
+| `ingest.rs` | producer authorization, journal durability, quota-bound append, ordered live parts, rollover merge, and restart reconciliation |
 | `spool.rs` | segment encode/flush/fsync/freeze, idle completion, and recovery |
 | `catalog.rs` | per-stream identity, capture timestamps, segment verification, and catalog publication |
 | `query.rs` | governed RRD query/readback |
@@ -406,7 +406,8 @@ types.
 ### `servers/recording-mcp`
 
 `contract.rs` owns query, publication, and playback manifest types. `service.rs` owns
-authorized MCP and playback behavior, `uris.rs` owns recording identities, and
+authorized MCP and playback behavior, `live_playback.rs` projects direct writers and
+ordered ingest parts as continuous RRD streams, `uris.rs` owns recording identities, and
 `bin/server.rs` exposes authenticated same-origin RRD bytes beside the MCP route.
 `bin/server/state.rs` composes platform store, spool access, subscriptions, and artifact
 publication.

@@ -19,6 +19,7 @@ bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
+re_build_info.workspace = true
 re_chunk_store.workspace = true
 re_entity_db.workspace = true
 re_log_encoding.workspace = true
@@ -30,7 +31,7 @@ schemars.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "fs"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "fs", "io-util", "sync", "time"] }
 tokio-util.workspace = true
 tower-http.workspace = true
 tower.workspace = true
@@ -43,5 +44,6 @@ veoveo-platform-store.workspace = true
 veoveo-recording-hub = { path = "../../platform/recordings/hub" }
 
 [dev-dependencies]
+re_sdk.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

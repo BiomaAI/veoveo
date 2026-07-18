@@ -12,7 +12,7 @@ use veoveo_platform_store::{
     RecordIdKey, RecordingId, RecordingRecord, RecordingSeal, RecordingState, SegmentId,
     SegmentRecord, SegmentSealBinding, SegmentState,
 };
-use veoveo_recording_hub::{inspect_segment, query_segments};
+use veoveo_recording_hub::{inspect_segment, live_segment_byte_len, query_segments};
 
 use crate::contract::{
     ManifestSegment, PlaybackLiveSegment, PlaybackManifest, PlaybackSegment, QueryRecordingOutput,
@@ -186,11 +186,14 @@ impl RecordingService {
             .iter()
             .filter(|segment| segment.state == SegmentState::Writing)
             .max_by_key(|segment| segment.ordinal)
-            .map(|segment| PlaybackLiveSegment {
-                segment_id: segment.segment_id.to_string(),
-                ordinal: segment.ordinal,
-                byte_len: segment.byte_len,
-            });
+            .map(|segment| {
+                Ok::<_, anyhow::Error>(PlaybackLiveSegment {
+                    segment_id: segment.segment_id.to_string(),
+                    ordinal: segment.ordinal,
+                    byte_len: live_segment_byte_len(&segment.path)?,
+                })
+            })
+            .transpose()?;
         Ok(Some(PlaybackManifest {
             recording_id: recording_id.to_string(),
             application_id: plan.application_id,

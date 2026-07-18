@@ -202,6 +202,8 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
             spool_root: config.spool_dir.clone(),
             protected_resource: ProtectedResourceId::new(&args.ingest_protected_resource)?,
             maximum_batch_bytes: veoveo_recording_protocol::DEFAULT_MAXIMUM_BATCH_BYTES,
+            segment_max_bytes: config.segment_max_bytes,
+            segment_max_age_seconds: config.segment_max_age_s,
         },
     )?;
     let reconciled_ingest = ingest.reconcile().await?;
