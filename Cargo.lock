@@ -10679,7 +10679,6 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-duckdb-runtime",
- "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",

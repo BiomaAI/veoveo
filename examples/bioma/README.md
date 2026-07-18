@@ -14,6 +14,8 @@ kubectl context cannot redirect a recipe into another installation.
 
 - `values.yaml` owns Bioma's public origins and gateway ConfigMap identity.
 - `gateway.json` owns the Entra application, tenant mapping, and MCP profiles.
+- `recording-producer-jwks.json` is the public half of the UAV recording
+  producer credential mounted beside the gateway control plane.
 - `k3d.yaml` owns the cluster, loopback ingress, and pinned local OCI registry.
 - `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
   cluster and bootstraps the canonical UAV ENU frame without changing the
@@ -95,7 +97,9 @@ The `.env` file must define `CLOUDFLARE_ACCOUNT_ID`,
 `cesium-ion-access-token` in the least-privilege `veoveo-uav-sim-secrets`
 Secret for Isaac. The recording key is stored only in
 `veoveo-recording-producer` and must match the public JWKS registered for the
-gateway OAuth client. The Google key remains the direct View MCP credential.
+gateway OAuth client. Its public JWKS is safe to commit and is loaded from the
+gateway ConfigMap; the private key never leaves `.env` and the Kubernetes
+Secret. The Google key remains the direct View MCP credential.
 The account token needs Tunnel:Edit and DNS:Edit for this account and zone. The
 tunnel token is stored only in the `bioma-cloudflared` Kubernetes Secret.
 
