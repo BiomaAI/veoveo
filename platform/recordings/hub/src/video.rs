@@ -13,6 +13,7 @@ use anyhow::{Context, Result, ensure};
 use h264_reader::nal::sps::SeqParameterSet;
 use h264_reader::nal::{Nal as _, RefNal};
 use mp4::{AvcConfig, MediaConfig, Mp4Config, Mp4Sample, Mp4Writer, TrackConfig, TrackType};
+use re_chunk::Chunk;
 use re_chunk_store::{ChunkStore, ChunkStoreConfig, ChunkStoreHandle};
 use re_dataframe::{
     AbsoluteTimeRange, EntityPath, QueryEngine, QueryExpression, SparseFillStrategy, TimeInt,
@@ -31,9 +32,56 @@ pub enum H264VideoProfile {
     AnnexBNoBFrames,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct RrdVideoBoundary {
+    pub contains_video: bool,
+    pub begins_with_keyframe: bool,
+}
+
+impl RrdVideoBoundary {
+    fn observe(&mut self, sample: &VideoSample) -> Result<()> {
+        let keyframe = h264_access_unit_is_idr(sample.0.0.as_ref())?;
+        if !self.contains_video {
+            self.begins_with_keyframe = keyframe;
+        }
+        self.contains_video = true;
+        Ok(())
+    }
+}
+
 /// Return whether an Annex B access unit contains an H.264 IDR picture.
 pub fn h264_access_unit_is_idr(bytes: &[u8]) -> Result<bool> {
     Ok(annex_b_nals(bytes)?.iter().any(|nal| nal[0] & 0x1f == 5))
+}
+
+pub fn inspect_rrd_video_boundary(encoded_rrd: &[u8]) -> Result<RrdVideoBoundary> {
+    let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(Cursor::new(encoded_rrd)))
+        .context("decoding RRD video boundary")?;
+    let mut boundary = RrdVideoBoundary::default();
+    for message in decoder {
+        inspect_log_message_video_boundary(&message?, &mut boundary)?;
+    }
+    Ok(boundary)
+}
+
+pub fn inspect_log_message_video_boundary(
+    message: &LogMsg,
+    boundary: &mut RrdVideoBoundary,
+) -> Result<()> {
+    let LogMsg::ArrowMsg(_, arrow) = message else {
+        return Ok(());
+    };
+    let chunk = Chunk::from_arrow_msg(arrow).context("decoding Rerun video chunk")?;
+    let sample_component = VideoStream::descriptor_sample().component;
+    let Some(samples) = chunk.components().get_array(sample_component) else {
+        return Ok(());
+    };
+    for row in 0..chunk.num_rows() {
+        if let Some(sample) = component_at::<VideoSample>(samples, row)? {
+            boundary.observe(&sample)?;
+        }
+    }
+    Ok(())
 }
 
 /// How values on the selected Rerun index should be interpreted.
@@ -213,8 +261,8 @@ pub fn extract_video_clip_from_messages(
                 codec == VideoCodec::H264,
                 "only H.264 VideoStream samples are supported"
             );
-            let is_keyframe =
-                component_at::<IsKeyframe>(batch.column(keyframe_column), row)?.is_some();
+            let is_keyframe = component_at::<IsKeyframe>(batch.column(keyframe_column), row)?
+                .is_some_and(|value| *value.0);
             samples.push(EncodedVideoSample {
                 index: time_values[row],
                 is_keyframe,

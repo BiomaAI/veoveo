@@ -123,8 +123,8 @@ async fn main() -> anyhow::Result<()> {
             get(recording_playback::manifest),
         )
         .route(
-            "/console/api/recordings/{recording_id}/sources/{ticket}/replay.rrd",
-            get(recording_playback::replay),
+            "/console/api/recordings/{recording_id}/sources/{ticket}/segments/{segment_id}/data.rrd",
+            get(recording_playback::segment),
         )
         .route(
             "/console/api/recordings/{recording_id}/sources/{ticket}/segments/{segment_id}/live.rrd",

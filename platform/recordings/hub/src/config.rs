@@ -90,9 +90,6 @@ pub struct SpoolerConfig {
     /// In-memory replay-buffer limit for late-joining live viewers (bytes).
     #[serde(default = "default_live_queue_limit_bytes")]
     pub live_queue_limit_bytes: u64,
-    /// Path to the `rerun` CLI used for freeze verify/optimize; `None` skips it.
-    #[serde(default)]
-    pub rerun_bin: Option<PathBuf>,
 }
 
 fn default_segment_max_bytes() -> u64 {
@@ -193,7 +190,6 @@ mod tests {
             flush_interval_ms: default_flush_interval_ms(),
             fsync_on_flush: default_fsync_on_flush(),
             live_queue_limit_bytes: default_live_queue_limit_bytes(),
-            rerun_bin: None,
         }
     }
 

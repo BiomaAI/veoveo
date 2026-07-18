@@ -287,7 +287,6 @@ async fn child_spooler(
         flush_interval_ms: 10,
         fsync_on_flush: true,
         live_queue_limit_bytes: 256 * 1024 * 1024,
-        rerun_bin: None,
     };
     let flush = config.flush_interval();
     let (signal, shutdown) = shutdown::shutdown();

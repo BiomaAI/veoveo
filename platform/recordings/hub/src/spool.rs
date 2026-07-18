@@ -18,6 +18,8 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
 use re_build_info::CrateVersion;
+use re_chunk_store::ChunkStoreConfig;
+use re_entity_db::EntityDb;
 use re_log_channel::{DataSourceMessage, LogReceiver, RecvTimeoutError};
 use re_log_encoding::EncodingOptions;
 use re_log_encoding::rrd::Encoder;
@@ -97,6 +99,7 @@ struct SegmentWriter {
     last_data_at: DateTime<Utc>,
     bytes: u64,
     messages: u64,
+    video_seen: bool,
 }
 
 impl SegmentWriter {
@@ -128,6 +131,7 @@ impl SegmentWriter {
             last_data_at: now,
             bytes: 0,
             messages: 0,
+            video_seen: false,
         })
     }
 
@@ -200,6 +204,7 @@ pub struct Spooler {
     today: fn() -> NaiveDate,
     catalog: Box<dyn SegmentCatalog>,
     store_info: HashMap<(String, String), LogMsg>,
+    static_context: HashMap<(String, String), EntityDb>,
 }
 
 impl Spooler {
@@ -214,6 +219,7 @@ impl Spooler {
             today: || chrono::Utc::now().date_naive(),
             catalog: Box::new(NoopCatalog),
             store_info: HashMap::new(),
+            static_context: HashMap::new(),
         })
     }
 
@@ -259,6 +265,17 @@ impl Spooler {
             application_id,
             recording,
         };
+        let mut video = crate::RrdVideoBoundary::default();
+        crate::inspect_log_message_video_boundary(msg, &mut video)?;
+        let is_static = log_message_is_static(msg)?;
+        let should_rotate = self.writers.get(&key).is_some_and(|writer| {
+            let due = writer.bytes >= self.config.segment_max_bytes
+                || writer.opened_at.elapsed() >= self.config.segment_max_age();
+            due && (!writer.video_seen || video.begins_with_keyframe)
+        });
+        if should_rotate {
+            self.freeze_key(&key, false)?;
+        }
 
         if !self.writers.contains_key(&key) {
             let path = self.next_segment_path(&key)?;
@@ -267,6 +284,11 @@ impl Spooler {
                 && let Some(store_info) = self.store_info.get(&store_key)
             {
                 writer.append_preamble(store_info)?;
+            }
+            if let Some(static_context) = self.static_context.get(&store_key) {
+                for message in static_context.to_messages(None) {
+                    writer.append_preamble(&message.context("reading direct static context")?)?;
+                }
             }
             self.catalog.segment_opened(&OpenedSegment {
                 key: key.clone(),
@@ -278,6 +300,15 @@ impl Spooler {
         }
         let writer = self.writers.get_mut(&key).expect("writer just inserted");
         let n = writer.append(msg)?;
+        writer.video_seen |= video.contains_video;
+        if is_static {
+            let context = self.static_context.entry(store_key).or_insert_with(|| {
+                EntityDb::with_store_config(store_id.clone(), false, ChunkStoreConfig::ALL_DISABLED)
+            });
+            context
+                .add_log_msg(msg)
+                .context("updating direct static context")?;
+        }
         self.counters.messages += 1;
         self.counters.bytes += n;
         Ok(())
@@ -309,7 +340,9 @@ impl Spooler {
         let due: Vec<SegmentKey> = self
             .writers
             .iter()
-            .filter(|(_, w)| w.bytes >= max_bytes || w.opened_at.elapsed() >= max_age)
+            .filter(|(_, w)| {
+                !w.video_seen && (w.bytes >= max_bytes || w.opened_at.elapsed() >= max_age)
+            })
             .map(|(k, _)| k.clone())
             .collect();
         for key in due {
@@ -332,14 +365,12 @@ impl Spooler {
         if let Some(mut writer) = self.writers.remove(key) {
             writer.finish(self.config.fsync_on_flush)?;
             self.counters.segments_frozen += 1;
-            // Compact + embed a manifest so the catalog can lazy-load the
-            // segment, then verify. Both are best-effort: a freeze that can't
-            // reach the CLI still leaves a valid footer-full file behind.
-            if let Some(bin) = self.config.rerun_bin.clone()
-                && let Err(err) = optimize_segment(&bin, &writer.path)
-            {
-                tracing::warn!(%err, path = %writer.path.display(), "segment optimize failed");
-            }
+            // Archive publication is fail-closed: only the one-time compacted,
+            // footer-indexed object-store representation becomes readable.
+            let source = writer.path.clone();
+            crate::materialize_archive_shard(&[source], &writer.path).with_context(|| {
+                format!("materializing archive shard {}", writer.path.display())
+            })?;
             let inspection = crate::catalog::inspect_segment(&writer.path)?;
             anyhow::ensure!(
                 inspection.application_id == key.application_id
@@ -392,6 +423,13 @@ impl Spooler {
         }
         unreachable!("infinite range yields an unused path")
     }
+}
+
+fn log_message_is_static(message: &LogMsg) -> Result<bool> {
+    let LogMsg::ArrowMsg(_, arrow) = message else {
+        return Ok(false);
+    };
+    Ok(re_chunk::Chunk::from_arrow_msg(arrow)?.is_static())
 }
 
 /// Make a recording id safe as a filename component.
@@ -467,21 +505,6 @@ pub fn run_blocking(
     Ok(spooler.counters().clone())
 }
 
-fn verify_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
-    let output = std::process::Command::new(rerun_bin)
-        .arg("rrd")
-        .arg("verify")
-        .arg(path)
-        .output()
-        .with_context(|| format!("running {} rrd verify", rerun_bin.display()))?;
-    anyhow::ensure!(
-        output.status.success(),
-        "rrd verify failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    Ok(())
-}
-
 fn sync_parent_dir(path: &Path) -> Result<()> {
     let parent = path
         .parent()
@@ -490,35 +513,4 @@ fn sync_parent_dir(path: &Path) -> Result<()> {
         .with_context(|| format!("opening segment directory {}", parent.display()))?
         .sync_all()
         .with_context(|| format!("syncing segment directory {}", parent.display()))
-}
-
-/// Compact a frozen segment in place: `rerun rrd optimize <path> -o <tmp>` then
-/// atomically rename over the original. The compacted file carries the manifest
-/// the catalog needs to lazy-load it. A crash mid-optimize leaves the original
-/// untouched and a stray `.opt` to sweep.
-fn optimize_segment(rerun_bin: &Path, path: &Path) -> Result<()> {
-    let tmp = path.with_extension("rrd.opt");
-    let output = std::process::Command::new(rerun_bin)
-        .arg("rrd")
-        .arg("optimize")
-        .arg(path)
-        .arg("-o")
-        .arg(&tmp)
-        .output()
-        .with_context(|| format!("running {} rrd optimize", rerun_bin.display()))?;
-    if !output.status.success() {
-        let _ = std::fs::remove_file(&tmp);
-        anyhow::bail!(
-            "rrd optimize failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    if let Err(err) = verify_segment(rerun_bin, &tmp) {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(err).with_context(|| format!("verifying optimized segment {}", path.display()));
-    }
-    std::fs::rename(&tmp, path)
-        .with_context(|| format!("publishing optimized segment {}", path.display()))?;
-    sync_parent_dir(path)?;
-    Ok(())
 }

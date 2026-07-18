@@ -8,11 +8,20 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from "react";
-import { Check, Copy, FileStack, Play, RefreshCw, Search } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  FileStack,
+  Play,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import {
   loadRecordingPlayback,
   recordingLiveSegmentUrl,
-  recordingReplayUrl,
+  recordingSegmentUrl,
 } from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatBytes, formatDate } from "../format";
@@ -25,6 +34,7 @@ import type {
 const GovernedRerunViewer = lazy(() => import("../components/GovernedRerunViewer"));
 
 type RecordingStateFilter = "all" | RecordingSummary["state"];
+const LIVE_MANIFEST_REFRESH_MS = 5_000;
 
 const lifecycleDetail: Record<RecordingSummary["state"], string> = {
   live: "Receiving data",
@@ -111,6 +121,7 @@ export function RecordingsView({
   const [playbackError, setPlaybackError] = useState<string>();
   const [reloadToken, setReloadToken] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [archiveSegmentId, setArchiveSegmentId] = useState<string>();
 
   const recordings = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -139,6 +150,7 @@ export function RecordingsView({
     void loadRecordingPlayback(resolvedSelectedId, controller.signal)
       .then((value) => {
         setManifest(value);
+        setArchiveSegmentId(value.archive.default_segment_id);
         setPlaybackError(undefined);
       })
       .catch((cause: unknown) => {
@@ -160,9 +172,57 @@ export function RecordingsView({
     resolvedSelectedId,
   ]);
 
+  useEffect(() => {
+    if (!resolvedSelectedId || selected?.state !== "live") return;
+    const currentLiveSegmentId = manifest?.live?.segment_id;
+    const currentManifestState = manifest?.state;
+    const currentArchiveCount = manifest?.archive.segments.length;
+    let disposed = false;
+    let refreshing = false;
+    const refreshLiveManifest = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const value = await loadRecordingPlayback(resolvedSelectedId);
+        if (
+          disposed ||
+          (value.live?.segment_id === currentLiveSegmentId &&
+            value.state === currentManifestState &&
+            value.archive.segments.length === currentArchiveCount)
+        ) {
+          return;
+        }
+        setManifest(value);
+        setArchiveSegmentId((segmentId) => segmentId ?? value.archive.default_segment_id);
+        setPlaybackError(undefined);
+      } catch (cause: unknown) {
+        if (!disposed) {
+          console.warn("Live recording manifest refresh failed", cause);
+        }
+      } finally {
+        refreshing = false;
+      }
+    };
+    const interval = window.setInterval(
+      () => void refreshLiveManifest(),
+      LIVE_MANIFEST_REFRESH_MS
+    );
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+    };
+  }, [
+    manifest?.archive.segments.length,
+    manifest?.live?.segment_id,
+    manifest?.state,
+    resolvedSelectedId,
+    selected?.state,
+  ]);
+
   const selectRecording = (recordingId: string) => {
     if (recordingId === resolvedSelectedId) return;
     setManifest(undefined);
+    setArchiveSegmentId(undefined);
     setPlaybackError(undefined);
     setLoading(true);
     setSelectedId(recordingId);
@@ -171,6 +231,7 @@ export function RecordingsView({
 
   const reloadPlayback = () => {
     setManifest(undefined);
+    setArchiveSegmentId(undefined);
     setPlaybackError(undefined);
     setLoading(true);
     setReloadToken((value) => value + 1);
@@ -185,31 +246,38 @@ export function RecordingsView({
 
   const playbackSource = useMemo(() => {
     if (!manifest) return undefined;
-    if (manifest.live_segment) {
+    if (manifest.live) {
       const liveUrl = recordingLiveSegmentUrl(
         manifest.recording_id,
         manifest.playback_ticket,
-        manifest.live_segment.segment_id
+        manifest.live.segment_id
       );
       return {
         mode: "live" as const,
-        urls:
-          manifest.segments.length > 0
-            ? [
-                recordingReplayUrl(manifest.recording_id, manifest.playback_ticket),
-                liveUrl,
-              ]
-            : [liveUrl],
+        urls: [liveUrl],
       };
     }
-    if (manifest.segments.length > 0) {
+    const selectedSegment = manifest.archive.segments.find(
+      (segment) => segment.segment_id === archiveSegmentId
+    );
+    if (selectedSegment) {
       return {
         mode: "replay" as const,
-        urls: [recordingReplayUrl(manifest.recording_id, manifest.playback_ticket)],
+        urls: [
+          recordingSegmentUrl(
+            manifest.recording_id,
+            manifest.playback_ticket,
+            selectedSegment.segment_id
+          ),
+        ],
       };
     }
     return undefined;
-  }, [manifest]);
+  }, [archiveSegmentId, manifest]);
+
+  const archiveSegmentIndex = manifest?.archive.segments.findIndex(
+    (segment) => segment.segment_id === archiveSegmentId
+  ) ?? -1;
 
   return (
     <div className="recordings-workspace">
@@ -356,11 +424,59 @@ export function RecordingsView({
             {manifest && (
               <footer className="recording-player-footer">
                 <Play size={14} />
-                <span>
-                  {manifest.live_segment
-                    ? `Live · ${manifest.segments.length} captured segment${manifest.segments.length === 1 ? "" : "s"} loaded; following active segment ${manifest.live_segment.ordinal + 1}.`
-                    : `${manifest.segments.length} authorized RRD segment${manifest.segments.length === 1 ? "" : "s"} normalized into one replay timeline.`}
-                </span>
+                {manifest.live ? (
+                  <span>
+                    Live · {manifest.live.history_seconds}s recent history plus{" "}
+                    {manifest.live.video_preroll_seconds}s video preroll; following archive shard{" "}
+                    {manifest.live.ordinal + 1}.
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      className="recording-window-button"
+                      disabled={archiveSegmentIndex <= 0}
+                      onClick={() =>
+                        setArchiveSegmentId(
+                          manifest.archive.segments[archiveSegmentIndex - 1]?.segment_id
+                        )
+                      }
+                      aria-label="Previous archive window"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <select
+                      className="recording-window-select"
+                      value={archiveSegmentId ?? ""}
+                      onChange={(event) => setArchiveSegmentId(event.target.value)}
+                      aria-label="Archive playback window"
+                    >
+                      {manifest.archive.segments.map((segment, index) => (
+                        <option key={segment.segment_id} value={segment.segment_id}>
+                          Window {index + 1} of {manifest.archive.segments.length} ·{" "}
+                          {formatBytes(segment.byte_len)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="recording-window-button"
+                      disabled={
+                        archiveSegmentIndex < 0 ||
+                        archiveSegmentIndex >= manifest.archive.segments.length - 1
+                      }
+                      onClick={() =>
+                        setArchiveSegmentId(
+                          manifest.archive.segments[archiveSegmentIndex + 1]?.segment_id
+                        )
+                      }
+                      aria-label="Next archive window"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                    <span>
+                      Direct authorized RRD shard · {manifest.archive.optimization_profile} profile
+                    </span>
+                  </>
+                )}
               </footer>
             )}
           </>

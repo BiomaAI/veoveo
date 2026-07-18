@@ -20,11 +20,9 @@ chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
 re_build_info.workspace = true
-re_chunk_store.workspace = true
-re_entity_db.workspace = true
+re_chunk.workspace = true
 re_log_encoding.workspace = true
 re_log_types.workspace = true
-re_sdk_types.workspace = true
 rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
 rustls.workspace = true
 schemars.workspace = true
@@ -45,5 +43,6 @@ veoveo-recording-hub = { path = "../../platform/recordings/hub" }
 
 [dev-dependencies]
 re_sdk.workspace = true
+re_sdk_types.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

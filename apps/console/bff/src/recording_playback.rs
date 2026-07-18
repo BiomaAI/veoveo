@@ -10,8 +10,9 @@ use axum::{
     http::{
         HeaderMap, HeaderValue, StatusCode,
         header::{
-            CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE, HOST,
-            X_CONTENT_TYPE_OPTIONS,
+            ACCEPT_RANGES, CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
+            CONTENT_TYPE, ETAG, HOST, IF_MATCH, IF_MODIFIED_SINCE, IF_NONE_MATCH, IF_RANGE,
+            IF_UNMODIFIED_SINCE, LAST_MODIFIED, RANGE, X_CONTENT_TYPE_OPTIONS,
         },
     },
     response::{IntoResponse as _, Response},
@@ -94,10 +95,18 @@ struct PlaybackManifest {
     state: String,
     started_at: String,
     ended_at: Option<String>,
-    segments: Vec<PlaybackSegment>,
-    live_segment: Option<PlaybackLiveSegment>,
+    archive: PlaybackArchive,
+    live: Option<PlaybackLiveSegment>,
     #[serde(skip_serializing_if = "Option::is_none")]
     playback_ticket: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct PlaybackArchive {
+    rrd_version: String,
+    optimization_profile: String,
+    default_segment_id: Option<String>,
+    segments: Vec<PlaybackSegment>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -106,13 +115,17 @@ struct PlaybackSegment {
     ordinal: i64,
     byte_len: u64,
     sha256: String,
+    started_at: Option<String>,
+    ended_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct PlaybackLiveSegment {
     segment_id: String,
     ordinal: i64,
-    byte_len: u64,
+    current_byte_len: u64,
+    history_seconds: u64,
+    video_preroll_seconds: u64,
 }
 
 pub(crate) async fn manifest(
@@ -196,11 +209,14 @@ pub(crate) async fn manifest(
     (headers, body).into_response()
 }
 
-pub(crate) async fn replay(
+pub(crate) async fn segment(
     State(state): State<AppState>,
-    Path((recording_id, ticket)): Path<(String, String)>,
+    Path((recording_id, ticket, segment_id)): Path<(String, String, String)>,
+    request_headers: HeaderMap,
 ) -> Response {
-    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
+    let (Some(recording_id), Some(segment_id)) =
+        (parse_uuid_v7(&recording_id), parse_uuid_v7(&segment_id))
+    else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Some(access_token) = state.playback_tickets.authorize(&ticket, recording_id) else {
@@ -209,8 +225,11 @@ pub(crate) async fn replay(
     proxy_source(
         &state,
         access_token,
-        state.config.recording_replay_url(&recording_id.to_string()),
+        state
+            .config
+            .recording_segment_url(&recording_id.to_string(), &segment_id.to_string()),
         false,
+        &request_headers,
     )
     .await
 }
@@ -234,6 +253,7 @@ pub(crate) async fn live_segment(
             .config
             .recording_live_segment_url(&recording_id.to_string(), &segment_id.to_string()),
         true,
+        &HeaderMap::new(),
     )
     .await
 }
@@ -243,19 +263,30 @@ async fn proxy_source(
     access_token: String,
     url: url::Url,
     live: bool,
+    request_headers: &HeaderMap,
 ) -> Response {
     let client = if live {
         &state.live_http
     } else {
         &state.stream_http
     };
-    let upstream = match client
+    let mut request = client
         .get(url)
         .header(HOST, state.config.gateway_host())
-        .bearer_auth(access_token)
-        .send()
-        .await
-    {
+        .bearer_auth(access_token);
+    for name in [
+        RANGE,
+        IF_RANGE,
+        IF_MATCH,
+        IF_NONE_MATCH,
+        IF_MODIFIED_SINCE,
+        IF_UNMODIFIED_SINCE,
+    ] {
+        if let Some(value) = request_headers.get(&name) {
+            request = request.header(name, value);
+        }
+    }
+    let upstream = match request.send().await {
         Ok(response) => response,
         Err(error) => {
             tracing::error!(%error, live, "console recording source upstream failed");
@@ -267,6 +298,10 @@ async fn proxy_source(
     for name in [
         CONTENT_TYPE,
         CONTENT_LENGTH,
+        CONTENT_RANGE,
+        ACCEPT_RANGES,
+        ETAG,
+        LAST_MODIFIED,
         CACHE_CONTROL,
         CONTENT_DISPOSITION,
         X_CONTENT_TYPE_OPTIONS,

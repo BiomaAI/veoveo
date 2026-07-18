@@ -502,24 +502,6 @@ async fn playback_manifest(
     }
 }
 
-async fn playback_rrd(
-    State(state): State<Arc<AppState>>,
-    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
-    Path(recording_id): Path<String>,
-) -> Response {
-    let Ok(recording_id) = parse_recording_id(&recording_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    match state.recordings.playback_rrd(&identity, recording_id).await {
-        Ok(Some(bytes)) => rrd_response(Body::from(bytes)),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(error) => {
-            tracing::error!(%error, %recording_id, "recording playback projection failed");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
-}
-
 async fn playback_segment(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
@@ -613,9 +595,10 @@ async fn playback_live_segment(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let stream = stream::unfold(stream_live_rrd(path), |mut receiver| async move {
-        receiver.recv().await.map(|item| (item, receiver))
-    });
+    let stream = stream::unfold(
+        stream_live_rrd(path, state.recordings.live_history()),
+        |mut receiver| async move { receiver.recv().await.map(|item| (item, receiver)) },
+    );
     let mut response = rrd_response(Body::from_stream(stream));
     response.headers_mut().insert(
         header::HeaderName::from_static("x-accel-buffering"),
@@ -680,7 +663,8 @@ async fn main() -> anyhow::Result<()> {
             store,
             HttpArtifactPlane::new(&args.artifact_service_url),
             spool_dir,
-        )?,
+        )?
+        .with_live_history_seconds(args.live_history_seconds)?,
         subscribers: SubscriptionHub::new(),
     });
     let cancellation = CancellationToken::new();
@@ -710,7 +694,6 @@ async fn main() -> anyhow::Result<()> {
         ));
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
-        .route("/{recording_id}/replay.rrd", get(playback_rrd))
         .route(
             "/{recording_id}/segments/{segment_id}/data.rrd",
             get(playback_segment),

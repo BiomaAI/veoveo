@@ -84,8 +84,16 @@ pub struct PlaybackManifest {
     pub state: String,
     pub started_at: String,
     pub ended_at: Option<String>,
+    pub archive: PlaybackArchive,
+    pub live: Option<PlaybackLiveSegment>,
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct PlaybackArchive {
+    pub rrd_version: String,
+    pub optimization_profile: String,
+    pub default_segment_id: Option<String>,
     pub segments: Vec<PlaybackSegment>,
-    pub live_segment: Option<PlaybackLiveSegment>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -94,13 +102,17 @@ pub struct PlaybackSegment {
     pub ordinal: i64,
     pub byte_len: u64,
     pub sha256: String,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PlaybackLiveSegment {
     pub segment_id: String,
     pub ordinal: i64,
-    pub byte_len: u64,
+    pub current_byte_len: u64,
+    pub history_seconds: u64,
+    pub video_preroll_seconds: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]

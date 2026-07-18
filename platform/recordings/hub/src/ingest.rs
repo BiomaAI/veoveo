@@ -2,14 +2,13 @@
 
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter, Cursor, Write};
+use std::io::{BufReader, Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, ensure};
 use prost::Message;
-use re_build_info::CrateVersion;
-use re_log_encoding::{Decoder, EncodingOptions, rrd::Encoder};
+use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreKind};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
@@ -30,6 +29,8 @@ use veoveo_recording_protocol::{
 };
 
 use crate::inspect_segment;
+
+const VIDEO_STREAM_MARKER: &str = ".video-stream";
 
 #[derive(Clone, Debug)]
 pub struct RecordingIngestServiceConfig {
@@ -77,6 +78,26 @@ pub fn ingest_segment_parts_directory(segment_path: &Path) -> PathBuf {
 pub fn ingest_part_sequence(path: &Path) -> Option<u64> {
     let name = path.file_name()?.to_str()?;
     name.strip_suffix(".rrd")?.parse().ok()
+}
+
+pub fn ingest_stream_static_context_path(segment_path: &Path) -> Result<PathBuf> {
+    let filename = segment_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .context("ingest segment filename is not UTF-8")?;
+    let (_, suffix) = filename
+        .split_once(".ingest-")
+        .context("ingest segment filename has no stream identity")?;
+    let stream_id = suffix.chars().take(36).collect::<String>();
+    ensure!(
+        suffix.chars().nth(36) == Some('-')
+            && uuid::Uuid::parse_str(&stream_id).is_ok_and(|value| value.get_version_num() == 7),
+        "ingest segment filename has an invalid stream identity"
+    );
+    Ok(segment_path
+        .parent()
+        .context("ingest segment has no parent")?
+        .join(format!(".ingest-{stream_id}.static-context")))
 }
 
 pub(crate) fn is_authenticated_ingest_path(path: &Path) -> bool {
@@ -503,11 +524,26 @@ impl RecordingIngestService {
         batch: &RecordingBatch,
         journal_path: &Path,
     ) -> Result<RecordingIngestStreamRecord> {
-        let (segment, path) = self.active_segment(identity, stream_id, stream).await?;
-        let parts_directory = ingest_segment_parts_directory(&path);
+        let video = crate::inspect_rrd_video_boundary(&batch.encoded_rrd)?;
+        let (mut segment, mut path) = self.active_segment(identity, stream_id, stream).await?;
+        let mut parts_directory = ingest_segment_parts_directory(&path);
+        if parts_directory.exists()
+            && self.segment_is_due(&segment, &parts_directory)?
+            && (!segment_contains_video(&parts_directory) || video.begins_with_keyframe)
+        {
+            self.freeze_segment(identity, segment, &path).await?;
+            (segment, path) = self.active_segment(identity, stream_id, stream).await?;
+            parts_directory = ingest_segment_parts_directory(&path);
+        }
         std::fs::create_dir_all(&parts_directory)?;
         let part_path = parts_directory.join(format!("{:020}.rrd", batch.sequence));
         publish_segment(&part_path, &batch.encoded_rrd)?;
+        if video.contains_video {
+            mark_segment_contains_video(&parts_directory)?;
+        }
+        if let Some(static_rrd) = static_context_rrd(&batch.encoded_rrd)? {
+            update_static_context(&path, &static_rrd)?;
+        }
         let inspection = inspect_segment(&part_path)?;
         ensure!(
             inspection.application_id == stream.application_id
@@ -520,7 +556,9 @@ impl RecordingIngestService {
             .mark_recording_ingest_materialized(identity.tenant_id, stream_id, batch.sequence)
             .await?;
         remove_if_exists(journal_path)?;
-        if self.segment_is_due(&segment, &parts_directory)? {
+        if self.segment_is_due(&segment, &parts_directory)?
+            && !segment_contains_video(&parts_directory)
+        {
             self.freeze_segment(identity, segment, &path).await?;
         }
         Ok(stream)
@@ -625,7 +663,12 @@ impl RecordingIngestService {
     ) -> Result<()> {
         let parts_directory = ingest_segment_parts_directory(path);
         let (message_count, ended_at) = if path.exists() {
-            (count_segment_messages(path)?, chrono::Utc::now())
+            let source = path.to_path_buf();
+            let message_count = count_segment_messages(&source)?;
+            let mut inputs = static_context_input(path)?;
+            inputs.push(source);
+            crate::materialize_archive_shard(&inputs, path)?;
+            (message_count, chrono::Utc::now())
         } else {
             merge_ingest_parts(&parts_directory, path)?
         };
@@ -802,9 +845,17 @@ fn ingest_part_paths(parts_directory: &Path) -> Result<Vec<PathBuf>> {
                 "ingest parts directory contains a non-file entry"
             );
             let path = entry.path();
+            if path.file_name().and_then(|name| name.to_str()) == Some(VIDEO_STREAM_MARKER) {
+                return Ok(None);
+            }
             let sequence = ingest_part_sequence(&path)
                 .with_context(|| format!("invalid ingest part name {}", path.display()))?;
-            Ok((sequence, path))
+            Ok(Some((sequence, path)))
+        })
+        .filter_map(|entry| match entry {
+            Ok(Some(part)) => Some(Ok(part)),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
         })
         .collect::<Result<Vec<_>>>()?;
     parts.sort_by_key(|(sequence, _)| *sequence);
@@ -817,6 +868,78 @@ fn ingest_part_paths(parts_directory: &Path) -> Result<Vec<PathBuf>> {
     Ok(parts.into_iter().map(|(_, path)| path).collect())
 }
 
+fn segment_contains_video(parts_directory: &Path) -> bool {
+    parts_directory.join(VIDEO_STREAM_MARKER).is_file()
+}
+
+fn mark_segment_contains_video(parts_directory: &Path) -> Result<()> {
+    let marker = parts_directory.join(VIDEO_STREAM_MARKER);
+    if !marker.exists() {
+        let file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&marker)?;
+        file.sync_all()?;
+        sync_directory(parts_directory)?;
+    }
+    Ok(())
+}
+
+fn static_context_rrd(encoded_rrd: &[u8]) -> Result<Option<Vec<u8>>> {
+    let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(Cursor::new(encoded_rrd)))?;
+    let mut selected = Vec::new();
+    for message in decoder {
+        let message = message?;
+        let retain = match &message {
+            LogMsg::SetStoreInfo(_) => true,
+            LogMsg::ArrowMsg(_, arrow) => re_chunk::Chunk::from_arrow_msg(arrow)?.is_static(),
+            LogMsg::BlueprintActivationCommand(_) => false,
+        };
+        if retain {
+            selected.push(message);
+        }
+    }
+    let contains_static = selected
+        .iter()
+        .any(|message| matches!(message, LogMsg::ArrowMsg(_, _)));
+    if !contains_static {
+        return Ok(None);
+    }
+    let mut encoder = re_log_encoding::rrd::Encoder::new_eager(
+        re_build_info::CrateVersion::LOCAL,
+        re_log_encoding::EncodingOptions::PROTOBUF_COMPRESSED,
+        Vec::new(),
+    )
+    .context("opening ingest static context encoder")?;
+    for message in &selected {
+        encoder.append(message)?;
+    }
+    encoder.finish()?;
+    Ok(Some(encoder.into_inner()?))
+}
+
+fn update_static_context(segment_path: &Path, new_context: &[u8]) -> Result<()> {
+    let context_path = ingest_stream_static_context_path(segment_path)?;
+    let temporary = context_path.with_extension(format!("update-{}", uuid::Uuid::now_v7()));
+    publish_segment(&temporary, new_context)?;
+    let mut inputs = Vec::with_capacity(2);
+    if context_path.exists() {
+        inputs.push(context_path.clone());
+    }
+    inputs.push(temporary.clone());
+    let result = crate::materialize_archive_shard(&inputs, &context_path);
+    remove_if_exists(&temporary)?;
+    result.map(|_| ())
+}
+
+fn static_context_input(segment_path: &Path) -> Result<Vec<PathBuf>> {
+    if !is_authenticated_ingest_path(segment_path) {
+        return Ok(Vec::new());
+    }
+    let context = ingest_stream_static_context_path(segment_path)?;
+    Ok(context.exists().then_some(context).into_iter().collect())
+}
+
 fn merge_ingest_parts(
     parts_directory: &Path,
     final_path: &Path,
@@ -826,48 +949,14 @@ fn merge_ingest_parts(
         !parts.is_empty(),
         "cannot freeze an ingest segment without parts"
     );
-    let parent = final_path
-        .parent()
-        .context("ingest segment path has no parent")?;
-    let temporary = final_path.with_extension(format!("rrd.{}.tmp", uuid::Uuid::now_v7()));
-    let file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&temporary)?;
-    let mut encoder = Encoder::new_eager(
-        CrateVersion::LOCAL,
-        EncodingOptions::PROTOBUF_COMPRESSED,
-        BufWriter::with_capacity(1024 * 1024, file),
-    )
-    .with_context(|| format!("opening ingest segment encoder {}", temporary.display()))?;
-    let mut message_count = 0_u64;
-    for part in parts {
-        let file =
-            File::open(&part).with_context(|| format!("opening ingest part {}", part.display()))?;
-        let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(file))
-            .with_context(|| format!("decoding ingest part {}", part.display()))?;
-        for message in decoder {
-            let message =
-                message.with_context(|| format!("decoding ingest part {}", part.display()))?;
-            encoder
-                .append(&message)
-                .with_context(|| format!("merging ingest part {}", part.display()))?;
-            message_count += 1;
-        }
-    }
-    encoder
-        .finish()
-        .context("finishing merged ingest segment")?;
-    let mut writer = encoder
-        .into_inner()
-        .context("extracting merged ingest segment writer")?;
-    writer.flush()?;
-    let file = writer
-        .into_inner()
-        .map_err(|error| anyhow::anyhow!("flushing merged ingest segment: {error}"))?;
-    file.sync_all()?;
-    std::fs::rename(&temporary, final_path)?;
-    sync_directory(parent)?;
+    let message_count = parts.iter().try_fold(0_u64, |total, path| {
+        total
+            .checked_add(count_segment_messages(path)?)
+            .context("ingest segment message count overflow")
+    })?;
+    let mut inputs = static_context_input(final_path)?;
+    inputs.extend(parts);
+    crate::materialize_archive_shard(&inputs, final_path)?;
     Ok((message_count, chrono::Utc::now()))
 }
 
@@ -974,6 +1063,8 @@ fn typed_record_uuid<T: TypedRecordId>(record: &RecordId, expected_table: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use re_build_info::CrateVersion;
+    use re_log_encoding::{EncodingOptions, rrd::Encoder};
     use re_sdk::RecordingStreamBuilder;
     use re_sdk_types::archetypes::Scalars;
 
@@ -1066,6 +1157,52 @@ mod tests {
 
         let (message_count, _) = merge_ingest_parts(&parts, &final_path).unwrap();
         assert_eq!(message_count, 4);
-        assert_eq!(count_segment_messages(&final_path).unwrap(), 4);
+        assert_eq!(
+            count_segment_messages(&final_path).unwrap(),
+            2,
+            "archive compaction deduplicates repeated store info and row ids"
+        );
+    }
+
+    #[test]
+    fn static_context_excludes_temporal_rows() {
+        let (recording, storage) = RecordingStreamBuilder::new("static-context-test")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log_static("sensor/calibration", &Scalars::single(1.0))
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        let messages = storage.take();
+        let mut encoder = Encoder::new_eager(
+            CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            Vec::new(),
+        )
+        .unwrap();
+        for message in &messages {
+            encoder.append(message).unwrap();
+        }
+        encoder.finish().unwrap();
+        let context = static_context_rrd(&encoder.into_inner().unwrap())
+            .unwrap()
+            .unwrap();
+        let decoded = Decoder::<LogMsg>::decode_eager(BufReader::new(Cursor::new(context)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(
+            decoded
+                .iter()
+                .any(|message| matches!(message, LogMsg::SetStoreInfo(_)))
+        );
+        assert!(decoded.iter().all(|message| match message {
+            LogMsg::ArrowMsg(_, arrow) =>
+                re_chunk::Chunk::from_arrow_msg(arrow).unwrap().is_static(),
+            _ => true,
+        }));
     }
 }

@@ -100,8 +100,6 @@ spec:
             - {{ printf "%.0f" .Values.recording.segmentMaxBytes | quote }}
             - --segment-max-age-s
             - {{ printf "%.0f" .Values.recording.segmentMaxAgeSeconds | quote }}
-            - --rerun-bin
-            - /usr/local/bin/rerun
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
             - name: RECORDING_TENANT_KEY
@@ -158,6 +156,8 @@ spec:
             - recording-mcp:8796
             - --artifact-service-url
             - http://artifact-service:8790
+            - --live-history-seconds
+            - {{ .Values.recording.liveHistorySeconds | quote }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
             - name: OTEL_SERVICE_NAME
