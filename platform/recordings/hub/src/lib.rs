@@ -7,6 +7,7 @@
 //! datasets. Files are the record, the proxy is the bus, the catalog is the
 //! reading room.
 
+pub mod archive;
 pub mod catalog;
 pub mod config;
 pub mod ingest;
@@ -16,11 +17,12 @@ pub mod sim;
 pub mod spool;
 pub mod video;
 
+pub use archive::{ArchiveMaterialization, materialize_archive_shard};
 pub use catalog::{CatalogPolicy, PlatformCatalog, SegmentInspection, inspect_segment};
 pub use config::{DatasetName, DatasetRoute, QUARANTINE_DATASET, SpoolerConfig};
 pub use ingest::{
     RecordingIngestService, RecordingIngestServiceConfig, ingest_part_sequence,
-    ingest_segment_parts_directory, live_segment_byte_len,
+    ingest_segment_parts_directory, ingest_stream_static_context_path, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
 pub use query::{QueryResult, collect_segments, query_segments, query_tree};
@@ -32,6 +34,7 @@ pub use spool::{
     Counters, FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey, Spooler, run_blocking,
 };
 pub use video::{
-    EncodedVideoClip, EncodedVideoSample, H264VideoProfile, VideoClipRequest, VideoIndexKind,
-    extract_video_clip, extract_video_clip_from_messages, h264_access_unit_is_idr, remux_h264_mp4,
+    EncodedVideoClip, EncodedVideoSample, H264VideoProfile, RrdVideoBoundary, VideoClipRequest,
+    VideoIndexKind, extract_video_clip, extract_video_clip_from_messages, h264_access_unit_is_idr,
+    inspect_log_message_video_boundary, inspect_rrd_video_boundary, remux_h264_mp4,
 };

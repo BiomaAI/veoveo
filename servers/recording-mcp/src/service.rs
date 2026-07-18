@@ -17,16 +17,18 @@ use veoveo_recording_hub::{
 };
 
 use crate::contract::{
-    ManifestSegment, PlaybackLiveSegment, PlaybackManifest, PlaybackSegment, QueryRecordingOutput,
-    QueryRecordingRequest, RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
+    ManifestSegment, PlaybackArchive, PlaybackLiveSegment, PlaybackManifest, PlaybackSegment,
+    QueryRecordingOutput, QueryRecordingRequest, RecordingManifest, RecordingView,
+    SealRecordingOutput, SegmentView,
 };
-use crate::playback::normalized_rrd;
 
 mod read;
 pub use read::{RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment};
 
 const MAX_QUERY_ROWS: u64 = 10_000;
 const MAX_SEGMENTS: u32 = 10_000;
+const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 60;
+const LIVE_VIDEO_PREROLL_SECONDS: u64 = 2;
 const RRD_MIME: &str = "application/vnd.rerun.rrd";
 const MANIFEST_MIME: &str = "application/vnd.veoveo.recording-manifest+json";
 
@@ -35,6 +37,7 @@ pub struct RecordingService {
     store: PlatformStore,
     artifacts: HttpArtifactPlane,
     spool_root: PathBuf,
+    live_history_seconds: u64,
 }
 
 impl RecordingService {
@@ -54,7 +57,24 @@ impl RecordingService {
             store,
             artifacts,
             spool_root,
+            live_history_seconds: DEFAULT_LIVE_HISTORY_SECONDS,
         })
+    }
+
+    pub fn with_live_history_seconds(mut self, seconds: u64) -> Result<Self> {
+        ensure!(
+            (1..=3600).contains(&seconds),
+            "live history seconds must be in 1..=3600"
+        );
+        self.live_history_seconds = seconds;
+        Ok(self)
+    }
+
+    pub fn live_history(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(
+            self.live_history_seconds
+                .saturating_add(LIVE_VIDEO_PREROLL_SECONDS),
+        )
     }
 
     pub fn platform_store(&self) -> &PlatformStore {
@@ -180,10 +200,13 @@ impl RecordingService {
                         .sha256
                         .clone()
                         .context("playback segment is missing sha256")?,
+                    started_at: segment.started_at.map(|value| value.to_rfc3339()),
+                    ended_at: segment.ended_at.map(|value| value.to_rfc3339()),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let live_segment = plan
+        let default_segment_id = segments.first().map(|segment| segment.segment_id.clone());
+        let live = plan
             .segments
             .iter()
             .filter(|segment| segment.state == SegmentState::Writing)
@@ -192,7 +215,9 @@ impl RecordingService {
                 Ok::<_, anyhow::Error>(PlaybackLiveSegment {
                     segment_id: segment.segment_id.to_string(),
                     ordinal: segment.ordinal,
-                    byte_len: live_segment_byte_len(&segment.path)?,
+                    current_byte_len: live_segment_byte_len(&segment.path)?,
+                    history_seconds: self.live_history_seconds,
+                    video_preroll_seconds: LIVE_VIDEO_PREROLL_SECONDS,
                 })
             })
             .transpose()?;
@@ -203,28 +228,14 @@ impl RecordingService {
             state: recording_state(plan.state).to_owned(),
             started_at: recording.started_at.to_rfc3339(),
             ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
-            segments,
-            live_segment,
+            archive: PlaybackArchive {
+                rrd_version: "0.34.1".to_owned(),
+                optimization_profile: "object-store".to_owned(),
+                default_segment_id,
+                segments,
+            },
+            live,
         }))
-    }
-
-    pub async fn playback_rrd(
-        &self,
-        identity: &GatewayInternalIdentity,
-        recording_id: RecordingId,
-    ) -> Result<Option<Vec<u8>>> {
-        let authority = RecordingReadAuthority::from_gateway(identity);
-        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
-            return Ok(None);
-        };
-        let paths = plan.stable_segment_paths();
-        if paths.is_empty() {
-            return Ok(None);
-        }
-        let bytes = tokio::task::spawn_blocking(move || normalized_rrd(&paths))
-            .await
-            .context("playback normalization worker panicked")??;
-        Ok(Some(bytes))
     }
 
     pub async fn playback_segment_path(

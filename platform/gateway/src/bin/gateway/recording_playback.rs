@@ -23,7 +23,6 @@ const INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS: i64 = 60;
 #[derive(Clone, Debug)]
 enum PlaybackSource {
     Manifest,
-    Replay,
     FrozenSegment(String),
     LiveSegment(String),
 }
@@ -32,14 +31,13 @@ impl PlaybackSource {
     fn segment_id(&self) -> Option<&str> {
         match self {
             Self::FrozenSegment(segment_id) | Self::LiveSegment(segment_id) => Some(segment_id),
-            Self::Manifest | Self::Replay => None,
+            Self::Manifest => None,
         }
     }
 
     fn mode(&self) -> &'static str {
         match self {
             Self::Manifest => "manifest",
-            Self::Replay => "replay",
             Self::FrozenSegment(_) => "frozen-segment",
             Self::LiveSegment(_) => "live-segment",
         }
@@ -48,7 +46,6 @@ impl PlaybackSource {
     fn upstream_path(&self, recording_id: &str) -> String {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
-            Self::Replay => format!("/recordings/{recording_id}/replay.rrd"),
             Self::FrozenSegment(segment_id) => {
                 format!("/recordings/{recording_id}/segments/{segment_id}/data.rrd")
             }
@@ -72,25 +69,6 @@ pub(super) async fn playback_manifest(
         PlaybackSource::Manifest,
         subject,
         Method::GET,
-        headers,
-    )
-    .await
-}
-
-pub(super) async fn playback_replay(
-    State(state): State<RecordingPlaybackState>,
-    Path((profile, recording_id)): Path<(String, String)>,
-    Extension(subject): Extension<AuthenticatedSubject>,
-    method: Method,
-    headers: HeaderMap,
-) -> Response {
-    proxy_playback(
-        state,
-        profile,
-        recording_id,
-        PlaybackSource::Replay,
-        subject,
-        method,
         headers,
     )
     .await

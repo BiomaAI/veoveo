@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, ensure};
+use chrono::{DateTime, Utc};
 use veoveo_mcp_contract::{
     DataLabelId, GatewayInternalIdentity, PrincipalId, PrincipalKind, TenantId, TokenIssuer,
     TokenSubject,
@@ -65,6 +66,8 @@ pub struct RecordingReadSegment {
     pub state: SegmentState,
     pub byte_len: u64,
     pub sha256: Option<String>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub ended_at: Option<DateTime<Utc>>,
     pub path: PathBuf,
 }
 
@@ -169,6 +172,8 @@ impl RecordingService {
                 byte_len: u64::try_from(segment.byte_len)
                     .context("recording segment byte_len exceeds u64")?,
                 sha256: segment.sha256,
+                started_at: segment.start_time,
+                ended_at: segment.end_time,
                 path,
             });
         }

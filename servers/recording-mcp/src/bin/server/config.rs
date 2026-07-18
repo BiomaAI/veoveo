@@ -38,6 +38,13 @@ pub(super) struct Args {
     pub(super) allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_parser = parse_allowed_host)]
     pub(super) allowed_hosts: Vec<String>,
+    #[arg(
+        long,
+        env = "RECORDING_LIVE_HISTORY_SECONDS",
+        default_value_t = 60,
+        value_parser = clap::value_parser!(u64).range(1..=3600)
+    )]
+    pub(super) live_history_seconds: u64,
 }
 
 fn parse_secret(value: &str) -> Result<SecretString, String> {

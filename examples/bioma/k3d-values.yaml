@@ -14,7 +14,6 @@ artifactService:
 recording:
   enabled: true
   tenantKey: bioma
-  segmentMaxAgeSeconds: 30
   persistence:
     size: 20Gi
 perception:

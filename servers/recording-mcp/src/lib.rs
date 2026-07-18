@@ -2,7 +2,6 @@
 
 pub mod contract;
 pub mod live_playback;
-mod playback;
 pub mod service;
 pub mod uris;
 

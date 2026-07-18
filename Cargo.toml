@@ -91,6 +91,7 @@ reqwest = { version = "0.13.4", default-features = false }
 rig-core = { git = "https://github.com/rozgo/rig.git", rev = "215a3cfb9ec696c5d1d62b5c5d218c377e515236", features = ["rmcp"] }
 prost = "=0.14.4"
 re_dataframe = "=0.34.1"
+re_chunk = "=0.34.1"
 re_chunk_store = "=0.34.1"
 re_entity_db = "=0.34.1"
 rcgen = "0.14.8"

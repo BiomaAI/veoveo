@@ -95,8 +95,8 @@ export default function GovernedRerunViewer({
             {status.delayed
               ? "Authorized data is still streaming into Rerun. Playback will open automatically; large recordings can take longer."
               : source.mode === "live"
-              ? "Loading captured history and following the active governed RRD segment."
-              : "Normalizing authorized segments into one Rerun timeline."}
+              ? "Loading bounded recent history, then following newly durable RRD batches."
+              : "Opening the selected immutable, footer-indexed RRD archive shard."}
           </span>
         </div>
       ) : null}

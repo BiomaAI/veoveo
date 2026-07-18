@@ -147,16 +147,25 @@ export interface RecordingPlaybackManifest {
   started_at: string;
   ended_at?: string;
   playback_ticket: string;
-  segments: Array<{
+  archive: {
+    rrd_version: string;
+    optimization_profile: string;
+    default_segment_id?: string;
+    segments: Array<{
+      segment_id: string;
+      ordinal: number;
+      byte_len: number;
+      sha256: string;
+      started_at?: string;
+      ended_at?: string;
+    }>;
+  };
+  live?: {
     segment_id: string;
     ordinal: number;
-    byte_len: number;
-    sha256: string;
-  }>;
-  live_segment?: {
-    segment_id: string;
-    ordinal: number;
-    byte_len: number;
+    current_byte_len: number;
+    history_seconds: number;
+    video_preroll_seconds: number;
   };
 }
 

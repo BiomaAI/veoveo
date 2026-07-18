@@ -61,9 +61,6 @@ struct Args {
     fsync_on_flush: bool,
     #[arg(long, default_value_t = 1024 * 1024 * 1024)]
     live_queue_limit_bytes: u64,
-    /// Path to the `rerun` CLI used to verify frozen segments.
-    #[arg(long)]
-    rerun_bin: Option<PathBuf>,
     /// Write a readiness marker file once the proxy is accepting traffic.
     #[arg(long)]
     ready_file: Option<PathBuf>,
@@ -170,7 +167,6 @@ fn main() -> Result<()> {
         flush_interval_ms: args.flush_interval_ms,
         fsync_on_flush: args.fsync_on_flush,
         live_queue_limit_bytes: args.live_queue_limit_bytes,
-        rerun_bin: args.rerun_bin.clone(),
     };
     config.validate()?;
 

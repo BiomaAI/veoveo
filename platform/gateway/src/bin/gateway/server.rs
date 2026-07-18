@@ -42,9 +42,7 @@ use super::{
     host::validate_host,
     oauth::{authorization_callback, authorize_endpoint, revoke_refresh_token, token_endpoint},
     recording_ingest::recording_ingest_router,
-    recording_playback::{
-        playback_live_segment, playback_manifest, playback_replay, playback_segment,
-    },
+    recording_playback::{playback_live_segment, playback_manifest, playback_segment},
     runtime::{
         AdminState, AppState, ArtifactDownloadState, DynamicMcpState, GatewayRetentionPolicy,
         ProfileAuthState, ProfileMcpService, Readiness, RecordingIngestGatewayState,
@@ -184,10 +182,6 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .route(
             "/recordings/{profile}/{recording_id}/playback",
             get(playback_manifest),
-        )
-        .route(
-            "/recordings/{profile}/{recording_id}/replay.rrd",
-            get(playback_replay),
         )
         .route(
             "/recordings/{profile}/{recording_id}/segments/{segment_id}/data.rrd",

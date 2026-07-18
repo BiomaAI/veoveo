@@ -198,8 +198,12 @@ export async function loadRecordingPlayback(
   return response.json() as Promise<RecordingPlaybackManifest>;
 }
 
-export function recordingReplayUrl(recordingId: string, ticket: string): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/sources/${encodeURIComponent(ticket)}/replay.rrd`;
+export function recordingSegmentUrl(
+  recordingId: string,
+  ticket: string,
+  segmentId: string
+): string {
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/sources/${encodeURIComponent(ticket)}/segments/${encodeURIComponent(segmentId)}/data.rrd`;
   return new URL(path, window.location.origin).toString();
 }
 

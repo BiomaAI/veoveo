@@ -42,7 +42,6 @@ fn config(spool: &std::path::Path, bind: SocketAddr) -> SpoolerConfig {
         flush_interval_ms: 50,
         fsync_on_flush: true,
         live_queue_limit_bytes: 256 * 1024 * 1024,
-        rerun_bin: None,
     }
 }
 
