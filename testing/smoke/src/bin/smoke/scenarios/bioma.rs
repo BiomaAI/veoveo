@@ -5,12 +5,14 @@ use std::{
 };
 
 use anyhow::ensure;
+use jsonwebtoken::jwk::JwkSet;
 use scraper::{Html, Selector};
 use secrecy::{ExposeSecret, SecretString};
 
 use super::*;
 
 const NAMESPACE: &str = "veoveo";
+const RECORDING_PRODUCER_JWKS_PATH: &str = "examples/bioma/recording-producer-jwks.json";
 const BIOMA_DEPLOYMENTS: &[&str] = &[
     "mcp-gateway",
     "artifact-service",
@@ -47,13 +49,29 @@ pub(crate) fn bioma_resources(context: &str) -> Result<()> {
 
     let gateway = fs::read_to_string("examples/bioma/gateway.json")
         .context("reading the Bioma gateway control plane")?;
+    let recording_producer_jwks = fs::read_to_string(RECORDING_PRODUCER_JWKS_PATH)
+        .context("reading the Bioma recording producer JWKS")?;
+    let parsed_recording_producer_jwks = serde_json::from_str::<JwkSet>(&recording_producer_jwks)
+        .context("decoding the Bioma recording producer JWKS")?;
+    ensure!(
+        parsed_recording_producer_jwks.keys.len() == 1
+            && parsed_recording_producer_jwks.keys[0]
+                .common
+                .key_id
+                .as_deref()
+                == Some("recording-producer-2026"),
+        "Bioma recording producer JWKS must contain exactly recording-producer-2026"
+    );
     kubectl_apply(
         context,
         &serde_json::json!({
             "apiVersion": "v1",
             "kind": "ConfigMap",
             "metadata": {"name": "bioma-gateway-control-plane", "namespace": NAMESPACE},
-            "data": {"gateway.json": gateway}
+            "data": {
+                "gateway.json": gateway,
+                "recording-producer-jwks.json": recording_producer_jwks
+            }
         }),
     )?;
 

@@ -3657,8 +3657,8 @@
         "recording:ingest"
       ],
       "jwks": {
-        "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-recording-producer-jwks.json"
+        "source": "file",
+        "path": "/etc/veoveo/gateway/recording-producer-jwks.json"
       },
       "tenant": "bioma",
       "metadata": {
