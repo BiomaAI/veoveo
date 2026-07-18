@@ -155,6 +155,7 @@ export function RecordingsView({
     reloadToken,
     selected?.playableByteLength,
     selected?.playableSegmentCount,
+    selected?.segmentCount,
     selected?.state,
     resolvedSelectedId,
   ]);
