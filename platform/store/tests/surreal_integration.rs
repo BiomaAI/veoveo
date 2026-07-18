@@ -939,6 +939,63 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
         )
         .await
         .unwrap();
+    let interrupted = store
+        .create_recording(RecordingDraft {
+            identity: identity.clone(),
+            dataset: "world".into(),
+            application_id: "sensor-suite".into(),
+            recording_key: "run-interrupted".into(),
+            classification: "restricted".into(),
+            labels: vec!["operations".into(), "restricted".into()],
+            metadata: BTreeMap::new(),
+            started_at: Utc::now(),
+        })
+        .await
+        .unwrap();
+    let interrupted_id = RecordingId::from_uuid(record_uuid(&interrupted.id));
+    let interrupted_segment = store
+        .open_segment(SegmentDraft {
+            identity: identity.clone(),
+            recording_id: interrupted_id,
+            segment_key: "2026-07-09/run-interrupted.rrd".into(),
+            ordinal: 0,
+            relative_path: "world/2026-07-09/run-interrupted.rrd".into(),
+            start_time: Some(Utc::now()),
+        })
+        .await
+        .unwrap();
+    store
+        .freeze_segment(
+            &identity,
+            SegmentId::from_uuid(record_uuid(&interrupted_segment.id)),
+            512,
+            5,
+            &"f".repeat(64),
+            Some(Utc::now()),
+        )
+        .await
+        .unwrap();
+    let interrupted_at = Utc::now();
+    let interrupted = store
+        .interrupt_recording(
+            &identity,
+            interrupted_id,
+            interrupted_at,
+            "capture process stopped before recording completion",
+        )
+        .await
+        .unwrap();
+    assert_eq!(interrupted.state, RecordingState::Interrupted);
+    assert!(
+        interrupted
+            .ended_at
+            .is_some_and(|ended| ended >= interrupted_at)
+    );
+    assert_eq!(
+        interrupted.failure_reason.as_deref(),
+        Some("capture process stopped before recording completion")
+    );
+
     let recording = store
         .create_recording(RecordingDraft {
             identity: identity.clone(),

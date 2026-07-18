@@ -4,7 +4,7 @@
 //! module gives each recording and segment a typed installation identity and
 //! makes crash recovery explicit by reconciling footer-less files on startup.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ use re_dataframe::{ChunkStoreConfig, QueryEngine};
 use sha2::{Digest, Sha256};
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalKind, RecordId, RecordIdKey, RecordingDraft,
-    RecordingId, SegmentDraft, SegmentId, SegmentState,
+    RecordingId, RecordingState, SegmentDraft, SegmentId, SegmentState,
 };
 
 use crate::config::DatasetName;
@@ -87,6 +87,7 @@ impl PlatformCatalog {
 
     pub async fn reconcile(&self) -> Result<usize> {
         let mut reconciled = 0;
+        let mut recovered_recordings = BTreeSet::new();
         for path in collect_segments(&self.spool_root)? {
             if is_authenticated_ingest_path(&path) {
                 continue;
@@ -99,6 +100,7 @@ impl PlatformCatalog {
                 started_at: Utc::now(),
             };
             let segment = self.register_opened(&opened).await?;
+            recovered_recordings.insert(recording_id(&segment.recording)?);
             match segment.state {
                 SegmentState::Writing => {
                     self.store
@@ -126,6 +128,23 @@ impl PlatformCatalog {
                 }
             }
             reconciled += 1;
+        }
+        for recording_id in recovered_recordings {
+            let recording = self
+                .store
+                .recording(self.identity.tenant_id, recording_id)
+                .await?
+                .context("reconciled segment has no recording catalog entry")?;
+            if recording.state == RecordingState::Live {
+                self.store
+                    .interrupt_recording(
+                        &self.identity,
+                        recording_id,
+                        recording.last_data_at,
+                        "capture process stopped before recording completion",
+                    )
+                    .await?;
+            }
         }
         Ok(reconciled)
     }

@@ -459,6 +459,65 @@ impl PlatformStore {
             })
     }
 
+    pub async fn interrupt_recording(
+        &self,
+        identity: &PlatformIdentity,
+        recording_id: RecordingId,
+        ended_at: DateTime<Utc>,
+        reason: &str,
+    ) -> Result<RecordingRecord, StoreError> {
+        validate_name("failure_reason", reason, 2_048)?;
+        let existing = self
+            .recording(identity.tenant_id, recording_id)
+            .await?
+            .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
+        if existing.state == RecordingState::Interrupted {
+            return Ok(existing);
+        }
+        if existing.state != RecordingState::Live {
+            return Err(StoreError::RecordingStateConflict {
+                recording_id: recording_id.to_string(),
+                state: recording_state_name(existing.state).to_owned(),
+                target: "interrupted",
+            });
+        }
+        let segments = self
+            .recording_segments(identity.tenant_id, recording_id, MAX_SEGMENT_LIMIT)
+            .await?;
+        if segments.is_empty()
+            || segments
+                .iter()
+                .any(|segment| segment.state != SegmentState::Frozen)
+        {
+            return Err(StoreError::RecordingStateConflict {
+                recording_id: recording_id.to_string(),
+                state: "contains non-frozen segments".to_owned(),
+                target: "interrupted",
+            });
+        }
+        let ended_at = ended_at.max(existing.last_data_at);
+        let outbox = recording_event(
+            identity,
+            recording_id,
+            "recording.interrupted",
+            RecordingState::Interrupted,
+        );
+        self.db
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'live' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'interrupted', ended_at = $ended_at, failure_reason = $reason, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
+            .bind(("recording", recording_id.record_id()))
+            .bind(("revision", existing.revision))
+            .bind(("ended_at", ended_at))
+            .bind(("reason", reason.to_owned()))
+            .bind(("outbox", outbox))
+            .await?
+            .check()?;
+        self.recording(identity.tenant_id, recording_id)
+            .await?
+            .ok_or(StoreError::MissingRecord {
+                operation: "interrupt recording readback",
+            })
+    }
+
     async fn resume_recording(
         &self,
         identity: &PlatformIdentity,

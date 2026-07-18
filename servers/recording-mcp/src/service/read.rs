@@ -133,35 +133,45 @@ impl RecordingService {
         ) {
             return Ok(None);
         }
-        let segments = self
+        let catalog_segments = self
             .store
             .recording_segments(platform_identity.tenant_id, recording_id, MAX_SEGMENTS)
-            .await?
-            .into_iter()
-            .map(|segment| {
-                ensure!(
-                    segment.byte_len >= 0,
-                    "recording segment has negative byte_len"
-                );
-                Ok(RecordingReadSegment {
-                    segment_id: SegmentId::from_uuid(record_uuid(&segment.id, "segment")?),
-                    ordinal: segment.ordinal,
-                    state: segment.state,
-                    byte_len: u64::try_from(segment.byte_len)
-                        .context("recording segment byte_len exceeds u64")?,
-                    sha256: segment.sha256,
-                    path: match segment.state {
-                        SegmentState::Writing => self.live_segment_path(&segment.relative_path)?,
-                        SegmentState::Frozen | SegmentState::Sealed => {
-                            self.segment_path(&segment.relative_path)?
-                        }
-                        SegmentState::Failed => {
-                            super::confined_segment_path(&self.spool_root, &segment.relative_path)?
-                        }
-                    },
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
+            .await?;
+        let mut segments = Vec::with_capacity(catalog_segments.len());
+        for segment in catalog_segments {
+            ensure!(
+                segment.byte_len >= 0,
+                "recording segment has negative byte_len"
+            );
+            let path = match segment.state {
+                SegmentState::Writing => self.live_segment_path(&segment.relative_path),
+                SegmentState::Frozen | SegmentState::Sealed => {
+                    self.segment_path(&segment.relative_path)
+                }
+                SegmentState::Failed => {
+                    super::confined_segment_path(&self.spool_root, &segment.relative_path)
+                }
+            };
+            let path = match path {
+                Ok(path) => path,
+                Err(error)
+                    if recording.state == RecordingState::Live
+                        && error_chain_contains_not_found(&error) =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            segments.push(RecordingReadSegment {
+                segment_id: SegmentId::from_uuid(record_uuid(&segment.id, "segment")?),
+                ordinal: segment.ordinal,
+                state: segment.state,
+                byte_len: u64::try_from(segment.byte_len)
+                    .context("recording segment byte_len exceeds u64")?,
+                sha256: segment.sha256,
+                path,
+            });
+        }
         Ok(Some(RecordingReadPlan {
             recording_id,
             dataset: recording.dataset,
@@ -172,5 +182,31 @@ impl RecordingService {
             labels: recording.labels,
             segments,
         }))
+    }
+}
+
+fn error_chain_contains_not_found(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Context as _;
+
+    use super::error_chain_contains_not_found;
+
+    #[test]
+    fn identifies_not_found_through_context() {
+        let error = std::fs::File::open("/a-path-that-does-not-exist")
+            .context("opening projected recording segment")
+            .unwrap_err();
+        assert!(error_chain_contains_not_found(&error));
+        assert!(!error_chain_contains_not_found(&anyhow::anyhow!(
+            "catalog authorization failed"
+        )));
     }
 }
