@@ -292,6 +292,7 @@ impl RecordingService {
             .await?;
         let paths = segments
             .iter()
+            .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
             .map(|segment| self.segment_path(&segment.relative_path))
             .collect::<Result<Vec<_>>>()?;
         let entities = request.entities.clone();
