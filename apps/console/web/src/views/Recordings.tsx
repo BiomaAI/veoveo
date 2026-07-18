@@ -9,7 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { Check, Copy, FileStack, Play, RefreshCw, Search } from "lucide-react";
-import { loadRecordingPlayback, recordingSegmentUrl } from "../api";
+import {
+  loadRecordingPlayback,
+  recordingLiveSegmentUrl,
+  recordingReplayUrl,
+} from "../api";
 import { EmptyState, SectionHeader, StatusPill } from "../components/primitives";
 import { formatBytes, formatDate } from "../format";
 import type {
@@ -178,18 +182,26 @@ export function RecordingsView({
     window.setTimeout(() => setCopied(false), 1500);
   };
 
-  const playbackSegments = useMemo(
-    () =>
-      manifest?.segments
-        .slice()
-        .sort((left, right) => left.ordinal - right.ordinal)
-        .map((segment) => ({
-          ordinal: segment.ordinal,
-          byteLength: segment.byte_len,
-          url: recordingSegmentUrl(manifest.recording_id, segment.segment_id),
-        })) ?? [],
-    [manifest]
-  );
+  const playbackSource = useMemo(() => {
+    if (!manifest) return undefined;
+    if (manifest.live_segment) {
+      return {
+        mode: "live" as const,
+        url: recordingLiveSegmentUrl(
+          manifest.recording_id,
+          manifest.playback_ticket,
+          manifest.live_segment.segment_id
+        ),
+      };
+    }
+    if (manifest.segments.length > 0) {
+      return {
+        mode: "replay" as const,
+        url: recordingReplayUrl(manifest.recording_id, manifest.playback_ticket),
+      };
+    }
+    return undefined;
+  }, [manifest]);
 
   return (
     <div className="recordings-workspace">
@@ -289,14 +301,14 @@ export function RecordingsView({
                     <RefreshCw size={14} /> Retry
                   </button>
                 </div>
-              ) : playbackSegments.length === 0 ? (
+              ) : !playbackSource ? (
                 selected.state === "live" ? (
                   <div className="recording-viewer-state">
                     <FileStack size={30} />
-                    <strong>Live capture has no frozen segment yet.</strong>
+                    <strong>Live capture is starting.</strong>
                     <span>
-                      This producer is connected. Playback will appear here when Recording Hub
-                      freezes its first segment.
+                      This producer is connected. Rerun will follow its active segment as soon as
+                      Recording Hub opens it.
                     </span>
                   </div>
                 ) : selected.playableSegmentCount > 0 ? (
@@ -325,9 +337,9 @@ export function RecordingsView({
                 <ViewerBoundary recordingId={selected.id}>
                   <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.34.1…</span></div>}>
                     <GovernedRerunViewer
-                      key={selected.id}
+                      key={`${selected.id}:${playbackSource.mode}:${playbackSource.url}`}
                       recordingId={selected.id}
-                      segments={playbackSegments}
+                      source={playbackSource}
                     />
                   </Suspense>
                 </ViewerBoundary>
@@ -336,7 +348,11 @@ export function RecordingsView({
             {manifest && (
               <footer className="recording-player-footer">
                 <Play size={14} />
-                <span>{manifest.segments.length} authorized RRD segment{manifest.segments.length === 1 ? "" : "s"} available in ordinal order.</span>
+                <span>
+                  {manifest.live_segment
+                    ? `Live · following active segment ${manifest.live_segment.ordinal + 1}`
+                    : `${manifest.segments.length} authorized RRD segment${manifest.segments.length === 1 ? "" : "s"} normalized into one replay timeline.`}
+                </span>
               </footer>
             )}
           </>

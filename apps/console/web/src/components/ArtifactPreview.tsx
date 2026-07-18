@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Box,
   Download,
@@ -13,7 +13,9 @@ import { artifactDownloadUrl, artifactPreviewUrl } from "../api";
 import type { ArtifactSummary } from "../types";
 
 const TEXT_PREVIEW_BYTES = 256 * 1024;
-const GovernedRerunViewer = lazy(() => import("./GovernedRerunViewer"));
+const GovernedRerunArtifactViewer = lazy(
+  () => import("./GovernedRerunArtifactViewer")
+);
 
 export function ArtifactPreview({
   artifact,
@@ -61,11 +63,6 @@ function AuthorizedArtifactPreview({
   );
   const [accessDetail, setAccessDetail] = useState<string>();
   const [mediaError, setMediaError] = useState<string>();
-  const rerunSegments = useMemo(
-    () => [{ ordinal: 0, byteLength: artifact.byteLength, url }],
-    [artifact.byteLength, url]
-  );
-
   useEffect(() => {
     const controller = new AbortController();
     void fetch(url, {
@@ -141,10 +138,10 @@ function AuthorizedArtifactPreview({
         <div className="artifact-preview-label"><Box size={13} /> Interactive Rerun preview</div>
         <div className="artifact-rerun-viewer">
           <Suspense fallback={<div className="artifact-preview-loading"><div className="loading-mark" /> Loading Rerun 0.34.1…</div>}>
-            <GovernedRerunViewer
+            <GovernedRerunArtifactViewer
               key={artifact.id}
-              recordingId={`artifact ${artifact.id}`}
-              segments={rerunSegments}
+              artifactId={artifact.id}
+              url={url}
             />
           </Suspense>
         </div>

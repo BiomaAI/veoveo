@@ -4,6 +4,7 @@ mod cluster;
 mod config;
 mod mcp_client;
 mod oauth;
+mod recording_playback;
 mod session;
 
 use std::{sync::Arc, time::Duration};
@@ -28,8 +29,10 @@ struct AppState {
     config: Arc<Config>,
     http: reqwest::Client,
     stream_http: reqwest::Client,
+    live_http: reqwest::Client,
     cluster: Option<Arc<cluster::KubernetesClient>>,
     sessions: SessionCipher,
+    playback_tickets: recording_playback::PlaybackTicketStore,
     mcp: Arc<mcp_client::McpSessionPool>,
 }
 
@@ -52,14 +55,21 @@ async fn main() -> anyhow::Result<()> {
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .context("building console streaming HTTP client")?;
+    let live_http = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .context("building console live HTTP client")?;
     let cluster = cluster::KubernetesClient::from_env()?.map(Arc::new);
     let mcp = Arc::new(mcp_client::McpSessionPool::new()?);
     let state = AppState {
         config: config.clone(),
         http,
         stream_http,
+        live_http,
         cluster,
         sessions,
+        playback_tickets: recording_playback::PlaybackTicketStore::default(),
         mcp,
     };
     let csrf_state = state.clone();
@@ -110,11 +120,15 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/console/api/recordings/{recording_id}/playback",
-            get(api::recording_playback_manifest),
+            get(recording_playback::manifest),
         )
         .route(
-            "/console/api/recordings/{recording_id}/segments/{segment_id}/data.rrd",
-            get(api::recording_playback_segment),
+            "/console/api/recordings/{recording_id}/sources/{ticket}/replay.rrd",
+            get(recording_playback::replay),
+        )
+        .route(
+            "/console/api/recordings/{recording_id}/sources/{ticket}/segments/{segment_id}/live.rrd",
+            get(recording_playback::live_segment),
         )
         .nest_service("/console", assets)
         .fallback(get(|| async { axum::http::StatusCode::NOT_FOUND }))

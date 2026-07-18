@@ -81,6 +81,8 @@ Durability begins with a validated, fsynced batch journal and its SurrealDB chec
 RRD segments are an ordered materialization of that journal. Open queries include the
 unmaterialized tail, while finishing waits for complete materialization. Frozen and
 sealed RRD segments remain the governed long-term recording authority.
+Console live playback may tail the authorized writing segment after each Hub flush;
+completed replay is a normalized projection over the frozen or sealed authority.
 
 ## Task execution and provider completion
 

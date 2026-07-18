@@ -85,6 +85,7 @@ pub struct PlaybackManifest {
     pub started_at: String,
     pub ended_at: Option<String>,
     pub segments: Vec<PlaybackSegment>,
+    pub live_segment: Option<PlaybackLiveSegment>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -93,6 +94,13 @@ pub struct PlaybackSegment {
     pub ordinal: i64,
     pub byte_len: u64,
     pub sha256: String,
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct PlaybackLiveSegment {
+    pub segment_id: String,
+    pub ordinal: i64,
+    pub byte_len: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]

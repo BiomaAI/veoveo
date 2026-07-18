@@ -518,106 +518,6 @@ pub(crate) async fn preview_artifact(
     response
 }
 
-pub(crate) async fn recording_playback_manifest(
-    State(state): State<AppState>,
-    Path(recording_id): Path<String>,
-    request_headers: HeaderMap,
-) -> Response {
-    let Ok(recording_id) = uuid::Uuid::parse_str(&recording_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if recording_id.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    proxy_recording_read(
-        &state,
-        &request_headers,
-        Method::GET,
-        state
-            .config
-            .recording_playback_url(&recording_id.to_string()),
-    )
-    .await
-}
-
-pub(crate) async fn recording_playback_segment(
-    State(state): State<AppState>,
-    Path((recording_id, segment_id)): Path<(String, String)>,
-    request_headers: HeaderMap,
-    method: Method,
-) -> Response {
-    let (Ok(recording_id), Ok(segment_id)) = (
-        uuid::Uuid::parse_str(&recording_id),
-        uuid::Uuid::parse_str(&segment_id),
-    ) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if recording_id.get_version_num() != 7 || segment_id.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    proxy_recording_read(
-        &state,
-        &request_headers,
-        method,
-        state
-            .config
-            .recording_segment_url(&recording_id.to_string(), &segment_id.to_string()),
-    )
-    .await
-}
-
-async fn proxy_recording_read(
-    state: &AppState,
-    request_headers: &HeaderMap,
-    method: Method,
-    url: url::Url,
-) -> Response {
-    let session = match upstream_session(state, request_headers).await {
-        Ok(session) => session,
-        Err(response) => return response,
-    };
-    let mut headers = match response_session_headers(state, &session) {
-        Ok(headers) => headers,
-        Err(status) => return status.into_response(),
-    };
-    let request = forward_read_headers(
-        state
-            .stream_http
-            .request(method, url)
-            .header(HOST, state.config.gateway_host())
-            .bearer_auth(&session.session.access_token),
-        request_headers,
-    );
-    let upstream = match request.send().await {
-        Ok(response) => response,
-        Err(error) => {
-            tracing::error!(%error, "console recording playback upstream failed");
-            return (headers, StatusCode::BAD_GATEWAY).into_response();
-        }
-    };
-    if upstream.status() == reqwest::StatusCode::UNAUTHORIZED {
-        return unauthorized(state);
-    }
-    for name in [
-        CONTENT_TYPE,
-        CONTENT_LENGTH,
-        CONTENT_RANGE,
-        ACCEPT_RANGES,
-        CACHE_CONTROL,
-        ETAG,
-        LAST_MODIFIED,
-    ] {
-        if let Some(value) = upstream.headers().get(&name) {
-            headers.insert(name, value.clone());
-        }
-    }
-    let status = upstream.status();
-    let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
-    *response.status_mut() = status;
-    *response.headers_mut() = headers;
-    response
-}
-
 fn forward_read_headers(
     mut request: reqwest::RequestBuilder,
     headers: &HeaderMap,
@@ -802,7 +702,7 @@ async fn upstream_session(
         })
 }
 
-fn response_session_headers(
+pub(crate) fn response_session_headers(
     state: &AppState,
     session: &crate::oauth::UpstreamSession,
 ) -> Result<HeaderMap, StatusCode> {

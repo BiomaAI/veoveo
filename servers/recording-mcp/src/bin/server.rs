@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     Extension, Router,
@@ -11,7 +12,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use bytes::Bytes;
 use clap::Parser;
+use futures::stream;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -30,6 +33,7 @@ use rmcp::{
     },
 };
 use serde::Serialize;
+use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 use tower_http::services::ServeFile;
@@ -500,6 +504,24 @@ async fn playback_manifest(
     }
 }
 
+async fn playback_rrd(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    Path(recording_id): Path<String>,
+) -> Response {
+    let Ok(recording_id) = parse_recording_id(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match state.recordings.playback_rrd(&identity, recording_id).await {
+        Ok(Some(bytes)) => rrd_response(Body::from(bytes)),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %recording_id, "recording playback projection failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 async fn playback_segment(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
@@ -567,6 +589,81 @@ async fn playback_segment(
     }
 }
 
+async fn playback_live_segment(
+    State(state): State<Arc<AppState>>,
+    Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
+    Path((recording_id, segment_id)): Path<(String, String)>,
+) -> Response {
+    let Ok(recording_id) = parse_recording_id(&recording_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Ok(segment_id) = uuid::Uuid::parse_str(&segment_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    if segment_id.get_version_num() != 7 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = match state
+        .recordings
+        .playback_live_segment_path(&identity, recording_id, SegmentId::from_uuid(segment_id))
+        .await
+    {
+        Ok(Some(path)) => path,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, %recording_id, %segment_id, "live recording segment authorization failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let file = match tokio::fs::File::open(&path).await {
+        Ok(file) => file,
+        Err(error) => {
+            tracing::error!(%error, path = %path.display(), "live recording segment open failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let stream = stream::try_unfold(
+        (file, vec![0_u8; 64 * 1024]),
+        |(mut file, mut buffer)| async move {
+            loop {
+                let read = file.read(&mut buffer).await?;
+                if read > 0 {
+                    let chunk = Bytes::copy_from_slice(&buffer[..read]);
+                    return Ok::<_, std::io::Error>(Some((chunk, (file, buffer))));
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        },
+    );
+    let mut response = rrd_response(Body::from_stream(stream));
+    response.headers_mut().insert(
+        header::HeaderName::from_static("x-accel-buffering"),
+        header::HeaderValue::from_static("no"),
+    );
+    response
+}
+
+fn rrd_response(body: Body) -> Response {
+    let mut response = Response::new(body);
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/vnd.rerun.rrd"),
+    );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("private, no-store"),
+    );
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        header::HeaderValue::from_static("inline"),
+    );
+    response.headers_mut().insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        header::HeaderValue::from_static("nosniff"),
+    );
+    response
+}
+
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
@@ -632,9 +729,14 @@ async fn main() -> anyhow::Result<()> {
         ));
     let playback = Router::new()
         .route("/{recording_id}/playback", get(playback_manifest))
+        .route("/{recording_id}/replay.rrd", get(playback_rrd))
         .route(
             "/{recording_id}/segments/{segment_id}/data.rrd",
             get(playback_segment),
+        )
+        .route(
+            "/{recording_id}/segments/{segment_id}/live.rrd",
+            get(playback_live_segment),
         )
         .layer(middleware::from_fn_with_state(auth_state, authenticate));
     let router = Router::new()

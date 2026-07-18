@@ -33,15 +33,20 @@ interchangeable.
 
 The recording server also owns authenticated HTTP playback routes beside its MCP
 surface. The gateway applies the same recording resource policy and audit path,
-then issues a short-lived internal assertion. The Console BFF retains the user
-session and streams the authorized segment bytes with byte-range support. The
-browser receives ordered same-origin URLs, never filesystem paths, gateway
-bearers, or object-store credentials. The Console fetches those bytes with its
-existing BFF session and writes every ordered segment into one Rerun data channel
-for the logical recording. The channel remains open while a live manifest gains
-new frozen segments, which preserves video decoder state across physical segment
-boundaries. The matching Rerun 0.34.1 WASM viewer loads only after a recording is
-selected.
+then issues a short-lived internal assertion. An authenticated manifest request
+lets the Console BFF mint a five-minute opaque playback ticket scoped to one
+recording; the ticket contains no bearer or filesystem identity. Completed
+playback normalizes every authorized frozen or sealed segment into one logical
+RRD and repairs sparse keyframe markers before Rerun opens it. This projection
+prevents physical segment boundaries from becoming video-cache boundaries.
+
+Live playback is a distinct governed projection. The manifest identifies the
+current writing segment, and its ticketed response tails flushed RRD bytes while
+Recording Hub is still writing the file. Rerun opens that HTTP response in
+following mode, so camera and telemetry data appear before segment freeze. A
+segment rollover selects the new writing identity; completed playback returns
+to the normalized stable projection. Frozen and sealed source segments remain
+the durable authority in both cases.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not

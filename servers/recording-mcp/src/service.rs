@@ -15,9 +15,10 @@ use veoveo_platform_store::{
 use veoveo_recording_hub::{inspect_segment, query_segments};
 
 use crate::contract::{
-    ManifestSegment, PlaybackManifest, PlaybackSegment, QueryRecordingOutput,
+    ManifestSegment, PlaybackLiveSegment, PlaybackManifest, PlaybackSegment, QueryRecordingOutput,
     QueryRecordingRequest, RecordingManifest, RecordingView, SealRecordingOutput, SegmentView,
 };
+use crate::playback::normalized_rrd;
 
 mod read;
 pub use read::{RecordingReadAuthority, RecordingReadPlan, RecordingReadSegment};
@@ -166,7 +167,7 @@ impl RecordingService {
         };
         let segments = plan
             .segments
-            .into_iter()
+            .iter()
             .filter(|segment| matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed))
             .map(|segment| {
                 Ok(PlaybackSegment {
@@ -175,10 +176,21 @@ impl RecordingService {
                     byte_len: segment.byte_len,
                     sha256: segment
                         .sha256
+                        .clone()
                         .context("playback segment is missing sha256")?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
+        let live_segment = plan
+            .segments
+            .iter()
+            .filter(|segment| segment.state == SegmentState::Writing)
+            .max_by_key(|segment| segment.ordinal)
+            .map(|segment| PlaybackLiveSegment {
+                segment_id: segment.segment_id.to_string(),
+                ordinal: segment.ordinal,
+                byte_len: segment.byte_len,
+            });
         Ok(Some(PlaybackManifest {
             recording_id: recording_id.to_string(),
             application_id: plan.application_id,
@@ -187,7 +199,27 @@ impl RecordingService {
             started_at: recording.started_at.to_rfc3339(),
             ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
             segments,
+            live_segment,
         }))
+    }
+
+    pub async fn playback_rrd(
+        &self,
+        identity: &GatewayInternalIdentity,
+        recording_id: RecordingId,
+    ) -> Result<Option<Vec<u8>>> {
+        let authority = RecordingReadAuthority::from_gateway(identity);
+        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
+            return Ok(None);
+        };
+        let paths = plan.stable_segment_paths();
+        if paths.is_empty() {
+            return Ok(None);
+        }
+        let bytes = tokio::task::spawn_blocking(move || normalized_rrd(&paths))
+            .await
+            .context("playback normalization worker panicked")??;
+        Ok(Some(bytes))
     }
 
     pub async fn playback_segment_path(
@@ -206,6 +238,25 @@ impl RecordingService {
             .find(|segment| {
                 segment.segment_id == segment_id
                     && matches!(segment.state, SegmentState::Frozen | SegmentState::Sealed)
+            })
+            .map(|segment| segment.path))
+    }
+
+    pub async fn playback_live_segment_path(
+        &self,
+        identity: &GatewayInternalIdentity,
+        recording_id: RecordingId,
+        segment_id: SegmentId,
+    ) -> Result<Option<PathBuf>> {
+        let authority = RecordingReadAuthority::from_gateway(identity);
+        let Some(plan) = self.read_plan(&authority, recording_id).await? else {
+            return Ok(None);
+        };
+        Ok(plan
+            .segments
+            .into_iter()
+            .find(|segment| {
+                segment.segment_id == segment_id && segment.state == SegmentState::Writing
             })
             .map(|segment| segment.path))
     }
