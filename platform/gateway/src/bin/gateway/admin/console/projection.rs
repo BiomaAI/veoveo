@@ -15,6 +15,7 @@ use veoveo_platform_store::{
 use crate::runtime::AdminState;
 
 pub(crate) const SNAPSHOT_LIMIT: i64 = 200;
+const SEGMENT_SNAPSHOT_LIMIT: i64 = 10_000;
 
 pub(crate) struct Projection {
     pub(crate) principals: Vec<PrincipalRecord>,
@@ -49,12 +50,22 @@ pub(crate) async fn load_projection(
             SELECT * FROM agent WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
             SELECT * FROM wake WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
             SELECT * FROM recording WHERE tenant = $tenant ORDER BY started_at DESC LIMIT $limit;
-            SELECT * FROM segment WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
+            SELECT * FROM segment
+                WHERE tenant = $tenant
+                AND recording IN (
+                    SELECT VALUE id FROM recording
+                    WHERE tenant = $tenant
+                    ORDER BY started_at DESC
+                    LIMIT $limit
+                )
+                ORDER BY created_at DESC
+                LIMIT $segment_limit;
             SELECT * FROM audit_event WHERE tenant = $tenant ORDER BY occurred_at DESC LIMIT $limit;
             "#,
         )
         .bind(("tenant", tenant.clone()))
         .bind(("limit", SNAPSHOT_LIMIT))
+        .bind(("segment_limit", SEGMENT_SNAPSHOT_LIMIT))
         .await?
         .check()?;
     Ok(Projection {
