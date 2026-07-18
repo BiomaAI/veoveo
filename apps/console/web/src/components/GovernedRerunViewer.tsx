@@ -17,6 +17,7 @@ interface ViewerSession {
   viewer: WebViewer;
   ready: Promise<void>;
   loadedSegments: Set<string>;
+  channel?: LogChannel;
 }
 
 async function fetchSegment(
@@ -71,7 +72,12 @@ export default function GovernedRerunViewer({
 
     return () => {
       if (session.current === current) session.current = null;
-      viewer.stop();
+      current.channel?.close();
+      try {
+        viewer.stop();
+      } catch (cause) {
+        console.warn("Rerun cleanup failed after the viewer stopped", cause);
+      }
     };
   }, [recordingId]);
 
@@ -87,8 +93,13 @@ export default function GovernedRerunViewer({
 
     void (async () => {
       await current.ready;
+      if (controller.signal.aborted || session.current !== current) return;
+      if (!current.viewer.ready) {
+        throw new Error("Rerun stopped before the recording channel could be opened.");
+      }
+      current.channel ??= current.viewer.open_channel(`recording ${recordingId}`);
 
-      for (const segment of segments) {
+      for (const segment of [...segments].sort((left, right) => left.ordinal - right.ordinal)) {
         if (current.loadedSegments.has(segment.url)) continue;
 
         const bytes = await fetchSegment(segment, controller.signal);
@@ -99,11 +110,7 @@ export default function GovernedRerunViewer({
           );
         }
 
-        const channel: LogChannel = current.viewer.open_channel(
-          `recording ${recordingId} · segment ${segment.ordinal + 1}`
-        );
-        channel.send_rrd(bytes);
-        channel.close();
+        current.channel.send_rrd(bytes);
         current.loadedSegments.add(segment.url);
         setStatus({
           loaded: current.loadedSegments.size,

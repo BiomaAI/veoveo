@@ -37,8 +37,10 @@ then issues a short-lived internal assertion. The Console BFF retains the user
 session and streams the authorized segment bytes with byte-range support. The
 browser receives ordered same-origin URLs, never filesystem paths, gateway
 bearers, or object-store credentials. The Console fetches those bytes with its
-existing BFF session and writes each ordered segment into an isolated Rerun data
-channel. The matching Rerun 0.34.1 WASM viewer loads only after a recording is
+existing BFF session and writes every ordered segment into one Rerun data channel
+for the logical recording. The channel remains open while a live manifest gains
+new frozen segments, which preserves video decoder state across physical segment
+boundaries. The matching Rerun 0.34.1 WASM viewer loads only after a recording is
 selected.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
