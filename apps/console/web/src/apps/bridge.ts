@@ -13,6 +13,7 @@ import {
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { callAppTool } from "../api";
 import type { AppDescriptor } from "../types";
+import type { AppTheme } from "../theme";
 
 export interface AppBridge {
   dispose: () => void;
@@ -23,7 +24,11 @@ export interface AppBridge {
 const MAX_FRAME_HEIGHT = 1400;
 const MIN_FRAME_HEIGHT = 180;
 
-export function attachAppBridge(iframe: HTMLIFrameElement, app: AppDescriptor): AppBridge {
+export function attachAppBridge(
+  iframe: HTMLIFrameElement,
+  app: AppDescriptor,
+  theme: AppTheme
+): AppBridge {
   if (!iframe.contentWindow) throw new Error("MCP App frame is not ready");
 
   const bridge = new McpAppBridge(
@@ -32,7 +37,7 @@ export function attachAppBridge(iframe: HTMLIFrameElement, app: AppDescriptor): 
     { openLinks: {}, serverTools: {} },
     {
       hostContext: {
-        theme: "light",
+        theme,
         displayMode: "inline",
         availableDisplayModes: ["inline"],
         locale: navigator.language,
