@@ -53,7 +53,10 @@ pub(crate) async fn gateway_authenticated(
             ("mcp_path", "/media/mcp"),
         ],
     )?;
-    assert_json_log(&media_log, &[("message", "media retention gc completed")])?;
+    assert_json_log(
+        &media_log,
+        &[("message", "media retention reconciliation completed")],
+    )?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let platform_store = spawn_gateway_platform_store(gateway, control_plane).await?;
@@ -318,7 +321,6 @@ pub(crate) async fn gateway_authenticated(
             "--arguments".into(),
             r#"{"goal":"choose an image generation model for a product render","media_type":"image","budget":"low"}"#.into(),
         ],
-        vec!["tasks".into()],
     ] {
         run_direct_mcp(
             conformance,
