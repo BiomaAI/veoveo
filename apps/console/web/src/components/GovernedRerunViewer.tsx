@@ -25,14 +25,7 @@ export default function GovernedRerunViewer({
     const viewer = new WebViewer();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
-    const openTimeout = window.setTimeout(() => {
-      if (active) {
-        setStatus({
-          state: "error",
-          message: "The governed RRD source did not open within 20 seconds.",
-        });
-      }
-    }, 20_000);
+    let openTimeout: number | undefined;
     void viewer
       .start(null, host.current, {
         width: "100%",
@@ -42,16 +35,24 @@ export default function GovernedRerunViewer({
       })
       .then(() => {
         if (!active) return;
+        openTimeout = window.setTimeout(() => {
+          if (active) {
+            setStatus({
+              state: "error",
+              message: "The governed RRD source did not open within 20 seconds.",
+            });
+          }
+        }, 20_000);
         removeOpenListener = viewer.once("recording_open", () => {
           if (!active) return;
-          window.clearTimeout(openTimeout);
+          if (openTimeout !== undefined) window.clearTimeout(openTimeout);
           setStatus({ state: "open" });
         });
         viewer.open(source.url, { follow_if_http: source.mode === "live" });
       })
       .catch((cause: unknown) => {
         if (!active) return;
-        window.clearTimeout(openTimeout);
+        if (openTimeout !== undefined) window.clearTimeout(openTimeout);
         const message = cause instanceof Error ? cause.message : "Rerun playback failed";
         console.error("Governed Rerun source failed", cause);
         setStatus({ state: "error", message });
@@ -59,7 +60,7 @@ export default function GovernedRerunViewer({
 
     return () => {
       active = false;
-      window.clearTimeout(openTimeout);
+      if (openTimeout !== undefined) window.clearTimeout(openTimeout);
       removeOpenListener?.();
       try {
         viewer.stop();
