@@ -31,6 +31,11 @@ pub enum H264VideoProfile {
     AnnexBNoBFrames,
 }
 
+/// Return whether an Annex B access unit contains an H.264 IDR picture.
+pub fn h264_access_unit_is_idr(bytes: &[u8]) -> Result<bool> {
+    Ok(annex_b_nals(bytes)?.iter().any(|nal| nal[0] & 0x1f == 5))
+}
+
 /// How values on the selected Rerun index should be interpreted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VideoIndexKind {

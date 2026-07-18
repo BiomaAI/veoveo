@@ -30,5 +30,5 @@ pub use spool::{
 };
 pub use video::{
     EncodedVideoClip, EncodedVideoSample, H264VideoProfile, VideoClipRequest, VideoIndexKind,
-    extract_video_clip, extract_video_clip_from_messages, remux_h264_mp4,
+    extract_video_clip, extract_video_clip_from_messages, h264_access_unit_is_idr, remux_h264_mp4,
 };

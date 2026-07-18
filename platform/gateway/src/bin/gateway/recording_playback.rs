@@ -20,6 +20,45 @@ use crate::runtime::{RecordingPlaybackState, current_catalog};
 const RECORDING_SERVER: &str = "recording";
 const INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS: i64 = 60;
 
+#[derive(Clone, Debug)]
+enum PlaybackSource {
+    Manifest,
+    Replay,
+    FrozenSegment(String),
+    LiveSegment(String),
+}
+
+impl PlaybackSource {
+    fn segment_id(&self) -> Option<&str> {
+        match self {
+            Self::FrozenSegment(segment_id) | Self::LiveSegment(segment_id) => Some(segment_id),
+            Self::Manifest | Self::Replay => None,
+        }
+    }
+
+    fn mode(&self) -> &'static str {
+        match self {
+            Self::Manifest => "manifest",
+            Self::Replay => "replay",
+            Self::FrozenSegment(_) => "frozen-segment",
+            Self::LiveSegment(_) => "live-segment",
+        }
+    }
+
+    fn upstream_path(&self, recording_id: &str) -> String {
+        match self {
+            Self::Manifest => format!("/recordings/{recording_id}/playback"),
+            Self::Replay => format!("/recordings/{recording_id}/replay.rrd"),
+            Self::FrozenSegment(segment_id) => {
+                format!("/recordings/{recording_id}/segments/{segment_id}/data.rrd")
+            }
+            Self::LiveSegment(segment_id) => {
+                format!("/recordings/{recording_id}/segments/{segment_id}/live.rrd")
+            }
+        }
+    }
+}
+
 pub(super) async fn playback_manifest(
     State(state): State<RecordingPlaybackState>,
     Path((profile, recording_id)): Path<(String, String)>,
@@ -30,9 +69,28 @@ pub(super) async fn playback_manifest(
         state,
         profile,
         recording_id,
-        None,
+        PlaybackSource::Manifest,
         subject,
         Method::GET,
+        headers,
+    )
+    .await
+}
+
+pub(super) async fn playback_replay(
+    State(state): State<RecordingPlaybackState>,
+    Path((profile, recording_id)): Path<(String, String)>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    proxy_playback(
+        state,
+        profile,
+        recording_id,
+        PlaybackSource::Replay,
+        subject,
+        method,
         headers,
     )
     .await
@@ -49,7 +107,26 @@ pub(super) async fn playback_segment(
         state,
         profile,
         recording_id,
-        Some(segment_id),
+        PlaybackSource::FrozenSegment(segment_id),
+        subject,
+        method,
+        headers,
+    )
+    .await
+}
+
+pub(super) async fn playback_live_segment(
+    State(state): State<RecordingPlaybackState>,
+    Path((profile, recording_id, segment_id)): Path<(String, String, String)>,
+    Extension(subject): Extension<AuthenticatedSubject>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    proxy_playback(
+        state,
+        profile,
+        recording_id,
+        PlaybackSource::LiveSegment(segment_id),
         subject,
         method,
         headers,
@@ -61,7 +138,7 @@ async fn proxy_playback(
     state: RecordingPlaybackState,
     profile: String,
     recording_id: String,
-    segment_id: Option<String>,
+    source: PlaybackSource,
     subject: AuthenticatedSubject,
     method: Method,
     headers: HeaderMap,
@@ -74,7 +151,7 @@ async fn proxy_playback(
         return StatusCode::NOT_FOUND.into_response();
     };
     if recording_uuid.get_version_num() != 7
-        || segment_id.as_ref().is_some_and(|segment| {
+        || source.segment_id().is_some_and(|segment| {
             uuid::Uuid::parse_str(segment)
                 .map(|id| id.get_version_num() != 7)
                 .unwrap_or(true)
@@ -130,8 +207,9 @@ async fn proxy_playback(
                 ("recording_id".to_owned(), recording_id.clone()),
                 (
                     "segment_id".to_owned(),
-                    segment_id.clone().unwrap_or_default(),
+                    source.segment_id().unwrap_or_default().to_owned(),
                 ),
+                ("playback_mode".to_owned(), source.mode().to_owned()),
             ]),
             &subject.principal,
         ),
@@ -174,12 +252,7 @@ async fn proxy_playback(
             return StatusCode::BAD_GATEWAY.into_response();
         }
     };
-    let path = match &segment_id {
-        Some(segment_id) => {
-            format!("/recordings/{recording_id}/segments/{segment_id}/data.rrd")
-        }
-        None => format!("/recordings/{recording_id}/playback"),
-    };
+    let path = source.upstream_path(&recording_id);
     url.set_path(&path);
     url.set_query(None);
     let mut request = client
@@ -218,10 +291,21 @@ fn proxy_response(upstream: reqwest::Response) -> Response {
         header::CACHE_CONTROL,
         header::ETAG,
         header::LAST_MODIFIED,
+        header::CONTENT_DISPOSITION,
+        header::X_CONTENT_TYPE_OPTIONS,
     ] {
         if let Some(value) = upstream.headers().get(&name) {
             headers.insert(name, value.clone());
         }
+    }
+    if let Some(value) = upstream
+        .headers()
+        .get(header::HeaderName::from_static("x-accel-buffering"))
+    {
+        headers.insert(
+            header::HeaderName::from_static("x-accel-buffering"),
+            value.clone(),
+        );
     }
     let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
     *response.status_mut() = status;

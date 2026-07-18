@@ -146,12 +146,18 @@ export interface RecordingPlaybackManifest {
   state: RecordingSummary["state"];
   started_at: string;
   ended_at?: string;
+  playback_ticket: string;
   segments: Array<{
     segment_id: string;
     ordinal: number;
     byte_len: number;
     sha256: string;
   }>;
+  live_segment?: {
+    segment_id: string;
+    ordinal: number;
+    byte_len: number;
+  };
 }
 
 export interface McpServerSummary {

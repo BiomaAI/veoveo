@@ -15,8 +15,15 @@ path = "src/bin/server.rs"
 anyhow.workspace = true
 axum.workspace = true
 base64.workspace = true
+bytes.workspace = true
 chrono.workspace = true
 clap.workspace = true
+futures.workspace = true
+re_chunk_store.workspace = true
+re_entity_db.workspace = true
+re_log_encoding.workspace = true
+re_log_types.workspace = true
+re_sdk_types.workspace = true
 rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
 rustls.workspace = true
 schemars.workspace = true

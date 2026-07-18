@@ -6437,6 +6437,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "poll-promise"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f6a58fecbf9da8965bcdb20ce4fd29788d1acee68ddbb64f0ba1b81bccdb7df"
+dependencies = [
+ "document-features",
+ "static_assertions",
+]
+
+[[package]]
 name = "polling"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7249,6 +7259,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "re_entity_db"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e57d091006172928af1a02c0ee452d1f0acee058cd16ea151a336ac214bc7a4"
+dependencies = [
+ "ahash 0.8.12",
+ "arrow",
+ "document-features",
+ "emath",
+ "indexmap",
+ "itertools 0.14.0",
+ "nohash-hasher",
+ "poll-promise",
+ "re_arrow_util",
+ "re_byte_size",
+ "re_chunk",
+ "re_chunk_store",
+ "re_format",
+ "re_log",
+ "re_log_channel",
+ "re_log_encoding",
+ "re_log_types",
+ "re_mutex",
+ "re_query",
+ "re_sorbet",
+ "re_tracing",
+ "re_types_core",
+ "re_uri",
+ "serde",
+ "static_assertions",
+ "tap",
+ "thiserror 2.0.18",
+ "vec1",
+ "web-time",
+]
+
+[[package]]
 name = "re_error"
 version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7504,6 +7551,18 @@ dependencies = [
  "sysinfo 0.38.4",
  "wasm-bindgen",
  "web-time",
+]
+
+[[package]]
+name = "re_mutex"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc0ae90ae886c4d8318f75e3f4fdee4ed4aa2d58e45ac9eb891c402b264e7019"
+dependencies = [
+ "cfg-if",
+ "parking_lot",
+ "re_byte_size",
+ "re_log",
 ]
 
 [[package]]
@@ -10620,6 +10679,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-duckdb-runtime",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
@@ -10973,8 +11033,15 @@ dependencies = [
  "anyhow",
  "axum",
  "base64 0.22.1",
+ "bytes",
  "chrono",
  "clap",
+ "futures",
+ "re_chunk_store",
+ "re_entity_db",
+ "re_log_encoding",
+ "re_log_types",
+ "re_sdk_types",
  "rmcp",
  "rustls",
  "schemars",
