@@ -15,7 +15,7 @@ Mission thread,"An ordered operational scenario that traces mission need through
 Operational Activity,"A logical process independent of its implementing software or deployment.",UAF OperationalActivity
 Outbox,"An ordered event record committed in the same transaction as domain state and replayed from a durable consumer cursor.",UAF ResourceInformation
 Provider completion,"The transition of an external provider job from submitted to terminal state. Veoveo accepts it only from a signed webhook.",UAF Operational event and SysML state transition
-Recording,"A governed logical Rerun recording composed of one or more crash-decodable RRD segments and a SurrealDB catalog identity.",UAF ResourceArtifact and ResourceInformation
+Recording,"A governed logical Rerun recording composed of immutable footer-indexed archive shards, an optional bounded live projection, and a SurrealDB catalog identity.",UAF ResourceArtifact and ResourceInformation
 Recording forwarder,"A producer-local process that accepts native Rerun gRPC on loopback, persists bounded batches, authenticates to the gateway, and resumes upload from Hub checkpoints.",UAF Software and security boundary
 Recovery class,"The declared restart semantics of a durable operation: Resume, WebhookWait, or InterruptedIndeterminate.",SysML state-machine constraint
 Resource,"A concrete software, data, infrastructure, personnel, or facility element that realizes services and operational activities.",UAF Resource domain
