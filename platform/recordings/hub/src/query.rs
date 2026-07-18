@@ -31,6 +31,13 @@ fn collect_into(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
     for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
         let path = entry?.path();
         if path.is_dir() {
+            if path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value.ends_with(".rrd.parts"))
+            {
+                continue;
+            }
             collect_into(&path, out)?;
         } else if path.extension().is_some_and(|ext| ext == "rrd") {
             out.push(path);

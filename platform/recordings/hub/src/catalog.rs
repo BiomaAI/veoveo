@@ -19,6 +19,7 @@ use veoveo_platform_store::{
 };
 
 use crate::config::DatasetName;
+use crate::ingest::is_authenticated_ingest_path;
 use crate::query::collect_segments;
 use crate::spool::{FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey};
 
@@ -87,6 +88,9 @@ impl PlatformCatalog {
     pub async fn reconcile(&self) -> Result<usize> {
         let mut reconciled = 0;
         for path in collect_segments(&self.spool_root)? {
+            if is_authenticated_ingest_path(&path) {
+                continue;
+            }
             let inspection = inspect_segment(&path)?;
             let key = segment_key_from_path(&self.spool_root, &path, &inspection)?;
             let opened = OpenedSegment {
