@@ -190,13 +190,12 @@ async fn spool_video_session(
         .expect("connect video producer");
     for (frame, bytes, keyframe) in samples {
         stream.set_duration_secs("sensor_time", *frame as f64 / 2.0);
+        let mut video = VideoStream::new(VideoCodec::H264).with_sample(bytes.clone());
+        if *keyframe {
+            video = video.with_is_keyframe(true);
+        }
         stream
-            .log(
-                "/world/camera/front",
-                &VideoStream::new(VideoCodec::H264)
-                    .with_sample(bytes.clone())
-                    .with_is_keyframe(*keyframe),
-            )
+            .log("/world/camera/front", &video)
             .expect("log video sample");
     }
     stream.flush_blocking().expect("flush video producer");

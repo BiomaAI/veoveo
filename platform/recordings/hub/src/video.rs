@@ -170,7 +170,7 @@ pub fn extract_video_clip_from_messages(
             TimeInt::MIN,
             TimeInt::new_temporal(request.end_index),
         )),
-        sparse_fill_strategy: SparseFillStrategy::LatestAtGlobal,
+        sparse_fill_strategy: SparseFillStrategy::None,
         ..Default::default()
     };
     let mut handle = engine.query(query);
@@ -208,10 +208,8 @@ pub fn extract_video_clip_from_messages(
                 codec == VideoCodec::H264,
                 "only H.264 VideoStream samples are supported"
             );
-            let is_keyframe = component_at::<IsKeyframe>(batch.column(keyframe_column), row)?
-                .context("video sample is missing is_keyframe metadata")?
-                .0
-                .0;
+            let is_keyframe =
+                component_at::<IsKeyframe>(batch.column(keyframe_column), row)?.is_some();
             samples.push(EncodedVideoSample {
                 index: time_values[row],
                 is_keyframe,

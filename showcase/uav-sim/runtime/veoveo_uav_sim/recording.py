@@ -48,27 +48,24 @@ class H264CameraStream:
         frame = av.VideoFrame.from_ndarray(normalize_rgb_frame(rgb), format="rgb24")
         for packet in self._stream.encode(frame):
             self._set_time(simulation_time_s, physics_step)
-            self._recording.log(
-                self._entity_path,
-                rr.VideoStream.from_fields(
-                    sample=bytes(packet), is_keyframe=bool(packet.is_keyframe)
-                ),
-            )
+            self._recording.log(self._entity_path, _video_packet(packet))
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
         for packet in self._stream.encode(None):
             self._set_time(simulation_time_s, physics_step)
-            self._recording.log(
-                self._entity_path,
-                rr.VideoStream.from_fields(
-                    sample=bytes(packet), is_keyframe=bool(packet.is_keyframe)
-                ),
-            )
+            self._recording.log(self._entity_path, _video_packet(packet))
         self._container.close()
 
     def _set_time(self, simulation_time_s: float, physics_step: int) -> None:
         self._recording.set_time("simulation_time", duration=simulation_time_s)
         self._recording.set_time("physics_step", sequence=physics_step)
+
+
+def _video_packet(packet: av.Packet) -> rr.VideoStream:
+    fields: dict[str, object] = {"sample": bytes(packet)}
+    if packet.is_keyframe:
+        fields["is_keyframe"] = True
+    return rr.VideoStream.from_fields(**fields)
 
 
 class RecordingPublisher:
