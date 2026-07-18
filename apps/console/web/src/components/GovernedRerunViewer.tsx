@@ -7,7 +7,7 @@ export interface GovernedRerunSource {
 }
 
 type ViewerStatus =
-  | { state: "loading" }
+  | { state: "loading"; delayed: boolean }
   | { state: "open" }
   | { state: "error"; message: string };
 
@@ -19,13 +19,16 @@ export default function GovernedRerunViewer({
   source: GovernedRerunSource;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState<ViewerStatus>({ state: "loading" });
+  const [status, setStatus] = useState<ViewerStatus>({
+    state: "loading",
+    delayed: false,
+  });
 
   useEffect(() => {
     const viewer = new WebViewer();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
-    let openTimeout: number | undefined;
+    let delayedNotice: number | undefined;
     void viewer
       .start(null, host.current, {
         width: "100%",
@@ -35,24 +38,24 @@ export default function GovernedRerunViewer({
       })
       .then(() => {
         if (!active) return;
-        openTimeout = window.setTimeout(() => {
+        delayedNotice = window.setTimeout(() => {
           if (active) {
             setStatus({
-              state: "error",
-              message: "The governed RRD source did not open within 20 seconds.",
+              state: "loading",
+              delayed: true,
             });
           }
         }, 20_000);
         removeOpenListener = viewer.once("recording_open", () => {
           if (!active) return;
-          if (openTimeout !== undefined) window.clearTimeout(openTimeout);
+          if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
           setStatus({ state: "open" });
         });
         viewer.open(source.urls, { follow_if_http: source.mode === "live" });
       })
       .catch((cause: unknown) => {
         if (!active) return;
-        if (openTimeout !== undefined) window.clearTimeout(openTimeout);
+        if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
         const message = cause instanceof Error ? cause.message : "Rerun playback failed";
         console.error("Governed Rerun source failed", cause);
         setStatus({ state: "error", message });
@@ -60,7 +63,7 @@ export default function GovernedRerunViewer({
 
     return () => {
       active = false;
-      if (openTimeout !== undefined) window.clearTimeout(openTimeout);
+      if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
       removeOpenListener?.();
       try {
         viewer.stop();
@@ -81,9 +84,17 @@ export default function GovernedRerunViewer({
       ) : status.state === "loading" ? (
         <div className="recording-viewer-state recording-viewer-overlay">
           <div className="loading-mark" />
-          <strong>{source.mode === "live" ? "Connecting to live capture" : "Preparing replay"}</strong>
+          <strong>
+            {status.delayed
+              ? "The recording is still loading"
+              : source.mode === "live"
+                ? "Connecting to live capture"
+                : "Preparing replay"}
+          </strong>
           <span>
-            {source.mode === "live"
+            {status.delayed
+              ? "Authorized data is still streaming into Rerun. Playback will open automatically; large recordings can take longer."
+              : source.mode === "live"
               ? "Loading captured history and following the active governed RRD segment."
               : "Normalizing authorized segments into one Rerun timeline."}
           </span>
