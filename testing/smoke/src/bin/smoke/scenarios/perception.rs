@@ -363,12 +363,11 @@ async fn publish_h264_recording(recording_id: &str, sample_h264: &Path) -> Resul
     for (frame, bytes) in access_units.into_iter().enumerate() {
         let keyframe = access_unit_is_idr(&bytes);
         stream.set_duration_secs("sensor_time", frame as f64 / 30.0);
-        stream.log(
-            "/world/camera/front",
-            &VideoStream::new(VideoCodec::H264)
-                .with_sample(bytes)
-                .with_is_keyframe(keyframe),
-        )?;
+        let mut video = VideoStream::new(VideoCodec::H264).with_sample(bytes);
+        if keyframe {
+            video = video.with_is_keyframe(true);
+        }
+        stream.log("/world/camera/front", &video)?;
     }
     stream.flush_blocking()?;
     drop(stream);

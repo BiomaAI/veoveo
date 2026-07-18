@@ -69,7 +69,8 @@ The current production runner accepts one profile:
 - A duration or timestamp timeline whose raw values are nanoseconds.
 - Strictly increasing sample indices, with one sample at each index.
 - No B-frames, so decode and presentation order are identical.
-- `is_keyframe` on every sample.
+- Sparse `is_keyframe=true` markers on decoder-reentrant keyframes. An absent
+  marker means the sample is not a keyframe.
 - Decoder-reentrant IDRs at the desired seek interval. Each reentrant IDR must
   make SPS/PPS available so a clip can begin there without earlier stream
   state.
@@ -85,12 +86,11 @@ The repository's executable ingest example is the real cross-segment test in
 
 ```rust
 stream.set_duration_secs("sensor_time", timestamp_seconds);
-stream.log(
-    "/world/camera/front",
-    &VideoStream::new(VideoCodec::H264)
-        .with_sample(annex_b_access_unit)
-        .with_is_keyframe(is_idr),
-)?;
+let mut video = VideoStream::new(VideoCodec::H264).with_sample(annex_b_access_unit);
+if is_idr {
+    video = video.with_is_keyframe(true);
+}
+stream.log("/world/camera/front", &video)?;
 ```
 
 The test sends valid H.264 through the Hub's loopback Rerun receiver, restarts

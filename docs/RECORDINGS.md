@@ -57,6 +57,8 @@ HA and a distributed recording filesystem are outside the current contract.
 
 Encoded camera streams use the canonical H.264 `VideoStream` profile documented
 in [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md).
+Keyframes use sparse `is_keyframe=true` markers; non-keyframe samples omit the
+component. This shape is required by Rerun's video cache and GoP rebatching.
 Frozen or sealed RRD segments are the only Perception source. Video readers
 merge every authorized segment of the logical recording before seeking,
 because decoder state and a requested sample may be in different physical
