@@ -198,7 +198,7 @@
           "allowed_application_ids": [
             "smoke-sensor"
           ],
-          "classification": "internal",
+          "classification": "unclassified",
           "labels": [],
           "quotas": {
             "maximum_concurrent_streams": 4,
