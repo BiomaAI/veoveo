@@ -66,7 +66,7 @@ struct MissionScenario {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PerceptionScenario {
-    range_lead_seconds: f64,
+    range_lag_seconds: f64,
     range_duration_seconds: f64,
     maximum_frames: u64,
     task_timeout_seconds: u64,
@@ -147,8 +147,8 @@ impl UavAcceptanceScenario {
             "mission parameters are outside the accepted flight envelope"
         );
         ensure!(
-            self.perception.range_lead_seconds.is_finite()
-                && self.perception.range_lead_seconds >= 0.0
+            self.perception.range_lag_seconds.is_finite()
+                && self.perception.range_lag_seconds >= 0.0
                 && self.perception.range_duration_seconds.is_finite()
                 && self.perception.range_duration_seconds > 0.0
                 && (1..=10_000).contains(&self.perception.maximum_frames),
@@ -383,12 +383,14 @@ pub(crate) async fn uav_sim_verify(
         .get("simulation_time_s")
         .and_then(Value::as_f64)
         .context("UAV state omitted simulation_time_s")?;
-    let range_start =
-        ((simulation_time_s + scenario.perception.range_lead_seconds) * 1_000_000_000.0) as i64;
-    let range_end = ((simulation_time_s
-        + scenario.perception.range_lead_seconds
-        + scenario.perception.range_duration_seconds)
-        * 1_000_000_000.0) as i64;
+    let range_end_s = simulation_time_s - scenario.perception.range_lag_seconds;
+    let range_start_s = range_end_s - scenario.perception.range_duration_seconds;
+    ensure!(
+        range_start_s >= 0.0,
+        "UAV recording has not accumulated enough stable aerial camera history"
+    );
+    let range_start = (range_start_s * 1_000_000_000.0) as i64;
+    let range_end = (range_end_s * 1_000_000_000.0) as i64;
     let perception = task_tool(
         conformance,
         public_base_url,
@@ -406,7 +408,7 @@ pub(crate) async fn uav_sim_verify(
                 "mode": "maximum_frames",
                 "count": scenario.perception.maximum_frames
             },
-            "include_source_clip": false
+            "include_source_clip": true
         }),
         Duration::from_secs(scenario.perception.task_timeout_seconds),
     )
@@ -739,6 +741,7 @@ mod tests {
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
+        assert_eq!(scenario.perception.range_lag_seconds, 10.0);
     }
 
     #[test]
