@@ -23,6 +23,8 @@ class H264CameraStream:
     ) -> None:
         self._recording = recording
         self._entity_path = entity_path
+        self._width = width
+        self._height = height
         self._container = av.open("/dev/null", "w", format="h264")
         self._stream = self._container.add_stream("libx264", rate=fps)
         self._stream.width = width
@@ -48,6 +50,17 @@ class H264CameraStream:
         frame = av.VideoFrame.from_ndarray(normalize_rgb_frame(rgb), format="rgb24")
         for packet in self._stream.encode(frame):
             self._set_time(simulation_time_s, physics_step)
+            if packet.is_keyframe:
+                # Hub segment boundaries are independent of the producer's
+                # static timeline. Reassert camera metadata at every GoP so a
+                # live segment remains self-describing when opened alone.
+                self._recording.log(
+                    self._entity_path,
+                    rr.Pinhole(
+                        resolution=[self._width, self._height],
+                        focal_length=self._width / 2.0,
+                    ),
+                )
             self._recording.log(self._entity_path, _video_packet(packet))
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
@@ -62,7 +75,10 @@ class H264CameraStream:
 
 
 def _video_packet(packet: av.Packet) -> rr.VideoStream:
-    fields: dict[str, object] = {"sample": bytes(packet)}
+    fields: dict[str, object] = {
+        "codec": rr.VideoCodec.H264,
+        "sample": bytes(packet),
+    }
     if packet.is_keyframe:
         fields["is_keyframe"] = True
     return rr.VideoStream.from_fields(**fields)
