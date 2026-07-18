@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::Utc;
@@ -12,7 +12,9 @@ use veoveo_platform_store::{
     RecordIdKey, RecordingId, RecordingRecord, RecordingSeal, RecordingState, SegmentId,
     SegmentRecord, SegmentSealBinding, SegmentState,
 };
-use veoveo_recording_hub::{inspect_segment, live_segment_byte_len, query_segments};
+use veoveo_recording_hub::{
+    ingest_segment_parts_directory, inspect_segment, live_segment_byte_len, query_segments,
+};
 
 use crate::contract::{
     ManifestSegment, PlaybackLiveSegment, PlaybackManifest, PlaybackSegment, QueryRecordingOutput,
@@ -571,7 +573,7 @@ impl RecordingService {
     }
 
     fn segment_path(&self, relative: &str) -> Result<PathBuf> {
-        let path = self.spool_root.join(relative);
+        let path = confined_segment_path(&self.spool_root, relative)?;
         let canonical = path
             .canonicalize()
             .with_context(|| format!("canonicalizing segment {}", path.display()))?;
@@ -581,6 +583,45 @@ impl RecordingService {
         );
         Ok(canonical)
     }
+
+    fn live_segment_path(&self, relative: &str) -> Result<PathBuf> {
+        authorized_live_segment_path(&self.spool_root, relative)
+    }
+}
+
+fn authorized_live_segment_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
+    let path = confined_segment_path(spool_root, relative)?;
+    if path.exists() {
+        let canonical = path
+            .canonicalize()
+            .with_context(|| format!("canonicalizing live segment {}", path.display()))?;
+        ensure!(
+            canonical.starts_with(spool_root) && canonical.is_file(),
+            "live segment escapes the configured spool root"
+        );
+        return Ok(canonical);
+    }
+    let parts = ingest_segment_parts_directory(&path);
+    let canonical_parts = parts
+        .canonicalize()
+        .with_context(|| format!("canonicalizing live segment parts {}", parts.display()))?;
+    ensure!(
+        canonical_parts.starts_with(spool_root) && canonical_parts.is_dir(),
+        "live segment parts escape the configured spool root"
+    );
+    Ok(path)
+}
+
+fn confined_segment_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
+    let relative = Path::new(relative);
+    ensure!(
+        !relative.as_os_str().is_empty()
+            && relative
+                .components()
+                .all(|component| matches!(component, Component::Normal(_))),
+        "segment path must be a normalized relative path"
+    );
+    Ok(spool_root.join(relative))
 }
 
 fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> bool {
@@ -706,10 +747,51 @@ fn segment_state(state: SegmentState) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn external_recording_ids_require_uuid_v7() {
         assert!(parse_recording_id(&uuid::Uuid::now_v7().to_string()).is_ok());
         assert!(parse_recording_id(&uuid::Uuid::new_v4().to_string()).is_err());
+    }
+
+    #[test]
+    fn live_segment_path_authorizes_confined_parts_before_rollover() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().canonicalize().unwrap();
+        let relative = "recordings/live.ingest-stream-s0.rrd";
+        let final_path = root.join(relative);
+        let parts = ingest_segment_parts_directory(&final_path);
+        fs::create_dir_all(&parts).unwrap();
+
+        assert_eq!(
+            authorized_live_segment_path(&root, relative).unwrap(),
+            final_path
+        );
+    }
+
+    #[test]
+    fn live_segment_path_rejects_traversal() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().canonicalize().unwrap();
+
+        assert!(authorized_live_segment_path(&root, "../outside.rrd").is_err());
+        assert!(authorized_live_segment_path(&root, "/outside.rrd").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn live_segment_path_rejects_parts_symlink_outside_spool() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().join("spool");
+        let outside = directory.path().join("outside");
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(&outside).unwrap();
+        let final_path = root.join("live.rrd");
+        symlink(&outside, ingest_segment_parts_directory(&final_path)).unwrap();
+
+        assert!(authorized_live_segment_path(&root, "live.rrd").is_err());
     }
 }
