@@ -150,7 +150,15 @@ impl RecordingService {
                     byte_len: u64::try_from(segment.byte_len)
                         .context("recording segment byte_len exceeds u64")?,
                     sha256: segment.sha256,
-                    path: self.segment_path(&segment.relative_path)?,
+                    path: match segment.state {
+                        SegmentState::Writing => self.live_segment_path(&segment.relative_path)?,
+                        SegmentState::Frozen | SegmentState::Sealed => {
+                            self.segment_path(&segment.relative_path)?
+                        }
+                        SegmentState::Failed => {
+                            super::confined_segment_path(&self.spool_root, &segment.relative_path)?
+                        }
+                    },
                 })
             })
             .collect::<Result<Vec<_>>>()?;
