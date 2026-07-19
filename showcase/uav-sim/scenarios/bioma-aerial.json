@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.uav-sim-acceptance/v2",
+  "schema": "veoveo.uav-sim-acceptance/v3",
   "session_id": "bioma-uav",
   "frame_uri": "frames://frame/bioma-uav-origin",
   "vehicle_id": "uav-1",
@@ -26,6 +26,9 @@
     "speed_mps": 3.0,
     "hold_seconds": 0.5,
     "task_timeout_seconds": 1200
+  },
+  "recording": {
+    "frozen_rows_timeout_seconds": 1200
   },
   "perception": {
     "range_lag_seconds": 10.0,
