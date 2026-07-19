@@ -473,6 +473,10 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_publish, expected)?;
     }
+    let justfile = fs::read_to_string("Justfile")?;
+    contains(&justfile, "revision=\"$(git rev-parse HEAD)\"")?;
+    contains(&justfile, "images.forwarder.tag=\"${revision}\"")?;
+    not_contains(&justfile, "revision=\"$$(git rev-parse HEAD)\"")?;
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
         "showcase/uav-sim/scenarios/bioma-aerial.json",
     )?)?;
