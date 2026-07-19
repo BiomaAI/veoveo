@@ -153,8 +153,9 @@ just helm-check
 ```
 
 The normal Bioma flow provisions the Secret, imports the smaller platform
-images, publishes the UAV dependency base and commit-addressed overlays to the
-k3d-managed OCI registry, and installs the two charts:
+images, publishes the UAV dependency base plus commit-addressed runtime, MCP,
+and recording-forwarder images to the k3d-managed OCI registry, and installs
+the two charts:
 
 ```bash
 just bioma-resources

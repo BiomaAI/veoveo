@@ -340,12 +340,12 @@ bioma-resources:
 # Install the Bioma-owned platform release in its isolated cluster.
 bioma-platform-up:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --wait --timeout 12m
-    revision="$$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="$${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="$${revision}" --wait --timeout 30m
+    revision="$$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="$${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="$${revision}" --set-string images.forwarder.repository={{bioma-registry}}/veoveo/recording-forwarder --set-string images.forwarder.tag="$${revision}" --wait --timeout 30m
 
 # Install Bioma with canonical-host TLS for direct LAN and split-horizon DNS access.
 bioma-platform-up-lan:
     {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --values examples/bioma/lan-values.yaml --wait --timeout 12m
-    revision="$$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="$${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="$${revision}" --wait --timeout 30m
+    revision="$$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="$${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="$${revision}" --set-string images.forwarder.repository={{bioma-registry}}/veoveo/recording-forwarder --set-string images.forwarder.tag="$${revision}" --wait --timeout 30m
 
 # Connect the Bioma cluster to its remote-managed Cloudflare Tunnel.
 bioma-tunnel-up:

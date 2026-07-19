@@ -62,6 +62,7 @@ def main() -> None:
     base_ref = f"{registry}/veoveo/uav-sim-base:{BASE_VERSION}"
     runtime_ref = f"{registry}/veoveo/uav-sim-runtime:{revision}"
     mcp_ref = f"{registry}/veoveo/uav-sim-mcp:{revision}"
+    forwarder_ref = f"{registry}/veoveo/recording-forwarder:{revision}"
     if not args.skip_base:
         run(
             "docker",
@@ -78,6 +79,7 @@ def main() -> None:
         "bake",
         "uav-sim-runtime",
         "uav-sim-mcp",
+        "recording-forwarder",
         "--set",
         f"uav-sim-runtime.tags={runtime_ref}",
         "--set",
@@ -86,11 +88,14 @@ def main() -> None:
         f"uav-sim-runtime.args.SOURCE_REVISION={revision}",
         "--set",
         f"uav-sim-mcp.tags={mcp_ref}",
+        "--set",
+        f"recording-forwarder.tags={forwarder_ref}",
         "--push",
     )
     print(f"UAV base:    {base_ref}")
     print(f"UAV runtime: {runtime_ref}")
     print(f"UAV MCP:     {mcp_ref}")
+    print(f"Forwarder:   {forwarder_ref}")
 
 
 if __name__ == "__main__":
