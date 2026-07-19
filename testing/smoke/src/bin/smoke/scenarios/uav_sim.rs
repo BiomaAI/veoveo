@@ -18,6 +18,7 @@ struct UavAcceptanceScenario {
     takeoff: TakeoffScenario,
     camera: CameraAcceptance,
     mission: MissionScenario,
+    recording: RecordingAcceptance,
     perception: PerceptionScenario,
     landing_timeout_seconds: u64,
 }
@@ -65,6 +66,12 @@ struct MissionScenario {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct RecordingAcceptance {
+    frozen_rows_timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PerceptionScenario {
     range_lag_seconds: f64,
     range_duration_seconds: f64,
@@ -84,7 +91,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v2",
+            self.schema == "veoveo.uav-sim-acceptance/v3",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -110,6 +117,7 @@ impl UavAcceptanceScenario {
             self.takeoff.state_timeout_seconds > 0
                 && self.camera.detail_timeout_seconds > 0
                 && self.mission.task_timeout_seconds > 0
+                && self.recording.frozen_rows_timeout_seconds > 0
                 && self.perception.task_timeout_seconds > 0
                 && self.landing_timeout_seconds > 0,
             "scenario timeouts must be positive"
@@ -355,29 +363,6 @@ pub(crate) async fn uav_sim_verify(
         "UAV mission did not complete a waypoint: {mission_output}"
     );
 
-    let recording = call_tool(
-        conformance,
-        public_base_url,
-        &token,
-        "recording__query_recording",
-        serde_json::json!({
-            "recording_id": recording_id,
-            "entities": "/world/uav-sim/**",
-            "timeline": "physics_step",
-            "max_rows": 100
-        }),
-    )
-    .await?;
-    ensure!(
-        recording
-            .get("rows_by_recording")
-            .and_then(Value::as_object)
-            .is_some_and(|rows| rows
-                .values()
-                .any(|count| count.as_u64().is_some_and(|count| count > 0))),
-        "Recording Hub returned no UAV world rows: {recording}"
-    );
-
     state = simulation_state(conformance, public_base_url, &token, &scenario).await?;
     let simulation_time_s = state
         .get("simulation_time_s")
@@ -391,6 +376,15 @@ pub(crate) async fn uav_sim_verify(
     );
     let range_start = (range_start_s * 1_000_000_000.0) as i64;
     let range_end = (range_end_s * 1_000_000_000.0) as i64;
+
+    wait_for_recording_rows(
+        conformance,
+        public_base_url,
+        &token,
+        recording_id,
+        Duration::from_secs(scenario.recording.frozen_rows_timeout_seconds),
+    )
+    .await?;
     let perception = task_tool(
         conformance,
         public_base_url,
@@ -447,6 +441,45 @@ pub(crate) async fn uav_sim_verify(
         "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception processed the camera stream, and View remained available"
     );
     Ok(())
+}
+
+async fn wait_for_recording_rows(
+    conformance: &Path,
+    base: &str,
+    token: &str,
+    recording_id: &str,
+    timeout: Duration,
+) -> Result<Value> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let recording = call_tool(
+            conformance,
+            base,
+            token,
+            "recording__query_recording",
+            serde_json::json!({
+                "recording_id": recording_id,
+                "entities": "/world/uav-sim/**",
+                "timeline": "physics_step",
+                "max_rows": 100
+            }),
+        )
+        .await?;
+        if recording
+            .get("rows_by_recording")
+            .and_then(Value::as_object)
+            .is_some_and(|rows| {
+                rows.values()
+                    .any(|count| count.as_u64().is_some_and(|count| count > 0))
+            })
+        {
+            return Ok(recording);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            bail!("Recording Hub froze no UAV world rows within {timeout:?}: {recording}");
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
 }
 
 fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
@@ -737,9 +770,11 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v3");
         assert_eq!(scenario.session_id, "bioma-uav");
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
+        assert_eq!(scenario.recording.frozen_rows_timeout_seconds, 1_200);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
         assert_eq!(scenario.perception.range_lag_seconds, 10.0);
     }
