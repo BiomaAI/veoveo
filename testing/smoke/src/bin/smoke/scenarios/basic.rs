@@ -468,6 +468,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "uav-sim-runtime.args.UAV_SIM_BASE_IMAGE=",
         "uav-sim-runtime.args.SOURCE_REVISION=",
         "uav-sim-mcp.tags=",
+        "recording-forwarder.tags=",
         "\"--push\"",
     ] {
         contains(&uav_publish, expected)?;
