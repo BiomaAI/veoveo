@@ -22,6 +22,8 @@ pub struct QueueStream {
     pub recording_id: String,
     pub remote_stream_id: Option<String>,
     pub next_sequence: u64,
+    #[serde(default)]
+    pub finish_requested: bool,
 }
 
 #[derive(Debug)]
@@ -131,6 +133,16 @@ impl DurableQueue {
         sync_directory(path.parent().context("batch path has no parent")?)
     }
 
+    pub fn request_finish_all(&mut self) -> Result<()> {
+        for mut stream in self.streams()? {
+            if !stream.finish_requested {
+                stream.finish_requested = true;
+                self.write_stream(&stream)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn complete(&mut self, stream: &QueueStream) -> Result<()> {
         ensure!(
             self.batches(stream)?.is_empty(),
@@ -202,6 +214,7 @@ impl DurableQueue {
             recording_id: recording_id.to_owned(),
             remote_stream_id: None,
             next_sequence: 1,
+            finish_requested: false,
         };
         self.write_stream(&stream)?;
         Ok(stream)
@@ -321,5 +334,36 @@ mod tests {
         let temporary = TempDir::new().unwrap();
         let mut queue = DurableQueue::open(temporary.path().join("queue"), 1).unwrap();
         assert!(queue.enqueue("camera", "run-a", &batch()).is_err());
+    }
+
+    #[test]
+    fn finish_intent_survives_restart_after_batches_are_acknowledged() {
+        let temporary = TempDir::new().unwrap();
+        let root = temporary.path().join("queue");
+        let mut queue = DurableQueue::open(root.clone(), 1_000_000).unwrap();
+        let (stream, sequence) = queue.enqueue("camera", "run-a", &batch()).unwrap();
+        queue.acknowledge(&stream, sequence).unwrap();
+        queue.request_finish_all().unwrap();
+        drop(queue);
+
+        let queue = DurableQueue::open(root, 1_000_000).unwrap();
+        let streams = queue.streams().unwrap();
+        assert_eq!(streams.len(), 1);
+        assert!(streams[0].finish_requested);
+        assert!(queue.batches(&streams[0]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn existing_queue_streams_default_to_unfinished() {
+        let stream: QueueStream = serde_json::from_value(serde_json::json!({
+            "key": "a".repeat(64),
+            "source_stream_id": uuid::Uuid::now_v7().to_string(),
+            "application_id": "camera",
+            "recording_id": "run-a",
+            "remote_stream_id": null,
+            "next_sequence": 1
+        }))
+        .unwrap();
+        assert!(!stream.finish_requested);
     }
 }

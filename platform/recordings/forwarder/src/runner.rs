@@ -163,6 +163,10 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         accumulator.push(message)?;
     }
     flush_accumulators(&mut accumulators, &queue, client.maximum_batch_bytes()).await?;
+    queue
+        .lock()
+        .expect("durable queue mutex poisoned")
+        .request_finish_all()?;
     uploader_stop.cancel();
     uploader
         .await
@@ -353,7 +357,7 @@ async fn upload_pass(
                 .acknowledge(&stream, batch.sequence)?;
             progress = true;
         }
-        if finish_empty
+        if (finish_empty || stream.finish_requested)
             && queue
                 .lock()
                 .expect("durable queue mutex poisoned")
