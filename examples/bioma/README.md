@@ -66,6 +66,11 @@ The source is an acquisition authority, not an implicitly active release. Start
 an acquisition in the console, inspect the staged release, then activate it to
 move the validated projection into service.
 
+The acquisition form requires explicit WGS84 west, south, east, and north
+bounds. Its gray range text shows valid input limits, not default coordinates.
+Map retains the submitted bounds as the immutable coverage of the staged
+release.
+
 The object-store hostname is an S3 API endpoint. Its bucket root returns
 `AccessDenied` without credentials and is not a browser console.
 
