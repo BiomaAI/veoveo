@@ -36,7 +36,6 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
         flush_interval_ms: 10,
         fsync_on_flush: true,
         live_queue_limit_bytes: 256 * 1024 * 1024,
-        rerun_bin: None,
     };
     let flush_interval = config.flush_interval();
     let max_age = config.segment_max_age();
