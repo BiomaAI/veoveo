@@ -110,7 +110,7 @@
 
     <section id="acquisitions-section">
       <div class="section-head"><h2>Acquisitions</h2><span class="count" id="acquisitions-count"></span></div>
-      <form class="acquire" id="acquire-form">
+      <form class="acquire" id="acquire-form" novalidate>
         <label>Source
           <select id="acquire-source" required></select>
         </label>
@@ -216,7 +216,7 @@ const el = (id) => document.getElementById(id);
 const ACTIVE_ACQUISITION = new Set(["queued", "running", "cancel_requested"]);
 
 function idempotencyKey() {
-  if (crypto.randomUUID) return idempotencyKey();
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -232,6 +232,12 @@ async function readJsonResource(uri) {
 
 async function callTool(name, args) {
   const result = await bridge.request("tools/call", { name, arguments: args });
+  if (result && (result.isError || result.is_error)) {
+    const content = Array.isArray(result.content) ? result.content : [];
+    const text = content.find((entry) =>
+      entry && entry.type === "text" && typeof entry.text === "string");
+    throw new Error(text ? text.text : `MCP tool ${name} failed`);
+  }
   return (result && (result.structuredContent || result.structured_content)) || result;
 }
 
@@ -546,23 +552,55 @@ el("profile-form").addEventListener("submit", (event) => {
   });
 });
 
+function requestedCoverage() {
+  const fields = [
+    ["west", "bbox-west", -180, 180],
+    ["south", "bbox-south", -90, 90],
+    ["east", "bbox-east", -180, 180],
+    ["north", "bbox-north", -90, 90],
+  ];
+  const coverage = {};
+  for (const [name, id, minimum, maximum] of fields) {
+    const input = el(id);
+    if (input.value.trim() === "") {
+      throw new Error("Enter west, south, east, and north coverage bounds before starting.");
+    }
+    const value = Number(input.value);
+    if (!Number.isFinite(value) || value < minimum || value > maximum) {
+      throw new Error(`${name} must be between ${minimum} and ${maximum}.`);
+    }
+    coverage[name] = value;
+  }
+  if (coverage.south > coverage.north) {
+    throw new Error("South coverage must not exceed north coverage.");
+  }
+  return coverage;
+}
+
 el("acquire-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const coverage = {
-    west: Number(el("bbox-west").value),
-    south: Number(el("bbox-south").value),
-    east: Number(el("bbox-east").value),
-    north: Number(el("bbox-north").value),
-  };
+  const sourceId = el("acquire-source").value;
+  let coverage;
+  try {
+    if (!sourceId) throw new Error("Select an enabled source before starting.");
+    coverage = requestedCoverage();
+  } catch (cause) {
+    showError("acquisitions-error", cause.message, true);
+    return;
+  }
   const submit = el("acquire-submit");
   submit.disabled = true;
+  submit.textContent = "Starting…";
   void runAction("acquisitions-error", () =>
     callTool("start_acquisition", {
-      source_id: el("acquire-source").value,
+      source_id: sourceId,
       requested_coverage: coverage,
       idempotency_key: idempotencyKey(),
     })
-  ).finally(() => { submit.disabled = false; });
+  ).finally(() => {
+    submit.disabled = false;
+    submit.textContent = "Start acquisition";
+  });
 });
 
 /* ------------------------------------------------------------- lifecycle -- */

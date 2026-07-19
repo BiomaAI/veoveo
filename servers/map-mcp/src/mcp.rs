@@ -1449,3 +1449,22 @@ fn is_subscribable(uri: &str) -> bool {
         || uris::parse_single(uri, "map://route/").is_some()
         || uris::parse_single(uri, "map://dataset/").is_some()
 }
+
+#[cfg(test)]
+mod admin_app_tests {
+    const ADMIN_APP: &str = include_str!("../assets/admin-app.html");
+
+    #[test]
+    fn acquisition_idempotency_uses_the_browser_uuid_generator() {
+        assert!(ADMIN_APP.contains("return crypto.randomUUID();"));
+        assert!(!ADMIN_APP.contains("return idempotencyKey();"));
+    }
+
+    #[test]
+    fn acquisition_submit_owns_validation_progress_and_tool_errors() {
+        assert!(ADMIN_APP.contains(r#"id="acquire-form" novalidate"#));
+        assert!(ADMIN_APP.contains("Enter west, south, east, and north coverage bounds"));
+        assert!(ADMIN_APP.contains(r#"submit.textContent = "Starting…";"#));
+        assert!(ADMIN_APP.contains("result.isError || result.is_error"));
+    }
+}
