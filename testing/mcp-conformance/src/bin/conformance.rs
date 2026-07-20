@@ -313,6 +313,7 @@ async fn main() -> Result<()> {
             audience,
             resource,
             scopes,
+            work_context,
             jwt_id,
             ttl_minutes,
         } => {
@@ -326,6 +327,7 @@ async fn main() -> Result<()> {
                 },
                 resource: resource.clone(),
                 scopes: scopes.clone(),
+                work_context: work_context.clone(),
             })
             .await;
         }

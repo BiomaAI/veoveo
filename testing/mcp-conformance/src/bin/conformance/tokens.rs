@@ -78,6 +78,7 @@ pub(super) struct TokenExchangeInput {
     pub(super) client_assertion: ClientAssertionInput,
     pub(super) resource: Option<String>,
     pub(super) scopes: Vec<String>,
+    pub(super) work_context: Option<String>,
 }
 
 pub(super) struct IdJagInput {
@@ -163,6 +164,9 @@ pub(super) async fn cmd_gateway_token_exchange(input: TokenExchangeInput) -> Res
         .append_pair("client_assertion", &assertion);
     if let Some(resource) = &input.resource {
         serializer.append_pair("resource", resource);
+    }
+    if let Some(work_context) = &input.work_context {
+        serializer.append_pair("work_context", work_context);
     }
     let form_body = serializer.finish();
     let response = reqwest::Client::new()
