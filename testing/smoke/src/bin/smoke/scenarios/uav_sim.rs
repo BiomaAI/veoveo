@@ -537,9 +537,22 @@ async fn assert_governed_artifact_access(
         .unwrap_or_default()
         .to_owned();
     let preview_bytes = preview.bytes().await?;
+    let preview_media_type = preview_media_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim();
     ensure!(
-        !preview_bytes.is_empty() && preview_media_type.starts_with("application/json"),
-        "authorized governed artifact preview returned no JSON content"
+        preview_media_type == "application/json"
+            || (preview_media_type.starts_with("application/")
+                && preview_media_type.ends_with("+json")),
+        "authorized governed artifact preview returned media type `{preview_media_type}`"
+    );
+    let preview_json: Value = serde_json::from_slice(&preview_bytes)
+        .context("authorized governed artifact preview contained invalid JSON")?;
+    ensure!(
+        preview_json.is_object(),
+        "authorized governed artifact preview did not contain a JSON object"
     );
 
     let independent_token = gateway_token_for_context(
