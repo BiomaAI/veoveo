@@ -26,7 +26,7 @@ use super::*;
 const SAMPLE_H264_NAME: &str = "sample_720p.h264";
 const SAMPLE_FRAME_COUNT: usize = 90;
 const RECORDING_PROXY: &str = "rerun+http://127.0.0.1:9876/proxy";
-const RECORDING_FORWARDER: &str = "target/debug/recording-forwarder";
+pub(crate) const RECORDING_FORWARDER: &str = "target/debug/recording-forwarder";
 const PERCEPTION_MCP_URL: &str = "http://127.0.0.1:8797/perception/mcp";
 const PERCEPTION_READY_URL: &str = "http://127.0.0.1:8797/perception/readyz";
 
@@ -117,7 +117,8 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
         "include_source_clip": true
     });
 
-    let bearer_token = issue_internal_token(signing_key, signing_key_id)?;
+    let bearer_token =
+        issue_internal_token(signing_key, signing_key_id, "perception", "perception-gpu-smoke")?;
     let task_client = FinalTaskSmokeClient::new(PERCEPTION_MCP_URL, bearer_token);
     let task = task_client
         .run_tool_structured("analyze_recording", arguments, Duration::from_secs(300))
@@ -125,7 +126,7 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
     let task = match task {
         Ok(output) => output,
         Err(error) => {
-            let logs = kubernetes_logs()
+            let logs = kubernetes_logs("deployment/perception-mcp")
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
             bail!("perception MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
         }
@@ -169,14 +170,14 @@ pub(crate) async fn perception_gpu(env_file: &Path, work_dir: &Path) -> Result<(
     Ok(())
 }
 
-fn load_environment(path: &Path) -> Result<BTreeMap<String, String>> {
+pub(crate) fn load_environment(path: &Path) -> Result<BTreeMap<String, String>> {
     dotenvy::from_path_iter(path)
         .with_context(|| format!("opening environment file {}", path.display()))?
         .collect::<std::result::Result<_, _>>()
         .with_context(|| format!("parsing environment file {}", path.display()))
 }
 
-fn required_environment<'a>(
+pub(crate) fn required_environment<'a>(
     environment: &'a BTreeMap<String, String>,
     name: &str,
 ) -> Result<&'a str> {
@@ -187,7 +188,7 @@ fn required_environment<'a>(
         .with_context(|| format!("environment file does not define {name}"))
 }
 
-fn optional_environment<'a>(
+pub(crate) fn optional_environment<'a>(
     environment: &'a BTreeMap<String, String>,
     name: &str,
     default: &'a str,
@@ -199,7 +200,7 @@ fn optional_environment<'a>(
         .unwrap_or(default)
 }
 
-async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
+pub(crate) async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
     for _ in 0..100 {
         if tokio::net::TcpStream::connect("127.0.0.1:9876")
             .await
@@ -240,7 +241,7 @@ fn validate_perception_workspace(environment: &BTreeMap<String, String>) -> Resu
     Ok(())
 }
 
-async fn wait_for_recording_catalog(
+pub(crate) async fn wait_for_recording_catalog(
     environment: &BTreeMap<String, String>,
     recording_key: &str,
 ) -> Result<RecordingId> {
@@ -298,12 +299,15 @@ async fn wait_for_perception() -> Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let logs =
-        kubernetes_logs().unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
+    let logs = kubernetes_logs("deployment/perception-mcp")
+        .unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
     bail!("perception MCP did not become ready\n{logs}")
 }
 
-fn prepare_sample_h264(work_dir: &Path, environment: &BTreeMap<String, String>) -> Result<PathBuf> {
+pub(crate) fn prepare_sample_h264(
+    work_dir: &Path,
+    environment: &BTreeMap<String, String>,
+) -> Result<PathBuf> {
     std::fs::create_dir_all(work_dir)?;
     let output = work_dir.join(SAMPLE_H264_NAME);
     if output.metadata().is_ok_and(|metadata| metadata.len() > 0) {
@@ -349,7 +353,7 @@ fn prepare_sample_h264(work_dir: &Path, environment: &BTreeMap<String, String>) 
     Ok(output)
 }
 
-async fn publish_h264_recording(recording_id: &str, sample_h264: &Path) -> Result<()> {
+pub(crate) async fn publish_h264_recording(recording_id: &str, sample_h264: &Path) -> Result<()> {
     let mut access_units = sample_access_units(sample_h264)?;
     ensure!(
         access_units.len() >= SAMPLE_FRAME_COUNT,
@@ -397,14 +401,19 @@ fn access_unit_is_idr(bytes: &[u8]) -> bool {
         .any(|index| bytes[index..].starts_with(&[0, 0, 0, 1]) && bytes[index + 4] & 0x1f == 5)
 }
 
-fn issue_internal_token(private_key_der_b64: &str, key_id: &str) -> Result<String> {
+pub(crate) fn issue_internal_token(
+    private_key_der_b64: &str,
+    key_id: &str,
+    server: &str,
+    subject: &str,
+) -> Result<String> {
     let private_key_der = BASE64_STANDARD.decode(private_key_der_b64.trim())?;
     let issuer = GatewayInternalTokenIssuer::new(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(key_id.to_owned(), private_key_der)?,
     );
     let principal_issuer = TokenIssuer::new("https://smoke.veoveo.local")?;
-    let principal_subject = TokenSubject::new("perception-gpu-smoke")?;
+    let principal_subject = TokenSubject::new(subject)?;
     let principal = Principal {
         id: PrincipalId::new(format!("{principal_issuer}#{principal_subject}"))?,
         kind: PrincipalKind::Service,
@@ -435,7 +444,7 @@ fn issue_internal_token(private_key_der_b64: &str, key_id: &str) -> Result<Strin
     Ok(issuer
         .issue(
             GatewayProfileId::new("operator")?,
-            ServerSlug::new("perception")?,
+            ServerSlug::new(server)?,
             principal,
             authority,
             Utc::now() + TimeDelta::minutes(30),
@@ -443,12 +452,12 @@ fn issue_internal_token(private_key_der_b64: &str, key_id: &str) -> Result<Strin
         .bearer_token)
 }
 
-struct PortForwardGuard {
+pub(crate) struct PortForwardGuard {
     child: Child,
 }
 
 impl PortForwardGuard {
-    fn spawn(resource: &str, local_port: u16, remote_port: u16) -> Result<Self> {
+    pub(crate) fn spawn(resource: &str, local_port: u16, remote_port: u16) -> Result<Self> {
         let resource = if resource.contains('/') {
             resource.to_owned()
         } else {
@@ -477,10 +486,10 @@ impl Drop for PortForwardGuard {
     }
 }
 
-fn kubernetes_logs() -> Result<String> {
+pub(crate) fn kubernetes_logs(primary_workload: &str) -> Result<String> {
     let mut output = String::new();
     for (workload, container) in [
-        ("deployment/perception-mcp", None),
+        (primary_workload, None),
         ("deployment/recording", Some("recording-hub")),
         ("deployment/artifact-service", None),
     ] {

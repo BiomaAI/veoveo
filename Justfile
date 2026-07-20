@@ -89,6 +89,15 @@ smoke-perception-gpu env_file='.env' work_dir='output/perception/work':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-recording-forwarder --bin recording-forwarder
     {{smoke}} perception-gpu --env-file '{{env_file}}' --work-dir '{{work_dir}}'
 
+# Reason contracts, runner protocol, and task/server unit tests.
+test-reason:
+    cargo test -p veoveo-reason-mcp --all-targets
+
+# World-model reasoning / NVDEC / TensorRT-LLM / Recording Hub / final MCP task smoke.
+smoke-reason-gpu env_file='.env' work_dir='output/reason/work':
+    cargo build -p veoveo-smoke --bin smoke -p veoveo-recording-forwarder --bin recording-forwarder
+    {{smoke}} reason-gpu --env-file '{{env_file}}' --work-dir '{{work_dir}}'
+
 # Recording Hub durable-spool smoke: kill -9 + restart-resume + QueryEngine.
 smoke-hub-spool:
     cargo run -p veoveo-recording-hub --bin hub-smoke -- restart-kill
