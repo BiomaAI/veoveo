@@ -102,7 +102,6 @@ pub struct PlaybackManifest {
 pub struct PlaybackArchive {
     pub rrd_version: String,
     pub optimization_profile: String,
-    pub default_segment_id: Option<String>,
     pub segments: Vec<PlaybackSegment>,
 }
 
