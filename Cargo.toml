@@ -24,6 +24,7 @@ members = [
     "servers/map-mcp",
     "servers/optimization-mcp",
     "servers/perception-mcp",
+    "servers/reason-mcp",
     "servers/recording-mcp",
     "servers/timeseries-mcp",
     "servers/time-mcp",
