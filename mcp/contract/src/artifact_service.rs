@@ -628,11 +628,17 @@ mod tests {
         let artifact = ArtifactId::new();
         let capability = ArtifactWriteCapabilityId::new();
         let link = ArtifactShareLinkId::new();
+        let access_request = ArtifactAccessRequestId::new();
 
         assert_eq!(artifact.as_uuid().get_version_num(), 7);
         assert_eq!(capability.as_uuid().get_version_num(), 7);
         assert_eq!(link.as_uuid().get_version_num(), 7);
+        assert_eq!(access_request.as_uuid().get_version_num(), 7);
         assert_eq!(ArtifactId::parse(artifact.to_string()).unwrap(), artifact);
+        assert_eq!(
+            ArtifactAccessRequestId::parse(access_request.to_string()).unwrap(),
+            access_request
+        );
         assert!(ArtifactId::parse(uuid::Uuid::new_v4().to_string()).is_err());
         assert!(ArtifactWriteCapabilityId::parse("not-a-uuid").is_err());
     }

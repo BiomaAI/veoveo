@@ -22,7 +22,8 @@ product dependency or canonical hostname.
 - A required SurrealDB `3.2.1` platform store for identity, policy, control revisions,
   tasks, artifacts, recordings, agents, audit, and the transactional outbox.
 - A shared artifact plane with opaque UUIDv7 occurrence identities, tenant-local
-  deduplication, user/group grants, and expiring revocable anyone-with-link shares.
+  deduplication, Work Context ownership, user/group grants, governed access
+  requests, and expiring revocable anyone-with-link shares.
 - Arbitrary DuckDB SQL inside an owner-scoped, resource-bounded container sandbox.
 - Durable Rerun recording ingestion and an authorized recording MCP projection.
 - Local recorded-video perception through a provider-neutral MCP server backed by
@@ -132,6 +133,13 @@ security boundary is the execution sandbox:
 Every occurrence receives a new `artifact://{uuidv7}` identity. Hashes are integrity
 and tenant-local deduplication data, never public addresses.
 
+Every task, recording, agent, and artifact belongs to a Work Context. The gateway
+resolves direct, delegated, or automated invocation authority, then hosted services
+retain that trusted provenance and apply the context's output ownership, initial
+grants, classification, and labels. See
+[`docs/WORK_CONTEXT_GOVERNANCE.md`](docs/WORK_CONTEXT_GOVERNANCE.md) for the
+neutral enterprise model and rollout contract.
+
 Two sharing modes are separate and explicit:
 
 1. Grant `read`, `write`, or `admin` to an authorized user or group. Tenant and label
@@ -155,6 +163,7 @@ and Rust BFF support:
 - service and MCP health;
 - task progress, recovery class, and cancellation;
 - artifact download, release state, grants, link creation, and revocation;
+- effective artifact access, invocation provenance, and access-request review;
 - agents, wakes, recordings, policies, and audit evidence.
 
 The BFF performs authorization-code PKCE, keeps access and rotating refresh tokens in

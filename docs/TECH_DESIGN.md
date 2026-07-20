@@ -130,6 +130,7 @@ migrations themselves.
 `veoveo-platform-store` owns Rust record types and persistence APIs for:
 
 - tenants, principals, groups, server/profile identities, and policies;
+- Work Contexts, invocation authority, ownership defaults, and access requests;
 - immutable gateway control revisions and the active revision pointer;
 - access tokens, refresh families/tokens, authorization state, ID-JAG replay state, and
   JWT revocations;
@@ -203,6 +204,12 @@ An artifact occurrence has a fresh opaque UUIDv7 and canonical `artifact://{id}`
 The content hash verifies integrity and enables tenant-local deduplication. Storage keys
 include tenant identity, so equal content across tenants never aliases.
 
+Every occurrence also retains its Work Context, producer, invocation provenance,
+policy revision, output owner, and initial grants. The gateway derives that authority
+from authenticated identity and the active control-plane revision. Domain services
+receive it in the signed internal assertion and cannot replace it with caller-supplied
+ownership or provenance.
+
 The artifact service composes:
 
 - hard tenant isolation;
@@ -223,6 +230,16 @@ Sharing modes are intentionally separate:
 - Public sharing first requires `releasable` or `released`, then creates a read-only
   random bearer. Only its hash is stored. Expiry is at most thirty days, optional
   download limits are atomic, and revocation is immediate.
+
+A caller who satisfies tenancy and clearance can request discretionary access when
+need-to-know is the remaining denial. Context custodians and owners can inspect the
+review queue. Artifact `admin` authority is required for a decision, and approval
+creates the direct grant in the same SurrealDB transaction that closes the request.
+The Console projects the exact service decision, its contributing sources, and the
+artifact's retained provenance.
+
+The complete model and enterprise mapping guidance are in
+[`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md).
 
 Authorized browser downloads enter through
 `/artifacts/{profile}/{artifact_id}/download`. The gateway evaluates policy, records

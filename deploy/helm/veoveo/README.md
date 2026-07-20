@@ -86,6 +86,14 @@ the bootstrap Job and the running gateway. File references in the control plane
 must resolve beneath that directory. This keeps revision validation and runtime
 authentication on the same immutable input set.
 
+The control plane must define a Work Context for every tenant in active use.
+Each OAuth client selects a default context and a direct, delegated, or automated
+invocation mode. The gateway resolves context membership from configured
+principal, group, role, and OAuth-client selectors, then signs the authority used
+by tasks, recordings, agents, and artifact outputs. The neutral enterprise model
+and identity-provider mapping guidance are in
+[`../../../docs/WORK_CONTEXT_GOVERNANCE.md`](../../../docs/WORK_CONTEXT_GOVERNANCE.md).
+
 Each Helm revision runs installation bootstrap against the mounted control
 plane. Bootstrap validates the seed and publishes a new immutable database
 revision when its hash differs from the active revision. This is also the
@@ -123,6 +131,13 @@ the database-level runtime user, applies schema migrations, and publishes the
 initial gateway control revision. Every long-running workload authenticates at
 database scope with the runtime Secret. Rotating either Secret is owned by the
 installation operator.
+
+The Work Context governance schema uses a coordinated hard-cut rollout. Stop
+producers, preserve any externally required evidence, then clear SurrealDB,
+recording data, artifact objects, and durable forwarder queues together before
+installing the release. Bootstrap creates the canonical schema and materializes
+the configured contexts. Browser sessions and service tokens are reissued after
+the identity-provider role mapping is active.
 
 For an internal RustFS store, configure `objectStore.rustfs.publicEndpoint` and
 `ingress.objectStoreHost` to the same HTTPS origin. Presigned artifact downloads
