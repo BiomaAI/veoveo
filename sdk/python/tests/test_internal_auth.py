@@ -55,12 +55,43 @@ def _principal(subject: str = "conformance") -> dict:
     }
 
 
+def _authority(
+    actor: dict,
+    *,
+    mode: str = "automated",
+    work_context: str = "operations",
+) -> dict:
+    provenance: dict = {"mode": mode}
+    if mode in {"direct", "delegated"}:
+        provenance["initiator"] = actor["id"]
+    if mode == "delegated":
+        provenance["delegation_id"] = "delegation-019f"
+    return {
+        "work_context": work_context,
+        "tenant": actor["tenant"],
+        "membership": "contributor",
+        "policy_revision": "r1",
+        "output_policy": {
+            "owner": {"kind": "group", "id": work_context},
+            "initial_grants": [
+                {
+                    "subject": {"kind": "group", "id": work_context},
+                    "level": "read",
+                }
+            ],
+            "data_labels": [],
+        },
+        "provenance": provenance,
+    }
+
+
 def _claims(server: str = "datasheet", **overrides) -> dict:
     now = int(time.time())
-    principal = overrides.pop("principal", _principal())
+    actor = overrides.pop("actor", _principal())
+    authority = overrides.pop("authority", _authority(actor))
     claims = {
         "iss": ISSUER,
-        "sub": principal["id"],
+        "sub": actor["id"],
         "aud": server,
         "exp": now + 300,
         "nbf": now - 5,
@@ -68,7 +99,8 @@ def _claims(server: str = "datasheet", **overrides) -> dict:
         "jti": str(uuid.uuid4()),
         "profile": "operator",
         "server": server,
-        "principal": principal,
+        "actor": actor,
+        "authority": authority,
     }
     claims.update(overrides)
     return claims
@@ -90,9 +122,20 @@ def test_verifies_a_valid_gateway_assertion():
     identity = _verifier(jwks).verify(_token(pem, _claims()))
     assert identity.server == "datasheet"
     assert identity.profile == "operator"
-    assert identity.principal.kind.value == "service"
-    assert identity.principal.tenant == "local"
-    assert "operator:use" in identity.principal.scopes
+    assert identity.actor.kind.value == "service"
+    assert identity.actor.tenant == "local"
+    assert "operator:use" in identity.actor.scopes
+    assert identity.authority.work_context == "operations"
+    assert identity.authority.provenance.mode == "automated"
+
+
+@pytest.mark.parametrize("mode", ["direct", "delegated", "automated"])
+def test_verifies_every_invocation_mode(mode: str):
+    pem, jwks = _keypair()
+    actor = _principal()
+    claims = _claims(actor=actor, authority=_authority(actor, mode=mode))
+    identity = _verifier(jwks).verify(_token(pem, claims))
+    assert identity.authority.provenance.mode == mode
 
 
 def test_rejects_wrong_audience_and_issuer():

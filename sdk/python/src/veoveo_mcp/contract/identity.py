@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
@@ -43,6 +43,9 @@ DataLabelId = Annotated[str, _identifier(256)]
 GatewayProfileId = Annotated[str, _identifier(256)]
 ServerSlug = Annotated[str, _identifier(128)]
 JwtId = Annotated[str, _identifier(512)]
+PolicyVersion = Annotated[str, _identifier(256)]
+DelegationId = Annotated[str, _identifier(512)]
+WorkContextId = Annotated[str, _identifier(256)]
 
 
 class PrincipalKind(str, Enum):
@@ -88,11 +91,119 @@ class Principal(BaseModel):
         }
 
 
+class AccessLevel(str, Enum):
+    READ = "read"
+    WRITE = "write"
+    ADMIN = "admin"
+
+
+class PrincipalAccessSubject(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["principal"]
+    id: PrincipalId
+
+
+class GroupAccessSubject(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["group"]
+    id: GroupId
+
+
+AccessSubject = Annotated[
+    PrincipalAccessSubject | GroupAccessSubject, Field(discriminator="kind")
+]
+
+
+class WorkContextMembershipLevel(str, Enum):
+    VIEWER = "viewer"
+    CONTRIBUTOR = "contributor"
+    CUSTODIAN = "custodian"
+    OWNER = "owner"
+
+
+class WorkContextGrant(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    subject: AccessSubject
+    level: AccessLevel
+
+
+class WorkContextOutputPolicy(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    owner: AccessSubject
+    initial_grants: tuple[WorkContextGrant, ...] = ()
+    classification: DataLabelId | None = None
+    data_labels: frozenset[DataLabelId] = frozenset()
+
+
+class DirectInvocationProvenance(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    mode: Literal["direct"]
+    initiator: PrincipalId
+
+
+class DelegatedInvocationProvenance(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    mode: Literal["delegated"]
+    initiator: PrincipalId
+    delegation_id: DelegationId
+
+
+class AutomatedInvocationProvenance(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    mode: Literal["automated"]
+
+
+InvocationProvenance = Annotated[
+    DirectInvocationProvenance
+    | DelegatedInvocationProvenance
+    | AutomatedInvocationProvenance,
+    Field(discriminator="mode"),
+]
+
+
+class InvocationAuthority(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    work_context: WorkContextId
+    tenant: TenantId
+    membership: WorkContextMembershipLevel
+    policy_revision: PolicyVersion
+    output_policy: WorkContextOutputPolicy
+    provenance: InvocationProvenance
+
+    @property
+    def invocation_mode(self) -> str:
+        return self.provenance.mode
+
+    @property
+    def initiator(self) -> PrincipalId | None:
+        if isinstance(
+            self.provenance,
+            DirectInvocationProvenance | DelegatedInvocationProvenance,
+        ):
+            return self.provenance.initiator
+        return None
+
+    @property
+    def delegation_id(self) -> DelegationId | None:
+        if isinstance(self.provenance, DelegatedInvocationProvenance):
+            return self.provenance.delegation_id
+        return None
+
+
 class GatewayInternalIdentity(BaseModel):
     issuer: TokenIssuer
     profile: GatewayProfileId
     server: ServerSlug
-    principal: Principal
+    actor: Principal
+    authority: InvocationAuthority
     jwt_id: JwtId
     issued_at: datetime
     not_before: datetime
@@ -123,5 +234,5 @@ class PlaneCaller(BaseModel):
         return cls(
             bearer_token=bearer_token,
             identity=identity,
-            memberships=identity.principal.group_memberships(),
+            memberships=identity.actor.group_memberships(),
         )

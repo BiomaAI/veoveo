@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from veoveo_mcp.contract import InvocationAuthority
 from veoveo_mcp.tasks import (
     Conflict,
     CreateTask,
@@ -31,13 +32,32 @@ SERVER = "datasheet"
 
 
 def owner(principal: str = "conformance") -> TaskOwner:
+    principal_id = f"https://conformance.veoveo.local#{principal}"
     return TaskOwner(
-        principal_key=principal,
+        principal_key=principal_id,
         principal_kind=PrincipalKind.SERVICE,
         issuer="https://conformance.veoveo.local",
         subject=principal,
         profile="operator",
         tenant_key="local",
+        authority=InvocationAuthority.model_validate(
+            {
+                "work_context": "operations",
+                "tenant": "local",
+                "membership": "contributor",
+                "policy_revision": "r1",
+                "output_policy": {
+                    "owner": {"kind": "group", "id": "operations"},
+                    "initial_grants": [
+                        {
+                            "subject": {"kind": "group", "id": "operations"},
+                            "level": "read",
+                        }
+                    ],
+                },
+                "provenance": {"mode": "automated"},
+            }
+        ),
         data_labels=frozenset(),
     )
 

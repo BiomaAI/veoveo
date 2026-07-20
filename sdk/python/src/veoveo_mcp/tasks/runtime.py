@@ -51,6 +51,7 @@ from .types import (
     default_retention_expiry,
     deterministic_principal_id,
     deterministic_tenant_id,
+    deterministic_work_context_id,
     idempotency_record,
     parse_task_id,
     profile_record,
@@ -80,6 +81,50 @@ def _open_object_to_value(value: dict[str, Any]) -> Any:
     if len(value) == 1 and "value" in value:
         return value["value"]
     return value
+
+
+def _work_context_record(owner: TaskOwner) -> RecordID:
+    return RecordID(
+        "work_context",
+        deterministic_work_context_id(
+            owner.effective_tenant_key(), owner.authority.work_context
+        ),
+    )
+
+
+def _initiator_record(owner: TaskOwner) -> RecordID | None:
+    initiator = owner.authority.initiator
+    if initiator is None:
+        return None
+    return RecordID(
+        "principal",
+        deterministic_principal_id(owner.effective_tenant_key(), initiator),
+    )
+
+
+def _authority_record(owner: TaskOwner) -> dict[str, Any]:
+    authority = owner.authority
+    output = authority.output_policy
+    return {
+        "context_key": authority.work_context,
+        "membership": authority.membership.value,
+        "policy_revision": authority.policy_revision,
+        "owner_kind": output.owner.kind,
+        "owner_key": output.owner.id,
+        "initial_grants": [
+            {
+                "subject_kind": grant.subject.kind,
+                "subject_key": grant.subject.id,
+                "permission": grant.level.value,
+            }
+            for grant in output.initial_grants
+        ],
+        "classification": output.classification,
+        "data_labels": sorted(output.data_labels),
+        "invocation_mode": authority.invocation_mode,
+        "initiator_key": authority.initiator,
+        "delegation_id": authority.delegation_id,
+    }
 
 
 class TaskRuntime:
@@ -132,6 +177,12 @@ class TaskRuntime:
         content = {
             "tenant": draft.owner.tenant_record(),
             "owner": draft.owner.principal_record(),
+            "work_context": _work_context_record(draft.owner),
+            "initiator": _initiator_record(draft.owner),
+            "invocation_mode": draft.owner.authority.invocation_mode,
+            "delegation_id": draft.owner.authority.delegation_id,
+            "policy_revision": draft.owner.authority.policy_revision,
+            "authority": _authority_record(draft.owner),
             "profile": profile_record(draft.owner.profile),
             "server": server_record(self.server),
             "task_type": draft.task_type,
