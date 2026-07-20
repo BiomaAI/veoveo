@@ -49,7 +49,7 @@ pub(super) fn internal_caller(
 }
 
 pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
-    let memberships = identity.principal.group_memberships();
+    let memberships = identity.actor.group_memberships();
     PlaneCaller {
         bearer_token: bearer,
         identity,
@@ -63,10 +63,10 @@ pub(super) fn task_owner_from_identity(
 ) -> TaskOwner {
     TaskOwner {
         task_id: task_id.to_owned(),
-        principal_id: identity.principal.id.clone(),
+        principal_id: identity.actor.id.clone(),
         profile: identity.profile.clone(),
-        tenant: identity.principal.tenant.clone(),
-        data_labels: identity.principal.data_labels.clone(),
+        tenant: identity.actor.tenant.clone(),
+        data_labels: identity.actor.data_labels.clone(),
     }
 }
 
@@ -97,21 +97,22 @@ pub(super) fn task_owner_from_runtime(
 
 pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_runtime::TaskOwner {
     veoveo_task_runtime::TaskOwner {
-        principal_key: identity.principal.id.to_string(),
-        principal_kind: match identity.principal.kind {
+        principal_key: identity.actor.id.to_string(),
+        principal_kind: match identity.actor.kind {
             PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
             PrincipalKind::Service => veoveo_task_runtime::PrincipalKind::Service,
         },
-        issuer: identity.principal.issuer.to_string(),
-        subject: identity.principal.subject.to_string(),
+        issuer: identity.actor.issuer.to_string(),
+        subject: identity.actor.subject.to_string(),
         profile: identity.profile.to_string(),
-        tenant_key: identity.principal.tenant.as_ref().map(ToString::to_string),
+        tenant_key: identity.actor.tenant.as_ref().map(ToString::to_string),
         data_labels: identity
-            .principal
+            .actor
             .data_labels
             .iter()
             .map(ToString::to_string)
             .collect(),
+        authority: identity.authority.clone(),
     }
 }
 
@@ -124,7 +125,7 @@ pub(super) fn identity_from_runtime(
             .map_err(|error| error.to_string())?,
         profile: GatewayProfileId::new(owner.profile.clone()).map_err(|error| error.to_string())?,
         server: ServerSlug::new("duckdb").map_err(|error| error.to_string())?,
-        principal: Principal {
+        actor: Principal {
             id: PrincipalId::new(owner.principal_key.clone()).map_err(|error| error.to_string())?,
             kind: match owner.principal_kind {
                 veoveo_task_runtime::PrincipalKind::User => PrincipalKind::User,
@@ -152,6 +153,7 @@ pub(super) fn identity_from_runtime(
             assurances: BTreeSet::new(),
             authenticated_at: None,
         },
+        authority: owner.authority.clone(),
         jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).map_err(|error| error.to_string())?,
         issued_at: now,
         not_before: now,
@@ -194,20 +196,20 @@ pub(super) async fn require_task_owner(
 }
 
 pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.principal.id
+    owner.principal_id == identity.actor.id
         && owner.profile == identity.profile
-        && owner.tenant == identity.principal.tenant
-        && owner.data_labels.is_subset(&identity.principal.data_labels)
+        && owner.tenant == identity.actor.tenant
+        && owner.data_labels.is_subset(&identity.actor.data_labels)
 }
 
 fn owner_storage_key(identity: &GatewayInternalIdentity) -> String {
     let canonical = format!(
         "{}\0{}\0{}\0{}\0{}",
-        identity.principal.issuer,
-        identity.principal.subject,
-        identity.principal.id,
+        identity.actor.issuer,
+        identity.actor.subject,
+        identity.actor.id,
         identity
-            .principal
+            .actor
             .tenant
             .as_ref()
             .map(TenantId::as_str)
@@ -238,10 +240,10 @@ fn derived_database_owner(
     let file_path = database_file_path(state, identity, &db_id);
     DatabaseOwner {
         db_id,
-        principal_id: identity.principal.id.clone(),
+        principal_id: identity.actor.id.clone(),
         profile: identity.profile.clone(),
-        tenant: identity.principal.tenant.clone(),
-        data_labels: identity.principal.data_labels.clone(),
+        tenant: identity.actor.tenant.clone(),
+        data_labels: identity.actor.data_labels.clone(),
         file_path: file_path.to_string_lossy().into_owned(),
     }
 }
@@ -312,29 +314,47 @@ pub(super) fn resolve_writable_database(
 mod tests {
     use super::*;
     use veoveo_mcp_contract::{
-        DataLabelId, GroupId, PrincipalAssurance, RoleId, ScopeName, TokenSubject,
+        AccessSubject, DataLabelId, GroupId, InvocationAuthority, InvocationProvenance,
+        PolicyVersion, PrincipalAssurance, RoleId, ScopeName, TokenSubject, WorkContextId,
+        WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
 
     fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity {
         let now = Utc::now();
         let issuer = TokenIssuer::new("https://idp.example.test").unwrap();
+        let actor = Principal {
+            id: PrincipalId::new(format!("principal-{subject}")).unwrap(),
+            kind: PrincipalKind::User,
+            issuer,
+            subject: TokenSubject::new(subject).unwrap(),
+            tenant: Some(TenantId::new("tenant-a").unwrap()),
+            groups: BTreeSet::<GroupId>::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::<RoleId>::new(),
+            scopes: BTreeSet::<ScopeName>::new(),
+            data_labels: BTreeSet::<DataLabelId>::new(),
+            assurances: BTreeSet::<PrincipalAssurance>::new(),
+            authenticated_at: Some(now),
+        };
         GatewayInternalIdentity {
             issuer: TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
             profile: GatewayProfileId::new(profile).unwrap(),
             server: ServerSlug::new("duckdb").unwrap(),
-            principal: Principal {
-                id: PrincipalId::new(format!("principal-{subject}")).unwrap(),
-                kind: PrincipalKind::User,
-                issuer,
-                subject: TokenSubject::new(subject).unwrap(),
-                tenant: Some(TenantId::new("tenant-a").unwrap()),
-                groups: BTreeSet::<GroupId>::new(),
-                group_roles: BTreeSet::new(),
-                roles: BTreeSet::<RoleId>::new(),
-                scopes: BTreeSet::<ScopeName>::new(),
-                data_labels: BTreeSet::<DataLabelId>::new(),
-                assurances: BTreeSet::<PrincipalAssurance>::new(),
-                authenticated_at: Some(now),
+            actor: actor.clone(),
+            authority: InvocationAuthority {
+                work_context: WorkContextId::new("mission").unwrap(),
+                tenant: TenantId::new("tenant-a").unwrap(),
+                membership: WorkContextMembershipLevel::Owner,
+                policy_revision: PolicyVersion::new("r1").unwrap(),
+                output_policy: WorkContextOutputPolicy {
+                    owner: AccessSubject::Principal(actor.id.clone()),
+                    initial_grants: Vec::new(),
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                },
+                provenance: InvocationProvenance::Direct {
+                    initiator: actor.id,
+                },
             },
             jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
             issued_at: now,

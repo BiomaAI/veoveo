@@ -1,17 +1,85 @@
-use std::{collections::BTreeMap, fs, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::Path,
+    sync::Arc,
+};
 
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use veoveo_mcp_contract::{
     AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
-    GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
-    OidcClientRegistrationId, PolicySet, PolicyVersion, ProtectedResourceName,
+    GatewayProfileId, IdentityProvider, IdentityProviderId, InvocationAuthority, InvocationMode,
+    InvocationProvenance, OAuthClientId, OAuthClientRegistration, OidcClientRegistrationId,
+    PolicySet, PolicyVersion, Principal, PrincipalId, PrincipalKind, ProtectedResourceName,
     RecordingIngestResource, RecordingProducerId, RecordingProducerRegistration,
     ResourceAuthorizationServer, ResourceProjectionMode, SecretReference, SecretReferenceId,
-    ServerManifest, ServerSlug, TenantDefinition, TenantId,
+    ServerManifest, ServerSlug, TenantDefinition, TenantId, TokenSubject, WorkContextDefinition,
+    WorkContextId, WorkContextMembershipLevel,
 };
 
 use crate::policy::{exposure_contains, resource_scheme};
+use crate::{AuthenticatedSubject, VerifiedAccessToken};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GatewayAuthorityError {
+    UnknownOAuthClient(OAuthClientId),
+    UnknownWorkContext(WorkContextId),
+    MissingTenant(PrincipalId),
+    TenantMismatch {
+        context: WorkContextId,
+        principal: PrincipalId,
+    },
+    InvocationModeMismatch {
+        client: OAuthClientId,
+        expected: InvocationMode,
+        received: InvocationMode,
+    },
+    InvalidProvenance(InvocationMode),
+    MembershipDenied {
+        context: WorkContextId,
+        principal: PrincipalId,
+    },
+    InvalidActorIdentity,
+}
+
+impl std::fmt::Display for GatewayAuthorityError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownOAuthClient(client) => {
+                write!(formatter, "unknown OAuth client `{client}`")
+            }
+            Self::UnknownWorkContext(context) => {
+                write!(formatter, "unknown Work Context `{context}`")
+            }
+            Self::MissingTenant(principal) => {
+                write!(formatter, "principal `{principal}` has no tenant")
+            }
+            Self::TenantMismatch { context, principal } => write!(
+                formatter,
+                "Work Context `{context}` and principal `{principal}` belong to different tenants"
+            ),
+            Self::InvocationModeMismatch {
+                client,
+                expected,
+                received,
+            } => write!(
+                formatter,
+                "OAuth client `{client}` requires `{expected:?}` invocation and received `{received:?}`"
+            ),
+            Self::InvalidProvenance(mode) => {
+                write!(formatter, "`{mode:?}` invocation provenance is invalid")
+            }
+            Self::MembershipDenied { context, principal } => write!(
+                formatter,
+                "principal `{principal}` has no membership in Work Context `{context}`"
+            ),
+            Self::InvalidActorIdentity => formatter.write_str("resolved actor identity is invalid"),
+        }
+    }
+}
+
+impl std::error::Error for GatewayAuthorityError {}
 
 #[derive(Debug, Clone)]
 pub struct GatewayCatalogHandle {
@@ -81,6 +149,7 @@ pub struct GatewayCatalog {
     policies: BTreeMap<PolicyVersion, usize>,
     data_labels: BTreeMap<DataLabelId, usize>,
     tenants: BTreeMap<TenantId, usize>,
+    work_contexts: BTreeMap<WorkContextId, usize>,
     oauth_clients: BTreeMap<OAuthClientId, usize>,
     oidc_clients: BTreeMap<OidcClientRegistrationId, usize>,
     secrets: BTreeMap<SecretReferenceId, usize>,
@@ -152,6 +221,12 @@ impl GatewayCatalog {
             .enumerate()
             .map(|(index, tenant)| (tenant.id.clone(), index))
             .collect();
+        let work_contexts = control_plane
+            .work_contexts
+            .iter()
+            .enumerate()
+            .map(|(index, context)| (context.id.clone(), index))
+            .collect();
         let oauth_clients = control_plane
             .oauth_clients
             .iter()
@@ -182,6 +257,7 @@ impl GatewayCatalog {
             policies,
             data_labels,
             tenants,
+            work_contexts,
             oauth_clients,
             oidc_clients,
             secrets,
@@ -260,6 +336,158 @@ impl GatewayCatalog {
         self.oauth_clients
             .get(client_id)
             .map(|index| &self.control_plane.oauth_clients[*index])
+    }
+
+    pub fn work_context(&self, context_id: &WorkContextId) -> Option<&WorkContextDefinition> {
+        self.work_contexts
+            .get(context_id)
+            .map(|index| &self.control_plane.work_contexts[*index])
+    }
+
+    pub fn work_contexts(&self) -> impl Iterator<Item = &WorkContextDefinition> {
+        self.control_plane.work_contexts.iter()
+    }
+
+    pub fn work_context_membership(
+        &self,
+        client_id: &OAuthClientId,
+        context_id: &WorkContextId,
+        principal: &Principal,
+    ) -> Result<WorkContextMembershipLevel, GatewayAuthorityError> {
+        let client = self
+            .oauth_client(client_id)
+            .ok_or_else(|| GatewayAuthorityError::UnknownOAuthClient(client_id.clone()))?;
+        let context = self
+            .work_context(context_id)
+            .ok_or_else(|| GatewayAuthorityError::UnknownWorkContext(context_id.clone()))?;
+        let tenant = principal
+            .tenant
+            .as_ref()
+            .ok_or_else(|| GatewayAuthorityError::MissingTenant(principal.id.clone()))?;
+        if tenant != &context.tenant {
+            return Err(GatewayAuthorityError::TenantMismatch {
+                context: context.id.clone(),
+                principal: principal.id.clone(),
+            });
+        }
+        context
+            .membership_for(principal, &client.id)
+            .ok_or_else(|| GatewayAuthorityError::MembershipDenied {
+                context: context.id.clone(),
+                principal: principal.id.clone(),
+            })
+    }
+
+    pub fn resolve_authenticated_subject(
+        &self,
+        verified: VerifiedAccessToken,
+    ) -> Result<AuthenticatedSubject, GatewayAuthorityError> {
+        let VerifiedAccessToken {
+            access_token,
+            principal,
+        } = verified;
+        let client = self
+            .oauth_client(&access_token.oauth_client_id)
+            .ok_or_else(|| {
+                GatewayAuthorityError::UnknownOAuthClient(access_token.oauth_client_id.clone())
+            })?;
+        let context = self
+            .work_context(&access_token.work_context)
+            .ok_or_else(|| {
+                GatewayAuthorityError::UnknownWorkContext(access_token.work_context.clone())
+            })?;
+        if access_token.invocation_mode != client.invocation_mode {
+            return Err(GatewayAuthorityError::InvocationModeMismatch {
+                client: client.id.clone(),
+                expected: client.invocation_mode,
+                received: access_token.invocation_mode,
+            });
+        }
+        let membership = self.work_context_membership(
+            &access_token.oauth_client_id,
+            &access_token.work_context,
+            &principal,
+        )?;
+        let (actor, provenance) = match access_token.invocation_mode {
+            InvocationMode::Direct => {
+                if access_token.initiator.as_ref() != Some(&principal.id)
+                    || access_token.delegation_id.is_some()
+                {
+                    return Err(GatewayAuthorityError::InvalidProvenance(
+                        InvocationMode::Direct,
+                    ));
+                }
+                (
+                    principal.clone(),
+                    InvocationProvenance::Direct {
+                        initiator: principal.id.clone(),
+                    },
+                )
+            }
+            InvocationMode::Delegated => {
+                let Some(delegation_id) = access_token.delegation_id.clone() else {
+                    return Err(GatewayAuthorityError::InvalidProvenance(
+                        InvocationMode::Delegated,
+                    ));
+                };
+                if principal.kind != PrincipalKind::User
+                    || access_token.initiator.as_ref() != Some(&principal.id)
+                {
+                    return Err(GatewayAuthorityError::InvalidProvenance(
+                        InvocationMode::Delegated,
+                    ));
+                }
+                let subject = TokenSubject::new(client.id.as_str())
+                    .map_err(|_| GatewayAuthorityError::InvalidActorIdentity)?;
+                let actor_id = PrincipalId::new(format!("{}#{subject}", access_token.issuer))
+                    .map_err(|_| GatewayAuthorityError::InvalidActorIdentity)?;
+                (
+                    Principal {
+                        id: actor_id,
+                        kind: PrincipalKind::Service,
+                        issuer: access_token.issuer.clone(),
+                        subject,
+                        tenant: principal.tenant.clone(),
+                        groups: BTreeSet::new(),
+                        group_roles: BTreeSet::new(),
+                        roles: BTreeSet::new(),
+                        scopes: principal.scopes.clone(),
+                        data_labels: principal.data_labels.clone(),
+                        assurances: principal.assurances.clone(),
+                        authenticated_at: principal.authenticated_at,
+                    },
+                    InvocationProvenance::Delegated {
+                        initiator: principal.id.clone(),
+                        delegation_id,
+                    },
+                )
+            }
+            InvocationMode::Automated => {
+                if principal.kind != PrincipalKind::Service
+                    || principal.subject.as_str() != client.id.as_str()
+                    || access_token.initiator.is_some()
+                    || access_token.delegation_id.is_some()
+                {
+                    return Err(GatewayAuthorityError::InvalidProvenance(
+                        InvocationMode::Automated,
+                    ));
+                }
+                (principal.clone(), InvocationProvenance::Automated)
+            }
+        };
+        Ok(AuthenticatedSubject {
+            access_token,
+            principal,
+            actor,
+            authority: InvocationAuthority {
+                work_context: context.id.clone(),
+                tenant: context.tenant.clone(),
+                membership,
+                policy_revision: context.policy_revision.clone(),
+                output_policy: context.output_policy.clone(),
+                provenance,
+            },
+        })
     }
 
     pub fn profile_oauth_clients(&self, profile: &GatewayProfile) -> Vec<&OAuthClientRegistration> {

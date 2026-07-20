@@ -7,18 +7,18 @@ use base64::Engine;
 use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::access::{
-    AccessDecision, AccessLevel, AccessRequest, ArtifactId, Grant, Subject, decide,
+    AccessDecision, AccessLevel, AccessRequest, AccessSubject, ArtifactId, Grant, decide,
 };
 use veoveo_mcp_contract::gateway::DataLabelId;
 use veoveo_mcp_contract::storage::{
-    ArtifactMetadata, ArtifactObject, ArtifactReleaseState, ComplianceMetadata,
+    ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
 };
 use veoveo_mcp_contract::{
     ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, CreateArtifactShareLinkRequest,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactsRequest,
-    PlaneCaller, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
-    parse_artifact_plane_uri,
+    InvocationAuthority, InvocationProvenance, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
+    RedeemArtifactWriteCapabilityRequest, parse_artifact_plane_uri,
 };
 
 use crate::ledger::{
@@ -93,10 +93,10 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 .tenant()
                 .cloned()
                 .ok_or(ArtifactPlaneError::Unauthenticated)?,
-            principal: caller.identity.principal.id.clone(),
-            kind: caller.identity.principal.kind,
-            issuer: caller.identity.principal.issuer.clone(),
-            subject: caller.identity.principal.subject.clone(),
+            principal: caller.identity.actor.id.clone(),
+            kind: caller.identity.actor.kind,
+            issuer: caller.identity.actor.issuer.clone(),
+            subject: caller.identity.actor.subject.clone(),
         })
     }
 
@@ -176,13 +176,16 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         level: AccessLevel,
     ) -> AccessDecision {
         let request = AccessRequest {
-            caller_id: &caller.identity.principal.id,
+            caller_id: &caller.identity.actor.id,
             caller_tenant: caller.tenant(),
             caller_labels: caller.clearance(),
             memberships: &caller.memberships,
             artifact_tenant: &stored.tenant,
             artifact_labels: &stored.labels,
             grants: &stored.grants,
+            context_membership: (stored.metadata.compliance.work_context.as_ref()
+                == Some(&caller.identity.authority.work_context))
+            .then_some(caller.identity.authority.membership),
             requested: level,
         };
         decide(&request)
@@ -251,13 +254,21 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
     async fn put_for_actor(
         &self,
         actor: RepositoryActor,
+        authority: InvocationAuthority,
         allowed_labels: &BTreeSet<DataLabelId>,
         request: PutArtifactRequest,
         bytes: Vec<u8>,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
         let artifact_id = ArtifactId::new();
         let stored = self
-            .store_occurrence(artifact_id, actor.clone(), allowed_labels, request, bytes)
+            .store_occurrence(
+                artifact_id,
+                actor.clone(),
+                authority,
+                allowed_labels,
+                request,
+                bytes,
+            )
             .await?;
         self.audit(
             Some(actor),
@@ -275,10 +286,17 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         &self,
         artifact_id: ArtifactId,
         actor: RepositoryActor,
+        authority: InvocationAuthority,
         allowed_labels: &BTreeSet<DataLabelId>,
-        request: PutArtifactRequest,
+        mut request: PutArtifactRequest,
         bytes: Vec<u8>,
     ) -> Result<StoredArtifact, ArtifactPlaneError> {
+        if request.classification.is_none() {
+            request.classification = authority.output_policy.classification.clone();
+        }
+        request
+            .data_labels
+            .extend(authority.output_policy.data_labels.iter().cloned());
         let labels = Self::validate_put(allowed_labels, &request)?;
         let sha = compute_sha(&bytes);
         let object_key = tenant_blob_key(&actor.tenant, &sha);
@@ -298,20 +316,52 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             compliance: ComplianceMetadata {
                 classification: request.classification.clone(),
                 tenant_id: Some(actor.tenant.clone()),
-                owner_id: Some(actor.principal.clone()),
+                owner: Some(authority.output_policy.owner.clone()),
+                work_context: Some(authority.work_context.clone()),
+                provenance: Some(ArtifactProvenance {
+                    producer: actor.principal.clone(),
+                    invocation_mode: authority.provenance.mode(),
+                    initiator: authority.provenance.initiator().cloned(),
+                    delegation_id: match &authority.provenance {
+                        InvocationProvenance::Delegated { delegation_id, .. } => {
+                            Some(delegation_id.clone())
+                        }
+                        InvocationProvenance::Direct { .. } | InvocationProvenance::Automated => {
+                            None
+                        }
+                    },
+                    policy_revision: authority.policy_revision.clone(),
+                }),
                 data_labels: request.data_labels.clone(),
                 retention_expires_at: request.retention_expires_at,
             },
             metadata: request.metadata,
         };
-        let owner_grant = Grant {
+        let mut grants = vec![Grant {
             artifact: artifact_id,
-            subject: Subject::User(actor.principal.clone()),
+            subject: authority.output_policy.owner.clone(),
             level: AccessLevel::Admin,
             tenant: actor.tenant.clone(),
             data_labels: labels.clone(),
             retention_expires_at: request.retention_expires_at,
-        };
+        }];
+        for initial in &authority.output_policy.initial_grants {
+            if let Some(existing) = grants
+                .iter_mut()
+                .find(|grant| grant.subject == initial.subject)
+            {
+                existing.level = existing.level.max(initial.level);
+            } else {
+                grants.push(Grant {
+                    artifact: artifact_id,
+                    subject: initial.subject.clone(),
+                    level: initial.level,
+                    tenant: actor.tenant.clone(),
+                    data_labels: labels.clone(),
+                    retention_expires_at: request.retention_expires_at,
+                });
+            }
+        }
         self.repository
             .create_artifact(NewArtifact {
                 actor: actor.clone(),
@@ -319,7 +369,8 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                     metadata,
                     tenant: actor.tenant.clone(),
                     labels,
-                    grants: vec![owner_grant],
+                    grants,
+                    authority,
                     blob_sha256: sha,
                     object_key,
                 },
@@ -354,6 +405,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .create_write_capability(WriteCapabilityDraft {
                 capability_id,
                 actor: actor.clone(),
+                authority: caller.identity.authority.clone(),
                 profile: caller.identity.profile.clone(),
                 server: caller.identity.server.clone(),
                 task_id: request.task_id.clone(),
@@ -471,6 +523,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .store_occurrence(
                 redemption.artifact_id,
                 redemption.actor.clone(),
+                redemption.authority.clone(),
                 &redemption.labels,
                 request.artifact,
                 bytes,
@@ -607,8 +660,14 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         request: PutArtifactRequest,
         bytes: Vec<u8>,
     ) -> Result<ArtifactMetadata, ArtifactPlaneError> {
-        self.put_for_actor(Self::actor(caller)?, caller.clearance(), request, bytes)
-            .await
+        self.put_for_actor(
+            Self::actor(caller)?,
+            caller.identity.authority.clone(),
+            caller.clearance(),
+            request,
+            bytes,
+        )
+        .await
     }
 
     async fn get(
@@ -751,7 +810,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         &self,
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
-        subject: Subject,
+        subject: AccessSubject,
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
@@ -759,8 +818,8 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             .await?;
         if matches!(
             &subject,
-            Subject::User(id)
-                if stored.metadata.compliance.owner_id.as_ref() == Some(id)
+            owner
+                if stored.metadata.compliance.owner.as_ref() == Some(owner)
                     && level != AccessLevel::Admin
         ) {
             return Err(ArtifactPlaneError::Conflict(
@@ -787,14 +846,14 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
         &self,
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
-        subject: &Subject,
+        subject: &AccessSubject,
     ) -> Result<(), ArtifactPlaneError> {
         let stored = self.load(*artifact_id).await?;
         self.authorize(caller, &stored, "artifact.revoke", AccessLevel::Admin)
             .await?;
         if matches!(
             subject,
-            Subject::User(id) if stored.metadata.compliance.owner_id.as_ref() == Some(id)
+            owner if stored.metadata.compliance.owner.as_ref() == Some(owner)
         ) {
             return Err(ArtifactPlaneError::Conflict(
                 "the owner admin grant cannot be revoked".into(),
@@ -963,7 +1022,10 @@ mod tests {
         TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
-    use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, JwtId, Principal};
+    use veoveo_mcp_contract::{
+        AccessSubject, ArtifactWriteIdempotencyKey, InvocationProvenance, JwtId, PolicyVersion,
+        Principal, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    };
 
     use super::*;
     use crate::ledger::testing::InMemoryRepository;
@@ -971,28 +1033,44 @@ mod tests {
 
     fn caller(principal: &str, tenant: &str, labels: &[&str]) -> PlaneCaller {
         let now = Utc::now();
+        let actor = Principal {
+            id: PrincipalId::new(principal).unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
+            subject: TokenSubject::new(format!("subject-{principal}")).unwrap(),
+            tenant: Some(TenantId::new(tenant).unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: labels
+                .iter()
+                .map(|label| DataLabelId::new(*label).unwrap())
+                .collect(),
+            assurances: BTreeSet::new(),
+            authenticated_at: Some(now),
+        };
         PlaneCaller {
             bearer_token: "signed-token".into(),
             identity: GatewayInternalIdentity {
                 issuer: TokenIssuer::new("veoveo-internal").unwrap(),
                 profile: GatewayProfileId::new("operator").unwrap(),
                 server: ServerSlug::new("media").unwrap(),
-                principal: Principal {
-                    id: PrincipalId::new(principal).unwrap(),
-                    kind: PrincipalKind::User,
-                    issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-                    subject: TokenSubject::new(format!("subject-{principal}")).unwrap(),
-                    tenant: Some(TenantId::new(tenant).unwrap()),
-                    groups: BTreeSet::new(),
-                    group_roles: BTreeSet::new(),
-                    roles: BTreeSet::new(),
-                    scopes: BTreeSet::new(),
-                    data_labels: labels
-                        .iter()
-                        .map(|label| DataLabelId::new(*label).unwrap())
-                        .collect(),
-                    assurances: BTreeSet::new(),
-                    authenticated_at: Some(now),
+                actor: actor.clone(),
+                authority: InvocationAuthority {
+                    work_context: WorkContextId::new("mission").unwrap(),
+                    tenant: TenantId::new(tenant).unwrap(),
+                    membership: WorkContextMembershipLevel::Owner,
+                    policy_revision: PolicyVersion::new("r1").unwrap(),
+                    output_policy: WorkContextOutputPolicy {
+                        owner: AccessSubject::Principal(actor.id.clone()),
+                        initial_grants: Vec::new(),
+                        classification: None,
+                        data_labels: BTreeSet::new(),
+                    },
+                    provenance: InvocationProvenance::Direct {
+                        initiator: actor.id.clone(),
+                    },
                 },
                 jwt_id: JwtId::new(uuid::Uuid::new_v4().to_string()).unwrap(),
                 issued_at: now,
@@ -1109,7 +1187,7 @@ mod tests {
             .grant(
                 &alice,
                 &first.artifact_id,
-                Subject::User(bob.identity.principal.id.clone()),
+                AccessSubject::Principal(bob.identity.actor.id.clone()),
                 AccessLevel::Read,
             )
             .await
@@ -1207,8 +1285,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            metadata.compliance.owner_id,
-            Some(alice.identity.principal.id)
+            metadata.compliance.owner,
+            Some(AccessSubject::Principal(alice.identity.actor.id))
         );
         assert_eq!(
             service
@@ -1310,6 +1388,7 @@ mod tests {
             .store_occurrence(
                 reserved.artifact_id,
                 reserved.actor,
+                reserved.authority,
                 &reserved.labels,
                 artifact.clone(),
                 bytes.clone(),
@@ -1489,7 +1568,7 @@ mod tests {
             .put(&alice, PutArtifactRequest::default(), b"owned".to_vec())
             .await
             .unwrap();
-        let owner = Subject::User(alice.identity.principal.id.clone());
+        let owner = AccessSubject::Principal(alice.identity.actor.id.clone());
         assert!(matches!(
             service
                 .grant(

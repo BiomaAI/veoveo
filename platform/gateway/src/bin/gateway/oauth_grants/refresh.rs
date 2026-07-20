@@ -3,8 +3,8 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthOutcome, AuthReasonCode, GatewayProfile, OAuthClientAuthMethod, OAuthClientId,
-    OAuthGrantType, OAuthRefreshToken, PrincipalKind, ResourceAuthorizationServer,
+    AuthOutcome, AuthReasonCode, GatewayProfile, InvocationProvenance, OAuthClientAuthMethod,
+    OAuthClientId, OAuthGrantType, OAuthRefreshToken, PrincipalKind, ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayRefreshExchange, GatewayRefreshRotationRequest};
 
@@ -16,7 +16,7 @@ use crate::{
     http_util::{TokenResponse, oauth_error_response, scope_string, token_response},
     oauth_grants::TokenRequest,
     runtime::AppState,
-    tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_access_token},
+    tokens::{ACCESS_TOKEN_TTL_SECONDS, AccessTokenInvocation, issue_access_token},
 };
 
 pub(crate) async fn token_endpoint_refresh_token(
@@ -180,6 +180,21 @@ pub(crate) async fn token_endpoint_refresh_token(
         )
         .await;
     }
+    if catalog
+        .work_context_membership(&client_id, &grant.work_context, &grant.principal)
+        .is_err()
+    {
+        return invalid_refresh_response(
+            state,
+            profile,
+            authorization_server,
+            Some(&client_id),
+            Some(&grant.principal),
+            AuthReasonCode::InvalidAuthorizationRequest,
+            started_at,
+        )
+        .await;
+    }
     let token = match issue_access_token(
         catalog,
         authorization_server,
@@ -189,6 +204,13 @@ pub(crate) async fn token_endpoint_refresh_token(
         PrincipalKind::User,
         Some(&grant.principal),
         None,
+        AccessTokenInvocation {
+            work_context: grant.work_context.clone(),
+            provenance: InvocationProvenance::Direct {
+                initiator: grant.principal.id.clone(),
+            },
+        },
+        grant.principal.id.clone(),
         &grant.scopes,
     )
     .await

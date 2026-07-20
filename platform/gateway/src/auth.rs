@@ -17,7 +17,8 @@ pub use id_jag::IdJagVerifier;
 pub use oidc::OidcIdTokenVerifier;
 pub use support::AuthError;
 pub use verified::{
-    AuthenticatedSubject, VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
+    AuthenticatedSubject, VerifiedAccessToken, VerifiedClientAssertion, VerifiedIdJag,
+    VerifiedOidcIdentity,
 };
 
 #[cfg(test)]
@@ -29,7 +30,7 @@ mod tests {
     };
     use serde::Serialize;
     use veoveo_mcp_contract::{
-        DataLabelId, OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance,
+        DataLabelId, InvocationMode, OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance,
         ProtectedResourceId, ScopeName, TokenIssuer,
     };
 
@@ -65,7 +66,11 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
     struct TestClaims<'a> {
         iss: &'a str,
         sub: &'a str,
+        principal_id: &'a str,
         client_id: &'a str,
+        work_context: &'a str,
+        invocation_mode: InvocationMode,
+        initiator: &'a str,
         aud: &'a str,
         exp: u64,
         nbf: u64,
@@ -174,7 +179,11 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             &TestClaims {
                 iss: ISSUER,
                 sub: "00u123",
+                principal_id: "https://idp.example.com#00u123",
                 client_id: "operator-local-public",
+                work_context: "mission",
+                invocation_mode: InvocationMode::Direct,
+                initiator: "https://idp.example.com#00u123",
                 aud: AUDIENCE,
                 exp: 4_102_444_800,
                 nbf: 1_700_000_000,

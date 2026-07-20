@@ -314,10 +314,42 @@
       "metadata": {}
     }
   ],
+  "work_contexts": [
+    {
+      "id": "traffic-operations",
+      "tenant": "tenant-a",
+      "title": "Traffic operations",
+      "policy_revision": "2026-07-15",
+      "output_policy": {
+        "owner": {
+          "kind": "group",
+          "id": "traffic-operations"
+        }
+      },
+      "memberships": [
+        {
+          "level": "owner",
+          "oauth_clients": [
+            "admin-console"
+          ]
+        },
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "sumo-recording-producer",
+            "operator-local-public",
+            "operator-service"
+          ]
+        }
+      ]
+    }
+  ],
   "oauth_clients": [
     {
       "id": "sumo-recording-producer",
       "authorization_server": "veoveo",
+      "default_work_context": "traffic-operations",
+      "invocation_mode": "automated",
       "display_name": "SUMO Recording Producer",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -344,6 +376,8 @@
     {
       "id": "operator-local-public",
       "authorization_server": "veoveo",
+      "default_work_context": "traffic-operations",
+      "invocation_mode": "direct",
       "display_name": "Veoveo Operator Local Client",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -351,8 +385,7 @@
       ],
       "grant_types": [
         "authorization_code_pkce",
-        "refresh_token",
-        "enterprise_managed_authorization"
+        "refresh_token"
       ],
       "auth_methods": [
         "none"
@@ -377,6 +410,8 @@
     {
       "id": "admin-console",
       "authorization_server": "veoveo",
+      "default_work_context": "traffic-operations",
+      "invocation_mode": "direct",
       "display_name": "Veoveo Admin Console",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -384,8 +419,7 @@
       ],
       "grant_types": [
         "authorization_code_pkce",
-        "refresh_token",
-        "enterprise_managed_authorization"
+        "refresh_token"
       ],
       "auth_methods": [
         "none"
@@ -404,6 +438,8 @@
     {
       "id": "operator-service",
       "authorization_server": "veoveo",
+      "default_work_context": "traffic-operations",
+      "invocation_mode": "automated",
       "display_name": "Veoveo Operator Service",
       "client_surface": "full_mcp",
       "allowed_resources": [

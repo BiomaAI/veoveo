@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     AuthAuditEvent, AuthorizationServerId, GatewayProfileId, GatewayRefreshFamilyId,
-    GatewayRefreshGrant, OAuthClientId, OAuthRefreshToken, Principal, ScopeName,
+    GatewayRefreshGrant, OAuthClientId, OAuthRefreshToken, Principal, ScopeName, WorkContextId,
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, GatewayRefreshRotationOutcome, GatewayRefreshTokenRecord,
@@ -212,6 +212,7 @@ impl GatewayState {
         authorization_server: &AuthorizationServerId,
         profile: &GatewayProfileId,
         oauth_client_id: &OAuthClientId,
+        work_context: &WorkContextId,
         principal: &Principal,
         scopes: &BTreeSet<ScopeName>,
         now: DateTime<Utc>,
@@ -241,6 +242,7 @@ impl GatewayState {
             authorization_server: authorization_server.to_string(),
             profile: profile.to_string(),
             oauth_client_id: oauth_client_id.to_string(),
+            work_context: work_context.to_string(),
             principal_id: principal.id.to_string(),
             tenant: principal.tenant.as_ref().map(ToString::to_string),
             scopes: scopes.iter().map(ToString::to_string).collect(),
@@ -262,6 +264,7 @@ impl GatewayState {
                 authorization_server: authorization_server.clone(),
                 profile: profile.clone(),
                 oauth_client_id: oauth_client_id.clone(),
+                work_context: work_context.clone(),
                 principal: principal.clone(),
                 scopes: scopes.clone(),
                 generation: 0,
@@ -399,6 +402,7 @@ fn grant_from_family(family: GatewayRefreshFamilyRecord) -> Result<GatewayRefres
         authorization_server: AuthorizationServerId::new(family.authorization_server)?,
         profile: GatewayProfileId::new(family.profile)?,
         oauth_client_id: OAuthClientId::new(family.oauth_client_id)?,
+        work_context: WorkContextId::new(family.work_context)?,
         principal: serde_json::from_value(serde_json::to_value(family.principal)?)?,
         scopes: family
             .scopes
@@ -421,10 +425,11 @@ fn family_id(family: &GatewayRefreshFamilyRecord) -> Result<GatewayRefreshFamily
 
 fn refresh_delivery_aad(family: &GatewayRefreshFamilyRecord, generation: i64) -> Result<Vec<u8>> {
     Ok(format!(
-        "veoveo-refresh-delivery-v1\0{}\0{}\0{}\0{}\0{generation}",
+        "veoveo-refresh-delivery-v2\0{}\0{}\0{}\0{}\0{}\0{generation}",
         family.authorization_server,
         family.profile,
         family.oauth_client_id,
+        family.work_context,
         family_id(family)?,
     )
     .into_bytes())

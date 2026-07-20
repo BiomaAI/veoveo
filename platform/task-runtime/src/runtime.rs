@@ -10,10 +10,17 @@ use surrealdb::types::{RecordId, SurrealValue};
 use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
+use veoveo_mcp_contract::{
+    AccessLevel, AccessSubject, InvocationAuthority, InvocationProvenance,
+    WorkContextMembershipLevel,
+};
 use veoveo_platform_store::{
-    LiveStream, OpenObject, OutboxDraft, OutboxEventRecord, PlatformStore, PlatformTable,
-    RecoveryClass as StoreRecoveryClass, TaskId, TaskInputRecord, TaskRecord,
-    TaskStatus as StoreTaskStatus, deterministic_principal_id, deterministic_tenant_id,
+    ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
+    InvocationMode as StoreInvocationMode, LiveStream, OpenObject, OutboxDraft, OutboxEventRecord,
+    PlatformStore, PlatformTable, RecoveryClass as StoreRecoveryClass, TaskId, TaskInputRecord,
+    TaskRecord, TaskStatus as StoreTaskStatus, WorkContextInitialGrantRecord,
+    WorkContextMembershipLevel as StoreMembershipLevel, deterministic_principal_id,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
 
 use crate::types::{
@@ -32,6 +39,12 @@ const MAX_TRANSACTION_ATTEMPTS: u32 = 8;
 struct TaskContent {
     tenant: RecordId,
     owner: RecordId,
+    work_context: RecordId,
+    initiator: Option<RecordId>,
+    invocation_mode: StoreInvocationMode,
+    delegation_id: Option<String>,
+    policy_revision: String,
+    authority: InvocationAuthorityRecord,
     profile: RecordId,
     server: RecordId,
     task_type: String,
@@ -145,6 +158,11 @@ impl TaskRuntime {
         if draft.server != self.server {
             return Err(TaskError::WrongServer(draft.server));
         }
+        if draft.owner.authority.tenant.as_str() != draft.owner.tenant_key() {
+            return Err(TaskError::InvalidAuthority(
+                "task owner and Work Context belong to different tenants".into(),
+            ));
+        }
         if let Some(key) = draft.idempotency_key.as_deref()
             && let Some(snapshot) = self.idempotent_task(&draft.owner, key).await?
         {
@@ -182,6 +200,16 @@ impl TaskRuntime {
         let content = TaskContent {
             tenant: tenant_record(&draft.owner)?,
             owner: owner_record(&draft.owner)?,
+            work_context: deterministic_work_context_id(
+                draft.owner.tenant_key(),
+                draft.owner.authority.work_context.as_str(),
+            )?
+            .record_id(),
+            initiator: authority_initiator_record(&draft.owner)?,
+            invocation_mode: store_invocation_mode(&draft.owner.authority),
+            delegation_id: authority_delegation_id(&draft.owner.authority),
+            policy_revision: draft.owner.authority.policy_revision.to_string(),
+            authority: authority_record(&draft.owner.authority),
             profile: RecordId::new("profile", draft.owner.profile.clone()),
             server: RecordId::new("mcp_server", self.server.clone()),
             task_type: draft.task_type.clone(),
@@ -1313,6 +1341,114 @@ fn status_name(status: StoreTaskStatus) -> &'static str {
     }
 }
 
+pub(crate) fn authority_record(authority: &InvocationAuthority) -> InvocationAuthorityRecord {
+    let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {
+        InvocationProvenance::Direct { initiator } => (
+            StoreInvocationMode::Direct,
+            Some(initiator.to_string()),
+            None,
+        ),
+        InvocationProvenance::Delegated {
+            initiator,
+            delegation_id,
+        } => (
+            StoreInvocationMode::Delegated,
+            Some(initiator.to_string()),
+            Some(delegation_id.to_string()),
+        ),
+        InvocationProvenance::Automated => (StoreInvocationMode::Automated, None, None),
+    };
+    let (owner_kind, owner_key) = subject_record(&authority.output_policy.owner);
+    InvocationAuthorityRecord {
+        context_key: authority.work_context.to_string(),
+        membership: store_membership(authority.membership),
+        policy_revision: authority.policy_revision.to_string(),
+        owner_kind,
+        owner_key,
+        initial_grants: authority
+            .output_policy
+            .initial_grants
+            .iter()
+            .map(|grant| {
+                let (subject_kind, subject_key) = subject_record(&grant.subject);
+                WorkContextInitialGrantRecord {
+                    subject_kind,
+                    subject_key,
+                    permission: store_permission(grant.level),
+                }
+            })
+            .collect(),
+        classification: authority
+            .output_policy
+            .classification
+            .as_ref()
+            .map(ToString::to_string),
+        data_labels: authority
+            .output_policy
+            .data_labels
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        invocation_mode,
+        initiator_key,
+        delegation_id,
+    }
+}
+
+fn subject_record(subject: &AccessSubject) -> (ArtifactGrantSubjectKind, String) {
+    match subject {
+        AccessSubject::Principal(principal) => {
+            (ArtifactGrantSubjectKind::Principal, principal.to_string())
+        }
+        AccessSubject::Group(group) => (ArtifactGrantSubjectKind::Group, group.to_string()),
+    }
+}
+
+fn store_membership(level: WorkContextMembershipLevel) -> StoreMembershipLevel {
+    match level {
+        WorkContextMembershipLevel::Viewer => StoreMembershipLevel::Viewer,
+        WorkContextMembershipLevel::Contributor => StoreMembershipLevel::Contributor,
+        WorkContextMembershipLevel::Custodian => StoreMembershipLevel::Custodian,
+        WorkContextMembershipLevel::Owner => StoreMembershipLevel::Owner,
+    }
+}
+
+fn store_permission(level: AccessLevel) -> GrantPermission {
+    match level {
+        AccessLevel::Read => GrantPermission::Read,
+        AccessLevel::Write => GrantPermission::Write,
+        AccessLevel::Admin => GrantPermission::Admin,
+    }
+}
+
+fn store_invocation_mode(authority: &InvocationAuthority) -> StoreInvocationMode {
+    match &authority.provenance {
+        InvocationProvenance::Direct { .. } => StoreInvocationMode::Direct,
+        InvocationProvenance::Delegated { .. } => StoreInvocationMode::Delegated,
+        InvocationProvenance::Automated => StoreInvocationMode::Automated,
+    }
+}
+
+fn authority_delegation_id(authority: &InvocationAuthority) -> Option<String> {
+    match &authority.provenance {
+        InvocationProvenance::Delegated { delegation_id, .. } => Some(delegation_id.to_string()),
+        InvocationProvenance::Direct { .. } | InvocationProvenance::Automated => None,
+    }
+}
+
+fn authority_initiator_record(owner: &TaskOwner) -> Result<Option<RecordId>, TaskError> {
+    owner
+        .authority
+        .provenance
+        .initiator()
+        .map(|initiator| {
+            deterministic_principal_id(owner.tenant_key(), initiator.as_str())
+                .map(|principal| principal.record_id())
+                .map_err(TaskError::from)
+        })
+        .transpose()
+}
+
 fn tenant_record(owner: &TaskOwner) -> Result<RecordId, TaskError> {
     Ok(deterministic_tenant_id(owner.tenant_key())?.record_id())
 }
@@ -1454,6 +1590,28 @@ fn task_input_record_to_exchange(record: TaskInputRecord) -> Result<TaskInputExc
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veoveo_mcp_contract::{
+        PolicyVersion, PrincipalId, TenantId, WorkContextId, WorkContextOutputPolicy,
+    };
+
+    fn direct_authority(principal: &str, tenant: &str) -> InvocationAuthority {
+        let principal = PrincipalId::new(principal).unwrap();
+        InvocationAuthority {
+            work_context: WorkContextId::new("mission").unwrap(),
+            tenant: TenantId::new(tenant).unwrap(),
+            membership: WorkContextMembershipLevel::Owner,
+            policy_revision: PolicyVersion::new("r1").unwrap(),
+            output_policy: WorkContextOutputPolicy {
+                owner: AccessSubject::Principal(principal.clone()),
+                initial_grants: Vec::new(),
+                classification: None,
+                data_labels: Default::default(),
+            },
+            provenance: InvocationProvenance::Direct {
+                initiator: principal,
+            },
+        }
+    }
 
     #[test]
     fn transition_matrix_is_fail_closed() {
@@ -1489,6 +1647,7 @@ mod tests {
             profile: "operator".to_owned(),
             tenant_key: Some("tenant-a".to_owned()),
             data_labels: Default::default(),
+            authority: direct_authority("principal-a", "tenant-a"),
         };
         assert_eq!(
             idempotency_record(&owner, "timeseries", "request-1"),

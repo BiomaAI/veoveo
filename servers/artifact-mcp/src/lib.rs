@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactId, ArtifactMetadata, ArtifactReleaseState, ArtifactShareLink,
-    ArtifactShareLinkId, Grant, Subject,
+    AccessLevel, AccessSubject, ArtifactId, ArtifactMetadata, ArtifactReleaseState,
+    ArtifactShareLink, ArtifactShareLinkId, Grant,
 };
 
 pub const INDEX_URI: &str = "artifact://index";
@@ -41,14 +41,14 @@ pub struct ArtifactReference {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GrantArtifactRequest {
     pub artifact_id: ArtifactId,
-    pub subject: Subject,
+    pub subject: AccessSubject,
     pub level: AccessLevel,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RevokeArtifactGrantRequest {
     pub artifact_id: ArtifactId,
-    pub subject: Subject,
+    pub subject: AccessSubject,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

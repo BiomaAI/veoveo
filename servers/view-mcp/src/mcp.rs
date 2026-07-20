@@ -59,7 +59,7 @@ impl ViewMcp {
         let view = self
             .state
             .views
-            .create_view(identity.principal.id.as_str(), request)
+            .create_view(identity.actor.id.as_str(), request)
             .await
             .map_err(invalid_params)?;
         self.state
@@ -85,7 +85,7 @@ impl ViewMcp {
         let view = self
             .state
             .views
-            .set_camera(identity.principal.id.as_str(), request)
+            .set_camera(identity.actor.id.as_str(), request)
             .await
             .map_err(invalid_params)?;
         self.state
@@ -132,7 +132,7 @@ impl ViewMcp {
         let result = self
             .state
             .views
-            .close_view(identity.principal.id.as_str(), request)
+            .close_view(identity.actor.id.as_str(), request)
             .await
             .map_err(invalid_params)?;
         self.state.subscriptions.notify_resource_updated(uri).await;
@@ -186,7 +186,7 @@ impl ServerHandler for ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         let identity = require_scope(&context, "view:read")?;
-        let owner = identity.principal.id.as_str();
+        let owner = identity.actor.id.as_str();
         let mut resources = vec![
             json_descriptor(uris::LAYERS, "View layers", "Configured 3D scene layers."),
             json_descriptor(uris::VIEWS, "Views", "Owner-scoped camera views."),
@@ -260,7 +260,7 @@ impl ServerHandler for ViewMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let identity = require_scope(&context, "view:read")?;
-        let owner = identity.principal.id.as_str();
+        let owner = identity.actor.id.as_str();
         let uri = request.uri.as_str();
         match uri {
             uris::LAYERS => return json_resource(uri, self.state.views.layers()),
@@ -311,7 +311,7 @@ impl ServerHandler for ViewMcp {
             return Ok(CompleteResult::default());
         };
         let identity = require_scope(&context, "view:read")?;
-        let owner = identity.principal.id.as_str();
+        let owner = identity.actor.id.as_str();
         let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::LAYER_TEMPLATE, "layer_id") => self
                 .state
@@ -372,13 +372,13 @@ impl ServerHandler for ViewMcp {
         if let Some(view_id) = uris::parse_view(&request.uri) {
             self.state
                 .views
-                .get_view(identity.principal.id.as_str(), &view_id)
+                .get_view(identity.actor.id.as_str(), &view_id)
                 .await
                 .map_err(|_| not_found())?;
         }
         self.state
             .subscriptions
-            .subscribe(request.uri, identity.principal.id, context.peer.clone())
+            .subscribe(request.uri, identity.actor.id, context.peer.clone())
             .await;
         Ok(())
     }
@@ -391,7 +391,7 @@ impl ServerHandler for ViewMcp {
         let identity = require_scope(&context, "view:read")?;
         self.state
             .subscriptions
-            .unsubscribe(&request.uri, &identity.principal.id)
+            .unsubscribe(&request.uri, &identity.actor.id)
             .await;
         Ok(())
     }
@@ -428,7 +428,7 @@ fn require_scope(
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
     identity
-        .principal
+        .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)

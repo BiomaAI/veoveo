@@ -53,6 +53,7 @@ pub struct GatewayControlPlane {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recording_ingest_resources: Vec<RecordingIngestResource>,
     pub tenants: Vec<TenantDefinition>,
+    pub work_contexts: Vec<crate::WorkContextDefinition>,
     pub policies: Vec<PolicySet>,
     pub data_labels: Vec<DataLabelDefinition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -185,6 +186,60 @@ impl GatewayControlPlane {
                         );
                     }
                 }
+            }
+        }
+
+        let mut work_contexts = BTreeMap::new();
+        for context in &self.work_contexts {
+            if work_contexts.insert(context.id.clone(), context).is_some() {
+                return Err(GatewayControlPlaneError::DuplicateWorkContext(
+                    context.id.clone(),
+                ));
+            }
+            if !tenants.contains(&context.tenant) {
+                return Err(GatewayControlPlaneError::InvalidWorkContext {
+                    context: context.id.clone(),
+                    reason: format!("references unknown tenant `{}`", context.tenant),
+                });
+            }
+            if !policies.contains(&context.policy_revision) {
+                return Err(GatewayControlPlaneError::InvalidWorkContext {
+                    context: context.id.clone(),
+                    reason: format!(
+                        "references unknown policy revision `{}`",
+                        context.policy_revision
+                    ),
+                });
+            }
+            if context.title.trim().is_empty() {
+                return Err(GatewayControlPlaneError::InvalidWorkContext {
+                    context: context.id.clone(),
+                    reason: "title must not be empty".to_owned(),
+                });
+            }
+            if context.memberships.is_empty()
+                || context
+                    .memberships
+                    .iter()
+                    .any(|membership| !membership.has_selector())
+            {
+                return Err(GatewayControlPlaneError::InvalidWorkContext {
+                    context: context.id.clone(),
+                    reason: "each context requires at least one membership rule with a selector"
+                        .to_owned(),
+                });
+            }
+            if let Some(label) = context
+                .output_policy
+                .data_labels
+                .iter()
+                .chain(context.output_policy.classification.iter())
+                .find(|label| !data_labels.contains(*label))
+            {
+                return Err(GatewayControlPlaneError::InvalidWorkContext {
+                    context: context.id.clone(),
+                    reason: format!("output policy references unknown data label `{label}`"),
+                });
             }
         }
 
@@ -456,6 +511,41 @@ impl GatewayControlPlane {
                 &servers,
                 &secret_refs,
             )?;
+            let Some(context) = work_contexts.get(&client.default_work_context) else {
+                return Err(GatewayControlPlaneError::UnknownOAuthClientWorkContext {
+                    client: client.id.clone(),
+                    context: client.default_work_context.clone(),
+                });
+            };
+            if client
+                .tenant
+                .as_ref()
+                .is_some_and(|tenant| tenant != &context.tenant)
+            {
+                return Err(GatewayControlPlaneError::InvalidWorkContext {
+                    context: context.id.clone(),
+                    reason: format!("OAuth client `{}` belongs to a different tenant", client.id),
+                });
+            }
+            let mode_matches = match client.invocation_mode {
+                crate::InvocationMode::Direct => client
+                    .grant_types
+                    .contains(&OAuthGrantType::AuthorizationCodePkce),
+                crate::InvocationMode::Delegated => client
+                    .grant_types
+                    .contains(&OAuthGrantType::EnterpriseManagedAuthorization),
+                crate::InvocationMode::Automated => client
+                    .grant_types
+                    .contains(&OAuthGrantType::ClientCredentials),
+            };
+            if !mode_matches {
+                return Err(
+                    GatewayControlPlaneError::OAuthClientInvocationModeMismatch {
+                        client: client.id.clone(),
+                        mode: client.invocation_mode,
+                    },
+                );
+            }
         }
         for resource in &self.recording_ingest_resources {
             for producer in &resource.producers {

@@ -69,7 +69,7 @@ pub(super) fn caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller
         .map(|value| value.0.clone())
         .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
     Ok(PlaneCaller {
-        memberships: identity.principal.group_memberships(),
+        memberships: identity.actor.group_memberships(),
         identity,
         bearer_token,
     })

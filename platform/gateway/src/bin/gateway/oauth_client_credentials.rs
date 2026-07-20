@@ -4,7 +4,7 @@ use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
     AuthOutcome, AuthReasonCode, OAuthClientAuthMethod, OAuthClientId, OAuthGrantType,
-    ResourceAuthorizationServer,
+    ResourceAuthorizationServer, WorkContextId,
 };
 use veoveo_mcp_gateway::{ClientAssertionConfig, ClientAssertionVerifier, GatewayCatalog};
 
@@ -17,7 +17,10 @@ use crate::{
     oauth::ResolvedOAuthResource,
     oauth_grants::{TokenRequest, requested_client_credentials_scopes},
     runtime::{AppState, current_http_client},
-    tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_client_credentials_access_token},
+    tokens::{
+        ACCESS_TOKEN_TTL_SECONDS, client_credentials_principal,
+        issue_client_credentials_access_token,
+    },
 };
 
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
@@ -403,13 +406,56 @@ pub(super) async fn token_endpoint_client_credentials(
             );
         }
     };
+    let work_context = match request.work_context.as_deref() {
+        Some(value) => match WorkContextId::new(value.trim()) {
+            Ok(context) => context,
+            Err(_) => {
+                return oauth_error_response(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_request",
+                    "work_context is invalid",
+                );
+            }
+        },
+        None => client.default_work_context.clone(),
+    };
+    let Some(tenant) = client.tenant.as_ref() else {
+        tracing::error!(client = %client_id, "automated OAuth client has no tenant");
+        return oauth_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "client invocation authority is not configured",
+        );
+    };
+    let service_principal =
+        match client_credentials_principal(authorization_server, &client_id, tenant, &scopes) {
+            Ok(principal) => principal,
+            Err(err) => {
+                tracing::error!("failed to establish automated principal: {err}");
+                return oauth_error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "client invocation authority is not configured",
+                );
+            }
+        };
+    if let Err(err) = catalog.work_context_membership(&client_id, &work_context, &service_principal)
+    {
+        tracing::warn!("rejected Work Context selection: {err}");
+        return oauth_error_response(
+            StatusCode::FORBIDDEN,
+            "access_denied",
+            "Work Context membership is required",
+        );
+    }
 
     let token = match issue_client_credentials_access_token(
         catalog,
         authorization_server,
         resource.protected_resource(),
         &client_id,
-        client.tenant.as_ref(),
+        &service_principal,
+        work_context,
         &scopes,
     )
     .await

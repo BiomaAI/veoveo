@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, GroupId, JwtId, OAuthClientId, Principal, PrincipalId,
-    PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject,
+    AccessTokenSubject, DataLabelId, DelegationId, GroupId, JwtId, OAuthClientId, Principal,
+    PrincipalId, PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject, WorkContextId,
 };
 
 use super::{
@@ -15,7 +15,7 @@ use super::{
         AuthError, allowed_algorithms_for_header, ensure_jwt_crypto_provider, unix_timestamp,
         validate_jwk_algorithm,
     },
-    verified::AuthenticatedSubject,
+    verified::VerifiedAccessToken,
 };
 
 #[derive(Debug, Clone)]
@@ -29,7 +29,7 @@ impl JwtVerifier {
         Self { config, jwks }
     }
 
-    pub fn verify(&self, token: &BearerToken) -> Result<AuthenticatedSubject, AuthError> {
+    pub fn verify(&self, token: &BearerToken) -> Result<VerifiedAccessToken, AuthError> {
         ensure_jwt_crypto_provider();
         let header = decode_header(token.as_str()).map_err(AuthError::Jwt)?;
         if !self.config.algorithms.contains(&header.alg) {
@@ -68,6 +68,19 @@ impl JwtVerifier {
             subject: subject.clone(),
             oauth_client_id,
             audience: self.config.audience.clone(),
+            work_context: WorkContextId::new(claims.work_context.clone())
+                .map_err(AuthError::Claim)?,
+            invocation_mode: claims.invocation_mode,
+            initiator: claims
+                .initiator
+                .map(PrincipalId::new)
+                .transpose()
+                .map_err(AuthError::Claim)?,
+            delegation_id: claims
+                .delegation_id
+                .map(DelegationId::new)
+                .transpose()
+                .map_err(AuthError::Claim)?,
             scopes: scopes.clone(),
             jwt_id: claims
                 .jti
@@ -82,7 +95,7 @@ impl JwtVerifier {
             expires_at: unix_timestamp(claims.exp, "exp")?,
         };
         let principal = Principal {
-            id: PrincipalId::new(format!("{issuer}#{subject}")).map_err(AuthError::Claim)?,
+            id: PrincipalId::new(claims.principal_id).map_err(AuthError::Claim)?,
             kind: claims.principal_kind.unwrap_or(PrincipalKind::User),
             issuer,
             subject,
@@ -123,7 +136,7 @@ impl JwtVerifier {
             authenticated_at: Some(Utc::now()),
         };
 
-        Ok(AuthenticatedSubject {
+        Ok(VerifiedAccessToken {
             access_token: token_subject,
             principal,
         })

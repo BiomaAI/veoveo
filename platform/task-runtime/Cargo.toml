@@ -21,4 +21,5 @@ thiserror = "2.0.18"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-util.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
+veoveo-mcp-contract = { path = "../../mcp/contract" }
 veoveo-platform-store = { path = "../store" }

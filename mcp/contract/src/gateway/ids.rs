@@ -222,6 +222,16 @@ typed_id!(
     "Tenant, organization, or customer boundary identifier."
 );
 typed_id!(
+    WorkContextId,
+    validate_path_id,
+    "Tenant-local boundary that governs related work and every output it produces."
+);
+typed_id!(
+    DelegationId,
+    validate_claim_text,
+    "Auditable identity of authority delegated by an initiator to another actor."
+);
+typed_id!(
     GroupId,
     validate_claim_text,
     "Identity-provider group identifier used by gateway policy."
@@ -309,7 +319,7 @@ typed_id!(
 typed_id!(
     TokenSubject,
     validate_claim_text,
-    "Subject claim from an authenticated access token or identity assertion."
+    "AccessSubject claim from an authenticated access token or identity assertion."
 );
 typed_id!(
     JwtId,

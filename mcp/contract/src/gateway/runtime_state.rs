@@ -51,6 +51,7 @@ pub struct GatewayAuthorizationRequest {
     pub idp_state: OAuthStateValue,
     pub profile: GatewayProfileId,
     pub oauth_client_id: OAuthClientId,
+    pub work_context: WorkContextId,
     pub oidc_client: OidcClientRegistrationId,
     pub redirect_uri: OAuthRedirectUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -72,6 +73,7 @@ pub struct GatewayAuthorizationCodeRecord {
     pub code: OAuthAuthorizationCode,
     pub profile: GatewayProfileId,
     pub oauth_client_id: OAuthClientId,
+    pub work_context: WorkContextId,
     pub oidc_client: OidcClientRegistrationId,
     pub redirect_uri: OAuthRedirectUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -93,6 +95,7 @@ pub struct GatewayRefreshGrant {
     pub authorization_server: AuthorizationServerId,
     pub profile: GatewayProfileId,
     pub oauth_client_id: OAuthClientId,
+    pub work_context: WorkContextId,
     pub principal: Principal,
     pub scopes: BTreeSet<ScopeName>,
     pub generation: u64,

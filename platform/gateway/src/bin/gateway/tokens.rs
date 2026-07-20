@@ -9,9 +9,9 @@ use jsonwebtoken::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    JwtId, OAuthClientId, Principal, PrincipalKind, ProtectedResourceId,
-    ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId, TenantId,
-    TokenSubject,
+    InvocationProvenance, JwtId, OAuthClientId, Principal, PrincipalId, PrincipalKind,
+    ProtectedResourceId, ResourceAuthorizationServer, ScopeName, SecretPurpose, SecretReferenceId,
+    TenantId, TokenSubject, WorkContextId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
 
@@ -21,7 +21,14 @@ pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 struct AccessTokenClaims {
     iss: String,
     sub: String,
+    principal_id: String,
     client_id: String,
+    work_context: String,
+    invocation_mode: veoveo_mcp_contract::InvocationMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    initiator: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    delegation_id: Option<String>,
     aud: String,
     exp: u64,
     nbf: u64,
@@ -40,6 +47,12 @@ struct AccessTokenClaims {
     data_labels: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     principal_assurances: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct AccessTokenInvocation {
+    pub(super) work_context: WorkContextId,
+    pub(super) provenance: InvocationProvenance,
 }
 
 pub(super) struct IssuedAccessToken {
@@ -62,22 +75,50 @@ pub(super) async fn issue_client_credentials_access_token(
     authorization_server: &ResourceAuthorizationServer,
     protected_resource: &ProtectedResourceId,
     client_id: &OAuthClientId,
-    service_tenant: Option<&TenantId>,
+    service_principal: &Principal,
+    work_context: WorkContextId,
     scopes: &BTreeSet<ScopeName>,
 ) -> anyhow::Result<IssuedAccessToken> {
-    let subject = TokenSubject::new(client_id.as_str())?;
     issue_access_token(
         catalog,
         authorization_server,
         protected_resource,
-        &subject,
+        &service_principal.subject,
         client_id,
         PrincipalKind::Service,
+        Some(service_principal),
         None,
-        service_tenant,
+        AccessTokenInvocation {
+            work_context,
+            provenance: InvocationProvenance::Automated,
+        },
+        service_principal.id.clone(),
         scopes,
     )
     .await
+}
+
+pub(super) fn client_credentials_principal(
+    authorization_server: &ResourceAuthorizationServer,
+    client_id: &OAuthClientId,
+    tenant: &TenantId,
+    scopes: &BTreeSet<ScopeName>,
+) -> anyhow::Result<Principal> {
+    let subject = TokenSubject::new(client_id.as_str())?;
+    Ok(Principal {
+        id: PrincipalId::new(format!("{}#{subject}", authorization_server.issuer))?,
+        kind: PrincipalKind::Service,
+        issuer: authorization_server.issuer.clone(),
+        subject,
+        tenant: Some(tenant.clone()),
+        groups: BTreeSet::new(),
+        group_roles: BTreeSet::new(),
+        roles: BTreeSet::new(),
+        scopes: scopes.clone(),
+        data_labels: BTreeSet::new(),
+        assurances: BTreeSet::new(),
+        authenticated_at: Some(Utc::now()),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -90,6 +131,8 @@ pub(super) async fn issue_access_token(
     principal_kind: PrincipalKind,
     principal: Option<&Principal>,
     service_tenant: Option<&TenantId>,
+    invocation: AccessTokenInvocation,
+    principal_id: PrincipalId,
     scopes: &BTreeSet<ScopeName>,
 ) -> anyhow::Result<IssuedAccessToken> {
     let signing_key = access_token_signing_key(
@@ -113,7 +156,17 @@ pub(super) async fn issue_access_token(
     let claims = AccessTokenClaims {
         iss: authorization_server.issuer.to_string(),
         sub: subject.to_string(),
+        principal_id: principal_id.to_string(),
         client_id: client_id.to_string(),
+        work_context: invocation.work_context.to_string(),
+        invocation_mode: invocation.provenance.mode(),
+        initiator: invocation.provenance.initiator().map(ToString::to_string),
+        delegation_id: match &invocation.provenance {
+            InvocationProvenance::Delegated { delegation_id, .. } => {
+                Some(delegation_id.to_string())
+            }
+            InvocationProvenance::Direct { .. } | InvocationProvenance::Automated => None,
+        },
         aud: protected_resource.to_string(),
         exp: unix_seconds(expires_at.timestamp())?,
         nbf: unix_seconds(now.timestamp())?,

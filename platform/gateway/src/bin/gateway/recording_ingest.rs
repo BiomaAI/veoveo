@@ -305,7 +305,8 @@ async fn proxy_authorized(
             Ok(server) => server,
             Err(error) => return auth_audit_error_response(error.into()),
         },
-        subject.principal,
+        subject.actor,
+        subject.authority,
         expires_at,
     ) {
         Ok(token) => token,
@@ -444,8 +445,8 @@ async fn authenticate(
         Ok(config) => config,
         Err(error) => return Err(auth_audit_error_response(error.into())),
     };
-    let subject = match JwtVerifier::new(auth_config, jwks).verify(&token) {
-        Ok(subject) => subject,
+    let verified = match JwtVerifier::new(auth_config, jwks).verify(&token) {
+        Ok(verified) => verified,
         Err(_) => {
             return Err(record_denial(
                 state,
@@ -458,7 +459,7 @@ async fn authenticate(
             .await);
         }
     };
-    if subject.principal.kind != PrincipalKind::Service {
+    if verified.principal.kind != PrincipalKind::Service {
         return Err(record_denial(
             state,
             audit_target,
@@ -471,7 +472,7 @@ async fn authenticate(
     }
     let catalog = current_catalog(&state.catalog);
     let Some(producer) =
-        catalog.recording_producer_for_client(resource, &subject.access_token.oauth_client_id)
+        catalog.recording_producer_for_client(resource, &verified.access_token.oauth_client_id)
     else {
         return Err(record_denial(
             state,
@@ -482,6 +483,20 @@ async fn authenticate(
             "OAuth client is not a registered recording producer",
         )
         .await);
+    };
+    let subject = match catalog.resolve_authenticated_subject(verified) {
+        Ok(subject) => subject,
+        Err(_) => {
+            return Err(record_denial(
+                state,
+                audit_target,
+                AuthReasonCode::InvalidBearerToken,
+                started_at,
+                StatusCode::FORBIDDEN,
+                "invocation authority is invalid",
+            )
+            .await);
+        }
     };
     Ok((subject, producer.clone()))
 }

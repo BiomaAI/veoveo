@@ -2,13 +2,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use veoveo_mcp_contract::ArtifactShareLinkId;
-use veoveo_mcp_contract::access::{AccessLevel, ArtifactId, Grant, Subject};
+use veoveo_mcp_contract::access::{AccessLevel, ArtifactId, Grant};
 use veoveo_mcp_contract::gateway::{
-    DataLabelId, GatewayProfileId, GroupId, PrincipalId, PrincipalKind, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject,
+    DataLabelId, DelegationId, GatewayProfileId, GroupId, PolicyVersion, PrincipalId,
+    PrincipalKind, ServerSlug, TenantId, TokenIssuer, TokenSubject, WorkContextId,
 };
-use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactReleaseState, ComplianceMetadata};
+use veoveo_mcp_contract::storage::{
+    ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
+};
+use veoveo_mcp_contract::{
+    AccessSubject, ArtifactShareLinkId, InvocationAuthority, InvocationProvenance,
+    WorkContextGrant, WorkContextMembershipLevel, WorkContextOutputPolicy,
+};
 use veoveo_platform_store as platform;
 use veoveo_platform_store::{RecordIdKey, StoreError as PlatformStoreError};
 
@@ -48,6 +53,30 @@ impl SurrealArtifactRepository {
             .map_err(repository_error)
     }
 
+    async fn subject_record(
+        &self,
+        identity: &platform::PlatformIdentity,
+        subject: &AccessSubject,
+    ) -> Result<platform::RecordId, RepositoryError> {
+        match subject {
+            AccessSubject::Principal(principal) if principal.as_str() == identity.principal_key => {
+                Ok(identity.principal_id.record_id())
+            }
+            AccessSubject::Principal(principal) => Ok(platform::deterministic_principal_id(
+                &identity.tenant_key,
+                principal.as_str(),
+            )
+            .map_err(repository_error)?
+            .record_id()),
+            AccessSubject::Group(group) => Ok(self
+                .store
+                .ensure_group(identity, group.as_str())
+                .await
+                .map_err(repository_error)?
+                .record_id()),
+        }
+    }
+
     async fn map_aggregate(
         &self,
         artifact_id: ArtifactId,
@@ -55,8 +84,7 @@ impl SurrealArtifactRepository {
     ) -> Result<StoredArtifact, RepositoryError> {
         let tenant = TenantId::new(aggregate.tenant.slug)
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
-        let owner = PrincipalId::new(aggregate.owner.display_name)
-            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
+        let authority = contract_authority(tenant.clone(), aggregate.occurrence.authority.clone())?;
         let labels = parse_labels(aggregate.occurrence.labels)?;
         let classification = if aggregate.occurrence.classification.is_empty() {
             None
@@ -76,11 +104,11 @@ impl SurrealArtifactRepository {
             .into_iter()
             .map(|edge| {
                 let subject = match edge.subject_kind {
-                    platform::ArtifactGrantSubjectKind::User => Subject::User(
+                    platform::ArtifactGrantSubjectKind::Principal => AccessSubject::Principal(
                         PrincipalId::new(edge.subject_key)
                             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                     ),
-                    platform::ArtifactGrantSubjectKind::Group => Subject::Group(
+                    platform::ArtifactGrantSubjectKind::Group => AccessSubject::Group(
                         GroupId::new(edge.subject_key)
                             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
                     ),
@@ -109,7 +137,23 @@ impl SurrealArtifactRepository {
             compliance: ComplianceMetadata {
                 classification,
                 tenant_id: Some(tenant.clone()),
-                owner_id: Some(owner),
+                owner: Some(authority.output_policy.owner.clone()),
+                work_context: Some(authority.work_context.clone()),
+                provenance: Some(ArtifactProvenance {
+                    producer: PrincipalId::new(aggregate.occurrence.producer_key)
+                        .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+                    invocation_mode: authority.provenance.mode(),
+                    initiator: authority.provenance.initiator().cloned(),
+                    delegation_id: match &authority.provenance {
+                        InvocationProvenance::Delegated { delegation_id, .. } => {
+                            Some(delegation_id.clone())
+                        }
+                        InvocationProvenance::Direct { .. } | InvocationProvenance::Automated => {
+                            None
+                        }
+                    },
+                    policy_revision: authority.policy_revision.clone(),
+                }),
                 data_labels,
                 retention_expires_at,
             },
@@ -127,6 +171,7 @@ impl SurrealArtifactRepository {
             tenant,
             labels,
             grants,
+            authority,
             blob_sha256: BlobSha256::new(aggregate.blob.sha256)
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             object_key: aggregate.blob.object_key,
@@ -140,6 +185,35 @@ impl ArtifactRepository for SurrealArtifactRepository {
         artifact: NewArtifact,
     ) -> Result<StoredArtifact, RepositoryError> {
         let identity = self.identity(&artifact.actor).await?;
+        if artifact.stored.authority.tenant != artifact.actor.tenant {
+            return Err(RepositoryError::Corrupt(
+                "artifact authority tenant differs from the producing actor".into(),
+            ));
+        }
+        let authority = platform_authority(&artifact.stored.authority);
+        let owner = self
+            .subject_record(&identity, &artifact.stored.authority.output_policy.owner)
+            .await?;
+        let mut initial_grants = Vec::with_capacity(artifact.stored.grants.len());
+        for grant in &artifact.stored.grants {
+            if grant.artifact != artifact.stored.metadata.artifact_id
+                || grant.tenant != artifact.actor.tenant
+            {
+                return Err(RepositoryError::Corrupt(
+                    "artifact initial grant is outside its occurrence boundary".into(),
+                ));
+            }
+            initial_grants.push(platform::ArtifactGrantDraft {
+                artifact_id: platform::ArtifactId::from_uuid(grant.artifact.as_uuid()),
+                subject: self.subject_record(&identity, &grant.subject).await?,
+                subject_kind: platform_subject_kind(&grant.subject),
+                subject_key: subject_key(&grant.subject).to_owned(),
+                permission: grant_permission(grant.level),
+                labels: labels_to_strings(&grant.data_labels),
+                expires_at: grant.retention_expires_at,
+                created_by: identity.principal_id,
+            });
+        }
         let metadata = match artifact.stored.metadata.metadata.clone() {
             serde_json::Value::Null => BTreeMap::new(),
             serde_json::Value::Object(values) => values.into_iter().collect(),
@@ -154,6 +228,9 @@ impl ArtifactRepository for SurrealArtifactRepository {
                 artifact.stored.metadata.artifact_id.as_uuid(),
             ),
             identity,
+            authority,
+            owner,
+            initial_grants,
             sha256: artifact.stored.blob_sha256.as_str().to_owned(),
             byte_len: i64::try_from(artifact.stored.metadata.byte_len)
                 .map_err(|_| RepositoryError::Corrupt("artifact is too large".into()))?,
@@ -251,17 +328,17 @@ impl ArtifactRepository for SurrealArtifactRepository {
     ) -> Result<(), RepositoryError> {
         let creator = self.identity(actor).await?;
         let (subject_record, subject_kind, subject_key) = match &grant.subject {
-            Subject::User(user) => {
+            AccessSubject::Principal(user) => {
                 let target =
                     platform::deterministic_principal_id(grant.tenant.as_str(), user.as_str())
                         .map_err(repository_error)?;
                 (
                     target.record_id(),
-                    platform::ArtifactGrantSubjectKind::User,
+                    platform::ArtifactGrantSubjectKind::Principal,
                     user.as_str().to_owned(),
                 )
             }
-            Subject::Group(group) => {
+            AccessSubject::Group(group) => {
                 let group_id = self
                     .store
                     .ensure_group(&creator, group.as_str())
@@ -292,11 +369,13 @@ impl ArtifactRepository for SurrealArtifactRepository {
     async fn remove_grant(
         &self,
         artifact_id: ArtifactId,
-        subject: &Subject,
+        subject: &AccessSubject,
     ) -> Result<(), RepositoryError> {
         let (kind, key) = match subject {
-            Subject::User(id) => (platform::ArtifactGrantSubjectKind::User, id.as_str()),
-            Subject::Group(id) => (platform::ArtifactGrantSubjectKind::Group, id.as_str()),
+            AccessSubject::Principal(id) => {
+                (platform::ArtifactGrantSubjectKind::Principal, id.as_str())
+            }
+            AccessSubject::Group(id) => (platform::ArtifactGrantSubjectKind::Group, id.as_str()),
         };
         self.store
             .remove_artifact_grant(
@@ -338,12 +417,13 @@ impl ArtifactRepository for SurrealArtifactRepository {
                     draft.capability_id.as_uuid(),
                 ),
                 identity,
+                authority: platform_authority(&draft.authority),
                 profile_key: draft.profile.as_str().to_owned(),
                 server_key: draft.server.as_str().to_owned(),
                 task_id: draft.task_id,
-                owner_kind: principal_kind(draft.actor.kind),
-                owner_issuer: draft.actor.issuer.as_str().to_owned(),
-                owner_subject: draft.actor.subject.as_str().to_owned(),
+                actor_kind: principal_kind(draft.actor.kind),
+                actor_issuer: draft.actor.issuer.as_str().to_owned(),
+                actor_subject: draft.actor.subject.as_str().to_owned(),
                 token_hash: draft.token_hash,
                 labels: labels_to_strings(&draft.labels),
                 max_artifact_count: i64::from(draft.max_artifact_count),
@@ -381,6 +461,9 @@ impl ArtifactRepository for SurrealArtifactRepository {
             Err(error) => return Err(repository_error(error)),
         };
         let capability = redemption.capability;
+        let tenant = TenantId::new(capability.tenant_key.clone())
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
+        let authority = contract_authority(tenant.clone(), capability.authority)?;
         Ok(Some(RedeemedWriteCapability {
             redemption_id: record_uuid(&redemption.redemption.id)?,
             artifact_id: ArtifactId::parse(
@@ -388,16 +471,16 @@ impl ArtifactRepository for SurrealArtifactRepository {
             )
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             actor: RepositoryActor {
-                tenant: TenantId::new(capability.tenant_key)
+                tenant,
+                principal: PrincipalId::new(capability.actor_key)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-                principal: PrincipalId::new(capability.owner_key)
+                kind: contract_principal_kind(capability.actor_kind),
+                issuer: TokenIssuer::new(capability.actor_issuer)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-                kind: contract_principal_kind(capability.owner_kind),
-                issuer: TokenIssuer::new(capability.owner_issuer)
-                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-                subject: TokenSubject::new(capability.owner_subject)
+                subject: TokenSubject::new(capability.actor_subject)
                     .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             },
+            authority,
             labels: parse_labels(capability.labels)?,
             profile: GatewayProfileId::new(capability.profile_key)
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
@@ -508,6 +591,181 @@ impl ArtifactRepository for SurrealArtifactRepository {
             })
             .await
             .map_err(repository_error)
+    }
+}
+
+fn platform_authority(authority: &InvocationAuthority) -> platform::InvocationAuthorityRecord {
+    let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {
+        InvocationProvenance::Direct { initiator } => (
+            platform::InvocationMode::Direct,
+            Some(initiator.as_str().to_owned()),
+            None,
+        ),
+        InvocationProvenance::Delegated {
+            initiator,
+            delegation_id,
+        } => (
+            platform::InvocationMode::Delegated,
+            Some(initiator.as_str().to_owned()),
+            Some(delegation_id.as_str().to_owned()),
+        ),
+        InvocationProvenance::Automated => (platform::InvocationMode::Automated, None, None),
+    };
+    platform::InvocationAuthorityRecord {
+        context_key: authority.work_context.as_str().to_owned(),
+        membership: platform_membership(authority.membership),
+        policy_revision: authority.policy_revision.as_str().to_owned(),
+        owner_kind: platform_subject_kind(&authority.output_policy.owner),
+        owner_key: subject_key(&authority.output_policy.owner).to_owned(),
+        initial_grants: authority
+            .output_policy
+            .initial_grants
+            .iter()
+            .map(|grant| platform::WorkContextInitialGrantRecord {
+                subject_kind: platform_subject_kind(&grant.subject),
+                subject_key: subject_key(&grant.subject).to_owned(),
+                permission: grant_permission(grant.level),
+            })
+            .collect(),
+        classification: authority
+            .output_policy
+            .classification
+            .as_ref()
+            .map(|classification| classification.as_str().to_owned()),
+        data_labels: labels_to_strings(&authority.output_policy.data_labels),
+        invocation_mode,
+        initiator_key,
+        delegation_id,
+    }
+}
+
+fn contract_authority(
+    tenant: TenantId,
+    authority: platform::InvocationAuthorityRecord,
+) -> Result<InvocationAuthority, RepositoryError> {
+    let provenance = match authority.invocation_mode {
+        platform::InvocationMode::Direct => {
+            if authority.delegation_id.is_some() {
+                return Err(RepositoryError::Corrupt(
+                    "direct artifact authority carries a delegation identity".into(),
+                ));
+            }
+            InvocationProvenance::Direct {
+                initiator: parse_principal(authority.initiator_key, "direct initiator")?,
+            }
+        }
+        platform::InvocationMode::Delegated => InvocationProvenance::Delegated {
+            initiator: parse_principal(authority.initiator_key, "delegated initiator")?,
+            delegation_id: DelegationId::new(authority.delegation_id.ok_or_else(|| {
+                RepositoryError::Corrupt(
+                    "delegated artifact authority is missing its delegation identity".into(),
+                )
+            })?)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        },
+        platform::InvocationMode::Automated => {
+            if authority.initiator_key.is_some() || authority.delegation_id.is_some() {
+                return Err(RepositoryError::Corrupt(
+                    "automated artifact authority carries interactive provenance".into(),
+                ));
+            }
+            InvocationProvenance::Automated
+        }
+    };
+    let owner = contract_subject(authority.owner_kind, authority.owner_key)?;
+    let initial_grants = authority
+        .initial_grants
+        .into_iter()
+        .map(|grant| {
+            Ok(WorkContextGrant {
+                subject: contract_subject(grant.subject_kind, grant.subject_key)?,
+                level: access_level(grant.permission),
+            })
+        })
+        .collect::<Result<Vec<_>, RepositoryError>>()?;
+    let classification = authority
+        .classification
+        .map(DataLabelId::new)
+        .transpose()
+        .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
+    Ok(InvocationAuthority {
+        work_context: WorkContextId::new(authority.context_key)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        tenant,
+        membership: contract_membership(authority.membership),
+        policy_revision: PolicyVersion::new(authority.policy_revision)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        output_policy: WorkContextOutputPolicy {
+            owner,
+            initial_grants,
+            classification,
+            data_labels: parse_labels(authority.data_labels)?,
+        },
+        provenance,
+    })
+}
+
+fn platform_subject_kind(subject: &AccessSubject) -> platform::ArtifactGrantSubjectKind {
+    match subject {
+        AccessSubject::Principal(_) => platform::ArtifactGrantSubjectKind::Principal,
+        AccessSubject::Group(_) => platform::ArtifactGrantSubjectKind::Group,
+    }
+}
+
+fn subject_key(subject: &AccessSubject) -> &str {
+    match subject {
+        AccessSubject::Principal(principal) => principal.as_str(),
+        AccessSubject::Group(group) => group.as_str(),
+    }
+}
+
+fn contract_subject(
+    kind: platform::ArtifactGrantSubjectKind,
+    key: String,
+) -> Result<AccessSubject, RepositoryError> {
+    match kind {
+        platform::ArtifactGrantSubjectKind::Principal => PrincipalId::new(key)
+            .map(AccessSubject::Principal)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string())),
+        platform::ArtifactGrantSubjectKind::Group => GroupId::new(key)
+            .map(AccessSubject::Group)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string())),
+    }
+}
+
+fn parse_principal(
+    principal: Option<String>,
+    field: &'static str,
+) -> Result<PrincipalId, RepositoryError> {
+    PrincipalId::new(principal.ok_or_else(|| {
+        RepositoryError::Corrupt(format!("artifact authority is missing its {field}"))
+    })?)
+    .map_err(|error| RepositoryError::Corrupt(error.to_string()))
+}
+
+fn platform_membership(
+    membership: WorkContextMembershipLevel,
+) -> platform::WorkContextMembershipLevel {
+    match membership {
+        WorkContextMembershipLevel::Viewer => platform::WorkContextMembershipLevel::Viewer,
+        WorkContextMembershipLevel::Contributor => {
+            platform::WorkContextMembershipLevel::Contributor
+        }
+        WorkContextMembershipLevel::Custodian => platform::WorkContextMembershipLevel::Custodian,
+        WorkContextMembershipLevel::Owner => platform::WorkContextMembershipLevel::Owner,
+    }
+}
+
+fn contract_membership(
+    membership: platform::WorkContextMembershipLevel,
+) -> WorkContextMembershipLevel {
+    match membership {
+        platform::WorkContextMembershipLevel::Viewer => WorkContextMembershipLevel::Viewer,
+        platform::WorkContextMembershipLevel::Contributor => {
+            WorkContextMembershipLevel::Contributor
+        }
+        platform::WorkContextMembershipLevel::Custodian => WorkContextMembershipLevel::Custodian,
+        platform::WorkContextMembershipLevel::Owner => WorkContextMembershipLevel::Owner,
     }
 }
 

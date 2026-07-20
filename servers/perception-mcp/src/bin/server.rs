@@ -410,7 +410,7 @@ impl ServerHandler for PerceptionMcp {
         let identity = internal_identity(&context)?;
         self.state
             .subscribers
-            .subscribe(request.uri, identity.principal.id, context.peer.clone())
+            .subscribe(request.uri, identity.actor.id, context.peer.clone())
             .await;
         Ok(())
     }
@@ -425,7 +425,7 @@ impl ServerHandler for PerceptionMcp {
         let identity = internal_identity(&context)?;
         self.state
             .subscribers
-            .unsubscribe(&request.uri, &identity.principal.id)
+            .unsubscribe(&request.uri, &identity.actor.id)
             .await;
         Ok(())
     }

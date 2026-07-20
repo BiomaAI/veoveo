@@ -12,9 +12,10 @@ use re_sdk_types::components::VideoCodec;
 use secrecy::SecretString;
 use serde_json::{Value, json};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayProfileId, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject,
+    AccessSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
+    GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, InvocationProvenance,
+    PolicyVersion, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
+    TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId, StoreConfig, StoreCredentials, deterministic_tenant_id,
@@ -418,11 +419,25 @@ fn issue_internal_token(private_key_der_b64: &str, key_id: &str) -> Result<Strin
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),
     };
+    let authority = InvocationAuthority {
+        work_context: WorkContextId::new("smoke")?,
+        tenant: TenantId::new("enterprise")?,
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: PolicyVersion::new("r1")?,
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Principal(principal.id.clone()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: Default::default(),
+        },
+        provenance: InvocationProvenance::Automated,
+    };
     Ok(issuer
         .issue(
             GatewayProfileId::new("operator")?,
             ServerSlug::new("perception")?,
             principal,
+            authority,
             Utc::now() + TimeDelta::minutes(30),
         )?
         .bearer_token)

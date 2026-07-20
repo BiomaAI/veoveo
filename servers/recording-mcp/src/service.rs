@@ -86,7 +86,7 @@ impl RecordingService {
         identity: &GatewayInternalIdentity,
     ) -> Result<PlatformIdentity> {
         let tenant_key = identity
-            .principal
+            .actor
             .tenant
             .as_ref()
             .map(ToString::to_string)
@@ -95,10 +95,10 @@ impl RecordingService {
             .store
             .ensure_identity(
                 &tenant_key,
-                identity.principal.id.as_str(),
-                identity.principal.issuer.as_str(),
-                identity.principal.subject.as_str(),
-                match identity.principal.kind {
+                identity.actor.id.as_str(),
+                identity.actor.issuer.as_str(),
+                identity.actor.subject.as_str(),
+                match identity.actor.kind {
                     veoveo_mcp_contract::PrincipalKind::User => PrincipalKind::User,
                     veoveo_mcp_contract::PrincipalKind::Service => PrincipalKind::Service,
                 },
@@ -639,7 +639,7 @@ fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> b
     labels_visible(
         recording,
         identity
-            .principal
+            .actor
             .data_labels
             .iter()
             .map(|label| label.as_str()),
@@ -660,7 +660,7 @@ fn labels_visible<'a>(
 fn ensure_seal_scope(identity: &GatewayInternalIdentity) -> Result<()> {
     ensure!(
         identity
-            .principal
+            .actor
             .scopes
             .iter()
             .any(|scope| scope.as_str() == "admin:manage"),

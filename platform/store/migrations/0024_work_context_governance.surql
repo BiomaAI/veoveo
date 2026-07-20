@@ -1,0 +1,114 @@
+-- Canonical Work Context governance schema.
+
+DELETE artifact_derived_from;
+DELETE task_used_artifact;
+DELETE task_produced_artifact;
+DELETE artifact_grant;
+DELETE share_link;
+DELETE artifact_write_redemption;
+DELETE artifact_write_capability;
+DELETE artifact_occurrence;
+DELETE artifact_blob;
+DELETE task_input;
+DELETE task_idempotency;
+DELETE provider_event;
+DELETE provider_job;
+DELETE task;
+DELETE recording_segment;
+DELETE segment;
+DELETE recording_ingest_batch;
+DELETE recording_ingest_stream;
+DELETE recording;
+DELETE agent_elicitation;
+DELETE agent_task;
+DELETE agent_episode;
+DELETE wake;
+DELETE agent_owner;
+DELETE agent;
+DELETE gateway_authorization_request;
+DELETE gateway_authorization_code;
+DELETE gateway_refresh_token;
+DELETE gateway_refresh_family;
+
+DEFINE TABLE IF NOT EXISTS work_context SCHEMAFULL TYPE NORMAL CHANGEFEED 30d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE work_context TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE work_context TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS context_key ON TABLE work_context TYPE string;
+DEFINE FIELD IF NOT EXISTS title ON TABLE work_context TYPE string;
+DEFINE FIELD IF NOT EXISTS policy_revision ON TABLE work_context TYPE string;
+DEFINE FIELD IF NOT EXISTS output_policy ON TABLE work_context TYPE object FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS memberships ON TABLE work_context TYPE array<object> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE work_context TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE work_context TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS work_context_tenant_key_unique ON TABLE work_context FIELDS tenant, context_key UNIQUE;
+DEFINE INDEX IF NOT EXISTS work_context_tenant_title ON TABLE work_context FIELDS tenant, title;
+
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE gateway_authorization_request TYPE string;
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE gateway_authorization_code TYPE string;
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE gateway_refresh_family TYPE string;
+
+DEFINE FIELD OVERWRITE subject_kind ON TABLE artifact_grant TYPE "principal" | "group";
+
+DEFINE FIELD OVERWRITE owner ON TABLE artifact_occurrence TYPE record<principal> | record<principal_group>;
+DEFINE FIELD IF NOT EXISTS owner_kind ON TABLE artifact_occurrence TYPE "principal" | "group";
+DEFINE FIELD IF NOT EXISTS owner_key ON TABLE artifact_occurrence TYPE string;
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE artifact_occurrence TYPE record<work_context>;
+DEFINE FIELD IF NOT EXISTS producer ON TABLE artifact_occurrence TYPE record<principal>;
+DEFINE FIELD IF NOT EXISTS producer_key ON TABLE artifact_occurrence TYPE string;
+DEFINE FIELD IF NOT EXISTS initiator ON TABLE artifact_occurrence TYPE option<record<principal>>;
+DEFINE FIELD IF NOT EXISTS initiator_key ON TABLE artifact_occurrence TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS invocation_mode ON TABLE artifact_occurrence TYPE "direct" | "delegated" | "automated";
+DEFINE FIELD IF NOT EXISTS delegation_id ON TABLE artifact_occurrence TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS policy_revision ON TABLE artifact_occurrence TYPE string;
+DEFINE FIELD IF NOT EXISTS authority ON TABLE artifact_occurrence TYPE object FLEXIBLE;
+DEFINE INDEX IF NOT EXISTS artifact_occurrence_context_created ON TABLE artifact_occurrence FIELDS tenant, work_context, created_at;
+DEFINE INDEX IF NOT EXISTS artifact_occurrence_producer_created ON TABLE artifact_occurrence FIELDS tenant, producer, created_at;
+
+REMOVE FIELD IF EXISTS owner ON TABLE artifact_write_capability;
+REMOVE FIELD IF EXISTS owner_key ON TABLE artifact_write_capability;
+REMOVE FIELD IF EXISTS owner_kind ON TABLE artifact_write_capability;
+REMOVE FIELD IF EXISTS owner_issuer ON TABLE artifact_write_capability;
+REMOVE FIELD IF EXISTS owner_subject ON TABLE artifact_write_capability;
+DEFINE FIELD IF NOT EXISTS actor ON TABLE artifact_write_capability TYPE record<principal>;
+DEFINE FIELD IF NOT EXISTS actor_key ON TABLE artifact_write_capability TYPE string;
+DEFINE FIELD IF NOT EXISTS actor_kind ON TABLE artifact_write_capability TYPE "user" | "service";
+DEFINE FIELD IF NOT EXISTS actor_issuer ON TABLE artifact_write_capability TYPE string;
+DEFINE FIELD IF NOT EXISTS actor_subject ON TABLE artifact_write_capability TYPE string;
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE artifact_write_capability TYPE record<work_context>;
+DEFINE FIELD IF NOT EXISTS authority ON TABLE artifact_write_capability TYPE object FLEXIBLE;
+
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE task TYPE record<work_context>;
+DEFINE FIELD IF NOT EXISTS initiator ON TABLE task TYPE option<record<principal>>;
+DEFINE FIELD IF NOT EXISTS invocation_mode ON TABLE task TYPE "direct" | "delegated" | "automated";
+DEFINE FIELD IF NOT EXISTS delegation_id ON TABLE task TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS policy_revision ON TABLE task TYPE string;
+DEFINE FIELD IF NOT EXISTS authority ON TABLE task TYPE object FLEXIBLE;
+DEFINE INDEX IF NOT EXISTS task_context_status_created ON TABLE task FIELDS tenant, work_context, status, created_at;
+
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE recording TYPE record<work_context>;
+DEFINE FIELD IF NOT EXISTS initiator ON TABLE recording TYPE option<record<principal>>;
+DEFINE FIELD IF NOT EXISTS invocation_mode ON TABLE recording TYPE "direct" | "delegated" | "automated";
+DEFINE FIELD IF NOT EXISTS delegation_id ON TABLE recording TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS policy_revision ON TABLE recording TYPE string;
+DEFINE INDEX IF NOT EXISTS recording_context_started ON TABLE recording FIELDS tenant, work_context, started_at;
+
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE agent TYPE record<work_context>;
+DEFINE FIELD IF NOT EXISTS policy_revision ON TABLE agent TYPE string;
+DEFINE INDEX IF NOT EXISTS agent_context_state ON TABLE agent FIELDS tenant, work_context, state;
+
+DEFINE TABLE IF NOT EXISTS artifact_access_request SCHEMAFULL TYPE NORMAL CHANGEFEED 90d INCLUDE ORIGINAL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS id ON TABLE artifact_access_request TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD IF NOT EXISTS tenant ON TABLE artifact_access_request TYPE record<tenant>;
+DEFINE FIELD IF NOT EXISTS artifact ON TABLE artifact_access_request TYPE record<artifact_occurrence>;
+DEFINE FIELD IF NOT EXISTS work_context ON TABLE artifact_access_request TYPE record<work_context>;
+DEFINE FIELD IF NOT EXISTS requester ON TABLE artifact_access_request TYPE record<principal>;
+DEFINE FIELD IF NOT EXISTS requested_level ON TABLE artifact_access_request TYPE "read" | "write" | "admin";
+DEFINE FIELD IF NOT EXISTS justification ON TABLE artifact_access_request TYPE string;
+DEFINE FIELD IF NOT EXISTS state ON TABLE artifact_access_request TYPE "pending" | "approved" | "denied" | "cancelled";
+DEFINE FIELD IF NOT EXISTS decided_by ON TABLE artifact_access_request TYPE option<record<principal>>;
+DEFINE FIELD IF NOT EXISTS decision_note ON TABLE artifact_access_request TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE artifact_access_request TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE artifact_access_request TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS decided_at ON TABLE artifact_access_request TYPE option<datetime>;
+DEFINE INDEX IF NOT EXISTS artifact_access_request_artifact_state ON TABLE artifact_access_request FIELDS artifact, state, created_at;
+DEFINE INDEX IF NOT EXISTS artifact_access_request_requester_state ON TABLE artifact_access_request FIELDS tenant, requester, state, created_at;

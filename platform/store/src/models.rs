@@ -265,9 +265,48 @@ string_enum! {
 
 string_enum! {
     pub enum ArtifactGrantSubjectKind {
-        User => "user",
+        Principal => "principal",
         Group => "group",
     }
+}
+
+string_enum! {
+    pub enum WorkContextMembershipLevel {
+        Viewer => "viewer",
+        Contributor => "contributor",
+        Custodian => "custodian",
+        Owner => "owner",
+    }
+}
+
+string_enum! {
+    pub enum InvocationMode {
+        Direct => "direct",
+        Delegated => "delegated",
+        Automated => "automated",
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkContextInitialGrantRecord {
+    pub subject_kind: ArtifactGrantSubjectKind,
+    pub subject_key: String,
+    pub permission: GrantPermission,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct InvocationAuthorityRecord {
+    pub context_key: String,
+    pub membership: WorkContextMembershipLevel,
+    pub policy_revision: String,
+    pub owner_kind: ArtifactGrantSubjectKind,
+    pub owner_key: String,
+    pub initial_grants: Vec<WorkContextInitialGrantRecord>,
+    pub classification: Option<String>,
+    pub data_labels: Vec<String>,
+    pub invocation_mode: InvocationMode,
+    pub initiator_key: Option<String>,
+    pub delegation_id: Option<String>,
 }
 
 string_enum! {
@@ -483,6 +522,19 @@ pub struct PolicyRevisionRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkContextRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub context_key: String,
+    pub title: String,
+    pub policy_revision: String,
+    pub output_policy: OpenObject,
+    pub memberships: Vec<OpenObject>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayControlRevisionRecord {
     pub id: RecordId,
     pub revision_id: String,
@@ -537,6 +589,12 @@ pub struct TaskRecord {
     pub id: RecordId,
     pub tenant: RecordId,
     pub owner: RecordId,
+    pub work_context: RecordId,
+    pub initiator: Option<RecordId>,
+    pub invocation_mode: InvocationMode,
+    pub delegation_id: Option<String>,
+    pub policy_revision: String,
+    pub authority: InvocationAuthorityRecord,
     pub profile: RecordId,
     pub server: RecordId,
     pub task_type: String,
@@ -629,6 +687,17 @@ pub struct ArtifactOccurrenceRecord {
     pub tenant: RecordId,
     pub blob: RecordId,
     pub owner: RecordId,
+    pub owner_kind: ArtifactGrantSubjectKind,
+    pub owner_key: String,
+    pub work_context: RecordId,
+    pub producer: RecordId,
+    pub producer_key: String,
+    pub initiator: Option<RecordId>,
+    pub initiator_key: Option<String>,
+    pub invocation_mode: InvocationMode,
+    pub delegation_id: Option<String>,
+    pub policy_revision: String,
+    pub authority: InvocationAuthorityRecord,
     pub task: Option<RecordId>,
     pub filename: Option<String>,
     pub media_type: String,
@@ -661,12 +730,14 @@ pub struct ShareLinkRecord {
 pub struct ArtifactWriteCapabilityRecord {
     pub id: RecordId,
     pub tenant: RecordId,
-    pub owner: RecordId,
+    pub actor: RecordId,
+    pub work_context: RecordId,
+    pub authority: InvocationAuthorityRecord,
     pub tenant_key: String,
-    pub owner_key: String,
-    pub owner_kind: PrincipalKind,
-    pub owner_issuer: String,
-    pub owner_subject: String,
+    pub actor_key: String,
+    pub actor_kind: PrincipalKind,
+    pub actor_issuer: String,
+    pub actor_subject: String,
     pub profile_key: String,
     pub server_key: String,
     pub task_id: String,
@@ -1291,6 +1362,7 @@ pub struct GatewayAuthorizationRequestRecord {
     pub idp_state: String,
     pub profile: String,
     pub oauth_client_id: String,
+    pub work_context: String,
     pub oidc_client: String,
     pub redirect_uri: String,
     pub created_at: DateTime<Utc>,
@@ -1304,6 +1376,7 @@ pub struct GatewayAuthorizationCodeStateRecord {
     pub code: String,
     pub profile: String,
     pub oauth_client_id: String,
+    pub work_context: String,
     pub oidc_client: String,
     pub principal: String,
     pub redirect_uri: String,
@@ -1319,6 +1392,7 @@ pub struct GatewayRefreshFamilyRecord {
     pub authorization_server: String,
     pub profile: String,
     pub oauth_client_id: String,
+    pub work_context: String,
     pub principal_id: String,
     pub tenant: Option<String>,
     pub scopes: Vec<String>,

@@ -103,7 +103,7 @@ impl TaskExtensionHandler for ViewTaskExtension {
         let arguments = serde_json::Value::Object(request.arguments.into_iter().collect());
         let capture_request: CaptureFrameRequest = serde_json::from_value(arguments)
             .map_err(|error| AdapterError::invalid_params(error.to_string()))?;
-        let owner = caller.identity.principal.id.to_string();
+        let owner = caller.identity.actor.id.to_string();
         let view_snapshot = self
             .state
             .views
@@ -424,7 +424,7 @@ async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition
 
 fn require_scope(identity: &GatewayInternalIdentity, required: &str) -> Result<(), AdapterError> {
     identity
-        .principal
+        .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)
@@ -434,20 +434,21 @@ fn require_scope(identity: &GatewayInternalIdentity, required: &str) -> Result<(
 
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
-        principal_key: identity.principal.id.to_string(),
-        principal_kind: match identity.principal.kind {
+        principal_key: identity.actor.id.to_string(),
+        principal_kind: match identity.actor.kind {
             PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
             PrincipalKind::Service => veoveo_task_runtime::PrincipalKind::Service,
         },
-        issuer: identity.principal.issuer.to_string(),
-        subject: identity.principal.subject.to_string(),
+        issuer: identity.actor.issuer.to_string(),
+        subject: identity.actor.subject.to_string(),
         profile: identity.profile.to_string(),
-        tenant_key: identity.principal.tenant.as_ref().map(ToString::to_string),
+        tenant_key: identity.actor.tenant.as_ref().map(ToString::to_string),
         data_labels: identity
-            .principal
+            .actor
             .data_labels
             .iter()
             .map(ToString::to_string)
             .collect(),
+        authority: identity.authority.clone(),
     }
 }

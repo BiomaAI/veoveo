@@ -156,7 +156,8 @@ pub(crate) async fn cancel_task(
     let internal_token = match state.internal_token_issuer.issue(
         owner_profile,
         server_slug.clone(),
-        subject.principal.clone(),
+        subject.actor.clone(),
+        subject.authority.clone(),
         expires_at,
     ) {
         Ok(token) => token,

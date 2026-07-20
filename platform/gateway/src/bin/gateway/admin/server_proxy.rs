@@ -90,7 +90,8 @@ pub(crate) async fn proxy_server_admin(
     let internal_token = match state.internal_token_issuer.issue(
         profile_id,
         server_slug.clone(),
-        subject.principal.clone(),
+        subject.actor.clone(),
+        subject.authority.clone(),
         expires_at,
     ) {
         Ok(token) => token,

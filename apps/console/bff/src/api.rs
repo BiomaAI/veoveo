@@ -17,8 +17,8 @@ use chrono::Utc;
 use futures::StreamExt;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    ArtifactId, ArtifactShareLinkId, CreateArtifactShareLinkRequest, PutGrantRequest,
-    SetArtifactReleaseStateRequest, Subject,
+    AccessSubject, ArtifactId, ArtifactShareLinkId, CreateArtifactShareLinkRequest,
+    PutGrantRequest, SetArtifactReleaseStateRequest,
 };
 use veoveo_mcp_task_extension::ProtocolTaskId;
 
@@ -237,7 +237,7 @@ pub(crate) async fn revoke_artifact_grant(
     State(state): State<AppState>,
     Path(artifact_id): Path<String>,
     request_headers: HeaderMap,
-    axum::Json(request): axum::Json<Subject>,
+    axum::Json(request): axum::Json<AccessSubject>,
 ) -> Response {
     proxy_artifact_json(
         &state,

@@ -3,13 +3,13 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use veoveo_mcp_contract::access::{ArtifactId, Grant, Subject};
+use veoveo_mcp_contract::access::{AccessSubject, ArtifactId, Grant};
 use veoveo_mcp_contract::gateway::{
     DataLabelId, GatewayProfileId, GroupId, PrincipalId, PrincipalKind, ServerSlug, TenantId,
     TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactReleaseState};
-use veoveo_mcp_contract::{ArtifactShareLinkId, ArtifactWriteCapabilityId};
+use veoveo_mcp_contract::{ArtifactShareLinkId, ArtifactWriteCapabilityId, InvocationAuthority};
 
 /// Full verified identity needed to create stable platform records and audit actors.
 #[derive(Debug, Clone)]
@@ -50,6 +50,7 @@ pub struct StoredArtifact {
     pub tenant: TenantId,
     pub labels: BTreeSet<DataLabelId>,
     pub grants: Vec<Grant>,
+    pub authority: InvocationAuthority,
     pub(crate) blob_sha256: BlobSha256,
     pub object_key: String,
 }
@@ -72,6 +73,7 @@ pub struct ArtifactListQuery {
 pub struct WriteCapabilityDraft {
     pub capability_id: ArtifactWriteCapabilityId,
     pub actor: RepositoryActor,
+    pub authority: InvocationAuthority,
     pub profile: GatewayProfileId,
     pub server: ServerSlug,
     pub task_id: String,
@@ -99,6 +101,7 @@ pub struct RedeemedWriteCapability {
     pub redemption_id: uuid::Uuid,
     pub artifact_id: ArtifactId,
     pub actor: RepositoryActor,
+    pub authority: InvocationAuthority,
     pub labels: BTreeSet<DataLabelId>,
     pub profile: GatewayProfileId,
     pub server: ServerSlug,
@@ -179,7 +182,7 @@ pub trait ArtifactRepository: Send + Sync {
     fn remove_grant(
         &self,
         artifact_id: ArtifactId,
-        subject: &Subject,
+        subject: &AccessSubject,
     ) -> impl std::future::Future<Output = Result<(), RepositoryError>> + Send;
 
     fn set_release_state(
@@ -316,8 +319,8 @@ pub(crate) mod testing {
                 .filter(|artifact| artifact.tenant == query.actor.tenant)
                 .filter(|artifact| {
                     artifact.grants.iter().any(|grant| match &grant.subject {
-                        Subject::User(user) => user == &query.actor.principal,
-                        Subject::Group(group) => query.groups.contains(group),
+                        AccessSubject::Principal(user) => user == &query.actor.principal,
+                        AccessSubject::Group(group) => query.groups.contains(group),
                     })
                 })
                 .cloned()
@@ -350,7 +353,7 @@ pub(crate) mod testing {
         async fn remove_grant(
             &self,
             artifact_id: ArtifactId,
-            subject: &Subject,
+            subject: &AccessSubject,
         ) -> Result<(), RepositoryError> {
             if let Some(artifact) = self.state.lock().unwrap().artifacts.get_mut(&artifact_id) {
                 artifact.grants.retain(|grant| &grant.subject != subject);
@@ -441,6 +444,7 @@ pub(crate) mod testing {
                     redemption_id: redemption.redemption_id,
                     artifact_id: redemption.artifact_id,
                     actor: capability.draft.actor.clone(),
+                    authority: capability.draft.authority.clone(),
                     labels: capability.draft.labels.clone(),
                     profile: capability.draft.profile.clone(),
                     server: capability.draft.server.clone(),
@@ -471,6 +475,7 @@ pub(crate) mod testing {
                 redemption_id: uuid::Uuid::now_v7(),
                 artifact_id: proposed_artifact_id,
                 actor: capability.draft.actor.clone(),
+                authority: capability.draft.authority.clone(),
                 labels: capability.draft.labels.clone(),
                 profile: capability.draft.profile.clone(),
                 server: capability.draft.server.clone(),

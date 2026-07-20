@@ -26,10 +26,11 @@ pub mod telemetry;
 pub mod uri;
 pub mod usage;
 pub mod waiters;
+pub mod work_context;
 
 pub use access::{
     ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactId, ArtifactIdError,
-    Grant, GroupMembership, GroupRole, Subject, decide, grant_level_for_caller, mac_satisfied,
+    Grant, GroupMembership, GroupRole, decide, grant_level_for_caller, mac_satisfied,
     parse_artifact_plane_uri, role_in_group,
 };
 #[cfg(feature = "analytics")]
@@ -71,7 +72,7 @@ pub use gateway::{
     AccessTokenSubject, AuditEvent, AuthAuditEvent, AuthMethod, AuthMode, AuthOutcome,
     AuthReasonCode, AuthorizationServerEndpoint, AuthorizationServerId, CanonicalTaskId,
     CertificateAuthorityFilePath, CertificateAuthoritySource, CompatibilityHelperId,
-    CompletionExposure, DataLabelDefinition, DataLabelId, Exposure, GatewayAction,
+    CompletionExposure, DataLabelDefinition, DataLabelId, DelegationId, Exposure, GatewayAction,
     GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
     GatewayControlPlaneError, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource, GatewayJwtRevocation, GatewayJwtRevocationAdminStatus,
@@ -99,7 +100,7 @@ pub use gateway::{
     SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
     ServerManifest, ServerSlug, TaskExposure, TenantDefinition, TenantId, TokenIssuer,
     TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
-    UpstreamUrl,
+    UpstreamUrl, WorkContextId,
 };
 pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{
@@ -116,7 +117,8 @@ pub use internal_auth::{
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
 pub use storage::{
-    ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactReleaseState, ComplianceMetadata,
+    ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
+    ComplianceMetadata,
 };
 pub use subscriptions::SubscriptionHub;
 pub use tasks::{
@@ -128,3 +130,8 @@ pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use uri::{ServerResourceUri, ServerResourceUriError, ServerResourceUris};
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;
+pub use work_context::{
+    AccessSubject, InvocationAuthority, InvocationMode, InvocationProvenance,
+    WorkContextDefinition, WorkContextGrant, WorkContextMembershipLevel, WorkContextMembershipRule,
+    WorkContextOutputPolicy,
+};

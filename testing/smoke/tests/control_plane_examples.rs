@@ -40,6 +40,21 @@ fn canonical_client_shape(control_plane: &Value) -> Value {
 }
 
 #[test]
+fn reference_control_planes_satisfy_the_canonical_contract() {
+    for path in [
+        "configs/gateway.local.json",
+        "configs/gateway.smoke.json",
+        "examples/bioma/gateway.json",
+        "showcase/sumo/deploy/gateway.json",
+    ] {
+        serde_json::from_value::<GatewayControlPlane>(load(path))
+            .unwrap_or_else(|error| panic!("{path} control plane contract: {error}"))
+            .validate()
+            .unwrap_or_else(|error| panic!("{path} control plane validation: {error}"));
+    }
+}
+
+#[test]
 fn bioma_keeps_the_canonical_surface_and_only_overrides_deployment_identity() {
     let local = load("configs/gateway.local.json");
     let mut bioma = load("examples/bioma/gateway.json");

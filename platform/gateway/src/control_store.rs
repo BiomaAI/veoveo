@@ -446,6 +446,7 @@ mod tests {
                 description: None,
                 metadata: serde_json::json!({}),
             }],
+            work_contexts: Vec::new(),
             policies: vec![PolicySet {
                 version: PolicyVersion::new("policy-fixture").unwrap(),
                 rules: vec![PolicyRule {

@@ -214,8 +214,8 @@ pub(super) async fn authenticate_mcp(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let subject = match JwtVerifier::new(auth_config, jwks).verify(&token) {
-        Ok(subject) => subject,
+    let verified = match JwtVerifier::new(auth_config, jwks).verify(&token) {
+        Ok(verified) => verified,
         Err(err) => {
             tracing::warn!("rejected gateway token: {err}");
             if let Err(err) = record_auth_audit(
@@ -231,6 +231,25 @@ pub(super) async fn authenticate_mcp(
                 return auth_audit_error_response(err);
             }
             return unauthorized(&state, profile, "invalid bearer token");
+        }
+    };
+    let subject = match catalog.resolve_authenticated_subject(verified) {
+        Ok(subject) => subject,
+        Err(err) => {
+            tracing::warn!("rejected gateway authority: {err}");
+            if let Err(err) = record_auth_audit(
+                &state,
+                profile,
+                AuthOutcome::Deny,
+                AuthReasonCode::InvalidBearerToken,
+                None,
+                started_at,
+            )
+            .await
+            {
+                return auth_audit_error_response(err);
+            }
+            return unauthorized(&state, profile, "invalid invocation authority");
         }
     };
     if let Some(jwt_id) = &subject.access_token.jwt_id {

@@ -29,7 +29,7 @@ pub struct TimeApplication {
 impl TimeApplication {
     pub async fn scope(&self, identity: &GatewayInternalIdentity) -> Result<TimeScope> {
         let tenant_key = identity
-            .principal
+            .actor
             .tenant
             .as_ref()
             .map(ToString::to_string)
@@ -39,10 +39,10 @@ impl TimeApplication {
             .platform_store()
             .ensure_identity(
                 &tenant_key,
-                identity.principal.id.as_str(),
-                identity.principal.issuer.as_str(),
-                identity.principal.subject.as_str(),
-                match identity.principal.kind {
+                identity.actor.id.as_str(),
+                identity.actor.issuer.as_str(),
+                identity.actor.subject.as_str(),
+                match identity.actor.kind {
                     PrincipalKind::User => StorePrincipalKind::User,
                     PrincipalKind::Service => StorePrincipalKind::Service,
                 },

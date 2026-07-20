@@ -13,8 +13,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    GatewayProfileId, IdentifierError, JwtId, Principal, PrincipalId, ProtectedResourceId,
-    ServerSlug, TokenIssuer,
+    GatewayProfileId, IdentifierError, InvocationAuthority, JwtId, Principal, PrincipalId,
+    ProtectedResourceId, ServerSlug, TokenIssuer,
 };
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
@@ -156,7 +156,8 @@ pub struct GatewayInternalIdentity {
     pub issuer: TokenIssuer,
     pub profile: GatewayProfileId,
     pub server: ServerSlug,
-    pub principal: Principal,
+    pub actor: Principal,
+    pub authority: InvocationAuthority,
     pub jwt_id: JwtId,
     pub issued_at: DateTime<Utc>,
     pub not_before: DateTime<Utc>,
@@ -196,7 +197,8 @@ impl GatewayInternalTokenIssuer {
         &self,
         profile: GatewayProfileId,
         server: ServerSlug,
-        principal: Principal,
+        actor: Principal,
+        authority: InvocationAuthority,
         expires_at: DateTime<Utc>,
     ) -> Result<IssuedGatewayInternalToken, InternalTokenError> {
         ensure_jwt_crypto_provider();
@@ -210,7 +212,8 @@ impl GatewayInternalTokenIssuer {
             issuer: self.issuer.clone(),
             profile,
             server,
-            principal,
+            actor,
+            authority,
             jwt_id,
             issued_at: now,
             not_before: now,
@@ -236,7 +239,8 @@ impl GatewayInternalTokenIssuer {
         &self,
         protected_resource: ProtectedResourceId,
         server: ServerSlug,
-        principal: Principal,
+        actor: Principal,
+        authority: InvocationAuthority,
         expires_at: DateTime<Utc>,
     ) -> Result<IssuedGatewayInternalResourceToken, InternalTokenError> {
         ensure_jwt_crypto_provider();
@@ -250,7 +254,8 @@ impl GatewayInternalTokenIssuer {
             issuer: self.issuer.clone(),
             protected_resource,
             server,
-            principal,
+            actor,
+            authority,
             jwt_id,
             issued_at: now,
             not_before: now,
@@ -278,7 +283,8 @@ pub struct GatewayInternalResourceIdentity {
     pub issuer: TokenIssuer,
     pub protected_resource: ProtectedResourceId,
     pub server: ServerSlug,
-    pub principal: Principal,
+    pub actor: Principal,
+    pub authority: InvocationAuthority,
     pub jwt_id: JwtId,
     pub issued_at: DateTime<Utc>,
     pub not_before: DateTime<Utc>,
@@ -355,7 +361,7 @@ impl GatewayInternalResourceTokenVerifier {
             });
         }
         if PrincipalId::new(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
-            != claims.principal.id
+            != claims.actor.id
         {
             return Err(InternalTokenError::SubjectPrincipalMismatch);
         }
@@ -363,7 +369,8 @@ impl GatewayInternalResourceTokenVerifier {
             issuer: claims.iss,
             protected_resource: claims.protected_resource,
             server: claims.server,
-            principal: claims.principal,
+            actor: claims.actor,
+            authority: claims.authority,
             jwt_id: claims.jti,
             issued_at: timestamp_to_datetime(claims.iat, "iat")?,
             not_before: timestamp_to_datetime(claims.nbf, "nbf")?,
@@ -383,14 +390,15 @@ struct GatewayInternalResourceJwtClaims {
     jti: JwtId,
     protected_resource: ProtectedResourceId,
     server: ServerSlug,
-    principal: Principal,
+    actor: Principal,
+    authority: InvocationAuthority,
 }
 
 impl GatewayInternalResourceJwtClaims {
     fn from_identity(identity: &GatewayInternalResourceIdentity) -> Self {
         Self {
             iss: identity.issuer.clone(),
-            sub: identity.principal.id.as_str().to_owned(),
+            sub: identity.actor.id.as_str().to_owned(),
             aud: identity.server.as_str().to_owned(),
             exp: identity.expires_at.timestamp(),
             nbf: identity.not_before.timestamp(),
@@ -398,7 +406,8 @@ impl GatewayInternalResourceJwtClaims {
             jti: identity.jwt_id.clone(),
             protected_resource: identity.protected_resource.clone(),
             server: identity.server.clone(),
-            principal: identity.principal.clone(),
+            actor: identity.actor.clone(),
+            authority: identity.authority.clone(),
         }
     }
 }
@@ -481,7 +490,7 @@ impl GatewayInternalTokenVerifier {
             });
         }
         if PrincipalId::new(claims.sub.clone()).map_err(InternalTokenError::Identifier)?
-            != claims.principal.id
+            != claims.actor.id
         {
             return Err(InternalTokenError::SubjectPrincipalMismatch);
         }
@@ -489,7 +498,8 @@ impl GatewayInternalTokenVerifier {
             issuer: claims.iss,
             profile: claims.profile,
             server: claims.server,
-            principal: claims.principal,
+            actor: claims.actor,
+            authority: claims.authority,
             jwt_id: claims.jti,
             issued_at: timestamp_to_datetime(claims.iat, "iat")?,
             not_before: timestamp_to_datetime(claims.nbf, "nbf")?,
@@ -513,14 +523,15 @@ struct GatewayInternalJwtClaims {
     jti: JwtId,
     profile: GatewayProfileId,
     server: ServerSlug,
-    principal: Principal,
+    actor: Principal,
+    authority: InvocationAuthority,
 }
 
 impl GatewayInternalJwtClaims {
     fn from_identity(identity: &GatewayInternalIdentity) -> Self {
         Self {
             iss: identity.issuer.clone(),
-            sub: identity.principal.id.as_str().to_string(),
+            sub: identity.actor.id.as_str().to_string(),
             aud: identity.server.as_str().to_string(),
             exp: identity.expires_at.timestamp(),
             nbf: identity.not_before.timestamp(),
@@ -528,7 +539,8 @@ impl GatewayInternalJwtClaims {
             jti: identity.jwt_id.clone(),
             profile: identity.profile.clone(),
             server: identity.server.clone(),
-            principal: identity.principal.clone(),
+            actor: identity.actor.clone(),
+            authority: identity.authority.clone(),
         }
     }
 }
@@ -653,6 +665,29 @@ mod tests {
         }
     }
 
+    fn authority() -> InvocationAuthority {
+        use crate::{
+            AccessSubject, InvocationProvenance, PolicyVersion, WorkContextId,
+            WorkContextMembershipLevel, WorkContextOutputPolicy,
+        };
+
+        InvocationAuthority {
+            work_context: WorkContextId::new("mission").unwrap(),
+            tenant: TenantId::new("tenant-a").unwrap(),
+            membership: WorkContextMembershipLevel::Owner,
+            policy_revision: PolicyVersion::new("r1").unwrap(),
+            output_policy: WorkContextOutputPolicy {
+                owner: AccessSubject::Principal(principal().id),
+                initial_grants: Vec::new(),
+                classification: None,
+                data_labels: BTreeSet::new(),
+            },
+            provenance: InvocationProvenance::Direct {
+                initiator: principal().id,
+            },
+        }
+    }
+
     #[test]
     fn rejects_non_eddsa_trust_keys() {
         assert!(matches!(
@@ -674,6 +709,7 @@ mod tests {
                 GatewayProfileId::new("default").unwrap(),
                 ServerSlug::new("media").unwrap(),
                 principal(),
+                authority(),
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
@@ -689,10 +725,7 @@ mod tests {
 
         assert_eq!(verified.profile.as_str(), "default");
         assert_eq!(verified.server.as_str(), "media");
-        assert_eq!(
-            verified.principal.id.as_str(),
-            "https://idp.example.com#user-1"
-        );
+        assert_eq!(verified.actor.id.as_str(), "https://idp.example.com#user-1");
     }
 
     #[test]
@@ -706,6 +739,7 @@ mod tests {
                 ProtectedResourceId::new("https://veoveo.example/ingest/recordings").unwrap(),
                 ServerSlug::new("recording-hub").unwrap(),
                 principal(),
+                authority(),
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
@@ -736,6 +770,7 @@ mod tests {
                 GatewayProfileId::new("default").unwrap(),
                 ServerSlug::new("media").unwrap(),
                 principal(),
+                authority(),
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
@@ -762,6 +797,7 @@ mod tests {
                 GatewayProfileId::new("default").unwrap(),
                 ServerSlug::new("media").unwrap(),
                 principal(),
+                authority(),
                 Utc::now() + TimeDelta::minutes(5),
             )
             .unwrap();
