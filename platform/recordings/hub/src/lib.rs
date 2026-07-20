@@ -26,7 +26,10 @@ pub use ingest::{
     ingest_segment_parts_directory, ingest_stream_static_context_path, live_segment_byte_len,
 };
 pub use ingest_http::recording_ingest_internal_router;
-pub use query::{QueryResult, collect_segments, query_segments, query_tree};
+pub use query::{
+    QueryIndexRange, QueryResult, collect_segments, query_segments, query_segments_in_range,
+    query_tree,
+};
 pub use sim::{
     Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,
     StackReport, TrackPattern, Wave,

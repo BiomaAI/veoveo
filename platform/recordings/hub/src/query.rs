@@ -11,10 +11,30 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use re_dataframe::{
-    ChunkStoreConfig, EntityPathFilter, QueryEngine, QueryExpression, SparseFillStrategy,
-    TimelineName,
+    AbsoluteTimeRange, ChunkStoreConfig, EntityPathFilter, QueryEngine, QueryExpression,
+    SparseFillStrategy, TimeInt, TimelineName,
     external::arrow::util::display::{ArrayFormatter, FormatOptions},
 };
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct QueryIndexRange {
+    pub start: i64,
+    pub end: i64,
+}
+
+impl QueryIndexRange {
+    pub fn new(start: i64, end: i64) -> Result<Self> {
+        anyhow::ensure!(start <= end, "query range start must not exceed end");
+        Ok(Self { start, end })
+    }
+
+    fn absolute(self) -> AbsoluteTimeRange {
+        AbsoluteTimeRange::new(
+            TimeInt::new_temporal(self.start),
+            TimeInt::new_temporal(self.end),
+        )
+    }
+}
 
 /// Recursively collect every `*.rrd` segment under `root`, sorted.
 pub fn collect_segments(root: &Path) -> Result<Vec<PathBuf>> {
@@ -73,6 +93,17 @@ pub fn query_segments(
     timeline: &str,
     max_rows: u64,
 ) -> Result<QueryResult> {
+    query_segments_in_range(segments, entities, timeline, max_rows, None)
+}
+
+/// Query an explicit segment set within an inclusive timeline range.
+pub fn query_segments_in_range(
+    segments: &[PathBuf],
+    entities: &str,
+    timeline: &str,
+    max_rows: u64,
+    range: Option<QueryIndexRange>,
+) -> Result<QueryResult> {
     let filter = EntityPathFilter::parse_forgiving(entities);
     let mut result = QueryResult::default();
 
@@ -91,6 +122,7 @@ pub fn query_segments(
             let expression = QueryExpression {
                 view_contents: Some(view_contents),
                 filtered_index: Some(TimelineName::new(timeline)),
+                filtered_index_range: range.map(QueryIndexRange::absolute),
                 sparse_fill_strategy: SparseFillStrategy::None,
                 ..Default::default()
             };

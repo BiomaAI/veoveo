@@ -1,7 +1,7 @@
 //! Authenticated public recording ingest and discovery routes.
 
 use std::collections::BTreeMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use axum::{
     Router,
@@ -40,6 +40,7 @@ use crate::{
 
 const INTERNAL_STREAMS_PATH: &str = "/internal/recording-ingest/v1/streams";
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 60;
+const RECORDING_HUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub(super) fn recording_ingest_router(state: RecordingIngestGatewayState) -> Router {
     Router::new()
@@ -328,6 +329,7 @@ async fn proxy_authorized(
         )
         .bearer_auth(internal_token.bearer_token)
         .header(header::CONTENT_TYPE.as_str(), MEDIA_TYPE)
+        .timeout(RECORDING_HUB_REQUEST_TIMEOUT)
         .body(envelope.encode_to_vec())
         .send()
         .await

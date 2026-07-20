@@ -85,7 +85,7 @@ impl RecordingMcp {
 
     #[tool(
         title = "Query recording",
-        description = "Run a bounded snapshot query over the authorized durable RRD segments of one recording.",
+        description = "Run a row-bounded snapshot query over the authorized durable RRD segments of one recording, optionally within an inclusive timeline range.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<QueryRecordingOutput>(),
         annotations(
             read_only_hint = true,

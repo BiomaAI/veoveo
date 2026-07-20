@@ -13,7 +13,8 @@ use veoveo_platform_store::{
     SegmentRecord, SegmentSealBinding, SegmentState,
 };
 use veoveo_recording_hub::{
-    ingest_segment_parts_directory, inspect_segment, live_segment_byte_len, query_segments,
+    QueryIndexRange, ingest_segment_parts_directory, inspect_segment, live_segment_byte_len,
+    query_segments_in_range,
 };
 
 use crate::contract::{
@@ -294,6 +295,10 @@ impl RecordingService {
             !request.entities.trim().is_empty() && request.entities.len() <= 4_096,
             "entities must be 1-4096 characters"
         );
+        let range = request
+            .range
+            .map(|range| QueryIndexRange::new(range.start, range.end))
+            .transpose()?;
         let recording_id = parse_recording_id(&request.recording_id)?;
         let Some((platform_identity, _)) = self.visible_recording(identity, recording_id).await?
         else {
@@ -312,13 +317,14 @@ impl RecordingService {
         let timeline = request.timeline.clone();
         let max_rows = request.max_rows;
         let result = tokio::task::spawn_blocking(move || {
-            query_segments(&paths, &entities, &timeline, max_rows)
+            query_segments_in_range(&paths, &entities, &timeline, max_rows, range)
         })
         .await
         .context("recording query worker panicked")??;
         Ok(QueryRecordingOutput {
             recording_id: recording_id.to_string(),
             timeline: request.timeline,
+            range: request.range,
             rows: result.rows,
             rows_by_recording: result.rows_by_recording,
         })
