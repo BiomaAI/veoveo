@@ -11,6 +11,7 @@
     "artifactService",
     "recording",
     "perception",
+    "reason",
     "consoleBff",
     "clusterInspection",
     "domainServices",
@@ -388,6 +389,40 @@
         },
         "builderResources": {
           "type": "object"
+        },
+        "resources": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reason": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "replicas",
+        "runtimeClassName",
+        "image",
+        "modelCache",
+        "resources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "const": 1
+        },
+        "runtimeClassName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "modelCache": {
+          "$ref": "#/definitions/persistence"
         },
         "resources": {
           "type": "object"
