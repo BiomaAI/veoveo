@@ -377,11 +377,14 @@ pub(crate) async fn uav_sim_verify(
     let range_start = (range_start_s * 1_000_000_000.0) as i64;
     let range_end = (range_end_s * 1_000_000_000.0) as i64;
 
-    wait_for_recording_rows(
+    wait_for_recording_camera_range(
         conformance,
         public_base_url,
         &token,
         recording_id,
+        &camera_entity,
+        range_start,
+        range_end,
         Duration::from_secs(scenario.recording.frozen_rows_timeout_seconds),
     )
     .await?;
@@ -566,11 +569,14 @@ async fn assert_governed_artifact_access(
     Ok(())
 }
 
-async fn wait_for_recording_rows(
+async fn wait_for_recording_camera_range(
     conformance: &Path,
     base: &str,
     token: &str,
     recording_id: &str,
+    camera_entity: &str,
+    range_start: i64,
+    range_end: i64,
     timeout: Duration,
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
@@ -582,9 +588,13 @@ async fn wait_for_recording_rows(
             "recording__query_recording",
             serde_json::json!({
                 "recording_id": recording_id,
-                "entities": "/world/uav-sim/**",
-                "timeline": "physics_step",
-                "max_rows": 100
+                "entities": camera_entity,
+                "timeline": "simulation_time",
+                "range": {
+                    "start": range_start,
+                    "end": range_end
+                },
+                "max_rows": 1
             }),
         )
         .await?;
@@ -599,7 +609,9 @@ async fn wait_for_recording_rows(
             return Ok(recording);
         }
         if tokio::time::Instant::now() >= deadline {
-            bail!("Recording Hub froze no UAV world rows within {timeout:?}: {recording}");
+            bail!(
+                "Recording Hub froze no UAV camera samples in range {range_start}..={range_end} within {timeout:?}: {recording}"
+            );
         }
         tokio::time::sleep(Duration::from_secs(5)).await;
     }

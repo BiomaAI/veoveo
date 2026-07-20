@@ -67,7 +67,7 @@ impl RecordingPrompt {
                 args.recording_id, args.recording_id
             ),
             Self::Query => format!(
-                "Call query_recording with recording_id {}, timeline {}, entities {}, and a bounded max_rows. Summarize returned observations without claiming rows beyond the response.",
+                "Call query_recording with recording_id {}, timeline {}, entities {}, an inclusive range when the question is time-bounded, and a bounded max_rows. Summarize returned observations without claiming rows beyond the response.",
                 args.recording_id,
                 args.timeline.as_deref().unwrap_or("tick"),
                 args.entities.as_deref().unwrap_or("/**")

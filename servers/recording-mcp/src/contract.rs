@@ -11,6 +11,15 @@ pub struct QueryRecordingRequest {
     pub timeline: String,
     #[serde(default = "default_max_rows")]
     pub max_rows: u64,
+    #[serde(default)]
+    pub range: Option<QueryTimelineRange>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct QueryTimelineRange {
+    pub start: i64,
+    pub end: i64,
 }
 
 fn default_entities() -> String {
@@ -65,6 +74,7 @@ pub struct SegmentView {
 pub struct QueryRecordingOutput {
     pub recording_id: String,
     pub timeline: String,
+    pub range: Option<QueryTimelineRange>,
     pub rows: Vec<serde_json::Value>,
     pub rows_by_recording: std::collections::BTreeMap<String, u64>,
 }
