@@ -10,7 +10,7 @@ import pytest
 from surrealdb import AsyncSurreal
 
 MIGRATIONS_DIR = (
-    Path(__file__).resolve().parents[3] / "crates" / "platform-store" / "migrations"
+    Path(__file__).resolve().parents[3] / "platform" / "store" / "migrations"
 )
 SURREAL_IMAGE = "surrealdb/surrealdb:v3.2.1"
 RUNTIME_USER = "veoveo_runtime"

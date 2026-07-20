@@ -16,6 +16,8 @@ from typing import Any
 
 from surrealdb import RecordID
 
+from ..contract.identity import InvocationAuthority
+
 PLATFORM_ID_NAMESPACE = uuid.UUID("7f7b11e2-3b9a-5c7a-9d51-2cf8e1bdfab4")
 INSTALLATION_TENANT = "installation"
 DEFAULT_RETENTION = timedelta(days=7)
@@ -134,6 +136,14 @@ def deterministic_principal_id(tenant_key: str, principal_key: str) -> uuid.UUID
     return uuid.uuid5(PLATFORM_ID_NAMESPACE, f"principal:{tenant_key}:{principal_key}")
 
 
+def deterministic_work_context_id(tenant_key: str, context_key: str) -> uuid.UUID:
+    _validate_identity_field("tenant_key", tenant_key, 256)
+    _validate_identity_field("context_key", context_key, 256)
+    return uuid.uuid5(
+        PLATFORM_ID_NAMESPACE, f"work-context:{tenant_key}:{context_key}"
+    )
+
+
 def deterministic_enterprise_id() -> uuid.UUID:
     return uuid.uuid5(PLATFORM_ID_NAMESPACE, "veoveo-installation")
 
@@ -157,7 +167,14 @@ class TaskOwner:
     subject: str
     profile: str
     tenant_key: str | None
+    authority: InvocationAuthority
     data_labels: frozenset[str] = dataclass_field(default_factory=frozenset)
+
+    def __post_init__(self) -> None:
+        if self.authority.tenant != self.effective_tenant_key():
+            raise InvalidRecord(
+                "task owner and Work Context belong to different tenants"
+            )
 
     def effective_tenant_key(self) -> str:
         return self.tenant_key if self.tenant_key is not None else INSTALLATION_TENANT
@@ -185,6 +202,7 @@ class TaskOwner:
             "profile": self.profile,
             "tenant_key": self.tenant_key,
             "data_labels": sorted(self.data_labels),
+            "authority": self.authority.model_dump(mode="json"),
         }
 
     @classmethod
@@ -197,6 +215,7 @@ class TaskOwner:
             profile=value["profile"],
             tenant_key=value.get("tenant_key"),
             data_labels=frozenset(value.get("data_labels", [])),
+            authority=InvocationAuthority.model_validate(value["authority"]),
         )
 
     def tenant_record(self) -> RecordID:

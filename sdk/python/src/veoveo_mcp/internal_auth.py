@@ -15,7 +15,7 @@ from typing import Any, Awaitable, Callable
 import jwt as pyjwt
 from pydantic import ValidationError
 
-from .contract.identity import GatewayInternalIdentity, Principal
+from .contract.identity import GatewayInternalIdentity, InvocationAuthority, Principal
 
 Scope = dict[str, Any]
 Receive = Callable[[], Awaitable[dict[str, Any]]]
@@ -164,20 +164,22 @@ class GatewayInternalTokenVerifier:
                 f"internal token audience mismatch: got `{server}`"
             )
         try:
-            principal = Principal.model_validate(claims["principal"])
+            actor = Principal.model_validate(claims["actor"])
+            authority = InvocationAuthority.model_validate(claims["authority"])
         except (KeyError, ValidationError) as error:
             raise InternalTokenError(
-                f"internal token principal is invalid: {error}"
+                f"internal token identity is invalid: {error}"
             ) from error
-        if claims["sub"] != principal.id:
+        if claims["sub"] != actor.id:
             raise InternalTokenError(
-                "internal token subject does not match embedded principal"
+                "internal token subject does not match embedded actor"
             )
         return GatewayInternalIdentity(
             issuer=claims["iss"],
             profile=claims["profile"],
             server=server,
-            principal=principal,
+            actor=actor,
+            authority=authority,
             jwt_id=claims["jti"],
             issued_at=_timestamp(claims["iat"], "iat"),
             not_before=_timestamp(claims["nbf"], "nbf"),

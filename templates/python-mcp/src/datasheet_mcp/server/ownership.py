@@ -42,15 +42,16 @@ def request_scope(server: Any) -> dict[str, Any]:
 
 
 def runtime_owner(identity: GatewayInternalIdentity) -> TaskOwner:
-    principal = identity.principal
+    actor = identity.actor
     return TaskOwner(
-        principal_key=principal.id,
-        principal_kind=PrincipalKind(principal.kind.value),
-        issuer=principal.issuer,
-        subject=principal.subject,
+        principal_key=actor.id,
+        principal_kind=PrincipalKind(actor.kind.value),
+        issuer=actor.issuer,
+        subject=actor.subject,
         profile=identity.profile,
-        tenant_key=principal.tenant,
-        data_labels=frozenset(principal.data_labels),
+        tenant_key=actor.tenant,
+        authority=identity.authority,
+        data_labels=frozenset(actor.data_labels),
     )
 
 
