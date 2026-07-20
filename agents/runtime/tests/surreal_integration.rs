@@ -13,8 +13,9 @@ use veoveo_mcp_contract::{
     WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store::{
-    AgentEpisodeState, AgentTaskRecord, OpenObject, PlatformStore, PrincipalKind, StoreConfig,
-    StoreCredentials, WakeKind,
+    AgentEpisodeState, AgentTaskRecord, ArtifactGrantSubjectKind, InvocationAuthorityRecord,
+    InvocationMode, OpenObject, PlatformStore, PrincipalKind, StoreConfig, StoreCredentials,
+    WakeKind, WorkContextMembershipLevel as StoreMembership,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
 
@@ -32,6 +33,22 @@ fn agent_authority() -> InvocationAuthority {
             data_labels: BTreeSet::new(),
         },
         provenance: InvocationProvenance::Automated,
+    }
+}
+
+fn agent_authority_record() -> InvocationAuthorityRecord {
+    InvocationAuthorityRecord {
+        context_key: "integration-mission".to_owned(),
+        membership: StoreMembership::Contributor,
+        policy_revision: "r1".to_owned(),
+        owner_kind: ArtifactGrantSubjectKind::Principal,
+        owner_key: "agent:durability-agent".to_owned(),
+        initial_grants: Vec::new(),
+        classification: None,
+        data_labels: Vec::new(),
+        invocation_mode: InvocationMode::Automated,
+        initiator_key: None,
+        delegation_id: None,
     }
 }
 
@@ -92,6 +109,7 @@ async fn fixture() -> Option<Fixture> {
         agent_key: "durability-agent".to_owned(),
         display_name: "Durability agent".to_owned(),
         profile: "integration".to_owned(),
+        authority: agent_authority_record(),
         manifest: OpenObject::default(),
         memory_database: "memory.duckdb".to_owned(),
     };

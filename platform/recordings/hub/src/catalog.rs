@@ -13,12 +13,15 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, NaiveDate, Utc};
 use re_dataframe::{ChunkStoreConfig, QueryEngine};
 use sha2::{Digest, Sha256};
+use veoveo_mcp_contract::{PrincipalId as ContractPrincipalId, TokenIssuer, TokenSubject};
 use veoveo_platform_store::{
-    PlatformIdentity, PlatformStore, PrincipalKind, RecordId, RecordIdKey, RecordingDraft,
-    RecordingId, RecordingState, SegmentDraft, SegmentId, SegmentState,
+    InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
+    RecordIdKey, RecordingDraft, RecordingId, RecordingState, SegmentDraft, SegmentId,
+    SegmentState,
 };
 
 use crate::config::DatasetName;
+use crate::governance::{governed_classification, governed_labels};
 use crate::ingest::is_authenticated_ingest_path;
 use crate::query::collect_segments;
 use crate::spool::{FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey};
@@ -26,6 +29,7 @@ use crate::spool::{FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey};
 #[derive(Clone, Debug)]
 pub struct CatalogPolicy {
     pub tenant_key: String,
+    pub work_context_key: String,
     pub owner_key: String,
     pub owner_issuer: String,
     pub owner_subject: String,
@@ -45,6 +49,7 @@ pub struct SegmentInspection {
 pub struct PlatformCatalog {
     store: PlatformStore,
     identity: PlatformIdentity,
+    authority: InvocationAuthorityRecord,
     spool_root: PathBuf,
     policy: CatalogPolicy,
     runtime: tokio::runtime::Handle,
@@ -72,9 +77,33 @@ impl PlatformCatalog {
                 PrincipalKind::Service,
             )
             .await?;
+        let principal_id = ContractPrincipalId::new(format!(
+            "{}#{}",
+            TokenIssuer::new(&policy.owner_issuer)?,
+            TokenSubject::new(&policy.owner_subject)?
+        ))?;
+        let context = store
+            .work_context_by_key(identity.tenant_id, &policy.work_context_key)
+            .await?
+            .with_context(|| {
+                format!(
+                    "work context `{}` is not materialized for tenant `{}`",
+                    policy.work_context_key, policy.tenant_key
+                )
+            })?;
+        let membership = context
+            .membership_for_principal(principal_id.as_str())
+            .with_context(|| {
+                format!(
+                    "principal `{principal_id}` is not a member of work context `{}`",
+                    policy.work_context_key
+                )
+            })?;
+        let authority = context.automated_authority(membership);
         Ok(Self {
             store,
             identity,
+            authority,
             spool_root,
             policy,
             runtime,
@@ -157,11 +186,15 @@ impl PlatformCatalog {
             .store
             .create_recording(RecordingDraft {
                 identity: self.identity.clone(),
+                authority: self.authority.clone(),
                 dataset: segment.key.dataset.as_str().to_owned(),
                 application_id: segment.key.application_id.clone(),
                 recording_key: segment.key.recording.clone(),
-                classification: self.policy.classification.clone(),
-                labels: self.policy.labels.clone(),
+                classification: governed_classification(
+                    &self.authority,
+                    &self.policy.classification,
+                ),
+                labels: governed_labels(&self.authority, &self.policy.labels),
                 metadata: BTreeMap::from([
                     ("source".to_owned(), serde_json::json!("recording-hub")),
                     (

@@ -4,12 +4,34 @@ use chrono::Utc;
 use futures::StreamExt;
 use secrecy::SecretString;
 use veoveo_platform_store::{
-    PlatformStore, PrincipalKind, RecordingDraft, StoreConfig, StoreCredentials,
+    ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord, InvocationMode,
+    PlatformIdentity, PlatformStore, PrincipalKind, RecordingDraft, StoreConfig, StoreCredentials,
+    WorkContextInitialGrantRecord, WorkContextMembershipLevel,
 };
 
 use super::*;
 
 const STREAM_FRAME_TIMEOUT: Duration = Duration::from_secs(30);
+
+fn recording_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
+    InvocationAuthorityRecord {
+        context_key: "operations".to_owned(),
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: "r1".to_owned(),
+        owner_kind: ArtifactGrantSubjectKind::Principal,
+        owner_key: identity.principal_key.clone(),
+        initial_grants: vec![WorkContextInitialGrantRecord {
+            subject_kind: ArtifactGrantSubjectKind::Principal,
+            subject_key: identity.principal_key.clone(),
+            permission: GrantPermission::Admin,
+        }],
+        classification: None,
+        data_labels: Vec::new(),
+        invocation_mode: InvocationMode::Automated,
+        initiator_key: None,
+        delegation_id: None,
+    }
+}
 
 pub(crate) async fn gateway_console_stream(
     conformance: &Path,
@@ -128,6 +150,7 @@ pub(crate) async fn gateway_console_stream(
     store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
+            authority: recording_authority(&identity),
             dataset: "smoke".to_owned(),
             application_id: "console-stream-smoke".to_owned(),
             recording_key: first_key.clone(),
@@ -150,6 +173,7 @@ pub(crate) async fn gateway_console_stream(
     store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
+            authority: recording_authority(&identity),
             dataset: "smoke".to_owned(),
             application_id: "console-stream-smoke".to_owned(),
             recording_key: second_key.clone(),

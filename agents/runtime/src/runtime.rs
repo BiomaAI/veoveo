@@ -18,8 +18,9 @@ use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::{
     AgentElicitationId, AgentElicitationRecord, AgentElicitationState, AgentEpisodeId,
     AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentRecord, AgentState, AgentTaskId,
-    AgentTaskRecord, AgentTaskWatchState, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore,
-    PrincipalKind, StoreAuthLevel, TaskId, TaskRecord, WakeId, WakeKind, WakeRecord, WakeState,
+    AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, OutboxDraft,
+    PlatformIdentity, PlatformStore, PrincipalKind, StoreAuthLevel, TaskId, TaskRecord, WakeId,
+    WakeKind, WakeRecord, WakeState, deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -37,6 +38,9 @@ struct AgentContent {
     agent_key: String,
     display_name: String,
     profile: RecordId,
+    work_context: RecordId,
+    policy_revision: String,
+    authority: InvocationAuthorityRecord,
     state: AgentState,
     manifest: OpenObject,
     memory_database: String,
@@ -183,11 +187,16 @@ impl AgentRuntime {
 
         let agent_id = AgentId::new();
         let now = Utc::now();
+        let work_context =
+            deterministic_work_context_id(&spec.tenant_key, &spec.authority.context_key)?;
         let content = AgentContent {
             tenant: identity.tenant_id.record_id(),
             agent_key: spec.agent_key.clone(),
             display_name: spec.display_name.clone(),
             profile: RecordId::new("profile", spec.profile.clone()),
+            work_context: work_context.record_id(),
+            policy_revision: spec.authority.policy_revision.clone(),
+            authority: spec.authority.clone(),
             state: AgentState::Idle,
             manifest: spec.manifest.clone(),
             memory_database: spec.memory_database.clone(),
@@ -1453,6 +1462,11 @@ fn validate_spec(spec: &AgentSpec) -> Result<()> {
 fn validate_agent_record(record: &AgentRecord, spec: &AgentSpec) -> Result<()> {
     if record.agent_key != spec.agent_key
         || record.profile != RecordId::new("profile", spec.profile.clone())
+        || record.work_context
+            != deterministic_work_context_id(&spec.tenant_key, &spec.authority.context_key)?
+                .record_id()
+        || record.policy_revision != spec.authority.policy_revision
+        || record.authority != spec.authority
         || record.memory_database != spec.memory_database
     {
         return Err(AgentRuntimeError::AgentConflict(spec.agent_key.clone()));

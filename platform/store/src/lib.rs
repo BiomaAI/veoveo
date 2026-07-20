@@ -11,6 +11,7 @@ mod config;
 mod coordinates;
 mod error;
 mod gateway_runtime;
+mod governance;
 mod identity;
 mod ids;
 mod map;

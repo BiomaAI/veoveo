@@ -28,6 +28,7 @@ use veoveo_recording_protocol::{
     },
 };
 
+use crate::governance::{authority_record, governed_classification, governed_labels};
 use crate::inspect_segment;
 
 const VIDEO_STREAM_MARKER: &str = ".video-stream";
@@ -165,15 +166,19 @@ impl RecordingIngestService {
             .await?;
         validate_text("source_stream_id", source_stream_id)?;
         validate_text("recording_id", recording_key)?;
+        let authority = authority_record(&gateway.authority);
+        let classification = governed_classification(&authority, &producer.classification);
+        let labels = governed_labels(&authority, &producer.labels);
         let recording = self
             .store
             .create_recording(RecordingDraft {
                 identity: identity.clone(),
+                authority,
                 dataset: producer.dataset.clone(),
                 application_id: application_id.to_owned(),
                 recording_key: recording_key.to_owned(),
-                classification: producer.classification.clone(),
-                labels: producer.labels.clone(),
+                classification,
+                labels,
                 metadata: std::collections::BTreeMap::from([
                     (
                         "source".to_owned(),
@@ -421,6 +426,10 @@ impl RecordingIngestService {
             gateway.actor.tenant.as_ref().map(|tenant| tenant.as_str())
                 == Some(producer.tenant_id.as_str()),
             "producer tenant binding mismatch"
+        );
+        ensure!(
+            gateway.authority.tenant.as_str() == producer.tenant_id,
+            "invocation authority tenant binding mismatch"
         );
         ensure!(
             gateway

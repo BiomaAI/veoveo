@@ -106,6 +106,7 @@ artifactService:
 recording:
   enabled: true
   tenantKey: enterprise
+  workContext: operations
   classification: unclassified
   labels: []
   route: world=

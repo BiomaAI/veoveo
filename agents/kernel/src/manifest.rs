@@ -166,6 +166,8 @@ pub struct GatewayAccess {
     pub profile: String,
     /// OAuth client id for the client-credentials grant.
     pub client_id: String,
+    /// Work Context used for this automated agent invocation.
+    pub work_context: String,
     /// Audience for the private-key JWT client assertion (the public token
     /// endpoint URL, which may differ from the connect URL behind an edge).
     pub audience: String,
@@ -277,6 +279,7 @@ impl AgentManifest {
             ("gateway.url", &self.gateway.url),
             ("gateway.profile", &self.gateway.profile),
             ("gateway.client_id", &self.gateway.client_id),
+            ("gateway.work_context", &self.gateway.work_context),
             ("gateway.audience", &self.gateway.audience),
             ("gateway.resource", &self.gateway.resource),
             ("gateway.private_key_env", &self.gateway.private_key_env),
@@ -387,6 +390,7 @@ mod tests {
                 "url": "http://127.0.0.1:9",
                 "profile": "operator",
                 "client_id": "operator-service",
+                "work_context": "operations",
                 "audience": "http://127.0.0.1:9/oauth/token",
                 "resource": "http://127.0.0.1:9/mcp/operator",
                 "scopes": ["operator:use"],
