@@ -5,7 +5,9 @@ use secrecy::SecretString;
 use serde_json::json;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
+    AccessSubject, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, InvocationAuthority,
+    InvocationProvenance, IssuedArtifactWriteCapability, PolicyVersion, PrincipalId, TenantId,
+    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_media_mcp::{
     provider::Prediction,
@@ -17,6 +19,25 @@ use veoveo_platform_store::{
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskFailure, TaskId, TaskOwner, TaskRuntime,
 };
+
+fn authority() -> InvocationAuthority {
+    let principal = PrincipalId::new("https://idp.example.com#alice").unwrap();
+    InvocationAuthority {
+        work_context: WorkContextId::new("mission").unwrap(),
+        tenant: TenantId::new("tenant-a").unwrap(),
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: PolicyVersion::new("r1").unwrap(),
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Principal(principal.clone()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: BTreeSet::new(),
+        },
+        provenance: InvocationProvenance::Direct {
+            initiator: principal,
+        },
+    }
+}
 
 async fn fixture() -> Option<(TaskRuntime, TaskRuntime, MediaState, MediaState)> {
     if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
@@ -55,6 +76,7 @@ fn owner() -> TaskOwner {
         profile: "operator".into(),
         tenant_key: Some("tenant-a".into()),
         data_labels: BTreeSet::from(["cui".into()]),
+        authority: authority(),
     }
 }
 

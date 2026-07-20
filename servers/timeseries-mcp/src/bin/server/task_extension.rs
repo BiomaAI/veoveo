@@ -214,12 +214,13 @@ mod tests {
     use tower::ServiceExt;
     use veoveo_duckdb_runtime::HttpsSourcePolicy;
     use veoveo_mcp_contract::{
-        ArtifactId, ArtifactMetadata, ArtifactReleaseState, ArtifactWriteCapabilityId,
-        ArtifactWriteCapabilitySecret, ComplianceMetadata, DataLabelId, GatewayInternalIdentity,
-        GatewayProfileId, GroupId, IssueArtifactWriteCapabilityRequest,
-        IssuedArtifactWriteCapability, JwtId, Principal, PrincipalAssurance, PrincipalId,
-        PrincipalKind, RedeemArtifactWriteCapabilityRequest, RoleId, ScopeName, ServerSlug,
-        TenantId, TokenIssuer, TokenSubject,
+        AccessSubject, ArtifactId, ArtifactMetadata, ArtifactReleaseState,
+        ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, ComplianceMetadata, DataLabelId,
+        GatewayInternalIdentity, GatewayProfileId, GroupId, InvocationAuthority,
+        InvocationProvenance, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+        JwtId, PolicyVersion, Principal, PrincipalAssurance, PrincipalId, PrincipalKind,
+        RedeemArtifactWriteCapabilityRequest, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer,
+        TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
     use veoveo_mcp_task_extension::{
         Implementation, PROTOCOL_VERSION, ServerDiscovery, TaskExtensionAdapter,
@@ -271,23 +272,39 @@ mod tests {
 
     fn identity() -> GatewayInternalIdentity {
         let now = Utc::now();
+        let actor = Principal {
+            id: PrincipalId::new("integration-user").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://issuer.integration.example").unwrap(),
+            subject: TokenSubject::new("integration-subject").unwrap(),
+            tenant: Some(TenantId::new("integration-tenant").unwrap()),
+            groups: BTreeSet::<GroupId>::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::<RoleId>::new(),
+            scopes: BTreeSet::<ScopeName>::new(),
+            data_labels: BTreeSet::<DataLabelId>::new(),
+            assurances: BTreeSet::<PrincipalAssurance>::new(),
+            authenticated_at: Some(now),
+        };
         GatewayInternalIdentity {
             issuer: TokenIssuer::new("veoveo-internal").unwrap(),
             profile: GatewayProfileId::new("default").unwrap(),
             server: ServerSlug::new("timeseries").unwrap(),
-            principal: Principal {
-                id: PrincipalId::new("integration-user").unwrap(),
-                kind: PrincipalKind::User,
-                issuer: TokenIssuer::new("https://issuer.integration.example").unwrap(),
-                subject: TokenSubject::new("integration-subject").unwrap(),
-                tenant: Some(TenantId::new("integration-tenant").unwrap()),
-                groups: BTreeSet::<GroupId>::new(),
-                group_roles: BTreeSet::new(),
-                roles: BTreeSet::<RoleId>::new(),
-                scopes: BTreeSet::<ScopeName>::new(),
-                data_labels: BTreeSet::<DataLabelId>::new(),
-                assurances: BTreeSet::<PrincipalAssurance>::new(),
-                authenticated_at: Some(now),
+            actor: actor.clone(),
+            authority: InvocationAuthority {
+                work_context: WorkContextId::new("integration-mission").unwrap(),
+                tenant: TenantId::new("integration-tenant").unwrap(),
+                membership: WorkContextMembershipLevel::Owner,
+                policy_revision: PolicyVersion::new("r1").unwrap(),
+                output_policy: WorkContextOutputPolicy {
+                    owner: AccessSubject::Principal(actor.id.clone()),
+                    initial_grants: Vec::new(),
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                },
+                provenance: InvocationProvenance::Direct {
+                    initiator: actor.id,
+                },
             },
             jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
             issued_at: now,

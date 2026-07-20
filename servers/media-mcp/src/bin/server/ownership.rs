@@ -39,7 +39,7 @@ pub(super) fn internal_caller(
 }
 
 pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
-    let memberships = identity.principal.group_memberships();
+    let memberships = identity.actor.group_memberships();
     PlaneCaller {
         bearer_token: bearer,
         identity,
@@ -49,27 +49,28 @@ pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> 
 
 pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
-        principal_key: identity.principal.id.as_str().to_owned(),
-        principal_kind: match identity.principal.kind {
+        principal_key: identity.actor.id.as_str().to_owned(),
+        principal_kind: match identity.actor.kind {
             veoveo_mcp_contract::PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
             veoveo_mcp_contract::PrincipalKind::Service => {
                 veoveo_task_runtime::PrincipalKind::Service
             }
         },
-        issuer: identity.principal.issuer.as_str().to_owned(),
-        subject: identity.principal.subject.as_str().to_owned(),
+        issuer: identity.actor.issuer.as_str().to_owned(),
+        subject: identity.actor.subject.as_str().to_owned(),
         profile: identity.profile.as_str().to_owned(),
         tenant_key: identity
-            .principal
+            .actor
             .tenant
             .as_ref()
             .map(|tenant| tenant.as_str().to_owned()),
         data_labels: identity
-            .principal
+            .actor
             .data_labels
             .iter()
             .map(|label| label.as_str().to_owned())
             .collect(),
+        authority: identity.authority.clone(),
     }
 }
 
@@ -140,9 +141,10 @@ mod tests {
 
     use chrono::Utc;
     use veoveo_mcp_contract::{
-        DataLabelId, GatewayInternalIdentity, GatewayProfileId, GroupId, JwtId, Principal,
-        PrincipalId, PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer,
-        TokenSubject,
+        AccessSubject, DataLabelId, GatewayInternalIdentity, GatewayProfileId, GroupId,
+        InvocationAuthority, InvocationProvenance, JwtId, PolicyVersion, Principal, PrincipalId,
+        PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject,
+        WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
 
     use super::{runtime_owner, task_owner_allows};
@@ -191,7 +193,22 @@ mod tests {
             issuer: TokenIssuer::new("veoveo-internal").unwrap(),
             profile: GatewayProfileId::new(profile).unwrap(),
             server: ServerSlug::new("media").unwrap(),
-            principal,
+            actor: principal.clone(),
+            authority: InvocationAuthority {
+                work_context: WorkContextId::new("mission").unwrap(),
+                tenant: principal.tenant.clone().unwrap(),
+                membership: WorkContextMembershipLevel::Owner,
+                policy_revision: PolicyVersion::new("r1").unwrap(),
+                output_policy: WorkContextOutputPolicy {
+                    owner: AccessSubject::Principal(principal.id.clone()),
+                    initial_grants: Vec::new(),
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                },
+                provenance: InvocationProvenance::Direct {
+                    initiator: principal.id,
+                },
+            },
             jwt_id: JwtId::new("test-jwt").unwrap(),
             issued_at: now,
             not_before: now,

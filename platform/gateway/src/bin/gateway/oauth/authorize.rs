@@ -10,7 +10,7 @@ use serde::Deserialize;
 use url::Url;
 use veoveo_mcp_contract::{
     AuthMode, AuthOutcome, AuthReasonCode, GatewayAuthorizationRequest, OAuthClientId,
-    OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod,
+    OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod, WorkContextId,
 };
 
 use crate::{
@@ -42,6 +42,8 @@ pub(crate) struct AuthorizationRequest {
     state: Option<String>,
     #[serde(default)]
     resource: Option<String>,
+    #[serde(default)]
+    work_context: Option<String>,
 }
 
 pub(crate) async fn authorize_endpoint(
@@ -209,6 +211,36 @@ pub(crate) async fn authorize_endpoint(
             "client is not allowed for this gateway profile",
         );
     }
+    let work_context = match request.work_context.as_deref() {
+        Some(value) => match WorkContextId::new(value.trim()) {
+            Ok(context) if catalog.work_context(&context).is_some() => context,
+            _ => {
+                if let Err(err) = record_oidc_auth_audit(
+                    &state.gateway_state,
+                    profile,
+                    AuthAuditRecord {
+                        authorization_server: Some(authorization_server),
+                        client_id: Some(&client_id),
+                        principal: None,
+                        jwt_id: None,
+                        outcome: AuthOutcome::Deny,
+                        reason: AuthReasonCode::InvalidAuthorizationRequest,
+                        started_at,
+                    },
+                )
+                .await
+                {
+                    return auth_audit_error_response(err);
+                }
+                return oauth_error_response(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_request",
+                    "work_context is not available",
+                );
+            }
+        },
+        None => client.default_work_context.clone(),
+    };
     let redirect_uri = match OAuthRedirectUri::new(request.redirect_uri.trim()) {
         Ok(redirect_uri) if client.redirect_uris.contains(&redirect_uri) => redirect_uri,
         _ => {
@@ -374,6 +406,7 @@ pub(crate) async fn authorize_endpoint(
         idp_state: idp_state.clone(),
         profile: profile.id.clone(),
         oauth_client_id: client_id.clone(),
+        work_context,
         oidc_client: oidc_client.id.clone(),
         redirect_uri,
         client_state,

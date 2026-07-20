@@ -233,6 +233,12 @@ pub struct AccessTokenSubject {
     pub subject: TokenSubject,
     pub oauth_client_id: OAuthClientId,
     pub audience: ProtectedResourceId,
+    pub work_context: WorkContextId,
+    pub invocation_mode: crate::InvocationMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator: Option<PrincipalId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegation_id: Option<DelegationId>,
     #[serde(default)]
     pub scopes: BTreeSet<ScopeName>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

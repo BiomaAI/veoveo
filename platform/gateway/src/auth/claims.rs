@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{PrincipalKind, ScopeName};
+use veoveo_mcp_contract::{InvocationMode, PrincipalKind, ScopeName};
 
 use super::AuthError;
 
@@ -9,7 +9,14 @@ use super::AuthError;
 pub(super) struct JwtClaims {
     pub(super) iss: String,
     pub(super) sub: String,
+    pub(super) principal_id: String,
     pub(super) client_id: String,
+    pub(super) work_context: String,
+    pub(super) invocation_mode: InvocationMode,
+    #[serde(default)]
+    pub(super) initiator: Option<String>,
+    #[serde(default)]
+    pub(super) delegation_id: Option<String>,
     pub(super) aud: StringListClaim,
     pub(super) exp: u64,
     #[serde(default)]

@@ -6,11 +6,34 @@ use secrecy::SecretString;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+use veoveo_mcp_contract::{
+    AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
+    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+};
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials, TaskStatus};
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskError, TaskFailure, TaskInputRequest, TaskOwner,
     TaskPayloadState, TaskRetentionPin, TaskRuntime, TaskTransition,
 };
+
+fn authority() -> InvocationAuthority {
+    let principal = PrincipalId::new("integration-principal").unwrap();
+    InvocationAuthority {
+        work_context: WorkContextId::new("integration-mission").unwrap(),
+        tenant: TenantId::new("integration-tenant").unwrap(),
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: PolicyVersion::new("r1").unwrap(),
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Principal(principal.clone()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: BTreeSet::new(),
+        },
+        provenance: InvocationProvenance::Direct {
+            initiator: principal,
+        },
+    }
+}
 
 fn owner() -> TaskOwner {
     TaskOwner {
@@ -21,6 +44,7 @@ fn owner() -> TaskOwner {
         profile: "integration-profile".to_owned(),
         tenant_key: Some("integration-tenant".to_owned()),
         data_labels: BTreeSet::from(["internal".to_owned()]),
+        authority: authority(),
     }
 }
 

@@ -203,17 +203,19 @@ async fn proxy_playback(
         subject.access_token.expires_at,
         Utc::now() + TimeDelta::seconds(INTERNAL_PLAYBACK_TOKEN_TTL_SECONDS),
     );
-    let internal_token =
-        match state
-            .internal_token_issuer
-            .issue(profile, server, subject.principal, expires_at)
-        {
-            Ok(token) => token,
-            Err(error) => {
-                tracing::error!(%error, "failed to issue recording playback token");
-                return StatusCode::UNAUTHORIZED.into_response();
-            }
-        };
+    let internal_token = match state.internal_token_issuer.issue(
+        profile,
+        server,
+        subject.actor,
+        subject.authority,
+        expires_at,
+    ) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::error!(%error, "failed to issue recording playback token");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    };
     let client = match build_upstream_http_client(&catalog, &manifest).await {
         Ok(client) => client,
         Err(error) => {

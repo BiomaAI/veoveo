@@ -8,11 +8,32 @@ use veoveo_agent_runtime::{
     AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_CLAIM_LEASE, EpisodeCompletion, NewWake,
     json_object,
 };
+use veoveo_mcp_contract::{
+    AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
+    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+};
 use veoveo_platform_store::{
     AgentEpisodeState, AgentTaskRecord, OpenObject, PlatformStore, PrincipalKind, StoreConfig,
     StoreCredentials, WakeKind,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
+
+fn agent_authority() -> InvocationAuthority {
+    let principal = PrincipalId::new("agent:durability-agent").unwrap();
+    InvocationAuthority {
+        work_context: WorkContextId::new("integration-mission").unwrap(),
+        tenant: TenantId::new("integration").unwrap(),
+        membership: WorkContextMembershipLevel::Contributor,
+        policy_revision: PolicyVersion::new("r1").unwrap(),
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Principal(principal),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: BTreeSet::new(),
+        },
+        provenance: InvocationProvenance::Automated,
+    }
+}
 
 struct Fixture {
     root: PlatformStore,
@@ -168,6 +189,7 @@ async fn result_wake_consumption_atomically_releases_task_retention_pin() {
         profile: "integration".to_owned(),
         tenant_key: Some("integration".to_owned()),
         data_labels: BTreeSet::new(),
+        authority: agent_authority(),
     };
     let task = fixture
         .tasks

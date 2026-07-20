@@ -400,7 +400,7 @@ impl ServerHandler for DuckdbMcp {
                 entries.push(json!({
                     "db_id": database.db_id.as_str(),
                     "db_uri": uris::db_uri(database.db_id.as_str()),
-                    "owned": database.principal_id == identity.principal.id,
+                    "owned": database.principal_id == identity.actor.id,
                 }));
             }
             return Ok(ReadResourceResult::new(vec![

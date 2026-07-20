@@ -7,7 +7,7 @@
 //! asynchronous writes use a separately issued, task-bound write capability.
 
 use base64::Engine;
-use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, ArtifactId, Grant, Subject};
+use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, AccessSubject, ArtifactId, Grant};
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactObject};
 use veoveo_mcp_contract::{
     ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactReleaseState, ArtifactShareLink,
@@ -289,7 +289,7 @@ impl ArtifactPlane for HttpArtifactPlane {
         &self,
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
-        subject: Subject,
+        subject: AccessSubject,
         level: AccessLevel,
     ) -> Result<(), ArtifactPlaneError> {
         let response = self
@@ -307,7 +307,7 @@ impl ArtifactPlane for HttpArtifactPlane {
         &self,
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
-        subject: &Subject,
+        subject: &AccessSubject,
     ) -> Result<(), ArtifactPlaneError> {
         let response = self
             .http

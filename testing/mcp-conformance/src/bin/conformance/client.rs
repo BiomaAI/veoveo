@@ -244,10 +244,24 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),
     };
+    let authority = InvocationAuthority {
+        work_context: WorkContextId::new("conformance")?,
+        tenant: TenantId::new(args.internal_tenant.clone())?,
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: PolicyVersion::new("r1")?,
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Principal(principal.id.clone()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: Default::default(),
+        },
+        provenance: InvocationProvenance::Automated,
+    };
     let token = issuer.issue(
         GatewayProfileId::new(args.internal_profile.clone())?,
         ServerSlug::new(args.internal_server.clone())?,
         principal,
+        authority,
         Utc::now() + TimeDelta::minutes(30),
     )?;
     Ok(token.bearer_token)

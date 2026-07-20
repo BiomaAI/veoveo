@@ -1170,7 +1170,7 @@ impl ServerHandler for MapMcp {
         }
         self.state
             .subscriptions
-            .subscribe(request.uri, identity.principal.id, context.peer.clone())
+            .subscribe(request.uri, identity.actor.id, context.peer.clone())
             .await;
         Ok(())
     }
@@ -1189,7 +1189,7 @@ impl ServerHandler for MapMcp {
         }
         self.state
             .subscriptions
-            .unsubscribe(&request.uri, &identity.principal.id)
+            .unsubscribe(&request.uri, &identity.actor.id)
             .await;
         Ok(())
     }
@@ -1214,7 +1214,7 @@ fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, 
         .and_then(|parts| parts.extensions.get::<ForwardedBearer>())
         .map(|bearer| bearer.0.clone())
         .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
-    let memberships = identity.principal.group_memberships();
+    let memberships = identity.actor.group_memberships();
     Ok(PlaneCaller {
         identity,
         memberships,
@@ -1224,7 +1224,7 @@ fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, 
 
 fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {
     identity
-        .principal
+        .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)

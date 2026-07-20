@@ -683,7 +683,7 @@ impl ServerHandler for TimeMcp {
         }
         self.state
             .subscriptions
-            .subscribe(request.uri, identity.principal.id, context.peer.clone())
+            .subscribe(request.uri, identity.actor.id, context.peer.clone())
             .await;
         Ok(())
     }
@@ -702,7 +702,7 @@ impl ServerHandler for TimeMcp {
         }
         self.state
             .subscriptions
-            .unsubscribe(&request.uri, &identity.principal.id)
+            .unsubscribe(&request.uri, &identity.actor.id)
             .await;
         Ok(())
     }
@@ -724,7 +724,7 @@ fn require_scope(
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
     if !identity
-        .principal
+        .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)

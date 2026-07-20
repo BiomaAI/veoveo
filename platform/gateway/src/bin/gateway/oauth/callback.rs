@@ -290,6 +290,37 @@ pub(crate) async fn authorization_callback(
             );
         }
     };
+    let catalog = current_catalog(&state.catalog);
+    if let Err(err) = catalog.work_context_membership(
+        &authorization_request.oauth_client_id,
+        &authorization_request.work_context,
+        &verified_identity.principal,
+    ) {
+        tracing::warn!("rejected Work Context selection: {err}");
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            &profile,
+            AuthAuditRecord {
+                authorization_server: Some(&authorization_server),
+                client_id: Some(&authorization_request.oauth_client_id),
+                principal: Some(&verified_identity.principal),
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidAuthorizationRequest,
+                started_at,
+            },
+        )
+        .await
+        {
+            return auth_audit_error_response(err);
+        }
+        return redirect_with_oauth_error(
+            &authorization_request.redirect_uri,
+            "access_denied",
+            Some("Work Context membership is required"),
+            authorization_request.client_state.as_ref(),
+        );
+    }
     let gateway_code = match random_authorization_code() {
         Ok(code) => code,
         Err(err) => return internal_error_response(err),
@@ -304,6 +335,7 @@ pub(crate) async fn authorization_callback(
         code: gateway_code.clone(),
         profile: profile.id.clone(),
         oauth_client_id: authorization_request.oauth_client_id.clone(),
+        work_context: authorization_request.work_context.clone(),
         oidc_client: oidc_client_record_id,
         redirect_uri: authorization_request.redirect_uri.clone(),
         client_state: authorization_request.client_state.clone(),

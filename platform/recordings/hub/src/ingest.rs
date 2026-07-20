@@ -410,25 +410,21 @@ impl RecordingIngestService {
             "internal token protected resource mismatch"
         );
         ensure!(
-            gateway.principal.kind == ContractPrincipalKind::Service,
+            gateway.actor.kind == ContractPrincipalKind::Service,
             "recording ingest requires a service principal"
         );
         ensure!(
-            gateway.principal.subject.as_str() == producer.oauth_client_id,
+            gateway.actor.subject.as_str() == producer.oauth_client_id,
             "producer OAuth client binding mismatch"
         );
         ensure!(
-            gateway
-                .principal
-                .tenant
-                .as_ref()
-                .map(|tenant| tenant.as_str())
+            gateway.actor.tenant.as_ref().map(|tenant| tenant.as_str())
                 == Some(producer.tenant_id.as_str()),
             "producer tenant binding mismatch"
         );
         ensure!(
             gateway
-                .principal
+                .actor
                 .scopes
                 .iter()
                 .any(|scope| scope.as_str() == REQUIRED_SCOPE),
@@ -449,8 +445,8 @@ impl RecordingIngestService {
             .ensure_identity(
                 &producer.tenant_id,
                 &producer.producer_id,
-                gateway.principal.issuer.as_str(),
-                gateway.principal.subject.as_str(),
+                gateway.actor.issuer.as_str(),
+                gateway.actor.subject.as_str(),
                 PrincipalKind::Service,
             )
             .await?)

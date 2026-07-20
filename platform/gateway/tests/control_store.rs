@@ -111,6 +111,7 @@ fn empty_control_plane() -> GatewayControlPlane {
         profiles: Vec::new(),
         recording_ingest_resources: Vec::new(),
         tenants: Vec::new(),
+        work_contexts: Vec::new(),
         policies: Vec::new(),
         data_labels: Vec::new(),
         oauth_clients: Vec::new(),

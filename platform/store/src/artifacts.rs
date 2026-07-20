@@ -9,8 +9,9 @@ use crate::{
     ArtifactOccurrenceRecord, ArtifactReleaseState, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ArtifactWriteRedemptionRecord,
     ArtifactWriteRedemptionState, AuditEventId, AuditEventRecord, AuditOutcome, GrantPermission,
-    OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind,
-    PrincipalRecord, ShareLinkId, ShareLinkRecord, StoreError, TaskId, TenantId, TenantRecord,
+    InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore,
+    PrincipalId, PrincipalKind, ShareLinkId, ShareLinkRecord, StoreError, TaskId, TenantId,
+    TenantRecord, deterministic_principal_id, deterministic_work_context_id,
 };
 
 use crate::identity::PLATFORM_ID_NAMESPACE;
@@ -20,6 +21,9 @@ use crate::store::primary_transaction_error;
 pub struct ArtifactOccurrenceDraft {
     pub artifact_id: ArtifactId,
     pub identity: PlatformIdentity,
+    pub authority: InvocationAuthorityRecord,
+    pub owner: RecordId,
+    pub initial_grants: Vec<ArtifactGrantDraft>,
     pub sha256: String,
     pub byte_len: i64,
     pub object_key: String,
@@ -48,7 +52,6 @@ pub struct ArtifactAggregate {
     pub occurrence: ArtifactOccurrenceRecord,
     pub blob: ArtifactBlobRecord,
     pub tenant: TenantRecord,
-    pub owner: PrincipalRecord,
     pub grants: Vec<ArtifactGrantEdge>,
 }
 
@@ -56,12 +59,13 @@ pub struct ArtifactAggregate {
 pub struct ArtifactWriteCapabilityDraft {
     pub capability_id: ArtifactWriteCapabilityId,
     pub identity: PlatformIdentity,
+    pub authority: InvocationAuthorityRecord,
     pub profile_key: String,
     pub server_key: String,
     pub task_id: String,
-    pub owner_kind: PrincipalKind,
-    pub owner_issuer: String,
-    pub owner_subject: String,
+    pub actor_kind: PrincipalKind,
+    pub actor_issuer: String,
+    pub actor_subject: String,
     pub token_hash: String,
     pub labels: Vec<String>,
     pub max_artifact_count: i64,
@@ -107,6 +111,17 @@ impl PlatformStore {
         &self,
         draft: ArtifactOccurrenceDraft,
     ) -> Result<ArtifactAggregate, StoreError> {
+        let work_context = deterministic_work_context_id(
+            &draft.identity.tenant_key,
+            &draft.authority.context_key,
+        )?;
+        let initiator = draft
+            .authority
+            .initiator_key
+            .as_deref()
+            .map(|principal| deterministic_principal_id(&draft.identity.tenant_key, principal))
+            .transpose()?
+            .map(|principal| principal.record_id());
         let blob_id = ArtifactBlobId::from_uuid(Uuid::new_v5(
             &PLATFORM_ID_NAMESPACE,
             format!("blob:{}:{}", draft.identity.tenant_key, draft.sha256).as_bytes(),
@@ -126,7 +141,18 @@ impl PlatformStore {
             id: draft.artifact_id.record_id(),
             tenant: draft.identity.tenant_id.record_id(),
             blob: blob_id.record_id(),
-            owner: draft.identity.principal_id.record_id(),
+            owner: draft.owner,
+            owner_kind: draft.authority.owner_kind,
+            owner_key: draft.authority.owner_key.clone(),
+            work_context: work_context.record_id(),
+            producer: draft.identity.principal_id.record_id(),
+            producer_key: draft.identity.principal_key.clone(),
+            initiator,
+            initiator_key: draft.authority.initiator_key.clone(),
+            invocation_mode: draft.authority.invocation_mode,
+            delegation_id: draft.authority.delegation_id.clone(),
+            policy_revision: draft.authority.policy_revision.clone(),
+            authority: draft.authority.clone(),
             task: None,
             filename: draft.filename,
             media_type: draft.media_type,
@@ -139,23 +165,26 @@ impl PlatformStore {
             updated_at: now,
             search_text: String::new(),
         };
-        let grant_id = deterministic_relation_id(
-            "artifact-grant",
-            draft.artifact_id.to_string(),
-            draft.identity.principal_id.to_string(),
-        );
-        let grant = ArtifactGrantEdge {
-            id: grant_id.clone(),
-            r#in: draft.artifact_id.record_id(),
-            out: draft.identity.principal_id.record_id(),
-            subject_kind: ArtifactGrantSubjectKind::User,
-            subject_key: draft.identity.principal_key,
-            permission: GrantPermission::Admin,
-            labels: draft.labels,
-            expires_at: draft.retention_expires_at,
-            created_by: draft.identity.principal_id.record_id(),
-            created_at: now,
-        };
+        let grants = draft
+            .initial_grants
+            .into_iter()
+            .map(|grant| ArtifactGrantEdge {
+                id: deterministic_relation_id(
+                    "artifact-grant",
+                    draft.artifact_id.to_string(),
+                    format!("{:?}:{}", grant.subject_kind, grant.subject_key),
+                ),
+                r#in: draft.artifact_id.record_id(),
+                out: grant.subject,
+                subject_kind: grant.subject_kind,
+                subject_key: grant.subject_key,
+                permission: grant.permission,
+                labels: grant.labels,
+                expires_at: grant.expires_at,
+                created_by: grant.created_by.record_id(),
+                created_at: now,
+            })
+            .collect::<Vec<_>>();
         let outbox = OutboxDraft::now(
             Some(draft.identity.tenant_id.record_id()),
             "artifact",
@@ -169,15 +198,13 @@ impl PlatformStore {
         );
         let mut response = self.db
             .query(
-                "BEGIN TRANSACTION; UPSERT ONLY $blob CONTENT $blob_content RETURN NONE; CREATE ONLY $artifact CONTENT $artifact_content RETURN NONE; RELATE ONLY $artifact->$grant->$subject CONTENT $grant_content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
+                "BEGIN TRANSACTION; UPSERT ONLY $blob CONTENT $blob_content RETURN NONE; CREATE ONLY $artifact CONTENT $artifact_content RETURN NONE; INSERT RELATION INTO artifact_grant $grants RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
             )
             .bind(("blob", blob_id.record_id()))
             .bind(("blob_content", blob.clone()))
             .bind(("artifact", draft.artifact_id.record_id()))
             .bind(("artifact_content", occurrence.clone()))
-            .bind(("grant", grant_id))
-            .bind(("subject", grant.out.clone()))
-            .bind(("grant_content", grant.clone()))
+            .bind(("grants", grants))
             .bind(("outbox", outbox))
             .await?;
         let errors = response.take_errors();
@@ -207,10 +234,9 @@ impl PlatformStore {
         };
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $blob; SELECT * FROM ONLY $tenant; SELECT * FROM ONLY $owner; SELECT * FROM artifact_grant WHERE in = $artifact;")
+            .query("SELECT * FROM ONLY $blob; SELECT * FROM ONLY $tenant; SELECT * FROM artifact_grant WHERE in = $artifact;")
             .bind(("blob", occurrence.blob.clone()))
             .bind(("tenant", occurrence.tenant.clone()))
-            .bind(("owner", occurrence.owner.clone()))
             .bind(("artifact", artifact_id.record_id()))
             .await?
             .check()?;
@@ -226,18 +252,11 @@ impl PlatformStore {
                 .ok_or(StoreError::MissingRecord {
                     operation: "artifact tenant lookup",
                 })?;
-        let owner =
-            response
-                .take::<Option<PrincipalRecord>>(2)?
-                .ok_or(StoreError::MissingRecord {
-                    operation: "artifact owner lookup",
-                })?;
-        let grants = response.take(3)?;
+        let grants = response.take(2)?;
         Ok(Some(ArtifactAggregate {
             occurrence,
             blob,
             tenant,
-            owner,
             grants,
         }))
     }
@@ -392,12 +411,18 @@ impl PlatformStore {
         let record = ArtifactWriteCapabilityRecord {
             id: draft.capability_id.record_id(),
             tenant: draft.identity.tenant_id.record_id(),
-            owner: draft.identity.principal_id.record_id(),
+            actor: draft.identity.principal_id.record_id(),
+            work_context: deterministic_work_context_id(
+                &draft.identity.tenant_key,
+                &draft.authority.context_key,
+            )?
+            .record_id(),
+            authority: draft.authority,
             tenant_key: draft.identity.tenant_key,
-            owner_key: draft.identity.principal_key,
-            owner_kind: draft.owner_kind,
-            owner_issuer: draft.owner_issuer,
-            owner_subject: draft.owner_subject,
+            actor_key: draft.identity.principal_key,
+            actor_kind: draft.actor_kind,
+            actor_issuer: draft.actor_issuer,
+            actor_subject: draft.actor_subject,
             profile_key: draft.profile_key,
             server_key: draft.server_key,
             task_id: draft.task_id,

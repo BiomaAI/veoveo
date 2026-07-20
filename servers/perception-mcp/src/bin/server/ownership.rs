@@ -45,7 +45,7 @@ pub(super) fn internal_caller(
 }
 
 pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> PlaneCaller {
-    let memberships = identity.principal.group_memberships();
+    let memberships = identity.actor.group_memberships();
     PlaneCaller {
         bearer_token: bearer,
         identity,
@@ -55,21 +55,22 @@ pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> 
 
 pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
-        principal_key: identity.principal.id.to_string(),
-        principal_kind: match identity.principal.kind {
+        principal_key: identity.actor.id.to_string(),
+        principal_kind: match identity.actor.kind {
             PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
             PrincipalKind::Service => veoveo_task_runtime::PrincipalKind::Service,
         },
-        issuer: identity.principal.issuer.to_string(),
-        subject: identity.principal.subject.to_string(),
+        issuer: identity.actor.issuer.to_string(),
+        subject: identity.actor.subject.to_string(),
         profile: identity.profile.to_string(),
-        tenant_key: identity.principal.tenant.as_ref().map(ToString::to_string),
+        tenant_key: identity.actor.tenant.as_ref().map(ToString::to_string),
         data_labels: identity
-            .principal
+            .actor
             .data_labels
             .iter()
             .map(ToString::to_string)
             .collect(),
+        authority: identity.authority.clone(),
     }
 }
 

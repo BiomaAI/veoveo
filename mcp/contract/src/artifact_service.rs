@@ -36,7 +36,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::access::{AccessDecision, AccessLevel, ArtifactId, Grant, GroupMembership, Subject};
+use crate::AccessSubject;
+use crate::access::{AccessDecision, AccessLevel, ArtifactId, Grant, GroupMembership};
 use crate::gateway::{DataLabelId, TenantId};
 use crate::internal_auth::GatewayInternalIdentity;
 use crate::storage::{ArtifactMetadata, ArtifactObject, ArtifactReleaseState};
@@ -305,12 +306,12 @@ impl fmt::Debug for PlaneCaller {
 impl PlaneCaller {
     /// Labels the caller carries as clearance (from the verified identity).
     pub fn clearance(&self) -> &BTreeSet<DataLabelId> {
-        &self.identity.principal.data_labels
+        &self.identity.actor.data_labels
     }
 
     /// Tenant the caller is bound to, if any.
     pub fn tenant(&self) -> Option<&TenantId> {
-        self.identity.principal.tenant.as_ref()
+        self.identity.actor.tenant.as_ref()
     }
 }
 
@@ -350,7 +351,7 @@ impl PutArtifactRequest {
 /// A grant mutation request. The occurrence id travels in the request path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PutGrantRequest {
-    pub subject: Subject,
+    pub subject: AccessSubject,
     pub level: AccessLevel,
 }
 
@@ -464,7 +465,7 @@ pub trait ArtifactPlane {
         &self,
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
-        subject: Subject,
+        subject: AccessSubject,
         level: AccessLevel,
     ) -> impl std::future::Future<Output = Result<(), ArtifactPlaneError>> + Send;
 
@@ -473,7 +474,7 @@ pub trait ArtifactPlane {
         &self,
         caller: &PlaneCaller,
         artifact_id: &ArtifactId,
-        subject: &Subject,
+        subject: &AccessSubject,
     ) -> impl std::future::Future<Output = Result<(), ArtifactPlaneError>> + Send;
 
     /// List an artifact's grants. Requires `Admin` on the artifact.

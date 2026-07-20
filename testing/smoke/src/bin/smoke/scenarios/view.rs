@@ -8,9 +8,10 @@ use rmcp::model::{CallToolRequestParams, ContentBlock};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayProfileId, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject,
+    AccessSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
+    GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, InvocationProvenance,
+    PolicyVersion, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
+    TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 
 use super::*;
@@ -434,11 +435,25 @@ fn issue_view_token(subject: &str) -> Result<String> {
         assurances: BTreeSet::new(),
         authenticated_at: Some(Utc::now()),
     };
+    let authority = InvocationAuthority {
+        work_context: WorkContextId::new("smoke")?,
+        tenant: TenantId::new("local")?,
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: PolicyVersion::new("r1")?,
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Principal(principal.id.clone()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: BTreeSet::new(),
+        },
+        provenance: InvocationProvenance::Automated,
+    };
     Ok(issuer
         .issue(
             GatewayProfileId::new("operator")?,
             ServerSlug::new("view")?,
             principal,
+            authority,
             Utc::now() + TimeDelta::minutes(30),
         )?
         .bearer_token)

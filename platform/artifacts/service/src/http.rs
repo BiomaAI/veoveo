@@ -10,7 +10,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use serde::Deserialize;
-use veoveo_mcp_contract::access::{AccessLevel, ArtifactId, Subject};
+use veoveo_mcp_contract::access::{AccessLevel, AccessSubject, ArtifactId};
 use veoveo_mcp_contract::storage::ArtifactMetadata;
 use veoveo_mcp_contract::{
     ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
@@ -369,7 +369,7 @@ async fn remove_grant<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Path(artifact_id): Path<String>,
     headers: HeaderMap,
-    Json(subject): Json<Subject>,
+    Json(subject): Json<AccessSubject>,
 ) -> Result<StatusCode, ApiError> {
     let caller = caller(&state, &headers)?;
     state
@@ -514,9 +514,11 @@ mod tests {
         GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTrustBundle,
     };
     use veoveo_mcp_contract::{
-        ArtifactPlane, ArtifactReleaseState, ArtifactWriteCapabilityId,
-        CreateArtifactShareLinkRequest, IssueArtifactWriteCapabilityRequest, PlaneCaller,
-        Principal, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
+        AccessSubject, ArtifactPlane, ArtifactReleaseState, ArtifactWriteCapabilityId,
+        CreateArtifactShareLinkRequest, InvocationAuthority, InvocationProvenance,
+        IssueArtifactWriteCapabilityRequest, PlaneCaller, PolicyVersion, Principal,
+        PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextId,
+        WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
 
     use super::*;
@@ -546,24 +548,41 @@ mod tests {
             TokenIssuer::new("veoveo-internal").unwrap(),
             signing_key(),
         );
+        let principal = Principal {
+            id: PrincipalId::new("alice").unwrap(),
+            kind: PrincipalKind::User,
+            issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
+            subject: TokenSubject::new("alice-subject").unwrap(),
+            tenant: Some(TenantId::new("acme").unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: Some(now),
+        };
+        let authority = InvocationAuthority {
+            work_context: WorkContextId::new("mission").unwrap(),
+            tenant: TenantId::new("acme").unwrap(),
+            membership: WorkContextMembershipLevel::Owner,
+            policy_revision: PolicyVersion::new("r1").unwrap(),
+            output_policy: WorkContextOutputPolicy {
+                owner: AccessSubject::Principal(principal.id.clone()),
+                initial_grants: Vec::new(),
+                classification: None,
+                data_labels: BTreeSet::new(),
+            },
+            provenance: InvocationProvenance::Direct {
+                initiator: principal.id.clone(),
+            },
+        };
         let issued = issuer
             .issue(
                 GatewayProfileId::new("operator").unwrap(),
                 ServerSlug::new("media").unwrap(),
-                Principal {
-                    id: PrincipalId::new("alice").unwrap(),
-                    kind: PrincipalKind::User,
-                    issuer: TokenIssuer::new("https://idp.example.com").unwrap(),
-                    subject: TokenSubject::new("alice-subject").unwrap(),
-                    tenant: Some(TenantId::new("acme").unwrap()),
-                    groups: BTreeSet::new(),
-                    group_roles: BTreeSet::new(),
-                    roles: BTreeSet::new(),
-                    scopes: BTreeSet::new(),
-                    data_labels: BTreeSet::new(),
-                    assurances: BTreeSet::new(),
-                    authenticated_at: Some(now),
-                },
+                principal,
+                authority,
                 now + TimeDelta::minutes(5),
             )
             .unwrap();

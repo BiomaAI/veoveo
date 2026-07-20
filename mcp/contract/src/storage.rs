@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::ArtifactId;
-use crate::gateway::{DataLabelId, PrincipalId, TenantId};
+use crate::gateway::{
+    DataLabelId, DelegationId, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+};
+use crate::{AccessSubject, InvocationMode};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -29,11 +32,27 @@ pub struct ComplianceMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<TenantId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub owner_id: Option<PrincipalId>,
+    pub owner: Option<AccessSubject>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_context: Option<WorkContextId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<ArtifactProvenance>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub data_labels: BTreeSet<DataLabelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retention_expires_at: Option<DateTime<Utc>>,
+}
+
+/// Immutable explanation of how an artifact came into being.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ArtifactProvenance {
+    pub producer: PrincipalId,
+    pub invocation_mode: InvocationMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator: Option<PrincipalId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegation_id: Option<DelegationId>,
+    pub policy_revision: PolicyVersion,
 }
 
 /// Canonical metadata for an artifact managed by a server-owned store.

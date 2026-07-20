@@ -41,7 +41,7 @@ impl PlaneAuthenticator {
             .verifier
             .verify(bearer_token)
             .map_err(|_| ArtifactPlaneError::Unauthenticated)?;
-        let memberships = identity.principal.group_memberships();
+        let memberships = identity.actor.group_memberships();
         Ok(PlaneCaller {
             bearer_token: bearer_token.to_string(),
             identity,

@@ -31,12 +31,12 @@ pub struct RecordingReadAuthority {
 impl RecordingReadAuthority {
     pub fn from_gateway(identity: &GatewayInternalIdentity) -> Self {
         Self {
-            principal_id: identity.principal.id.clone(),
-            principal_kind: identity.principal.kind,
-            issuer: identity.principal.issuer.clone(),
-            subject: identity.principal.subject.clone(),
-            tenant: identity.principal.tenant.clone(),
-            data_labels: identity.principal.data_labels.clone(),
+            principal_id: identity.actor.id.clone(),
+            principal_kind: identity.actor.kind,
+            issuer: identity.actor.issuer.clone(),
+            subject: identity.actor.subject.clone(),
+            tenant: identity.actor.tenant.clone(),
+            data_labels: identity.actor.data_labels.clone(),
         }
     }
 

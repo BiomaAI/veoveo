@@ -20,3 +20,4 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 [dev-dependencies]
 secrecy.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+veoveo-mcp-contract.workspace = true

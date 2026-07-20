@@ -13,9 +13,11 @@ mod tool_name;
 pub use auth::{
     AuthError, AuthenticatedSubject, BearerToken, ClientAssertionConfig, ClientAssertionVerifier,
     IdJagConfig, IdJagVerifier, JwtAuthConfig, JwtVerifier, OidcIdTokenConfig, OidcIdTokenVerifier,
-    VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
+    VerifiedAccessToken, VerifiedClientAssertion, VerifiedIdJag, VerifiedOidcIdentity,
 };
-pub use catalog::{GatewayCatalog, GatewayCatalogHandle, GatewayCatalogSnapshot};
+pub use catalog::{
+    GatewayAuthorityError, GatewayCatalog, GatewayCatalogHandle, GatewayCatalogSnapshot,
+};
 pub use control_store::{
     GatewayControlPlaneRevisionHead, GatewayControlStore, new_gateway_control_plane_revision_id,
 };

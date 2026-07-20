@@ -17,7 +17,7 @@ pub(crate) fn gateway_hosted_public_id_jag_token(
         conformance,
         gateway_base,
         "operator",
-        "operator-hosted-public",
+        "operator-hosted-delegated",
         args,
     )
 }
@@ -29,9 +29,9 @@ pub(crate) fn gateway_id_jag_token_for_profile(
     args: &[&str],
 ) -> Result<String> {
     let client_id = if profile == "admin" {
-        "admin-console"
+        "admin-delegated"
     } else {
-        "operator-local-public"
+        "operator-delegated"
     };
     gateway_id_jag_token_for_client(conformance, gateway_base, profile, client_id, args)
 }

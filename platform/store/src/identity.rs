@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     EnterpriseId, EnterpriseRecord, GroupId, GroupRecord, PlatformStore, PrincipalId,
-    PrincipalKind, PrincipalRecord, StoreError, TenantId, TenantRecord,
+    PrincipalKind, PrincipalRecord, StoreError, TenantId, TenantRecord, WorkContextId,
 };
 
 pub(crate) const PLATFORM_ID_NAMESPACE: Uuid =
@@ -52,6 +52,18 @@ pub fn deterministic_group_id(tenant_key: &str, group_key: &str) -> Result<Group
     Ok(GroupId::from_uuid(Uuid::new_v5(
         &PLATFORM_ID_NAMESPACE,
         format!("group:{tenant_key}:{group_key}").as_bytes(),
+    )))
+}
+
+pub fn deterministic_work_context_id(
+    tenant_key: &str,
+    context_key: &str,
+) -> Result<WorkContextId, StoreError> {
+    validate_identity_field("tenant_key", tenant_key, 256)?;
+    validate_identity_field("context_key", context_key, 256)?;
+    Ok(WorkContextId::from_uuid(Uuid::new_v5(
+        &PLATFORM_ID_NAMESPACE,
+        format!("work-context:{tenant_key}:{context_key}").as_bytes(),
     )))
 }
 

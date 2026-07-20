@@ -50,7 +50,7 @@ pub(super) async fn authorize_admin(
         .get::<GatewayInternalIdentity>()
         .is_some_and(|identity| {
             identity
-                .principal
+                .actor
                 .scopes
                 .iter()
                 .any(|scope| scope.as_str() == state.required_scope)

@@ -44,7 +44,7 @@ pub use gateway_runtime::{
 };
 pub use identity::{
     PlatformIdentity, deterministic_enterprise_id, deterministic_group_id,
-    deterministic_principal_id, deterministic_tenant_id,
+    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 pub use ids::*;
 pub use map::{

@@ -3,8 +3,9 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, OAuthClientAuthMethod, OAuthClientId,
-    OAuthGrantType, PrincipalKind, ResourceAuthorizationServer,
+    AuthMode, AuthOutcome, AuthReasonCode, DelegationId, GatewayProfile, InvocationProvenance,
+    OAuthClientAuthMethod, OAuthClientId, OAuthGrantType, PrincipalKind,
+    ResourceAuthorizationServer, WorkContextId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, IdJagConfig, IdJagVerifier};
 
@@ -16,7 +17,7 @@ use crate::{
     },
     oauth_grants::{TokenRequest, scopes::id_jag_token_scopes},
     runtime::{AppState, current_http_client},
-    tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_access_token},
+    tokens::{ACCESS_TOKEN_TTL_SECONDS, AccessTokenInvocation, issue_access_token},
 };
 
 pub(crate) async fn token_endpoint_id_jag(
@@ -430,6 +431,40 @@ pub(crate) async fn token_endpoint_id_jag(
             );
         }
     };
+    let work_context = match request.work_context.as_deref() {
+        Some(value) => match WorkContextId::new(value.trim()) {
+            Ok(context) => context,
+            Err(_) => {
+                return oauth_error_response(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_request",
+                    "work_context is invalid",
+                );
+            }
+        },
+        None => client.default_work_context.clone(),
+    };
+    if let Err(err) =
+        catalog.work_context_membership(&client_id, &work_context, &verified_id_jag.principal)
+    {
+        tracing::warn!("rejected Work Context selection: {err}");
+        return oauth_error_response(
+            StatusCode::FORBIDDEN,
+            "access_denied",
+            "Work Context membership is required",
+        );
+    }
+    let delegation_id = match DelegationId::new(verified_id_jag.jwt_id.as_str()) {
+        Ok(delegation_id) => delegation_id,
+        Err(err) => {
+            tracing::error!("failed to bind delegated invocation: {err}");
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "delegated invocation could not be established",
+            );
+        }
+    };
     let token = match issue_access_token(
         catalog,
         authorization_server,
@@ -439,6 +474,14 @@ pub(crate) async fn token_endpoint_id_jag(
         PrincipalKind::User,
         Some(&verified_id_jag.principal),
         None,
+        AccessTokenInvocation {
+            work_context,
+            provenance: InvocationProvenance::Delegated {
+                initiator: verified_id_jag.principal.id.clone(),
+                delegation_id,
+            },
+        },
+        verified_id_jag.principal.id.clone(),
         &scopes,
     )
     .await

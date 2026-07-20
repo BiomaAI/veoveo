@@ -16,6 +16,11 @@ pub enum GatewayControlPlaneError {
     DuplicatePolicy(PolicyVersion),
     DuplicateDataLabel(DataLabelId),
     DuplicateTenant(TenantId),
+    DuplicateWorkContext(WorkContextId),
+    InvalidWorkContext {
+        context: WorkContextId,
+        reason: String,
+    },
     InvalidBranding {
         field: &'static str,
         reason: String,
@@ -195,6 +200,14 @@ pub enum GatewayControlPlaneError {
     UnknownOAuthClientAuthorizationServer {
         client: OAuthClientId,
         authorization_server: AuthorizationServerId,
+    },
+    UnknownOAuthClientWorkContext {
+        client: OAuthClientId,
+        context: WorkContextId,
+    },
+    OAuthClientInvocationModeMismatch {
+        client: OAuthClientId,
+        mode: crate::InvocationMode,
     },
     UnknownOAuthClientResource {
         client: OAuthClientId,
@@ -382,6 +395,12 @@ impl fmt::Display for GatewayControlPlaneError {
             Self::DuplicatePolicy(policy) => write!(f, "duplicate policy version `{policy}`"),
             Self::DuplicateDataLabel(label) => write!(f, "duplicate data label `{label}`"),
             Self::DuplicateTenant(tenant) => write!(f, "duplicate tenant `{tenant}`"),
+            Self::DuplicateWorkContext(context) => {
+                write!(f, "duplicate Work Context `{context}`")
+            }
+            Self::InvalidWorkContext { context, reason } => {
+                write!(f, "invalid Work Context `{context}`: {reason}")
+            }
             Self::InvalidBranding { field, reason } => {
                 write!(f, "installation branding `{field}` {reason}")
             }
@@ -645,6 +664,14 @@ impl fmt::Display for GatewayControlPlaneError {
             } => write!(
                 f,
                 "OAuth client `{client}` references unknown resource authorization server `{authorization_server}`"
+            ),
+            Self::UnknownOAuthClientWorkContext { client, context } => write!(
+                f,
+                "OAuth client `{client}` references unknown Work Context `{context}`"
+            ),
+            Self::OAuthClientInvocationModeMismatch { client, mode } => write!(
+                f,
+                "OAuth client `{client}` grant types cannot establish `{mode:?}` invocation authority"
             ),
             Self::UnknownOAuthClientResource { client, resource } => write!(
                 f,

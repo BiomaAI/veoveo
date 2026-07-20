@@ -3,20 +3,22 @@ use std::{collections::BTreeSet, sync::Arc};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    AuthMode, AuthorizationServerId, CanonicalTaskId, CompletionExposure, DataLabelDefinition,
-    DataLabelId, Exposure, GatewayAction, GatewayControlPlaneError, GroupId, HttpsUrl,
-    IdentityProvider, IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource,
-    JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
-    MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
-    OAuthClientRegistration, OAuthClientSurface, OAuthEndpointUrl, OAuthGrantType,
-    OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
-    OwnedRoutePurpose, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget,
-    Principal, PrincipalAssurance, PrincipalId, PrincipalKind, ProfileServerExposure,
-    ProtectedResourceId, ResourceAuthorizationServer, ResourceProjectionMode, ResourceScheme,
-    ResourceSelector, ResourceUri, ResourceUriPrefix, ResourceUriTemplate, RoleId, ScopeName,
-    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
-    TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
-    UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+    AccessSubject, AuthMode, AuthorizationServerId, CanonicalTaskId, CompletionExposure,
+    DataLabelDefinition, DataLabelId, Exposure, GatewayAction, GatewayControlPlaneError, GroupId,
+    HttpsUrl, IdentityProvider, IdentityProviderId, IdentityProviderOidcClientRegistration,
+    InvocationMode, JwksSource, JwtId, LocalToolName,
+    MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
+    MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthClientSurface,
+    OAuthEndpointUrl, OAuthGrantType, OAuthRedirectUri, OidcClientAuthMethod, OidcClientId,
+    OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PolicyEffect, PolicyReasonCode,
+    PolicyRule, PolicyRuleId, PolicyTarget, Principal, PrincipalAssurance, PrincipalId,
+    PrincipalKind, ProfileServerExposure, ProtectedResourceId, ResourceAuthorizationServer,
+    ResourceProjectionMode, ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix,
+    ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
+    SecretReference, SecretReferenceId, SecretSource, TaskExposure, TenantDefinition, TenantId,
+    TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport,
+    UpstreamTransportSecurity, UpstreamUrl, WorkContextDefinition, WorkContextId,
+    WorkContextMembershipLevel, WorkContextMembershipRule, WorkContextOutputPolicy,
 };
 
 use super::*;
@@ -186,6 +188,37 @@ fn tenants() -> Vec<TenantDefinition> {
     }]
 }
 
+fn work_contexts() -> Vec<WorkContextDefinition> {
+    vec![WorkContextDefinition {
+        id: WorkContextId::new("mission").unwrap(),
+        tenant: TenantId::new("tenant-a").unwrap(),
+        title: "Mission".into(),
+        policy_revision: PolicyVersion::new("2026-07-02").unwrap(),
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Group(GroupId::new("operations").unwrap()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: BTreeSet::new(),
+        },
+        memberships: vec![
+            WorkContextMembershipRule {
+                level: WorkContextMembershipLevel::Owner,
+                principals: BTreeSet::new(),
+                groups: BTreeSet::new(),
+                roles: BTreeSet::from([RoleId::new("operator").unwrap()]),
+                oauth_clients: BTreeSet::new(),
+            },
+            WorkContextMembershipRule {
+                level: WorkContextMembershipLevel::Owner,
+                principals: BTreeSet::new(),
+                groups: BTreeSet::new(),
+                roles: BTreeSet::new(),
+                oauth_clients: BTreeSet::from([OAuthClientId::new("operator-service").unwrap()]),
+            },
+        ],
+    }]
+}
+
 fn profile() -> GatewayProfile {
     GatewayProfile {
         id: GatewayProfileId::new("default").unwrap(),
@@ -219,6 +252,8 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
         OAuthClientRegistration {
             id: OAuthClientId::new("operator-local-public").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
+            default_work_context: WorkContextId::new("mission").unwrap(),
+            invocation_mode: InvocationMode::Direct,
             display_name: Some("Veoveo Operator Local Client".to_string()),
             client_surface: OAuthClientSurface::FullMcp,
             allowed_compatibility_helpers: BTreeSet::new(),
@@ -250,6 +285,8 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
         OAuthClientRegistration {
             id: OAuthClientId::new("operator-service").unwrap(),
             authorization_server: AuthorizationServerId::new("veoveo").unwrap(),
+            default_work_context: WorkContextId::new("mission").unwrap(),
+            invocation_mode: InvocationMode::Automated,
             display_name: Some("Veoveo Operator Service".to_string()),
             client_surface: OAuthClientSurface::FullMcp,
             allowed_compatibility_helpers: BTreeSet::new(),
@@ -271,7 +308,7 @@ fn oauth_clients() -> Vec<OAuthClientRegistration> {
                 jwks_uri: HttpsUrl::new("https://idp.example.com/oauth2/clients/jwks.json")
                     .unwrap(),
             }),
-            tenant: None,
+            tenant: Some(TenantId::new("tenant-a").unwrap()),
             metadata: Value::Null,
         },
     ]
@@ -316,6 +353,7 @@ fn catalog_with_profile_and_policy(profile: GatewayProfile, policy: PolicySet) -
         profiles: vec![profile],
         recording_ingest_resources: Vec::new(),
         tenants: tenants(),
+        work_contexts: work_contexts(),
         policies: vec![policy],
         data_labels: data_labels(),
         oauth_clients: oauth_clients(),
@@ -764,6 +802,7 @@ fn catalog_routes_server_owned_projected_ui_resources() {
         profiles: vec![profile],
         recording_ingest_resources: Vec::new(),
         tenants: tenants(),
+        work_contexts: work_contexts(),
         policies: vec![policy()],
         data_labels: data_labels(),
         oauth_clients: oauth_clients(),
@@ -1025,6 +1064,7 @@ fn keeps_contract_validation_errors_visible() {
         }],
         recording_ingest_resources: Vec::new(),
         tenants: tenants(),
+        work_contexts: work_contexts(),
         policies: vec![policy()],
         data_labels: data_labels(),
         oauth_clients: oauth_clients(),

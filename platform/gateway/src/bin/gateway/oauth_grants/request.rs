@@ -9,6 +9,8 @@ pub(crate) struct TokenRequest {
     #[serde(default)]
     pub(crate) resource: Option<String>,
     #[serde(default)]
+    pub(crate) work_context: Option<String>,
+    #[serde(default)]
     pub(crate) code: Option<String>,
     #[serde(default)]
     pub(crate) redirect_uri: Option<String>,

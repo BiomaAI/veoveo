@@ -6,10 +6,11 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use surrealdb::types::{RecordId, RecordIdKey};
+use veoveo_mcp_contract::InvocationAuthority;
 use veoveo_platform_store::{
     OpenObject, PrincipalKind, RecoveryClass as StoreRecoveryClass, StoreAuthLevel,
     StoreCredentials, TaskId, TaskRecord, TaskStatus as StoreTaskStatus,
-    deterministic_principal_id, deterministic_tenant_id,
+    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 
 const INSTALLATION_TENANT: &str = "installation";
@@ -93,6 +94,7 @@ pub struct TaskOwner {
     pub tenant_key: Option<String>,
     #[serde(default)]
     pub data_labels: BTreeSet<String>,
+    pub authority: InvocationAuthority,
 }
 
 impl TaskOwner {
@@ -378,6 +380,8 @@ pub enum TaskError {
     LeaseHeld(String),
     #[error("task progress must be finite and in 0..=1")]
     InvalidProgress,
+    #[error("invalid task invocation authority: {0}")]
+    InvalidAuthority(String),
     #[error("invalid persisted task: {0}")]
     InvalidRecord(String),
     #[error("task input key is empty, too long, or contains a control character")]
@@ -439,6 +443,15 @@ pub(crate) fn failure_to_open_object(failure: &TaskFailure) -> OpenObject {
 pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, TaskError> {
     let task_id = task_id_from_record(&record.id)?;
     let envelope = RequestEnvelope::from_open_object(record.request)?;
+    let authority = crate::runtime::authority_record(&envelope.owner.authority);
+    let initiator = authority
+        .initiator_key
+        .as_deref()
+        .map(|initiator| {
+            deterministic_principal_id(envelope.owner.tenant_key(), initiator)
+                .map(|principal| principal.record_id())
+        })
+        .transpose()?;
     if record.tenant != deterministic_tenant_id(envelope.owner.tenant_key())?.record_id()
         || record.owner
             != deterministic_principal_id(
@@ -446,9 +459,20 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
                 &envelope.owner.principal_key,
             )?
             .record_id()
+        || record.work_context
+            != deterministic_work_context_id(
+                envelope.owner.tenant_key(),
+                envelope.owner.authority.work_context.as_str(),
+            )?
+            .record_id()
+        || record.initiator != initiator
+        || record.invocation_mode != authority.invocation_mode
+        || record.delegation_id != authority.delegation_id
+        || record.policy_revision != authority.policy_revision
+        || record.authority != authority
     {
         return Err(TaskError::InvalidRecord(
-            "task owner references do not match its canonical platform identity".to_owned(),
+            "task owner and invocation authority do not match canonical platform state".to_owned(),
         ));
     }
     let error = record

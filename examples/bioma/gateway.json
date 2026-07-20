@@ -3638,10 +3638,54 @@
       }
     }
   ],
+  "work_contexts": [
+    {
+      "id": "operations",
+      "tenant": "bioma",
+      "title": "Operations",
+      "policy_revision": "2026-07-02",
+      "output_policy": {
+        "owner": {
+          "kind": "group",
+          "id": "operations"
+        },
+        "initial_grants": [
+          {
+            "subject": {
+              "kind": "group",
+              "id": "reviewers"
+            },
+            "level": "read"
+          }
+        ]
+      },
+      "memberships": [
+        {
+          "level": "owner",
+          "oauth_clients": [
+            "admin-console",
+            "admin-service"
+          ]
+        },
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "recording-producer",
+            "operator-local-public",
+            "operator-hosted-public",
+            "operator-service",
+            "pilot-agent"
+          ]
+        }
+      ]
+    }
+  ],
   "oauth_clients": [
     {
       "id": "recording-producer",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
       "display_name": "Recording Producer",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -3668,6 +3712,8 @@
     {
       "id": "operator-local-public",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "direct",
       "display_name": "Veoveo Operator Local Client",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -3718,6 +3764,8 @@
     {
       "id": "operator-hosted-public",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "direct",
       "display_name": "Veoveo Operator Hosted Client",
       "client_surface": "tools_compat",
       "allowed_compatibility_helpers": [
@@ -3767,6 +3815,8 @@
     {
       "id": "admin-console",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "direct",
       "display_name": "Veoveo Admin Console",
       "client_surface": "tools_compat",
       "direct_task_call_adapter": true,
@@ -3813,6 +3863,8 @@
     {
       "id": "operator-service",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
       "display_name": "Veoveo Operator Service",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -3852,6 +3904,8 @@
     {
       "id": "admin-service",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
       "display_name": "Veoveo Admin Service",
       "client_surface": "full_mcp",
       "allowed_resources": [
@@ -3893,6 +3947,8 @@
     {
       "id": "pilot-agent",
       "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
       "display_name": "Veoveo AI Pilot Agent",
       "client_surface": "full_mcp",
       "allowed_resources": [

@@ -4,16 +4,51 @@ use chrono::{TimeDelta, Utc};
 use secrecy::SecretString;
 use uuid::Uuid;
 use veoveo_platform_store::{
-    ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState, ArtifactShareLinkDraft,
-    ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId, ArtifactWriteCapabilityRecord,
-    ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry, CoordinateFrameDraft,
-    CoordinateOperationDraft, GatewayReplayKind, GatewayReplayRecord, MapReleaseDraft,
-    MapReleaseState, OpenObject, OutboxDraft, PlatformStore, PlatformTable, PrincipalKind,
-    RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState, SegmentDraft,
-    SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig, StoreCredentials,
-    StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind,
-    TimeSourceDraft, decode_changefeed_entry, gateway_replay_record_id,
+    ArtifactGrantDraft, ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft,
+    ArtifactReleaseState, ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId,
+    ChangefeedCursor, ChangefeedEntry, CoordinateFrameDraft, CoordinateOperationDraft,
+    GatewayReplayKind, GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord,
+    InvocationMode, MapReleaseDraft, MapReleaseState, OpenObject, OutboxDraft, PlatformIdentity,
+    PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft, RecordingId,
+    RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding, SegmentState,
+    ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft,
+    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
+    WorkContextMembershipLevel, decode_changefeed_entry, gateway_replay_record_id,
 };
+
+fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
+    InvocationAuthorityRecord {
+        context_key: "operations".into(),
+        membership: WorkContextMembershipLevel::Owner,
+        policy_revision: "r1".into(),
+        owner_kind: ArtifactGrantSubjectKind::Principal,
+        owner_key: identity.principal_key.clone(),
+        initial_grants: vec![WorkContextInitialGrantRecord {
+            subject_kind: ArtifactGrantSubjectKind::Principal,
+            subject_key: identity.principal_key.clone(),
+            permission: GrantPermission::Admin,
+        }],
+        classification: None,
+        data_labels: Vec::new(),
+        invocation_mode: InvocationMode::Direct,
+        initiator_key: Some(identity.principal_key.clone()),
+        delegation_id: None,
+    }
+}
+
+fn owner_grant(artifact_id: ArtifactId, identity: &PlatformIdentity) -> ArtifactGrantDraft {
+    ArtifactGrantDraft {
+        artifact_id,
+        subject: identity.principal_id.record_id(),
+        subject_kind: ArtifactGrantSubjectKind::Principal,
+        subject_key: identity.principal_key.clone(),
+        permission: GrantPermission::Admin,
+        labels: Vec::new(),
+        expires_at: None,
+        created_by: identity.principal_id,
+    }
+}
 
 #[tokio::test]
 async fn time_authority_activation_retires_the_previous_release_atomically() {
@@ -553,6 +588,9 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         .create_artifact_occurrence(ArtifactOccurrenceDraft {
             artifact_id: first_id,
             identity: identity.clone(),
+            authority: artifact_authority(&identity),
+            owner: identity.principal_id.record_id(),
+            initial_grants: vec![owner_grant(first_id, &identity)],
             sha256: "a".repeat(64),
             byte_len: 4,
             object_key: "tenants/tenant-a/blobs/opaque-a".into(),
@@ -565,10 +603,14 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         })
         .await
         .unwrap();
+    let second_id = ArtifactId::new();
     let second = store
         .create_artifact_occurrence(ArtifactOccurrenceDraft {
-            artifact_id: ArtifactId::new(),
+            artifact_id: second_id,
             identity: identity.clone(),
+            authority: artifact_authority(&identity),
+            owner: identity.principal_id.record_id(),
+            initial_grants: vec![owner_grant(second_id, &identity)],
             sha256: "a".repeat(64),
             byte_len: 4,
             object_key: "tenants/tenant-a/blobs/opaque-a".into(),
@@ -613,12 +655,13 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         .create_artifact_write_capability(ArtifactWriteCapabilityDraft {
             capability_id,
             identity: identity.clone(),
+            authority: artifact_authority(&identity),
             profile_key: "operator".into(),
             server_key: "media".into(),
             task_id: capability_task_id.clone(),
-            owner_kind: PrincipalKind::User,
-            owner_issuer: "https://idp.example.com".into(),
-            owner_subject: "alice-subject".into(),
+            actor_kind: PrincipalKind::User,
+            actor_issuer: "https://idp.example.com".into(),
+            actor_subject: "alice-subject".into(),
             token_hash: "b".repeat(64),
             labels: vec!["cui".into()],
             max_artifact_count: 1,
@@ -790,12 +833,13 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         .create_artifact_write_capability(ArtifactWriteCapabilityDraft {
             capability_id: rebind_capability_id,
             identity: identity.clone(),
+            authority: artifact_authority(&identity),
             profile_key: "operator".into(),
             server_key: "optimization".into(),
             task_id: rebind_task_id.clone(),
-            owner_kind: PrincipalKind::User,
-            owner_issuer: "https://idp.example.com".into(),
-            owner_subject: "alice-subject".into(),
+            actor_kind: PrincipalKind::User,
+            actor_issuer: "https://idp.example.com".into(),
+            actor_subject: "alice-subject".into(),
             token_hash: "9".repeat(64),
             labels: vec!["cui".into()],
             max_artifact_count: 2,
@@ -1088,6 +1132,9 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
             .create_artifact_occurrence(ArtifactOccurrenceDraft {
                 artifact_id,
                 identity: identity.clone(),
+                authority: artifact_authority(&identity),
+                owner: identity.principal_id.record_id(),
+                initial_grants: vec![owner_grant(artifact_id, &identity)],
                 sha256: hash,
                 byte_len: 128,
                 object_key: format!("recording-test/{artifact_id}"),

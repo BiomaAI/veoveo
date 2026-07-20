@@ -34,7 +34,8 @@ use rmcp::{
 };
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GatewayInternalTokenIssuer, GatewayProfileId, Principal, ServerSlug, UpstreamTransport,
+    GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, Principal, ServerSlug,
+    UpstreamTransport,
 };
 use veoveo_platform_store::PlatformStore;
 
@@ -91,10 +92,11 @@ impl GatewayMcp {
     ) -> Result<Peer<RoleClient>, McpError> {
         let snapshot = self.catalog.snapshot();
         let catalog_generation = snapshot.generation();
-        let authorization_fingerprint = principal_authorization_fingerprint(&subject.principal)?;
+        let authorization_fingerprint =
+            invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
         let key = UpstreamCacheKey {
             server: server_slug.clone(),
-            principal: subject.principal.id.clone(),
+            principal: subject.actor.id.clone(),
             authorization_fingerprint,
             catalog_generation,
         };
@@ -128,7 +130,8 @@ impl GatewayMcp {
             .issue(
                 self.profile_id.clone(),
                 server_slug.clone(),
-                subject.principal.clone(),
+                subject.actor.clone(),
+                subject.authority.clone(),
                 token_expires_at,
             )
             .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
@@ -187,7 +190,8 @@ impl GatewayMcp {
             .issue(
                 self.profile_id.clone(),
                 server_slug.clone(),
-                subject.principal.clone(),
+                subject.actor.clone(),
+                subject.authority.clone(),
                 token_expires_at,
             )
             .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
@@ -200,10 +204,13 @@ impl GatewayMcp {
     }
 }
 
-fn principal_authorization_fingerprint(principal: &Principal) -> Result<[u8; 32], McpError> {
+fn invocation_authorization_fingerprint(
+    actor: &Principal,
+    authority: &InvocationAuthority,
+) -> Result<[u8; 32], McpError> {
     Ok(Sha256::digest(
-        serde_json::to_vec(principal)
-            .map_err(|err| mcp_internal(format!("failed to fingerprint principal: {err}")))?,
+        serde_json::to_vec(&(actor, authority))
+            .map_err(|err| mcp_internal(format!("failed to fingerprint invocation: {err}")))?,
     )
     .into())
 }
@@ -351,7 +358,9 @@ mod tests {
     use std::collections::BTreeSet;
 
     use veoveo_mcp_contract::{
-        PrincipalId, PrincipalKind, RoleId, ScopeName, TokenIssuer, TokenSubject,
+        AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, PrincipalKind, RoleId,
+        ScopeName, TenantId, TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel,
+        WorkContextOutputPolicy,
     };
 
     use super::*;
@@ -373,19 +382,37 @@ mod tests {
         }
     }
 
+    fn authority() -> InvocationAuthority {
+        InvocationAuthority {
+            work_context: WorkContextId::new("mission").unwrap(),
+            tenant: TenantId::new("tenant").unwrap(),
+            membership: WorkContextMembershipLevel::Owner,
+            policy_revision: PolicyVersion::new("r1").unwrap(),
+            output_policy: WorkContextOutputPolicy {
+                owner: AccessSubject::Principal(PrincipalId::new("issuer#subject").unwrap()),
+                initial_grants: Vec::new(),
+                classification: None,
+                data_labels: BTreeSet::new(),
+            },
+            provenance: InvocationProvenance::Direct {
+                initiator: PrincipalId::new("issuer#subject").unwrap(),
+            },
+        }
+    }
+
     #[test]
-    fn upstream_fingerprint_covers_authorization_attributes() {
+    fn upstream_fingerprint_covers_actor_and_authority() {
         let baseline = principal();
         let mut changed = baseline.clone();
         changed.roles.insert(RoleId::new("administrator").unwrap());
 
         assert_eq!(
-            principal_authorization_fingerprint(&baseline).unwrap(),
-            principal_authorization_fingerprint(&baseline).unwrap()
+            invocation_authorization_fingerprint(&baseline, &authority()).unwrap(),
+            invocation_authorization_fingerprint(&baseline, &authority()).unwrap()
         );
         assert_ne!(
-            principal_authorization_fingerprint(&baseline).unwrap(),
-            principal_authorization_fingerprint(&changed).unwrap()
+            invocation_authorization_fingerprint(&baseline, &authority()).unwrap(),
+            invocation_authorization_fingerprint(&changed, &authority()).unwrap()
         );
     }
 }

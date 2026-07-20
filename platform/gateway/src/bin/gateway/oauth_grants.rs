@@ -3,9 +3,9 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, OAuthAuthorizationCode, OAuthClientId,
-    OAuthGrantType, OAuthRedirectUri, PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind,
-    ResourceAuthorizationServer,
+    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, InvocationProvenance,
+    OAuthAuthorizationCode, OAuthClientId, OAuthGrantType, OAuthRedirectUri,
+    PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind, ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, REFRESH_TOKEN_TTL_SECONDS};
 
@@ -17,7 +17,7 @@ use crate::{
         TokenResponse, oauth_error_response, pkce_s256_challenge, scope_string, token_response,
     },
     runtime::AppState,
-    tokens::{ACCESS_TOKEN_TTL_SECONDS, issue_access_token},
+    tokens::{ACCESS_TOKEN_TTL_SECONDS, AccessTokenInvocation, issue_access_token},
 };
 
 #[path = "oauth_grants/id_jag.rs"]
@@ -354,6 +354,35 @@ pub(super) async fn token_endpoint_authorization_code(
             "authorization code binding is invalid",
         );
     }
+    if let Err(err) = catalog.work_context_membership(
+        &client_id,
+        &code_record.work_context,
+        &code_record.principal,
+    ) {
+        tracing::warn!("rejected authorization-code Work Context: {err}");
+        if let Err(err) = record_oidc_auth_audit(
+            &state.gateway_state,
+            profile,
+            AuthAuditRecord {
+                authorization_server: Some(authorization_server),
+                client_id: Some(&client_id),
+                principal: Some(&code_record.principal),
+                jwt_id: None,
+                outcome: AuthOutcome::Deny,
+                reason: AuthReasonCode::InvalidAuthorizationRequest,
+                started_at,
+            },
+        )
+        .await
+        {
+            return auth_audit_error_response(err);
+        }
+        return oauth_error_response(
+            StatusCode::FORBIDDEN,
+            "access_denied",
+            "Work Context membership is required",
+        );
+    }
     let token = match issue_access_token(
         catalog,
         authorization_server,
@@ -363,6 +392,13 @@ pub(super) async fn token_endpoint_authorization_code(
         PrincipalKind::User,
         Some(&code_record.principal),
         None,
+        AccessTokenInvocation {
+            work_context: code_record.work_context.clone(),
+            provenance: InvocationProvenance::Direct {
+                initiator: code_record.principal.id.clone(),
+            },
+        },
+        code_record.principal.id.clone(),
         &code_record.scopes,
     )
     .await
@@ -401,6 +437,7 @@ pub(super) async fn token_endpoint_authorization_code(
                 &authorization_server.id,
                 &profile.id,
                 &client_id,
+                &code_record.work_context,
                 &code_record.principal,
                 &code_record.scopes,
                 Utc::now(),

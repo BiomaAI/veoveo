@@ -4,9 +4,9 @@
 //! `docs/TECH_DESIGN.md`, "Access control model"). This module owns the pure,
 //! I/O-free core:
 //!
-//! - **DAC / ACL** — [`Grant`] scopes one artifact to one [`Subject`] at one
+//! - **DAC / ACL** — [`Grant`] scopes one artifact to one [`AccessSubject`] at one
 //!   [`AccessLevel`]. This is the discretionary "share with those people" layer.
-//! - **Groups** — a [`Subject::Group`] grant plus the caller's
+//! - **Groups** — an [`AccessSubject::Group`] grant plus the caller's
 //!   [`GroupMembership`] set (the `(GroupId, GroupRole)` pairing) resolve to an
 //!   effective level via `min(member role, grant level)`.
 //! - **MAC** — [`mac_satisfied`] checks that the caller's clearance dominates
@@ -24,6 +24,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::gateway::{DataLabelId, GroupId, PrincipalId, TenantId};
+pub use crate::work_context::AccessSubject;
+use crate::work_context::WorkContextMembershipLevel;
 
 /// Canonical identity of one logical artifact occurrence. Every put creates a
 /// fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
@@ -142,17 +144,6 @@ impl GroupRole {
     }
 }
 
-/// Who a grant is made to. Groups enter the model here, as a grant subject —
-/// not as a set of permissions and not as a resource container.
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case", tag = "kind", content = "id")]
-pub enum Subject {
-    User(PrincipalId),
-    Group(GroupId),
-}
-
 /// One `(GroupId, GroupRole)` membership. A principal carries a set of these;
 /// the pairing is the only genuinely new relationship the sharing feature adds
 /// over today's flat `Principal.groups`.
@@ -183,7 +174,7 @@ pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Grant {
     pub artifact: ArtifactId,
-    pub subject: Subject,
+    pub subject: AccessSubject,
     pub level: AccessLevel,
     /// Tenant the artifact (and therefore this grant) lives in. Isolation is a
     /// hard partition: a grant never bridges tenants.
@@ -239,9 +230,9 @@ pub fn grant_level_for_caller(
     memberships: &BTreeSet<GroupMembership>,
 ) -> Option<AccessLevel> {
     match &grant.subject {
-        Subject::User(user) if user == caller_id => Some(grant.level),
-        Subject::User(_) => None,
-        Subject::Group(group) => {
+        AccessSubject::Principal(principal) if principal == caller_id => Some(grant.level),
+        AccessSubject::Principal(_) => None,
+        AccessSubject::Group(group) => {
             role_in_group(memberships, group).map(|role| role.access_level().min(grant.level))
         }
     }
@@ -269,6 +260,9 @@ pub struct AccessRequest<'a> {
     pub artifact_labels: &'a BTreeSet<DataLabelId>,
     /// Grants recorded for this artifact.
     pub grants: &'a [Grant],
+    /// Matching Work Context membership, when the caller selected the same
+    /// context stamped on the artifact.
+    pub context_membership: Option<WorkContextMembershipLevel>,
     pub requested: AccessLevel,
 }
 
@@ -286,6 +280,7 @@ pub fn decide(req: &AccessRequest<'_>) -> AccessDecision {
         .grants
         .iter()
         .filter_map(|grant| grant_level_for_caller(grant, req.caller_id, req.memberships))
+        .chain(req.context_membership.map(|level| level.artifact_access()))
         .max();
 
     let mac = mac_satisfied(req.artifact_labels, req.caller_labels);
@@ -329,7 +324,7 @@ mod tests {
     fn user_grant(user: &str, level: AccessLevel) -> Grant {
         Grant {
             artifact: artifact_id(),
-            subject: Subject::User(pid(user)),
+            subject: AccessSubject::Principal(pid(user)),
             level,
             tenant: tid("acme"),
             data_labels: BTreeSet::new(),
@@ -340,7 +335,7 @@ mod tests {
     fn group_grant(group: &str, level: AccessLevel, labels: BTreeSet<DataLabelId>) -> Grant {
         Grant {
             artifact: artifact_id(),
-            subject: Subject::Group(gid(group)),
+            subject: AccessSubject::Group(gid(group)),
             level,
             tenant: tid("acme"),
             data_labels: labels,
@@ -367,6 +362,7 @@ mod tests {
             artifact_tenant,
             artifact_labels,
             grants,
+            context_membership: None,
             requested,
         }
     }

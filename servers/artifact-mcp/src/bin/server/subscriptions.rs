@@ -290,10 +290,10 @@ fn subscriber_key(caller: &PlaneCaller) -> String {
         caller.identity.profile,
         caller
             .identity
-            .principal
+            .actor
             .tenant
             .as_ref()
             .map_or("", |tenant| tenant.as_str()),
-        caller.identity.principal.id
+        caller.identity.actor.id
     )
 }

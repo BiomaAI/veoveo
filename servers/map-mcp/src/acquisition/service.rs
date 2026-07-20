@@ -594,9 +594,7 @@ impl AcquisitionService {
                 .to_owned(),
         );
         put.compliance = ComplianceMetadata {
-            tenant_id: caller.identity.principal.tenant.clone(),
-            owner_id: Some(caller.identity.principal.id.clone()),
-            data_labels: caller.identity.principal.data_labels.clone(),
+            data_labels: caller.identity.actor.data_labels.clone(),
             ..Default::default()
         };
         put.metadata = metadata;

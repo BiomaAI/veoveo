@@ -10451,6 +10451,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "uuid",
+ "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
 ]
@@ -11179,6 +11180,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+ "veoveo-mcp-contract",
  "veoveo-platform-store",
 ]
 

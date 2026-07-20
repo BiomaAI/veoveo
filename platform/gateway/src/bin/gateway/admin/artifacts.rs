@@ -9,9 +9,9 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactId, ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId,
+    AccessLevel, AccessSubject, ArtifactId, ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId,
     CreateArtifactShareLinkRequest, GatewayAction, GatewayProfile, PlaneCaller, PolicyTarget,
-    PutGrantRequest, ResourceUri, SetArtifactReleaseStateRequest, Subject,
+    PutGrantRequest, ResourceUri, SetArtifactReleaseStateRequest,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
@@ -176,7 +176,7 @@ pub(crate) async fn revoke_artifact_grant(
     State(state): State<AdminState>,
     AxumPath((profile, artifact_id)): AxumPath<(String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Json(grant_subject): Json<Subject>,
+    Json(grant_subject): Json<AccessSubject>,
 ) -> Response {
     let started_at = Instant::now();
     let metadata = grant_subject_metadata(&grant_subject);
@@ -331,7 +331,8 @@ async fn authorize_artifact_operation(
     let internal_token = match state.internal_token_issuer.issue(
         profile_id,
         state.artifact_server.clone(),
-        subject.principal.clone(),
+        subject.actor.clone(),
+        subject.authority.clone(),
         expires_at,
     ) {
         Ok(token) => token,
@@ -355,7 +356,7 @@ async fn authorize_artifact_operation(
             return Err(StatusCode::INTERNAL_SERVER_ERROR.into_response());
         }
     };
-    let memberships = internal_token.identity.principal.group_memberships();
+    let memberships = internal_token.identity.actor.group_memberships();
     let caller = PlaneCaller {
         bearer_token: internal_token.bearer_token,
         identity: internal_token.identity,
@@ -487,7 +488,7 @@ async fn record_artifact_operation(
     .await
 }
 
-fn grant_metadata(subject: &Subject, level: AccessLevel) -> BTreeMap<String, String> {
+fn grant_metadata(subject: &AccessSubject, level: AccessLevel) -> BTreeMap<String, String> {
     let mut metadata = grant_subject_metadata(subject);
     metadata.insert(
         "grant_level".to_owned(),
@@ -496,10 +497,10 @@ fn grant_metadata(subject: &Subject, level: AccessLevel) -> BTreeMap<String, Str
     metadata
 }
 
-fn grant_subject_metadata(subject: &Subject) -> BTreeMap<String, String> {
+fn grant_subject_metadata(subject: &AccessSubject) -> BTreeMap<String, String> {
     let (kind, id) = match subject {
-        Subject::User(id) => ("user", id.to_string()),
-        Subject::Group(id) => ("group", id.to_string()),
+        AccessSubject::Principal(id) => ("user", id.to_string()),
+        AccessSubject::Group(id) => ("group", id.to_string()),
     };
     BTreeMap::from([
         ("grant_subject_kind".to_owned(), kind.to_owned()),

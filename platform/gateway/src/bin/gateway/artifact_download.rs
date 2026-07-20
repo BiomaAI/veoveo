@@ -107,7 +107,8 @@ pub(super) async fn download_artifact(
     let internal_token = match state.internal_token_issuer.issue(
         profile,
         state.artifact_server,
-        subject.principal,
+        subject.actor,
+        subject.authority,
         expires_at,
     ) {
         Ok(token) => token,
