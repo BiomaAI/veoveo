@@ -10,8 +10,6 @@ import {
 } from "react";
 import {
   Check,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   FileStack,
   Play,
@@ -121,7 +119,6 @@ export function RecordingsView({
   const [playbackError, setPlaybackError] = useState<string>();
   const [reloadToken, setReloadToken] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [archiveSegmentId, setArchiveSegmentId] = useState<string>();
 
   const recordings = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -150,7 +147,6 @@ export function RecordingsView({
     void loadRecordingPlayback(resolvedSelectedId, controller.signal)
       .then((value) => {
         setManifest(value);
-        setArchiveSegmentId(value.archive.default_segment_id);
         setPlaybackError(undefined);
       })
       .catch((cause: unknown) => {
@@ -193,7 +189,6 @@ export function RecordingsView({
           return;
         }
         setManifest(value);
-        setArchiveSegmentId((segmentId) => segmentId ?? value.archive.default_segment_id);
         setPlaybackError(undefined);
       } catch (cause: unknown) {
         if (!disposed) {
@@ -222,7 +217,6 @@ export function RecordingsView({
   const selectRecording = (recordingId: string) => {
     if (recordingId === resolvedSelectedId) return;
     setManifest(undefined);
-    setArchiveSegmentId(undefined);
     setPlaybackError(undefined);
     setLoading(true);
     setSelectedId(recordingId);
@@ -231,7 +225,6 @@ export function RecordingsView({
 
   const reloadPlayback = () => {
     setManifest(undefined);
-    setArchiveSegmentId(undefined);
     setPlaybackError(undefined);
     setLoading(true);
     setReloadToken((value) => value + 1);
@@ -246,38 +239,22 @@ export function RecordingsView({
 
   const playbackSource = useMemo(() => {
     if (!manifest) return undefined;
-    if (manifest.live) {
-      const liveUrl = recordingLiveSegmentUrl(
+    const archiveUrls = manifest.archive.segments.map((segment) =>
+      recordingSegmentUrl(
         manifest.recording_id,
         manifest.playback_ticket,
-        manifest.live.segment_id
-      );
-      return {
-        mode: "live" as const,
-        urls: [liveUrl],
-      };
-    }
-    const selectedSegment = manifest.archive.segments.find(
-      (segment) => segment.segment_id === archiveSegmentId
+        segment.segment_id
+      )
     );
-    if (selectedSegment) {
-      return {
-        mode: "replay" as const,
-        urls: [
-          recordingSegmentUrl(
-            manifest.recording_id,
-            manifest.playback_ticket,
-            selectedSegment.segment_id
-          ),
-        ],
-      };
-    }
-    return undefined;
-  }, [archiveSegmentId, manifest]);
-
-  const archiveSegmentIndex = manifest?.archive.segments.findIndex(
-    (segment) => segment.segment_id === archiveSegmentId
-  ) ?? -1;
+    const liveUrl = manifest.live
+      ? recordingLiveSegmentUrl(
+          manifest.recording_id,
+          manifest.playback_ticket,
+          manifest.live.segment_id
+        )
+      : undefined;
+    return archiveUrls.length > 0 || liveUrl ? { archiveUrls, liveUrl } : undefined;
+  }, [manifest]);
 
   return (
     <div className="recordings-workspace">
@@ -356,8 +333,8 @@ export function RecordingsView({
             <div className="recording-facts">
               <div><span>Lifecycle</span><strong>{lifecycleDetail[selected.state]}</strong></div>
               <div>
-                <span>Playable segments</span>
-                <strong>{selected.playableSegmentCount} of {selected.segmentCount}</strong>
+                <span>Archive health</span>
+                <strong>{selected.playableSegmentCount} of {selected.segmentCount} ready</strong>
               </div>
               <div><span>Playable size</span><strong>{formatBytes(selected.playableByteLength)}</strong></div>
               <div><span>Started</span><strong>{formatDate(selected.startedAt)}</strong></div>
@@ -413,7 +390,7 @@ export function RecordingsView({
                 <ViewerBoundary recordingId={selected.id}>
                   <Suspense fallback={<div className="recording-viewer-state"><div className="loading-mark" /><span>Loading Rerun 0.34.1…</span></div>}>
                     <GovernedRerunViewer
-                      key={`${selected.id}:${playbackSource.mode}:${playbackSource.urls.join(":")}`}
+                      key={selected.id}
                       recordingId={selected.id}
                       source={playbackSource}
                     />
@@ -427,56 +404,32 @@ export function RecordingsView({
                 {manifest.live ? (
                   <span>
                     Live · {manifest.live.history_seconds}s recent history plus{" "}
-                    {manifest.live.video_preroll_seconds}s video preroll; following archive shard{" "}
-                    {manifest.live.ordinal + 1}.
+                    {manifest.live.video_preroll_seconds}s video preroll · archived history remains
+                    available on this timeline
                   </span>
                 ) : (
-                  <>
-                    <button
-                      className="recording-window-button"
-                      disabled={archiveSegmentIndex <= 0}
-                      onClick={() =>
-                        setArchiveSegmentId(
-                          manifest.archive.segments[archiveSegmentIndex - 1]?.segment_id
-                        )
-                      }
-                      aria-label="Previous archive window"
-                    >
-                      <ChevronLeft size={14} />
-                    </button>
-                    <select
-                      className="recording-window-select"
-                      value={archiveSegmentId ?? ""}
-                      onChange={(event) => setArchiveSegmentId(event.target.value)}
-                      aria-label="Archive playback window"
-                    >
-                      {manifest.archive.segments.map((segment, index) => (
-                        <option key={segment.segment_id} value={segment.segment_id}>
-                          Window {index + 1} of {manifest.archive.segments.length} ·{" "}
-                          {formatBytes(segment.byte_len)}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="recording-window-button"
-                      disabled={
-                        archiveSegmentIndex < 0 ||
-                        archiveSegmentIndex >= manifest.archive.segments.length - 1
-                      }
-                      onClick={() =>
-                        setArchiveSegmentId(
-                          manifest.archive.segments[archiveSegmentIndex + 1]?.segment_id
-                        )
-                      }
-                      aria-label="Next archive window"
-                    >
-                      <ChevronRight size={14} />
-                    </button>
-                    <span>
-                      Direct authorized RRD shard · {manifest.archive.optimization_profile} profile
-                    </span>
-                  </>
+                  <span>Replay · complete authorized recording history</span>
                 )}
+                <details className="recording-archive-details">
+                  <summary>Details</summary>
+                  <div className="recording-archive-details-panel">
+                    <strong>Archive</strong>
+                    <span>
+                      {manifest.archive.segments.length} immutable part
+                      {manifest.archive.segments.length === 1 ? "" : "s"} · RRD{" "}
+                      {manifest.archive.rrd_version} · {manifest.archive.optimization_profile}
+                    </span>
+                    <ol>
+                      {manifest.archive.segments.map((segment) => (
+                        <li key={segment.segment_id}>
+                          <span>Part {segment.ordinal + 1}</span>
+                          <span>{formatBytes(segment.byte_len)}</span>
+                          <code>{segment.sha256.slice(0, 12)}</code>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </details>
               </footer>
             )}
           </>

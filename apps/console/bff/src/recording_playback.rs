@@ -105,7 +105,6 @@ struct PlaybackManifest {
 struct PlaybackArchive {
     rrd_version: String,
     optimization_profile: String,
-    default_segment_id: Option<String>,
     segments: Vec<PlaybackSegment>,
 }
 

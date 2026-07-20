@@ -2,14 +2,47 @@ import { useEffect, useRef, useState } from "react";
 import { WebViewer } from "@rerun-io/web-viewer";
 
 export interface GovernedRerunSource {
-  mode: "live" | "replay";
-  urls: string[];
+  archiveUrls: string[];
+  liveUrl?: string;
 }
 
 type ViewerStatus =
   | { state: "loading"; delayed: boolean }
   | { state: "open" }
   | { state: "error"; message: string };
+
+interface OpenedRerunSources {
+  archiveUrls: Set<string>;
+  liveUrl?: string;
+}
+
+function synchronizeSources(
+  viewer: WebViewer,
+  opened: OpenedRerunSources,
+  desired: GovernedRerunSource
+) {
+  const desiredArchiveUrls = new Set(desired.archiveUrls);
+  const archiveAdditions = desired.archiveUrls.filter(
+    (url) => !opened.archiveUrls.has(url)
+  );
+  if (archiveAdditions.length > 0) {
+    viewer.open(archiveAdditions, { follow_if_http: false });
+  }
+  if (desired.liveUrl && desired.liveUrl !== opened.liveUrl) {
+    viewer.open(desired.liveUrl, { follow_if_http: true });
+  }
+
+  const removals = [...opened.archiveUrls].filter(
+    (url) => !desiredArchiveUrls.has(url)
+  );
+  if (opened.liveUrl && opened.liveUrl !== desired.liveUrl) {
+    removals.push(opened.liveUrl);
+  }
+  if (removals.length > 0) viewer.close(removals);
+
+  opened.archiveUrls = desiredArchiveUrls;
+  opened.liveUrl = desired.liveUrl;
+}
 
 export default function GovernedRerunViewer({
   recordingId,
@@ -19,16 +52,33 @@ export default function GovernedRerunViewer({
   source: GovernedRerunSource;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<WebViewer | undefined>(undefined);
+  const desiredSourceRef = useRef(source);
+  const openedSourcesRef = useRef<OpenedRerunSources>({ archiveUrls: new Set() });
   const [status, setStatus] = useState<ViewerStatus>({
     state: "loading",
     delayed: false,
   });
 
   useEffect(() => {
+    desiredSourceRef.current = source;
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    try {
+      synchronizeSources(viewer, openedSourcesRef.current, source);
+    } catch (cause: unknown) {
+      const message = cause instanceof Error ? cause.message : "Rerun playback failed";
+      console.error("Governed Rerun source update failed", cause);
+      queueMicrotask(() => setStatus({ state: "error", message }));
+    }
+  }, [source]);
+
+  useEffect(() => {
     const viewer = new WebViewer();
     let active = true;
     let removeOpenListener: (() => void) | undefined;
     let delayedNotice: number | undefined;
+    openedSourcesRef.current = { archiveUrls: new Set() };
     void viewer
       .start(null, host.current, {
         width: "100%",
@@ -51,7 +101,8 @@ export default function GovernedRerunViewer({
           if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
           setStatus({ state: "open" });
         });
-        viewer.open(source.urls, { follow_if_http: source.mode === "live" });
+        viewerRef.current = viewer;
+        synchronizeSources(viewer, openedSourcesRef.current, desiredSourceRef.current);
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -63,6 +114,7 @@ export default function GovernedRerunViewer({
 
     return () => {
       active = false;
+      viewerRef.current = undefined;
       if (delayedNotice !== undefined) window.clearTimeout(delayedNotice);
       removeOpenListener?.();
       try {
@@ -71,7 +123,7 @@ export default function GovernedRerunViewer({
         console.warn("Rerun cleanup failed after the viewer stopped", cause);
       }
     };
-  }, [recordingId, source]);
+  }, [recordingId]);
 
   return (
     <div className="rerun-web-viewer">
@@ -87,16 +139,16 @@ export default function GovernedRerunViewer({
           <strong>
             {status.delayed
               ? "The recording is still loading"
-              : source.mode === "live"
+              : source.liveUrl
                 ? "Connecting to live capture"
                 : "Preparing replay"}
           </strong>
           <span>
             {status.delayed
               ? "Authorized data is still streaming into Rerun. Playback will open automatically; large recordings can take longer."
-              : source.mode === "live"
-              ? "Loading bounded recent history, then following newly durable RRD batches."
-              : "Opening the selected immutable, footer-indexed RRD archive shard."}
+              : source.liveUrl
+              ? "Opening authorized history, then following newly durable RRD batches."
+              : "Opening the complete authorized, footer-indexed recording history."}
           </span>
         </div>
       ) : null}

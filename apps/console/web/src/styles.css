@@ -236,9 +236,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex="0"]:
 .recording-viewer-state span { max-width: 520px; color: var(--viewer-muted); font-size: var(--text-xs); line-height: 18px; }
 .recording-viewer-error { color: var(--red); }
 .recording-player-footer { min-height: 37px; display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-top: 1px solid var(--border); background: var(--viewer-surface-raised); color: var(--viewer-text); font-size: var(--text-2xs); }
-.recording-window-button { width: 26px; height: 24px; display: grid; place-items: center; padding: 0; border: 1px solid var(--viewer-border); border-radius: 4px; background: var(--viewer-surface); color: var(--viewer-text); }
-.recording-window-button:disabled { color: var(--viewer-muted); opacity: .45; }
-.recording-window-select { min-width: 180px; height: 24px; border: 1px solid var(--viewer-border); border-radius: 4px; background: var(--viewer-surface); color: var(--viewer-text); font-size: var(--text-2xs); }
+.recording-archive-details { position: relative; margin-left: auto; }
+.recording-archive-details summary { cursor: pointer; color: var(--viewer-muted); list-style: none; }
+.recording-archive-details summary::-webkit-details-marker { display: none; }
+.recording-archive-details[open] summary { color: var(--viewer-text-strong); }
+.recording-archive-details-panel { position: absolute; z-index: 4; right: 0; bottom: 28px; width: min(430px, 80vw); max-height: 340px; display: grid; gap: 5px; padding: 12px; overflow: auto; border: 1px solid var(--viewer-border); border-radius: 6px; background: var(--viewer-surface-raised); box-shadow: var(--shadow-lg); }
+.recording-archive-details-panel > span { color: var(--viewer-muted); }
+.recording-archive-details-panel ol { display: grid; gap: 4px; margin: 5px 0 0; padding: 0; list-style: none; }
+.recording-archive-details-panel li { display: grid; grid-template-columns: minmax(80px, 1fr) auto auto; gap: 10px; align-items: center; padding-top: 4px; border-top: 1px solid var(--viewer-border); }
+.recording-archive-details-panel code { color: var(--viewer-muted); font-size: inherit; }
 .recording-empty-player { min-height: 100%; background: var(--surface); color: var(--muted); }
 .recording-empty-player h2 { margin: 4px 0 0; color: var(--text-strong); font-size: var(--text-md); }
 .recording-empty-player p { max-width: 440px; margin: 0; font-size: var(--text-sm); line-height: 20px; }

@@ -206,7 +206,6 @@ export interface RecordingPlaybackManifest {
   archive: {
     rrd_version: string;
     optimization_profile: string;
-    default_segment_id?: string;
     segments: Array<{
       segment_id: string;
       ordinal: number;

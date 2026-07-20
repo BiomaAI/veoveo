@@ -206,7 +206,6 @@ impl RecordingService {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let default_segment_id = segments.first().map(|segment| segment.segment_id.clone());
         let live = plan
             .segments
             .iter()
@@ -232,7 +231,6 @@ impl RecordingService {
             archive: PlaybackArchive {
                 rrd_version: "0.34.1".to_owned(),
                 optimization_profile: "object-store".to_owned(),
-                default_segment_id,
                 segments,
             },
             live,
