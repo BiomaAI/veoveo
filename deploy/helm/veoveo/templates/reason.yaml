@@ -1,0 +1,183 @@
+{{- if .Values.reason.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reason-model-cache
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reason-mcp
+spec:
+  accessModes:
+    {{- toYaml .Values.reason.modelCache.accessModes | nindent 4 }}
+  {{- if .Values.reason.modelCache.storageClass }}
+  storageClassName: {{ .Values.reason.modelCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.reason.modelCache.size }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reason-runtime
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reason-mcp
+data:
+  catalog.json: |
+    {
+      "models": [
+        {
+          "id": "world-model",
+          "title": "Site world model",
+          "description": "Site-compiled TensorRT-LLM world model engine for video reasoning.",
+          "format": "tensor_rt_llm_engine",
+          "model_path": "/models/world-model.engine"
+        }
+      ],
+      "pipelines": [
+        {
+          "id": "video-reasoning",
+          "title": "Video reasoning",
+          "description": "Describe segments, detect events, and answer questions over recording video.",
+          "operation": "video_reasoning",
+          "model_id": "world-model",
+          "prompt_template_path": "/etc/veoveo/reason/prompt-template.txt",
+          "prompt_revision": "v1",
+          "observation": {
+            "width": 640,
+            "height": 360
+          }
+        }
+      ]
+    }
+  prompt-template.txt: |
+    You observe frames sampled from one governed video recording. Answer only
+    from what the frames show. When detecting events, report each event with
+    its inclusive source-timeline range, a short label, and one factual
+    description. When grounding detections are provided, cite their track
+    identities instead of inventing object references.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reason-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reason-mcp
+spec:
+  selector:
+    {{- include "veoveo.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: reason-mcp
+  ports:
+    - name: http
+      port: 8803
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reason-mcp
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reason-mcp
+spec:
+  replicas: {{ .Values.reason.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: reason-mcp
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: reason-mcp
+      annotations:
+        {{- include "veoveo.podAnnotations" . | nindent 8 }}
+    spec:
+      runtimeClassName: {{ .Values.reason.runtimeClassName }}
+      serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- include "veoveo.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: reason-mcp
+          image: {{ include "veoveo.image" (list . .Values.reason.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args:
+            - --port
+            - "8803"
+            - --allowed-host
+            - reason-mcp:8803
+            - --artifact-service-url
+            - http://artifact-service:8790
+            - --spool-dir
+            - /recordings
+            - --pipeline-catalog
+            - /etc/veoveo/reason/catalog.json
+          env:
+            {{- include "veoveo.commonEnv" . | nindent 12 }}
+            - name: PUBLIC_BASE_URL
+              value: {{ .Values.global.publicBaseUrl | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: veoveo-reason-mcp
+            - name: HOME
+              value: /tmp
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility,video
+          ports:
+            - name: http
+              containerPort: 8803
+          readinessProbe:
+            httpGet:
+              path: /reason/readyz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: reason-mcp:8803
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /reason/healthz
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: reason-mcp:8803
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          securityContext:
+            {{- include "veoveo.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.reason.resources | nindent 12 }}
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+            - name: runtime-config
+              mountPath: /etc/veoveo/reason
+              readOnly: true
+            - name: recordings
+              mountPath: /recordings
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: reason-model-cache
+        - name: runtime-config
+          configMap:
+            name: reason-runtime
+        - name: recordings
+          persistentVolumeClaim:
+            claimName: recording-spool
+        - name: tmp
+          emptyDir: {}
+{{- end }}
