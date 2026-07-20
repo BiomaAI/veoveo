@@ -22,8 +22,13 @@ export interface InstallationSnapshot {
   session: {
     displayName?: string;
     principalId: string;
+    actorId: string;
     tenantId: string;
     tenantName: string;
+    workContext: string;
+    workContextTitle: string;
+    membership: WorkContextMembership;
+    invocationMode: InvocationMode;
     availableTenants: Array<{ id: string; name: string }>;
   };
   stream: {
@@ -38,6 +43,9 @@ export interface InstallationSnapshot {
   policies: PolicySummary[];
   audit: AuditSummary[];
 }
+
+export type WorkContextMembership = "viewer" | "contributor" | "custodian" | "owner";
+export type InvocationMode = "direct" | "delegated" | "automated";
 
 export interface ServiceHealth {
   id: string;
@@ -69,6 +77,32 @@ export interface ArtifactSummary {
   mediaType: string;
   byteLength: number;
   owner: string;
+  outputOwner: {
+    kind: "principal" | "group";
+    id: string;
+  };
+  provenance: {
+    workContext: string;
+    producer: string;
+    invocationMode: InvocationMode;
+    initiator?: string;
+    delegationId?: string;
+    policyRevision: string;
+  };
+  effectiveAccess: {
+    level?: "read" | "write" | "admin";
+    read: boolean;
+    write: boolean;
+    admin: boolean;
+    clearanceSatisfied: boolean;
+    requestable: boolean;
+    denialReason?: "tenant_boundary" | "clearance" | "need_to_know";
+    sources: Array<{
+      kind: "principal_grant" | "group_grant" | "work_context";
+      subject: string;
+      level: "read" | "write" | "admin";
+    }>;
+  };
   taskId?: string;
   classification: string;
   labels: string[];
@@ -87,8 +121,30 @@ export interface ArtifactSummary {
   };
 }
 
+export type ArtifactAccessRequestState = "pending" | "approved" | "denied" | "cancelled";
+
+export interface ArtifactAccessRequest {
+  id: string;
+  artifactId: string;
+  workContext: string;
+  requester: string;
+  requestedLevel: "read" | "write" | "admin";
+  justification: string;
+  state: ArtifactAccessRequestState;
+  decidedBy?: string;
+  decisionNote?: string;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt?: string;
+}
+
+export interface ArtifactAccessRequestPage {
+  requests: ArtifactAccessRequest[];
+  nextCursor?: string;
+}
+
 export interface ArtifactGrantSummary {
-  subjectKind: "user" | "group";
+  subjectKind: "principal" | "group";
   subject: string;
   permission: "read" | "write" | "admin";
   labels: string[];

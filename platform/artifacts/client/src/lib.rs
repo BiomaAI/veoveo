@@ -10,10 +10,13 @@ use base64::Engine;
 use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, AccessSubject, ArtifactId, Grant};
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactObject};
 use veoveo_mcp_contract::{
-    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactReleaseState, ArtifactShareLink,
-    ArtifactShareLinkId, ArtifactWriteCapabilitySecret, CreateArtifactShareLinkRequest, GrantList,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactsRequest,
-    PlaneCaller, PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
+    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
+    ArtifactPlane, ArtifactPlaneError, ArtifactReleaseState, ArtifactShareLink,
+    ArtifactShareLinkId, ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest,
+    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
+    ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    RedeemArtifactWriteCapabilityRequest,
 };
 
 /// A plane client bound to one artifact-service base URL.
@@ -399,6 +402,87 @@ impl ArtifactPlane for HttpArtifactPlane {
             .await
             .map_err(transport)?;
         expect_no_content(response).await
+    }
+
+    async fn create_access_request(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        request: CreateArtifactAccessRequest,
+    ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
+        let response = self
+            .http
+            .post(self.url(&format!("/artifacts/{artifact_id}/access-requests")))
+            .bearer_auth(&caller.bearer_token)
+            .json(&request)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
+    }
+
+    async fn list_access_requests(
+        &self,
+        caller: &PlaneCaller,
+        request: ListArtifactAccessRequests,
+    ) -> Result<ArtifactAccessRequestPage, ArtifactPlaneError> {
+        let response = self
+            .http
+            .get(self.url("/artifact-access-requests"))
+            .bearer_auth(&caller.bearer_token)
+            .query(&request)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
+    }
+
+    async fn decide_access_request(
+        &self,
+        caller: &PlaneCaller,
+        request_id: &ArtifactAccessRequestId,
+        decision: DecideArtifactAccessRequest,
+    ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
+        let response = self
+            .http
+            .post(self.url(&format!("/artifact-access-requests/{request_id}/decision")))
+            .bearer_auth(&caller.bearer_token)
+            .json(&decision)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
+    }
+
+    async fn cancel_access_request(
+        &self,
+        caller: &PlaneCaller,
+        request_id: &ArtifactAccessRequestId,
+    ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
+        let response = self
+            .http
+            .post(self.url(&format!("/artifact-access-requests/{request_id}/cancel")))
+            .bearer_auth(&caller.bearer_token)
+            .send()
+            .await
+            .map_err(transport)?;
+        if response.status().is_success() {
+            response.json().await.map_err(transport)
+        } else {
+            response_error(response).await
+        }
     }
 }
 

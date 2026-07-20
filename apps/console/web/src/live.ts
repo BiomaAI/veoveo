@@ -162,6 +162,9 @@ export function useConsoleLiveStream(cursor: string | undefined): LiveStatus {
         applyRowEvent(client, entity, JSON.parse((event as MessageEvent<string>).data) as RowEvent);
       });
     }
+    source.addEventListener("access_request", () => {
+      void client.invalidateQueries({ queryKey: queryKeys.accessRequests });
+    });
     source.addEventListener("reset", resync);
 
     return () => {

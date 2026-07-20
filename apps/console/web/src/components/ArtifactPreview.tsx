@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import {
   Box,
   Download,
@@ -7,9 +7,11 @@ import {
   Image as ImageIcon,
   LockKeyhole,
   Music2,
+  Send,
   Video,
 } from "lucide-react";
 import { artifactDownloadUrl, artifactPreviewUrl } from "../api";
+import { useArtifactAccessRequests, useRequestArtifactAccess } from "../queries";
 import type { ArtifactSummary } from "../types";
 
 const TEXT_PREVIEW_BYTES = 256 * 1024;
@@ -63,6 +65,28 @@ function AuthorizedArtifactPreview({
   );
   const [accessDetail, setAccessDetail] = useState<string>();
   const [mediaError, setMediaError] = useState<string>();
+  const [justification, setJustification] = useState("");
+  const [requestError, setRequestError] = useState<string>();
+  const accessRequests = useArtifactAccessRequests("mine", "pending");
+  const requestAccess = useRequestArtifactAccess();
+  const pendingRequest = accessRequests.data?.requests.find(
+    (request) => request.artifactId === artifact.id
+  );
+  const submitRequest = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!justification.trim()) return;
+    setRequestError(undefined);
+    try {
+      await requestAccess.mutateAsync({
+        artifactId: artifact.id,
+        requestedLevel: "read",
+        justification: justification.trim(),
+      });
+      setJustification("");
+    } catch (cause) {
+      setRequestError(cause instanceof Error ? cause.message : "Access request failed");
+    }
+  };
   useEffect(() => {
     const controller = new AbortController();
     void fetch(url, {
@@ -115,7 +139,39 @@ function AuthorizedArtifactPreview({
             This private artifact is owned by <code>{artifact.owner}</code>. The active Console
             principal <code>{principalId}</code> does not have a read grant.
           </span>
-          <span>Ask an artifact administrator to grant read access, then reopen this preview.</span>
+          {pendingRequest ? (
+            <span>
+              Read access was requested {new Date(pendingRequest.createdAt).toLocaleString()}. A
+              custodian for <code>{pendingRequest.workContext}</code> can review it.
+            </span>
+          ) : artifact.effectiveAccess.requestable ? (
+            <form className="preview-access-form" onSubmit={(event) => void submitRequest(event)}>
+              <label>
+                <span>Business justification</span>
+                <textarea
+                  value={justification}
+                  onChange={(event) => setJustification(event.target.value)}
+                  placeholder="Describe the work that requires this artifact."
+                  maxLength={4096}
+                  required
+                />
+              </label>
+              <button
+                className="button button-primary"
+                type="submit"
+                disabled={requestAccess.isPending || !justification.trim()}
+              >
+                <Send size={14} /> Request read access
+              </button>
+              {requestError && <span className="action-error">{requestError}</span>}
+            </form>
+          ) : (
+            <span>
+              {artifact.effectiveAccess.denialReason === "clearance"
+                ? "The active principal does not hold every data label required by this artifact. A discretionary grant cannot change clearance."
+                : "This artifact is outside the active tenant boundary."}
+            </span>
+          )}
         </div>
       </div>
     );

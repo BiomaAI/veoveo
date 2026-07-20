@@ -201,9 +201,9 @@ validate the complete document, and activate it as one atomic revision.
 external OIDC provider. Its registration must match the control plane:
 
 - Register `https://veoveo.bioma.ai/oauth/callback` as a Web redirect URI.
-- Create the app roles `veoveo_operator` and `veoveo_admin`, then allow user or
-  group assignment. The operations console requires `veoveo_admin`; operator
-  access requires `veoveo_operator` or `veoveo_admin` according to the profile
+- Create the app roles `operator` and `administrator`, then allow user or
+  group assignment. The operations console requires `administrator`; operator
+  access requires `operator` or `administrator` according to the profile
   policy. Sign out and authenticate again after changing an assignment because
   existing tokens retain their original `roles` claim.
 - Treat the app-role UUID as part of the role identity. When a role value

@@ -2,6 +2,32 @@ import type { InstallationSnapshot, McpServerSummary } from "./types";
 
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
+const governance = (
+  owner: string,
+  level: "read" | "write" | "admin" | undefined,
+  workContext = "field-operations",
+) => ({
+  outputOwner: { kind: "principal" as const, id: owner },
+  provenance: {
+    workContext,
+    producer: owner,
+    invocationMode: "automated" as const,
+    initiator: "entra#8c19f2",
+    policyRevision: "r12",
+  },
+  effectiveAccess: {
+    level,
+    read: level !== undefined,
+    write: level === "write" || level === "admin",
+    admin: level === "admin",
+    clearanceSatisfied: true,
+    requestable: level === undefined,
+    denialReason: level === undefined ? "need_to_know" as const : undefined,
+    sources: level
+      ? [{ kind: "work_context" as const, subject: workContext, level }]
+      : [],
+  },
+});
 const mcpServer = (
   id: string,
   toolCount: number,
@@ -48,8 +74,13 @@ export const demoSnapshot: InstallationSnapshot = {
   session: {
     displayName: "Mara Chen",
     principalId: "entra#8c19f2",
+    actorId: "entra#8c19f2",
     tenantId: "field-ops",
     tenantName: "Field Operations",
+    workContext: "field-operations",
+    workContextTitle: "Field Operations",
+    membership: "owner",
+    invocationMode: "direct",
     availableTenants: [
       { id: "field-ops", name: "Field Operations" },
       { id: "mobility", name: "Mobility Research" }
@@ -70,10 +101,10 @@ export const demoSnapshot: InstallationSnapshot = {
     { id: "019f4ce0-1288-7e94-90cc-b3cd97988262", type: "optimization.solve", server: "optimization", owner: "pilot-agent", state: "queued", recoveryClass: "resume", progress: 0, createdAt: ago(3), updatedAt: ago(3), message: "Queued for worker" }
   ],
   artifacts: [
-    { id: "019f4d01-3d7c-71dd-88fd-348009550aa4", filename: "survey-transform.rrd", mediaType: "application/vnd.rerun.rrd", byteLength: 18_450_240, owner: "pilot-agent", taskId: "019f4cfa-b783-7fab-85f6-4ed88f6c01b2", classification: "internal", labels: ["field-data"], releaseState: "releasable", authorizedGrants: 4, activeLinks: 1, grants: [], shareLinks: [], retentionExpiresAt: new Date(now + 21 * 86400_000).toISOString(), createdAt: ago(63) },
-    { id: "019f4cbb-8aa7-7664-ac33-a247570358d5", filename: "traffic-plan.parquet", mediaType: "application/vnd.apache.parquet", byteLength: 2_103_884, owner: "mara.chen", classification: "internal", labels: ["mobility"], releaseState: "private", authorizedGrants: 2, activeLinks: 0, grants: [], shareLinks: [], createdAt: ago(148) },
-    { id: "019f4c72-9749-7146-8c35-e3e7d9a41640", filename: "crossing-preview.png", mediaType: "image/png", byteLength: 7_842_944, owner: "mara.chen", classification: "public", labels: [], releaseState: "released", authorizedGrants: 1, activeLinks: 2, grants: [], shareLinks: [], retentionExpiresAt: new Date(now + 26 * 86400_000).toISOString(), createdAt: ago(205) },
-    { id: "019f4c41-428a-77aa-bb6e-d4ac105182c3", filename: "vehicle-counts.csv", mediaType: "text/csv", byteLength: 184_302, owner: "pilot-agent", classification: "restricted", labels: ["customer-a", "location"], releaseState: "private", authorizedGrants: 3, activeLinks: 0, grants: [], shareLinks: [], createdAt: ago(310) }
+    { id: "019f4d01-3d7c-71dd-88fd-348009550aa4", filename: "survey-transform.rrd", mediaType: "application/vnd.rerun.rrd", byteLength: 18_450_240, owner: "pilot-agent", ...governance("pilot-agent", "admin"), taskId: "019f4cfa-b783-7fab-85f6-4ed88f6c01b2", classification: "internal", labels: ["field-data"], releaseState: "releasable", authorizedGrants: 4, activeLinks: 1, grants: [], shareLinks: [], retentionExpiresAt: new Date(now + 21 * 86400_000).toISOString(), createdAt: ago(63) },
+    { id: "019f4cbb-8aa7-7664-ac33-a247570358d5", filename: "traffic-plan.parquet", mediaType: "application/vnd.apache.parquet", byteLength: 2_103_884, owner: "mara.chen", ...governance("mara.chen", "admin"), classification: "internal", labels: ["mobility"], releaseState: "private", authorizedGrants: 2, activeLinks: 0, grants: [], shareLinks: [], createdAt: ago(148) },
+    { id: "019f4c72-9749-7146-8c35-e3e7d9a41640", filename: "crossing-preview.png", mediaType: "image/png", byteLength: 7_842_944, owner: "mara.chen", ...governance("mara.chen", "read"), classification: "public", labels: [], releaseState: "released", authorizedGrants: 1, activeLinks: 2, grants: [], shareLinks: [], retentionExpiresAt: new Date(now + 26 * 86400_000).toISOString(), createdAt: ago(205) },
+    { id: "019f4c41-428a-77aa-bb6e-d4ac105182c3", filename: "vehicle-counts.csv", mediaType: "text/csv", byteLength: 184_302, owner: "pilot-agent", ...governance("pilot-agent", undefined, "customer-review"), classification: "restricted", labels: ["customer-a", "location"], releaseState: "private", authorizedGrants: 3, activeLinks: 0, grants: [], shareLinks: [], createdAt: ago(310) }
   ],
   agents: [
     { id: "pilot", name: "Survey Pilot", profile: "field-operator", state: "running", pendingWakes: 1, lastEpisodeAt: ago(1), detail: "Episode 184 · tool execution" },

@@ -29,10 +29,12 @@ use veoveo_mcp_gateway::{
 
 use super::{
     admin::{
-        authorize_console_cluster, cancel_task, create_artifact_share_link, grant_artifact,
-        proxy_server_admin, prune_jwt_revocations, read_console_snapshot, read_control_plane,
-        revoke_artifact_grant, revoke_artifact_share_link, revoke_jwt, set_artifact_release_state,
-        spawn_console_wake_hub, spawn_server_health_prober, stream_console, update_control_plane,
+        authorize_console_cluster, cancel_artifact_access_request, cancel_task,
+        create_artifact_access_request, create_artifact_share_link, decide_artifact_access_request,
+        grant_artifact, list_artifact_access_requests, proxy_server_admin, prune_jwt_revocations,
+        read_console_snapshot, read_control_plane, revoke_artifact_grant,
+        revoke_artifact_share_link, revoke_jwt, set_artifact_release_state, spawn_console_wake_hub,
+        spawn_server_health_prober, stream_console, update_control_plane,
     },
     artifact_download::download_artifact,
     auth::{
@@ -256,6 +258,22 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         .route(
             "/admin/{profile}/artifacts/{artifact_id}/share-links/{link_id}",
             axum::routing::delete(revoke_artifact_share_link),
+        )
+        .route(
+            "/admin/{profile}/artifacts/{artifact_id}/access-requests",
+            post(create_artifact_access_request),
+        )
+        .route(
+            "/admin/{profile}/artifact-access-requests",
+            get(list_artifact_access_requests),
+        )
+        .route(
+            "/admin/{profile}/artifact-access-requests/{request_id}/decision",
+            post(decide_artifact_access_request),
+        )
+        .route(
+            "/admin/{profile}/artifact-access-requests/{request_id}/cancel",
+            post(cancel_artifact_access_request),
         )
         .with_state(admin_state)
         .layer(middleware::from_fn_with_state(auth_state, authenticate_mcp));

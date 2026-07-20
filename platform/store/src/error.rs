@@ -139,6 +139,13 @@ pub enum StoreError {
     ArtifactWriteDenied,
     #[error("artifact write idempotency key `{key}` was reused for a different request")]
     ArtifactWriteConflict { key: String },
+    #[error("invalid artifact access request field {field}: {reason}")]
+    InvalidArtifactAccessRequest {
+        field: &'static str,
+        reason: &'static str,
+    },
+    #[error("artifact access request `{0}` conflicts with its current state")]
+    ArtifactAccessRequestConflict(String),
     #[error("invalid gateway refresh-token transition: {reason}")]
     InvalidGatewayRefreshTransition { reason: &'static str },
 }

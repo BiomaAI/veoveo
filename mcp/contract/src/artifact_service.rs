@@ -38,7 +38,7 @@ use serde_json::Value;
 
 use crate::AccessSubject;
 use crate::access::{AccessDecision, AccessLevel, ArtifactId, Grant, GroupMembership};
-use crate::gateway::{DataLabelId, TenantId};
+use crate::gateway::{DataLabelId, PrincipalId, TenantId, WorkContextId};
 use crate::internal_auth::GatewayInternalIdentity;
 use crate::storage::{ArtifactMetadata, ArtifactObject, ArtifactReleaseState};
 
@@ -158,6 +158,7 @@ impl<'de> Deserialize<'de> for ArtifactWriteIdempotencyKey {
     }
 }
 artifact_uuid_id!(ArtifactShareLinkId, "artifact share link id");
+artifact_uuid_id!(ArtifactAccessRequestId, "artifact access request id");
 
 /// Opaque identity of an artifact-write capability issued by the artifact
 /// service. This is not an artifact id or a gateway identity assertion.
@@ -361,6 +362,82 @@ pub struct GrantList {
     pub grants: Vec<Grant>,
 }
 
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactAccessRequestState {
+    Pending,
+    Approved,
+    Denied,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactAccessRequestDecision {
+    Approve,
+    Deny,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactAccessRequestScope {
+    Mine,
+    Reviewable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CreateArtifactAccessRequest {
+    pub requested_level: AccessLevel,
+    pub justification: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DecideArtifactAccessRequest {
+    pub decision: ArtifactAccessRequestDecision,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ArtifactAccessRequest {
+    pub id: ArtifactAccessRequestId,
+    pub artifact_id: ArtifactId,
+    pub work_context: WorkContextId,
+    pub requester: PrincipalId,
+    pub requested_level: AccessLevel,
+    pub justification: String,
+    pub state: ArtifactAccessRequestState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decided_by: Option<PrincipalId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decided_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ListArtifactAccessRequests {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<ArtifactAccessRequestScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<ArtifactAccessRequestState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<ArtifactAccessRequestId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ArtifactAccessRequestPage {
+    pub requests: Vec<ArtifactAccessRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<ArtifactAccessRequestId>,
+}
+
 /// Keyset-paginated discovery request for artifacts visible to the caller.
 ///
 /// The cursor is an opaque occurrence identity, not a content hash or storage
@@ -508,6 +585,32 @@ pub trait ArtifactPlane {
         artifact_id: &ArtifactId,
         link_id: &ArtifactShareLinkId,
     ) -> impl std::future::Future<Output = Result<(), ArtifactPlaneError>> + Send;
+
+    fn create_access_request(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        request: CreateArtifactAccessRequest,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequest, ArtifactPlaneError>> + Send;
+
+    fn list_access_requests(
+        &self,
+        caller: &PlaneCaller,
+        request: ListArtifactAccessRequests,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequestPage, ArtifactPlaneError>> + Send;
+
+    fn decide_access_request(
+        &self,
+        caller: &PlaneCaller,
+        request_id: &ArtifactAccessRequestId,
+        decision: DecideArtifactAccessRequest,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequest, ArtifactPlaneError>> + Send;
+
+    fn cancel_access_request(
+        &self,
+        caller: &PlaneCaller,
+        request_id: &ArtifactAccessRequestId,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequest, ArtifactPlaneError>> + Send;
 }
 
 #[cfg(test)]

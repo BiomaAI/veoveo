@@ -153,6 +153,15 @@ string_enum! {
 }
 
 string_enum! {
+    pub enum ArtifactAccessRequestState {
+        Pending => "pending",
+        Approved => "approved",
+        Denied => "denied",
+        Cancelled => "cancelled",
+    }
+}
+
+string_enum! {
     pub enum MediaUsageKind {
         Estimate => "estimate",
         Actual => "actual",
@@ -768,6 +777,27 @@ pub struct ArtifactWriteCapabilityRecord {
     pub expires_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct ArtifactAccessRequestRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub artifact: RecordId,
+    pub work_context: RecordId,
+    pub work_context_key: String,
+    pub requester: RecordId,
+    pub requester_key: String,
+    pub requested_level: GrantPermission,
+    pub justification: String,
+    pub state: ArtifactAccessRequestState,
+    pub decided_by: Option<RecordId>,
+    pub decided_by_key: Option<String>,
+    pub decision_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub decided_at: Option<DateTime<Utc>>,
+    pub revision: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
