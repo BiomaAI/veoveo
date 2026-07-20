@@ -167,7 +167,8 @@ struct InstallationSummary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionSummary {
-    display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
     principal_id: String,
     tenant_id: String,
     tenant_name: String,
@@ -233,8 +234,13 @@ fn build_snapshot(
             principal.issuer == subject.principal.issuer.as_str()
                 && principal.subject == subject.principal.subject.as_str()
         })
-        .map(|principal| principal.display_name.clone())
-        .unwrap_or_else(|| subject.principal.id.to_string());
+        .and_then(|principal| {
+            operator_display_name(
+                &principal.display_name,
+                subject.principal.id.as_str(),
+                subject.principal.subject.as_str(),
+            )
+        });
     let blob_lengths: BTreeMap<_, _> = projection
         .blobs
         .iter()
@@ -396,4 +402,55 @@ fn build_snapshot(
         policies,
         audit,
     })
+}
+
+fn operator_display_name(
+    candidate: &str,
+    principal_id: &str,
+    principal_subject: &str,
+) -> Option<String> {
+    let candidate = candidate.trim();
+    (!candidate.is_empty() && candidate != principal_id && candidate != principal_subject)
+        .then(|| candidate.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::operator_display_name;
+
+    #[test]
+    fn operator_display_name_keeps_human_names() {
+        assert_eq!(
+            operator_display_name(
+                " Mara Chen ",
+                "https://login.example/tenant#object-id",
+                "object-id"
+            ),
+            Some("Mara Chen".to_owned())
+        );
+    }
+
+    #[test]
+    fn operator_display_name_rejects_technical_identity_values() {
+        assert_eq!(
+            operator_display_name(
+                "https://login.example/tenant#object-id",
+                "https://login.example/tenant#object-id",
+                "object-id"
+            ),
+            None
+        );
+        assert_eq!(
+            operator_display_name(
+                "object-id",
+                "https://login.example/tenant#object-id",
+                "object-id"
+            ),
+            None
+        );
+        assert_eq!(
+            operator_display_name("  ", "https://login.example/tenant#object-id", "object-id"),
+            None
+        );
+    }
 }
