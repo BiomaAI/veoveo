@@ -283,6 +283,7 @@
       "required": [
         "enabled",
         "tenantKey",
+        "workContext",
         "classification",
         "labels",
         "route",
@@ -300,6 +301,10 @@
           "type": "boolean"
         },
         "tenantKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workContext": {
           "type": "string",
           "minLength": 1
         },

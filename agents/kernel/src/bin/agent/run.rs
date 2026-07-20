@@ -40,6 +40,19 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     )
     .build()?;
     let store = PlatformStore::connect(store_config).await?;
+    let authority = store
+        .automated_authority_for_oauth_client(
+            &seed_manifest.agent.tenant,
+            &seed_manifest.gateway.work_context,
+            &seed_manifest.gateway.client_id,
+        )
+        .await?
+        .with_context(|| {
+            format!(
+                "OAuth client `{}` has no membership in Work Context `{}`",
+                seed_manifest.gateway.client_id, seed_manifest.gateway.work_context
+            )
+        })?;
     let manifest_object = json_object(serde_json::to_value(&seed_manifest)?, "agent manifest")?;
     let runtime = AgentRuntime::register(
         store,
@@ -48,6 +61,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
             agent_key: seed_manifest.agent.id.clone(),
             display_name: seed_manifest.agent.display_name.clone(),
             profile: seed_manifest.gateway.profile.clone(),
+            authority,
             manifest: manifest_object,
             memory_database: "memory.duckdb".to_owned(),
         },

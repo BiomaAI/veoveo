@@ -295,6 +295,24 @@ pub struct WorkContextInitialGrantRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkContextOutputPolicyRecord {
+    pub owner_kind: ArtifactGrantSubjectKind,
+    pub owner_key: String,
+    pub initial_grants: Vec<WorkContextInitialGrantRecord>,
+    pub classification: Option<String>,
+    pub data_labels: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct WorkContextMembershipRuleRecord {
+    pub level: WorkContextMembershipLevel,
+    pub principals: Vec<String>,
+    pub groups: Vec<String>,
+    pub roles: Vec<String>,
+    pub oauth_clients: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct InvocationAuthorityRecord {
     pub context_key: String,
     pub membership: WorkContextMembershipLevel,
@@ -528,8 +546,8 @@ pub struct WorkContextRecord {
     pub context_key: String,
     pub title: String,
     pub policy_revision: String,
-    pub output_policy: OpenObject,
-    pub memberships: Vec<OpenObject>,
+    pub output_policy: WorkContextOutputPolicyRecord,
+    pub memberships: Vec<WorkContextMembershipRuleRecord>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -1131,6 +1149,12 @@ pub struct RecordingRecord {
     pub id: RecordId,
     pub tenant: RecordId,
     pub owner: RecordId,
+    pub work_context: RecordId,
+    pub initiator: Option<RecordId>,
+    pub invocation_mode: InvocationMode,
+    pub delegation_id: Option<String>,
+    pub policy_revision: String,
+    pub authority: InvocationAuthorityRecord,
     pub dataset: String,
     pub application_id: String,
     pub recording_key: String,
@@ -1218,6 +1242,9 @@ pub struct AgentRecord {
     pub agent_key: String,
     pub display_name: String,
     pub profile: RecordId,
+    pub work_context: RecordId,
+    pub policy_revision: String,
+    pub authority: InvocationAuthorityRecord,
     pub state: AgentState,
     pub manifest: OpenObject,
     pub memory_database: String,

@@ -986,6 +986,7 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
     let interrupted = store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
+            authority: artifact_authority(&identity),
             dataset: "world".into(),
             application_id: "sensor-suite".into(),
             recording_key: "run-interrupted".into(),
@@ -1043,6 +1044,7 @@ async fn recording_seal_publishes_artifact_bindings_and_outbox_atomically() {
     let recording = store
         .create_recording(RecordingDraft {
             identity: identity.clone(),
+            authority: artifact_authority(&identity),
             dataset: "world".into(),
             application_id: "sensor-suite".into(),
             recording_key: "run-42".into(),

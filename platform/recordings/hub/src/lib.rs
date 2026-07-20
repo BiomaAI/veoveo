@@ -10,6 +10,7 @@
 pub mod archive;
 pub mod catalog;
 pub mod config;
+mod governance;
 pub mod ingest;
 pub mod ingest_http;
 pub mod query;

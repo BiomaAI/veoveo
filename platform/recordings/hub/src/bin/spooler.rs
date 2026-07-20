@@ -86,6 +86,8 @@ struct Args {
     surreal_password: SecretString,
     #[arg(long, env = "RECORDING_TENANT_KEY")]
     recording_tenant_key: String,
+    #[arg(long, env = "RECORDING_WORK_CONTEXT")]
+    recording_work_context: String,
     #[arg(long, env = "RECORDING_OWNER_KEY", default_value = "recording-hub")]
     recording_owner_key: String,
     #[arg(
@@ -227,6 +229,7 @@ async fn run(config: SpoolerConfig, args: Args) -> Result<()> {
         config.spool_dir.clone(),
         CatalogPolicy {
             tenant_key: args.recording_tenant_key.clone(),
+            work_context_key: args.recording_work_context.clone(),
             owner_key: args.recording_owner_key.clone(),
             owner_issuer: args.recording_owner_issuer.clone(),
             owner_subject: args.recording_owner_subject.clone(),

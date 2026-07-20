@@ -3,13 +3,17 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
-    GatewayControlPlaneRevisionSource, PrincipalId, TenantId,
+    AccessLevel, AccessSubject, GatewayControlPlane, GatewayControlPlaneRevision,
+    GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource, PrincipalId, TenantId,
+    WorkContextDefinition,
 };
 use veoveo_platform_store::{
-    GatewayControlActiveRecord, GatewayControlObjectContent, GatewayControlRevisionContent,
-    GatewayControlRevisionRecord, GatewayControlRevisionSource, OpenObject, OutboxDraft,
-    PlatformStore, RecordId, StoreConfig,
+    ArtifactGrantSubjectKind, GatewayControlActiveRecord, GatewayControlObjectContent,
+    GatewayControlRevisionContent, GatewayControlRevisionRecord, GatewayControlRevisionSource,
+    GrantPermission, OpenObject, OutboxDraft, PlatformStore, RecordId, StoreConfig,
+    WorkContextInitialGrantRecord, WorkContextMembershipLevel, WorkContextMembershipRuleRecord,
+    WorkContextOutputPolicyRecord, WorkContextRecord, deterministic_tenant_id,
+    deterministic_work_context_id,
 };
 
 const ACTIVE_CONTROL_PLANE_RECORD: &str = "gateway_control_active:current";
@@ -125,6 +129,16 @@ impl GatewayControlStore {
                 .context("failed to serialize gateway control plane")?,
         };
         let object_rows = control_plane_object_rows(&revision.control_plane)?;
+        let work_contexts = revision
+            .control_plane
+            .work_contexts
+            .iter()
+            .map(|context| work_context_record(context, revision.applied_at))
+            .collect::<Result<Vec<_>>>()?;
+        let work_context_ids = work_contexts
+            .iter()
+            .map(|context| context.id.clone())
+            .collect::<Vec<_>>();
         let objects: Vec<_> = object_rows
             .into_iter()
             .map(|row| GatewayControlObjectContent {
@@ -170,6 +184,18 @@ impl GatewayControlStore {
                 FOR $object IN $objects {
                     CREATE gateway_control_object CONTENT $object;
                 };
+                DELETE work_context WHERE id NOT IN $work_context_ids;
+                FOR $context IN $work_contexts {
+                    UPSERT $context.id MERGE {
+                        tenant: $context.tenant,
+                        context_key: $context.context_key,
+                        title: $context.title,
+                        policy_revision: $context.policy_revision,
+                        output_policy: $context.output_policy,
+                        memberships: $context.memberships,
+                        updated_at: $context.updated_at
+                    };
+                };
                 UPSERT ONLY gateway_control_active:current CONTENT {
                     revision: $revision_record,
                     revision_id: $revision_id,
@@ -184,6 +210,8 @@ impl GatewayControlStore {
             .bind(("revision_id", revision.revision_id.as_str()))
             .bind(("applied_at", revision.applied_at))
             .bind(("objects", objects))
+            .bind(("work_contexts", work_contexts))
+            .bind(("work_context_ids", work_context_ids))
             .bind(("outbox", outbox))
             .await
             .context("failed to publish gateway control-plane revision")?
@@ -335,6 +363,14 @@ fn control_plane_object_rows(
             tenant,
         )?);
     }
+    for context in &control_plane.work_contexts {
+        rows.push(object_row(
+            Some(context.tenant.as_str().to_owned()),
+            "work_context",
+            context.id.as_str(),
+            context,
+        )?);
+    }
     for policy in &control_plane.policies {
         rows.push(object_row(None, "policy", policy.version.as_str(), policy)?);
         for rule in &policy.rules {
@@ -370,6 +406,97 @@ fn control_plane_object_rows(
         rows.push(object_row(None, "secret", secret.id.as_str(), secret)?);
     }
     Ok(rows)
+}
+
+fn work_context_record(
+    context: &WorkContextDefinition,
+    applied_at: chrono::DateTime<chrono::Utc>,
+) -> Result<WorkContextRecord> {
+    let tenant = deterministic_tenant_id(context.tenant.as_str())
+        .context("failed to derive Work Context tenant identity")?
+        .record_id();
+    let id = deterministic_work_context_id(context.tenant.as_str(), context.id.as_str())
+        .context("failed to derive Work Context identity")?
+        .record_id();
+    let (owner_kind, owner_key) = store_subject(&context.output_policy.owner);
+    Ok(WorkContextRecord {
+        id,
+        tenant,
+        context_key: context.id.to_string(),
+        title: context.title.clone(),
+        policy_revision: context.policy_revision.to_string(),
+        output_policy: WorkContextOutputPolicyRecord {
+            owner_kind,
+            owner_key,
+            initial_grants: context
+                .output_policy
+                .initial_grants
+                .iter()
+                .map(|grant| {
+                    let (subject_kind, subject_key) = store_subject(&grant.subject);
+                    WorkContextInitialGrantRecord {
+                        subject_kind,
+                        subject_key,
+                        permission: store_permission(grant.level),
+                    }
+                })
+                .collect(),
+            classification: context
+                .output_policy
+                .classification
+                .as_ref()
+                .map(ToString::to_string),
+            data_labels: context
+                .output_policy
+                .data_labels
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        },
+        memberships: context
+            .memberships
+            .iter()
+            .map(|rule| WorkContextMembershipRuleRecord {
+                level: match rule.level {
+                    veoveo_mcp_contract::WorkContextMembershipLevel::Viewer => {
+                        WorkContextMembershipLevel::Viewer
+                    }
+                    veoveo_mcp_contract::WorkContextMembershipLevel::Contributor => {
+                        WorkContextMembershipLevel::Contributor
+                    }
+                    veoveo_mcp_contract::WorkContextMembershipLevel::Custodian => {
+                        WorkContextMembershipLevel::Custodian
+                    }
+                    veoveo_mcp_contract::WorkContextMembershipLevel::Owner => {
+                        WorkContextMembershipLevel::Owner
+                    }
+                },
+                principals: rule.principals.iter().map(ToString::to_string).collect(),
+                groups: rule.groups.iter().map(ToString::to_string).collect(),
+                roles: rule.roles.iter().map(ToString::to_string).collect(),
+                oauth_clients: rule.oauth_clients.iter().map(ToString::to_string).collect(),
+            })
+            .collect(),
+        created_at: applied_at,
+        updated_at: applied_at,
+    })
+}
+
+fn store_subject(subject: &AccessSubject) -> (ArtifactGrantSubjectKind, String) {
+    match subject {
+        AccessSubject::Principal(principal) => {
+            (ArtifactGrantSubjectKind::Principal, principal.to_string())
+        }
+        AccessSubject::Group(group) => (ArtifactGrantSubjectKind::Group, group.to_string()),
+    }
+}
+
+fn store_permission(level: AccessLevel) -> GrantPermission {
+    match level {
+        AccessLevel::Read => GrantPermission::Read,
+        AccessLevel::Write => GrantPermission::Write,
+        AccessLevel::Admin => GrantPermission::Admin,
+    }
 }
 
 fn object_row(
@@ -409,8 +536,9 @@ mod tests {
 
     use super::*;
     use veoveo_mcp_contract::{
-        GatewayAction, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet, PolicyVersion,
-        TenantDefinition,
+        GatewayAction, GroupId, OAuthClientId, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet,
+        PolicyVersion, TenantDefinition, WorkContextGrant, WorkContextId,
+        WorkContextMembershipRule, WorkContextOutputPolicy,
     };
 
     #[test]
@@ -446,7 +574,28 @@ mod tests {
                 description: None,
                 metadata: serde_json::json!({}),
             }],
-            work_contexts: Vec::new(),
+            work_contexts: vec![WorkContextDefinition {
+                id: WorkContextId::new("mission").unwrap(),
+                tenant: tenant_id.clone(),
+                title: "Mission".to_owned(),
+                policy_revision: PolicyVersion::new("policy-fixture").unwrap(),
+                output_policy: WorkContextOutputPolicy {
+                    owner: AccessSubject::Group(GroupId::new("operations").unwrap()),
+                    initial_grants: vec![WorkContextGrant {
+                        subject: AccessSubject::Group(GroupId::new("reviewers").unwrap()),
+                        level: AccessLevel::Read,
+                    }],
+                    classification: None,
+                    data_labels: BTreeSet::new(),
+                },
+                memberships: vec![WorkContextMembershipRule {
+                    level: veoveo_mcp_contract::WorkContextMembershipLevel::Contributor,
+                    principals: BTreeSet::new(),
+                    groups: BTreeSet::new(),
+                    roles: BTreeSet::new(),
+                    oauth_clients: BTreeSet::from([OAuthClientId::new("agent").unwrap()]),
+                }],
+            }],
             policies: vec![PolicySet {
                 version: PolicyVersion::new("policy-fixture").unwrap(),
                 rules: vec![PolicyRule {
@@ -486,10 +635,28 @@ mod tests {
             rows.iter()
                 .any(|row| row.kind == "policy" && row.id == "policy-fixture")
         );
+        assert!(rows.iter().any(|row| {
+            row.kind == "work_context"
+                && row.id == "mission"
+                && row.tenant.as_deref() == Some("tenant-fixture")
+        }));
         let rule = rows
             .iter()
             .find(|row| row.kind == "policy_rule" && row.id == "policy-fixture/allow-fixture")
             .expect("policy rule row");
         assert_eq!(rule.tenant.as_deref(), Some("tenant-fixture"));
+
+        let context =
+            work_context_record(&control_plane.work_contexts[0], chrono::Utc::now()).unwrap();
+        assert_eq!(context.context_key, "mission");
+        assert_eq!(
+            context.output_policy.owner_kind,
+            ArtifactGrantSubjectKind::Group
+        );
+        assert_eq!(context.output_policy.owner_key, "operations");
+        assert_eq!(
+            context.memberships[0].level,
+            WorkContextMembershipLevel::Contributor
+        );
     }
 }

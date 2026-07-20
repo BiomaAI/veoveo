@@ -8,7 +8,7 @@ use surrealdb::types::{RecordId, RecordIdKey};
 use uuid::Uuid;
 use veoveo_platform_store::{
     AgentElicitationId, AgentElicitationState, AgentEpisodeId, AgentEpisodeState, AgentTaskId,
-    OpenObject, TaskId, WakeId, WakeKind,
+    InvocationAuthorityRecord, OpenObject, TaskId, WakeId, WakeKind,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -51,6 +51,7 @@ pub struct AgentSpec {
     pub agent_key: String,
     pub display_name: String,
     pub profile: String,
+    pub authority: InvocationAuthorityRecord,
     pub manifest: OpenObject,
     pub memory_database: String,
 }

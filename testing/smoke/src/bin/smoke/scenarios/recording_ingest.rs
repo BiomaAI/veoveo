@@ -60,6 +60,7 @@ pub(crate) async fn recording_ingest(
     let mut hub_env = platform.runtime_env();
     hub_env.extend([
         ("RECORDING_TENANT_KEY", "tenant-a".into()),
+        ("RECORDING_WORK_CONTEXT", "operations".into()),
         ("RECORDING_CLASSIFICATION", "internal".into()),
         (
             "RECORDING_INGEST_PROTECTED_RESOURCE",

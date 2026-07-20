@@ -14,6 +14,7 @@
     "url": "${PILOT_GATEWAY_URL}",
     "profile": "operator",
     "client_id": "pilot-agent",
+    "work_context": "operations",
     "audience": "${PILOT_GATEWAY_AUDIENCE}",
     "resource": "${PILOT_GATEWAY_RESOURCE}",
     "scopes": [

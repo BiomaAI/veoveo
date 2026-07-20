@@ -3668,6 +3668,9 @@
         },
         {
           "level": "contributor",
+          "principals": [
+            "https://veoveo.local/services#recording-hub"
+          ],
           "oauth_clients": [
             "recording-producer",
             "operator-local-public",

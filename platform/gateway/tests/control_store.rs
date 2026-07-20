@@ -1,11 +1,15 @@
+use std::collections::BTreeSet;
+
 use chrono::Utc;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
-    GatewayControlPlaneRevisionSource, PrincipalId, TenantDefinition, TenantId,
+    AccessSubject, GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+    GatewayControlPlaneRevisionSource, GroupId, OAuthClientId, PolicySet, PolicyVersion,
+    PrincipalId, TenantDefinition, TenantId, WorkContextDefinition, WorkContextId,
+    WorkContextMembershipLevel, WorkContextMembershipRule, WorkContextOutputPolicy,
 };
 use veoveo_mcp_gateway::GatewayControlStore;
-use veoveo_platform_store::{StoreConfig, StoreCredentials};
+use veoveo_platform_store::{StoreConfig, StoreCredentials, deterministic_tenant_id};
 
 #[tokio::test]
 async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
@@ -55,6 +59,30 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         description: None,
         metadata: serde_json::json!({}),
     });
+    second_plane.policies.push(PolicySet {
+        version: PolicyVersion::new("r1").unwrap(),
+        rules: Vec::new(),
+        metadata: serde_json::Value::Null,
+    });
+    second_plane.work_contexts.push(WorkContextDefinition {
+        id: WorkContextId::new("operations").unwrap(),
+        tenant: TenantId::new("tenant-integration").unwrap(),
+        title: "Operations".to_owned(),
+        policy_revision: PolicyVersion::new("r1").unwrap(),
+        output_policy: WorkContextOutputPolicy {
+            owner: AccessSubject::Group(GroupId::new("operations").unwrap()),
+            initial_grants: Vec::new(),
+            classification: None,
+            data_labels: BTreeSet::new(),
+        },
+        memberships: vec![WorkContextMembershipRule {
+            level: WorkContextMembershipLevel::Contributor,
+            principals: BTreeSet::new(),
+            groups: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            oauth_clients: BTreeSet::from([OAuthClientId::new("automation").unwrap()]),
+        }],
+    });
     let second = revision("gcp-second", "b".repeat(64), second_plane);
     store.record_revision(&second).await.unwrap();
     assert_eq!(
@@ -65,7 +93,39 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     assert_eq!(second_head.revision_id, second.revision_id);
     assert_eq!(second_head.sha256, second.sha256);
     assert_eq!(store.revision_count().await.unwrap(), 2);
-    assert_eq!(store.object_count_for_active_revision().await.unwrap(), 1);
+    assert_eq!(store.object_count_for_active_revision().await.unwrap(), 3);
+    let tenant_id = deterministic_tenant_id("tenant-integration").unwrap();
+    let context = store
+        .platform_store()
+        .work_context_by_key(tenant_id, "operations")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(context.title, "Operations");
+    assert_eq!(context.output_policy.owner_key, "operations");
+    assert_eq!(
+        context.membership_for_oauth_client("automation"),
+        Some(veoveo_platform_store::WorkContextMembershipLevel::Contributor)
+    );
+
+    let mut third_plane = second.control_plane.clone();
+    third_plane.work_contexts.clear();
+    let third = revision("gcp-third", "c".repeat(64), third_plane);
+    store.record_revision(&third).await.unwrap();
+    assert_eq!(
+        store.load_active_revision().await.unwrap(),
+        Some(third.clone())
+    );
+    assert_eq!(store.revision_count().await.unwrap(), 3);
+    assert_eq!(store.object_count_for_active_revision().await.unwrap(), 2);
+    assert!(
+        store
+            .platform_store()
+            .work_context_by_key(tenant_id, "operations")
+            .await
+            .unwrap()
+            .is_none()
+    );
 
     assert!(
         store.record_revision(&first).await.is_err(),
@@ -73,16 +133,16 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
     );
     assert_eq!(
         store.load_active_revision().await.unwrap(),
-        Some(second.clone()),
+        Some(third.clone()),
         "failed publication moved the active pointer"
     );
-    assert_eq!(store.revision_count().await.unwrap(), 2);
+    assert_eq!(store.revision_count().await.unwrap(), 3);
 
     let outbox = store.platform_store().read_outbox(0, 10).await.unwrap();
-    assert_eq!(outbox.events.len(), 2);
+    assert_eq!(outbox.events.len(), 3);
     assert_eq!(
         outbox.events.last().unwrap().aggregate_id,
-        second.revision_id.as_str()
+        third.revision_id.as_str()
     );
 }
 

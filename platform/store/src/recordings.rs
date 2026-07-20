@@ -9,9 +9,10 @@ use uuid::Uuid;
 
 use crate::identity::PLATFORM_ID_NAMESPACE;
 use crate::{
-    ArtifactId, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, RecordingId,
-    RecordingRecord, RecordingState, SegmentId, SegmentRecord, SegmentState, StoreError, TaskId,
-    TenantId,
+    ArtifactId, InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity,
+    PlatformStore, RecordingId, RecordingRecord, RecordingState, SegmentId, SegmentRecord,
+    SegmentState, StoreError, TaskId, TenantId, deterministic_principal_id,
+    deterministic_work_context_id,
 };
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
@@ -21,6 +22,7 @@ const MAX_SEGMENT_LIMIT: u32 = 10_000;
 #[derive(Clone, Debug)]
 pub struct RecordingDraft {
     pub identity: PlatformIdentity,
+    pub authority: InvocationAuthorityRecord,
     pub dataset: String,
     pub application_id: String,
     pub recording_key: String,
@@ -60,6 +62,12 @@ pub struct RecordingSeal {
 struct RecordingContent {
     tenant: RecordId,
     owner: RecordId,
+    work_context: RecordId,
+    initiator: Option<RecordId>,
+    invocation_mode: crate::InvocationMode,
+    delegation_id: Option<String>,
+    policy_revision: String,
+    authority: InvocationAuthorityRecord,
     dataset: String,
     application_id: String,
     recording_key: String,
@@ -124,9 +132,26 @@ impl PlatformStore {
 
         let id = RecordingId::new();
         let now = Utc::now();
+        let work_context = deterministic_work_context_id(
+            &draft.identity.tenant_key,
+            &draft.authority.context_key,
+        )?;
+        let initiator = draft
+            .authority
+            .initiator_key
+            .as_deref()
+            .map(|principal| deterministic_principal_id(&draft.identity.tenant_key, principal))
+            .transpose()?
+            .map(|principal| principal.record_id());
         let content = RecordingContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
+            work_context: work_context.record_id(),
+            initiator,
+            invocation_mode: draft.authority.invocation_mode,
+            delegation_id: draft.authority.delegation_id.clone(),
+            policy_revision: draft.authority.policy_revision.clone(),
+            authority: draft.authority.clone(),
             dataset: draft.dataset.clone(),
             application_id: draft.application_id.clone(),
             recording_key: draft.recording_key.clone(),
@@ -1024,6 +1049,24 @@ fn validate_existing_recording(
 ) -> Result<(), StoreError> {
     if existing.tenant != draft.identity.tenant_id.record_id()
         || existing.owner != draft.identity.principal_id.record_id()
+        || existing.work_context
+            != deterministic_work_context_id(
+                &draft.identity.tenant_key,
+                &draft.authority.context_key,
+            )?
+            .record_id()
+        || existing.initiator
+            != draft
+                .authority
+                .initiator_key
+                .as_deref()
+                .map(|principal| deterministic_principal_id(&draft.identity.tenant_key, principal))
+                .transpose()?
+                .map(|principal| principal.record_id())
+        || existing.invocation_mode != draft.authority.invocation_mode
+        || existing.delegation_id != draft.authority.delegation_id
+        || existing.policy_revision != draft.authority.policy_revision
+        || existing.authority != draft.authority
         || existing.dataset != draft.dataset
         || existing.application_id != draft.application_id
         || existing.recording_key != draft.recording_key

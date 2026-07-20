@@ -104,6 +104,8 @@ spec:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
             - name: RECORDING_TENANT_KEY
               value: {{ .Values.recording.tenantKey | quote }}
+            - name: RECORDING_WORK_CONTEXT
+              value: {{ .Values.recording.workContext | quote }}
             - name: RECORDING_OWNER_KEY
               value: recording-hub
             - name: RECORDING_OWNER_ISSUER

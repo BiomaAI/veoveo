@@ -232,6 +232,7 @@ impl GatewayConnection {
         serializer
             .append_pair("grant_type", "client_credentials")
             .append_pair("client_id", &gateway.client_id)
+            .append_pair("work_context", &gateway.work_context)
             .append_pair("scope", &gateway.scopes.join(" "))
             .append_pair("client_assertion_type", CLIENT_ASSERTION_TYPE_JWT_BEARER)
             .append_pair("client_assertion", &assertion)
