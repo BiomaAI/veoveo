@@ -5,6 +5,7 @@
 //! used to coordinate those services.
 
 mod administration;
+mod artifact_access_requests;
 mod artifacts;
 mod changefeed;
 mod config;
@@ -25,6 +26,9 @@ mod table;
 mod time;
 mod usage;
 
+pub use artifact_access_requests::{
+    ArtifactAccessRequestDecisionDraft, ArtifactAccessRequestDraft, ArtifactAccessRequestQuery,
+};
 pub use artifacts::{
     ArtifactAggregate, ArtifactAuditDraft, ArtifactGrantDraft, ArtifactOccurrenceDraft,
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteReservation,

@@ -12,14 +12,16 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use veoveo_mcp_contract::{GatewayAction, GatewayControlPlane, ServerSlug};
+use veoveo_mcp_contract::{
+    GatewayAction, GatewayControlPlane, InvocationMode, ServerSlug, WorkContextMembershipLevel,
+};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
 use veoveo_platform_store::{ChangefeedCursor, SegmentState, deterministic_tenant_id};
 
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
 use projection::{
-    AgentSummary, ArtifactGrantSummary, ArtifactShareLinkSummary, ArtifactSummary, AuditSummary,
-    PolicySummary, RecordingSummary, ServerSummary, TaskSummary,
+    AgentSummary, ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary,
+    ArtifactSummary, AuditSummary, PolicySummary, RecordingSummary, ServerSummary, TaskSummary,
 };
 use projection::{
     Projection, agent_summary, artifact_grant_summary, artifact_summary, audit_summary,
@@ -170,8 +172,13 @@ struct SessionSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
     principal_id: String,
+    actor_id: String,
     tenant_id: String,
     tenant_name: String,
+    work_context: String,
+    work_context_title: String,
+    membership: WorkContextMembershipLevel,
+    invocation_mode: InvocationMode,
     available_tenants: Vec<TenantSummary>,
 }
 
@@ -216,6 +223,7 @@ fn build_snapshot(
     stream_cursor: ChangefeedCursor,
 ) -> anyhow::Result<ConsoleSnapshot> {
     let now = Utc::now();
+    let artifact_access = ArtifactAccessContext::from_subject(subject, tenant_key)?;
     let principal_names: BTreeMap<_, _> = projection
         .principals
         .iter()
@@ -227,6 +235,14 @@ fn build_snapshot(
         .find(|tenant| tenant.id.as_str() == tenant_key)
         .and_then(|tenant| tenant.title.clone())
         .unwrap_or_else(|| tenant_key.to_owned());
+    let work_context_title = control
+        .work_contexts
+        .iter()
+        .find(|context| context.id == subject.authority.work_context)
+        .map_or_else(
+            || subject.authority.work_context.to_string(),
+            |context| context.title.clone(),
+        );
     let display_name = projection
         .principals
         .iter()
@@ -320,6 +336,7 @@ fn build_snapshot(
                 grants.get(&id).cloned().unwrap_or_default(),
                 links.get(&id).cloned().unwrap_or_default(),
                 &principal_names,
+                &artifact_access,
             )
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
@@ -383,8 +400,13 @@ fn build_snapshot(
         session: SessionSummary {
             display_name,
             principal_id: subject.principal.id.to_string(),
+            actor_id: subject.actor.id.to_string(),
             tenant_id: tenant_key.to_owned(),
             tenant_name: tenant_name.clone(),
+            work_context: subject.authority.work_context.to_string(),
+            work_context_title,
+            membership: subject.authority.membership,
+            invocation_mode: subject.authority.provenance.mode(),
             available_tenants: vec![TenantSummary {
                 id: tenant_key.to_owned(),
                 name: tenant_name,

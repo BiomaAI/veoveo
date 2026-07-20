@@ -9,7 +9,11 @@ use veoveo_mcp_contract::gateway::{
     TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactReleaseState};
-use veoveo_mcp_contract::{ArtifactShareLinkId, ArtifactWriteCapabilityId, InvocationAuthority};
+use veoveo_mcp_contract::{
+    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
+    ArtifactAccessRequestState, ArtifactShareLinkId, ArtifactWriteCapabilityId,
+    InvocationAuthority, WorkContextId,
+};
 
 /// Full verified identity needed to create stable platform records and audit actors.
 #[derive(Debug, Clone)]
@@ -67,6 +71,38 @@ pub struct ArtifactListQuery {
     pub groups: BTreeSet<GroupId>,
     pub cursor: Option<ArtifactId>,
     pub limit: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewArtifactAccessRequest {
+    pub request_id: ArtifactAccessRequestId,
+    pub actor: RepositoryActor,
+    pub artifact_id: ArtifactId,
+    pub requested_level: veoveo_mcp_contract::AccessLevel,
+    pub justification: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtifactAccessRequestListQuery {
+    pub actor: RepositoryActor,
+    pub work_context: Option<WorkContextId>,
+    pub state: Option<ArtifactAccessRequestState>,
+    pub cursor: Option<ArtifactAccessRequestId>,
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtifactAccessRequestDecisionDraft {
+    pub actor: RepositoryActor,
+    pub request_id: ArtifactAccessRequestId,
+    pub decision: ArtifactAccessRequestDecision,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtifactAccessRequestCancellation {
+    pub actor: RepositoryActor,
+    pub request_id: ArtifactAccessRequestId,
 }
 
 #[derive(Debug, Clone)]
@@ -227,6 +263,32 @@ pub trait ArtifactRepository: Send + Sync {
         &self,
         event: ArtifactAuditEvent,
     ) -> impl std::future::Future<Output = Result<(), RepositoryError>> + Send;
+
+    fn create_or_reopen_access_request(
+        &self,
+        request: NewArtifactAccessRequest,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequest, RepositoryError>> + Send;
+
+    fn get_access_request(
+        &self,
+        actor: &RepositoryActor,
+        request_id: ArtifactAccessRequestId,
+    ) -> impl std::future::Future<Output = Result<Option<ArtifactAccessRequest>, RepositoryError>> + Send;
+
+    fn list_access_requests(
+        &self,
+        query: ArtifactAccessRequestListQuery,
+    ) -> impl std::future::Future<Output = Result<Vec<ArtifactAccessRequest>, RepositoryError>> + Send;
+
+    fn decide_access_request(
+        &self,
+        decision: ArtifactAccessRequestDecisionDraft,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequest, RepositoryError>> + Send;
+
+    fn cancel_access_request(
+        &self,
+        cancellation: ArtifactAccessRequestCancellation,
+    ) -> impl std::future::Future<Output = Result<ArtifactAccessRequest, RepositoryError>> + Send;
 }
 
 pub mod surreal;
@@ -249,6 +311,7 @@ pub(crate) mod testing {
         capabilities: HashMap<ArtifactWriteCapabilityId, CapabilityState>,
         redemptions: HashMap<(ArtifactWriteCapabilityId, String), RedemptionState>,
         shares: HashMap<String, ShareState>,
+        access_requests: HashMap<ArtifactAccessRequestId, ArtifactAccessRequest>,
         audits: Vec<ArtifactAuditEvent>,
     }
 
@@ -590,6 +653,174 @@ pub(crate) mod testing {
         async fn append_audit(&self, event: ArtifactAuditEvent) -> Result<(), RepositoryError> {
             self.state.lock().unwrap().audits.push(event);
             Ok(())
+        }
+
+        async fn create_or_reopen_access_request(
+            &self,
+            request: NewArtifactAccessRequest,
+        ) -> Result<ArtifactAccessRequest, RepositoryError> {
+            let mut state = self.state.lock().unwrap();
+            let artifact = state
+                .artifacts
+                .get(&request.artifact_id)
+                .ok_or_else(|| RepositoryError::Conflict("artifact does not exist".into()))?;
+            let context = artifact.authority.work_context.clone();
+            let existing_id = state
+                .access_requests
+                .iter()
+                .find(|(_, existing)| {
+                    existing.artifact_id == request.artifact_id
+                        && existing.requester == request.actor.principal
+                })
+                .map(|(id, _)| *id);
+            let now = Utc::now();
+            if let Some(existing_id) = existing_id {
+                let existing = state
+                    .access_requests
+                    .get_mut(&existing_id)
+                    .expect("access request remains present");
+                if existing.state != ArtifactAccessRequestState::Pending {
+                    existing.requested_level = request.requested_level;
+                    existing.justification = request.justification;
+                    existing.state = ArtifactAccessRequestState::Pending;
+                    existing.decided_by = None;
+                    existing.decision_note = None;
+                    existing.created_at = now;
+                    existing.updated_at = now;
+                    existing.decided_at = None;
+                }
+                return Ok(existing.clone());
+            }
+            let created = ArtifactAccessRequest {
+                id: request.request_id,
+                artifact_id: request.artifact_id,
+                work_context: context,
+                requester: request.actor.principal,
+                requested_level: request.requested_level,
+                justification: request.justification,
+                state: ArtifactAccessRequestState::Pending,
+                decided_by: None,
+                decision_note: None,
+                created_at: now,
+                updated_at: now,
+                decided_at: None,
+            };
+            state
+                .access_requests
+                .insert(request.request_id, created.clone());
+            Ok(created)
+        }
+
+        async fn get_access_request(
+            &self,
+            _actor: &RepositoryActor,
+            request_id: ArtifactAccessRequestId,
+        ) -> Result<Option<ArtifactAccessRequest>, RepositoryError> {
+            Ok(self
+                .state
+                .lock()
+                .unwrap()
+                .access_requests
+                .get(&request_id)
+                .cloned())
+        }
+
+        async fn list_access_requests(
+            &self,
+            query: ArtifactAccessRequestListQuery,
+        ) -> Result<Vec<ArtifactAccessRequest>, RepositoryError> {
+            let state = self.state.lock().unwrap();
+            let mut requests = state
+                .access_requests
+                .values()
+                .filter(|request| {
+                    query
+                        .work_context
+                        .as_ref()
+                        .map_or(request.requester == query.actor.principal, |context| {
+                            &request.work_context == context
+                        })
+                })
+                .filter(|request| query.state.is_none_or(|state| request.state == state))
+                .filter(|request| query.cursor.is_none_or(|cursor| request.id < cursor))
+                .filter(|request| {
+                    state
+                        .artifacts
+                        .get(&request.artifact_id)
+                        .is_some_and(|artifact| artifact.tenant == query.actor.tenant)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            requests.sort_by_key(|request| std::cmp::Reverse(request.id));
+            requests.truncate(query.limit);
+            Ok(requests)
+        }
+
+        async fn decide_access_request(
+            &self,
+            decision: ArtifactAccessRequestDecisionDraft,
+        ) -> Result<ArtifactAccessRequest, RepositoryError> {
+            let mut state = self.state.lock().unwrap();
+            let request = state
+                .access_requests
+                .get_mut(&decision.request_id)
+                .ok_or_else(|| RepositoryError::Conflict("access request does not exist".into()))?;
+            if request.state != ArtifactAccessRequestState::Pending {
+                return Err(RepositoryError::Conflict(
+                    "access request is not pending".into(),
+                ));
+            }
+            request.state = match decision.decision {
+                ArtifactAccessRequestDecision::Approve => ArtifactAccessRequestState::Approved,
+                ArtifactAccessRequestDecision::Deny => ArtifactAccessRequestState::Denied,
+            };
+            request.decided_by = Some(decision.actor.principal.clone());
+            request.decision_note = decision.note;
+            request.decided_at = Some(Utc::now());
+            request.updated_at = request.decided_at.expect("decision timestamp");
+            let decided = request.clone();
+            if decided.state == ArtifactAccessRequestState::Approved {
+                let artifact = state
+                    .artifacts
+                    .get_mut(&decided.artifact_id)
+                    .ok_or_else(|| RepositoryError::Conflict("artifact does not exist".into()))?;
+                artifact.grants.retain(|grant| {
+                    grant.subject != AccessSubject::Principal(decided.requester.clone())
+                });
+                artifact.grants.push(Grant {
+                    artifact: decided.artifact_id,
+                    subject: AccessSubject::Principal(decided.requester.clone()),
+                    level: decided.requested_level,
+                    tenant: decision.actor.tenant,
+                    data_labels: BTreeSet::new(),
+                    retention_expires_at: None,
+                });
+            }
+            Ok(decided)
+        }
+
+        async fn cancel_access_request(
+            &self,
+            cancellation: ArtifactAccessRequestCancellation,
+        ) -> Result<ArtifactAccessRequest, RepositoryError> {
+            let mut state = self.state.lock().unwrap();
+            let request = state
+                .access_requests
+                .get_mut(&cancellation.request_id)
+                .ok_or_else(|| RepositoryError::Conflict("access request does not exist".into()))?;
+            if request.state != ArtifactAccessRequestState::Pending
+                || request.requester != cancellation.actor.principal
+            {
+                return Err(RepositoryError::Conflict(
+                    "access request cannot be cancelled".into(),
+                ));
+            }
+            let now = Utc::now();
+            request.state = ArtifactAccessRequestState::Cancelled;
+            request.decided_by = Some(cancellation.actor.principal);
+            request.decided_at = Some(now);
+            request.updated_at = now;
+            Ok(request.clone())
         }
     }
 }

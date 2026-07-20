@@ -1514,7 +1514,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -1619,7 +1619,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -1718,7 +1718,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -1811,7 +1811,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -1877,7 +1877,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -1919,7 +1919,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -1982,7 +1982,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2063,7 +2063,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -2143,7 +2143,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2222,7 +2222,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2300,7 +2300,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2377,7 +2377,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2464,7 +2464,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2561,7 +2561,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -3089,7 +3089,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -3172,7 +3172,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -3254,7 +3254,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ],
           "metadata": {}
         },
@@ -3340,7 +3340,7 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ],
           "metadata": {}
         },
@@ -3391,8 +3391,8 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator",
-            "veoveo_admin"
+            "operator",
+            "administrator"
           ],
           "metadata": {}
         },
@@ -3497,8 +3497,8 @@
             "bioma"
           ],
           "roles": [
-            "veoveo_operator",
-            "veoveo_admin"
+            "operator",
+            "administrator"
           ],
           "required_scopes": [
             "operator:use"

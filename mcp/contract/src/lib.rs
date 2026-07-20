@@ -36,10 +36,13 @@ pub use access::{
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
 pub use artifact_service::{
+    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
+    ArtifactAccessRequestPage, ArtifactAccessRequestScope, ArtifactAccessRequestState,
     ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, ArtifactWriteIdempotencyKey,
-    CreateArtifactShareLinkRequest, GrantList, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
+    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
+    GrantList, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+    ListArtifactAccessRequests, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
     PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
 };
 pub use bootstrap::{

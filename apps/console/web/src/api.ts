@@ -2,6 +2,9 @@ import { demoSnapshot } from "./demo";
 import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import type {
   AppCatalog,
+  ArtifactAccessRequest,
+  ArtifactAccessRequestPage,
+  ArtifactAccessRequestState,
   InstallationSnapshot,
   ClusterSnapshot,
   ReleaseState,
@@ -27,9 +30,7 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
     throw new Error("Authentication required");
   }
   if (response.status === 403) {
-    throw new Error(
-      "Your Microsoft Entra account is signed in but is not assigned the veoveo_admin application role."
-    );
+    throw new Error("Your account is authenticated but is not authorized to open this Console.");
   }
   if (!response.ok) {
     throw new Error(`Console API returned ${response.status}`);
@@ -125,7 +126,7 @@ export async function setArtifactReleaseState(artifactId: string, releaseState: 
 
 export async function grantArtifact(
   artifactId: string,
-  subject: { kind: "user" | "group"; id: string },
+  subject: { kind: "principal" | "group"; id: string },
   level: "read" | "write" | "admin"
 ): Promise<void> {
   await consoleMutation(`artifacts/${encodeURIComponent(artifactId)}/grants`, {
@@ -136,12 +137,121 @@ export async function grantArtifact(
 
 export async function revokeArtifactGrant(
   artifactId: string,
-  subject: { kind: "user" | "group"; id: string }
+  subject: { kind: "principal" | "group"; id: string }
 ): Promise<void> {
   await consoleMutation(`artifacts/${encodeURIComponent(artifactId)}/grants`, {
     method: "DELETE",
     body: JSON.stringify(subject)
   });
+}
+
+interface ArtifactAccessRequestWire {
+  id: string;
+  artifact_id: string;
+  work_context: string;
+  requester: string;
+  requested_level: "read" | "write" | "admin";
+  justification: string;
+  state: ArtifactAccessRequestState;
+  decided_by?: string;
+  decision_note?: string;
+  created_at: string;
+  updated_at: string;
+  decided_at?: string;
+}
+
+interface ArtifactAccessRequestPageWire {
+  requests: ArtifactAccessRequestWire[];
+  next_cursor?: string;
+}
+
+function artifactAccessRequest(wire: ArtifactAccessRequestWire): ArtifactAccessRequest {
+  return {
+    id: wire.id,
+    artifactId: wire.artifact_id,
+    workContext: wire.work_context,
+    requester: wire.requester,
+    requestedLevel: wire.requested_level,
+    justification: wire.justification,
+    state: wire.state,
+    decidedBy: wire.decided_by,
+    decisionNote: wire.decision_note,
+    createdAt: wire.created_at,
+    updatedAt: wire.updated_at,
+    decidedAt: wire.decided_at,
+  };
+}
+
+export async function loadArtifactAccessRequests(
+  scope: "mine" | "reviewable",
+  state?: ArtifactAccessRequestState,
+  signal?: AbortSignal
+): Promise<ArtifactAccessRequestPage> {
+  const query = new URLSearchParams({ scope, limit: "50" });
+  if (state) query.set("state", state);
+  const response = await fetch(`/console/api/artifact-access-requests?${query}`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  const rotatedToken = response.headers.get("x-veoveo-csrf-token");
+  if (rotatedToken) csrfToken = rotatedToken;
+  if (response.status === 401) {
+    window.location.assign("/auth/login");
+    throw new Error("Authentication required");
+  }
+  if (response.status === 403) {
+    throw new Error("Access requests are not available to the active Work Context membership.");
+  }
+  if (!response.ok) throw new Error(`Access requests returned ${response.status}`);
+  const page = (await response.json()) as ArtifactAccessRequestPageWire;
+  return {
+    requests: page.requests.map(artifactAccessRequest),
+    nextCursor: page.next_cursor,
+  };
+}
+
+export async function requestArtifactAccess(
+  artifactId: string,
+  requestedLevel: "read" | "write" | "admin",
+  justification: string
+): Promise<ArtifactAccessRequest> {
+  const wire = await consoleMutation<ArtifactAccessRequestWire>(
+    `artifacts/${encodeURIComponent(artifactId)}/access-requests`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        requested_level: requestedLevel,
+        justification,
+      }),
+    }
+  );
+  return artifactAccessRequest(wire);
+}
+
+export async function decideArtifactAccessRequest(
+  requestId: string,
+  decision: "approve" | "deny",
+  note?: string
+): Promise<ArtifactAccessRequest> {
+  const wire = await consoleMutation<ArtifactAccessRequestWire>(
+    `artifact-access-requests/${encodeURIComponent(requestId)}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify({ decision, ...(note ? { note } : {}) }),
+    }
+  );
+  return artifactAccessRequest(wire);
+}
+
+export async function cancelArtifactAccessRequest(
+  requestId: string
+): Promise<ArtifactAccessRequest> {
+  const wire = await consoleMutation<ArtifactAccessRequestWire>(
+    `artifact-access-requests/${encodeURIComponent(requestId)}/cancel`,
+    { method: "POST", body: "" }
+  );
+  return artifactAccessRequest(wire);
 }
 
 export async function createArtifactShareLink(

@@ -4,17 +4,19 @@ use chrono::{TimeDelta, Utc};
 use secrecy::SecretString;
 use uuid::Uuid;
 use veoveo_platform_store::{
-    ArtifactGrantDraft, ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft,
-    ArtifactReleaseState, ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft,
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId,
-    ChangefeedCursor, ChangefeedEntry, CoordinateFrameDraft, CoordinateOperationDraft,
-    GatewayReplayKind, GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord,
-    InvocationMode, MapReleaseDraft, MapReleaseState, OpenObject, OutboxDraft, PlatformIdentity,
-    PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft, RecordingId,
-    RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding, SegmentState,
-    ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft,
-    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
-    WorkContextMembershipLevel, decode_changefeed_entry, gateway_replay_record_id,
+    ArtifactAccessRequestDecisionDraft, ArtifactAccessRequestDraft, ArtifactAccessRequestId,
+    ArtifactAccessRequestQuery, ArtifactAccessRequestState, ArtifactGrantDraft,
+    ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState,
+    ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
+    ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
+    CoordinateFrameDraft, CoordinateOperationDraft, GatewayReplayKind, GatewayReplayRecord,
+    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapReleaseDraft, MapReleaseState,
+    OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind,
+    RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState, SegmentDraft,
+    SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig, StoreCredentials,
+    StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind,
+    TimeSourceDraft, WorkContextInitialGrantRecord, WorkContextMembershipLevel,
+    decode_changefeed_entry, deterministic_work_context_id, gateway_replay_record_id,
 };
 
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
@@ -637,6 +639,58 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         .unwrap();
     assert_eq!(visible.len(), 2);
     assert!(visible.contains(&first_id));
+
+    let requester = store
+        .ensure_identity(
+            "tenant-a",
+            "bob",
+            "https://idp.example.com",
+            "bob-subject",
+            PrincipalKind::User,
+        )
+        .await
+        .unwrap();
+    let request_id = ArtifactAccessRequestId::new();
+    let requested = store
+        .create_or_reopen_artifact_access_request(ArtifactAccessRequestDraft {
+            request_id,
+            identity: requester.clone(),
+            artifact_id: first_id,
+            requested_level: GrantPermission::Read,
+            justification: "Assigned to review this output.".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(requested.state, ArtifactAccessRequestState::Pending);
+    let work_context =
+        deterministic_work_context_id("tenant-a", "operations").unwrap();
+    let reviewable = store
+        .list_artifact_access_requests(ArtifactAccessRequestQuery {
+            tenant_id: identity.tenant_id,
+            requester_id: None,
+            work_context_id: Some(work_context),
+            state: Some(ArtifactAccessRequestState::Pending),
+            cursor: None,
+            limit: 10,
+        })
+        .await
+        .unwrap();
+    assert_eq!(reviewable.len(), 1);
+    let approved = store
+        .decide_artifact_access_request(ArtifactAccessRequestDecisionDraft {
+            identity: identity.clone(),
+            request_id,
+            state: ArtifactAccessRequestState::Approved,
+            note: Some("Review assignment verified.".into()),
+        })
+        .await
+        .unwrap();
+    assert_eq!(approved.state, ArtifactAccessRequestState::Approved);
+    let aggregate = store.artifact_aggregate(first_id).await.unwrap().unwrap();
+    assert!(aggregate.grants.iter().any(|grant| {
+        grant.subject_key == requester.principal_key
+            && grant.permission == GrantPermission::Read
+    }));
     assert!(
         store
             .read_outbox(0, 100)

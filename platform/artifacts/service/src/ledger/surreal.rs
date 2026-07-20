@@ -11,16 +11,19 @@ use veoveo_mcp_contract::storage::{
     ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
 };
 use veoveo_mcp_contract::{
-    AccessSubject, ArtifactShareLinkId, InvocationAuthority, InvocationProvenance,
+    AccessSubject, ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
+    ArtifactAccessRequestState, ArtifactShareLinkId, InvocationAuthority, InvocationProvenance,
     WorkContextGrant, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store as platform;
 use veoveo_platform_store::{RecordIdKey, StoreError as PlatformStoreError};
 
 use super::{
-    ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository, AuditOutcome, BlobSha256,
-    NewArtifact, RedeemedWriteCapability, RepositoryActor, RepositoryError, ShareLinkDraft,
-    StoredArtifact, WriteCapabilityDraft, WriteCapabilityReservation,
+    ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
+    ArtifactAccessRequestListQuery, ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository,
+    AuditOutcome, BlobSha256, NewArtifact, NewArtifactAccessRequest, RedeemedWriteCapability,
+    RepositoryActor, RepositoryError, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
+    WriteCapabilityReservation,
 };
 
 #[derive(Clone, Debug)]
@@ -592,6 +595,187 @@ impl ArtifactRepository for SurrealArtifactRepository {
             .await
             .map_err(repository_error)
     }
+
+    async fn create_or_reopen_access_request(
+        &self,
+        request: NewArtifactAccessRequest,
+    ) -> Result<ArtifactAccessRequest, RepositoryError> {
+        let identity = self.identity(&request.actor).await?;
+        let record = self
+            .store
+            .create_or_reopen_artifact_access_request(platform::ArtifactAccessRequestDraft {
+                request_id: platform::ArtifactAccessRequestId::from_uuid(
+                    request.request_id.as_uuid(),
+                ),
+                identity,
+                artifact_id: platform::ArtifactId::from_uuid(request.artifact_id.as_uuid()),
+                requested_level: grant_permission(request.requested_level),
+                justification: request.justification,
+            })
+            .await
+            .map_err(repository_error)?;
+        contract_access_request(record)
+    }
+
+    async fn get_access_request(
+        &self,
+        actor: &RepositoryActor,
+        request_id: ArtifactAccessRequestId,
+    ) -> Result<Option<ArtifactAccessRequest>, RepositoryError> {
+        let identity = self.identity(actor).await?;
+        self.store
+            .artifact_access_request(
+                identity.tenant_id,
+                platform::ArtifactAccessRequestId::from_uuid(request_id.as_uuid()),
+            )
+            .await
+            .map_err(repository_error)?
+            .map(contract_access_request)
+            .transpose()
+    }
+
+    async fn list_access_requests(
+        &self,
+        query: ArtifactAccessRequestListQuery,
+    ) -> Result<Vec<ArtifactAccessRequest>, RepositoryError> {
+        let identity = self.identity(&query.actor).await?;
+        let work_context_id = query
+            .work_context
+            .as_ref()
+            .map(|context| {
+                platform::deterministic_work_context_id(
+                    query.actor.tenant.as_str(),
+                    context.as_str(),
+                )
+            })
+            .transpose()
+            .map_err(repository_error)?;
+        self.store
+            .list_artifact_access_requests(platform::ArtifactAccessRequestQuery {
+                tenant_id: identity.tenant_id,
+                requester_id: work_context_id.is_none().then_some(identity.principal_id),
+                work_context_id,
+                state: query.state.map(platform_access_request_state),
+                cursor: query
+                    .cursor
+                    .map(|cursor| platform::ArtifactAccessRequestId::from_uuid(cursor.as_uuid())),
+                limit: u32::try_from(query.limit).map_err(|_| {
+                    RepositoryError::Corrupt("access request limit is too large".into())
+                })?,
+            })
+            .await
+            .map_err(repository_error)?
+            .into_iter()
+            .map(contract_access_request)
+            .collect()
+    }
+
+    async fn decide_access_request(
+        &self,
+        decision: ArtifactAccessRequestDecisionDraft,
+    ) -> Result<ArtifactAccessRequest, RepositoryError> {
+        let identity = self.identity(&decision.actor).await?;
+        let state = match decision.decision {
+            ArtifactAccessRequestDecision::Approve => {
+                platform::ArtifactAccessRequestState::Approved
+            }
+            ArtifactAccessRequestDecision::Deny => platform::ArtifactAccessRequestState::Denied,
+        };
+        self.store
+            .decide_artifact_access_request(platform::ArtifactAccessRequestDecisionDraft {
+                identity,
+                request_id: platform::ArtifactAccessRequestId::from_uuid(
+                    decision.request_id.as_uuid(),
+                ),
+                state,
+                note: decision.note,
+            })
+            .await
+            .map_err(repository_error)
+            .and_then(contract_access_request)
+    }
+
+    async fn cancel_access_request(
+        &self,
+        cancellation: ArtifactAccessRequestCancellation,
+    ) -> Result<ArtifactAccessRequest, RepositoryError> {
+        let identity = self.identity(&cancellation.actor).await?;
+        let existing = self
+            .store
+            .artifact_access_request(
+                identity.tenant_id,
+                platform::ArtifactAccessRequestId::from_uuid(cancellation.request_id.as_uuid()),
+            )
+            .await
+            .map_err(repository_error)?
+            .ok_or_else(|| RepositoryError::Conflict("access request does not exist".into()))?;
+        if existing.requester != identity.principal_id.record_id() {
+            return Err(RepositoryError::Conflict(
+                "access request belongs to another principal".into(),
+            ));
+        }
+        self.store
+            .decide_artifact_access_request(platform::ArtifactAccessRequestDecisionDraft {
+                identity,
+                request_id: platform::ArtifactAccessRequestId::from_uuid(
+                    cancellation.request_id.as_uuid(),
+                ),
+                state: platform::ArtifactAccessRequestState::Cancelled,
+                note: None,
+            })
+            .await
+            .map_err(repository_error)
+            .and_then(contract_access_request)
+    }
+}
+
+fn contract_access_request(
+    record: platform::ArtifactAccessRequestRecord,
+) -> Result<ArtifactAccessRequest, RepositoryError> {
+    Ok(ArtifactAccessRequest {
+        id: ArtifactAccessRequestId::parse(record_uuid(&record.id)?.to_string())
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        artifact_id: ArtifactId::parse(record_uuid(&record.artifact)?.to_string())
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        work_context: WorkContextId::new(record.work_context_key)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        requester: PrincipalId::new(record.requester_key)
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        requested_level: access_level(record.requested_level),
+        justification: record.justification,
+        state: contract_access_request_state(record.state),
+        decided_by: record
+            .decided_by_key
+            .map(PrincipalId::new)
+            .transpose()
+            .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
+        decision_note: record.decision_note,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        decided_at: record.decided_at,
+    })
+}
+
+fn platform_access_request_state(
+    state: ArtifactAccessRequestState,
+) -> platform::ArtifactAccessRequestState {
+    match state {
+        ArtifactAccessRequestState::Pending => platform::ArtifactAccessRequestState::Pending,
+        ArtifactAccessRequestState::Approved => platform::ArtifactAccessRequestState::Approved,
+        ArtifactAccessRequestState::Denied => platform::ArtifactAccessRequestState::Denied,
+        ArtifactAccessRequestState::Cancelled => platform::ArtifactAccessRequestState::Cancelled,
+    }
+}
+
+fn contract_access_request_state(
+    state: platform::ArtifactAccessRequestState,
+) -> ArtifactAccessRequestState {
+    match state {
+        platform::ArtifactAccessRequestState::Pending => ArtifactAccessRequestState::Pending,
+        platform::ArtifactAccessRequestState::Approved => ArtifactAccessRequestState::Approved,
+        platform::ArtifactAccessRequestState::Denied => ArtifactAccessRequestState::Denied,
+        platform::ArtifactAccessRequestState::Cancelled => ArtifactAccessRequestState::Cancelled,
+    }
 }
 
 fn platform_authority(authority: &InvocationAuthority) -> platform::InvocationAuthorityRecord {
@@ -833,7 +1017,8 @@ fn release_state(state: platform::ArtifactReleaseState) -> ArtifactReleaseState 
 
 fn repository_error(error: platform::StoreError) -> RepositoryError {
     match error {
-        platform::StoreError::ArtifactWriteConflict { .. } => {
+        platform::StoreError::ArtifactWriteConflict { .. }
+        | platform::StoreError::ArtifactAccessRequestConflict(_) => {
             RepositoryError::Conflict(error.to_string())
         }
         other => RepositoryError::Backend(other.to_string()),

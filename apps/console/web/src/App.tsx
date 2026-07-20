@@ -296,7 +296,7 @@ export function App() {
         </main>
       </div>
 
-      {currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} principalId={snapshot.session.principalId} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
+      {currentArtifact && <ArtifactDrawer key={currentArtifact.id} artifact={currentArtifact} principalId={snapshot.session.actorId} onClose={() => setSelectedArtifact(undefined)} onOpenRecording={(recordingId) => {
         setSelectedArtifact(undefined);
         navigate("recordings", recordingId);
       }} />}

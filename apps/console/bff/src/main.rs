@@ -111,6 +111,22 @@ async fn main() -> anyhow::Result<()> {
             delete(api::revoke_artifact_share_link),
         )
         .route(
+            "/console/api/artifacts/{artifact_id}/access-requests",
+            post(api::create_artifact_access_request),
+        )
+        .route(
+            "/console/api/artifact-access-requests",
+            get(api::list_artifact_access_requests),
+        )
+        .route(
+            "/console/api/artifact-access-requests/{request_id}/decision",
+            post(api::decide_artifact_access_request),
+        )
+        .route(
+            "/console/api/artifact-access-requests/{request_id}/cancel",
+            post(api::cancel_artifact_access_request),
+        )
+        .route(
             "/console/api/artifacts/{artifact_id}/download",
             get(api::download_artifact),
         )

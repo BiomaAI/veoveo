@@ -49,8 +49,10 @@ export function ArtifactTable({
               <td><span className="artifact-media-type">{artifact.mediaType}</span></td>
               <td><StatusPill value={artifact.releaseState} /></td>
               <td>
-                <span>{artifact.authorizedGrants} grants</span>
-                <span className="subdued">{artifact.activeLinks} active links</span>
+                <StatusPill value={artifact.effectiveAccess.level ?? "denied"} />
+                <span className="subdued">
+                  {artifact.effectiveAccess.sources.length} authority sources
+                </span>
               </td>
               {!compact && <td><span className="code-label">{artifact.classification}</span></td>}
               <td>{formatBytes(artifact.byteLength)}</td>

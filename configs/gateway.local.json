@@ -1513,7 +1513,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -1618,7 +1618,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -1717,7 +1717,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -1810,7 +1810,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -1876,7 +1876,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -1918,7 +1918,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -1981,7 +1981,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2062,7 +2062,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -2142,7 +2142,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2221,7 +2221,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2299,7 +2299,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2376,7 +2376,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2463,7 +2463,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -2560,7 +2560,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ]
         },
         {
@@ -3088,7 +3088,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -3171,7 +3171,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ]
         },
         {
@@ -3253,7 +3253,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator"
+            "operator"
           ],
           "metadata": {}
         },
@@ -3339,7 +3339,7 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_admin"
+            "administrator"
           ],
           "metadata": {}
         },
@@ -3390,8 +3390,8 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator",
-            "veoveo_admin"
+            "operator",
+            "administrator"
           ],
           "metadata": {}
         },
@@ -3496,8 +3496,8 @@
             "enterprise"
           ],
           "roles": [
-            "veoveo_operator",
-            "veoveo_admin"
+            "operator",
+            "administrator"
           ],
           "required_scopes": [
             "operator:use"

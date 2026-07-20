@@ -14,16 +14,21 @@ use veoveo_mcp_contract::storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
 };
 use veoveo_mcp_contract::{
-    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, CreateArtifactShareLinkRequest,
+    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
+    ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink,
+    ArtifactShareLinkId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
+    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     InvocationAuthority, InvocationProvenance, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, ListArtifactsRequest, PlaneCaller, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest, parse_artifact_plane_uri,
+    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest, PlaneCaller,
+    PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextMembershipLevel,
+    parse_artifact_plane_uri,
 };
 
 use crate::ledger::{
-    ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository, AuditOutcome, BlobSha256,
-    NewArtifact, RepositoryActor, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
+    ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
+    ArtifactAccessRequestListQuery, ArtifactAuditEvent, ArtifactListQuery, ArtifactRepository,
+    AuditOutcome, BlobSha256, NewArtifact, NewArtifactAccessRequest, RepositoryActor,
+    RepositoryError, ShareLinkDraft, StoredArtifact, WriteCapabilityDraft,
     WriteCapabilityReservation,
 };
 use crate::store::{BlobDownload, BlobStore};
@@ -37,6 +42,8 @@ const MAX_ARTIFACT_PUT_JSON_BYTES: usize = 4 * 1024;
 const MAX_ARTIFACT_PRESENTATION_FIELD_BYTES: usize = 255;
 const DEFAULT_LIST_LIMIT: usize = 50;
 const MAX_LIST_LIMIT: usize = 100;
+const DEFAULT_ACCESS_REQUEST_LIMIT: usize = 50;
+const MAX_ACCESS_REQUEST_LIMIT: usize = 100;
 const LIST_SCAN_BATCH: usize = 100;
 const OBJECT_KEY_NAMESPACE: uuid::Uuid =
     uuid::Uuid::from_u128(0x78115f34_7753_5b1f_a22c_6cc48885dbf9);
@@ -958,6 +965,202 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             Err(ArtifactPlaneError::NotFound)
         }
     }
+
+    async fn create_access_request(
+        &self,
+        caller: &PlaneCaller,
+        artifact_id: &ArtifactId,
+        request: CreateArtifactAccessRequest,
+    ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
+        let stored = self.load(*artifact_id).await?;
+        let actor = Self::actor(caller)?;
+        if stored.tenant != actor.tenant {
+            return Err(ArtifactPlaneError::NotFound);
+        }
+        match Self::access_decision(caller, &stored, request.requested_level) {
+            AccessDecision::Allow => {
+                return Err(ArtifactPlaneError::Conflict(
+                    "the requested access is already effective".into(),
+                ));
+            }
+            AccessDecision::DenyTenant => return Err(ArtifactPlaneError::NotFound),
+            AccessDecision::DenyClearance => {
+                return Err(ArtifactPlaneError::Denied(AccessDecision::DenyClearance));
+            }
+            AccessDecision::DenyNeedToKnow => {}
+        }
+        let created = self
+            .repository
+            .create_or_reopen_access_request(NewArtifactAccessRequest {
+                request_id: ArtifactAccessRequestId::new(),
+                actor: actor.clone(),
+                artifact_id: *artifact_id,
+                requested_level: request.requested_level,
+                justification: request.justification,
+            })
+            .await
+            .map_err(repository_mutation_error)?;
+        self.audit(
+            Some(actor.clone()),
+            Some(actor.tenant),
+            "artifact.access_request.create",
+            Some(*artifact_id),
+            AuditOutcome::Allowed,
+            serde_json::Map::from_iter([
+                (
+                    "request_id".to_owned(),
+                    serde_json::json!(created.id.to_string()),
+                ),
+                (
+                    "requested_level".to_owned(),
+                    serde_json::json!(created.requested_level),
+                ),
+            ]),
+        )
+        .await?;
+        Ok(created)
+    }
+
+    async fn list_access_requests(
+        &self,
+        caller: &PlaneCaller,
+        request: ListArtifactAccessRequests,
+    ) -> Result<ArtifactAccessRequestPage, ArtifactPlaneError> {
+        let limit = usize::from(request.limit.unwrap_or(DEFAULT_ACCESS_REQUEST_LIMIT as u16));
+        if limit == 0 || limit > MAX_ACCESS_REQUEST_LIMIT {
+            return Err(ArtifactPlaneError::InvalidRequest(format!(
+                "access request list limit must be between 1 and {MAX_ACCESS_REQUEST_LIMIT}"
+            )));
+        }
+        let actor = Self::actor(caller)?;
+        let scope = request.scope.unwrap_or(ArtifactAccessRequestScope::Mine);
+        let work_context = match scope {
+            ArtifactAccessRequestScope::Mine => None,
+            ArtifactAccessRequestScope::Reviewable => {
+                if !caller
+                    .identity
+                    .authority
+                    .membership
+                    .allows(WorkContextMembershipLevel::Custodian)
+                {
+                    return Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow));
+                }
+                Some(caller.identity.authority.work_context.clone())
+            }
+        };
+        let mut requests = self
+            .repository
+            .list_access_requests(ArtifactAccessRequestListQuery {
+                actor: actor.clone(),
+                work_context,
+                state: request.state,
+                cursor: request.cursor,
+                limit: limit + 1,
+            })
+            .await
+            .map_err(transport)?;
+        let next_cursor = (requests.len() > limit).then(|| requests[limit - 1].id);
+        requests.truncate(limit);
+        self.audit(
+            Some(actor.clone()),
+            Some(actor.tenant),
+            "artifact.access_request.list",
+            None,
+            AuditOutcome::Allowed,
+            serde_json::Map::from_iter([
+                ("scope".to_owned(), serde_json::json!(scope)),
+                ("count".to_owned(), serde_json::json!(requests.len())),
+            ]),
+        )
+        .await?;
+        Ok(ArtifactAccessRequestPage {
+            requests,
+            next_cursor,
+        })
+    }
+
+    async fn decide_access_request(
+        &self,
+        caller: &PlaneCaller,
+        request_id: &ArtifactAccessRequestId,
+        decision: DecideArtifactAccessRequest,
+    ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
+        let actor = Self::actor(caller)?;
+        let request = self
+            .repository
+            .get_access_request(&actor, *request_id)
+            .await
+            .map_err(transport)?
+            .ok_or(ArtifactPlaneError::NotFound)?;
+        let stored = self.load(request.artifact_id).await?;
+        if request.work_context != stored.authority.work_context {
+            return Err(ArtifactPlaneError::Transport(
+                "access request Work Context differs from its artifact".into(),
+            ));
+        }
+        self.authorize(
+            caller,
+            &stored,
+            "artifact.access_request.decide",
+            AccessLevel::Admin,
+        )
+        .await?;
+        let decided = self
+            .repository
+            .decide_access_request(ArtifactAccessRequestDecisionDraft {
+                actor: actor.clone(),
+                request_id: *request_id,
+                decision: decision.decision,
+                note: decision.note,
+            })
+            .await
+            .map_err(repository_mutation_error)?;
+        self.audit(
+            Some(actor.clone()),
+            Some(actor.tenant),
+            "artifact.access_request.decision",
+            Some(decided.artifact_id),
+            AuditOutcome::Allowed,
+            serde_json::Map::from_iter([
+                (
+                    "request_id".to_owned(),
+                    serde_json::json!(request_id.to_string()),
+                ),
+                ("state".to_owned(), serde_json::json!(decided.state)),
+            ]),
+        )
+        .await?;
+        Ok(decided)
+    }
+
+    async fn cancel_access_request(
+        &self,
+        caller: &PlaneCaller,
+        request_id: &ArtifactAccessRequestId,
+    ) -> Result<ArtifactAccessRequest, ArtifactPlaneError> {
+        let actor = Self::actor(caller)?;
+        let cancelled = self
+            .repository
+            .cancel_access_request(ArtifactAccessRequestCancellation {
+                actor: actor.clone(),
+                request_id: *request_id,
+            })
+            .await
+            .map_err(repository_mutation_error)?;
+        self.audit(
+            Some(actor.clone()),
+            Some(actor.tenant),
+            "artifact.access_request.cancel",
+            Some(cancelled.artifact_id),
+            AuditOutcome::Allowed,
+            serde_json::Map::from_iter([(
+                "request_id".to_owned(),
+                serde_json::json!(request_id.to_string()),
+            )]),
+        )
+        .await?;
+        Ok(cancelled)
+    }
 }
 
 fn compute_sha(bytes: &[u8]) -> BlobSha256 {
@@ -1011,6 +1214,13 @@ fn transport(error: impl std::fmt::Display) -> ArtifactPlaneError {
     ArtifactPlaneError::Transport(error.to_string())
 }
 
+fn repository_mutation_error(error: RepositoryError) -> ArtifactPlaneError {
+    match error {
+        RepositoryError::Conflict(message) => ArtifactPlaneError::Conflict(message),
+        other => transport(other),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -1023,8 +1233,10 @@ mod tests {
     };
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
     use veoveo_mcp_contract::{
-        AccessSubject, ArtifactWriteIdempotencyKey, InvocationProvenance, JwtId, PolicyVersion,
-        Principal, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+        AccessSubject, ArtifactAccessRequestDecision, ArtifactAccessRequestScope,
+        ArtifactAccessRequestState, ArtifactWriteIdempotencyKey, InvocationProvenance, JwtId,
+        PolicyVersion, Principal, WorkContextId, WorkContextMembershipLevel,
+        WorkContextOutputPolicy,
     };
 
     use super::*;
@@ -1584,5 +1796,107 @@ mod tests {
             service.revoke(&alice, &artifact.artifact_id, &owner).await,
             Err(ArtifactPlaneError::Conflict(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn access_request_approval_adds_a_grant_without_bypassing_clearance() {
+        let (service, _) = service();
+        let alice = caller("alice", "acme", &["controlled"]);
+        let mut bob = caller("bob", "acme", &["controlled"]);
+        bob.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        bob.identity.authority.membership = WorkContextMembershipLevel::Viewer;
+        let mut custodian = caller("casey", "acme", &["controlled"]);
+        custodian.identity.authority.membership = WorkContextMembershipLevel::Custodian;
+
+        let artifact = service
+            .put(
+                &alice,
+                PutArtifactRequest {
+                    classification: Some(DataLabelId::new("controlled").unwrap()),
+                    ..PutArtifactRequest::default()
+                },
+                b"governed".to_vec(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            service
+                .get(&bob, &artifact.artifact_id, AccessLevel::Read)
+                .await,
+            Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
+        );
+
+        let requested = service
+            .create_access_request(
+                &bob,
+                &artifact.artifact_id,
+                CreateArtifactAccessRequest {
+                    requested_level: AccessLevel::Read,
+                    justification: "Required for the assigned review.".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let mine = service
+            .list_access_requests(
+                &bob,
+                ListArtifactAccessRequests {
+                    scope: Some(ArtifactAccessRequestScope::Mine),
+                    state: Some(ArtifactAccessRequestState::Pending),
+                    ..ListArtifactAccessRequests::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(mine.requests, vec![requested.clone()]);
+
+        let queue = service
+            .list_access_requests(
+                &custodian,
+                ListArtifactAccessRequests {
+                    scope: Some(ArtifactAccessRequestScope::Reviewable),
+                    state: Some(ArtifactAccessRequestState::Pending),
+                    ..ListArtifactAccessRequests::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(queue.requests, vec![requested.clone()]);
+        let approved = service
+            .decide_access_request(
+                &custodian,
+                &requested.id,
+                DecideArtifactAccessRequest {
+                    decision: ArtifactAccessRequestDecision::Approve,
+                    note: Some("Review assignment verified.".into()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(approved.state, ArtifactAccessRequestState::Approved);
+        assert_eq!(
+            service
+                .get(&bob, &artifact.artifact_id, AccessLevel::Read)
+                .await
+                .unwrap()
+                .bytes,
+            b"governed"
+        );
+
+        let mut no_clearance = caller("dana", "acme", &[]);
+        no_clearance.identity.authority.work_context = WorkContextId::new("other-work").unwrap();
+        assert_eq!(
+            service
+                .create_access_request(
+                    &no_clearance,
+                    &artifact.artifact_id,
+                    CreateArtifactAccessRequest {
+                        requested_level: AccessLevel::Read,
+                        justification: "Requesting review access.".into(),
+                    },
+                )
+                .await,
+            Err(ArtifactPlaneError::Denied(AccessDecision::DenyClearance))
+        );
     }
 }

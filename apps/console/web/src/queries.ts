@@ -1,16 +1,21 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
+  cancelArtifactAccessRequest,
   cancelTask,
   createArtifactShareLink,
+  decideArtifactAccessRequest,
   grantArtifact,
   loadApps,
   loadCluster,
+  loadArtifactAccessRequests,
   loadSnapshot,
   revokeArtifactGrant,
   revokeArtifactShareLink,
+  requestArtifactAccess,
   setArtifactReleaseState,
 } from "./api";
 import type {
+  ArtifactAccessRequestState,
   ArtifactSummary,
   InstallationSnapshot,
   ReleaseState,
@@ -21,6 +26,7 @@ export const queryKeys = {
   snapshot: ["snapshot"] as const,
   apps: ["apps"] as const,
   cluster: ["cluster"] as const,
+  accessRequests: ["artifact-access-requests"] as const,
 };
 
 export function useSnapshot() {
@@ -47,6 +53,63 @@ export function useApps() {
     queryKey: queryKeys.apps,
     queryFn: ({ signal }) => loadApps(signal),
     staleTime: Infinity,
+  });
+}
+
+export function useArtifactAccessRequests(
+  scope: "mine" | "reviewable",
+  state?: ArtifactAccessRequestState,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: [...queryKeys.accessRequests, scope, state ?? "all"],
+    queryFn: ({ signal }) => loadArtifactAccessRequests(scope, state, signal),
+    staleTime: Infinity,
+    enabled,
+  });
+}
+
+function refreshAccessRequests(client: QueryClient) {
+  return client.invalidateQueries({ queryKey: queryKeys.accessRequests });
+}
+
+export function useRequestArtifactAccess() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      artifactId,
+      requestedLevel,
+      justification,
+    }: {
+      artifactId: string;
+      requestedLevel: "read" | "write" | "admin";
+      justification: string;
+    }) => requestArtifactAccess(artifactId, requestedLevel, justification),
+    onSuccess: () => refreshAccessRequests(client),
+  });
+}
+
+export function useDecideArtifactAccessRequest() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      requestId,
+      decision,
+      note,
+    }: {
+      requestId: string;
+      decision: "approve" | "deny";
+      note?: string;
+    }) => decideArtifactAccessRequest(requestId, decision, note),
+    onSuccess: () => refreshAccessRequests(client),
+  });
+}
+
+export function useCancelArtifactAccessRequest() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (requestId: string) => cancelArtifactAccessRequest(requestId),
+    onSuccess: () => refreshAccessRequests(client),
   });
 }
 
@@ -100,7 +163,7 @@ export function useGrantArtifact() {
       level,
     }: {
       artifactId: string;
-      subject: { kind: "user" | "group"; id: string };
+      subject: { kind: "principal" | "group"; id: string };
       level: "read" | "write" | "admin";
     }) => grantArtifact(artifactId, subject, level),
     onSuccess: (_result, { artifactId, subject, level }) => {
@@ -124,7 +187,7 @@ export function useGrantArtifact() {
 export function useRevokeArtifactGrant() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ artifactId, subject }: { artifactId: string; subject: { kind: "user" | "group"; id: string } }) =>
+    mutationFn: ({ artifactId, subject }: { artifactId: string; subject: { kind: "principal" | "group"; id: string } }) =>
       revokeArtifactGrant(artifactId, subject),
     onSuccess: (_result, { artifactId, subject }) => {
       patchArtifact(client, artifactId, (artifact) => {

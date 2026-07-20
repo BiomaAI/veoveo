@@ -1,3 +1,5 @@
+#[path = "admin/artifact_access.rs"]
+mod artifact_access;
 #[path = "admin/artifacts.rs"]
 mod artifacts;
 #[path = "admin/console/mod.rs"]
@@ -13,6 +15,10 @@ mod tasks;
 
 use veoveo_mcp_contract::GatewayProfileId;
 
+pub(super) use artifact_access::{
+    cancel_artifact_access_request, create_artifact_access_request, decide_artifact_access_request,
+    list_artifact_access_requests,
+};
 pub(super) use artifacts::{
     create_artifact_share_link, grant_artifact, revoke_artifact_grant, revoke_artifact_share_link,
     set_artifact_release_state,

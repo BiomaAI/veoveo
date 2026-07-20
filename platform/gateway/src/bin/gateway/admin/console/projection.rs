@@ -3,9 +3,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    Exposure, GatewayControlPlane, OwnedRoutePurpose, ResourceSelector, ServerManifest,
+    AccessDecision, AccessLevel, AccessRequest, AccessSubject, ArtifactId, DataLabelId, Exposure,
+    GatewayControlPlane, Grant, GroupMembership, GroupRole, InvocationMode, OwnedRoutePurpose,
+    PrincipalId, ResourceSelector, ServerManifest, TenantId, WorkContextId,
+    WorkContextMembershipLevel,
 };
-use veoveo_mcp_gateway::{GatewayServerHealth, GatewayServerHealthState};
+use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 use veoveo_platform_store::{
     AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, AuditEventRecord,
     PrincipalRecord, RecordId, RecordIdKey, RecordingRecord, SegmentRecord, ShareLinkRecord,
@@ -109,6 +112,9 @@ pub(crate) struct ArtifactSummary {
     pub(crate) media_type: String,
     pub(crate) byte_length: i64,
     pub(crate) owner: String,
+    pub(crate) output_owner: ArtifactOutputOwnerSummary,
+    pub(crate) provenance: ArtifactGovernanceSummary,
+    pub(crate) effective_access: ArtifactEffectiveAccessSummary,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) task_id: Option<String>,
     pub(crate) classification: String,
@@ -123,6 +129,75 @@ pub(crate) struct ArtifactSummary {
     pub(crate) created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) recording: Option<ArtifactRecordingSummary>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ArtifactOutputOwnerSummary {
+    pub(crate) kind: veoveo_platform_store::ArtifactGrantSubjectKind,
+    pub(crate) id: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ArtifactGovernanceSummary {
+    pub(crate) work_context: String,
+    pub(crate) producer: String,
+    pub(crate) invocation_mode: InvocationMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) initiator: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) delegation_id: Option<String>,
+    pub(crate) policy_revision: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ArtifactEffectiveAccessSummary {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) level: Option<veoveo_platform_store::GrantPermission>,
+    pub(crate) read: bool,
+    pub(crate) write: bool,
+    pub(crate) admin: bool,
+    pub(crate) clearance_satisfied: bool,
+    pub(crate) requestable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) denial_reason: Option<&'static str>,
+    pub(crate) sources: Vec<ArtifactAccessSourceSummary>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ArtifactAccessSourceSummary {
+    pub(crate) kind: &'static str,
+    pub(crate) subject: String,
+    pub(crate) level: veoveo_platform_store::GrantPermission,
+}
+
+#[derive(Clone)]
+pub(crate) struct ArtifactAccessContext {
+    actor: PrincipalId,
+    tenant: TenantId,
+    clearance: BTreeSet<DataLabelId>,
+    groups: BTreeSet<GroupMembership>,
+    work_context: WorkContextId,
+    membership: WorkContextMembershipLevel,
+}
+
+impl ArtifactAccessContext {
+    pub(crate) fn from_subject(
+        subject: &AuthenticatedSubject,
+        tenant_key: &str,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            actor: subject.actor.id.clone(),
+            tenant: TenantId::new(tenant_key)?,
+            clearance: subject.actor.data_labels.clone(),
+            groups: subject.actor.group_memberships(),
+            work_context: subject.authority.work_context.clone(),
+            membership: subject.authority.membership,
+        })
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -337,7 +412,9 @@ pub(crate) fn artifact_summary(
     grants: Vec<ArtifactGrantSummary>,
     share_links: Vec<ArtifactShareLinkSummary>,
     principal_names: &BTreeMap<String, String>,
+    access: &ArtifactAccessContext,
 ) -> anyhow::Result<ArtifactSummary> {
+    let effective_access = effective_artifact_access(&artifact, &grants, access)?;
     let recording =
         serde_json::from_value::<ArtifactProvenanceEnvelope>(serde_json::Value::Object(
             artifact
@@ -360,6 +437,19 @@ pub(crate) fn artifact_summary(
         media_type: artifact.media_type,
         byte_length,
         owner: display_record(principal_names, &artifact.owner)?,
+        output_owner: ArtifactOutputOwnerSummary {
+            kind: artifact.owner_kind,
+            id: artifact.owner_key.clone(),
+        },
+        provenance: ArtifactGovernanceSummary {
+            work_context: artifact.authority.context_key.clone(),
+            producer: artifact.producer_key.clone(),
+            invocation_mode: contract_invocation_mode(artifact.invocation_mode),
+            initiator: artifact.initiator_key.clone(),
+            delegation_id: artifact.delegation_id.clone(),
+            policy_revision: artifact.policy_revision.clone(),
+        },
+        effective_access,
         task_id: artifact.task.as_ref().map(record_key).transpose()?,
         classification: artifact.classification,
         labels: artifact.labels,
@@ -372,6 +462,160 @@ pub(crate) fn artifact_summary(
         created_at: artifact.created_at,
         recording,
     })
+}
+
+const fn contract_invocation_mode(mode: veoveo_platform_store::InvocationMode) -> InvocationMode {
+    match mode {
+        veoveo_platform_store::InvocationMode::Direct => InvocationMode::Direct,
+        veoveo_platform_store::InvocationMode::Delegated => InvocationMode::Delegated,
+        veoveo_platform_store::InvocationMode::Automated => InvocationMode::Automated,
+    }
+}
+
+fn effective_artifact_access(
+    artifact: &ArtifactOccurrenceRecord,
+    summaries: &[ArtifactGrantSummary],
+    context: &ArtifactAccessContext,
+) -> anyhow::Result<ArtifactEffectiveAccessSummary> {
+    let artifact_id = ArtifactId::parse(record_key(&artifact.id)?)?;
+    let now = Utc::now();
+    let labels = artifact
+        .labels
+        .iter()
+        .map(|label| DataLabelId::new(label.clone()))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let grants = summaries
+        .iter()
+        .filter(|grant| grant.expires_at.is_none_or(|expires| expires > now))
+        .map(|grant| {
+            Ok(Grant {
+                artifact: artifact_id,
+                subject: match grant.subject_kind {
+                    veoveo_platform_store::ArtifactGrantSubjectKind::Principal => {
+                        AccessSubject::Principal(PrincipalId::new(grant.subject.clone())?)
+                    }
+                    veoveo_platform_store::ArtifactGrantSubjectKind::Group => AccessSubject::Group(
+                        veoveo_mcp_contract::GroupId::new(grant.subject.clone())?,
+                    ),
+                },
+                level: contract_access_level(grant.permission),
+                tenant: context.tenant.clone(),
+                data_labels: grant
+                    .labels
+                    .iter()
+                    .map(|label| DataLabelId::new(label.clone()))
+                    .collect::<Result<_, _>>()?,
+                retention_expires_at: grant.expires_at,
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let context_membership = (artifact.authority.context_key == context.work_context.as_str())
+        .then_some(context.membership);
+    let decision = |requested| {
+        veoveo_mcp_contract::decide(&AccessRequest {
+            caller_id: &context.actor,
+            caller_tenant: Some(&context.tenant),
+            caller_labels: &context.clearance,
+            memberships: &context.groups,
+            artifact_tenant: &context.tenant,
+            artifact_labels: &labels,
+            grants: &grants,
+            context_membership,
+            requested,
+        })
+    };
+    let read_decision = decision(AccessLevel::Read);
+    let read = read_decision.is_allowed();
+    let write = decision(AccessLevel::Write).is_allowed();
+    let admin = decision(AccessLevel::Admin).is_allowed();
+    let level = if admin {
+        Some(veoveo_platform_store::GrantPermission::Admin)
+    } else if write {
+        Some(veoveo_platform_store::GrantPermission::Write)
+    } else if read {
+        Some(veoveo_platform_store::GrantPermission::Read)
+    } else {
+        None
+    };
+    let mut sources = summaries
+        .iter()
+        .filter(|grant| grant.expires_at.is_none_or(|expires| expires > now))
+        .filter_map(|grant| match grant.subject_kind {
+            veoveo_platform_store::ArtifactGrantSubjectKind::Principal
+                if grant.subject == context.actor.as_str() =>
+            {
+                Some(ArtifactAccessSourceSummary {
+                    kind: "principal_grant",
+                    subject: grant.subject.clone(),
+                    level: grant.permission,
+                })
+            }
+            veoveo_platform_store::ArtifactGrantSubjectKind::Group => context
+                .groups
+                .iter()
+                .find(|membership| membership.group.as_str() == grant.subject)
+                .map(|membership| ArtifactAccessSourceSummary {
+                    kind: "group_grant",
+                    subject: grant.subject.clone(),
+                    level: store_access_level(
+                        contract_group_role_level(membership.role)
+                            .min(contract_access_level(grant.permission)),
+                    ),
+                }),
+            veoveo_platform_store::ArtifactGrantSubjectKind::Principal => None,
+        })
+        .collect::<Vec<_>>();
+    if let Some(membership) = context_membership {
+        sources.push(ArtifactAccessSourceSummary {
+            kind: "work_context",
+            subject: context.work_context.to_string(),
+            level: store_access_level(membership.artifact_access()),
+        });
+    }
+    sources.sort_by(|left, right| {
+        left.kind
+            .cmp(right.kind)
+            .then_with(|| left.subject.cmp(&right.subject))
+    });
+    Ok(ArtifactEffectiveAccessSummary {
+        level,
+        read,
+        write,
+        admin,
+        clearance_satisfied: labels.is_subset(&context.clearance),
+        requestable: read_decision == AccessDecision::DenyNeedToKnow,
+        denial_reason: match read_decision {
+            AccessDecision::Allow => None,
+            AccessDecision::DenyTenant => Some("tenant_boundary"),
+            AccessDecision::DenyClearance => Some("clearance"),
+            AccessDecision::DenyNeedToKnow => Some("need_to_know"),
+        },
+        sources,
+    })
+}
+
+const fn contract_group_role_level(role: GroupRole) -> AccessLevel {
+    match role {
+        GroupRole::Read => AccessLevel::Read,
+        GroupRole::Write => AccessLevel::Write,
+        GroupRole::Admin => AccessLevel::Admin,
+    }
+}
+
+const fn contract_access_level(level: veoveo_platform_store::GrantPermission) -> AccessLevel {
+    match level {
+        veoveo_platform_store::GrantPermission::Read => AccessLevel::Read,
+        veoveo_platform_store::GrantPermission::Write => AccessLevel::Write,
+        veoveo_platform_store::GrantPermission::Admin => AccessLevel::Admin,
+    }
+}
+
+const fn store_access_level(level: AccessLevel) -> veoveo_platform_store::GrantPermission {
+    match level {
+        AccessLevel::Read => veoveo_platform_store::GrantPermission::Read,
+        AccessLevel::Write => veoveo_platform_store::GrantPermission::Write,
+        AccessLevel::Admin => veoveo_platform_store::GrantPermission::Admin,
+    }
 }
 
 pub(crate) fn agent_summary(

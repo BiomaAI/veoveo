@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    extract::{Path, RawQuery, State},
+    extract::{Path, Query, RawQuery, State},
     http::{
         HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode,
         header::{
@@ -17,8 +17,10 @@ use chrono::Utc;
 use futures::StreamExt;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AccessSubject, ArtifactId, ArtifactShareLinkId, CreateArtifactShareLinkRequest,
-    PutGrantRequest, SetArtifactReleaseStateRequest,
+    AccessSubject, ArtifactAccessRequestId, ArtifactAccessRequestScope, ArtifactAccessRequestState,
+    ArtifactId, ArtifactShareLinkId, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    DecideArtifactAccessRequest, ListArtifactAccessRequests, PutGrantRequest,
+    SetArtifactReleaseStateRequest,
 };
 use veoveo_mcp_task_extension::ProtocolTaskId;
 
@@ -286,6 +288,105 @@ pub(crate) async fn revoke_artifact_share_link(
         None,
     )
     .await
+}
+
+pub(crate) async fn create_artifact_access_request(
+    State(state): State<AppState>,
+    Path(artifact_id): Path<String>,
+    request_headers: HeaderMap,
+    axum::Json(request): axum::Json<CreateArtifactAccessRequest>,
+) -> Response {
+    proxy_artifact_json(
+        &state,
+        &request_headers,
+        Method::POST,
+        artifact_id,
+        "access-requests",
+        Some(&request),
+    )
+    .await
+}
+
+pub(crate) async fn list_artifact_access_requests(
+    State(state): State<AppState>,
+    Query(request): Query<ListArtifactAccessRequests>,
+    request_headers: HeaderMap,
+) -> Response {
+    let query = artifact_access_request_query(&request);
+    let path = if query.is_empty() {
+        "artifact-access-requests".to_owned()
+    } else {
+        format!("artifact-access-requests?{query}")
+    };
+    proxy_json::<()>(&state, &request_headers, Method::GET, &path, None).await
+}
+
+pub(crate) async fn decide_artifact_access_request(
+    State(state): State<AppState>,
+    Path(request_id): Path<String>,
+    request_headers: HeaderMap,
+    axum::Json(decision): axum::Json<DecideArtifactAccessRequest>,
+) -> Response {
+    let Ok(request_id) = ArtifactAccessRequestId::parse(request_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    proxy_json(
+        &state,
+        &request_headers,
+        Method::POST,
+        &format!("artifact-access-requests/{request_id}/decision"),
+        Some(&decision),
+    )
+    .await
+}
+
+pub(crate) async fn cancel_artifact_access_request(
+    State(state): State<AppState>,
+    Path(request_id): Path<String>,
+    request_headers: HeaderMap,
+) -> Response {
+    let Ok(request_id) = ArtifactAccessRequestId::parse(request_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    proxy_json::<()>(
+        &state,
+        &request_headers,
+        Method::POST,
+        &format!("artifact-access-requests/{request_id}/cancel"),
+        None,
+    )
+    .await
+}
+
+fn artifact_access_request_query(request: &ListArtifactAccessRequests) -> String {
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    if let Some(scope) = request.scope {
+        query.append_pair(
+            "scope",
+            match scope {
+                ArtifactAccessRequestScope::Mine => "mine",
+                ArtifactAccessRequestScope::Reviewable => "reviewable",
+            },
+        );
+    }
+    if let Some(state) = request.state {
+        query.append_pair(
+            "state",
+            match state {
+                ArtifactAccessRequestState::Pending => "pending",
+                ArtifactAccessRequestState::Approved => "approved",
+                ArtifactAccessRequestState::Denied => "denied",
+                ArtifactAccessRequestState::Cancelled => "cancelled",
+            },
+        );
+    }
+    if let Some(cursor) = request.cursor {
+        query.append_pair("cursor", &cursor.to_string());
+    }
+    if let Some(limit) = request.limit {
+        query.append_pair("limit", &limit.to_string());
+    }
+    query.finish()
 }
 
 pub(crate) async fn download_artifact(

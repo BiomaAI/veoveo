@@ -13,8 +13,10 @@ use serde::Deserialize;
 use veoveo_mcp_contract::access::{AccessLevel, AccessSubject, ArtifactId};
 use veoveo_mcp_contract::storage::ArtifactMetadata;
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
-    CreateArtifactShareLinkRequest, GrantList, IssueArtifactWriteCapabilityRequest,
+    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
+    ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
+    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
+    GrantList, IssueArtifactWriteCapabilityRequest, ListArtifactAccessRequests,
     ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
     RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
 };
@@ -86,6 +88,22 @@ where
             axum::routing::delete(revoke_share_link::<R, S>),
         )
         .route(
+            "/artifacts/{artifact_id}/access-requests",
+            post(create_access_request::<R, S>),
+        )
+        .route(
+            "/artifact-access-requests",
+            get(list_access_requests::<R, S>),
+        )
+        .route(
+            "/artifact-access-requests/{request_id}/decision",
+            post(decide_access_request::<R, S>),
+        )
+        .route(
+            "/artifact-access-requests/{request_id}/cancel",
+            post(cancel_access_request::<R, S>),
+        )
+        .route(
             "/artifact-write-capabilities",
             post(issue_write_capability::<R, S>),
         )
@@ -151,6 +169,10 @@ fn caller<R: ArtifactRepository, S: BlobStore>(
 fn parse_artifact_id(value: &str) -> Result<ArtifactId, ApiError> {
     ArtifactId::parse(value)
         .map_err(|error| ApiError(ArtifactPlaneError::InvalidRequest(error.to_string())))
+}
+
+fn parse_access_request_id(value: &str) -> Result<ArtifactAccessRequestId, ApiError> {
+    ArtifactAccessRequestId::parse(value).map_err(ApiError)
 }
 
 fn put_request(headers: &HeaderMap) -> Result<PutArtifactRequest, ApiError> {
@@ -438,6 +460,60 @@ async fn revoke_share_link<R: ArtifactRepository, S: BlobStore>(
         .revoke_share_link(&caller, &parse_artifact_id(&artifact_id)?, &link_id)
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn create_access_request<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(artifact_id): Path<String>,
+    headers: HeaderMap,
+    Json(request): Json<CreateArtifactAccessRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let caller = caller(&state, &headers)?;
+    let access_request = state
+        .service
+        .create_access_request(&caller, &parse_artifact_id(&artifact_id)?, request)
+        .await?;
+    Ok((StatusCode::CREATED, Json(access_request)))
+}
+
+async fn list_access_requests<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Query(request): Query<ListArtifactAccessRequests>,
+    headers: HeaderMap,
+) -> Result<Json<ArtifactAccessRequestPage>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(
+        state.service.list_access_requests(&caller, request).await?,
+    ))
+}
+
+async fn decide_access_request<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(request_id): Path<String>,
+    headers: HeaderMap,
+    Json(decision): Json<DecideArtifactAccessRequest>,
+) -> Result<Json<ArtifactAccessRequest>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(
+        state
+            .service
+            .decide_access_request(&caller, &parse_access_request_id(&request_id)?, decision)
+            .await?,
+    ))
+}
+
+async fn cancel_access_request<R: ArtifactRepository, S: BlobStore>(
+    State(state): State<AppState<R, S>>,
+    Path(request_id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<ArtifactAccessRequest>, ApiError> {
+    let caller = caller(&state, &headers)?;
+    Ok(Json(
+        state
+            .service
+            .cancel_access_request(&caller, &parse_access_request_id(&request_id)?)
+            .await?,
+    ))
 }
 
 async fn issue_write_capability<R: ArtifactRepository, S: BlobStore>(

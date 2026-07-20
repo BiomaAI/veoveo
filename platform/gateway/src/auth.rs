@@ -294,7 +294,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 iat: 1_700_000_000,
                 nonce,
                 groups: vec![],
-                roles: vec!["veoveo_operator"],
+                roles: vec!["operator"],
                 tenant: None,
                 tid: Some("tenant-a"),
                 oid: Some("entra-object-id"),
@@ -605,7 +605,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             verified
                 .principal
                 .roles
-                .contains(&veoveo_mcp_contract::RoleId::new("veoveo_operator").unwrap())
+                .contains(&veoveo_mcp_contract::RoleId::new("operator").unwrap())
         );
     }
 

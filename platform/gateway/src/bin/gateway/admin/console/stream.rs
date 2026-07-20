@@ -22,16 +22,17 @@ use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::GatewayAction;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
-    AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, AuditEventRecord,
-    ChangefeedCursor, ChangefeedEntry, PlatformStore, PlatformTable, PrincipalRecord, RecordId,
-    RecordingRecord, SegmentRecord, SegmentState, ShareLinkRecord, TaskRecord, Value as DbValue,
-    WakeRecord, decode_changefeed_entry, deterministic_tenant_id,
+    AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
+    ArtifactOccurrenceRecord, AuditEventRecord, ChangefeedCursor, ChangefeedEntry, PlatformStore,
+    PlatformTable, PrincipalRecord, RecordId, RecordingRecord, SegmentRecord, SegmentState,
+    ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord, decode_changefeed_entry,
+    deterministic_tenant_id,
 };
 
 use super::projection::{
-    ArtifactGrantSummary, ArtifactShareLinkSummary, agent_summary, artifact_grant_summary,
-    artifact_summary, audit_summary, load_projection, record_key, recording_summary,
-    server_summary, share_link_summary, task_summary,
+    ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, agent_summary,
+    artifact_grant_summary, artifact_summary, audit_summary, load_projection, record_key,
+    recording_summary, server_summary, share_link_summary, task_summary,
 };
 use crate::{
     admin::admin_profile_id,
@@ -53,12 +54,13 @@ const REPLAY_HORIZON: chrono::TimeDelta = chrono::TimeDelta::hours(24);
 
 /// Tenant tables the console stream follows, in dependency order: within one
 /// versionstamp group parents apply before the children that re-emit them.
-const STREAM_TABLES: [PlatformTable; 11] = [
+const STREAM_TABLES: [PlatformTable; 12] = [
     PlatformTable::Principal,
     PlatformTable::Task,
     PlatformTable::ArtifactBlob,
     PlatformTable::ArtifactOccurrence,
     PlatformTable::ArtifactGrant,
+    PlatformTable::ArtifactAccessRequest,
     PlatformTable::ShareLink,
     PlatformTable::Agent,
     PlatformTable::Wake,
@@ -255,7 +257,19 @@ pub(crate) async fn stream_console(
     };
 
     let deadline = stream_deadline(subject.access_token.expires_at);
-    let stream = console_event_stream(state, store, tenant, cursor, slot, deadline);
+    let artifact_access = match ArtifactAccessContext::from_subject(&subject, &tenant_key) {
+        Ok(access) => access,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    let stream = console_event_stream(
+        state,
+        store,
+        tenant,
+        cursor,
+        slot,
+        deadline,
+        artifact_access,
+    );
     Sse::new(stream)
         .keep_alive(
             KeepAlive::new()
@@ -330,6 +344,7 @@ fn console_event_stream(
     cursor: ChangefeedCursor,
     slot: StreamSlot,
     deadline: tokio::time::Instant,
+    artifact_access: ArtifactAccessContext,
 ) -> impl Stream<Item = Result<Event, Infallible>> {
     async_stream::stream! {
         // Owned by the generator so the limit slot lives exactly as long as
@@ -341,7 +356,12 @@ fn console_event_stream(
 
         yield Ok(Event::default().retry(Duration::from_millis(RETRY_HINT_MS as u64)));
 
-        let mut projection_state = match ConsoleStreamState::seed(&state, &tenant, cursor).await {
+        let mut projection_state = match ConsoleStreamState::seed(
+            &state,
+            &tenant,
+            cursor,
+            artifact_access,
+        ).await {
             Ok(seeded) => seeded,
             Err(error) => {
                 tracing::error!("console stream seed failed: {error}");
@@ -472,6 +492,7 @@ struct ConsoleStreamState {
     wakes: BTreeMap<String, (String, bool)>,
     recordings: BTreeMap<String, RecordingRecord>,
     segments: BTreeMap<String, (String, i64, SegmentState)>,
+    artifact_access: ArtifactAccessContext,
 }
 
 impl ConsoleStreamState {
@@ -479,6 +500,7 @@ impl ConsoleStreamState {
         state: &AdminState,
         tenant: &RecordId,
         cursor: ChangefeedCursor,
+        artifact_access: ArtifactAccessContext,
     ) -> anyhow::Result<Self> {
         let projection = load_projection(state, tenant).await?;
         let now = Utc::now();
@@ -564,6 +586,7 @@ impl ConsoleStreamState {
             wakes,
             recordings,
             segments,
+            artifact_access,
         })
     }
 
@@ -661,6 +684,16 @@ impl ConsoleStreamState {
                         );
                         self.emit_artifact(&artifact, versionstamp, rank)
                     }
+                    PlatformTable::ArtifactAccessRequest => {
+                        let request: ArtifactAccessRequestRecord = row.into_t()?;
+                        Ok(out(
+                            "access_request",
+                            serde_json::json!({
+                                "op": "changed",
+                                "id": record_key(&request.id)?,
+                            }),
+                        ))
+                    }
                     PlatformTable::ShareLink => {
                         let link: ShareLinkRecord = row.into_t()?;
                         let artifact = record_key(&link.artifact)?;
@@ -748,6 +781,10 @@ impl ConsoleStreamState {
                         Some((artifact, _)) => self.emit_artifact(&artifact, versionstamp, rank),
                         None => Ok(None),
                     },
+                    PlatformTable::ArtifactAccessRequest => Ok(out(
+                        "access_request",
+                        serde_json::json!({ "op": "changed", "id": key }),
+                    )),
                     PlatformTable::ShareLink => match self.links.remove(&key) {
                         Some((artifact, _)) => self.emit_artifact(&artifact, versionstamp, rank),
                         None => Ok(None),
@@ -822,6 +859,7 @@ impl ConsoleStreamState {
             grants,
             links,
             &self.principal_names,
+            &self.artifact_access,
         )?;
         Ok(Some(OutEvent {
             versionstamp,
