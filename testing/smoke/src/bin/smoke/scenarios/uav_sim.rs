@@ -414,6 +414,12 @@ pub(crate) async fn uav_sim_verify(
             .is_some_and(|count| count > 0),
         "Perception processed no Isaac camera frames: {perception}"
     );
+    let governed_artifact_id =
+        json_string(&perception, "/results_artifact/artifact_id")?.to_owned();
+    ensure!(
+        uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
+        "Perception result artifact identity must be UUIDv7"
+    );
 
     call_tool(
         conformance,
@@ -436,9 +442,126 @@ pub(crate) async fn uav_sim_verify(
     )
     .await?;
     assert_concurrent_gpu_workloads(context)?;
+    assert_governed_artifact_access(conformance, public_base_url, &token, &governed_artifact_id)
+        .await?;
 
     println!(
-        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception processed the camera stream, and View remained available"
+        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, an authorized context member previewed it, an independent context was denied, and View remained available"
+    );
+    Ok(())
+}
+
+async fn assert_governed_artifact_access(
+    conformance: &Path,
+    base: &str,
+    authorized_token: &str,
+    artifact_id: &str,
+) -> Result<()> {
+    let admin_token = gateway_token_for_context(
+        conformance,
+        base,
+        "admin-service",
+        "admin",
+        &["operator:use", "admin:manage"],
+        "operations",
+    )
+    .await?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .build()?;
+    let snapshot: Value = client
+        .get(format!("{base}/admin/admin/console/snapshot"))
+        .bearer_auth(&admin_token)
+        .send()
+        .await
+        .context("requesting the governed Console snapshot")?
+        .error_for_status()
+        .context("governed Console snapshot returned an error")?
+        .json()
+        .await
+        .context("decoding the governed Console snapshot")?;
+    let artifact = snapshot
+        .get("artifacts")
+        .and_then(Value::as_array)
+        .and_then(|artifacts| {
+            artifacts
+                .iter()
+                .find(|artifact| artifact.get("id").and_then(Value::as_str) == Some(artifact_id))
+        })
+        .with_context(|| format!("Console snapshot omitted governed artifact {artifact_id}"))?;
+    ensure!(
+        artifact
+            .pointer("/provenance/workContext")
+            .and_then(Value::as_str)
+            == Some("operations")
+            && artifact
+                .pointer("/provenance/producer")
+                .and_then(Value::as_str)
+                .is_some_and(|producer| producer.ends_with("#operator-service"))
+            && artifact
+                .pointer("/provenance/invocationMode")
+                .and_then(Value::as_str)
+                == Some("automated")
+            && artifact
+                .pointer("/provenance/policyRevision")
+                .and_then(Value::as_str)
+                .is_some_and(|revision| !revision.is_empty())
+            && artifact
+                .pointer("/outputOwner/kind")
+                .and_then(Value::as_str)
+                == Some("group")
+            && artifact.pointer("/outputOwner/id").and_then(Value::as_str) == Some("operations")
+            && artifact
+                .pointer("/effectiveAccess/read")
+                .and_then(Value::as_bool)
+                == Some(true),
+        "governed artifact provenance or effective access is incomplete: {artifact}"
+    );
+
+    let download_url = format!("{base}/artifacts/operator/{artifact_id}/download");
+    let preview = client
+        .get(&download_url)
+        .bearer_auth(authorized_token)
+        .send()
+        .await
+        .context("previewing the governed artifact as an authorized context member")?
+        .error_for_status()
+        .context("authorized governed artifact preview returned an error")?;
+    let preview_media_type = preview
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+    let preview_bytes = preview.bytes().await?;
+    ensure!(
+        !preview_bytes.is_empty() && preview_media_type.starts_with("application/json"),
+        "authorized governed artifact preview returned no JSON content"
+    );
+
+    let independent_token = gateway_token_for_context(
+        conformance,
+        base,
+        "operator-service",
+        "operator",
+        &["operator:use"],
+        "independent-review",
+    )
+    .await?;
+    let no_redirect = reqwest::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let denied = no_redirect
+        .get(download_url)
+        .bearer_auth(independent_token)
+        .send()
+        .await
+        .context("requesting the governed artifact from an independent Work Context")?;
+    ensure!(
+        denied.status() == reqwest::StatusCode::FORBIDDEN,
+        "independent Work Context received {}, expected 403",
+        denied.status()
     );
     Ok(())
 }
@@ -677,21 +800,48 @@ async fn task_tool(
 }
 
 async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
+    gateway_token_for_context(
+        conformance,
+        base,
+        "operator-service",
+        "operator",
+        &["operator:use"],
+        "operations",
+    )
+    .await
+}
+
+async fn gateway_token_for_context(
+    conformance: &Path,
+    base: &str,
+    client_id: &str,
+    profile: &str,
+    scopes: &[&str],
+    work_context: &str,
+) -> Result<String> {
     let token_url = format!("{base}/oauth/token");
-    let resource = format!("{base}/mcp/operator");
+    let resource = format!("{base}/mcp/{profile}");
     let mut command = tokio::process::Command::new(conformance);
     command
         .args([
             "gateway-token-exchange",
             "--token-url",
             &token_url,
+            "--client-id",
+            client_id,
             "--audience",
             &token_url,
             "--resource",
             &resource,
-            "--scope",
-            "operator:use",
+            "--work-context",
+            work_context,
         ])
+        .args(
+            scopes
+                .iter()
+                .flat_map(|scope| ["--scope", *scope])
+                .collect::<Vec<_>>(),
+        )
         .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

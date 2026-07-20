@@ -269,6 +269,9 @@ pub(super) enum Cmd {
         /// OAuth scope. Repeat for multiple scopes.
         #[arg(long = "scope")]
         scopes: Vec<String>,
+        /// Work Context selected for the issued invocation authority.
+        #[arg(long)]
+        work_context: Option<String>,
         /// Client assertion JWT id claim.
         #[arg(long)]
         jwt_id: Option<String>,

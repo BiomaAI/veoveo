@@ -3681,6 +3681,27 @@
           ]
         }
       ]
+    },
+    {
+      "id": "independent-review",
+      "tenant": "bioma",
+      "title": "Independent Review",
+      "policy_revision": "2026-07-02",
+      "output_policy": {
+        "owner": {
+          "kind": "group",
+          "id": "independent-review"
+        },
+        "initial_grants": []
+      },
+      "memberships": [
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "operator-service"
+          ]
+        }
+      ]
     }
   ],
   "oauth_clients": [
