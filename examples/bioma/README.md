@@ -194,6 +194,11 @@ Isaac build or deployment.
 The Access page reports policy sets from the active gateway control-plane
 revision. Policies are not independent CRUD records. Edit `gateway.json`,
 validate the complete document, and activate it as one atomic revision.
+It also presents the signed-in principal's effective artifact access, personal
+requests, and the review queue for the active Work Context. Approval creates a
+direct grant; it does not alter tenant or clearance controls. The reusable
+governance contract is documented in
+[`../../docs/WORK_CONTEXT_GOVERNANCE.md`](../../docs/WORK_CONTEXT_GOVERNANCE.md).
 
 ## Entra application registration
 

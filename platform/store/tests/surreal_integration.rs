@@ -662,8 +662,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         .await
         .unwrap();
     assert_eq!(requested.state, ArtifactAccessRequestState::Pending);
-    let work_context =
-        deterministic_work_context_id("tenant-a", "operations").unwrap();
+    let work_context = deterministic_work_context_id("tenant-a", "operations").unwrap();
     let reviewable = store
         .list_artifact_access_requests(ArtifactAccessRequestQuery {
             tenant_id: identity.tenant_id,
@@ -688,8 +687,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     assert_eq!(approved.state, ArtifactAccessRequestState::Approved);
     let aggregate = store.artifact_aggregate(first_id).await.unwrap().unwrap();
     assert!(aggregate.grants.iter().any(|grant| {
-        grant.subject_key == requester.principal_key
-            && grant.permission == GrantPermission::Read
+        grant.subject_key == requester.principal_key && grant.permission == GrantPermission::Read
     }));
     assert!(
         store

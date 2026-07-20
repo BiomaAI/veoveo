@@ -14,6 +14,7 @@ component:
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
+| [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |

@@ -1029,7 +1029,7 @@ fn record_uuid(record: &platform::RecordId) -> Result<uuid::Uuid, RepositoryErro
     match &record.key {
         RecordIdKey::Uuid(value) => Ok(**value),
         _ => Err(RepositoryError::Corrupt(
-            "artifact write reservation has a non-UUID identity".into(),
+            "governed artifact record requires a UUID identity".into(),
         )),
     }
 }
