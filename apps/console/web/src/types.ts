@@ -20,7 +20,7 @@ export interface InstallationSnapshot {
     generatedAt: string;
   };
   session: {
-    displayName: string;
+    displayName?: string;
     principalId: string;
     tenantId: string;
     tenantName: string;

@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
 export const consoleThemes = [
-  { id: "rerun-dark", label: "Rerun Dark", appTheme: "dark" },
+  { id: "gray-dark", label: "Gray Dark", appTheme: "dark" },
   { id: "light", label: "Light", appTheme: "light" },
 ] as const;
 
@@ -9,7 +9,7 @@ export type ConsoleTheme = (typeof consoleThemes)[number]["id"];
 export type AppTheme = (typeof consoleThemes)[number]["appTheme"];
 
 const STORAGE_KEY = "veoveo.console.theme";
-const DEFAULT_THEME: ConsoleTheme = "rerun-dark";
+const DEFAULT_THEME: ConsoleTheme = "gray-dark";
 
 export interface ThemeContextValue {
   theme: ConsoleTheme;

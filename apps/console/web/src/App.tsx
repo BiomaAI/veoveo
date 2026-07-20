@@ -14,6 +14,7 @@ import {
   Palette,
   RefreshCw,
   ShieldCheck,
+  UserRound,
   Users,
   X
 } from "lucide-react";
@@ -75,7 +76,7 @@ export function App() {
   const initial = initialRoute();
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
-  const { data: snapshot, error, isLoading, isFetching } = useSnapshot();
+  const { data: snapshot, error, isLoading } = useSnapshot();
   const { data: appsCatalog } = useApps();
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
   const [view, setView] = useState<ViewId>(initial.view);
@@ -87,7 +88,7 @@ export function App() {
   const [signOutError, setSignOutError] = useState<string>();
   const [signingOut, setSigningOut] = useState(false);
 
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
+  const retrySnapshot = () => void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
 
   const installation = snapshot?.installation;
   useEffect(() => {
@@ -130,7 +131,7 @@ export function App() {
         <h1>Console unavailable</h1>
         <p>{message}</p>
         <div className="error-actions">
-          <button className="button button-primary" onClick={refresh}>
+          <button className="button button-primary" onClick={retrySnapshot}>
             <RefreshCw size={15} /> Retry
           </button>
           <button className="button button-secondary" onClick={() => void signOut()} disabled={signingOut}>
@@ -171,6 +172,7 @@ export function App() {
       : navItems.find((item) => item.id === view)?.label ?? "Overview";
   const currentArtifact = selectedArtifact && snapshot.artifacts.find((item) => item.id === selectedArtifact.id);
   const currentTask = selectedTask && snapshot.tasks.find((item) => item.id === selectedTask.id);
+  const accountName = snapshot.session.displayName?.trim();
 
   return (
     <div className="app-shell">
@@ -260,12 +262,16 @@ export function App() {
                 {snapshot.session.availableTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
               </select>
             </label>
-            <button className="icon-button" onClick={refresh} title="Refresh" disabled={isFetching}>
-              <RefreshCw size={17} className={isFetching ? "spin" : ""} />
-            </button>
-            <div className="user-menu" title={snapshot.session.principalId}>
-              <span>{snapshot.session.displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
-              <strong>{snapshot.session.displayName}</strong>
+            <div
+              className="user-menu"
+              title={accountName ? `Signed in as ${accountName}` : `Signed-in principal: ${snapshot.session.principalId}`}
+            >
+              <span>
+                {accountName
+                  ? accountName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)
+                  : <UserRound size={14} />}
+              </span>
+              <strong>{accountName ?? "Account"}</strong>
             </div>
             <button className="icon-button" onClick={() => void signOut()} title="Sign out" disabled={signingOut}>
               <LogOut size={17} />

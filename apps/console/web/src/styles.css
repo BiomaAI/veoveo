@@ -13,7 +13,7 @@
   --text-xl: 20px;
 }
 
-[data-theme="rerun-dark"] {
+[data-theme="gray-dark"] {
   --canvas: #0e0f10;
   --sidebar: #111314;
   --sidebar-muted: #8f969b;

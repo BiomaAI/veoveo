@@ -28,7 +28,7 @@ export function useSnapshot() {
     queryKey: queryKeys.snapshot,
     queryFn: ({ signal }) => loadSnapshot(signal),
     // The live stream keeps the snapshot current; background refetch would
-    // only race it. Manual refresh and stream resets invalidate explicitly.
+    // only race it. Stream resets invalidate explicitly.
     staleTime: Infinity,
   });
 }
@@ -40,9 +40,8 @@ export function useCluster() {
   });
 }
 
-// The MCP app catalog is discovery data: it changes when servers deploy,
-// not while the operator works, so a session-long cache with explicit
-// refresh mirrors the snapshot query's behavior.
+// The MCP app catalog is discovery data loaded once for the browser session.
+// A new deployment starts a new catalog generation and console session.
 export function useApps() {
   return useQuery({
     queryKey: queryKeys.apps,
