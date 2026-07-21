@@ -156,6 +156,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         r#""view_coordinates":{"x":"right","y":"forward","z":"up"}"#,
         "name: view-mcp",
         "name: perception-mcp",
+        "name: reason-mcp",
+        "checksum/control-plane: \"unresolved\"",
     ] {
         contains(&bioma, expected)?;
     }
