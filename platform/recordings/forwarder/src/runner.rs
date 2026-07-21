@@ -337,14 +337,14 @@ async fn upload_pass(
                 .lock()
                 .expect("durable queue mutex poisoned")
                 .next_batch(&stream)?;
-            let Some(batch) = batch else { break };
+            let Some(queued) = batch else { break };
             let result = client
                 .append(
                     stream
                         .remote_stream_id
                         .as_deref()
                         .context("queued stream has no remote identity")?,
-                    &batch,
+                    &queued.batch,
                 )
                 .await;
             if let Err(error) = &result
@@ -355,13 +355,13 @@ async fn upload_pass(
             }
             let result = result?;
             ensure!(
-                result.durable_through_sequence >= batch.sequence,
+                result.durable_through_sequence >= queued.batch.sequence,
                 "gateway did not durably acknowledge the uploaded batch"
             );
-            queue
+            stream = queue
                 .lock()
                 .expect("durable queue mutex poisoned")
-                .acknowledge(&stream, batch.sequence)?;
+                .acknowledge(&stream, queued.local_sequence)?;
             progress = true;
         }
         if (finish_empty || stream.finish_requested)

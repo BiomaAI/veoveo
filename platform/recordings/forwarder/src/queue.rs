@@ -21,15 +21,22 @@ pub struct QueueStream {
     pub application_id: String,
     pub recording_id: String,
     pub remote_stream_id: Option<String>,
-    pub next_sequence: u64,
-    #[serde(default)]
+    pub next_enqueue_sequence: u64,
+    pub next_upload_sequence: u64,
     pub finish_requested: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct QueuedBatch {
+    pub local_sequence: u64,
+    pub batch: RecordingBatch,
 }
 
 #[derive(Debug)]
 pub struct DurableQueue {
     root: PathBuf,
     maximum_bytes: u64,
+    queued_bytes: u64,
 }
 
 impl DurableQueue {
@@ -39,9 +46,10 @@ impl DurableQueue {
         std::fs::create_dir_all(&root)
             .with_context(|| format!("creating durable queue {}", root.display()))?;
         let root = root.canonicalize()?;
-        let queue = Self {
+        let mut queue = Self {
             root,
             maximum_bytes,
+            queued_bytes: 0,
         };
         queue.reconcile()?;
         Ok(queue)
@@ -55,7 +63,7 @@ impl DurableQueue {
     ) -> Result<(QueueStream, u64)> {
         validate_identity(application_id, recording_id)?;
         let added_bytes = u64::try_from(batch.encoded_len())?;
-        if self.queued_bytes()?.saturating_add(added_bytes) > self.maximum_bytes {
+        if self.queued_bytes.saturating_add(added_bytes) > self.maximum_bytes {
             return Err(QueueFull.into());
         }
         let key = stream_key(application_id, recording_id);
@@ -63,21 +71,27 @@ impl DurableQueue {
         std::fs::create_dir_all(&directory)?;
         sync_directory(&self.root)?;
         let mut stream = self.load_or_create_stream(&key, application_id, recording_id)?;
-        let sequence = stream.next_sequence;
+        let sequence = stream.next_enqueue_sequence;
         let mut batch = batch.clone();
         batch.sequence = sequence;
         let path = batch_path(&directory, sequence);
-        if path.exists() {
+        let created = if path.exists() {
             let existing = RecordingBatch::decode(std::fs::read(&path)?.as_slice())?;
             ensure!(
                 existing == batch,
                 "queued batch sequence has conflicting content"
             );
+            false
         } else {
             atomic_write(&path, &batch.encode_to_vec())?;
-        }
-        stream.next_sequence = sequence.checked_add(1).context("batch sequence overflow")?;
+            true
+        };
+        stream.next_enqueue_sequence =
+            sequence.checked_add(1).context("batch sequence overflow")?;
         self.write_stream(&stream)?;
+        if created {
+            self.queued_bytes = self.queued_bytes.saturating_add(added_bytes);
+        }
         Ok((stream, sequence))
     }
 
@@ -97,40 +111,26 @@ impl DurableQueue {
         Ok(streams)
     }
 
-    pub fn next_batch(&self, stream: &QueueStream) -> Result<Option<RecordingBatch>> {
+    pub fn next_batch(&self, stream: &QueueStream) -> Result<Option<QueuedBatch>> {
         validate_key(&stream.key)?;
-        let mut next = None::<PathBuf>;
-        for entry in std::fs::read_dir(self.root.join(&stream.key))? {
-            let entry = entry?;
-            if entry.path().extension().and_then(|value| value.to_str()) != Some("pb") {
-                continue;
-            }
-            let path = entry.path();
-            if next
-                .as_ref()
-                .is_none_or(|current| path.as_path() < current.as_path())
-            {
-                next = Some(path);
-            }
+        if stream.next_upload_sequence >= stream.next_enqueue_sequence {
+            return Ok(None);
         }
-        next.map(|path| {
-            let bytes = std::fs::read(&path)
-                .with_context(|| format!("reading queued batch {}", path.display()))?;
-            RecordingBatch::decode(bytes.as_slice())
-                .with_context(|| format!("decoding queued batch {}", path.display()))
-        })
-        .transpose()
+        let local_sequence = stream.next_upload_sequence;
+        let path = batch_path(&self.root.join(&stream.key), local_sequence);
+        let bytes = std::fs::read(&path)
+            .with_context(|| format!("reading queued batch {}", path.display()))?;
+        let batch = RecordingBatch::decode(bytes.as_slice())
+            .with_context(|| format!("decoding queued batch {}", path.display()))?;
+        Ok(Some(QueuedBatch {
+            local_sequence,
+            batch,
+        }))
     }
 
     pub fn has_batches(&self, stream: &QueueStream) -> Result<bool> {
         validate_key(&stream.key)?;
-        for entry in std::fs::read_dir(self.root.join(&stream.key))? {
-            let entry = entry?;
-            if entry.path().extension().and_then(|value| value.to_str()) == Some("pb") {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        Ok(stream.next_upload_sequence < stream.next_enqueue_sequence)
     }
 
     pub fn mark_opened(&mut self, stream: &QueueStream, remote_stream_id: &str) -> Result<()> {
@@ -147,11 +147,23 @@ impl DurableQueue {
         self.write_stream(&current)
     }
 
-    pub fn acknowledge(&mut self, stream: &QueueStream, sequence: u64) -> Result<()> {
+    pub fn acknowledge(&mut self, stream: &QueueStream, sequence: u64) -> Result<QueueStream> {
+        let mut current = self.read_stream(&stream.key)?;
+        ensure!(
+            current.next_upload_sequence == sequence,
+            "acknowledged batch is not the next queued batch"
+        );
         let path = batch_path(&self.root.join(&stream.key), sequence);
         ensure!(path.exists(), "acknowledged batch is not queued");
+        let byte_len = std::fs::metadata(&path)?.len();
         std::fs::remove_file(&path)?;
-        sync_directory(path.parent().context("batch path has no parent")?)
+        sync_directory(path.parent().context("batch path has no parent")?)?;
+        current.next_upload_sequence = sequence
+            .checked_add(1)
+            .context("upload sequence overflow")?;
+        self.write_stream(&current)?;
+        self.queued_bytes = self.queued_bytes.saturating_sub(byte_len);
+        Ok(current)
     }
 
     pub fn request_finish_all(&mut self) -> Result<()> {
@@ -183,25 +195,33 @@ impl DurableQueue {
         }))
     }
 
-    fn reconcile(&self) -> Result<()> {
+    fn reconcile(&mut self) -> Result<()> {
+        let mut queued_bytes = 0_u64;
         for stream in self.streams()? {
-            let next = self
-                .last_batch_sequence(&stream)?
+            let inventory = self.batch_inventory(&stream)?;
+            queued_bytes = queued_bytes.saturating_add(inventory.byte_len);
+            let next_enqueue_sequence = inventory
+                .last_sequence
                 .map(|sequence| sequence.saturating_add(1))
-                .unwrap_or(stream.next_sequence)
-                .max(stream.next_sequence);
-            if next != stream.next_sequence {
+                .unwrap_or(stream.next_enqueue_sequence)
+                .max(stream.next_enqueue_sequence);
+            let next_upload_sequence = inventory.first_sequence.unwrap_or(next_enqueue_sequence);
+            if next_enqueue_sequence != stream.next_enqueue_sequence
+                || next_upload_sequence != stream.next_upload_sequence
+            {
                 let mut repaired = stream;
-                repaired.next_sequence = next;
+                repaired.next_enqueue_sequence = next_enqueue_sequence;
+                repaired.next_upload_sequence = next_upload_sequence;
                 self.write_stream(&repaired)?;
             }
         }
+        self.queued_bytes = queued_bytes;
         Ok(())
     }
 
-    fn last_batch_sequence(&self, stream: &QueueStream) -> Result<Option<u64>> {
+    fn batch_inventory(&self, stream: &QueueStream) -> Result<BatchInventory> {
         validate_key(&stream.key)?;
-        let mut last = None::<u64>;
+        let mut inventory = BatchInventory::default();
         for entry in std::fs::read_dir(self.root.join(&stream.key))? {
             let entry = entry?;
             let path = entry.path();
@@ -214,22 +234,19 @@ impl DurableQueue {
                 .context("queued batch filename is not UTF-8")?
                 .parse::<u64>()
                 .with_context(|| format!("invalid queued batch filename {}", path.display()))?;
-            last = Some(last.map_or(sequence, |current| current.max(sequence)));
+            inventory.first_sequence = Some(
+                inventory
+                    .first_sequence
+                    .map_or(sequence, |current| current.min(sequence)),
+            );
+            inventory.last_sequence = Some(
+                inventory
+                    .last_sequence
+                    .map_or(sequence, |current| current.max(sequence)),
+            );
+            inventory.byte_len = inventory.byte_len.saturating_add(entry.metadata()?.len());
         }
-        Ok(last)
-    }
-
-    fn queued_bytes(&self) -> Result<u64> {
-        let mut bytes = 0_u64;
-        for stream in self.streams()? {
-            for entry in std::fs::read_dir(self.root.join(stream.key))? {
-                let entry = entry?;
-                if entry.path().extension().and_then(|value| value.to_str()) == Some("pb") {
-                    bytes = bytes.saturating_add(entry.metadata()?.len());
-                }
-            }
-        }
-        Ok(bytes)
+        Ok(inventory)
     }
 
     fn load_or_create_stream(
@@ -253,7 +270,8 @@ impl DurableQueue {
             application_id: application_id.to_owned(),
             recording_id: recording_id.to_owned(),
             remote_stream_id: None,
-            next_sequence: 1,
+            next_enqueue_sequence: 1,
+            next_upload_sequence: 1,
             finish_requested: false,
         };
         self.write_stream(&stream)?;
@@ -270,6 +288,13 @@ impl DurableQueue {
         let bytes = serde_json::to_vec(stream)?;
         atomic_write(&self.root.join(&stream.key).join("stream.json"), &bytes)
     }
+}
+
+#[derive(Debug, Default)]
+struct BatchInventory {
+    first_sequence: Option<u64>,
+    last_sequence: Option<u64>,
+    byte_len: u64,
 }
 
 fn stream_key(application_id: &str, recording_id: &str) -> String {
@@ -366,10 +391,20 @@ mod tests {
         let mut queue = DurableQueue::open(root, 1_000_000).unwrap();
         let streams = queue.streams().unwrap();
         assert_eq!(streams.len(), 1);
-        assert_eq!(queue.next_batch(&streams[0]).unwrap().unwrap().sequence, 1);
-        queue.acknowledge(&stream, 1).unwrap();
-        assert_eq!(queue.next_batch(&streams[0]).unwrap().unwrap().sequence, 2);
-        queue.acknowledge(&stream, 2).unwrap();
+        assert_eq!(
+            queue
+                .next_batch(&streams[0])
+                .unwrap()
+                .unwrap()
+                .local_sequence,
+            1
+        );
+        let stream = queue.acknowledge(&stream, 1).unwrap();
+        assert_eq!(
+            queue.next_batch(&stream).unwrap().unwrap().local_sequence,
+            2
+        );
+        let stream = queue.acknowledge(&stream, 2).unwrap();
         assert!(!queue.has_batches(&stream).unwrap());
     }
 
@@ -398,16 +433,14 @@ mod tests {
     }
 
     #[test]
-    fn existing_queue_streams_default_to_unfinished() {
-        let stream: QueueStream = serde_json::from_value(serde_json::json!({
-            "key": "a".repeat(64),
-            "source_stream_id": uuid::Uuid::now_v7().to_string(),
-            "application_id": "camera",
-            "recording_id": "run-a",
-            "remote_stream_id": null,
-            "next_sequence": 1
-        }))
-        .unwrap();
-        assert!(!stream.finish_requested);
+    fn acknowledged_bytes_restore_queue_capacity() {
+        let temporary = TempDir::new().unwrap();
+        let root = temporary.path().join("queue");
+        let encoded_len = u64::try_from(batch().encoded_len()).unwrap();
+        let mut queue = DurableQueue::open(root, encoded_len).unwrap();
+        let (stream, sequence) = queue.enqueue("camera", "run-a", &batch()).unwrap();
+        assert!(queue.enqueue("camera", "run-a", &batch()).is_err());
+        queue.acknowledge(&stream, sequence).unwrap();
+        assert!(queue.enqueue("camera", "run-a", &batch()).is_ok());
     }
 }
