@@ -194,7 +194,7 @@ and credential-free content location, resolved through an in-process
 FIFO-bounded registry — like frames, they do not survive process restarts,
 and a stale token fails with guidance to re-read the scene. Tile reads serve
 raw draco GLB bytes from the source byte cache (refetch on miss under the
-source's own credential and host rules) and refuse tiles above 1.4 MB so
+source's own credential and host rules) and refuse tiles above 1.5 MB so
 base64 blobs stay under the console host's 2 MiB read cap.
 
 ## Tile Selection

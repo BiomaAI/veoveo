@@ -369,9 +369,9 @@ pub struct CapturedFrame {
 /// policy unless this transport guard is reached.
 pub const SCENE_MAX_TILES: usize = 256;
 pub const SCENE_DEADLINE_MS: u64 = 30_000;
-/// Raw tile ceiling: base64(1.4 MB) plus the JSON envelope stays under the
+/// Raw tile ceiling: base64(1.5 MB) plus the JSON envelope stays under the
 /// console host's 2 MiB resource-read cap.
-pub const MAX_TILE_RESOURCE_BYTES: u64 = 1_400_000;
+pub const MAX_TILE_RESOURCE_BYTES: u64 = 1_500_000;
 
 /// One scene tile the preview app fetches via `view://tile/{key}`.
 /// `ecef_from_content` is served verbatim from the tile tree (glTF Y-up to
