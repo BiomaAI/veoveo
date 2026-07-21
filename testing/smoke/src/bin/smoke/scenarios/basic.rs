@@ -450,7 +450,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         contains(&px4_commander, expected)?;
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
-    contains(&gpu_device_plugin, "replicas: 3")?;
+    contains(&gpu_device_plugin, "replicas: 4")?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
     contains(&gateway_dockerfile, "find /app/target -name 'libduckdb.so'")?;
@@ -481,7 +481,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "showcase/uav-sim/scenarios/bioma-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v3")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v4")
             && uav_scenario
                 .pointer("/takeoff/relative_altitude_m")
                 .and_then(Value::as_f64)
@@ -489,7 +489,11 @@ pub(crate) async fn helm_config() -> Result<()> {
             && uav_scenario
                 .pointer("/mission/speed_mps")
                 .and_then(Value::as_f64)
-                == Some(3.0),
+                == Some(3.0)
+            && uav_scenario
+                .pointer("/reason/maximum_frames")
+                .and_then(Value::as_u64)
+                == Some(8),
         "runtime-loaded UAV scenario omitted the canonical mission"
     );
     for dockerfile in [
