@@ -109,7 +109,9 @@ sent to H.264: three consecutive frames must contain measurable luma and
 non-black pixels. This operational gate permits takeoff from the nearly uniform
 launch surface. The live scenario separately requires scene detail after the
 configured climb. Frames without visible detail are withheld from the video
-stream, and a camera that remains black for 30 seconds after Google tiles
+stream while the world warms. Once Google tiles are resident, every observed
+frame remains in the encoded timeline and camera quality describes degradation
+independently. A camera that remains black for 30 seconds after Google tiles
 become resident fails readiness instead of producing an apparently successful
 recording.
 

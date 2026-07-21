@@ -64,3 +64,10 @@ def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
         operational=operational,
         visible=visible,
     )
+
+
+def should_record_camera_frame(
+    quality: CameraFrameQuality, tiles_ready: bool
+) -> bool:
+    """Keep the encoded camera timeline continuous once its world is ready."""
+    return tiles_ready or quality.visible

@@ -6,7 +6,11 @@ from unittest.mock import patch
 
 import numpy as np
 
-from veoveo_uav_sim.camera_quality import measure_camera_frame, normalize_rgb_frame
+from veoveo_uav_sim.camera_quality import (
+    measure_camera_frame,
+    normalize_rgb_frame,
+    should_record_camera_frame,
+)
 from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
@@ -170,6 +174,15 @@ class CameraQualityTests(unittest.TestCase):
         self.assertTrue(quality.operational)
         self.assertFalse(quality.visible)
         self.assertEqual(quality.dynamic_range, 0)
+
+    def test_ready_world_keeps_uniform_camera_frames_in_recording(self) -> None:
+        quality = measure_camera_frame(np.full((48, 64, 3), 128, dtype=np.uint8))
+        self.assertFalse(quality.visible)
+        self.assertTrue(should_record_camera_frame(quality, tiles_ready=True))
+
+    def test_warming_world_withholds_non_visible_camera_frames(self) -> None:
+        quality = measure_camera_frame(np.zeros((48, 64, 3), dtype=np.uint8))
+        self.assertFalse(should_record_camera_frame(quality, tiles_ready=False))
 
     def test_normalized_float_rgb_is_scaled_before_encoding(self) -> None:
         frame = np.full((4, 4, 3), 0.5, dtype=np.float32)
