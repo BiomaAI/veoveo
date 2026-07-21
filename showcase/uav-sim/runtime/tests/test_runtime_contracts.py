@@ -47,6 +47,12 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_access_token, "test-token")
 
+    def test_default_render_cadence_matches_the_camera(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+        self.assertEqual(config.rendering_hz, 20)
+        self.assertEqual(config.rendering_hz, config.camera.fps)
+
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment()).snapshot()

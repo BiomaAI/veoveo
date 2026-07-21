@@ -197,7 +197,7 @@ class RuntimeConfig:
             adapter_host=os.environ.get("UAV_SIM_ADAPTER_HOST", "127.0.0.1"),
             adapter_port=_int("UAV_SIM_ADAPTER_PORT", "8810", 1, 65_535),
             physics_hz=_int("UAV_SIM_PHYSICS_HZ", "250", 30, 1_000),
-            rendering_hz=_int("UAV_SIM_RENDERING_HZ", "30", 1, 120),
+            rendering_hz=_int("UAV_SIM_RENDERING_HZ", "20", 1, 120),
             tile_ready_frames=_int("UAV_SIM_TILE_READY_FRAMES", "30", 1, 600),
             px4_directory=os.environ.get("UAV_SIM_PX4_DIRECTORY", "/opt/veoveo/px4"),
             recording_proxy=os.environ.get(
