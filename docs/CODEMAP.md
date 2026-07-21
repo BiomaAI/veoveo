@@ -409,7 +409,7 @@ types.
 
 ### `servers/recording-mcp`
 
-`contract.rs` owns query, publication, archive-window, and live manifest types.
+`contract.rs` owns query, publication, whole-recording playback, and live manifest types.
 `service.rs` owns authorized MCP and playback behavior. `live_playback.rs` retains static
 context, filters bounded temporal history, and follows direct writers or ordered ingest
 parts as one RRD stream. `uris.rs` owns recording identities, and `bin/server.rs` exposes
@@ -489,7 +489,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `oauth.rs` | PKCE login, token exchange, refresh rotation |
 | `session.rs` | XChaCha20-Poly1305 cookies and CSRF material |
-| `api.rs` | snapshot, SSE, mutation, artifact preview/download, and recording playback BFF projections |
+| `api.rs` | snapshot, SSE, mutation, and artifact preview/download BFF projections |
+| `recording_playback.rs` | renewable recording-scoped playback sessions plus range-capable archive and live proxies |
 | `apps.rs`, `mcp_client.rs` | MCP Apps host backend: gateway MCP session pool, app catalog, sandboxed frame serving, allowlisted tool-call and same-server resource-read proxies |
 | `config.rs` | validated public/gateway/resource configuration |
 
@@ -499,6 +500,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 |---|---|
 | `App.tsx` | application shell: platform navigation plus catalog-driven MCP App entries, topbar, view routing, drawer mounting |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts` | persistent WebViewer lifecycle and ordered archive/live receiver transitions |
 | `views/` | remaining platform-plane views (overview, work, artifacts, agents, MCP, apps, access, audit, cluster); domain views ship as MCP Apps, never here |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
