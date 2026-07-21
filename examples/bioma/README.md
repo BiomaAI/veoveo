@@ -30,13 +30,15 @@ The Bioma cluster deploys the complete Veoveo installation: the gateway,
 artifact and recording planes, console, and every hosted MCP server in
 `gateway.json`.
 
-Isaac Sim, View, and Perception each request one NVIDIA GPU allocation. The k3d
-node device plugin publishes three time-sliced allocations from the physical
-GPU, while all three pods retain the normal `nvidia.com/gpu: 1` request and the
-`nvidia` runtime class. No release scales down another GPU service. Perception
-compiles the bundled TrafficCamNet ONNX model into a GPU-specific TensorRT
-engine on first startup and keeps that engine in its model-cache volume. View
-retains its direct Google Maps Platform path. Isaac loads Google Photorealistic
+Isaac Sim, View, Perception, and Reason each request one NVIDIA GPU allocation.
+The k3d node device plugin publishes four time-sliced allocations from the
+physical GPU, while every pod retains the normal `nvidia.com/gpu: 1` request
+and the `nvidia` runtime class. No release scales down another GPU service.
+Perception compiles the bundled TrafficCamNet ONNX model into a GPU-specific
+TensorRT engine on first startup and keeps that engine in its model-cache
+volume. Reason loads the site-selected world-model checkpoint from its own
+model-cache volume. View retains its direct Google Maps Platform path. Isaac
+loads Google Photorealistic
 3D Tiles through Cesium ion as a separate core world contract.
 
 The public root redirects to the operations console:
