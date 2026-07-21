@@ -332,11 +332,12 @@ async fn upload_pass(
             stream.remote_stream_id = Some(opened.stream_id);
             progress = true;
         }
-        let batches = queue
-            .lock()
-            .expect("durable queue mutex poisoned")
-            .batches(&stream)?;
-        for batch in batches {
+        loop {
+            let batch = queue
+                .lock()
+                .expect("durable queue mutex poisoned")
+                .next_batch(&stream)?;
+            let Some(batch) = batch else { break };
             let result = client
                 .append(
                     stream
@@ -364,11 +365,10 @@ async fn upload_pass(
             progress = true;
         }
         if (finish_empty || stream.finish_requested)
-            && queue
+            && !queue
                 .lock()
                 .expect("durable queue mutex poisoned")
-                .batches(&stream)?
-                .is_empty()
+                .has_batches(&stream)?
         {
             client
                 .finish(stream.remote_stream_id.as_deref().unwrap())

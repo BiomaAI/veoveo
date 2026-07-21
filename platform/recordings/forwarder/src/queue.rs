@@ -97,19 +97,40 @@ impl DurableQueue {
         Ok(streams)
     }
 
-    pub fn batches(&self, stream: &QueueStream) -> Result<Vec<RecordingBatch>> {
+    pub fn next_batch(&self, stream: &QueueStream) -> Result<Option<RecordingBatch>> {
         validate_key(&stream.key)?;
-        let mut batches = Vec::new();
+        let mut next = None::<PathBuf>;
         for entry in std::fs::read_dir(self.root.join(&stream.key))? {
             let entry = entry?;
             if entry.path().extension().and_then(|value| value.to_str()) != Some("pb") {
                 continue;
             }
-            let bytes = std::fs::read(entry.path())?;
-            batches.push(RecordingBatch::decode(bytes.as_slice())?);
+            let path = entry.path();
+            if next
+                .as_ref()
+                .is_none_or(|current| path.as_path() < current.as_path())
+            {
+                next = Some(path);
+            }
         }
-        batches.sort_by_key(|batch| batch.sequence);
-        Ok(batches)
+        next.map(|path| {
+            let bytes = std::fs::read(&path)
+                .with_context(|| format!("reading queued batch {}", path.display()))?;
+            RecordingBatch::decode(bytes.as_slice())
+                .with_context(|| format!("decoding queued batch {}", path.display()))
+        })
+        .transpose()
+    }
+
+    pub fn has_batches(&self, stream: &QueueStream) -> Result<bool> {
+        validate_key(&stream.key)?;
+        for entry in std::fs::read_dir(self.root.join(&stream.key))? {
+            let entry = entry?;
+            if entry.path().extension().and_then(|value| value.to_str()) == Some("pb") {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub fn mark_opened(&mut self, stream: &QueueStream, remote_stream_id: &str) -> Result<()> {
@@ -145,7 +166,7 @@ impl DurableQueue {
 
     pub fn complete(&mut self, stream: &QueueStream) -> Result<()> {
         ensure!(
-            self.batches(stream)?.is_empty(),
+            !self.has_batches(stream)?,
             "cannot complete a queued stream with batches"
         );
         let directory = self.root.join(&stream.key);
@@ -156,18 +177,17 @@ impl DurableQueue {
     }
 
     pub fn is_empty(&self) -> Result<bool> {
-        Ok(self
-            .streams()?
-            .iter()
-            .all(|stream| self.batches(stream).is_ok_and(|batches| batches.is_empty())))
+        Ok(self.streams()?.iter().all(|stream| {
+            self.has_batches(stream)
+                .is_ok_and(|has_batches| !has_batches)
+        }))
     }
 
     fn reconcile(&self) -> Result<()> {
         for stream in self.streams()? {
-            let batches = self.batches(&stream)?;
-            let next = batches
-                .last()
-                .map(|batch| batch.sequence.saturating_add(1))
+            let next = self
+                .last_batch_sequence(&stream)?
+                .map(|sequence| sequence.saturating_add(1))
                 .unwrap_or(stream.next_sequence)
                 .max(stream.next_sequence);
             if next != stream.next_sequence {
@@ -177,6 +197,26 @@ impl DurableQueue {
             }
         }
         Ok(())
+    }
+
+    fn last_batch_sequence(&self, stream: &QueueStream) -> Result<Option<u64>> {
+        validate_key(&stream.key)?;
+        let mut last = None::<u64>;
+        for entry in std::fs::read_dir(self.root.join(&stream.key))? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|value| value.to_str()) != Some("pb") {
+                continue;
+            }
+            let sequence = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .context("queued batch filename is not UTF-8")?
+                .parse::<u64>()
+                .with_context(|| format!("invalid queued batch filename {}", path.display()))?;
+            last = Some(last.map_or(sequence, |current| current.max(sequence)));
+        }
+        Ok(last)
     }
 
     fn queued_bytes(&self) -> Result<u64> {
@@ -319,14 +359,18 @@ mod tests {
         let mut queue = DurableQueue::open(root.clone(), 1_000_000).unwrap();
         let (stream, sequence) = queue.enqueue("camera", "run-a", &batch()).unwrap();
         assert_eq!(sequence, 1);
+        let (_, second_sequence) = queue.enqueue("camera", "run-a", &batch()).unwrap();
+        assert_eq!(second_sequence, 2);
         drop(queue);
 
         let mut queue = DurableQueue::open(root, 1_000_000).unwrap();
         let streams = queue.streams().unwrap();
         assert_eq!(streams.len(), 1);
-        assert_eq!(queue.batches(&streams[0]).unwrap()[0].sequence, 1);
+        assert_eq!(queue.next_batch(&streams[0]).unwrap().unwrap().sequence, 1);
         queue.acknowledge(&stream, 1).unwrap();
-        assert!(queue.batches(&stream).unwrap().is_empty());
+        assert_eq!(queue.next_batch(&streams[0]).unwrap().unwrap().sequence, 2);
+        queue.acknowledge(&stream, 2).unwrap();
+        assert!(!queue.has_batches(&stream).unwrap());
     }
 
     #[test]
@@ -350,7 +394,7 @@ mod tests {
         let streams = queue.streams().unwrap();
         assert_eq!(streams.len(), 1);
         assert!(streams[0].finish_requested);
-        assert!(queue.batches(&streams[0]).unwrap().is_empty());
+        assert!(!queue.has_batches(&streams[0]).unwrap());
     }
 
     #[test]
