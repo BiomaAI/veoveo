@@ -178,7 +178,7 @@ reason:
     storageClass: ""
     accessModes: [ReadWriteOnce]
   engine:
-    gpuMemoryUtilization: 0.7
+    gpuMemoryUtilization: 0.6
     maxModelLen: 8192
   resources:
     requests:
