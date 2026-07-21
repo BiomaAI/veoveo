@@ -92,6 +92,10 @@ NetworkPolicy narrows reachability, but it never replaces OAuth authorization.
 `rerun+http://127.0.0.1:9876/proxy`, while the forwarder discovers and uploads through
 the canonical gateway origin. Its queue directory must be persistent. The process
 applies disk backpressure once that queue reaches its configured byte limit.
+The canonical batching window is one second or 4,096 Rerun messages, whichever
+arrives first. An H.264 IDR begins a new batch immediately, and the gateway's
+advertised byte limit splits any larger encoded result. This keeps serial,
+durable appends below the producer rate without weakening ordered checkpoints.
 
 The producer registration supplies a JWKS public key. The matching private key stays on
 the producer as a PEM file and is selected by key ID and algorithm. A Bioma
