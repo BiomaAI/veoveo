@@ -157,6 +157,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: view-mcp",
         "name: perception-mcp",
         "name: reason-mcp",
+        "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,datasheet\"",
         "checksum/control-plane: \"unresolved\"",
     ] {
         contains(&bioma, expected)?;
