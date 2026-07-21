@@ -172,7 +172,7 @@ pub struct ReasoningResults {
     pub elapsed_ms: u64,
     pub prompt_revision: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub engine_digest: Option<String>,
+    pub model_digest: Option<String>,
     pub decode: DecodePolicy,
     pub confidence_basis: ConfidenceBasis,
 }
@@ -227,13 +227,16 @@ pub struct ModelView {
     pub description: String,
     pub format: ModelFormat,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub engine_digest: Option<String>,
+    pub model_digest: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelFormat {
-    TensorRtLlmEngine,
+    /// A locally mounted world-model checkpoint directory or file, supplied
+    /// by the deployment. Runtime optimization belongs to the runner image,
+    /// never to the request path.
+    LocalCheckpoint,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

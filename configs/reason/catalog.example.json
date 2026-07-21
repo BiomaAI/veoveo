@@ -3,10 +3,10 @@
     {
       "id": "world-model",
       "title": "Site world model",
-      "description": "Site-compiled TensorRT-LLM world model engine for video reasoning",
-      "format": "tensor_rt_llm_engine",
-      "model_path": "/opt/veoveo/reason/models/world-model.engine",
-      "engine_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      "description": "Site-supplied world-model checkpoint for video reasoning",
+      "format": "local_checkpoint",
+      "model_path": "/opt/veoveo/reason/models/world-model",
+      "model_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],
   "pipelines": [

@@ -114,7 +114,7 @@ impl ReasonExecutor {
                 model_id: analysis.model.id.clone(),
                 model_path: analysis.model.model_path.clone(),
                 format: analysis.model.format,
-                engine_digest: analysis.model.engine_digest.clone(),
+                model_digest: analysis.model.model_digest.clone(),
             },
             task: analysis.task.clone(),
             grounding: analysis.grounding.cloned(),
@@ -182,7 +182,7 @@ impl ReasonExecutor {
             observed_frames: response.observed_frames,
             elapsed_ms: response.elapsed_ms,
             prompt_revision: analysis.pipeline.prompt_revision.clone(),
-            engine_digest: analysis.model.engine_digest.clone(),
+            model_digest: analysis.model.model_digest.clone(),
             decode: analysis.decode,
             confidence_basis: ConfidenceBasis::ModelReported,
         })
@@ -275,7 +275,7 @@ struct RunnerModel {
     model_path: PathBuf,
     format: crate::contract::ModelFormat,
     #[serde(skip_serializing_if = "Option::is_none")]
-    engine_digest: Option<String>,
+    model_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -380,9 +380,9 @@ mod tests {
             id: "world-model".to_owned(),
             title: "World model".to_owned(),
             description: String::new(),
-            format: ModelFormat::TensorRtLlmEngine,
+            format: ModelFormat::LocalCheckpoint,
             model_path: "/models/world-model.engine".into(),
-            engine_digest: Some("sha256:test".to_owned()),
+            model_digest: Some("sha256:test".to_owned()),
         }
     }
 
@@ -515,7 +515,7 @@ mod tests {
             .unwrap();
         assert_eq!(results.observed_frames, 3);
         assert_eq!(results.prompt_revision, "v1");
-        assert_eq!(results.engine_digest.as_deref(), Some("sha256:test"));
+        assert_eq!(results.model_digest.as_deref(), Some("sha256:test"));
         assert_eq!(results.confidence_basis, ConfidenceBasis::ModelReported);
         let request: serde_json::Value =
             serde_json::from_slice(&std::fs::read(captured).unwrap()).unwrap();

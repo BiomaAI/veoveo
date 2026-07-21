@@ -6,16 +6,17 @@ This document is the canonical design and operational contract for the
 `reason-mcp` is Veoveo's provider-neutral video reasoning domain. It answers
 semantic and temporal questions about recorded sensor video: what happened in a
 segment, which events occurred and when, and what a bounded prompt asks about
-the footage. Its production execution implementation uses a locally deployed
-multimodal world model compiled to a TensorRT-LLM engine, but NVIDIA names do
-not appear in its public MCP identities.
+the footage. Its production execution implementation serves a locally mounted
+multimodal world-model checkpoint through the vLLM runtime shipped in the
+deployable image, but runtime and vendor names do not appear in its public MCP
+identities.
 
 This is deliberately not part of `perception-mcp`. Perception is bounded
 deterministic inference: a site-approved detection engine whose calibrated
 per-frame output is reproducible byte for byte. Reasoning output comes from a
 generative model and carries model-reported rather than calibrated confidence.
 Keeping the domains separate preserves perception's audit story and keeps the
-DeepStream and TensorRT-LLM release trains independently upgradable. It is also
+DeepStream and world-model serving release trains independently upgradable. It is also
 not part of `media-mcp`, because reasoning runs entirely inside the
 installation. It uses no provider API, no webhook completion, no resident
 inference service, and no agent framework.
@@ -31,8 +32,8 @@ recording-hub frozen/sealed segments
         |
    keyframe scan + no-transcode MP4 remux
         v
-   reason-runner: NVDEC decode -> frame sampling -> observation frames
-                              -> world-model engine (TensorRT-LLM)
+   reason-runner: decode -> frame sampling -> observation frames
+                         -> world-model inference (vLLM)
         |
         v
 typed reasoning results + derived RRD annotations + artifacts
@@ -87,26 +88,27 @@ Artifact publication stamps the context's output owner and initial grants,
 and the source recording's classification and labels flow onto every derived
 artifact. The server has no legacy ownership path.
 
-## NVIDIA execution boundary
+## Execution boundary
 
 One runner process is created for each reasoning task. The server writes a
-typed JSON request, invokes the configured runner binary, and reads a typed
-JSON response from the path named in the request. That boundary gives
-task-level timeouts, cancellation, filesystem isolation, and a small crash
-boundary, and it keeps the GPU dependency out of the server process. The
-runner decodes the remuxed MP4 with NVDEC, samples frames to the pipeline's
-observation resolution, executes the TensorRT-LLM engine, and writes the
-typed answer. Frame indices are reconstructed as
-`decode_start_index + buffer PTS`, so every event lands on the original
-recording timeline.
+typed JSON request, invokes the configured runner, and reads a typed JSON
+response from the path named in the request. That boundary gives task-level
+timeouts, cancellation, filesystem isolation, and a small crash boundary,
+and it keeps the GPU dependency out of the server process. The runner
+decodes the remuxed MP4, samples frames to the pipeline's observation
+resolution, runs the world model through the image's vLLM runtime, and
+writes the typed answer. Frame indices are reconstructed as
+`decode_start_index + presentation time`, so every event lands on the
+original recording timeline. The runner writes nothing to stdout; its
+diagnostics go to stderr and its answer goes only to the typed response
+file.
 
-The runner binary belongs to the deployable image, not to site
-configuration. The engine is the opposite: a site-supplied deployment input,
-compiled for the deployment GPU with the TensorRT-LLM build shipped in the
-image. Engine compilation is a deployment step, never request-time behavior.
-The server validates the catalog, the engine path, the prompt template, and
-the runner at startup and fails readiness when any is missing. There is no
-CPU inference fallback.
+The runner belongs to the deployable image, not to site configuration. The
+checkpoint is the opposite: a site-supplied deployment input in Hugging Face
+layout, mounted read-only. Runtime optimization such as quantization is the
+image's concern and never happens at request time. The server validates the
+catalog, the checkpoint path, the prompt template, and the runner at startup
+and fails readiness when any is missing. There is no CPU inference fallback.
 
 The server validates every runner response before publication: the answer
 kind must match the requested task, events must lie inside the requested
@@ -149,12 +151,12 @@ use the governed artifact download path.
 
 ## GPU image and Kubernetes deployment
 
-The Kubernetes node needs an NVIDIA driver compatible with the image's
-TensorRT-LLM build, NVIDIA Container Toolkit, and the NVIDIA device plugin.
-The pod requests one `nvidia.com/gpu`; a missing GPU is a scheduling or
+The Kubernetes node needs an NVIDIA driver compatible with the image's CUDA
+and vLLM build, NVIDIA Container Toolkit, and the NVIDIA device plugin. The
+pod requests one `nvidia.com/gpu`; a missing GPU is a scheduling or
 readiness failure, never a CPU fallback. The Helm chart ships the workload
-disabled by default because enablement requires two site inputs: the
-deployable runner image and a site-compiled engine.
+disabled by default because enablement requires one site input: the
+world-model checkpoint loaded into the model cache.
 
 The production installation uses two read-only mount roots:
 
@@ -163,7 +165,7 @@ The production installation uses two read-only mount roots:
   catalog.json
   prompt-template.txt
 /opt/veoveo/reason/models/
-  world-model.engine            # site-compiled TensorRT-LLM engine
+  world-model/                  # site-supplied checkpoint, Hugging Face layout
 ```
 
 Start from `configs/reason/catalog.example.json`, then set:
@@ -195,22 +197,21 @@ catalog resolution to a governed recording identity, a durable reasoning
 task with a fixed prompt, and typed result plus Rerun annotation publication
 through the shared artifact plane. It asserts result structure and retained
 invocation provenance rather than exact generated text. The scenario runs
-only on a deployment whose runner image and engine are present.
+only on a deployment whose checkpoint is present in the model cache.
 
 ## Deliberate limits
 
 - The production contract is H.264 `VideoStream`, identical to perception's
   ingest profile. Other codecs and frame-series timelines are rejected.
-- The catalog accepts TensorRT-LLM engines only. Checkpoint-to-engine
-  compilation is a deployment build step, not request-time behavior.
+- The catalog accepts locally mounted checkpoints only. Runtime optimization
+  belongs to the runner image, never to the request path.
 - Reasoning confidence is model-reported. Results are audit-stamped and
   greedy-deterministic, but they are not calibrated detector output and the
   contract never presents them as such.
 - Grounding accepts the typed perception results schema only. Opaque or
   unversioned grounding payloads are rejected at submission.
-- The runner binary ships with the deployable image. This repository defines
-  the runner contract and the server enforces it fail-closed; a deployment
-  without the runner image and a site-compiled engine keeps the workload
-  disabled.
+- The runner ships with the deployable image. This repository defines the
+  runner contract and the server enforces it fail-closed; a deployment
+  without the checkpoint in its model cache keeps the workload disabled.
 - There is no live-proxy read mode and no attachment to a live camera. Reason
   tasks operate only on frozen or sealed segments.

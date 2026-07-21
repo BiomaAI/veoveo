@@ -21,10 +21,11 @@ pub struct ModelConfig {
     pub title: String,
     pub description: String,
     pub format: ModelFormat,
-    /// TensorRT-LLM engines may be a single file or an engine directory.
+    /// Checkpoint directories are the canonical form; a single-file
+    /// checkpoint is also accepted.
     pub model_path: PathBuf,
     #[serde(default)]
-    pub engine_digest: Option<String>,
+    pub model_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -82,10 +83,10 @@ impl PipelineCatalog {
                 "model_path for `{}` must be absolute",
                 model.id
             );
-            if let Some(digest) = &model.engine_digest {
+            if let Some(digest) = &model.model_digest {
                 ensure!(
                     !digest.trim().is_empty() && digest.len() <= 128,
-                    "engine_digest for `{}` must be a short non-empty value",
+                    "model_digest for `{}` must be a short non-empty value",
                     model.id
                 );
             }
@@ -207,7 +208,7 @@ pub fn model_view(config: &ModelConfig) -> ModelView {
         title: config.title.clone(),
         description: config.description.clone(),
         format: config.format,
-        engine_digest: config.engine_digest.clone(),
+        model_digest: config.model_digest.clone(),
     }
 }
 
@@ -236,9 +237,9 @@ mod tests {
             id: "world-model".to_owned(),
             title: "World model".to_owned(),
             description: String::new(),
-            format: ModelFormat::TensorRtLlmEngine,
+            format: ModelFormat::LocalCheckpoint,
             model_path: "/models/world-model.engine".into(),
-            engine_digest: None,
+            model_digest: None,
         }
     }
 

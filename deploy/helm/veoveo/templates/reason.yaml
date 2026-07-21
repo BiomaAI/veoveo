@@ -30,9 +30,9 @@ data:
         {
           "id": "world-model",
           "title": "Site world model",
-          "description": "Site-compiled TensorRT-LLM world model engine for video reasoning.",
-          "format": "tensor_rt_llm_engine",
-          "model_path": "/models/world-model.engine"
+          "description": "Site-supplied world-model checkpoint for video reasoning.",
+          "format": "local_checkpoint",
+          "model_path": "/models/world-model"
         }
       ],
       "pipelines": [
