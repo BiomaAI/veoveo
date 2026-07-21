@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "theme": "Gray Dark",
+    "publicationState": "internal-review"
+  },
+  "screenshots": [
+    {
+      "id": "console-overview",
+      "title": "Operations overview",
+      "category": "console",
+      "purpose": "Show installation health, governed work, artifacts, agents, and recent decisions in one operational summary.",
+      "output": "gallery/console-overview.png",
+      "captureMode": "console",
+      "recipe": "overview",
+      "requires": ["authenticated-console", "running-installation"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-work",
+      "title": "Durable work",
+      "category": "console",
+      "purpose": "Show task state across reasoning, perception, and simulation workloads.",
+      "output": "gallery/console-work.png",
+      "captureMode": "console",
+      "recipe": "work",
+      "requires": ["authenticated-console", "completed-work"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-artifacts",
+      "title": "Governed artifact catalog",
+      "category": "console",
+      "purpose": "Show immutable outputs, media types, release state, ownership, and provenance at catalog scale.",
+      "output": "gallery/console-artifacts.png",
+      "captureMode": "console",
+      "recipe": "artifacts",
+      "requires": ["authenticated-console", "generated-artifacts"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-artifact-reason",
+      "title": "Reasoning artifact detail",
+      "category": "console",
+      "purpose": "Show a real reasoning result with governed preview, recording provenance, identity, and effective access.",
+      "output": "gallery/console-artifact-reason.png",
+      "captureMode": "console",
+      "recipe": "artifact-reason",
+      "requires": ["authenticated-console", "reason-json-artifact"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-artifact-video",
+      "title": "Perception video artifact",
+      "category": "console",
+      "purpose": "Show a governed video preview produced from a recording analysis.",
+      "output": "gallery/console-artifact-video.png",
+      "captureMode": "console",
+      "recipe": "artifact-video",
+      "requires": ["authenticated-console", "video-artifact"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-recordings",
+      "title": "Continuous recording playback",
+      "category": "console",
+      "purpose": "Show one recording timeline presented continuously across its authorized storage segments.",
+      "output": "gallery/console-recordings.png",
+      "captureMode": "console",
+      "recipe": "recordings",
+      "requires": ["authenticated-console", "ready-recording", "webgpu"],
+      "redaction": "identity",
+      "rendering": {
+        "surface": "embedded Rerun Web Viewer",
+        "backend": "WebGPU",
+        "adapter": "NVIDIA Lovelace",
+        "theme": "dark",
+        "softwareFallbackAllowed": false
+      }
+    },
+    {
+      "id": "console-mcp-reason",
+      "title": "Reason MCP capability surface",
+      "category": "mcp",
+      "purpose": "Show tools, resources, prompts, tasks, subscriptions, notifications, completions, and required scopes for one server.",
+      "output": "gallery/console-mcp-reason.png",
+      "captureMode": "console",
+      "recipe": "mcp-reason",
+      "requires": ["authenticated-console", "healthy-mcp-catalog"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-mcp-map",
+      "title": "Map MCP capability surface",
+      "category": "mcp",
+      "purpose": "Show the richer tool, resource, prompt, and protocol inventory of the map server.",
+      "output": "gallery/console-mcp-map.png",
+      "captureMode": "console",
+      "recipe": "mcp-map",
+      "requires": ["authenticated-console", "healthy-mcp-catalog"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-app-chart",
+      "title": "Interactive MCP chart app",
+      "category": "mcp-app",
+      "purpose": "Show structured MCP tool output rendered as an interactive, server-shipped chart inside the Console sandbox.",
+      "output": "gallery/console-app-chart.png",
+      "captureMode": "console",
+      "recipe": "app-chart",
+      "requires": ["authenticated-console", "healthy-chart-mcp"],
+      "redaction": "identity",
+      "data": "The recipe calls create_chart_view with deterministic inline mission data. The call is stateless."
+    },
+    {
+      "id": "console-app-map",
+      "title": "Governed map administration app",
+      "category": "mcp-app",
+      "purpose": "Show authoritative map sources and the acquisition, release, and mobility-profile controls delivered by the map server.",
+      "output": "gallery/console-app-map.png",
+      "captureMode": "console",
+      "recipe": "app-map",
+      "requires": ["authenticated-console", "registered-map-source"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-app-timeseries",
+      "title": "Interactive forecast app",
+      "category": "mcp-app",
+      "purpose": "Show observed fleet-readiness series, forecast means, and uncertainty bands in the server-shipped forecast view.",
+      "output": "gallery/console-app-timeseries.png",
+      "captureMode": "console",
+      "recipe": "app-timeseries",
+      "requires": ["authenticated-console", "healthy-timeseries-mcp"],
+      "redaction": "identity",
+      "data": "The recipe sends a deterministic protocol fixture through the MCP App tool-input and tool-result notifications. It does not create a durable forecast artifact."
+    },
+    {
+      "id": "console-access",
+      "title": "Work Context access",
+      "category": "governance",
+      "purpose": "Show active Work Context membership, policy revision, actor authority, and the access-request workflow.",
+      "output": "gallery/console-access.png",
+      "captureMode": "console",
+      "recipe": "access",
+      "requires": ["authenticated-console", "active-work-context"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-audit",
+      "title": "Paged audit trail",
+      "category": "governance",
+      "purpose": "Show bounded, exportable policy decisions with action, resource, outcome, trace, and source context.",
+      "output": "gallery/console-audit.png",
+      "captureMode": "console",
+      "recipe": "audit",
+      "requires": ["authenticated-console", "audit-events"],
+      "redaction": "identity"
+    },
+    {
+      "id": "console-cluster",
+      "title": "Cluster inventory",
+      "category": "operations",
+      "purpose": "Show Kubernetes workloads, pods, services, storage, placement, readiness, and image identity.",
+      "output": "gallery/console-cluster.png",
+      "captureMode": "console",
+      "recipe": "cluster",
+      "requires": ["authenticated-console", "cluster-read-scope"],
+      "redaction": "identity"
+    },
+    {
+      "id": "rerun-uav",
+      "title": "UAV simulation in Rerun",
+      "category": "simulation",
+      "purpose": "Show the UAV world, camera stream, telemetry, and recording timeline in the native Rerun workspace.",
+      "output": "gallery/rerun-uav.png",
+      "captureMode": "rerun",
+      "recipe": "rerun-uav",
+      "requires": ["authenticated-console", "complete-uav-recording", "webgpu"],
+      "redaction": "none",
+      "rendering": {
+        "surface": "full-screen governed Rerun Web Viewer",
+        "backend": "WebGPU",
+        "adapter": "NVIDIA Lovelace",
+        "theme": "dark",
+        "softwareFallbackAllowed": false
+      }
+    },
+    {
+      "id": "rerun-sumo",
+      "title": "SUMO traffic simulation in Rerun",
+      "category": "simulation",
+      "purpose": "Show the Luxembourg road network, live vehicles, congestion telemetry, and simulation time.",
+      "output": "gallery/rerun-sumo.png",
+      "captureMode": "rerun",
+      "recipe": "rerun-sumo",
+      "requires": ["running-sumo-showcase", "rerun-viewer"],
+      "redaction": "none",
+      "rendering": {
+        "surface": "Rerun Web Viewer",
+        "backend": "WebGPU",
+        "adapter": "NVIDIA Lovelace",
+        "theme": "dark",
+        "softwareFallbackAllowed": false
+      }
+    }
+  ]
+}

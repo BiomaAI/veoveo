@@ -1,0 +1,13 @@
+{
+  "name": "veoveo-screenshots",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "list": "node capture.mjs --list"
+  },
+  "dependencies": {
+    "playwright": "1.61.1"
+  }
+}
