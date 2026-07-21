@@ -9,7 +9,7 @@
       "model_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "engine": {
         "kind": "vllm",
-        "gpu_memory_utilization": 0.7,
+        "gpu_memory_utilization": 0.6,
         "max_model_len": 8192
       }
     }

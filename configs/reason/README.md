@@ -21,7 +21,7 @@ and greedy-decoded results are only comparable within one revision.
 Each model declares its inference engine budget. The vLLM engine requires a
 bounded `gpu_memory_utilization` and `max_model_len`; deployments size both
 against the other GPU workloads that must remain resident. The Helm defaults
-reserve 70% of device memory and an 8192-token context for the Reason engine.
+reserve 60% of device memory and an 8192-token context for the Reason engine.
 These are engine limits, not scheduler promises, and a pod still requests a
 real `nvidia.com/gpu` device.
 

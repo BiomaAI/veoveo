@@ -183,7 +183,7 @@ continue.
 The model catalog also sets the vLLM GPU-memory fraction and maximum model
 context. These are required, validated deployment inputs because the Reason
 engine may share one physical device with other GPU workloads under a cluster
-device-sharing policy. The canonical Helm profile reserves 70% of device
+device-sharing policy. The canonical Helm profile reserves 60% of device
 memory and an 8192-token context; operators size those values against the
 installed checkpoint and the workloads that must remain concurrently
 resident.
