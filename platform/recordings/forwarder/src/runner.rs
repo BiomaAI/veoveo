@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
-use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
+use re_grpc_server::{MemoryLimit, PlaybackBehavior, ServerOptions, shutdown};
 use re_log_channel::{DataSourceMessage, RecvTimeoutError};
 use re_log_types::{LogMsg, StoreId, StoreKind};
 use reqwest::header::{HOST, HeaderMap, HeaderValue};
@@ -82,6 +82,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
     let (receiver, _grpc_handle) = re_grpc_server::spawn_with_recv(
         config.bind,
         ServerOptions {
+            playback_behavior: PlaybackBehavior::NewestFirst,
             memory_limit: MemoryLimit::from_bytes(config.grpc_memory_limit_bytes),
             ..Default::default()
         },

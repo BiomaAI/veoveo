@@ -101,6 +101,9 @@ The canonical batching window is one second or 4,096 Rerun messages, whichever
 arrives first. An H.264 IDR begins a new batch immediately, and the gateway's
 advertised byte limit splits any larger encoded result. This keeps serial,
 durable appends below the producer rate without weakening ordered checkpoints.
+Late native viewers receive the live tail before retained proxy history. They
+can inspect earlier buffered data after current camera and telemetry messages
+are flowing, without making the producer wait for catch-up playback.
 
 The stream-byte quota bounds one ingest generation rather than one logical
 recording. When a generation reaches that limit, the forwarder closes it in
