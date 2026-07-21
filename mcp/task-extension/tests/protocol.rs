@@ -162,6 +162,37 @@ async fn body_json(response: axum::response::Response) -> Value {
 }
 
 #[tokio::test]
+async fn core_task_methods_bypass_the_final_task_extension() {
+    let authentications = Arc::new(AtomicUsize::new(0));
+    let handler = FakeHandler {
+        task_id: ProtocolTaskId::new(),
+        authentications: authentications.clone(),
+    };
+    let response = app(handler)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/mcp")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "jsonrpc": "2.0",
+                        "id": "core-task-request",
+                        "method": "tasks/get",
+                        "params": {"taskId": ProtocolTaskId::new()}
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response).await["forwarded"], true);
+    assert_eq!(authentications.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn discovery_advertises_only_the_final_task_extension() {
     let authentications = Arc::new(AtomicUsize::new(0));
     let handler = FakeHandler {

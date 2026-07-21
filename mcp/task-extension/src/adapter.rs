@@ -199,12 +199,8 @@ where
         );
     }
 
-    let handled = matches!(
-        rpc.method.as_str(),
-        DISCOVER_METHOD | GET_TASK_METHOD | UPDATE_TASK_METHOD | CANCEL_TASK_METHOD | LISTEN_METHOD
-    );
     let extension_request = request_protocol_version(&rpc.params).is_some();
-    if !handled && !extension_request {
+    if !extension_request {
         return next
             .run(Request::from_parts(parts, Body::from(bytes)))
             .await;
@@ -215,9 +211,7 @@ where
         Err(error) => return error_response(Some(rpc.id), error),
     };
 
-    if (handled || extension_request)
-        && let Err(error) = validate_protocol(&parts.headers, &rpc)
-    {
+    if let Err(error) = validate_protocol(&parts.headers, &rpc) {
         return error_response(Some(rpc.id), error);
     }
 
