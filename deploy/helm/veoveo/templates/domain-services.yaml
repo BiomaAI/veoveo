@@ -44,6 +44,10 @@ metadata:
     app.kubernetes.io/component: {{ $service.name }}
 spec:
   replicas: {{ default $.Values.global.defaultReplicas $service.replicas }}
+  {{- if $service.deploymentStrategy }}
+  strategy:
+    {{- toYaml $service.deploymentStrategy | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "veoveo.selectorLabels" $ | nindent 6 }}
@@ -110,7 +114,6 @@ spec:
                 secretKeyRef:
                   name: {{ $.Values.global.existingSecret }}
                   key: google-maps-api-key
-                  optional: true
             - name: NVIDIA_VISIBLE_DEVICES
               value: all
             - name: NVIDIA_DRIVER_CAPABILITIES

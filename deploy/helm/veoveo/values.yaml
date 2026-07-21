@@ -370,6 +370,11 @@ domainServices:
       accessModes: [ReadWriteOnce]
   - name: view-mcp
     replicas: 1
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
     runtimeClassName: nvidia
     image:
       repository: veoveo/view-mcp
@@ -383,7 +388,7 @@ domainServices:
       - --allowed-host
       - view-mcp:8801
       - --layer-catalog
-      - /etc/veoveo/view/local-layers.json
+      - /etc/veoveo/view/layers.json
     resources:
       requests:
         cpu: "1"

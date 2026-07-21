@@ -514,6 +514,36 @@
             "type": "integer",
             "minimum": 1
           },
+          "deploymentStrategy": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "RollingUpdate"
+              },
+              "rollingUpdate": {
+                "type": "object",
+                "required": [
+                  "maxSurge",
+                  "maxUnavailable"
+                ],
+                "properties": {
+                  "maxSurge": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "maxUnavailable": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
           "runtimeClassName": {
             "type": "string",
             "minLength": 1
