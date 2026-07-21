@@ -82,7 +82,9 @@ live response with following enabled. Camera and telemetry therefore appear
 before shard freeze while earlier history stays on the same timeline. The
 canonical camera producer emits the IDR first at each GoP timestamp, then
 reasserts pinhole metadata. Its one-second GoP bounds rollover delay and supplies
-the declared live preroll. At rollover, Console attaches the newly frozen
+the declared live preroll. Once the producer's world is ready, diagnostic image
+quality does not interrupt encoding or the IDR cadence. At rollover, Console
+attaches the newly frozen
 archive and successor live source before detaching the old live receiver. The
 persistent viewer retains its layout, selection, and timeline state.
 

@@ -91,7 +91,11 @@ def run(config: RuntimeConfig) -> None:
     from pegasus.simulator.params import ROBOTS
 
     from .command_queue import MainThreadQueue
-    from .camera_quality import measure_camera_frame, normalize_rgb_frame
+    from .camera_quality import (
+        measure_camera_frame,
+        normalize_rgb_frame,
+        should_record_camera_frame,
+    )
     from .px4 import Px4Commander
     from .recording import RecordingPublisher
     from .server import AdapterApplication, AdapterServer, TimelineControls
@@ -498,7 +502,7 @@ def run(config: RuntimeConfig) -> None:
                             simulation_time_s,
                             physics_step,
                         )
-                        if quality.visible:
+                        if should_record_camera_frame(quality, tiles_ready):
                             recording.camera(vehicle_id).encode(
                                 rgb, simulation_time_s, physics_step
                             )
