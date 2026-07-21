@@ -72,6 +72,15 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   from a view is proxied only to URIs owned by the view's server: scheme
   `{server}:` or prefix `ui://{server}/`. Gateway policy remains the
   authoritative second wall behind both proxies.
+- **Tasks** — task-based tools stay task-based inside apps. A view may send
+  `tools/call` with a `task` augmentation plus `tasks/get`, `tasks/result`,
+  and `tasks/cancel`; the console host intercepts these ahead of the
+  AppBridge (which rejects task traffic) and proxies them through the BFF,
+  which records task ownership per app view and forwards spec task requests
+  on its gateway session. The same allowlists apply: only app-visible linked
+  tools may start tasks, and a view may only poll tasks it started
+  (`servers/view-mcp/assets/preview-app.template.html` is the reference
+  task-driving view).
 - **Navigation** — the host's menu merges its static platform views with one
   entry per discovered app (label from the resource title, icon from the
   resource icons). Catalog failures degrade the menu to platform views only;

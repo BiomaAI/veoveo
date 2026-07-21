@@ -44,11 +44,21 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     let session_b = connect_mcp_session(&format!("{}/view/mcp", running.base), &token_b).await?;
     let tools = session_a.list_tools(Default::default()).await?;
     for name in ["create_view", "set_camera", "capture_frame", "close_view"] {
+        let tool = tools
+            .tools
+            .iter()
+            .find(|tool| tool.name.as_ref() == name)
+            .with_context(|| format!("View MCP did not list `{name}`: {tools:?}"))?;
+        let tool_json = serde_json::to_value(tool)?;
         ensure!(
-            tools.tools.iter().any(|tool| tool.name.as_ref() == name),
-            "View MCP did not list `{name}`: {tools:?}"
+            tool_json
+                .pointer("/_meta/ui/resourceUri")
+                .and_then(Value::as_str)
+                == Some("ui://view/preview.html"),
+            "`{name}` is not linked to the preview app: {tool_json}"
         );
     }
+    assert_preview_app_resource(&session_a).await?;
 
     let first = call_structured(
         &session_a,
@@ -87,6 +97,39 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
     let second_resource =
         read_mcp_resource_json(&session_b, &format!("view://view/{second_id}")).await?;
     ensure!(second_resource["revision"] == 1);
+
+    let scene =
+        read_mcp_resource_json(&session_a, &format!("view://view/{first_id}/scene")).await?;
+    ensure!(
+        scene["view_revision"] == 2,
+        "scene revision mismatch: {scene}"
+    );
+    let scene_tiles = scene["tiles"].as_array().context("scene omitted tiles")?;
+    ensure!(!scene_tiles.is_empty(), "scene manifest listed no tiles");
+    for tile in scene_tiles {
+        let matrix = tile["ecef_from_content"]
+            .as_array()
+            .context("tile omitted ecef_from_content")?;
+        ensure!(matrix.len() == 16);
+        ensure!(
+            matrix
+                .iter()
+                .all(|value| value.as_f64().is_some_and(f64::is_finite)),
+            "tile transform is not finite: {tile}"
+        );
+    }
+    let tile_uri = json_string(&scene_tiles[0], "/tile_uri")?;
+    let tile_bytes = read_blob_resource(&session_a, tile_uri, "model/gltf-binary").await?;
+    ensure!(
+        tile_bytes.starts_with(b"glTF"),
+        "preview tile blob is not a GLB container"
+    );
+    ensure!(
+        read_mcp_resource_json(&session_b, &format!("view://view/{first_id}/scene"))
+            .await
+            .is_err(),
+        "one owner read another owner's scene manifest"
+    );
 
     let mut first_bytes = None;
     for (index, (session, token, view)) in [
@@ -393,6 +436,34 @@ async fn read_blob_resource(
         .context("frame resource returned no blob")?;
     ensure!(mime_type.as_deref() == Some(expected_mime));
     Ok(STANDARD.decode(blob)?)
+}
+
+async fn assert_preview_app_resource(session: &SmokeMcpSession) -> Result<()> {
+    let result = session
+        .read_resource(ReadResourceRequestParams::new("ui://view/preview.html"))
+        .await?;
+    let (text, mime_type) = result
+        .contents
+        .iter()
+        .find_map(|content| match content {
+            ResourceContents::TextResourceContents {
+                text, mime_type, ..
+            } => Some((text, mime_type)),
+            _ => None,
+        })
+        .context("preview app resource returned no text")?;
+    ensure!(
+        mime_type.as_deref() == Some("text/html;profile=mcp-app"),
+        "preview app has the wrong mime type: {mime_type:?}"
+    );
+    ensure!(
+        text.len() < 2 * 1024 * 1024,
+        "preview app exceeds the console host's 2 MiB cap"
+    );
+    for needle in ["DracoDecoderModule", "ui/initialize", "tools/call"] {
+        ensure!(text.contains(needle), "preview app is missing `{needle}`");
+    }
+    Ok(())
 }
 
 fn image_bytes(payload: &rmcp::model::CallToolResult, expected_mime: &str) -> Result<Vec<u8>> {

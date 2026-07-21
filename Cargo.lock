@@ -11386,6 +11386,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-task-runtime",

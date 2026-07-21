@@ -408,7 +408,8 @@
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "notifications": true,
+        "apps": true
       },
       "tools": [
         "capture_frame",
@@ -421,7 +422,8 @@
       ],
       "metadata": {
         "renderer": "headless_nvidia_vulkan"
-      }
+      },
+      "resource_projection": "server_owned"
     },
     {
       "slug": "time",
@@ -2709,7 +2711,8 @@
             "view"
           ],
           "resource_schemes": [
-            "view"
+            "view",
+            "ui"
           ],
           "required_scopes": [
             "operator:use",

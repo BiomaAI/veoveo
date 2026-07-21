@@ -1,3 +1,9 @@
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+
 use axum::{
     Json,
     extract::{Query, State},
@@ -12,6 +18,9 @@ use crate::{AppState, api, mcp_client::McpSession};
 const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_CALL_ARGUMENT_BYTES: usize = 256 * 1024;
 const MAX_CALL_RESULT_BYTES: usize = 2 * 1024 * 1024;
+
+const MAX_TRACKED_APP_TASKS: usize = 1024;
+const APP_TASK_RETENTION: Duration = Duration::from_secs(60 * 60);
 
 /// The frame document's CSP: no network, no storage, inline-only. Veoveo
 /// apps are self-contained by contract; `_meta.ui.csp` connect domains are
@@ -77,6 +86,67 @@ fn app_resource_uri_allowed(server: &str, uri: &str) -> bool {
         .and_then(|rest| rest.strip_prefix("://"))
         .is_some_and(|rest| !rest.is_empty());
     own_scheme || app_uri_server(uri) == Some(server)
+}
+
+struct AppTaskOwner {
+    server: String,
+    app_uri: String,
+    recorded_at: Instant,
+}
+
+/// Task-augmented calls made through the apps proxy, in insertion order so
+/// the oldest entry falls out first. Only the view that created a task may
+/// poll or cancel it; gateway task policy remains the authoritative second
+/// wall. Bounded, with lazy expiry on access — no background sweeper.
+#[derive(Clone, Default)]
+pub(crate) struct AppTaskRegistry(Arc<Mutex<VecDeque<(String, AppTaskOwner)>>>);
+
+impl AppTaskRegistry {
+    pub(crate) fn record(&self, task_id: &str, server: &str, app_uri: &str) {
+        self.record_at(Instant::now(), task_id, server, app_uri);
+    }
+
+    fn record_at(&self, now: Instant, task_id: &str, server: &str, app_uri: &str) {
+        let Ok(mut tasks) = self.0.lock() else {
+            return;
+        };
+        evict_expired_app_tasks(&mut tasks, now);
+        tasks.retain(|(id, _)| id != task_id);
+        while tasks.len() >= MAX_TRACKED_APP_TASKS {
+            tasks.pop_front();
+        }
+        tasks.push_back((
+            task_id.to_owned(),
+            AppTaskOwner {
+                server: server.to_owned(),
+                app_uri: app_uri.to_owned(),
+                recorded_at: now,
+            },
+        ));
+    }
+
+    pub(crate) fn owns(&self, task_id: &str, server: &str, app_uri: &str) -> bool {
+        self.owns_at(Instant::now(), task_id, server, app_uri)
+    }
+
+    fn owns_at(&self, now: Instant, task_id: &str, server: &str, app_uri: &str) -> bool {
+        let Ok(mut tasks) = self.0.lock() else {
+            return false;
+        };
+        evict_expired_app_tasks(&mut tasks, now);
+        tasks
+            .iter()
+            .any(|(id, owner)| id == task_id && owner.server == server && owner.app_uri == app_uri)
+    }
+}
+
+fn evict_expired_app_tasks(tasks: &mut VecDeque<(String, AppTaskOwner)>, now: Instant) {
+    while let Some((_, owner)) = tasks.front() {
+        if now.saturating_duration_since(owner.recorded_at) < APP_TASK_RETENTION {
+            return;
+        }
+        tasks.pop_front();
+    }
 }
 
 /// Transport-level failures mean the pooled session's connection is gone
@@ -317,6 +387,8 @@ pub(crate) struct CallAppToolRequest {
     tool: String,
     #[serde(default)]
     arguments: serde_json::Value,
+    #[serde(default)]
+    task: Option<rmcp::model::TaskMetadata>,
 }
 
 #[derive(Serialize)]
@@ -332,6 +404,19 @@ fn call_error(status: StatusCode, message: &str) -> Response {
         }),
     )
         .into_response()
+}
+
+fn capped_json_response<T: Serialize>(result: &T, cap_message: &str) -> Response {
+    let Ok(body) = serde_json::to_vec(result) else {
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    if body.len() > MAX_CALL_RESULT_BYTES {
+        return call_error(StatusCode::BAD_GATEWAY, cap_message);
+    }
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert("cache-control", HeaderValue::from_static("no-store"));
+    (StatusCode::OK, headers, body).into_response()
 }
 
 pub(crate) async fn call_app_tool(
@@ -392,6 +477,35 @@ pub(crate) async fn call_app_tool(
         serde_json::Value::Null => {}
         _ => return call_error(StatusCode::BAD_REQUEST, "arguments must be a JSON object"),
     }
+    if let Some(task) = request.task {
+        // The typed `call_tool` helper only accepts a `CallToolResult`; a
+        // task-augmented call answers with a `CreateTaskResult`, so it goes
+        // through the generic request path.
+        let result = match mcp
+            .send_request(rmcp::model::ClientRequest::CallToolRequest(
+                rmcp::model::CallToolRequest::new(params.with_task(task)),
+            ))
+            .await
+        {
+            Ok(rmcp::model::ServerResult::CreateTaskResult(result)) => result,
+            Ok(_) => {
+                return call_error(
+                    StatusCode::BAD_GATEWAY,
+                    "task-augmented call returned an unexpected result",
+                );
+            }
+            Err(error) => {
+                return call_error(
+                    StatusCode::BAD_GATEWAY,
+                    &format!("tool call failed: {error}"),
+                );
+            }
+        };
+        state
+            .app_tasks
+            .record(&result.task.task_id, &request.server, &request.app_uri);
+        return capped_json_response(&result, "tool result exceeds the cap");
+    }
     let result = match mcp.call_tool(params).await {
         Ok(result) => result,
         Err(error) => {
@@ -401,16 +515,140 @@ pub(crate) async fn call_app_tool(
             );
         }
     };
-    let Ok(body) = serde_json::to_vec(&result) else {
-        return StatusCode::BAD_GATEWAY.into_response();
-    };
-    if body.len() > MAX_CALL_RESULT_BYTES {
-        return call_error(StatusCode::BAD_GATEWAY, "tool result exceeds the cap");
+    capped_json_response(&result, "tool result exceeds the cap")
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppTaskRequest {
+    server: String,
+    app_uri: String,
+    task_id: String,
+}
+
+/// The allowlist mirrors `call_app_tool`: the view must belong to the named
+/// server, and only the view whose task-augmented call created the task may
+/// poll or cancel it.
+fn app_task_access_denied(state: &AppState, request: &AppTaskRequest) -> Option<Response> {
+    if app_uri_server(&request.app_uri) != Some(request.server.as_str()) {
+        return Some(call_error(
+            StatusCode::BAD_REQUEST,
+            "app uri does not belong to the server",
+        ));
     }
-    let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert("cache-control", HeaderValue::from_static("no-store"));
-    (StatusCode::OK, headers, body).into_response()
+    if !state
+        .app_tasks
+        .owns(&request.task_id, &request.server, &request.app_uri)
+    {
+        return Some(call_error(
+            StatusCode::NOT_FOUND,
+            "unknown task for this app",
+        ));
+    }
+    None
+}
+
+pub(crate) async fn get_app_task(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Json(request): Json<AppTaskRequest>,
+) -> Response {
+    if let Some(response) = app_task_access_denied(&state, &request) {
+        return response;
+    }
+    let task_id = request.task_id.as_str();
+    let outcome = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.send_request(rmcp::model::ClientRequest::GetTaskRequest(
+            rmcp::model::GetTaskRequest::new(rmcp::model::GetTaskParams::new(task_id)),
+        ))
+        .await
+    })
+    .await;
+    match outcome {
+        Ok((_, Ok(rmcp::model::ServerResult::GetTaskResult(result)))) => {
+            capped_json_response(&result, "task status exceeds the cap")
+        }
+        Ok((_, Ok(_))) => call_error(
+            StatusCode::BAD_GATEWAY,
+            "task get returned an unexpected result",
+        ),
+        Ok((_, Err(error))) => call_error(
+            StatusCode::BAD_GATEWAY,
+            &format!("task get failed: {error}"),
+        ),
+        Err(response) => response,
+    }
+}
+
+pub(crate) async fn get_app_task_result(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Json(request): Json<AppTaskRequest>,
+) -> Response {
+    if let Some(response) = app_task_access_denied(&state, &request) {
+        return response;
+    }
+    let task_id = request.task_id.as_str();
+    let outcome = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.send_request(rmcp::model::ClientRequest::GetTaskPayloadRequest(
+            rmcp::model::GetTaskPayloadRequest::new(rmcp::model::GetTaskPayloadParams::new(
+                task_id,
+            )),
+        ))
+        .await
+    })
+    .await;
+    match outcome {
+        // Per spec the payload takes the shape of the original request's
+        // result (`CallToolResult` for the calls this registry admits), so
+        // whichever untagged variant it decoded into is serialized back
+        // unchanged.
+        Ok((_, Ok(result))) => capped_json_response(&result, "task result exceeds the cap"),
+        Ok((_, Err(error))) => call_error(
+            StatusCode::BAD_GATEWAY,
+            &format!("task result failed: {error}"),
+        ),
+        Err(response) => response,
+    }
+}
+
+pub(crate) async fn cancel_app_task(
+    State(state): State<AppState>,
+    request_headers: HeaderMap,
+    Json(request): Json<AppTaskRequest>,
+) -> Response {
+    if let Some(response) = app_task_access_denied(&state, &request) {
+        return response;
+    }
+    let task_id = request.task_id.as_str();
+    let outcome = with_apps_session(&state, &request_headers, |mcp| async move {
+        mcp.send_request(rmcp::model::ClientRequest::CancelTaskRequest(
+            rmcp::model::CancelTaskRequest::new(rmcp::model::CancelTaskParams::new(task_id)),
+        ))
+        .await
+    })
+    .await;
+    // The registry entry deliberately stays: polling after a cancel keeps
+    // observing the terminal status until the entry expires.
+    match outcome {
+        // `CancelTaskResult` shares `GetTaskResult`'s wire shape, so the
+        // untagged decode lands on the latter.
+        Ok((_, Ok(rmcp::model::ServerResult::GetTaskResult(result)))) => {
+            capped_json_response(&result, "task status exceeds the cap")
+        }
+        Ok((_, Ok(rmcp::model::ServerResult::CancelTaskResult(result)))) => {
+            capped_json_response(&result, "task status exceeds the cap")
+        }
+        Ok((_, Ok(_))) => call_error(
+            StatusCode::BAD_GATEWAY,
+            "task cancel returned an unexpected result",
+        ),
+        Ok((_, Err(error))) => call_error(
+            StatusCode::BAD_GATEWAY,
+            &format!("task cancel failed: {error}"),
+        ),
+        Err(response) => response,
+    }
 }
 
 #[cfg(test)]
@@ -463,5 +701,60 @@ mod tests {
         ));
         assert!(!app_resource_uri_allowed("map", "map://../escape"));
         assert!(!app_resource_uri_allowed("time", "timeseries://usage"));
+    }
+
+    #[test]
+    fn app_task_registry_admits_only_the_creating_view() {
+        let registry = AppTaskRegistry::default();
+        let now = Instant::now();
+        registry.record_at(now, "task-1", "map", "ui://map/admin.html");
+        assert!(registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/other.html"));
+        assert!(!registry.owns_at(now, "task-1", "timeseries", "ui://map/admin.html"));
+        assert!(!registry.owns_at(now, "task-2", "map", "ui://map/admin.html"));
+    }
+
+    #[test]
+    fn app_task_registry_expires_entries_lazily() {
+        let registry = AppTaskRegistry::default();
+        let now = Instant::now();
+        registry.record_at(now, "task-1", "map", "ui://map/admin.html");
+        assert!(registry.owns_at(
+            now + APP_TASK_RETENTION - Duration::from_secs(1),
+            "task-1",
+            "map",
+            "ui://map/admin.html"
+        ));
+        assert!(!registry.owns_at(
+            now + APP_TASK_RETENTION,
+            "task-1",
+            "map",
+            "ui://map/admin.html"
+        ));
+        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+    }
+
+    #[test]
+    fn app_task_registry_evicts_the_oldest_entry_beyond_capacity() {
+        let registry = AppTaskRegistry::default();
+        let now = Instant::now();
+        for index in 0..MAX_TRACKED_APP_TASKS {
+            registry.record_at(now, &format!("task-{index}"), "map", "ui://map/admin.html");
+        }
+        assert!(registry.owns_at(now, "task-0", "map", "ui://map/admin.html"));
+        registry.record_at(now, "task-overflow", "map", "ui://map/admin.html");
+        assert!(!registry.owns_at(now, "task-0", "map", "ui://map/admin.html"));
+        assert!(registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+        assert!(registry.owns_at(now, "task-overflow", "map", "ui://map/admin.html"));
+    }
+
+    #[test]
+    fn app_task_registry_rerecords_a_task_id_without_duplicates() {
+        let registry = AppTaskRegistry::default();
+        let now = Instant::now();
+        registry.record_at(now, "task-1", "map", "ui://map/admin.html");
+        registry.record_at(now, "task-1", "map", "ui://map/other.html");
+        assert!(!registry.owns_at(now, "task-1", "map", "ui://map/admin.html"));
+        assert!(registry.owns_at(now, "task-1", "map", "ui://map/other.html"));
     }
 }

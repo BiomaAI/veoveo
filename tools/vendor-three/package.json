@@ -1,0 +1,15 @@
+{
+  "name": "vendor-three",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reproducible vendoring pipeline for the self-contained three.js bundle used by view-mcp.",
+  "scripts": {
+    "build": "bash build.sh"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

@@ -1,0 +1,1842 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>3D view preview</title>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --panel: #ffffff;
+    --ink: #1d2126;
+    --ink-secondary: #5b6570;
+    --ink-muted: #8a929b;
+    --grid: #e8eaec;
+    --panel-border: #dfe2e4;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --danger: #c93f3e;
+    --ok: #1baf7a;
+    --warn: #b97e00;
+    --chip: #f0f1f2;
+    --canvas-bg: #dfe6ee;
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --panel: #212220;
+    --ink: #e8e8e6;
+    --ink-secondary: #a8adb3;
+    --ink-muted: #7c8288;
+    --grid: #32343a;
+    --panel-border: #3a3d42;
+    --accent: #3987e5;
+    --accent-ink: #ffffff;
+    --danger: #e66767;
+    --ok: #199e70;
+    --warn: #c98500;
+    --chip: #2b2d2b;
+    --canvas-bg: #10151c;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--surface); color: var(--ink);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { padding: 10px 12px 12px; }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .head .left { display: flex; align-items: baseline; gap: 10px; }
+  .subtitle { color: var(--ink-secondary); font-size: 12px; }
+  .head .right { display: flex; align-items: center; gap: 8px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 9px; font-size: 11px; background: var(--chip); }
+  .chip.ok { color: var(--ok); }
+  .chip.warn { color: var(--warn); }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; }
+  .muted { color: var(--ink-muted); }
+  button { padding: 4px 10px; border: 1px solid var(--panel-border); border-radius: 5px;
+    background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  select, input { padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 5px;
+    background: var(--surface); color: var(--ink); font: inherit; }
+  label { display: flex; flex-direction: column; gap: 2px; color: var(--ink-secondary); font-size: 11px; }
+  .columns { display: flex; gap: 10px; align-items: stretch; }
+  #panel { width: 302px; flex: none; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 7px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    max-height: 680px; overflow-y: auto; }
+  #stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { border-radius: 5px 5px 0 0; border-bottom: none; font-weight: 600; }
+  .tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pane { position: relative; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 0 7px 7px 7px; overflow: hidden; height: 620px; }
+  #gl { width: 100%; height: 100%; display: block; background: var(--canvas-bg); }
+  #scene-hud { position: absolute; top: 8px; left: 10px; display: flex; gap: 6px; align-items: center;
+    font-size: 11px; color: var(--ink-secondary); pointer-events: none; }
+  #scene-hud .chip { pointer-events: auto; }
+  .attribution { position: absolute; right: 8px; bottom: 8px; padding: 3px 8px; border-radius: 5px;
+    background: rgba(20, 22, 26, 0.62); color: #f2f3f4; font-size: 10.5px; max-width: 70%; text-align: right; }
+  :root[data-theme="light"] .attribution { background: rgba(250, 250, 250, 0.75); color: #35393e; }
+  #frame-pane { display: flex; flex-direction: column; }
+  #frame-wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center;
+    justify-content: center; background: var(--canvas-bg); }
+  #frame-img { max-width: 100%; max-height: 100%; }
+  #frame-empty { color: var(--ink-muted); }
+  #frame-meta { margin: 0; padding: 8px 10px; display: grid; grid-template-columns: auto 1fr auto 1fr;
+    gap: 2px 10px; font-size: 11.5px; border-top: 1px solid var(--grid); }
+  #frame-meta dt { color: var(--ink-muted); }
+  #frame-meta dd { margin: 0; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; }
+  .mode-tabs { display: flex; gap: 4px; }
+  .mode-tabs button { flex: 1; padding: 3px 4px; font-size: 11.5px; }
+  .mode-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  fieldset { border: 1px solid var(--grid); border-radius: 6px; margin: 0; padding: 7px 8px 8px;
+    display: flex; flex-direction: column; gap: 6px; }
+  fieldset legend { color: var(--ink-secondary); font-size: 11px; font-weight: 600; padding: 0 4px; }
+  .field-row { display: flex; gap: 6px; }
+  .field-row label { flex: 1; min-width: 0; }
+  .field-row input { width: 100%; }
+  .slider-row { display: flex; align-items: center; gap: 6px; }
+  .slider-row input[type="range"] { flex: 1; padding: 0; }
+  .slider-row input[type="number"] { width: 74px; }
+  #resolved { border: 1px dashed var(--grid); border-radius: 6px; padding: 6px 8px; font-size: 11px;
+    color: var(--ink-secondary); }
+  #resolved.confirmed { border-color: var(--accent); }
+  .actions { display: flex; flex-wrap: wrap; gap: 5px; }
+  details summary { cursor: pointer; color: var(--ink-secondary); font-size: 12px; font-weight: 600; }
+  details[open] summary { margin-bottom: 6px; }
+  .preset-list { display: flex; flex-direction: column; gap: 4px; }
+  .preset-list button { text-align: left; font-weight: 500; }
+  #status { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 22px;
+    font-size: 12px; color: var(--ink-secondary); }
+  #status .spin { width: 10px; height: 10px; border: 2px solid var(--accent); border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.9s linear infinite; display: none; }
+  #status.busy .spin { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error { display: none; padding: 6px 9px; border-radius: 5px; font-size: 12px;
+    border: 1px solid var(--danger); color: var(--danger); white-space: pre-wrap; }
+  #boot { color: var(--ink-muted); padding: 24px 0; text-align: center; }
+  #diagnostics { font-size: 11px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+  <div id="boot">Loading 3D view preview…</div>
+  <div class="error" id="boot-error"></div>
+  <div id="app" hidden>
+    <div class="head">
+      <div class="left">
+        <h1>3D view preview</h1>
+        <span class="subtitle" id="subtitle">Compose a camera, preview the scene, capture a frame.</span>
+      </div>
+      <div class="right">
+        <label>Layer
+          <select id="layer-select"></select>
+        </label>
+        <span class="chip" id="view-chip">no view</span>
+      </div>
+    </div>
+    <div class="columns">
+      <aside id="panel">
+        <nav class="mode-tabs" id="mode-tabs">
+          <button type="button" data-mode="orbit_target" aria-selected="true">Orbit</button>
+          <button type="button" data-mode="look_at" aria-selected="false">Look-at</button>
+          <button type="button" data-mode="pose" aria-selected="false">Pose</button>
+        </nav>
+        <fieldset id="fs-target">
+          <legend>Target (WGS84)</legend>
+          <div class="field-row">
+            <label>Latitude °<input id="target-lat" type="number" step="0.000001" min="-90" max="90" value="40.689200"></label>
+            <label>Longitude °<input id="target-lon" type="number" step="0.000001" min="-180" max="180" value="-74.044500"></label>
+          </div>
+          <label>Altitude m<input id="target-alt" type="number" step="1" value="30"></label>
+        </fieldset>
+        <fieldset id="fs-orbit">
+          <legend>Orbit</legend>
+          <label>Distance m
+            <div class="slider-row">
+              <input id="orbit-distance-slider" type="range" min="1" max="4.7" step="0.01" value="2.813">
+              <input id="orbit-distance" type="number" min="0.1" max="100000000" step="1" value="650">
+            </div>
+          </label>
+          <label>Azimuth °
+            <div class="slider-row">
+              <input id="orbit-azimuth-slider" type="range" min="0" max="360" step="1" value="210">
+              <input id="orbit-azimuth" type="number" step="0.1" value="210">
+            </div>
+          </label>
+          <label>Elevation °
+            <div class="slider-row">
+              <input id="orbit-elevation-slider" type="range" min="-89" max="89" step="1" value="40">
+              <input id="orbit-elevation" type="number" min="-89.9" max="89.9" step="0.1" value="40">
+            </div>
+          </label>
+        </fieldset>
+        <fieldset id="fs-eye" hidden>
+          <legend>Eye (WGS84)</legend>
+          <div class="field-row">
+            <label>Latitude °<input id="eye-lat" type="number" step="0.000001" min="-90" max="90" value="40.684000"></label>
+            <label>Longitude °<input id="eye-lon" type="number" step="0.000001" min="-180" max="180" value="-74.050000"></label>
+          </div>
+          <label>Altitude m<input id="eye-alt" type="number" step="1" value="400"></label>
+        </fieldset>
+        <fieldset id="fs-orientation" hidden>
+          <legend>Orientation</legend>
+          <label>Heading ° (0 = north, clockwise)
+            <div class="slider-row">
+              <input id="pose-heading-slider" type="range" min="0" max="360" step="1" value="30">
+              <input id="pose-heading" type="number" step="0.1" value="30">
+            </div>
+          </label>
+          <label>Pitch ° (up from horizon)
+            <div class="slider-row">
+              <input id="pose-pitch-slider" type="range" min="-90" max="90" step="1" value="-25">
+              <input id="pose-pitch" type="number" min="-90" max="90" step="0.1" value="-25">
+            </div>
+          </label>
+          <label>Roll °<input id="pose-roll" type="number" step="0.1" value="0"></label>
+        </fieldset>
+        <fieldset>
+          <legend>Lens</legend>
+          <label>Vertical FOV °
+            <div class="slider-row">
+              <input id="fov-slider" type="range" min="1" max="160" step="1" value="45">
+              <input id="fov" type="number" min="1" max="160" step="0.1" value="45">
+            </div>
+          </label>
+        </fieldset>
+        <div id="resolved" class="mono">resolved pose pending</div>
+        <details>
+          <summary>Capture policy</summary>
+          <fieldset>
+            <div class="field-row">
+              <label>Width px<input id="cap-width" type="number" min="16" max="4096" step="1" value="1280"></label>
+              <label>Height px<input id="cap-height" type="number" min="16" max="4096" step="1" value="720"></label>
+            </div>
+            <div class="field-row">
+              <label>Max SSE px<input id="cap-sse" type="number" min="0.25" max="256" step="0.25" value="16"></label>
+              <label>Deadline s<input id="cap-deadline" type="number" min="1" max="120" step="1" value="30"></label>
+            </div>
+            <div class="field-row">
+              <label>Encoding
+                <select id="cap-encoding">
+                  <option value="jpeg" selected>jpeg</option>
+                  <option value="png">png</option>
+                </select>
+              </label>
+              <label>On deadline
+                <select id="cap-behavior">
+                  <option value="return_best_available" selected>best available</option>
+                  <option value="fail">fail</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+        </details>
+        <div class="actions">
+          <button type="button" class="primary" id="btn-create">Create view</button>
+          <button type="button" class="primary" id="btn-apply" hidden>Apply camera</button>
+          <button type="button" class="primary" id="btn-capture" disabled>Capture frame</button>
+          <button type="button" class="danger" id="btn-cancel" hidden>Cancel capture</button>
+          <button type="button" id="btn-refresh-scene" disabled>Refresh scene</button>
+          <button type="button" id="btn-copy">Copy camera JSON</button>
+          <button type="button" class="danger" id="btn-close" hidden>Close view</button>
+        </div>
+        <details id="presets-details">
+          <summary>Presets</summary>
+          <div class="preset-list" id="preset-list"></div>
+        </details>
+        <div class="error" id="camera-error"></div>
+      </aside>
+      <main id="stage">
+        <nav class="tabs" id="stage-tabs">
+          <button type="button" data-pane="scene-pane" aria-selected="true">3D scene</button>
+          <button type="button" data-pane="frame-pane" aria-selected="false">Rendered frame</button>
+        </nav>
+        <section id="scene-pane" class="pane">
+          <canvas id="gl"></canvas>
+          <div id="scene-hud">
+            <span class="chip" id="tile-chip">no scene</span>
+            <span id="scene-hint">double-click terrain to retarget · drag to orbit</span>
+          </div>
+          <div class="attribution" id="scene-attribution" hidden></div>
+        </section>
+        <section id="frame-pane" class="pane" hidden>
+          <div id="frame-wrap">
+            <span id="frame-empty">No frame captured yet.</span>
+            <img id="frame-img" alt="Rendered frame" hidden>
+            <div class="attribution" id="frame-attribution" hidden></div>
+          </div>
+          <dl id="frame-meta" hidden></dl>
+        </section>
+        <div id="diagnostics" hidden></div>
+      </main>
+    </div>
+    <div id="status"><span class="spin"></span><span id="status-text">idle</span></div>
+    <div class="error" id="action-error"></div>
+  </div>
+
+<script>/*__VEOVEO_THREE_BUNDLE__*/</script>
+<script>
+"use strict";
+
+const THREE = VENDOR.THREE;
+const OrbitControls = VENDOR.OrbitControls;
+
+/* ---------------------------------------------------------------- bridge --
+ * View side of the MCP Apps (ext-apps 2026-01-26) postMessage protocol.
+ * The host is the only counterparty; the frame runs in an opaque origin, so
+ * postMessage targets "*" and inbound messages are trusted only for shape.
+ */
+const bridge = (() => {
+  let nextId = 1;
+  const pending = new Map();
+  const notificationHandlers = new Map();
+
+  function post(message) {
+    window.parent.postMessage(message, "*");
+  }
+  function request(method, params) {
+    return new Promise((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+      post({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+      const waiter = pending.get(message.id);
+      if (!waiter) return;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message || "host error"));
+      else waiter.resolve(message.result);
+      return;
+    }
+    if (message.method) {
+      const handler = notificationHandlers.get(message.method);
+      if (handler) handler(message.params, message.id);
+      else if (message.id !== undefined) {
+        post({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "method not found" } });
+      }
+    }
+  });
+  return {
+    request,
+    notify: (method, params) => post({ jsonrpc: "2.0", method, params }),
+    on: (method, handler) => notificationHandlers.set(method, handler),
+    post,
+  };
+})();
+
+/* ------------------------------------------------------------- transport -- */
+async function readJsonResource(uri) {
+  const result = await bridge.request("resources/read", { uri });
+  const contents = (result && result.contents) || [];
+  const text = contents.length ? contents[0].text : undefined;
+  if (typeof text !== "string") throw new Error(`resource ${uri} returned no text`);
+  return JSON.parse(text);
+}
+
+async function readBlobResource(uri) {
+  const result = await bridge.request("resources/read", { uri });
+  const contents = (result && result.contents) || [];
+  const blob = contents.length ? contents[0].blob : undefined;
+  if (typeof blob !== "string") throw new Error(`resource ${uri} returned no blob`);
+  const binary = atob(blob);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function toolFailureText(result, name) {
+  const content = Array.isArray(result && result.content) ? result.content : [];
+  const text = content.find((entry) => entry && entry.type === "text" && typeof entry.text === "string");
+  return text ? text.text : `MCP tool ${name} failed`;
+}
+
+/* Full CallToolResult (content blocks included); throws on isError. */
+async function callToolRaw(name, args, task) {
+  const params = { name, arguments: args };
+  if (task) params.task = task;
+  const result = await bridge.request("tools/call", params);
+  if (result && (result.isError || result.is_error)) {
+    throw new Error(toolFailureText(result, name));
+  }
+  return result;
+}
+
+async function callTool(name, args) {
+  const result = await callToolRaw(name, args);
+  return (result && (result.structuredContent || result.structured_content)) || result;
+}
+
+const tasks = {
+  get: (taskId) => bridge.request("tasks/get", { taskId }),
+  result: (taskId) => bridge.request("tasks/result", { taskId }),
+  cancel: (taskId) => bridge.request("tasks/cancel", { taskId }),
+};
+
+/* --------------------------------------------------------------------- m4 --
+ * Column-major 4x4 math on Float64Array. All planetary-scale composition
+ * happens here; three.js (f32) only ever sees scene-local results.
+ */
+const m4 = (() => {
+  function identity() {
+    const m = new Float64Array(16);
+    m[0] = m[5] = m[10] = m[15] = 1;
+    return m;
+  }
+  function fromArray(values) {
+    return Float64Array.from(values);
+  }
+  function mul(a, b) {
+    const out = new Float64Array(16);
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 4; r++) {
+        out[c * 4 + r] =
+          a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+      }
+    }
+    return out;
+  }
+  function translation(v) {
+    const m = identity();
+    m[12] = v[0];
+    m[13] = v[1];
+    m[14] = v[2];
+    return m;
+  }
+  function transformPoint(m, p) {
+    return [
+      m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
+      m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+      m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14],
+    ];
+  }
+  /* Inverse of a rotation+translation matrix. */
+  function invertRigid(m) {
+    const out = identity();
+    out[0] = m[0]; out[1] = m[4]; out[2] = m[8];
+    out[4] = m[1]; out[5] = m[5]; out[6] = m[9];
+    out[8] = m[2]; out[9] = m[6]; out[10] = m[10];
+    out[12] = -(out[0] * m[12] + out[4] * m[13] + out[8] * m[14]);
+    out[13] = -(out[1] * m[12] + out[5] * m[13] + out[9] * m[14]);
+    out[14] = -(out[2] * m[12] + out[6] * m[13] + out[10] * m[14]);
+    return out;
+  }
+  function toThree(m) {
+    return new THREE.Matrix4().fromArray(m);
+  }
+  return { identity, fromArray, mul, translation, transformPoint, invertRigid, toThree };
+})();
+
+/* -------------------------------------------------------------------- geo --
+ * Line-for-line port of the server's geodesy.rs so the frustum gizmo matches
+ * what the renderer produces. Positions are {latitude_degrees,
+ * longitude_degrees, ellipsoidal_height_meters}; vectors are [x, y, z].
+ */
+const geo = (() => {
+  const A = 6378137.0;
+  const F = 1 / 298.257223563;
+  const E2 = F * (2 - F);
+  const RAD = Math.PI / 180;
+
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+  const scale = (v, s) => [v[0] * s, v[1] * s, v[2] * s];
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const length = (v) => Math.hypot(v[0], v[1], v[2]);
+  function normalizeOr(v, fallback) {
+    const len = length(v);
+    return len > 1e-12 ? scale(v, 1 / len) : fallback;
+  }
+  const normalize = (v) => normalizeOr(v, [1, 0, 0]);
+  function rotateAround(v, axis, angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const k = axis;
+    return add(
+      add(scale(v, cos), scale(cross(k, v), sin)),
+      scale(k, dot(k, v) * (1 - cos))
+    );
+  }
+
+  function geodeticToEcef(p) {
+    const lat = p.latitude_degrees * RAD;
+    const lon = p.longitude_degrees * RAD;
+    const sinLat = Math.sin(lat), cosLat = Math.cos(lat);
+    const sinLon = Math.sin(lon), cosLon = Math.cos(lon);
+    const n = A / Math.sqrt(1 - E2 * sinLat * sinLat);
+    const h = p.ellipsoidal_height_meters;
+    return [(n + h) * cosLat * cosLon, (n + h) * cosLat * sinLon, (n * (1 - E2) + h) * sinLat];
+  }
+
+  function ecefToGeodetic(ecef) {
+    const b = A * (1 - F);
+    const epSq = (A * A - b * b) / (b * b);
+    const p = Math.hypot(ecef[0], ecef[1]);
+    const theta = Math.atan2(ecef[2] * A, p * b);
+    const lon = Math.atan2(ecef[1], ecef[0]);
+    const lat = Math.atan2(
+      ecef[2] + epSq * b * Math.sin(theta) ** 3,
+      p - E2 * A * Math.cos(theta) ** 3
+    );
+    const sinLat = Math.sin(lat);
+    const n = A / Math.sqrt(1 - E2 * sinLat * sinLat);
+    return {
+      latitude_degrees: lat / RAD,
+      longitude_degrees: lon / RAD,
+      ellipsoidal_height_meters: p / Math.cos(lat) - n,
+    };
+  }
+
+  function enuBasis(p) {
+    const lat = p.latitude_degrees * RAD;
+    const lon = p.longitude_degrees * RAD;
+    const sinLat = Math.sin(lat), cosLat = Math.cos(lat);
+    const sinLon = Math.sin(lon), cosLon = Math.cos(lon);
+    return {
+      east: [-sinLon, cosLon, 0],
+      north: [-sinLat * cosLon, -sinLat * sinLon, cosLat],
+      up: [cosLat * cosLon, cosLat * sinLon, sinLat],
+    };
+  }
+
+  /* Local frame at origin: +X east, +Y up, -Z north. */
+  function worldFromEcef(origin) {
+    const { east, north, up } = enuBasis(origin);
+    const o = geodeticToEcef(origin);
+    const rows = [east, up, [-north[0], -north[1], -north[2]]];
+    return Float64Array.from([
+      rows[0][0], rows[1][0], rows[2][0], 0,
+      rows[0][1], rows[1][1], rows[2][1], 0,
+      rows[0][2], rows[1][2], rows[2][2], 0,
+      -dot(rows[0], o), -dot(rows[1], o), -dot(rows[2], o), 1,
+    ]);
+  }
+
+  function validatePosition(p, label) {
+    if (!Number.isFinite(p.latitude_degrees) || p.latitude_degrees < -90 || p.latitude_degrees > 90) {
+      throw new Error(`${label} latitude must be between -90 and 90 degrees`);
+    }
+    if (!Number.isFinite(p.longitude_degrees) || p.longitude_degrees < -180 || p.longitude_degrees > 180) {
+      throw new Error(`${label} longitude must be between -180 and 180 degrees`);
+    }
+    if (!Number.isFinite(p.ellipsoidal_height_meters) || p.ellipsoidal_height_meters < -20000 || p.ellipsoidal_height_meters > 100000000) {
+      throw new Error(`${label} altitude is outside the supported range`);
+    }
+  }
+  function validateFov(value) {
+    if (!Number.isFinite(value) || value < 1 || value > 160) {
+      throw new Error("vertical FOV must be between 1 and 160 degrees");
+    }
+  }
+
+  function orientationToward(eye, target, rollDegrees) {
+    const delta = sub(geodeticToEcef(target), geodeticToEcef(eye));
+    const { east, north, up } = enuBasis(eye);
+    const local = [dot(delta, east), dot(delta, north), dot(delta, up)];
+    if (dot(local, local) < 1e-12) throw new Error("camera eye and target must differ");
+    const horizontal = Math.hypot(local[0], local[1]);
+    const heading = ((Math.atan2(local[0], local[1]) / RAD) % 360 + 360) % 360;
+    return {
+      heading_degrees: heading,
+      pitch_degrees: Math.atan2(local[2], horizontal) / RAD,
+      roll_degrees: rollDegrees,
+    };
+  }
+
+  /* Mirrors geodesy.rs resolve_camera plus contract.rs validation ranges. */
+  function resolveCamera(definition) {
+    if (definition.kind === "pose") {
+      validatePosition(definition.position, "camera");
+      validateFov(definition.vertical_fov_degrees);
+      const o = definition.orientation;
+      if (![o.heading_degrees, o.pitch_degrees, o.roll_degrees].every(Number.isFinite) ||
+          o.pitch_degrees < -90 || o.pitch_degrees > 90) {
+        throw new Error("pitch must be between -90 and 90 degrees");
+      }
+      return {
+        position: { ...definition.position },
+        orientation: { ...definition.orientation },
+        vertical_fov_degrees: definition.vertical_fov_degrees,
+      };
+    }
+    if (definition.kind === "look_at") {
+      validatePosition(definition.eye, "eye");
+      validatePosition(definition.target, "target");
+      validateFov(definition.vertical_fov_degrees);
+      return {
+        position: { ...definition.eye },
+        orientation: orientationToward(definition.eye, definition.target, 0),
+        vertical_fov_degrees: definition.vertical_fov_degrees,
+      };
+    }
+    if (definition.kind === "orbit_target") {
+      validatePosition(definition.target, "target");
+      validateFov(definition.vertical_fov_degrees);
+      if (!Number.isFinite(definition.distance_meters) || definition.distance_meters < 0.1 || definition.distance_meters > 100000000) {
+        throw new Error("orbit distance must be between 0.1 m and 100,000 km");
+      }
+      if (!Number.isFinite(definition.elevation_degrees) || definition.elevation_degrees < -89.9 || definition.elevation_degrees > 89.9) {
+        throw new Error("orbit elevation must be between -89.9 and 89.9 degrees");
+      }
+      const targetEcef = geodeticToEcef(definition.target);
+      const { east, north, up } = enuBasis(definition.target);
+      const azimuth = definition.azimuth_degrees * RAD;
+      const elevation = definition.elevation_degrees * RAD;
+      const horizontal = definition.distance_meters * Math.cos(elevation);
+      const offset = add(
+        add(scale(east, horizontal * Math.sin(azimuth)), scale(north, horizontal * Math.cos(azimuth))),
+        scale(up, definition.distance_meters * Math.sin(elevation))
+      );
+      const eye = ecefToGeodetic(add(targetEcef, offset));
+      return {
+        position: eye,
+        orientation: orientationToward(eye, definition.target, 0),
+        vertical_fov_degrees: definition.vertical_fov_degrees,
+      };
+    }
+    throw new Error(`unknown camera kind ${definition.kind}`);
+  }
+
+  /* Columns (right, up, -forward, position): exactly a three.js camera
+   * world matrix in the local frame. Mirrors geodesy.rs camera_world_transform. */
+  function cameraWorldTransform(pose, origin) {
+    const world = worldFromEcef(origin);
+    const position = m4.transformPoint(world, geodeticToEcef(pose.position));
+    const h = pose.orientation.heading_degrees * RAD;
+    const p = pose.orientation.pitch_degrees * RAD;
+    const r = pose.orientation.roll_degrees * RAD;
+    const forward = normalize([Math.sin(h) * Math.cos(p), Math.sin(p), -Math.cos(h) * Math.cos(p)]);
+    let right = normalizeOr(cross(forward, [0, 1, 0]), [1, 0, 0]);
+    let up = normalize(cross(right, forward));
+    if (r !== 0) {
+      right = rotateAround(right, forward, r);
+      up = rotateAround(up, forward, r);
+    }
+    return Float64Array.from([
+      right[0], right[1], right[2], 0,
+      up[0], up[1], up[2], 0,
+      -forward[0], -forward[1], -forward[2], 0,
+      position[0], position[1], position[2], 1,
+    ]);
+  }
+
+  return { geodeticToEcef, ecefToGeodetic, enuBasis, worldFromEcef, orientationToward, resolveCamera, cameraWorldTransform };
+})();
+
+/* ------------------------------------------------------------------ draco --
+ * Main-thread decode through the vendored Emscripten JS decoder. No workers,
+ * no wasm, no fetches: the frame CSP allows none of them.
+ */
+const draco = (() => {
+  let modulePromise = null;
+  function init() {
+    if (!modulePromise) {
+      modulePromise = new Promise((resolve, reject) => {
+        try {
+          DracoDecoderModule({ onModuleLoaded: resolve });
+        } catch (cause) {
+          reject(cause);
+        }
+      });
+    }
+    return modulePromise;
+  }
+
+  function heapInfo(mod, componentType) {
+    switch (componentType) {
+      case 5126: return { dt: mod.DT_FLOAT32, Ctor: Float32Array, heap: () => mod.HEAPF32 };
+      case 5125: return { dt: mod.DT_UINT32, Ctor: Uint32Array, heap: () => mod.HEAPU32 };
+      case 5123: return { dt: mod.DT_UINT16, Ctor: Uint16Array, heap: () => mod.HEAPU16 };
+      case 5121: return { dt: mod.DT_UINT8, Ctor: Uint8Array, heap: () => mod.HEAPU8 };
+      case 5122: return { dt: mod.DT_INT16, Ctor: Int16Array, heap: () => mod.HEAP16 };
+      case 5120: return { dt: mod.DT_INT8, Ctor: Int8Array, heap: () => mod.HEAP8 };
+      default: throw new Error(`unsupported accessor component type ${componentType}`);
+    }
+  }
+
+  /* attributeIds: KHR_draco_mesh_compression.attributes (name → unique id);
+   * accessorTypes: name → {componentType, normalized} from the primitive's
+   * glTF accessors, which stay authoritative for layout. */
+  function decodeMesh(mod, bytes, attributeIds, accessorTypes) {
+    const buffer = new mod.DecoderBuffer();
+    buffer.Init(new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), bytes.byteLength);
+    const decoder = new mod.Decoder();
+    const mesh = new mod.Mesh();
+    try {
+      const status = decoder.DecodeBufferToMesh(buffer, mesh);
+      if (!status.ok() || mesh.ptr === 0) {
+        throw new Error(`draco decode failed: ${status.error_msg()}`);
+      }
+      const points = mesh.num_points();
+      const attributes = {};
+      for (const [name, uniqueId] of Object.entries(attributeIds)) {
+        const accessor = accessorTypes[name] || { componentType: 5126, normalized: false };
+        const info = heapInfo(mod, accessor.componentType);
+        const attribute = decoder.GetAttributeByUniqueId(mesh, uniqueId);
+        const components = attribute.num_components();
+        const count = points * components;
+        const byteLength = count * info.Ctor.BYTES_PER_ELEMENT;
+        const ptr = mod._malloc(byteLength);
+        try {
+          decoder.GetAttributeDataArrayForAllPoints(mesh, attribute, info.dt, byteLength, ptr);
+          attributes[name] = {
+            array: new info.Ctor(info.heap().buffer, ptr, count).slice(),
+            components,
+            normalized: Boolean(accessor.normalized),
+          };
+        } finally {
+          mod._free(ptr);
+        }
+      }
+      const faces = mesh.num_faces();
+      const indexBytes = faces * 3 * 4;
+      const indexPtr = mod._malloc(indexBytes);
+      let index;
+      try {
+        decoder.GetTrianglesUInt32Array(mesh, indexBytes, indexPtr);
+        index = new Uint32Array(mod.HEAPU32.buffer, indexPtr, faces * 3).slice();
+      } finally {
+        mod._free(indexPtr);
+      }
+      return { attributes, index };
+    } finally {
+      mod.destroy(mesh);
+      mod.destroy(decoder);
+      mod.destroy(buffer);
+    }
+  }
+
+  return { init, decodeMesh };
+})();
+
+/* -------------------------------------------------------------------- glb --
+ * Narrow GLB 2.0 parser mirroring the server's decode.rs: draco primitives
+ * (plus plain accessors for local fixtures), CESIUM_RTC or planetary root
+ * translation extracted in f64, base-color materials, embedded textures.
+ */
+const glb = (() => {
+  const PLANETARY_TRANSLATION_M = 2000000;
+  const COMPONENT_ARRAYS = {
+    5120: Int8Array, 5121: Uint8Array, 5122: Int16Array,
+    5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array,
+  };
+  const TYPE_COMPONENTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+  const WRAP_MODES = { 33071: "ClampToEdgeWrapping", 33648: "MirroredRepeatWrapping", 10497: "RepeatWrapping" };
+
+  function parse(bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (bytes.byteLength < 20 || view.getUint32(0, true) !== 0x46546c67) {
+      throw new Error("content is not a GLB 2.0 file");
+    }
+    if (view.getUint32(4, true) !== 2) throw new Error("unsupported GLB version");
+    const declared = Math.min(view.getUint32(8, true), bytes.byteLength);
+    let offset = 12;
+    let json = null;
+    let bin = new Uint8Array(0);
+    while (offset + 8 <= declared) {
+      const length = view.getUint32(offset, true);
+      const kind = view.getUint32(offset + 4, true);
+      offset += 8;
+      const end = offset + length;
+      if (end > declared) throw new Error("GLB is truncated");
+      if (kind === 0x4e4f534a) {
+        json = JSON.parse(new TextDecoder().decode(bytes.subarray(offset, end)));
+      } else if (kind === 0x004e4942) {
+        bin = bytes.subarray(offset, end);
+      }
+      offset = end;
+    }
+    if (!json) throw new Error("GLB JSON chunk is missing");
+    return { json, bin };
+  }
+
+  function bufferViewBytes(json, bin, index) {
+    const view = json.bufferViews[index];
+    const offset = view.byteOffset || 0;
+    return bin.subarray(offset, offset + view.byteLength);
+  }
+
+  function accessorArray(json, bin, index) {
+    const accessor = json.accessors[index];
+    const Ctor = COMPONENT_ARRAYS[accessor.componentType];
+    const components = TYPE_COMPONENTS[accessor.type];
+    if (!Ctor || !components) throw new Error("unsupported accessor layout");
+    const view = json.bufferViews[accessor.bufferView];
+    const start = (view.byteOffset || 0) + (accessor.byteOffset || 0);
+    const elementBytes = Ctor.BYTES_PER_ELEMENT * components;
+    const stride = view.byteStride || elementBytes;
+    if (stride === elementBytes) {
+      const copy = bin.slice(start, start + accessor.count * elementBytes);
+      return {
+        array: new Ctor(copy.buffer, 0, accessor.count * components),
+        components,
+        normalized: Boolean(accessor.normalized),
+      };
+    }
+    const out = new Ctor(accessor.count * components);
+    for (let element = 0; element < accessor.count; element++) {
+      const base = start + element * stride;
+      const chunk = bin.slice(base, base + elementBytes);
+      out.set(new Ctor(chunk.buffer, 0, components), element * components);
+    }
+    return { array: out, components, normalized: Boolean(accessor.normalized) };
+  }
+
+  function nodeTranslation(node) {
+    if (!node) return null;
+    if (Array.isArray(node.matrix) && node.matrix.length === 16) {
+      return [node.matrix[12], node.matrix[13], node.matrix[14]];
+    }
+    if (Array.isArray(node.translation) && node.translation.length === 3) {
+      return node.translation.slice();
+    }
+    return null;
+  }
+
+  function subtractTranslation(node, center) {
+    if (!node) return;
+    if (Array.isArray(node.matrix) && node.matrix.length === 16) {
+      node.matrix[12] -= center[0];
+      node.matrix[13] -= center[1];
+      node.matrix[14] -= center[2];
+    } else if (Array.isArray(node.translation) && node.translation.length === 3) {
+      node.translation[0] -= center[0];
+      node.translation[1] -= center[1];
+      node.translation[2] -= center[2];
+    }
+  }
+
+  function sceneRootIndices(json) {
+    const sceneIndex = Number.isInteger(json.scene) ? json.scene : 0;
+    const scene = (json.scenes || [])[sceneIndex] || {};
+    return Array.isArray(scene.nodes) ? scene.nodes : [];
+  }
+
+  /* Mirrors decode.rs prepare_glb: explicit CESIUM_RTC center, else a
+   * planetary-magnitude scene-root translation is hoisted out (in f64, on
+   * the JSON values, before any f32 matrix exists). */
+  function extractRtc(json) {
+    const explicit = json.extensions && json.extensions.CESIUM_RTC && json.extensions.CESIUM_RTC.center;
+    if (Array.isArray(explicit) && explicit.length === 3 && explicit.every(Number.isFinite)) {
+      return explicit.slice();
+    }
+    const roots = sceneRootIndices(json);
+    const nodes = json.nodes || [];
+    let center = null;
+    for (const index of roots) {
+      const translation = nodeTranslation(nodes[index]);
+      if (translation && Math.hypot(translation[0], translation[1], translation[2]) > PLANETARY_TRANSLATION_M) {
+        center = translation;
+        break;
+      }
+    }
+    if (!center) return null;
+    for (const index of roots) subtractTranslation(nodes[index], center);
+    return center;
+  }
+
+  function nodeMatrixF64(node) {
+    if (Array.isArray(node.matrix) && node.matrix.length === 16) {
+      return m4.fromArray(node.matrix);
+    }
+    const t = node.translation || [0, 0, 0];
+    const r = node.rotation || [0, 0, 0, 1];
+    const s = node.scale || [1, 1, 1];
+    const three = new THREE.Matrix4().compose(
+      new THREE.Vector3(t[0], t[1], t[2]),
+      new THREE.Quaternion(r[0], r[1], r[2], r[3]),
+      new THREE.Vector3(s[0], s[1], s[2])
+    );
+    const out = m4.fromArray(three.elements);
+    /* Preserve the f64 translation the f32 compose truncated. */
+    out[12] = t[0];
+    out[13] = t[1];
+    out[14] = t[2];
+    return out;
+  }
+
+  /* Builds a THREE.Group of meshes whose matrices are the glTF node chains
+   * (small after RTC extraction, f32-safe). The caller owns the group-level
+   * local←content transform. Returns { group, rtcCenter, attribution }. */
+  async function build(mod, parsed) {
+    const { json, bin } = parsed;
+    const rtcCenter = extractRtc(json);
+    const attribution = ((json.asset || {}).copyright || "")
+      .split(";").map((line) => line.trim()).filter(Boolean);
+    const group = new THREE.Group();
+    group.matrixAutoUpdate = false;
+    const texturePromises = new Map();
+
+    async function loadTexture(textureIndex) {
+      if (texturePromises.has(textureIndex)) return texturePromises.get(textureIndex);
+      const promise = (async () => {
+        const textureDef = (json.textures || [])[textureIndex];
+        if (!textureDef || textureDef.source === undefined) return null;
+        const image = (json.images || [])[textureDef.source];
+        if (!image || image.bufferView === undefined) return null;
+        const bytes = bufferViewBytes(json, bin, image.bufferView);
+        const bitmap = await createImageBitmap(
+          new Blob([bytes.slice()], { type: image.mimeType || "image/jpeg" })
+        );
+        const texture = new THREE.Texture(bitmap);
+        texture.flipY = false;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const sampler = (json.samplers || [])[textureDef.sampler] || {};
+        texture.wrapS = THREE[WRAP_MODES[sampler.wrapS] || "RepeatWrapping"];
+        texture.wrapT = THREE[WRAP_MODES[sampler.wrapT] || "RepeatWrapping"];
+        texture.needsUpdate = true;
+        return texture;
+      })().catch(() => null);
+      texturePromises.set(textureIndex, promise);
+      return promise;
+    }
+
+    async function buildMaterial(index, hasVertexColors) {
+      const material = index === undefined ? {} : (json.materials || [])[index] || {};
+      const pbr = material.pbrMetallicRoughness || {};
+      const factor = pbr.baseColorFactor || [1, 1, 1, 1];
+      const unlit = Boolean(material.extensions && material.extensions.KHR_materials_unlit);
+      const params = {
+        color: new THREE.Color(factor[0], factor[1], factor[2]),
+        side: material.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+      };
+      const output = unlit ? new THREE.MeshBasicMaterial(params) : new THREE.MeshLambertMaterial(params);
+      if (material.alphaMode === "BLEND") {
+        output.transparent = true;
+        output.opacity = factor[3];
+      } else if (material.alphaMode === "MASK") {
+        output.alphaTest = material.alphaCutoff === undefined ? 0.5 : material.alphaCutoff;
+      }
+      if (hasVertexColors) output.vertexColors = true;
+      if (pbr.baseColorTexture) {
+        const texture = await loadTexture(pbr.baseColorTexture.index);
+        if (texture) output.map = texture;
+      }
+      output.needsUpdate = true;
+      return output;
+    }
+
+    async function buildPrimitive(primitive, nodeF64) {
+      if (primitive.mode !== undefined && primitive.mode !== 4) return null;
+      const dracoExt = primitive.extensions && primitive.extensions.KHR_draco_mesh_compression;
+      let decoded;
+      if (dracoExt) {
+        const accessorTypes = {};
+        for (const name of Object.keys(dracoExt.attributes || {})) {
+          const accessorIndex = (primitive.attributes || {})[name];
+          const accessor = accessorIndex === undefined ? null : json.accessors[accessorIndex];
+          accessorTypes[name] = accessor || { componentType: 5126, normalized: false };
+        }
+        decoded = draco.decodeMesh(
+          mod,
+          bufferViewBytes(json, bin, dracoExt.bufferView),
+          dracoExt.attributes || {},
+          accessorTypes
+        );
+      } else {
+        decoded = { attributes: {}, index: null };
+        for (const [name, accessorIndex] of Object.entries(primitive.attributes || {})) {
+          decoded.attributes[name] = accessorArray(json, bin, accessorIndex);
+        }
+        if (primitive.indices !== undefined) {
+          decoded.index = accessorArray(json, bin, primitive.indices).array;
+        }
+      }
+      const position = decoded.attributes.POSITION;
+      if (!position) return null;
+      const geometry = new THREE.BufferGeometry();
+      const setAttr = (three, source) => geometry.setAttribute(
+        three,
+        new THREE.BufferAttribute(source.array, source.components, source.normalized)
+      );
+      setAttr("position", position);
+      if (decoded.attributes.NORMAL) setAttr("normal", decoded.attributes.NORMAL);
+      if (decoded.attributes.TEXCOORD_0) setAttr("uv", decoded.attributes.TEXCOORD_0);
+      if (decoded.attributes.COLOR_0) setAttr("color", decoded.attributes.COLOR_0);
+      if (decoded.index) {
+        geometry.setIndex(new THREE.BufferAttribute(decoded.index, 1));
+      }
+      if (!decoded.attributes.NORMAL) geometry.computeVertexNormals();
+      const material = await buildMaterial(primitive.material, Boolean(decoded.attributes.COLOR_0));
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.fromArray(nodeF64);
+      return mesh;
+    }
+
+    async function buildNode(index, parentF64) {
+      const node = (json.nodes || [])[index];
+      if (!node) return;
+      const transform = m4.mul(parentF64, nodeMatrixF64(node));
+      if (node.mesh !== undefined) {
+        const mesh = (json.meshes || [])[node.mesh];
+        for (const primitive of (mesh && mesh.primitives) || []) {
+          const built = await buildPrimitive(primitive, transform);
+          if (built) group.add(built);
+        }
+      }
+      for (const child of node.children || []) await buildNode(child, transform);
+    }
+
+    for (const index of sceneRootIndices(json)) await buildNode(index, m4.identity());
+    return { group, rtcCenter, attribution };
+  }
+
+  return { parse, build };
+})();
+
+/* ------------------------------------------------------------------ scene -- */
+class SceneView {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(55, 1, 0.5, 200000);
+    this.camera.position.set(500, 400, 500);
+    this.controls = new OrbitControls(this.camera, canvas);
+    this.controls.enableDamping = true;
+    this.controls.maxDistance = 60000;
+
+    this.tiles = new THREE.Group();
+    this.scene.add(this.tiles);
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x51606e, 2.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(600, 900, 400);
+    this.scene.add(sun);
+
+    this.grid = new THREE.GridHelper(4000, 80, 0x6d7680, 0x9aa5b1);
+    this.scene.add(this.grid);
+    this.compass = this.buildCompass();
+    this.scene.add(this.compass);
+
+    this.gizmoCamera = new THREE.PerspectiveCamera(45, 16 / 9, 1, 2000);
+    this.gizmoCamera.matrixAutoUpdate = false;
+    this.scene.add(this.gizmoCamera);
+    this.helper = new THREE.CameraHelper(this.gizmoCamera);
+    this.scene.add(this.helper);
+    this.eyeMarker = new THREE.Mesh(
+      new THREE.SphereGeometry(6, 20, 14),
+      new THREE.MeshBasicMaterial({ color: 0xff8822 })
+    );
+    this.scene.add(this.eyeMarker);
+
+    this.raycaster = new THREE.Raycaster();
+    this.onPickHandler = null;
+    canvas.addEventListener("dblclick", (event) => this.pick(event));
+
+    const resize = () => {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+      this.renderer.setSize(width, height, false);
+      this.camera.aspect = width / height;
+      this.camera.updateProjectionMatrix();
+    };
+    new ResizeObserver(resize).observe(canvas.parentElement);
+    resize();
+
+    const loop = () => {
+      this.controls.update();
+      this.renderer.render(this.scene, this.camera);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+
+  buildCompass() {
+    const group = new THREE.Group();
+    const labels = [["N", 0, -1900], ["S", 0, 1900], ["E", 1900, 0], ["W", -1900, 0]];
+    for (const [text, x, z] of labels) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 64;
+      const context = canvas.getContext("2d");
+      context.font = "600 44px system-ui";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillStyle = text === "N" ? "#e4574f" : "#7d8791";
+      context.fillText(text, 32, 34);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(canvas),
+        transparent: true,
+        depthTest: false,
+      }));
+      sprite.scale.set(130, 130, 1);
+      sprite.position.set(x, 30, z);
+      group.add(sprite);
+    }
+    return group;
+  }
+
+  setTheme(theme) {
+    const dark = theme === "dark";
+    this.renderer.setClearColor(dark ? 0x10151c : 0xdfe6ee, 1);
+  }
+
+  /* pose in geodetic terms; origin anchors the local frame. */
+  setFrustum(pose, origin, aspect, farHint) {
+    const world = geo.cameraWorldTransform(pose, origin);
+    this.gizmoCamera.matrix.fromArray(world);
+    this.gizmoCamera.matrix.decompose(
+      this.gizmoCamera.position,
+      this.gizmoCamera.quaternion,
+      this.gizmoCamera.scale
+    );
+    this.gizmoCamera.fov = pose.vertical_fov_degrees;
+    this.gizmoCamera.aspect = aspect;
+    this.gizmoCamera.near = 1;
+    this.gizmoCamera.far = Math.min(Math.max(farHint || 500, 100), 30000);
+    this.gizmoCamera.updateProjectionMatrix();
+    this.helper.update();
+    this.eyeMarker.position.set(world[12], world[13], world[14]);
+  }
+
+  focus(localPoint, distanceHint) {
+    this.controls.target.set(localPoint[0], localPoint[1], localPoint[2]);
+    this.grid.position.set(localPoint[0], localPoint[1], localPoint[2]);
+    this.compass.position.copy(this.grid.position);
+    const span = Math.max(200, Math.min(distanceHint || 800, 20000));
+    const direction = this.camera.position.clone().sub(this.controls.target);
+    if (direction.lengthSq() < 1) direction.set(0.6, 0.7, 0.6);
+    direction.setLength(span * 1.4);
+    this.camera.position.copy(this.controls.target).add(direction);
+    this.controls.update();
+  }
+
+  onPick(handler) {
+    this.onPickHandler = handler;
+  }
+
+  pick(event) {
+    if (!this.onPickHandler) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    this.raycaster.setFromCamera(pointer, this.camera);
+    const hits = this.raycaster.intersectObjects(this.tiles.children, true);
+    if (hits.length) {
+      this.onPickHandler([hits[0].point.x, hits[0].point.y, hits[0].point.z]);
+    }
+  }
+
+  disposeTileGroup(group) {
+    group.traverse((child) => {
+      if (child.isMesh) {
+        child.geometry.dispose();
+        if (child.material.map) child.material.map.dispose();
+        child.material.dispose();
+      }
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ tiles -- */
+const nextMacrotask = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+class TileLoader {
+  constructor(sceneView, onProgress) {
+    this.sceneView = sceneView;
+    this.onProgress = onProgress;
+    this.cache = new Map(); // tile_uri → { group, rtcCenter, bytes }
+    this.generation = 0;
+    this.maxBytes = 96 * 1024 * 1024;
+  }
+
+  contentMatrix(localFromEcef, tile, rtcCenter) {
+    let matrix = m4.mul(localFromEcef, m4.fromArray(tile.ecef_from_content));
+    if (rtcCenter) matrix = m4.mul(matrix, m4.translation(rtcCenter));
+    return matrix;
+  }
+
+  async load(manifest) {
+    const generation = ++this.generation;
+    const localFromEcef = m4.fromArray(manifest.local_from_ecef);
+    const usable = manifest.tiles.filter((tile) => !tile.oversize);
+    const skipped = manifest.tiles.length - usable.length;
+    const wanted = new Set(usable.map((tile) => tile.tile_uri));
+    for (const [uri, entry] of [...this.cache]) {
+      if (!wanted.has(uri)) {
+        this.sceneView.tiles.remove(entry.group);
+        this.sceneView.disposeTileGroup(entry.group);
+        this.cache.delete(uri);
+      }
+    }
+    const ordered = usable
+      .map((tile) => {
+        const local = m4.mul(localFromEcef, m4.fromArray(tile.ecef_from_content));
+        return { tile, distance: Math.hypot(local[12], local[13], local[14]) };
+      })
+      .sort((a, b) => a.distance - b.distance)
+      .map((entry) => entry.tile);
+
+    const mod = await draco.init();
+    let done = 0;
+    const failures = [];
+    const queue = ordered.slice();
+    const report = () => this.onProgress({
+      done, total: ordered.length, skipped, failures,
+      bytes: [...this.cache.values()].reduce((sum, entry) => sum + entry.bytes, 0),
+    });
+    report();
+    const worker = async () => {
+      while (queue.length) {
+        if (this.generation !== generation) return;
+        const tile = queue.shift();
+        try {
+          let entry = this.cache.get(tile.tile_uri);
+          if (!entry) {
+            const bytes = await readBlobResource(tile.tile_uri);
+            if (this.generation !== generation) return;
+            await nextMacrotask(); // one decode per macrotask keeps orbiting responsive
+            const built = await glb.build(mod, glb.parse(bytes));
+            if (this.generation !== generation) {
+              this.sceneView.disposeTileGroup(built.group);
+              return;
+            }
+            entry = { group: built.group, rtcCenter: built.rtcCenter, bytes: bytes.byteLength };
+            this.cache.set(tile.tile_uri, entry);
+            this.sceneView.tiles.add(entry.group);
+          }
+          entry.group.matrix.fromArray(this.contentMatrix(localFromEcef, tile, entry.rtcCenter));
+        } catch (cause) {
+          failures.push(`${tile.tile_uri.slice(-12)}: ${cause.message}`);
+        }
+        done += 1;
+        report();
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+}
+
+/* -------------------------------------------------------------------- ui -- */
+const el = (id) => document.getElementById(id);
+
+function showError(id, message) {
+  const node = el(id);
+  node.textContent = message;
+  node.style.display = "block";
+  reportSize();
+}
+function clearError(id) {
+  el(id).style.display = "none";
+}
+function setStatus(text, busy) {
+  el("status-text").textContent = text;
+  el("status").classList.toggle("busy", Boolean(busy));
+}
+
+function bindSliderPair(sliderId, numberId, toNumber, toSlider) {
+  const slider = el(sliderId);
+  const number = el(numberId);
+  slider.addEventListener("input", () => {
+    number.value = toNumber ? toNumber(Number(slider.value)) : slider.value;
+    number.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  number.addEventListener("input", () => {
+    slider.value = toSlider ? toSlider(Number(number.value)) : number.value;
+  });
+}
+
+class CameraForm {
+  constructor(onChange) {
+    this.mode = "orbit_target";
+    this.onChange = onChange;
+    for (const button of el("mode-tabs").querySelectorAll("button")) {
+      button.addEventListener("click", () => this.setMode(button.dataset.mode));
+    }
+    bindSliderPair("orbit-distance-slider", "orbit-distance",
+      (value) => Math.round(10 ** value), (value) => Math.log10(Math.max(value, 1)));
+    bindSliderPair("orbit-azimuth-slider", "orbit-azimuth");
+    bindSliderPair("orbit-elevation-slider", "orbit-elevation");
+    bindSliderPair("pose-heading-slider", "pose-heading");
+    bindSliderPair("pose-pitch-slider", "pose-pitch");
+    bindSliderPair("fov-slider", "fov");
+    for (const input of document.querySelectorAll("#panel input")) {
+      input.addEventListener("change", () => this.changed());
+      input.addEventListener("input", () => this.changed());
+    }
+    this.installLatLonPasteSplit("target-lat", "target-lon");
+    this.installLatLonPasteSplit("eye-lat", "eye-lon");
+  }
+
+  installLatLonPasteSplit(latId, lonId) {
+    el(latId).addEventListener("change", () => {
+      const raw = el(latId).value;
+      const match = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(raw);
+      if (match) {
+        el(latId).value = match[1];
+        el(lonId).value = match[2];
+        this.changed();
+      }
+    });
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+    for (const button of el("mode-tabs").querySelectorAll("button")) {
+      button.setAttribute("aria-selected", String(button.dataset.mode === mode));
+    }
+    el("fs-target").hidden = mode === "pose";
+    el("fs-orbit").hidden = mode !== "orbit_target";
+    el("fs-eye").hidden = mode === "orbit_target";
+    el("fs-eye").querySelector("legend").textContent =
+      mode === "pose" ? "Position (WGS84)" : "Eye (WGS84)";
+    el("fs-orientation").hidden = mode !== "pose";
+    this.changed();
+    reportSize();
+  }
+
+  position(prefix) {
+    return {
+      latitude_degrees: Number(el(`${prefix}-lat`).value),
+      longitude_degrees: Number(el(`${prefix}-lon`).value),
+      ellipsoidal_height_meters: Number(el(`${prefix}-alt`).value),
+    };
+  }
+
+  /* Exact serde shape of the server's CameraDefinition. */
+  value() {
+    const fov = Number(el("fov").value);
+    if (this.mode === "orbit_target") {
+      return {
+        kind: "orbit_target",
+        target: this.position("target"),
+        distance_meters: Number(el("orbit-distance").value),
+        azimuth_degrees: Number(el("orbit-azimuth").value),
+        elevation_degrees: Number(el("orbit-elevation").value),
+        vertical_fov_degrees: fov,
+      };
+    }
+    if (this.mode === "look_at") {
+      return {
+        kind: "look_at",
+        eye: this.position("eye"),
+        target: this.position("target"),
+        vertical_fov_degrees: fov,
+      };
+    }
+    return {
+      kind: "pose",
+      position: this.position("eye"),
+      orientation: {
+        heading_degrees: Number(el("pose-heading").value),
+        pitch_degrees: Number(el("pose-pitch").value),
+        roll_degrees: Number(el("pose-roll").value),
+      },
+      vertical_fov_degrees: fov,
+    };
+  }
+
+  setTarget(position) {
+    el("target-lat").value = position.latitude_degrees.toFixed(6);
+    el("target-lon").value = position.longitude_degrees.toFixed(6);
+    el("target-alt").value = position.ellipsoidal_height_meters.toFixed(1);
+    this.changed();
+  }
+
+  setDefinition(definition) {
+    el("fov").value = definition.vertical_fov_degrees;
+    el("fov-slider").value = definition.vertical_fov_degrees;
+    if (definition.kind === "orbit_target") {
+      el("target-lat").value = definition.target.latitude_degrees;
+      el("target-lon").value = definition.target.longitude_degrees;
+      el("target-alt").value = definition.target.ellipsoidal_height_meters;
+      el("orbit-distance").value = definition.distance_meters;
+      el("orbit-distance-slider").value = Math.log10(Math.max(definition.distance_meters, 1));
+      el("orbit-azimuth").value = definition.azimuth_degrees;
+      el("orbit-azimuth-slider").value = definition.azimuth_degrees;
+      el("orbit-elevation").value = definition.elevation_degrees;
+      el("orbit-elevation-slider").value = definition.elevation_degrees;
+    } else if (definition.kind === "look_at") {
+      el("eye-lat").value = definition.eye.latitude_degrees;
+      el("eye-lon").value = definition.eye.longitude_degrees;
+      el("eye-alt").value = definition.eye.ellipsoidal_height_meters;
+      el("target-lat").value = definition.target.latitude_degrees;
+      el("target-lon").value = definition.target.longitude_degrees;
+      el("target-alt").value = definition.target.ellipsoidal_height_meters;
+    } else {
+      el("eye-lat").value = definition.position.latitude_degrees;
+      el("eye-lon").value = definition.position.longitude_degrees;
+      el("eye-alt").value = definition.position.ellipsoidal_height_meters;
+      el("pose-heading").value = definition.orientation.heading_degrees;
+      el("pose-heading-slider").value = definition.orientation.heading_degrees;
+      el("pose-pitch").value = definition.orientation.pitch_degrees;
+      el("pose-pitch-slider").value = definition.orientation.pitch_degrees;
+      el("pose-roll").value = definition.orientation.roll_degrees;
+    }
+    this.setMode(definition.kind);
+  }
+
+  changed() {
+    if (this.onChange) this.onChange();
+  }
+}
+
+function capturePolicy() {
+  return {
+    width_px: Number(el("cap-width").value),
+    height_px: Number(el("cap-height").value),
+    max_screen_error_px: Number(el("cap-sse").value),
+    deadline_ms: Math.round(Number(el("cap-deadline").value) * 1000),
+    deadline_behavior: el("cap-behavior").value,
+    encoding: el("cap-encoding").value,
+  };
+}
+
+/* -------------------------------------------------------------------- app -- */
+const PRESETS = [
+  ["Statue of Liberty · orbit 650 m", { kind: "orbit_target",
+    target: { latitude_degrees: 40.6892, longitude_degrees: -74.0445, ellipsoidal_height_meters: 30 },
+    distance_meters: 650, azimuth_degrees: 210, elevation_degrees: 40, vertical_fov_degrees: 45 }],
+  ["Manhattan skyline · look-at", { kind: "look_at",
+    eye: { latitude_degrees: 40.6935, longitude_degrees: -74.0270, ellipsoidal_height_meters: 350 },
+    target: { latitude_degrees: 40.7075, longitude_degrees: -74.0113, ellipsoidal_height_meters: 150 },
+    vertical_fov_degrees: 55 }],
+  ["Golden Gate · orbit 1.2 km", { kind: "orbit_target",
+    target: { latitude_degrees: 37.8199, longitude_degrees: -122.4786, ellipsoidal_height_meters: 80 },
+    distance_meters: 1200, azimuth_degrees: 135, elevation_degrees: 25, vertical_fov_degrees: 50 }],
+];
+
+const app = {
+  layers: [],
+  view: null,          // ViewRecord from the server
+  manifest: null,      // PreviewSceneRecord
+  localFromEcef: null, // Float64Array(16)
+  captureTaskId: null,
+  cancelRequested: false,
+};
+
+let sceneView = null;
+let tileLoader = null;
+let form = null;
+
+function sceneOrigin() {
+  if (app.manifest) return app.manifest.local_origin;
+  try {
+    return geo.resolveCamera(form.value()).position;
+  } catch {
+    return { latitude_degrees: 0, longitude_degrees: 0, ellipsoidal_height_meters: 0 };
+  }
+}
+
+function cameraTargetPosition(definition) {
+  if (definition.kind === "orbit_target" || definition.kind === "look_at") return definition.target;
+  return null;
+}
+
+function updateResolvedStrip(pose, confirmed) {
+  const node = el("resolved");
+  node.classList.toggle("confirmed", Boolean(confirmed));
+  node.textContent =
+    `${confirmed ? "server" : "local"} · lat ${pose.position.latitude_degrees.toFixed(6)}° ` +
+    `lon ${pose.position.longitude_degrees.toFixed(6)}° alt ${pose.position.ellipsoidal_height_meters.toFixed(1)} m · ` +
+    `H ${pose.orientation.heading_degrees.toFixed(1)}° P ${pose.orientation.pitch_degrees.toFixed(1)}° ` +
+    `R ${pose.orientation.roll_degrees.toFixed(1)}° · FOV ${pose.vertical_fov_degrees}°`;
+}
+
+function updateFrustum() {
+  clearError("camera-error");
+  let pose;
+  const definition = form.value();
+  try {
+    pose = geo.resolveCamera(definition);
+  } catch (cause) {
+    showError("camera-error", cause.message);
+    return;
+  }
+  updateResolvedStrip(pose, false);
+  const origin = sceneOrigin();
+  const aspect = Number(el("cap-width").value) / Math.max(Number(el("cap-height").value), 1);
+  let farHint = 800;
+  const target = cameraTargetPosition(definition);
+  if (target) {
+    const eyeEcef = geo.geodeticToEcef(pose.position);
+    const targetEcef = geo.geodeticToEcef(target);
+    farHint = Math.hypot(
+      eyeEcef[0] - targetEcef[0], eyeEcef[1] - targetEcef[1], eyeEcef[2] - targetEcef[2]
+    ) * 1.6;
+  } else {
+    farHint = Math.max(pose.position.ellipsoidal_height_meters * 3, 500);
+  }
+  sceneView.setFrustum(pose, origin, aspect, farHint);
+}
+
+function updateViewChip() {
+  const chip = el("view-chip");
+  if (!app.view) {
+    chip.textContent = "no view";
+    chip.className = "chip";
+  } else {
+    chip.textContent = `${app.view.view_id.slice(0, 8)}… r${app.view.revision}`;
+    chip.className = "chip ok";
+    chip.title = app.view.view_uri;
+  }
+  el("btn-create").hidden = Boolean(app.view);
+  el("btn-apply").hidden = !app.view;
+  el("btn-close").hidden = !app.view;
+  el("btn-capture").disabled = !app.view || Boolean(app.captureTaskId);
+  el("btn-refresh-scene").disabled = !app.view;
+}
+
+function applyViewRecord(record) {
+  app.view = record;
+  form.setDefinition(record.camera);
+  updateResolvedStrip(record.resolved_camera, true);
+  updateViewChip();
+}
+
+async function loadLayers() {
+  app.layers = await readJsonResource("view://layers");
+  const select = el("layer-select");
+  select.replaceChildren();
+  for (const layer of app.layers) {
+    const option = document.createElement("option");
+    option.value = layer.layer_id;
+    option.textContent = `${layer.label} (${layer.source_kind})`;
+    select.append(option);
+  }
+}
+
+async function createView() {
+  const camera = form.value();
+  setStatus("creating view…", true);
+  try {
+    const record = await callTool("create_view", {
+      scene_layer: el("layer-select").value,
+      camera,
+    });
+    applyViewRecord(record);
+    setStatus(`created view ${record.view_id}`, false);
+    await refreshScene();
+  } catch (cause) {
+    setStatus("idle", false);
+    showError("action-error", `create_view failed: ${cause.message}`);
+  }
+}
+
+async function applyCamera() {
+  if (!app.view) return;
+  setStatus("applying camera…", true);
+  try {
+    const record = await callTool("set_camera", {
+      view_id: app.view.view_id,
+      expected_revision: app.view.revision,
+      camera: form.value(),
+    });
+    applyViewRecord(record);
+    setStatus(`camera applied at revision ${record.revision}`, false);
+    await refreshScene();
+  } catch (cause) {
+    setStatus("idle", false);
+    showError("action-error", `set_camera failed: ${cause.message}`);
+    void resyncView();
+  }
+}
+
+async function resyncView() {
+  if (!app.view) return;
+  try {
+    const record = await readJsonResource(app.view.view_uri);
+    applyViewRecord(record);
+  } catch {
+    app.view = null;
+    updateViewChip();
+  }
+}
+
+async function refreshScene() {
+  if (!app.view) return;
+  clearError("action-error");
+  setStatus("loading scene manifest…", true);
+  el("tile-chip").textContent = "loading…";
+  try {
+    const manifest = await readJsonResource(`view://view/${app.view.view_id}/scene`);
+    app.manifest = manifest;
+    app.localFromEcef = m4.fromArray(manifest.local_from_ecef);
+    const attribution = el("scene-attribution");
+    attribution.hidden = !manifest.attribution.lines.length;
+    attribution.textContent = manifest.attribution.lines.join(" · ");
+    const definition = form.value();
+    const target = cameraTargetPosition(definition) || manifest.resolved_camera.position;
+    const targetLocal = m4.transformPoint(app.localFromEcef, geo.geodeticToEcef(target));
+    let focusDistance = 800;
+    if (definition.kind === "orbit_target") focusDistance = definition.distance_meters;
+    sceneView.focus(targetLocal, focusDistance);
+    updateFrustum();
+    await tileLoader.load(manifest);
+    setStatus(
+      manifest.detail_complete ? "scene loaded" : "scene loaded (partial detail)",
+      false
+    );
+  } catch (cause) {
+    setStatus("idle", false);
+    el("tile-chip").textContent = "scene failed";
+    showError("action-error", `scene load failed: ${cause.message}`);
+  }
+}
+
+function tileProgress(progress) {
+  const mb = (progress.bytes / (1024 * 1024)).toFixed(0);
+  el("tile-chip").textContent =
+    `${progress.done}/${progress.total} tiles · ${mb} MB` +
+    (progress.skipped ? ` · ${progress.skipped} oversize` : "");
+  const diagnostics = el("diagnostics");
+  if (progress.failures.length) {
+    diagnostics.hidden = false;
+    diagnostics.textContent = `tile failures: ${progress.failures.join("; ")}`;
+  } else {
+    diagnostics.hidden = true;
+  }
+}
+
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+
+async function captureFrame() {
+  if (!app.view || app.captureTaskId) return;
+  clearError("action-error");
+  app.cancelRequested = false;
+  el("btn-cancel").hidden = false;
+  el("btn-capture").disabled = true;
+  try {
+    const created = await callToolRaw(
+      "capture_frame",
+      {
+        view_id: app.view.view_id,
+        expected_revision: app.view.revision,
+        policy: capturePolicy(),
+      },
+      { ttl: 600000 }
+    );
+    const task = created && (created.task || created);
+    const taskId = task && (task.taskId || task.task_id);
+    if (!taskId) throw new Error("host did not return a task for capture_frame");
+    app.captureTaskId = taskId;
+    const pollInterval = Math.min(Math.max(task.pollInterval || task.poll_interval_ms || 500, 250), 5000);
+    setStatus(`capture task ${taskId.slice(0, 8)}… queued`, true);
+    let status = task.status || "working";
+    let statusMessage = task.statusMessage || "";
+    while (!TERMINAL_STATUSES.has(status)) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      const current = await tasks.get(app.captureTaskId);
+      const snapshot = (current && (current.task || current)) || {};
+      status = snapshot.status || status;
+      statusMessage = snapshot.statusMessage || snapshot.status_message || "";
+      setStatus(`capture ${status}${statusMessage ? ` — ${statusMessage}` : ""}`, true);
+    }
+    if (status === "failed") throw new Error(statusMessage || "capture task failed");
+    if (status === "cancelled") {
+      setStatus("capture cancelled", false);
+      return;
+    }
+    const payload = await tasks.result(app.captureTaskId);
+    const result = (payload && (payload.result || payload)) || {};
+    if (result.isError) throw new Error(toolFailureText(result, "capture_frame"));
+    applyFrameResult(result);
+    setStatus("frame captured", false);
+  } catch (cause) {
+    setStatus("idle", false);
+    showError("action-error", `capture_frame failed: ${cause.message}`);
+    void resyncView();
+  } finally {
+    app.captureTaskId = null;
+    el("btn-cancel").hidden = true;
+    updateViewChip();
+  }
+}
+
+async function cancelCapture() {
+  if (!app.captureTaskId || app.cancelRequested) return;
+  app.cancelRequested = true;
+  try {
+    await tasks.cancel(app.captureTaskId);
+    setStatus("cancel requested…", true);
+  } catch (cause) {
+    showError("action-error", `cancel failed: ${cause.message}`);
+  }
+}
+
+function applyFrameResult(result) {
+  const content = Array.isArray(result.content) ? result.content : [];
+  const image = content.find((entry) => entry && entry.type === "image");
+  const record = result.structuredContent || result.structured_content;
+  if (image) {
+    el("frame-img").src = `data:${image.mimeType || "image/jpeg"};base64,${image.data}`;
+    el("frame-img").hidden = false;
+    el("frame-empty").hidden = true;
+  }
+  if (record) {
+    const meta = el("frame-meta");
+    meta.hidden = false;
+    meta.replaceChildren();
+    const rows = [
+      ["frame", record.frame_uri],
+      ["captured", record.captured_at],
+      ["size", `${record.width_px}×${record.height_px} · ${(record.byte_length / 1024).toFixed(0)} KiB ${record.mime_type}`],
+      ["revision", `r${record.view_revision}`],
+      ["tiles", `${record.visible_tile_count} visible · ${record.pending_tile_count} pending`],
+      ["detail", record.detail_complete ? "complete" : `partial (sse ${record.actual_max_screen_error_px.toFixed(1)}px)`],
+      ["pose", `lat ${record.resolved_camera.position.latitude_degrees.toFixed(6)} lon ${record.resolved_camera.position.longitude_degrees.toFixed(6)} alt ${record.resolved_camera.position.ellipsoidal_height_meters.toFixed(1)}`],
+      ["hpr", `${record.resolved_camera.orientation.heading_degrees.toFixed(1)} / ${record.resolved_camera.orientation.pitch_degrees.toFixed(1)} / ${record.resolved_camera.orientation.roll_degrees.toFixed(1)}`],
+    ];
+    for (const [key, value] of rows) {
+      const dt = document.createElement("dt");
+      dt.textContent = key;
+      const dd = document.createElement("dd");
+      dd.textContent = String(value);
+      meta.append(dt, dd);
+    }
+    const attribution = el("frame-attribution");
+    attribution.hidden = !record.attribution.lines.length;
+    attribution.textContent = record.attribution.lines.join(" · ");
+  }
+  selectPane("frame-pane");
+}
+
+async function closeView(silent) {
+  if (!app.view) return;
+  const request = { view_id: app.view.view_id, expected_revision: app.view.revision };
+  app.view = null;
+  app.manifest = null;
+  updateViewChip();
+  el("tile-chip").textContent = "no scene";
+  try {
+    await callTool("close_view", request);
+    if (!silent) setStatus("view closed", false);
+  } catch (cause) {
+    if (!silent) showError("action-error", `close_view failed: ${cause.message}`);
+  }
+}
+
+function selectPane(paneId) {
+  for (const button of el("stage-tabs").querySelectorAll("button")) {
+    button.setAttribute("aria-selected", String(button.dataset.pane === paneId));
+  }
+  el("scene-pane").hidden = paneId !== "scene-pane";
+  el("frame-pane").hidden = paneId !== "frame-pane";
+  reportSize();
+}
+
+function copyCameraJson() {
+  const text = JSON.stringify(form.value(), null, 2);
+  const finish = () => setStatus("camera JSON copied", false);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(finish, () => fallbackCopy(text, finish));
+  } else {
+    fallbackCopy(text, finish);
+  }
+}
+function fallbackCopy(text, finish) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  document.body.append(area);
+  area.select();
+  document.execCommand("copy");
+  area.remove();
+  finish();
+}
+
+/* ------------------------------------------------------------- lifecycle -- */
+function reportSize() {
+  bridge.notify("ui/notifications/size-changed", {
+    height: Math.ceil(document.documentElement.getBoundingClientRect().height) + 8,
+  });
+}
+
+function applyHostContext(context) {
+  if (!context) return;
+  if (context.theme === "dark" || context.theme === "light") {
+    document.documentElement.dataset.theme = context.theme;
+    if (sceneView) sceneView.setTheme(context.theme);
+  }
+}
+
+bridge.on("ui/notifications/host-context-changed", (params) => {
+  applyHostContext(params && (params.hostContext || params));
+});
+bridge.on("ui/notifications/tool-result", () => { void resyncView(); });
+bridge.on("ui/notifications/tool-input", () => {});
+bridge.on("ui/notifications/tool-cancelled", () => {});
+bridge.on("ui/resource-teardown", (_params, id) => {
+  void closeView(true);
+  if (id !== undefined) bridge.post({ jsonrpc: "2.0", id, result: {} });
+});
+
+(async () => {
+  try {
+    const initialized = await bridge.request("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      appInfo: { name: "view-preview", version: "1.0.0" },
+      appCapabilities: { availableDisplayModes: ["inline"] },
+    });
+    bridge.notify("ui/notifications/initialized", {});
+    el("boot").hidden = true;
+    el("app").hidden = false;
+
+    sceneView = new SceneView(el("gl"));
+    tileLoader = new TileLoader(sceneView, tileProgress);
+    form = new CameraForm(updateFrustum);
+    applyHostContext(initialized && initialized.hostContext);
+
+    el("btn-create").addEventListener("click", () => { void createView(); });
+    el("btn-apply").addEventListener("click", () => { void applyCamera(); });
+    el("btn-capture").addEventListener("click", () => { void captureFrame(); });
+    el("btn-cancel").addEventListener("click", () => { void cancelCapture(); });
+    el("btn-refresh-scene").addEventListener("click", () => { void refreshScene(); });
+    el("btn-close").addEventListener("click", () => { void closeView(false); });
+    el("btn-copy").addEventListener("click", copyCameraJson);
+    for (const button of el("stage-tabs").querySelectorAll("button")) {
+      button.addEventListener("click", () => selectPane(button.dataset.pane));
+    }
+    for (const [label, definition] of PRESETS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.addEventListener("click", () => {
+        form.setDefinition(JSON.parse(JSON.stringify(definition)));
+      });
+      el("preset-list").append(button);
+    }
+    sceneView.onPick((localPoint) => {
+      if (!app.localFromEcef) return;
+      const ecef = m4.transformPoint(m4.invertRigid(app.localFromEcef), localPoint);
+      const position = geo.ecefToGeodetic(ecef);
+      if (form.mode === "pose") {
+        try {
+          const eye = form.position("eye");
+          const orientation = geo.orientationToward(eye, position, Number(el("pose-roll").value));
+          el("pose-heading").value = orientation.heading_degrees.toFixed(1);
+          el("pose-heading-slider").value = orientation.heading_degrees;
+          el("pose-pitch").value = orientation.pitch_degrees.toFixed(1);
+          el("pose-pitch-slider").value = orientation.pitch_degrees;
+          form.changed();
+        } catch {}
+      } else {
+        form.setTarget(position);
+      }
+    });
+
+    await draco.init();
+    await loadLayers();
+    updateViewChip();
+    updateFrustum();
+    setStatus("ready — create a view to load the scene", false);
+    reportSize();
+  } catch (cause) {
+    el("boot").hidden = true;
+    showError("boot-error", `Host initialization failed: ${cause.message}`);
+  }
+})();
+</script>
+</body>
+</html>
