@@ -290,7 +290,10 @@ showcase/sumo/              real SUMO world, simulator image, and showcase MCP s
 configs/                    canonical installation configuration
 deploy/                     Helm and offline installation material
 examples/bioma/             optional Entra and Cloudflare deployment example
+tools/screenshots/          repeatable authenticated Console and Rerun capture tool
+docs/screenshots/           screenshot catalog, gallery, and capture runbook
 ```
 
 Detailed ownership and call paths are in [`docs/CODEMAP.md`](docs/CODEMAP.md) and
-[`docs/TECH_DESIGN.md`](docs/TECH_DESIGN.md).
+[`docs/TECH_DESIGN.md`](docs/TECH_DESIGN.md). The current product views are collected
+in the [`docs/screenshots` gallery](docs/screenshots/GALLERY.md).
