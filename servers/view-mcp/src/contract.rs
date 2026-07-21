@@ -231,27 +231,55 @@ fn default_frame_encoding() -> FrameEncoding {
 
 impl CapturePolicy {
     pub fn validate(&self, limits: &CaptureLimits) -> Result<(), ContractError> {
-        if self.width_px == 0
-            || self.height_px == 0
-            || self.width_px > limits.max_width_px
-            || self.height_px > limits.max_height_px
-        {
-            return Err(ContractError::InvalidViewport);
-        }
-        let pixels = u64::from(self.width_px) * u64::from(self.height_px);
-        if pixels > limits.max_pixels {
-            return Err(ContractError::InvalidViewport);
-        }
-        if !self.max_screen_error_px.is_finite()
-            || !(0.25..=256.0).contains(&self.max_screen_error_px)
-        {
-            return Err(ContractError::InvalidScreenError);
-        }
+        validate_render_policy(
+            self.width_px,
+            self.height_px,
+            self.max_screen_error_px,
+            limits,
+        )?;
         if self.deadline_ms == 0 || self.deadline_ms > limits.max_deadline_ms {
             return Err(ContractError::InvalidDeadline);
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PreviewScenePolicy {
+    pub width_px: u32,
+    pub height_px: u32,
+    pub max_screen_error_px: f32,
+}
+
+impl PreviewScenePolicy {
+    pub fn validate(&self, limits: &CaptureLimits) -> Result<(), ContractError> {
+        validate_render_policy(
+            self.width_px,
+            self.height_px,
+            self.max_screen_error_px,
+            limits,
+        )
+    }
+}
+
+fn validate_render_policy(
+    width_px: u32,
+    height_px: u32,
+    max_screen_error_px: f32,
+    limits: &CaptureLimits,
+) -> Result<(), ContractError> {
+    if width_px == 0
+        || height_px == 0
+        || width_px > limits.max_width_px
+        || height_px > limits.max_height_px
+        || u64::from(width_px) * u64::from(height_px) > limits.max_pixels
+    {
+        return Err(ContractError::InvalidViewport);
+    }
+    if !max_screen_error_px.is_finite() || !(0.25..=256.0).contains(&max_screen_error_px) {
+        return Err(ContractError::InvalidScreenError);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -337,18 +365,15 @@ pub struct CapturedFrame {
     pub bytes: Vec<u8>,
 }
 
-/// Screen-space error for preview scene cuts, relative to a nominal
-/// square viewport of [`SCENE_VIEWPORT_PX`]. Coarse by design: the preview
-/// app renders the cut in-browser and only needs a recognizable scene.
-pub const SCENE_MAX_SCREEN_ERROR_PX: f64 = 96.0;
-pub const SCENE_VIEWPORT_PX: u32 = 1_024;
-pub const SCENE_MAX_TILES: usize = 48;
-pub const SCENE_DEADLINE_MS: u64 = 15_000;
+/// A preview carries the complete render cut requested by its typed scene
+/// policy unless this transport guard is reached.
+pub const SCENE_MAX_TILES: usize = 256;
+pub const SCENE_DEADLINE_MS: u64 = 30_000;
 /// Raw tile ceiling: base64(1.4 MB) plus the JSON envelope stays under the
 /// console host's 2 MiB resource-read cap.
 pub const MAX_TILE_RESOURCE_BYTES: u64 = 1_400_000;
 
-/// One coarse scene tile the preview app fetches via `view://tile/{key}`.
+/// One scene tile the preview app fetches via `view://tile/{key}`.
 /// `ecef_from_content` is served verbatim from the tile tree (glTF Y-up to
 /// Z-up already baked in); CESIUM_RTC centers and per-node transforms stay
 /// inside the GLB payload and are the consumer's job, exactly as in the
@@ -366,8 +391,8 @@ pub struct SceneTileRecord {
     pub oversize: bool,
 }
 
-/// Coarse render-cut manifest for a view's current camera, served at
-/// `view://view/{view_id}/scene` for the preview app's in-browser 3D scene.
+/// Render-cut manifest for a view's current camera, served through the
+/// parameterized view-scene resource for the preview app's in-browser 3D scene.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PreviewSceneRecord {
     pub view_id: ViewId,
@@ -379,6 +404,8 @@ pub struct PreviewSceneRecord {
     /// anchored at `local_origin` so composed tile transforms stay
     /// scene-local and f32-safe.
     pub local_from_ecef: [f64; 16],
+    pub width_px: u32,
+    pub height_px: u32,
     pub max_screen_error_px: f64,
     pub detail_complete: bool,
     pub truncated: bool,
@@ -408,6 +435,8 @@ pub enum ContractError {
     InvalidViewport,
     #[error("maximum screen error must be between 0.25 and 256 pixels")]
     InvalidScreenError,
+    #[error("preview scene resource URI is invalid")]
+    InvalidPreviewSceneUri,
     #[error("capture deadline exceeds configured limits")]
     InvalidDeadline,
 }

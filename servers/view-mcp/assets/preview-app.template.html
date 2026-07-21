@@ -1561,7 +1561,15 @@ async function refreshScene() {
   setStatus("loading scene manifest…", true);
   el("tile-chip").textContent = "loading…";
   try {
-    const manifest = await readJsonResource(`view://view/${app.view.view_id}/scene`);
+    const policy = capturePolicy();
+    const query = new URLSearchParams({
+      width_px: String(policy.width_px),
+      height_px: String(policy.height_px),
+      max_screen_error_px: String(policy.max_screen_error_px),
+    });
+    const manifest = await readJsonResource(
+      `view://view/${app.view.view_id}/scene?${query}`
+    );
     app.manifest = manifest;
     app.localFromEcef = m4.fromArray(manifest.local_from_ecef);
     const attribution = el("scene-attribution");

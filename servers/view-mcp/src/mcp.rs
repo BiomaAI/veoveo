@@ -167,7 +167,7 @@ impl ServerHandler for ViewMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("view", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Create an owner-scoped view with an exact pose or target camera, replace its camera under revision control, and invoke capture_frame through the Task API. A successful capture returns a directly displayable image and view://frame metadata. The ui://view/preview.html app drives the same lifecycle interactively; its view://view/{view_id}/scene manifests reference coarse view://tile/... draco GLB resources. The renderer has no input, picking, overlays, or feature-query behavior."
+            "Create an owner-scoped view with an exact pose or target camera, replace its camera under revision control, and invoke capture_frame through the Task API. A successful capture returns a directly displayable image and view://frame metadata. The ui://view/preview.html app drives the same lifecycle interactively; its parameterized view-scene manifests reference view://tile/... draco GLB resources selected for the requested viewport and screen-space error. The renderer has no input, picking, overlays, or feature-query behavior."
                 .to_owned(),
         );
         info
@@ -286,7 +286,7 @@ impl ServerHandler for ViewMcp {
             template(
                 uris::VIEW_SCENE_TEMPLATE,
                 "View scene",
-                "Coarse render-cut manifest for the view's current camera.",
+                "Render-cut manifest for the view's current camera and preview policy.",
             ),
             ResourceTemplate::new(uris::TILE_TEMPLATE, "Preview tile")
                 .with_title("Preview tile")
@@ -335,11 +335,13 @@ impl ServerHandler for ViewMcp {
                 .ok_or_else(not_found)?;
             return json_resource(uri, layer);
         }
-        if let Some(view_id) = uris::parse_view_scene(uri) {
+        if let Some((view_id, policy)) =
+            uris::parse_view_scene(uri).map_err(|error| read_error(error.into()))?
+        {
             let record = self
                 .state
                 .views
-                .preview_scene(owner, &view_id, context.ct.child_token())
+                .preview_scene(owner, &view_id, policy, context.ct.child_token())
                 .await
                 .map_err(read_error)?;
             return json_resource(uri, &record);
