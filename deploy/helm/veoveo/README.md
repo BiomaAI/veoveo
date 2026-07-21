@@ -66,7 +66,9 @@ activation remains serialized within the process.
 `nvidia.com/gpu`. Install NVIDIA GPU Operator or NVIDIA Container Toolkit,
 provide an `nvidia` RuntimeClass, and put `google-maps-api-key` in the
 installation secret. Readiness fails unless Bevy selects an NVIDIA Vulkan
-hardware adapter; the image does not install a Mesa Vulkan software ICD.
+hardware adapter; the image does not install a Mesa Vulkan software ICD. The
+deployment uses a zero-surge rollout because each replica holds an exclusive
+GPU allocation.
 
 The operator must create these resources before installation:
 
