@@ -24,6 +24,11 @@ def request_document() -> dict:
             "model_path": "/models/world-model",
             "format": "local_checkpoint",
             "model_digest": "sha256:test",
+            "engine": {
+                "kind": "vllm",
+                "gpu_memory_utilization": 0.7,
+                "max_model_len": 8_192,
+            },
         },
         "task": {"kind": "detect_events", "prompt": "vehicles entering the frame"},
         "grounding": {
@@ -50,6 +55,8 @@ def test_request_roundtrip_preserves_wire_names() -> None:
     assert request.decode.mode == "greedy"
     assert request.grounding is not None
     assert request.grounding.track_ids() == {7}
+    assert request.model.engine.gpu_memory_utilization == 0.7
+    assert request.model.engine.max_model_len == 8_192
 
 
 def test_unsupported_schema_is_rejected() -> None:
@@ -62,6 +69,13 @@ def test_unsupported_schema_is_rejected() -> None:
 def test_unknown_fields_are_rejected() -> None:
     document = request_document()
     document["surprise"] = True
+    with pytest.raises(ValueError):
+        protocol.parse_request(json.dumps(document).encode())
+
+
+def test_invalid_engine_budget_is_rejected() -> None:
+    document = request_document()
+    document["model"]["engine"]["gpu_memory_utilization"] = 0.0
     with pytest.raises(ValueError):
         protocol.parse_request(json.dumps(document).encode())
 

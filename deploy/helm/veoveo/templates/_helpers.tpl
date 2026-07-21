@@ -82,6 +82,47 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   value: {{ ternary "offline" "connected" .Values.global.offline | quote }}
 {{- end }}
 
+{{- define "veoveo.reasonRuntimeData" -}}
+catalog.json: |
+  {
+    "models": [
+      {
+        "id": "world-model",
+        "title": "Site world model",
+        "description": "Site-supplied world-model checkpoint for video reasoning.",
+        "format": "local_checkpoint",
+        "model_path": "/models/world-model",
+        "engine": {
+          "kind": "vllm",
+          "gpu_memory_utilization": {{ .Values.reason.engine.gpuMemoryUtilization }},
+          "max_model_len": {{ .Values.reason.engine.maxModelLen }}
+        }
+      }
+    ],
+    "pipelines": [
+      {
+        "id": "video-reasoning",
+        "title": "Video reasoning",
+        "description": "Describe segments, detect events, and answer questions over recording video.",
+        "operation": "video_reasoning",
+        "model_id": "world-model",
+        "prompt_template_path": "/etc/veoveo/reason/prompt-template.txt",
+        "prompt_revision": "v1",
+        "observation": {
+          "width": 640,
+          "height": 360
+        }
+      }
+    ]
+  }
+prompt-template.txt: |
+  You observe frames sampled from one governed video recording. Answer only
+  from what the frames show. When detecting events, report each event with
+  its inclusive source-timeline range, a short label, and one factual
+  description. When grounding detections are provided, cite their track
+  identities instead of inventing object references.
+{{- end }}
+
 {{- define "veoveo.containerSecurityContext" -}}
 allowPrivilegeEscalation: false
 capabilities:

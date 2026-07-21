@@ -177,6 +177,9 @@ reason:
     size: 20Gi
     storageClass: ""
     accessModes: [ReadWriteOnce]
+  engine:
+    gpuMemoryUtilization: 0.7
+    maxModelLen: 8192
   resources:
     requests:
       cpu: "1"

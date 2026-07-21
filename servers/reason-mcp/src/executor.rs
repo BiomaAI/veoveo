@@ -6,7 +6,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
-use crate::catalog::{ModelConfig, ObservationConfig, PipelineConfig};
+use crate::catalog::{EngineConfig, ModelConfig, ObservationConfig, PipelineConfig};
 use crate::contract::{
     ConfidenceBasis, DecodePolicy, GroundingDetections, IndexRange, ObservationSampling,
     ReasonedEvent, ReasoningAnswer, ReasoningResults, ReasoningTask, RecordingVideoSelection,
@@ -14,7 +14,7 @@ use crate::contract::{
 };
 use crate::grounding::grounded_track_ids;
 
-pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v1";
+pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v2";
 pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.reason-runner-response/v1";
 pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.reason-results/v1";
 
@@ -115,6 +115,7 @@ impl ReasonExecutor {
                 model_path: analysis.model.model_path.clone(),
                 format: analysis.model.format,
                 model_digest: analysis.model.model_digest.clone(),
+                engine: analysis.model.engine,
             },
             task: analysis.task.clone(),
             grounding: analysis.grounding.cloned(),
@@ -276,6 +277,7 @@ struct RunnerModel {
     format: crate::contract::ModelFormat,
     #[serde(skip_serializing_if = "Option::is_none")]
     model_digest: Option<String>,
+    engine: EngineConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -383,6 +385,10 @@ mod tests {
             format: ModelFormat::LocalCheckpoint,
             model_path: "/models/world-model.engine".into(),
             model_digest: Some("sha256:test".to_owned()),
+            engine: EngineConfig::Vllm {
+                gpu_memory_utilization: 0.7,
+                max_model_len: 8_192,
+            },
         }
     }
 
@@ -507,6 +513,9 @@ mod tests {
         assert_eq!(request["decode_start_index"], 100);
         assert_eq!(request["requested_range"]["start"], 120);
         assert_eq!(request["pipeline"]["observation"]["width"], 640);
+        assert_eq!(request["model"]["engine"]["kind"], "vllm");
+        assert_eq!(request["model"]["engine"]["gpu_memory_utilization"], 0.7);
+        assert_eq!(request["model"]["engine"]["max_model_len"], 8_192);
         assert_eq!(request["decode"]["mode"], "greedy");
         assert_eq!(request["max_response_bytes"], 1_000_000);
     }

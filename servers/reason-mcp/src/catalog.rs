@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::contract::{ModelFormat, ModelView, PipelineOperation, PipelineView};
 use crate::uris;
@@ -26,6 +26,16 @@ pub struct ModelConfig {
     pub model_path: PathBuf,
     #[serde(default)]
     pub model_digest: Option<String>,
+    pub engine: EngineConfig,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum EngineConfig {
+    Vllm {
+        gpu_memory_utilization: f32,
+        max_model_len: u32,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -89,6 +99,24 @@ impl PipelineCatalog {
                     "model_digest for `{}` must be a short non-empty value",
                     model.id
                 );
+            }
+            match model.engine {
+                EngineConfig::Vllm {
+                    gpu_memory_utilization,
+                    max_model_len,
+                } => {
+                    ensure!(
+                        gpu_memory_utilization.is_finite()
+                            && (0.1..=1.0).contains(&gpu_memory_utilization),
+                        "vLLM gpu_memory_utilization for `{}` must be within 0.1..=1.0",
+                        model.id
+                    );
+                    ensure!(
+                        (1_024..=1_048_576).contains(&max_model_len),
+                        "vLLM max_model_len for `{}` must be within 1024..=1048576",
+                        model.id
+                    );
+                }
             }
             let id = model.id.clone();
             ensure!(
@@ -240,6 +268,10 @@ mod tests {
             format: ModelFormat::LocalCheckpoint,
             model_path: "/models/world-model.engine".into(),
             model_digest: None,
+            engine: EngineConfig::Vllm {
+                gpu_memory_utilization: 0.7,
+                max_model_len: 8_192,
+            },
         }
     }
 
@@ -281,6 +313,28 @@ mod tests {
         unrevisioned.prompt_revision = " ".to_owned();
         let error = PipelineCatalog::new(vec![model()], vec![unrevisioned]).unwrap_err();
         assert!(error.to_string().contains("prompt_revision"));
+    }
+
+    #[test]
+    fn catalog_rejects_unbounded_gpu_memory_utilization() {
+        let mut model = model();
+        model.engine = EngineConfig::Vllm {
+            gpu_memory_utilization: 0.0,
+            max_model_len: 8_192,
+        };
+        let error = PipelineCatalog::new(vec![model], vec![pipeline()]).unwrap_err();
+        assert!(error.to_string().contains("gpu_memory_utilization"));
+    }
+
+    #[test]
+    fn catalog_rejects_tiny_model_contexts() {
+        let mut model = model();
+        model.engine = EngineConfig::Vllm {
+            gpu_memory_utilization: 0.7,
+            max_model_len: 512,
+        };
+        let error = PipelineCatalog::new(vec![model], vec![pipeline()]).unwrap_err();
+        assert!(error.to_string().contains("max_model_len"));
     }
 
     #[test]

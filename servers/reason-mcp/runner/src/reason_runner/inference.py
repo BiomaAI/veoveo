@@ -74,6 +74,8 @@ def _generate(request: RunnerRequest, prompt: str, frames: list[ObservedFrame]) 
         model=request.model.model_path,
         trust_remote_code=True,
         limit_mm_per_prompt={"image": len(frames)},
+        gpu_memory_utilization=request.model.engine.gpu_memory_utilization,
+        max_model_len=request.model.engine.max_model_len,
     )
     content: list[dict] = [
         {"type": "image_url", "image_url": {"url": _data_url(frame)}} for frame in frames
