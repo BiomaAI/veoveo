@@ -145,6 +145,10 @@ seccompProfile:
     - /var/lib/veoveo-recording-forwarder
     - --maximum-queue-bytes
     - {{ printf "%.0f" .root.Values.recordingForwarder.maximumQueueBytes | quote }}
+    - --batch-message-limit
+    - {{ .root.Values.recordingForwarder.batchMessageLimit | quote }}
+    - --batch-flush-milliseconds
+    - {{ .root.Values.recordingForwarder.batchFlushMilliseconds | quote }}
   env:
     - name: RUST_LOG
       value: info

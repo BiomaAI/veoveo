@@ -38,6 +38,8 @@ recordingForwarder:
     existingSecret: veoveo-recording-producer
     key: private-key.pem
   maximumQueueBytes: 1073741824
+  batchMessageLimit: 4096
+  batchFlushMilliseconds: 1000
   persistence:
     size: 5Gi
     storageClass: ""

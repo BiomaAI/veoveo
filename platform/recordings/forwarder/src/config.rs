@@ -56,10 +56,10 @@ pub struct ForwarderConfig {
     #[arg(long, default_value_t = 1_073_741_824)]
     pub maximum_queue_bytes: u64,
 
-    #[arg(long, default_value_t = 256)]
+    #[arg(long, default_value_t = 4_096)]
     pub batch_message_limit: usize,
 
-    #[arg(long, default_value_t = 250)]
+    #[arg(long, default_value_t = 1_000)]
     pub batch_flush_milliseconds: u64,
 
     #[arg(long, default_value_t = 64 * 1024 * 1024)]
