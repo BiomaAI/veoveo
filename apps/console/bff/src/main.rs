@@ -32,7 +32,7 @@ struct AppState {
     live_http: reqwest::Client,
     cluster: Option<Arc<cluster::KubernetesClient>>,
     sessions: SessionCipher,
-    playback_tickets: recording_playback::PlaybackTicketStore,
+    playback_sessions: recording_playback::PlaybackSessionStore,
     mcp: Arc<mcp_client::McpSessionPool>,
 }
 
@@ -69,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
         live_http,
         cluster,
         sessions,
-        playback_tickets: recording_playback::PlaybackTicketStore::default(),
+        playback_sessions: recording_playback::PlaybackSessionStore::default(),
         mcp,
     };
     let csrf_state = state.clone();
@@ -139,11 +139,11 @@ async fn main() -> anyhow::Result<()> {
             get(recording_playback::manifest),
         )
         .route(
-            "/console/api/recordings/{recording_id}/sources/{ticket}/segments/{segment_id}/data.rrd",
+            "/console/api/recordings/{recording_id}/playback-sessions/{playback_session}/segments/{segment_id}/data.rrd",
             get(recording_playback::segment),
         )
         .route(
-            "/console/api/recordings/{recording_id}/sources/{ticket}/segments/{segment_id}/live.rrd",
+            "/console/api/recordings/{recording_id}/playback-sessions/{playback_session}/segments/{segment_id}/live.rrd",
             get(recording_playback::live_segment),
         )
         .nest_service("/console", assets)
