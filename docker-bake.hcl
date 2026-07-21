@@ -31,6 +31,7 @@ group "bioma" {
     "artifact-mcp",
     "media-mcp",
     "perception-mcp",
+    "reason-mcp",
     "timeseries-mcp",
     "duckdb-mcp",
     "optimization-mcp",
@@ -113,6 +114,12 @@ target "perception-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/perception-mcp/Dockerfile"
   tags       = ["veoveo/perception-mcp:0.1.0"]
+}
+
+target "reason-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/reason-mcp/Dockerfile"
+  tags       = ["veoveo/reason-mcp:0.1.0"]
 }
 
 target "timeseries-mcp" {

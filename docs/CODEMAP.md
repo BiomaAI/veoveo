@@ -460,6 +460,8 @@ perception persists recording identities rather than segment paths.
 | `src/artifacts.rs` | shared artifact-plane adapter |
 | `src/uris.rs` | canonical `reason://` identities |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
+| `runner/` | Python world-model runner: typed protocol, frame sampling, vLLM inference |
+| `Dockerfile` | vLLM runtime image with the server binary and installed runner |
 
 Reason consumes governed video through `platform/recordings/video` exactly as
 perception does and embeds a bounded grounding subset in the durable request at
