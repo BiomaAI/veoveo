@@ -100,11 +100,21 @@ impl OperatorClient<'_> {
     }
 
     async fn call_tool(&self, tool: &str, arguments: Value) -> Result<Value> {
+        self.call_tool_with_timeout(tool, arguments, Duration::from_secs(120))
+            .await
+    }
+
+    async fn call_tool_with_timeout(
+        &self,
+        tool: &str,
+        arguments: Value,
+        timeout: Duration,
+    ) -> Result<Value> {
         let arguments = serde_json::to_string(&arguments)?;
         let output = self
             .conformance(
                 &["call", "--tool-name", tool, "--arguments", &arguments],
-                Duration::from_secs(120),
+                timeout,
             )
             .await?;
         structured_output(&output).with_context(|| format!("tool {tool} returned invalid output"))
@@ -755,12 +765,29 @@ async fn simulation_state(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
 ) -> Result<Value> {
-    operator
-        .call_tool(
-            "uav-sim__get_simulation_state",
-            serde_json::json!({"session_id": scenario.session_id}),
-        )
-        .await
+    const ATTEMPTS: usize = 3;
+    let mut last_error = None;
+    for attempt in 1..=ATTEMPTS {
+        match operator
+            .call_tool_with_timeout(
+                "uav-sim__get_simulation_state",
+                serde_json::json!({"session_id": scenario.session_id}),
+                Duration::from_secs(30),
+            )
+            .await
+        {
+            Ok(state) => return Ok(state),
+            Err(error) if attempt < ATTEMPTS => {
+                eprintln!(
+                    "UAV state read attempt {attempt}/{ATTEMPTS} failed; retrying: {error:#}"
+                );
+                last_error = Some(error);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(last_error.context("UAV state read exhausted its retry budget")?)
 }
 
 async fn wait_for_flight_state(
