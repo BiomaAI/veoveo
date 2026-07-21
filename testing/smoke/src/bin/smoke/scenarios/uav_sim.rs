@@ -20,6 +20,7 @@ struct UavAcceptanceScenario {
     mission: MissionScenario,
     recording: RecordingAcceptance,
     perception: PerceptionScenario,
+    reason: ReasonScenario,
     landing_timeout_seconds: u64,
 }
 
@@ -79,6 +80,14 @@ struct PerceptionScenario {
     task_timeout_seconds: u64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReasonScenario {
+    prompt: String,
+    maximum_frames: u64,
+    task_timeout_seconds: u64,
+}
+
 struct OperatorClient<'a> {
     conformance: &'a Path,
     base: &'a str,
@@ -126,7 +135,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v3",
+            self.schema == "veoveo.uav-sim-acceptance/v4",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -197,6 +206,13 @@ impl UavAcceptanceScenario {
                 && (1..=10_000).contains(&self.perception.maximum_frames),
             "perception parameters must define a positive bounded capture"
         );
+        ensure!(
+            !self.reason.prompt.trim().is_empty()
+                && self.reason.prompt.len() <= 8_192
+                && (1..=1_024).contains(&self.reason.maximum_frames)
+                && self.reason.task_timeout_seconds > 0,
+            "reason parameters must define a bounded prompted observation"
+        );
         Ok(())
     }
 }
@@ -259,6 +275,7 @@ pub(crate) async fn uav_sim_verify(
         "uav-sim__get_simulation_state",
         "uav-sim__execute_mission",
         "perception__analyze_recording",
+        "reason__analyze_recording",
         "recording__query_recording",
     ] {
         contains(&info, tool)?;
@@ -429,6 +446,41 @@ pub(crate) async fn uav_sim_verify(
         uuid::Uuid::parse_str(&governed_artifact_id)?.get_version_num() == 7,
         "Perception result artifact identity must be UUIDv7"
     );
+    let grounding_uri = json_string(&perception, "/results_artifact/artifact_uri")?.to_owned();
+
+    let reason = operator
+        .task_tool(
+            "reason__analyze_recording",
+            serde_json::json!({
+                "video": {
+                    "recording_uri": recording_uri,
+                    "entity_path": camera_entity,
+                    "timeline": "simulation_time",
+                    "range": {"start": range_start, "end": range_end}
+                },
+                "pipeline_id": "video-reasoning",
+                "task": {
+                    "kind": "describe_segment",
+                    "prompt": scenario.reason.prompt
+                },
+                "sampling": {"max_frames": scenario.reason.maximum_frames},
+                "grounding": {"results_artifact_uri": grounding_uri}
+            }),
+            Duration::from_secs(scenario.reason.task_timeout_seconds),
+        )
+        .await?;
+    ensure!(
+        reason
+            .pointer("/summary/observed_frames")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count > 0),
+        "Reason observed no Isaac camera frames: {reason}"
+    );
+    let reason_artifact_id = json_string(&reason, "/results_artifact/artifact_id")?.to_owned();
+    ensure!(
+        uuid::Uuid::parse_str(&reason_artifact_id)?.get_version_num() == 7,
+        "Reason result artifact identity must be UUIDv7"
+    );
 
     operator
         .call_tool(
@@ -450,7 +502,7 @@ pub(crate) async fn uav_sim_verify(
     assert_governed_artifact_access(conformance, public_base_url, &governed_artifact_id).await?;
 
     println!(
-        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, an authorized context member previewed it, an independent context was denied, and View remained available"
+        "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, Reason described the flight segment grounded in those detections, an authorized context member previewed it, an independent context was denied, and View remained available"
     );
     Ok(())
 }
@@ -628,7 +680,7 @@ async fn wait_for_recording_camera_range(
 }
 
 fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
-    for deployment in ["uav-sim", "view-mcp", "perception-mcp"] {
+    for deployment in ["uav-sim", "view-mcp", "perception-mcp", "reason-mcp"] {
         run_checked(
             Path::new("kubectl"),
             [
@@ -895,13 +947,15 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v3");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v4");
         assert_eq!(scenario.session_id, "bioma-uav");
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.frozen_rows_timeout_seconds, 1_200);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
         assert_eq!(scenario.perception.range_lag_seconds, 10.0);
+        assert!(!scenario.reason.prompt.is_empty());
+        assert_eq!(scenario.reason.maximum_frames, 8);
     }
 
     #[test]

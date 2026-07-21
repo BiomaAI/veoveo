@@ -29,6 +29,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, and logistics routing |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | planning problem models and optimization |
 | [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md) | governed local sensor inference and derived annotations |
+| [`servers/reason-mcp/DESIGN.md`](../servers/reason-mcp/DESIGN.md) | governed video reasoning, grounding, and audited world-model output |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
@@ -40,6 +41,7 @@ material they operate:
 | Document | Purpose |
 |---|---|
 | [`configs/perception/README.md`](../configs/perception/README.md) | perception catalog and runtime configuration |
+| [`configs/reason/README.md`](../configs/reason/README.md) | reason catalog and runtime configuration |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
 | [`examples/bioma/README.md`](../examples/bioma/README.md) | isolated Bioma k3d cluster, Entra profile, and Cloudflare Tunnel operations |
@@ -68,6 +70,7 @@ is the browser edition of the harness document.
 | `configs/gateway.smoke.json` | isolated smoke control plane |
 | `configs/deployments.json` | deployment contract examples |
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
+| `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
@@ -309,6 +312,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
 | `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
+| `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/recording-mcp` | governed recording catalog, queries, subscriptions, and sealing |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
@@ -408,6 +412,15 @@ types.
 | `src/config.rs` | validated identity origin, installation transport, key, queue, batching, and shutdown configuration |
 | `Dockerfile` | production sidecar image with the forwarder and loopback readiness utility |
 
+### `platform/recordings/video`
+
+The shared governed recorded-video access crate. `src/lib.rs` owns the
+`RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind` selection contract,
+bounded `VideoSourceLimits`, read-plan-authorized clip materialization with
+no-transcode MP4 remux, and canonical recording-URI validation. Every server
+that consumes `VideoStream` recordings (perception, reason) uses this crate
+instead of a private video path.
+
 ### `servers/recording-mcp`
 
 `contract.rs` owns query, publication, whole-recording playback, and live manifest types.
@@ -424,7 +437,6 @@ publication.
 |---|---|
 | `src/contract.rs` | analysis, sampling, detection, timeline, and output types |
 | `src/catalog.rs` | validated TensorRT model and DeepStream pipeline catalog |
-| `src/source.rs` | authorized durable/recent Rerun video materialization |
 | `src/executor.rs` | bounded C++ runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
@@ -433,9 +445,31 @@ publication.
 | `deepstream-runner/` | native DeepStream decode/infer/track metadata runner |
 | `Dockerfile` | DeepStream 9 development/runtime multi-stage image |
 
-`recording-mcp::service::read` owns the reusable governed local read plan. It
-projects only frozen/sealed segment paths after tenant and label authorization;
-perception persists recording identities rather than those paths.
+`recording-mcp::service::read` owns the reusable governed local read plan, and
+`platform/recordings/video` owns selection and materialization over it;
+perception persists recording identities rather than segment paths.
+
+### `servers/reason-mcp`
+
+| Path | Responsibility |
+|---|---|
+| `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types |
+| `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
+| `src/executor.rs` | bounded world-model runner protocol and response validation |
+| `src/grounding.rs` | typed perception-results grounding subset extraction |
+| `src/annotation.rs` | derived Rerun provenance and event annotation layers |
+| `src/artifacts.rs` | shared artifact-plane adapter |
+| `src/uris.rs` | canonical `reason://` identities |
+| `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
+| `runner/` | Python world-model runner: typed protocol, frame sampling, vLLM inference |
+| `Dockerfile` | vLLM runtime image with the server binary and installed runner |
+
+Reason consumes governed video through `platform/recordings/video` exactly as
+perception does and embeds a bounded grounding subset in the durable request at
+submission time; it persists neither segment paths, artifact URLs, nor caller
+bearers. The runner binary belongs to
+the deployable image and the engine is a site-compiled deployment input, so the
+server fails readiness until both are present.
 
 ## Python Servers
 

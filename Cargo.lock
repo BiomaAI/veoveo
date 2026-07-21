@@ -10933,8 +10933,8 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
- "veoveo-recording-hub",
  "veoveo-recording-mcp",
+ "veoveo-recording-video",
  "veoveo-task-runtime",
 ]
 
@@ -10953,6 +10953,41 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "veoveo-reason-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "futures",
+ "re_log_types",
+ "re_sdk",
+ "re_sdk_types",
+ "rmcp",
+ "rustls",
+ "schemars",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower-http 0.7.0",
+ "tracing",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-task-extension",
+ "veoveo-platform-store",
+ "veoveo-recording-mcp",
+ "veoveo-recording-video",
+ "veoveo-task-runtime",
 ]
 
 [[package]]
@@ -11077,6 +11112,20 @@ dependencies = [
  "protoc-bin-vendored",
  "sha2 0.11.0",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "veoveo-recording-video"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "schemars",
+ "serde",
+ "tokio",
+ "uuid",
+ "veoveo-platform-store",
+ "veoveo-recording-hub",
+ "veoveo-recording-mcp",
 ]
 
 [[package]]

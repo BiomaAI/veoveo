@@ -458,6 +458,15 @@ enum Cmd {
         #[arg(long, default_value = "output/perception/work")]
         work_dir: PathBuf,
     },
+    /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
+    ReasonGpu {
+        /// Environment file used by the active k3d profile and direct assertion signer.
+        #[arg(long, default_value = ".env")]
+        env_file: PathBuf,
+        /// Host workspace for the generated DeepStream sample.
+        #[arg(long, default_value = "output/reason/work")]
+        work_dir: PathBuf,
+    },
 }
 
 #[tokio::main]
@@ -697,5 +706,6 @@ async fn main() -> Result<()> {
             public_base_url,
         } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
         Cmd::PerceptionGpu { env_file, work_dir } => perception_gpu(&env_file, &work_dir).await,
+        Cmd::ReasonGpu { env_file, work_dir } => reason_gpu(&env_file, &work_dir).await,
     }
 }

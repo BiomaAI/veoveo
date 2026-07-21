@@ -179,6 +179,38 @@
       "metadata": {}
     },
     {
+      "slug": "reason",
+      "uri_scheme": "reason",
+      "mount_path": "/reason",
+      "mcp_path": "/reason/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://reason-mcp:8803/reason/mcp",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "notifications": true
+      },
+      "tools": [
+        "analyze_recording"
+      ],
+      "prompts": [
+        "reason-analyze-recording",
+        "reason-answer-question"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {}
+    },
+    {
       "slug": "timeseries",
       "uri_scheme": "timeseries",
       "mount_path": "/timeseries",
@@ -698,6 +730,29 @@
           "tasks": "enabled"
         },
         {
+          "server": "reason",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "analyze_recording"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "reason"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
           "server": "timeseries",
           "tools": {
             "mode": "listed",
@@ -1062,6 +1117,29 @@
               {
                 "kind": "scheme",
                 "scheme": "perception"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "reason",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "analyze_recording"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "reason"
               }
             ]
           },
