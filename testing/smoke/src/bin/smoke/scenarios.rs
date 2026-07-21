@@ -19,6 +19,8 @@ mod map;
 mod media;
 #[path = "scenarios/perception.rs"]
 mod perception;
+#[path = "scenarios/reason.rs"]
+mod reason;
 #[path = "scenarios/recording_ingest.rs"]
 mod recording_ingest;
 #[path = "scenarios/secrets.rs"]
@@ -39,6 +41,7 @@ pub(crate) use gateway::*;
 pub(crate) use map::*;
 pub(crate) use media::*;
 pub(crate) use perception::*;
+pub(crate) use reason::*;
 pub(crate) use recording_ingest::*;
 pub(crate) use secrets::*;
 pub(crate) use sumo::*;

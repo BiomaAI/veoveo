@@ -165,6 +165,28 @@ perception:
       memory: 16Gi
       nvidia.com/gpu: "1"
 
+reason:
+  enabled: false
+  replicas: 1
+  runtimeClassName: nvidia
+  image:
+    repository: veoveo/reason-mcp
+    tag: 0.1.0
+    digest: ""
+  modelCache:
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      cpu: "1"
+      memory: 8Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "8"
+      memory: 24Gi
+      nvidia.com/gpu: "1"
+
 # Installation-time server bootstrap documents, keyed by domain-service
 # name. Each entry renders a `{name}-bootstrap` ConfigMap mounted at the
 # canonical /etc/veoveo/bootstrap/catalog.json and passed to the server via

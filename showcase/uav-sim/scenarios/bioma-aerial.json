@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.uav-sim-acceptance/v3",
+  "schema": "veoveo.uav-sim-acceptance/v4",
   "session_id": "bioma-uav",
   "frame_uri": "frames://frame/bioma-uav-origin",
   "vehicle_id": "uav-1",
@@ -35,6 +35,11 @@
     "range_duration_seconds": 25.0,
     "maximum_frames": 8,
     "task_timeout_seconds": 600
+  },
+  "reason": {
+    "prompt": "Describe the terrain, structures, and any moving objects visible during this aerial pass.",
+    "maximum_frames": 8,
+    "task_timeout_seconds": 900
   },
   "landing_timeout_seconds": 600
 }

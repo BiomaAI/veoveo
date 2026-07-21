@@ -6,5 +6,4 @@ pub mod artifacts;
 pub mod catalog;
 pub mod contract;
 pub mod executor;
-pub mod source;
 pub mod uris;

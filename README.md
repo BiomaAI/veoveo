@@ -72,7 +72,7 @@ and authorization records.
 
 ## Hosted Servers
 
-The canonical control plane defines fourteen server identities:
+The canonical control plane defines fifteen server identities:
 
 | Server | Main capability |
 |---|---|
@@ -87,6 +87,7 @@ The canonical control plane defines fourteen server identities:
 | `artifact` | artifact discovery, metadata, grants, release, and sharing |
 | `recording` | governed recording discovery, query, subscription, and publication |
 | `perception` | governed Rerun video extraction, local detection/tracking, and derived annotations |
+| `reason` | governed semantic and temporal reasoning over recorded video with audited world-model output |
 | `charts` | chart rendering projected through the gateway |
 | `rerun` | bridged Rerun viewer MCP surface |
 | `view` | GPU-backed 3D Tiles views and reproducible offscreen frame capture |
