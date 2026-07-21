@@ -9,6 +9,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{CrsId, DatumId, EllipsoidId, FrameKind, GeofenceId, GeofenceRule};
 
+pub mod video;
+
 fn validate_rrd_id(value: &str, kind: &'static str) -> Result<(), RrdIdError> {
     if value.is_empty() || value.len() > 512 {
         return Err(RrdIdError::new(value, kind, "must be 1 to 512 characters"));

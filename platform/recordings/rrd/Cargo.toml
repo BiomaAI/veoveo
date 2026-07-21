@@ -8,6 +8,10 @@ name = "veoveo_rrd"
 path = "src/lib.rs"
 
 [dependencies]
+anyhow.workspace = true
+re_chunk.workspace = true
+re_log_encoding.workspace = true
+re_log_types.workspace = true
 re_sdk_types.workspace = true
 schemars.workspace = true
 serde.workspace = true

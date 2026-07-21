@@ -37,8 +37,11 @@ pub use sim::{
 pub use spool::{
     Counters, FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey, Spooler, run_blocking,
 };
+pub use veoveo_rrd::video::{
+    RrdVideoBoundary, h264_access_unit_is_idr, inspect_log_message_video_boundary,
+    inspect_rrd_video_boundary,
+};
 pub use video::{
-    EncodedVideoClip, EncodedVideoSample, H264VideoProfile, RrdVideoBoundary, VideoClipRequest,
-    VideoIndexKind, extract_video_clip, extract_video_clip_from_messages, h264_access_unit_is_idr,
-    inspect_log_message_video_boundary, inspect_rrd_video_boundary, remux_h264_mp4,
+    EncodedVideoClip, EncodedVideoSample, H264VideoProfile, VideoClipRequest, VideoIndexKind,
+    extract_video_clip, extract_video_clip_from_messages, remux_h264_mp4,
 };

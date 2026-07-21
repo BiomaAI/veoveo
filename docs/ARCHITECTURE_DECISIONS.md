@@ -82,8 +82,9 @@ Small RRD parts are the ordered write-path materialization of that journal. They
 internal. Finishing and rollover run one fail-closed object-store compaction pass that
 publishes an immutable, footer-indexed archive shard. The normal shard boundary is one
 hour or 192 MiB of unoptimized input, and video rollover starts the next shard at a
-keyframe-bearing batch. Frozen and sealed archive shards remain the governed long-term
-recording authority.
+keyframe-bearing batch. The producer-local forwarder recognizes H.264 IDRs and begins a
+new durable batch at each GoP, which guarantees an eligible boundary after the limit is
+reached. Frozen and sealed archive shards remain the governed long-term recording authority.
 
 Console live playback receives bounded recent history and follows the authorized writing
 segment after each Hub flush. Completed playback attaches the ordered, range-capable

@@ -4,6 +4,13 @@ use re_log_encoding::{Encoder, EncodingOptions};
 use re_log_types::{LogMsg, StoreId, StoreKind};
 use sha2::{Digest, Sha256};
 use veoveo_recording_protocol::v1::{RecordingBatch, RerunPayloadFormat};
+use veoveo_rrd::video::{RrdVideoBoundary, inspect_log_message_video_boundary};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BatchBoundary {
+    Continue,
+    StartVideoGop,
+}
 
 #[derive(Debug)]
 pub struct RecordingAccumulator {
@@ -48,6 +55,19 @@ impl RecordingAccumulator {
             self.messages.push(message);
         }
         Ok(())
+    }
+
+    pub fn boundary_before(&self, message: &LogMsg) -> Result<BatchBoundary> {
+        if self.messages.is_empty() {
+            return Ok(BatchBoundary::Continue);
+        }
+        let mut video = RrdVideoBoundary::default();
+        inspect_log_message_video_boundary(message, &mut video)?;
+        Ok(if video.contains_video && video.begins_with_keyframe {
+            BatchBoundary::StartVideoGop
+        } else {
+            BatchBoundary::Continue
+        })
     }
 
     pub fn pending_len(&self) -> usize {
@@ -123,7 +143,10 @@ mod tests {
 
     use re_log_encoding::Decoder;
     use re_sdk::RecordingStreamBuilder;
-    use re_sdk_types::archetypes::Scalars;
+    use re_sdk_types::{
+        archetypes::{Scalars, VideoStream},
+        components::VideoCodec,
+    };
 
     use super::*;
 
@@ -160,5 +183,43 @@ mod tests {
             message.store_id().application_id().as_str() == "inspection-camera"
                 && message.store_id().recording_id().as_str() == "run-a"
         }));
+    }
+
+    #[test]
+    fn starts_a_new_batch_at_each_video_gop() {
+        let (recording, storage) = RecordingStreamBuilder::new("inspection-camera")
+            .recording_id("run-a")
+            .memory()
+            .unwrap();
+        recording
+            .log("sensor/value", &Scalars::single(42.0))
+            .unwrap();
+        recording
+            .log(
+                "camera/front",
+                &VideoStream::new(VideoCodec::H264).with_sample(vec![0, 0, 0, 1, 0x65, 1]),
+            )
+            .unwrap();
+        let messages = storage.take();
+        let store_id = messages[0].store_id().clone();
+        let mut accumulator = RecordingAccumulator::new(store_id).unwrap();
+        let mut batches = Vec::new();
+        for message in messages {
+            if accumulator.boundary_before(&message).unwrap() == BatchBoundary::StartVideoGop {
+                batches.extend(accumulator.drain_encoded(8 * 1024 * 1024).unwrap());
+            }
+            accumulator.push(message).unwrap();
+        }
+        batches.extend(accumulator.drain_encoded(8 * 1024 * 1024).unwrap());
+
+        assert_eq!(batches.len(), 2);
+        assert!(
+            !veoveo_rrd::video::inspect_rrd_video_boundary(&batches[0].encoded_rrd)
+                .unwrap()
+                .contains_video
+        );
+        let video = veoveo_rrd::video::inspect_rrd_video_boundary(&batches[1].encoded_rrd).unwrap();
+        assert!(video.contains_video);
+        assert!(video.begins_with_keyframe);
     }
 }

@@ -51,9 +51,7 @@ class H264CameraStream:
         for packet in self._stream.encode(frame):
             self._set_time(simulation_time_s, physics_step)
             if packet.is_keyframe:
-                # Hub segment boundaries are independent of the producer's
-                # static timeline. Reassert camera metadata at every GoP so a
-                # live segment remains self-describing when opened alone.
+                self._recording.log(self._entity_path, _video_packet(packet))
                 self._recording.log(
                     self._entity_path,
                     rr.Pinhole(
@@ -61,7 +59,8 @@ class H264CameraStream:
                         focal_length=self._width / 2.0,
                     ),
                 )
-            self._recording.log(self._entity_path, _video_packet(packet))
+            else:
+                self._recording.log(self._entity_path, _video_packet(packet))
 
     def close(self, simulation_time_s: float, physics_step: int) -> None:
         for packet in self._stream.encode(None):

@@ -10987,6 +10987,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-recording-protocol",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -11027,6 +11028,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-recording-protocol",
+ "veoveo-rrd",
 ]
 
 [[package]]
@@ -11081,6 +11083,10 @@ dependencies = [
 name = "veoveo-rrd"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "re_chunk",
+ "re_log_encoding",
+ "re_log_types",
  "re_sdk_types",
  "schemars",
  "serde",

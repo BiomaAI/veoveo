@@ -18,7 +18,7 @@ use tracing::{info, warn};
 use veoveo_recording_protocol::v1::OpenRecordingStreamRequest;
 
 use crate::{
-    batch::RecordingAccumulator,
+    batch::{BatchBoundary, RecordingAccumulator},
     client::{IngestRequestError, RecordingIngestClient},
     config::ForwarderConfig,
     oauth::OAuthTokenProvider,
@@ -133,6 +133,9 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                         entry.insert(RecordingAccumulator::new(store_id)?)
                     }
                 };
+                if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
+                    flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
+                }
                 if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {
                     flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
                 }
@@ -157,6 +160,9 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         let accumulator = accumulators
             .entry(store_id.clone())
             .or_insert(RecordingAccumulator::new(store_id)?);
+        if accumulator.boundary_before(&message)? == BatchBoundary::StartVideoGop {
+            flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
+        }
         if matches!(message, LogMsg::SetStoreInfo(_)) && accumulator.pending_len() > 0 {
             flush_accumulator(accumulator, &queue, client.maximum_batch_bytes()).await?;
         }
