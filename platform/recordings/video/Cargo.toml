@@ -1,0 +1,18 @@
+[package]
+name = "veoveo-recording-video"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "veoveo_recording_video"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+schemars.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+uuid.workspace = true
+veoveo-platform-store.workspace = true
+veoveo-recording-hub = { path = "../hub" }
+veoveo-recording-mcp = { path = "../../../servers/recording-mcp" }

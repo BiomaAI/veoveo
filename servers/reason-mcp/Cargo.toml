@@ -40,6 +40,6 @@ veoveo-artifact-client = { path = "../../platform/artifacts/client" }
 veoveo-mcp-contract.workspace = true
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-platform-store.workspace = true
-veoveo-recording-hub = { path = "../../platform/recordings/hub" }
 veoveo-recording-mcp = { path = "../recording-mcp" }
+veoveo-recording-video = { path = "../../platform/recordings/video" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }

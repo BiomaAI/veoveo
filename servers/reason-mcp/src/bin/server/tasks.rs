@@ -19,7 +19,9 @@ use veoveo_reason_mcp::{
         validate_decode, validate_reasoning_task, validate_sampling,
     },
     grounding::extract_grounding,
-    source::{materialize_video, recording_id_from_uri, validate_video_selection},
+};
+use veoveo_recording_video::{
+    materialize_video, recording_id_from_uri, timeline_kind, validate_video_selection,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState,
@@ -303,16 +305,9 @@ async fn run_task_inner(
         "running world-model reasoning",
     )
     .await;
-    let timeline_kind = match source.clip.index_kind {
-        veoveo_recording_hub::VideoIndexKind::DurationNanoseconds => {
-            veoveo_reason_mcp::contract::VideoTimelineKind::DurationNanoseconds
-        }
-        veoveo_recording_hub::VideoIndexKind::TimestampNanoseconds => {
-            veoveo_reason_mcp::contract::VideoTimelineKind::TimestampNanoseconds
-        }
-        veoveo_recording_hub::VideoIndexKind::Sequence => {
-            fail!("sequence-indexed video cannot be remuxed for reasoning".to_owned())
-        }
+    let timeline_kind = match timeline_kind(&source.clip) {
+        Ok(kind) => kind,
+        Err(error) => fail!(format!("{error:#}")),
     };
     let execute = state
         .executor

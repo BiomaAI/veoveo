@@ -50,11 +50,11 @@ use veoveo_perception_mcp::{
         ExtractClipRequest,
     },
     executor::DeepStreamExecutor,
-    source::VideoSourceLimits,
     uris,
 };
 use veoveo_platform_store::TaskStatus;
 use veoveo_recording_mcp::RecordingService;
+use veoveo_recording_video::VideoSourceLimits;
 use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig, TaskSnapshot};
 
 #[path = "server/app_state.rs"]

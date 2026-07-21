@@ -3,9 +3,9 @@ use std::sync::Arc;
 use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, executor::ReasonExecutor,
-    source::VideoSourceLimits,
 };
 use veoveo_recording_mcp::RecordingService;
+use veoveo_recording_video::VideoSourceLimits;
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
 pub(super) struct AppState {
