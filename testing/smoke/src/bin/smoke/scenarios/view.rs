@@ -98,8 +98,9 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         read_mcp_resource_json(&session_b, &format!("view://view/{second_id}")).await?;
     ensure!(second_resource["revision"] == 1);
 
-    let scene =
-        read_mcp_resource_json(&session_a, &format!("view://view/{first_id}/scene")).await?;
+    let scene_uri =
+        format!("view://view/{first_id}/scene?width_px=256&height_px=256&max_screen_error_px=8");
+    let scene = read_mcp_resource_json(&session_a, &scene_uri).await?;
     ensure!(
         scene["view_revision"] == 2,
         "scene revision mismatch: {scene}"
@@ -125,7 +126,7 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         "preview tile blob is not a GLB container"
     );
     ensure!(
-        read_mcp_resource_json(&session_b, &format!("view://view/{first_id}/scene"))
+        read_mcp_resource_json(&session_b, &scene_uri)
             .await
             .is_err(),
         "one owner read another owner's scene manifest"

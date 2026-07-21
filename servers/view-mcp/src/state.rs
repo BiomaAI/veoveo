@@ -25,9 +25,8 @@ use crate::{
     contract::{
         AttributionSet, CaptureFrameRequest, CaptureLimits, CapturedFrame, CloseViewRequest,
         CloseViewResult, ContractError, CreateViewRequest, DeadlineBehavior, FrameId, FrameRecord,
-        LayerId, MAX_TILE_RESOURCE_BYTES, PreviewSceneRecord, SCENE_DEADLINE_MS,
-        SCENE_MAX_SCREEN_ERROR_PX, SCENE_MAX_TILES, SCENE_VIEWPORT_PX, SceneTileRecord,
-        SetCameraRequest, ViewId, ViewRecord,
+        LayerId, MAX_TILE_RESOURCE_BYTES, PreviewScenePolicy, PreviewSceneRecord,
+        SCENE_DEADLINE_MS, SCENE_MAX_TILES, SceneTileRecord, SetCameraRequest, ViewId, ViewRecord,
     },
     decode::{CpuTileContent, decode_glb},
     geodesy::{
@@ -318,16 +317,17 @@ impl ViewService {
             .collect()
     }
 
-    /// Coarse render-cut manifest for the view's current camera. Reuses the
-    /// capture selection/load pipeline at a fixed coarse screen error, so the
-    /// raw GLB bytes it references land in the source byte cache as a side
-    /// effect and stay servable through `read_tile_bytes`.
+    /// Render-cut manifest for the view's current camera and requested preview
+    /// policy. The raw GLB bytes it references land in the source byte cache as
+    /// a side effect and stay servable through `read_tile_bytes`.
     pub async fn preview_scene(
         &self,
         owner: &str,
         view_id: &ViewId,
+        policy: PreviewScenePolicy,
         cancellation: CancellationToken,
     ) -> Result<PreviewSceneRecord, ServiceError> {
+        policy.validate(&self.config.capture_limits)?;
         let view = self.get_view(owner, view_id).await?;
         let runtime = self.layer_runtime(&view.scene_layer).await?;
         let deadline = Instant::now() + Duration::from_millis(SCENE_DEADLINE_MS);
@@ -343,9 +343,9 @@ impl ViewService {
             let (selection, render_tiles) = runtime
                 .prepare_render_cut(
                     &resolved,
-                    SCENE_VIEWPORT_PX,
-                    SCENE_VIEWPORT_PX,
-                    SCENE_MAX_SCREEN_ERROR_PX,
+                    policy.width_px,
+                    policy.height_px,
+                    f64::from(policy.max_screen_error_px),
                     deadline,
                     DeadlineBehavior::ReturnBestAvailable,
                     self.config.max_concurrent_loads,
@@ -398,7 +398,9 @@ impl ViewService {
             local_origin: resolved.position,
             local_from_ecef: world_from_ecef(resolved.position).to_cols_array(),
             resolved_camera: resolved,
-            max_screen_error_px: SCENE_MAX_SCREEN_ERROR_PX,
+            width_px: policy.width_px,
+            height_px: policy.height_px,
+            max_screen_error_px: f64::from(policy.max_screen_error_px),
             detail_complete: selection.detail_complete,
             truncated,
             attribution: AttributionSet {

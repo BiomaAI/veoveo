@@ -157,7 +157,7 @@ Resource templates are:
 view://layer/{layer_id}
 view://view/{view_id}
 view://frame/{frame_id}
-view://view/{view_id}/scene
+view://view/{view_id}/scene{?width_px,height_px,max_screen_error_px}
 view://tile/{tile_key}
 ```
 
@@ -179,10 +179,12 @@ time from `assets/preview-app.template.html` plus the vendored three.js/draco
 bundle in `assets/vendor/` (rebuilt via `tools/vendor-three/`); guard tests
 pin self-containment and the console host's 2 MiB document cap.
 
-The app's in-browser 3D scene reads `view://view/{view_id}/scene`
-(owner-scoped, `view:read`): a coarse render-cut manifest for the view's
-current camera, computed at a fixed 96 px screen error against a nominal
-1024x1024 viewport and truncated to 48 tiles. The manifest carries the
+The app's in-browser 3D scene reads the parameterized view-scene resource
+(owner-scoped, `view:read`). Its typed viewport and screen-space error policy
+drives the same frustum selection used for capture, and the transport admits a
+complete render cut of up to 256 tiles. The app sends its current capture policy,
+which keeps detail inside the camera frustum representative of the requested
+frame. The manifest carries the
 resolved camera, a local origin with its column-major `local_from_ecef`
 frame, aggregated attribution, and per-tile `view://tile/{tile_key}` URIs
 with verbatim `ecef_from_content` transforms (glTF Y-up to Z-up baked in;
