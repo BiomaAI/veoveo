@@ -657,7 +657,12 @@
         "oidc_authorization_code_pkce"
       ],
       "required_scopes": [
-        "operator:use"
+        "operator:use",
+        "view:read",
+        "view:write",
+        "view:capture",
+        "map:dataset:read",
+        "time:read"
       ],
       "servers": [
         {
