@@ -166,7 +166,7 @@ fn validate_reason_workspace(
     let host_model = model_dir.join(model_name);
     ensure!(
         host_model.exists(),
-        "TensorRT-LLM engine is missing: {}",
+        "world-model checkpoint is missing: {}",
         host_model.display()
     );
     Ok(())

@@ -70,7 +70,7 @@ is the browser edition of the harness document.
 | `configs/gateway.smoke.json` | isolated smoke control plane |
 | `configs/deployments.json` | deployment contract examples |
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
-| `configs/reason/` | TensorRT-LLM reason catalog example and deployment contract |
+| `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
@@ -453,7 +453,7 @@ perception persists recording identities rather than segment paths.
 | Path | Responsibility |
 |---|---|
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types |
-| `src/catalog.rs` | validated TensorRT-LLM model and reasoning pipeline catalog |
+| `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | bounded world-model runner protocol and response validation |
 | `src/grounding.rs` | typed perception-results grounding subset extraction |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
