@@ -9,7 +9,9 @@ use veoveo_recording_forwarder::{
     oauth::OAuthTokenProvider,
 };
 use veoveo_recording_hub::{collect_segments, inspect_segment};
-use veoveo_recording_protocol::v1::{OpenRecordingStreamRequest, RecordingStreamState};
+use veoveo_recording_protocol::v1::{
+    OpenRecordingStreamRequest, RecordingStreamFinishMode, RecordingStreamState,
+};
 
 use super::*;
 
@@ -186,7 +188,16 @@ pub(crate) async fn recording_ingest(
             && duplicate.duplicate,
         "idempotent recording retry was not acknowledged: {duplicate:?}"
     );
-    let mut second_batch = batch.clone();
+    recording.log("sensor/second", &Scalars::single(84.0))?;
+    for message in storage.take() {
+        accumulator.push(message)?;
+    }
+    let mut second_batches = accumulator.drain_encoded(client.maximum_batch_bytes())?;
+    ensure!(
+        second_batches.len() == 1,
+        "second smoke recording batch unexpectedly split"
+    );
+    let mut second_batch = second_batches.remove(0);
     second_batch.sequence = 2;
     let appended = client.append(&opened.stream_id, &second_batch).await?;
     ensure!(
@@ -201,7 +212,12 @@ pub(crate) async fn recording_ingest(
         resumed.stream_id == opened.stream_id && resumed.next_sequence == 3,
         "recording stream did not resume from its durable checkpoint: {resumed:?}"
     );
-    let finished = client.finish(&opened.stream_id).await?;
+    let finished = client
+        .finish(
+            &opened.stream_id,
+            RecordingStreamFinishMode::CompleteRecording,
+        )
+        .await?;
     let finished = finished.stream.context("finish response omitted stream")?;
     ensure!(
         finished.state == i32::from(RecordingStreamState::Finished) && finished.next_sequence == 3,
@@ -223,7 +239,7 @@ pub(crate) async fn recording_ingest(
         Decoder::<LogMsg>::decode_eager(std::io::BufReader::new(File::open(&segments[0])?))?
             .collect::<Result<Vec<_>, _>>()?;
     ensure!(
-        decoded.len() as u64 == batch.message_count + second_batch.message_count,
+        decoded.len() as u64 == batch.message_count + second_batch.message_count - 1,
         "two ingest batches did not merge into one complete segment: {inspection:?}"
     );
 
