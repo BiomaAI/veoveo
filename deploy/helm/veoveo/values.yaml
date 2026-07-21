@@ -219,6 +219,8 @@ consoleBff:
     - map:dataset:read
     - time:read
     - view:read
+    - view:write
+    - view:capture
   resources:
     requests:
       cpu: 50m
