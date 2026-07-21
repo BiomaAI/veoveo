@@ -999,13 +999,15 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v3");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v4");
         assert_eq!(scenario.session_id, "bioma-uav");
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.frozen_rows_timeout_seconds, 1_200);
         assert_eq!(scenario.camera.aerial_detail.minimum_dynamic_range, 8);
         assert_eq!(scenario.perception.range_lag_seconds, 10.0);
+        assert!(!scenario.reason.prompt.is_empty());
+        assert_eq!(scenario.reason.maximum_frames, 8);
     }
 
     #[test]
