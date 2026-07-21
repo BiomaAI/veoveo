@@ -352,8 +352,9 @@ owner, dataset, classification, and labels. Raw Rerun ingest, durable parts, and
 filesystem paths are not installation ingress or read surfaces.
 
 `recording-mcp` applies tenant/label authorization to discovery, query, subscription,
-artifact publication, range-capable archive-window reads, and bounded-history live
-following. SUMO uses the same path: one serialized TraCI owner publishes Rerun world
+artifact publication, range-capable archive reads, and bounded-history live following.
+Console presents ordered archive sources and the current live tail in one persistent
+Rerun timeline without constructing another RRD. SUMO uses the same path: one serialized TraCI owner publishes Rerun world
 frames and exposes traffic controls, resources, and tasks.
 
 The agent kernel runs bounded episodes and persists scheduling through

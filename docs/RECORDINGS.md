@@ -50,14 +50,20 @@ interchangeable.
 The recording server also owns authenticated HTTP playback routes beside its MCP
 surface. The gateway applies the same recording resource policy and audit path,
 then issues a short-lived internal assertion. An authenticated manifest request
-lets the Console BFF mint a five-minute opaque playback ticket scoped to one
-recording; the ticket contains no bearer or filesystem identity. Completed
-playback opens one authorized immutable shard URL directly. The BFF and gateway
-preserve byte-range and conditional-read headers, while `recording-mcp` serves
-the file without decoding it. The manifest lists every shard with its ordinal,
-wall-clock bounds, length, and digest. Console selects one window at a time and
-lets the operator move to the previous or next window. There is no whole-recording
-RRD concatenation endpoint.
+lets the Console BFF establish a renewable five-minute opaque playback session
+scoped to one recording. Active replay renews that session every minute, while
+live manifest refreshes renew it every five seconds. Each renewal rechecks the
+recording policy and replaces the upstream access token without changing source
+URLs. The session identifier contains no bearer or filesystem identity.
+
+Completed playback attaches every authorized immutable shard URL to one
+persistent Rerun viewer. Each shard retains the logical recording's Rerun store
+identity, so Rerun presents their indexed rows on one timeline. The BFF and
+gateway preserve byte-range and conditional-read headers, while `recording-mcp`
+serves each file without decoding it. The manifest lists every shard with its
+ordinal, wall-clock bounds, length, and digest. Shard details remain available
+for archive inspection; they are not playback controls. There is no
+whole-recording RRD concatenation endpoint.
 
 Live playback is a distinct governed projection. The manifest identifies the
 current writing segment and declares the configured history window. The
@@ -69,13 +75,15 @@ snapshot and recent parts instead of scanning the full active hour. Direct nativ
 writers are decoded through the same temporal filter while the decoder follows
 the growing file.
 
-Rerun opens the live response with HTTP following enabled, so camera and
-telemetry appear before shard freeze. An encoded camera producer repeats codec
-and pinhole metadata with every keyframe. The canonical producer emits an IDR
-at least once per second, which bounds rollover delay and supplies the declared
-live preroll. A rollover closes the old response and gives the next writing
-shard a new catalog identity. Console refreshes the live manifest every five
-seconds and restarts the viewer only after that identity changes.
+Rerun opens frozen archive sources with HTTP following disabled and the current
+live response with following enabled. Camera and telemetry therefore appear
+before shard freeze while earlier history stays on the same timeline. An
+encoded camera producer repeats codec and pinhole metadata with every keyframe.
+The canonical producer emits an IDR at least once per second, which bounds
+rollover delay and supplies the declared live preroll. At rollover, Console
+attaches the newly frozen archive and successor live source before detaching the
+old live receiver. The persistent viewer retains its layout, selection, and
+timeline state.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not
@@ -94,9 +102,9 @@ in [`servers/perception-mcp/DESIGN.md`](../servers/perception-mcp/DESIGN.md).
 Keyframes use sparse `is_keyframe=true` markers; non-keyframe samples omit the
 component. This shape is required by Rerun's video cache and GoP rebatching.
 Frozen or sealed RRD segments are the only Perception source. Video readers
-merge authorized shards only when a requested clip crosses an archive window.
+merge authorized shards only when a requested clip crosses a shard boundary.
 The authenticated production path carries static context into every shard and
-begins rollover shards at a keyframe, which keeps normal archive-window decoder
+begins rollover shards at a keyframe, which keeps normal archive-shard decoder
 initialization local to that shard.
 
 ## Representative archive measurement

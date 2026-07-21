@@ -86,9 +86,9 @@ keyframe-bearing batch. Frozen and sealed archive shards remain the governed lon
 recording authority.
 
 Console live playback receives bounded recent history and follows the authorized writing
-segment after each Hub flush. Completed playback reads one selected archive window
-directly through range-capable authorized routes. No request path rebuilds or concatenates
-the whole recording.
+segment after each Hub flush. Completed playback attaches the ordered, range-capable
+archive sources to one persistent Rerun viewer, where their shared store identity presents
+one recording timeline. No request path rebuilds or concatenates the whole recording.
 
 ## Task execution and provider completion
 

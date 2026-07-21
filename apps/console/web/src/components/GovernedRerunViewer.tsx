@@ -1,47 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { WebViewer } from "@rerun-io/web-viewer";
-
-export interface GovernedRerunSource {
-  archiveUrls: string[];
-  liveUrl?: string;
-}
+import {
+  planRerunSourceTransition,
+  type GovernedRerunSource,
+  type OpenedRerunSources,
+} from "../rerunSources";
 
 type ViewerStatus =
   | { state: "loading"; delayed: boolean }
   | { state: "open" }
   | { state: "error"; message: string };
 
-interface OpenedRerunSources {
-  archiveUrls: Set<string>;
-  liveUrl?: string;
-}
-
 function synchronizeSources(
   viewer: WebViewer,
   opened: OpenedRerunSources,
   desired: GovernedRerunSource
 ) {
-  const desiredArchiveUrls = new Set(desired.archiveUrls);
-  const archiveAdditions = desired.archiveUrls.filter(
-    (url) => !opened.archiveUrls.has(url)
-  );
-  if (archiveAdditions.length > 0) {
-    viewer.open(archiveAdditions, { follow_if_http: false });
+  const transition = planRerunSourceTransition(opened, desired);
+  if (transition.archiveUrlsToOpen.length > 0) {
+    viewer.open(transition.archiveUrlsToOpen, { follow_if_http: false });
   }
-  if (desired.liveUrl && desired.liveUrl !== opened.liveUrl) {
-    viewer.open(desired.liveUrl, { follow_if_http: true });
+  if (transition.liveUrlToOpen) {
+    viewer.open(transition.liveUrlToOpen, { follow_if_http: true });
   }
-
-  const removals = [...opened.archiveUrls].filter(
-    (url) => !desiredArchiveUrls.has(url)
-  );
-  if (opened.liveUrl && opened.liveUrl !== desired.liveUrl) {
-    removals.push(opened.liveUrl);
-  }
-  if (removals.length > 0) viewer.close(removals);
-
-  opened.archiveUrls = desiredArchiveUrls;
-  opened.liveUrl = desired.liveUrl;
+  if (transition.urlsToClose.length > 0) viewer.close(transition.urlsToClose);
+  opened.archiveUrls = transition.next.archiveUrls;
+  opened.liveUrl = transition.next.liveUrl;
 }
 
 export default function GovernedRerunViewer({
