@@ -484,6 +484,15 @@ impl TileSource {
         })
     }
 
+    /// Length of the cached raw response for a content location, if resident.
+    pub fn cached_content_length(&self, location: &str) -> Option<u64> {
+        let url = self.request_url(location).ok()?;
+        self.raw_cache
+            .lock()
+            .get(&cache_key(&url))
+            .map(|cached| cached.bytes.len() as u64)
+    }
+
     fn request_url(&self, location: &str) -> Result<Url, SourceError> {
         match &self.kind {
             SourceKind::Google {
@@ -557,6 +566,17 @@ fn validate_https_url(value: &str) -> Result<Url, SourceError> {
         return Err(SourceError::InvalidUrl);
     }
     Ok(url)
+}
+
+/// A content location with request credentials stripped, safe to persist in
+/// tile-token registries and hash into client-visible identifiers. Session
+/// identifiers are kept (they are part of content identity, as in
+/// [`cache_key`]); only the `key` credential is removed.
+pub fn credential_free_location(location: &str) -> String {
+    match Url::parse(location) {
+        Ok(url) => cache_key(&url),
+        Err(_) => location.to_owned(),
+    }
 }
 
 fn cache_key(url: &Url) -> String {
@@ -663,6 +683,15 @@ mod tests {
     }
 
     #[test]
+    fn credential_free_locations_keep_sessions_and_drop_keys() {
+        assert_eq!(
+            credential_free_location("https://tile.googleapis.com/x.glb?session=S&key=SECRET"),
+            "https://tile.googleapis.com/x.glb?session=S"
+        );
+        assert_eq!(credential_free_location("not a url"), "not a url");
+    }
+
+    #[test]
     fn freshness_honors_no_store_and_max_age() {
         let mut headers = header::HeaderMap::new();
         headers.insert(
@@ -729,6 +758,7 @@ mod tests {
             Url::parse(content_uri).unwrap().to_file_path().unwrap(),
             directory.path().join("tile.glb")
         );
+        assert_eq!(source.cached_content_length(content_uri), None);
         assert_eq!(
             source
                 .load_content(content_uri, &CancellationToken::new())
@@ -738,5 +768,7 @@ mod tests {
                 .as_slice(),
             b"glTF"
         );
+        assert_eq!(source.cached_content_length(content_uri), Some(4));
+        assert_eq!(source.cached_content_length("file:///missing.glb"), None);
     }
 }

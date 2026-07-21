@@ -9,6 +9,7 @@ pub mod state;
 pub mod tiles;
 pub mod uris;
 
+mod app;
 mod mcp;
 
 pub use server::run;

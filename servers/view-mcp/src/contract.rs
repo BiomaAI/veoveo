@@ -337,6 +337,55 @@ pub struct CapturedFrame {
     pub bytes: Vec<u8>,
 }
 
+/// Screen-space error for preview scene cuts, relative to a nominal
+/// square viewport of [`SCENE_VIEWPORT_PX`]. Coarse by design: the preview
+/// app renders the cut in-browser and only needs a recognizable scene.
+pub const SCENE_MAX_SCREEN_ERROR_PX: f64 = 96.0;
+pub const SCENE_VIEWPORT_PX: u32 = 1_024;
+pub const SCENE_MAX_TILES: usize = 48;
+pub const SCENE_DEADLINE_MS: u64 = 15_000;
+/// Raw tile ceiling: base64(1.4 MB) plus the JSON envelope stays under the
+/// console host's 2 MiB resource-read cap.
+pub const MAX_TILE_RESOURCE_BYTES: u64 = 1_400_000;
+
+/// One coarse scene tile the preview app fetches via `view://tile/{key}`.
+/// `ecef_from_content` is served verbatim from the tile tree (glTF Y-up to
+/// Z-up already baked in); CESIUM_RTC centers and per-node transforms stay
+/// inside the GLB payload and are the consumer's job, exactly as in the
+/// server-side renderer.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SceneTileRecord {
+    pub tile_uri: String,
+    /// Column-major, meters (matches glam `to_cols_array` and three.js
+    /// `Matrix4.fromArray`).
+    pub ecef_from_content: [f64; 16],
+    /// Raw GLB length when resident in the byte cache; absent after eviction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<u64>,
+    /// Reads of oversize tiles fail; consumers must skip them.
+    pub oversize: bool,
+}
+
+/// Coarse render-cut manifest for a view's current camera, served at
+/// `view://view/{view_id}/scene` for the preview app's in-browser 3D scene.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PreviewSceneRecord {
+    pub view_id: ViewId,
+    pub view_revision: u64,
+    pub scene_layer: LayerId,
+    pub resolved_camera: GeodeticCameraPose,
+    pub local_origin: Wgs84Position3d,
+    /// Column-major local frame (+X east, +Y up, -Z north) from ECEF meters,
+    /// anchored at `local_origin` so composed tile transforms stay
+    /// scene-local and f32-safe.
+    pub local_from_ecef: [f64; 16],
+    pub max_screen_error_px: f64,
+    pub detail_complete: bool,
+    pub truncated: bool,
+    pub attribution: AttributionSet,
+    pub tiles: Vec<SceneTileRecord>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ContractError {
     #[error("invalid identifier `{0}`")]

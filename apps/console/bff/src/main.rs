@@ -34,6 +34,7 @@ struct AppState {
     sessions: SessionCipher,
     playback_sessions: recording_playback::PlaybackSessionStore,
     mcp: Arc<mcp_client::McpSessionPool>,
+    app_tasks: apps::AppTaskRegistry,
 }
 
 #[tokio::main]
@@ -71,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         sessions,
         playback_sessions: recording_playback::PlaybackSessionStore::default(),
         mcp,
+        app_tasks: apps::AppTaskRegistry::default(),
     };
     let csrf_state = state.clone();
 
@@ -89,6 +91,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/console/api/apps/frame", get(apps::app_frame))
         .route("/console/api/apps/call", post(apps::call_app_tool))
         .route("/console/api/apps/read", post(apps::read_app_resource))
+        .route("/console/api/apps/task/get", post(apps::get_app_task))
+        .route(
+            "/console/api/apps/task/result",
+            post(apps::get_app_task_result),
+        )
+        .route("/console/api/apps/task/cancel", post(apps::cancel_app_task))
         .route("/console/api/cluster", get(cluster::snapshot))
         .route(
             "/console/api/tasks/{task_id}/cancel",

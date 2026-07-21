@@ -28,6 +28,13 @@ use crate::{
 
 const LIST_PAGE_SIZE: usize = 100;
 
+/// The real view lifecycle tools double as the preview app's surface; the
+/// app drives them end-to-end (revision control and task-based capture
+/// included) rather than any parallel convenience tools.
+const PREVIEW_APP_TOOLS: &[&str] = &["create_view", "set_camera", "capture_frame", "close_view"];
+
+const PREVIEW_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0YTdkZDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJtMTQgMTAgNy0zdjEwbC03LTMiLz48cmVjdCB4PSIyIiB5PSI3IiB3aWR0aD0iMTIiIGhlaWdodD0iMTAiIHJ4PSIyIi8+PC9zdmc+";
+
 #[derive(Clone)]
 pub(crate) struct ViewMcp {
     state: Arc<AppState>,
@@ -148,18 +155,19 @@ impl ViewMcp {
 #[tool_handler]
 impl ServerHandler for ViewMcp {
     fn get_info(&self) -> ServerInfo {
-        let capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_resources()
             .enable_resources_subscribe()
             .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
         let mut info = ServerInfo::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("view", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Create an owner-scoped view with an exact pose or target camera, replace its camera under revision control, and invoke capture_frame through the Task API. A successful capture returns a directly displayable image and view://frame metadata. The renderer has no input, picking, overlays, or feature-query behavior."
+            "Create an owner-scoped view with an exact pose or target camera, replace its camera under revision control, and invoke capture_frame through the Task API. A successful capture returns a directly displayable image and view://frame metadata. The ui://view/preview.html app drives the same lifecycle interactively; its view://view/{view_id}/scene manifests reference coarse view://tile/... draco GLB resources. The renderer has no input, picking, overlays, or feature-query behavior."
                 .to_owned(),
         );
         info
@@ -172,6 +180,24 @@ impl ServerHandler for ViewMcp {
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
+        // The #[tool] macro has no meta attribute; app links attach here.
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                if PREVIEW_APP_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::PREVIEW_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
             tools: page.items,
@@ -192,6 +218,18 @@ impl ServerHandler for ViewMcp {
             json_descriptor(uris::VIEWS, "Views", "Owner-scoped camera views."),
             json_descriptor(uris::FRAMES, "Frames", "Owner-scoped captured frames."),
         ];
+        if identity_has_scope(&identity, "view:capture") {
+            resources.push(
+                veoveo_mcp_apps_extension::app_resource(uris::PREVIEW_APP_URI, "view-preview-app")
+                    .with_title("3D view preview")
+                    .with_description(
+                        "Interactive MCP App that composes camera poses over configured 3D \
+                         Tiles layers, previews the scene in-browser, and drives the real \
+                         view lifecycle including task-based capture.",
+                    )
+                    .with_icons(vec![rmcp::model::Icon::new(PREVIEW_APP_ICON)]),
+            );
+        }
         resources.extend(self.state.views.layers().iter().map(|layer| {
             json_descriptor(
                 &uris::layer(&layer.layer_id),
@@ -245,6 +283,15 @@ impl ServerHandler for ViewMcp {
                 "Frame",
                 "Owner-scoped captured image.",
             ),
+            template(
+                uris::VIEW_SCENE_TEMPLATE,
+                "View scene",
+                "Coarse render-cut manifest for the view's current camera.",
+            ),
+            ResourceTemplate::new(uris::TILE_TEMPLATE, "Preview tile")
+                .with_title("Preview tile")
+                .with_description("Raw draco GLB tile content from a scene manifest.")
+                .with_mime_type("model/gltf-binary"),
         ];
         let page = mcp_page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
@@ -259,9 +306,17 @@ impl ServerHandler for ViewMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
+        let uri = request.uri.as_str();
+        // The app is gated like the tools it drives, ahead of the blanket
+        // read gate: view:capture holders may lack nothing the app needs.
+        if uri == uris::PREVIEW_APP_URI {
+            require_scope(&context, "view:capture")?;
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, crate::app::preview_app_html()),
+            ]));
+        }
         let identity = require_scope(&context, "view:read")?;
         let owner = identity.actor.id.as_str();
-        let uri = request.uri.as_str();
         match uri {
             uris::LAYERS => return json_resource(uri, self.state.views.layers()),
             uris::VIEWS => {
@@ -279,6 +334,26 @@ impl ServerHandler for ViewMcp {
                 .find(|layer| layer.layer_id == layer_id)
                 .ok_or_else(not_found)?;
             return json_resource(uri, layer);
+        }
+        if let Some(view_id) = uris::parse_view_scene(uri) {
+            let record = self
+                .state
+                .views
+                .preview_scene(owner, &view_id, context.ct.child_token())
+                .await
+                .map_err(read_error)?;
+            return json_resource(uri, &record);
+        }
+        if let Some(tile_key) = uris::parse_tile(uri) {
+            let (bytes, mime) = self
+                .state
+                .views
+                .read_tile_bytes(&tile_key, context.ct.child_token())
+                .await
+                .map_err(read_error)?;
+            let content = ResourceContents::blob(BASE64_STANDARD.encode(bytes.as_slice()), uri)
+                .with_mime_type(mime);
+            return Ok(ReadResourceResult::new(vec![content]));
         }
         if let Some(view_id) = uris::parse_view(uri) {
             let view = self
@@ -427,13 +502,26 @@ fn require_scope(
     required: &str,
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
+    identity_has_scope(&identity, required)
+        .then_some(identity)
+        .ok_or_else(|| McpError::invalid_request(format!("scope `{required}` is required"), None))
+}
+
+fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {
     identity
         .actor
         .scopes
         .iter()
         .any(|scope| scope.as_str() == required)
-        .then_some(identity)
-        .ok_or_else(|| McpError::invalid_request(format!("scope `{required}` is required"), None))
+}
+
+fn read_error(error: crate::state::ServiceError) -> McpError {
+    match error {
+        crate::state::ServiceError::ViewNotFound | crate::state::ServiceError::TileNotFound => {
+            not_found()
+        }
+        other => McpError::invalid_request(other.to_string(), None),
+    }
 }
 
 fn is_subscribable(uri: &str) -> bool {

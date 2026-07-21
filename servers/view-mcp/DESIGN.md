@@ -157,6 +157,8 @@ Resource templates are:
 view://layer/{layer_id}
 view://view/{view_id}
 view://frame/{frame_id}
+view://view/{view_id}/scene
+view://tile/{tile_key}
 ```
 
 Views and frames are owner scoped. Resource lists are paginated. The server
@@ -165,6 +167,33 @@ updates after captures, and view-resource updates after camera replacement.
 
 Completion applies to visible view ids, frame ids, and configured layer ids.
 No prompt belongs in the initial capture-only domain.
+
+### Preview App
+
+`ui://view/preview.html` is a self-contained MCP App (gated on `view:capture`
+like the capture surface it drives) that exercises the real tool lifecycle:
+`create_view`, `set_camera` under revision control, task-based
+`capture_frame` through the host's task proxy, and `close_view` on teardown.
+It never gets parallel convenience tools. The document is composed at serve
+time from `assets/preview-app.template.html` plus the vendored three.js/draco
+bundle in `assets/vendor/` (rebuilt via `tools/vendor-three/`); guard tests
+pin self-containment and the console host's 2 MiB document cap.
+
+The app's in-browser 3D scene reads `view://view/{view_id}/scene`
+(owner-scoped, `view:read`): a coarse render-cut manifest for the view's
+current camera, computed at a fixed 96 px screen error against a nominal
+1024x1024 viewport and truncated to 48 tiles. The manifest carries the
+resolved camera, a local origin with its column-major `local_from_ecef`
+frame, aggregated attribution, and per-tile `view://tile/{tile_key}` URIs
+with verbatim `ecef_from_content` transforms (glTF Y-up to Z-up baked in;
+CESIUM_RTC and node transforms stay inside the GLB and are the consumer's
+job, exactly as in the renderer). Tile keys are sha256 tokens over the layer
+and credential-free content location, resolved through an in-process
+FIFO-bounded registry — like frames, they do not survive process restarts,
+and a stale token fails with guidance to re-read the scene. Tile reads serve
+raw draco GLB bytes from the source byte cache (refetch on miss under the
+source's own credential and host rules) and refuse tiles above 1.4 MB so
+base64 blobs stay under the console host's 2 MiB read cap.
 
 ## Tile Selection
 

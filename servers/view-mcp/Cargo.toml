@@ -49,6 +49,7 @@ tower-http.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-mcp-task-extension = { path = "../../mcp/task-extension" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }

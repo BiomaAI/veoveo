@@ -4,6 +4,7 @@
 .DS_Store
 
 # Local development caches
+/tools/vendor-three/node_modules/
 .vscode/
 __pycache__/
 *.pyc

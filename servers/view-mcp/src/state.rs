@@ -23,8 +23,10 @@ use uuid::Uuid;
 use crate::{
     cache::WeightedLru,
     contract::{
-        CaptureFrameRequest, CaptureLimits, CapturedFrame, CloseViewRequest, CloseViewResult,
-        ContractError, CreateViewRequest, DeadlineBehavior, FrameId, FrameRecord, LayerId,
+        AttributionSet, CaptureFrameRequest, CaptureLimits, CapturedFrame, CloseViewRequest,
+        CloseViewResult, ContractError, CreateViewRequest, DeadlineBehavior, FrameId, FrameRecord,
+        LayerId, MAX_TILE_RESOURCE_BYTES, PreviewSceneRecord, SCENE_DEADLINE_MS,
+        SCENE_MAX_SCREEN_ERROR_PX, SCENE_MAX_TILES, SCENE_VIEWPORT_PX, SceneTileRecord,
         SetCameraRequest, ViewId, ViewRecord,
     },
     decode::{CpuTileContent, decode_glb},
@@ -33,7 +35,7 @@ use crate::{
         world_from_ecef,
     },
     renderer::{RenderFrameRequest, RenderTile, RendererError, RendererHandle},
-    source::{LayerCatalog, SourceError, TileSource, looks_like_tileset},
+    source::{LayerCatalog, SourceError, TileSource, credential_free_location, looks_like_tileset},
     tiles::traversal::{
         Selection, SelectionHistory, SelectionParams, TileReadiness, TileTree, select,
     },
@@ -63,6 +65,42 @@ pub struct ViewService {
     views: RwLock<HashMap<ViewId, InternalView>>,
     layers: AsyncMutex<HashMap<LayerId, Arc<AsyncMutex<LayerRuntime>>>>,
     frames: Mutex<FrameStore>,
+    tiles: Mutex<TileTokenRegistry>,
+}
+
+/// Opaque preview-tile tokens handed out in scene manifests. Entries map a
+/// sha256 token back to a credential-free content location; like the frame
+/// store, the registry is in-process state.
+const MAX_TILE_TOKENS: usize = 8_192;
+
+#[derive(Default)]
+struct TileTokenRegistry {
+    entries: HashMap<String, TileTokenEntry>,
+    order: VecDeque<String>,
+}
+
+#[derive(Clone)]
+struct TileTokenEntry {
+    layer: LayerId,
+    location: String,
+}
+
+impl TileTokenRegistry {
+    fn register(&mut self, key: String, entry: TileTokenEntry) {
+        if self.entries.insert(key.clone(), entry).is_none() {
+            self.order.push_back(key);
+            while self.order.len() > MAX_TILE_TOKENS {
+                let Some(oldest) = self.order.pop_front() else {
+                    break;
+                };
+                self.entries.remove(&oldest);
+            }
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<TileTokenEntry> {
+        self.entries.get(key).cloned()
+    }
 }
 
 struct InternalView {
@@ -128,6 +166,7 @@ impl ViewService {
                 order: VecDeque::new(),
                 bytes: 0,
             }),
+            tiles: Mutex::new(TileTokenRegistry::default()),
         }
     }
 
@@ -277,6 +316,119 @@ impl ViewService {
             .filter(|stored| stored.owner == owner)
             .map(|stored| stored.frame.record.clone())
             .collect()
+    }
+
+    /// Coarse render-cut manifest for the view's current camera. Reuses the
+    /// capture selection/load pipeline at a fixed coarse screen error, so the
+    /// raw GLB bytes it references land in the source byte cache as a side
+    /// effect and stay servable through `read_tile_bytes`.
+    pub async fn preview_scene(
+        &self,
+        owner: &str,
+        view_id: &ViewId,
+        cancellation: CancellationToken,
+    ) -> Result<PreviewSceneRecord, ServiceError> {
+        let view = self.get_view(owner, view_id).await?;
+        let runtime = self.layer_runtime(&view.scene_layer).await?;
+        let deadline = Instant::now() + Duration::from_millis(SCENE_DEADLINE_MS);
+        let resolved = view.resolved_camera.clone();
+        let (selection, render_tiles, manifest) = {
+            let mut runtime = tokio::select! {
+                () = cancellation.cancelled() => return Err(ServiceError::Cancelled),
+                runtime = runtime.lock() => runtime,
+            };
+            runtime
+                .ensure_open(&cancellation, self.config.max_tree_nodes)
+                .await?;
+            let (selection, render_tiles) = runtime
+                .prepare_render_cut(
+                    &resolved,
+                    SCENE_VIEWPORT_PX,
+                    SCENE_VIEWPORT_PX,
+                    SCENE_MAX_SCREEN_ERROR_PX,
+                    deadline,
+                    DeadlineBehavior::ReturnBestAvailable,
+                    self.config.max_concurrent_loads,
+                    self.config.max_tree_nodes,
+                    &cancellation,
+                )
+                .await?;
+            let manifest = runtime.scene_tiles(&selection.render);
+            (selection, render_tiles, manifest)
+        };
+        if cancellation.is_cancelled() {
+            return Err(ServiceError::Cancelled);
+        }
+        let source = self
+            .catalog
+            .get(&view.scene_layer)
+            .ok_or_else(|| ServiceError::LayerNotFound(view.scene_layer.clone()))?;
+        let attribution = render_tiles
+            .iter()
+            .flat_map(|tile| tile.content.attribution.iter().cloned())
+            .collect::<BTreeSet<_>>();
+        let truncated = manifest.len() > SCENE_MAX_TILES;
+        let mut tiles = Vec::new();
+        {
+            let mut registry = self.tiles.lock();
+            for (location, ecef_from_content) in manifest.into_iter().take(SCENE_MAX_TILES) {
+                let location = credential_free_location(&location);
+                let tile_key = sha256_hex(format!("{}\n{location}", view.scene_layer).as_bytes());
+                let byte_length = source.cached_content_length(&location);
+                let oversize = byte_length.is_some_and(|length| length > MAX_TILE_RESOURCE_BYTES);
+                registry.register(
+                    tile_key.clone(),
+                    TileTokenEntry {
+                        layer: view.scene_layer.clone(),
+                        location,
+                    },
+                );
+                tiles.push(SceneTileRecord {
+                    tile_uri: uris::tile(&tile_key),
+                    ecef_from_content,
+                    byte_length,
+                    oversize,
+                });
+            }
+        }
+        Ok(PreviewSceneRecord {
+            view_id: view.view_id,
+            view_revision: view.revision,
+            scene_layer: view.scene_layer,
+            local_origin: resolved.position,
+            local_from_ecef: world_from_ecef(resolved.position).to_cols_array(),
+            resolved_camera: resolved,
+            max_screen_error_px: SCENE_MAX_SCREEN_ERROR_PX,
+            detail_complete: selection.detail_complete,
+            truncated,
+            attribution: AttributionSet {
+                lines: attribution.into_iter().collect(),
+            },
+            tiles,
+        })
+    }
+
+    /// Raw draco GLB bytes for a preview-tile token, from the source byte
+    /// cache or a refetch under the source's own credential and host rules.
+    pub async fn read_tile_bytes(
+        &self,
+        tile_key: &str,
+        cancellation: CancellationToken,
+    ) -> Result<(Arc<Vec<u8>>, &'static str), ServiceError> {
+        let entry = self
+            .tiles
+            .lock()
+            .get(tile_key)
+            .ok_or(ServiceError::TileNotFound)?;
+        let source = self
+            .catalog
+            .get(&entry.layer)
+            .ok_or(ServiceError::TileNotFound)?;
+        let response = source.load_content(&entry.location, &cancellation).await?;
+        if response.bytes.len() as u64 > MAX_TILE_RESOURCE_BYTES {
+            return Err(ServiceError::TileTooLarge);
+        }
+        Ok((response.bytes, "model/gltf-binary"))
     }
 
     pub async fn capture_frame(
@@ -725,6 +877,22 @@ impl LayerRuntime {
             .collect()
     }
 
+    /// Content locations and ECEF transforms for a render cut, for scene
+    /// manifests. Transforms are served verbatim from the tree (glTF Y-up to
+    /// Z-up baked in at build; CESIUM_RTC stays inside the GLB payload).
+    fn scene_tiles(&self, indices: &[usize]) -> Vec<(String, [f64; 16])> {
+        let tree = self.tree.as_ref().expect("opened");
+        indices
+            .iter()
+            .filter_map(|&index| {
+                let node = &tree.nodes[index];
+                node.content_uri
+                    .clone()
+                    .map(|uri| (uri, node.ecef_from_content.to_cols_array()))
+            })
+            .collect()
+    }
+
     fn render_tiles(&mut self, indices: &[usize]) -> Result<Vec<RenderTile>, ServiceError> {
         let tree = self.tree.as_ref().expect("opened");
         indices
@@ -821,6 +989,10 @@ pub enum ServiceError {
     ViewNotFound,
     #[error("frame was not found")]
     FrameNotFound,
+    #[error("preview tile is unknown or expired; re-read the view scene resource")]
+    TileNotFound,
+    #[error("preview tile exceeds the per-read byte limit and must be skipped")]
+    TileTooLarge,
     #[error("view revision conflict: expected {expected}, actual {actual}")]
     RevisionConflict { expected: u64, actual: u64 },
     #[error("global view limit is reached")]
@@ -880,5 +1052,43 @@ mod tests {
         let parameters = selection_camera(&pose, 1920, 1080, 10.0, 2_000.0).params;
         let expected = 1080.0 / (2.0 * (45f64.to_radians() / 2.0).tan());
         assert!((parameters.focal_length_px - expected).abs() < 1e-9);
+    }
+
+    fn token_entry(location: &str) -> TileTokenEntry {
+        TileTokenEntry {
+            layer: LayerId::new("layer").unwrap(),
+            location: location.to_owned(),
+        }
+    }
+
+    #[test]
+    fn tile_tokens_are_deterministic_and_credential_free() {
+        let location =
+            credential_free_location("https://tile.googleapis.com/v1/t.glb?session=S&key=SECRET");
+        assert!(!location.contains("SECRET"));
+        let first = sha256_hex(format!("layer\n{location}").as_bytes());
+        let second = sha256_hex(format!("layer\n{location}").as_bytes());
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 64);
+    }
+
+    #[test]
+    fn tile_token_registry_evicts_oldest_beyond_the_cap() {
+        let mut registry = TileTokenRegistry::default();
+        for index in 0..=MAX_TILE_TOKENS {
+            registry.register(format!("key-{index}"), token_entry("loc"));
+        }
+        assert!(registry.get("key-0").is_none());
+        assert!(registry.get(&format!("key-{MAX_TILE_TOKENS}")).is_some());
+        assert_eq!(registry.entries.len(), MAX_TILE_TOKENS);
+    }
+
+    #[test]
+    fn tile_token_reregistration_does_not_duplicate_order() {
+        let mut registry = TileTokenRegistry::default();
+        registry.register("key".to_owned(), token_entry("a"));
+        registry.register("key".to_owned(), token_entry("b"));
+        assert_eq!(registry.order.len(), 1);
+        assert_eq!(registry.get("key").unwrap().location, "b");
     }
 }

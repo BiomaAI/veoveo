@@ -1,5 +1,13 @@
 import { demoSnapshot } from "./demo";
-import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  CallToolResult,
+  CancelTaskResult,
+  CreateTaskResult,
+  GetTaskPayloadResult,
+  GetTaskResult,
+  ReadResourceResult,
+  TaskMetadata,
+} from "@modelcontextprotocol/sdk/types.js";
 import type {
   AppCatalog,
   ArtifactAccessRequest,
@@ -355,10 +363,57 @@ export async function callAppTool(
   appUri: string,
   tool: string,
   toolArguments: Record<string, unknown>
-): Promise<CallToolResult> {
-  return consoleMutation<CallToolResult>("apps/call", {
+): Promise<CallToolResult>;
+export async function callAppTool(
+  server: string,
+  appUri: string,
+  tool: string,
+  toolArguments: Record<string, unknown>,
+  task: TaskMetadata
+): Promise<CreateTaskResult>;
+export async function callAppTool(
+  server: string,
+  appUri: string,
+  tool: string,
+  toolArguments: Record<string, unknown>,
+  task?: TaskMetadata
+): Promise<CallToolResult | CreateTaskResult> {
+  return consoleMutation<CallToolResult | CreateTaskResult>("apps/call", {
     method: "POST",
-    body: JSON.stringify({ server, appUri, tool, arguments: toolArguments }),
+    body: JSON.stringify({ server, appUri, tool, arguments: toolArguments, ...(task ? { task } : {}) }),
+  });
+}
+
+export async function getAppTask(
+  server: string,
+  appUri: string,
+  taskId: string
+): Promise<GetTaskResult> {
+  return consoleMutation<GetTaskResult>("apps/task/get", {
+    method: "POST",
+    body: JSON.stringify({ server, appUri, taskId }),
+  });
+}
+
+export async function getAppTaskResult(
+  server: string,
+  appUri: string,
+  taskId: string
+): Promise<GetTaskPayloadResult> {
+  return consoleMutation<GetTaskPayloadResult>("apps/task/result", {
+    method: "POST",
+    body: JSON.stringify({ server, appUri, taskId }),
+  });
+}
+
+export async function cancelAppTask(
+  server: string,
+  appUri: string,
+  taskId: string
+): Promise<CancelTaskResult> {
+  return consoleMutation<CancelTaskResult>("apps/task/cancel", {
+    method: "POST",
+    body: JSON.stringify({ server, appUri, taskId }),
   });
 }
 
