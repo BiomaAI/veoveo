@@ -124,9 +124,10 @@ contains only short dispatch recipes.
 - Helm tests render interactive and batch workloads and reject plaintext token
   values.
 - Live acceptance loads Google Photorealistic 3D Tiles inside Isaac, reads its
-  climb, camera thresholds, waypoint, and perception capture from
-  `scenarios/bioma-aerial.json`, retains its Rerun recording, and runs
-  Perception while View remains healthy.
+  climb, camera thresholds, waypoint, perception capture, and reasoning prompt
+  from `scenarios/bioma-aerial.json`, retains its Rerun recording, runs
+  Perception over the governed camera range, and has Reason describe the same
+  range grounded in those detections while View remains healthy.
 
 The live test is the release proof. Fixture tiles exercise offline code paths
 but cannot replace it.
