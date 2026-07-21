@@ -21,6 +21,7 @@ pub struct QueueStream {
     pub application_id: String,
     pub recording_id: String,
     pub remote_stream_id: Option<String>,
+    pub remote_first_local_sequence: u64,
     pub next_enqueue_sequence: u64,
     pub next_upload_sequence: u64,
     pub finish_requested: bool,
@@ -133,7 +134,11 @@ impl DurableQueue {
         Ok(stream.next_upload_sequence < stream.next_enqueue_sequence)
     }
 
-    pub fn mark_opened(&mut self, stream: &QueueStream, remote_stream_id: &str) -> Result<()> {
+    pub fn mark_opened(
+        &mut self,
+        stream: &QueueStream,
+        remote_stream_id: &str,
+    ) -> Result<QueueStream> {
         validate_remote_stream_id(remote_stream_id)?;
         let mut current = self.read_stream(&stream.key)?;
         ensure!(
@@ -144,7 +149,21 @@ impl DurableQueue {
             "gateway returned a different stream for the same source stream"
         );
         current.remote_stream_id = Some(remote_stream_id.to_owned());
-        self.write_stream(&current)
+        self.write_stream(&current)?;
+        Ok(current)
+    }
+
+    pub fn rollover(&mut self, stream: &QueueStream) -> Result<QueueStream> {
+        let mut current = self.read_stream(&stream.key)?;
+        ensure!(
+            current.next_upload_sequence < current.next_enqueue_sequence,
+            "cannot roll over an empty queued stream"
+        );
+        current.source_stream_id = uuid::Uuid::now_v7().to_string();
+        current.remote_stream_id = None;
+        current.remote_first_local_sequence = current.next_upload_sequence;
+        self.write_stream(&current)?;
+        Ok(current)
     }
 
     pub fn acknowledge(&mut self, stream: &QueueStream, sequence: u64) -> Result<QueueStream> {
@@ -270,6 +289,7 @@ impl DurableQueue {
             application_id: application_id.to_owned(),
             recording_id: recording_id.to_owned(),
             remote_stream_id: None,
+            remote_first_local_sequence: 1,
             next_enqueue_sequence: 1,
             next_upload_sequence: 1,
             finish_requested: false,
@@ -442,5 +462,26 @@ mod tests {
         assert!(queue.enqueue("camera", "run-a", &batch()).is_err());
         queue.acknowledge(&stream, sequence).unwrap();
         assert!(queue.enqueue("camera", "run-a", &batch()).is_ok());
+    }
+
+    #[test]
+    fn rollover_starts_a_new_remote_generation_at_the_pending_batch() {
+        let temporary = TempDir::new().unwrap();
+        let mut queue = DurableQueue::open(temporary.path().join("queue"), 1_000_000).unwrap();
+        let (_stream, first) = queue.enqueue("camera", "run-a", &batch()).unwrap();
+        let (stream, second) = queue.enqueue("camera", "run-a", &batch()).unwrap();
+        let original_source_stream_id = stream.source_stream_id.clone();
+        let remote_stream_id = uuid::Uuid::now_v7().to_string();
+        let stream = queue.mark_opened(&stream, &remote_stream_id).unwrap();
+        let stream = queue.acknowledge(&stream, first).unwrap();
+        let stream = queue.rollover(&stream).unwrap();
+
+        assert_eq!(stream.remote_stream_id, None);
+        assert_ne!(stream.source_stream_id, original_source_stream_id);
+        assert_eq!(stream.remote_first_local_sequence, second);
+        assert_eq!(
+            queue.next_batch(&stream).unwrap().unwrap().local_sequence,
+            second
+        );
     }
 }

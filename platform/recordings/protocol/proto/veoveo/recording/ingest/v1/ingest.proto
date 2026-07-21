@@ -46,7 +46,15 @@ message AppendRecordingBatchResult {
   bool duplicate = 3;
 }
 
-message FinishRecordingStreamRequest {}
+enum RecordingStreamFinishMode {
+  RECORDING_STREAM_FINISH_MODE_UNSPECIFIED = 0;
+  RECORDING_STREAM_FINISH_MODE_CONTINUE_RECORDING = 1;
+  RECORDING_STREAM_FINISH_MODE_COMPLETE_RECORDING = 2;
+}
+
+message FinishRecordingStreamRequest {
+  RecordingStreamFinishMode mode = 1;
+}
 
 message FinishRecordingStreamResult {
   RecordingStream stream = 1;
@@ -68,11 +76,20 @@ enum IngestErrorCode {
   INGEST_ERROR_CODE_STORAGE_UNAVAILABLE = 12;
 }
 
+enum RecordingIngestQuota {
+  RECORDING_INGEST_QUOTA_UNSPECIFIED = 0;
+  RECORDING_INGEST_QUOTA_MAXIMUM_STREAM_BYTES = 1;
+  RECORDING_INGEST_QUOTA_MAXIMUM_CONCURRENT_STREAMS = 2;
+  RECORDING_INGEST_QUOTA_MAXIMUM_BATCHES_PER_MINUTE = 3;
+  RECORDING_INGEST_QUOTA_MAXIMUM_BYTES_PER_DAY = 4;
+}
+
 message IngestError {
   IngestErrorCode code = 1;
   string message = 2;
   optional uint64 expected_sequence = 3;
   optional uint64 retry_after_seconds = 4;
+  optional RecordingIngestQuota quota = 5;
 }
 
 message RecordingIngestDiscovery {
@@ -114,4 +131,5 @@ message AuthorizedRecordingBatchRequest {
 
 message AuthorizedFinishRecordingStreamRequest {
   AuthorizedRecordingProducer producer = 1;
+  FinishRecordingStreamRequest request = 2;
 }

@@ -178,16 +178,20 @@ async fn finish_stream(
         Ok(stream_id) => stream_id,
         Err(_) => return stream_not_found(),
     };
-    if let Err(response) = decode::<FinishRecordingStreamRequest>(&headers, &body) {
-        return response;
-    }
+    let request = match decode::<FinishRecordingStreamRequest>(&headers, &body) {
+        Ok(request) => request,
+        Err(response) => return response,
+    };
     proxy_authorized(
         &state,
         &headers,
         GatewayAction::RecordingStreamFinish,
         Some(&stream_id),
         format!("{INTERNAL_STREAMS_PATH}/{stream_id}/finish"),
-        AuthorizedFinishRecordingStreamRequest { producer: None },
+        AuthorizedFinishRecordingStreamRequest {
+            producer: None,
+            request: Some(request),
+        },
     )
     .await
 }
@@ -585,6 +589,7 @@ fn ingest_error(status: StatusCode, code: IngestErrorCode, message: &str) -> Res
             message: message.to_owned(),
             expected_sequence: None,
             retry_after_seconds: None,
+            quota: None,
         },
     )
 }

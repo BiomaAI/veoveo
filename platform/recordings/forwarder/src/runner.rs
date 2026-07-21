@@ -15,7 +15,9 @@ use reqwest::header::{HOST, HeaderMap, HeaderValue};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use veoveo_recording_protocol::v1::OpenRecordingStreamRequest;
+use veoveo_recording_protocol::v1::{
+    IngestErrorCode, OpenRecordingStreamRequest, RecordingIngestQuota, RecordingStreamFinishMode,
+};
 
 use crate::{
     batch::{BatchBoundary, RecordingAccumulator},
@@ -317,36 +319,66 @@ async fn upload_pass(
         .streams()?;
     let mut progress = false;
     for mut stream in streams {
-        if stream.remote_stream_id.is_none() {
-            let opened = client
-                .open(&OpenRecordingStreamRequest {
-                    source_stream_id: stream.source_stream_id.clone(),
-                    application_id: stream.application_id.clone(),
-                    recording_id: stream.recording_id.clone(),
-                })
-                .await?;
-            queue
-                .lock()
-                .expect("durable queue mutex poisoned")
-                .mark_opened(&stream, &opened.stream_id)?;
-            stream.remote_stream_id = Some(opened.stream_id);
-            progress = true;
-        }
-        loop {
+        'generation: loop {
+            if stream.remote_stream_id.is_none() {
+                let opened = client
+                    .open(&OpenRecordingStreamRequest {
+                        source_stream_id: stream.source_stream_id.clone(),
+                        application_id: stream.application_id.clone(),
+                        recording_id: stream.recording_id.clone(),
+                    })
+                    .await?;
+                ensure!(
+                    opened.next_sequence == 1,
+                    "new recording ingest generation did not start at sequence one"
+                );
+                stream = queue
+                    .lock()
+                    .expect("durable queue mutex poisoned")
+                    .mark_opened(&stream, &opened.stream_id)?;
+                progress = true;
+            }
             let batch = queue
                 .lock()
                 .expect("durable queue mutex poisoned")
                 .next_batch(&stream)?;
             let Some(queued) = batch else { break };
+            let mut remote_batch = queued.batch;
+            remote_batch.sequence = queued
+                .local_sequence
+                .checked_sub(stream.remote_first_local_sequence)
+                .and_then(|offset| offset.checked_add(1))
+                .context("queued batch precedes its remote generation")?;
             let result = client
                 .append(
                     stream
                         .remote_stream_id
                         .as_deref()
                         .context("queued stream has no remote identity")?,
-                    &queued.batch,
+                    &remote_batch,
                 )
                 .await;
+            if let Err(error) = &result
+                && let Some(finish_generation) = stream_rollover(error)
+            {
+                if finish_generation {
+                    client
+                        .finish(
+                            stream
+                                .remote_stream_id
+                                .as_deref()
+                                .context("queued stream has no remote identity")?,
+                            RecordingStreamFinishMode::ContinueRecording,
+                        )
+                        .await?;
+                }
+                stream = queue
+                    .lock()
+                    .expect("durable queue mutex poisoned")
+                    .rollover(&stream)?;
+                progress = true;
+                continue 'generation;
+            }
             if let Err(error) = &result
                 && let Some(ingest) = error.downcast_ref::<IngestRequestError>()
                 && let Some(seconds) = ingest.retry_after_seconds
@@ -355,7 +387,7 @@ async fn upload_pass(
             }
             let result = result?;
             ensure!(
-                result.durable_through_sequence >= queued.batch.sequence,
+                result.durable_through_sequence >= remote_batch.sequence,
                 "gateway did not durably acknowledge the uploaded batch"
             );
             stream = queue
@@ -371,7 +403,13 @@ async fn upload_pass(
                 .has_batches(&stream)?
         {
             client
-                .finish(stream.remote_stream_id.as_deref().unwrap())
+                .finish(
+                    stream
+                        .remote_stream_id
+                        .as_deref()
+                        .context("queued stream has no remote identity")?,
+                    RecordingStreamFinishMode::CompleteRecording,
+                )
                 .await?;
             queue
                 .lock()
@@ -381,4 +419,54 @@ async fn upload_pass(
         }
     }
     Ok(progress)
+}
+
+fn stream_rollover(error: &anyhow::Error) -> Option<bool> {
+    let ingest = error.downcast_ref::<IngestRequestError>()?;
+    if ingest.code == IngestErrorCode::QuotaExceeded
+        && ingest.quota == Some(RecordingIngestQuota::MaximumStreamBytes)
+    {
+        return Some(true);
+    }
+    (ingest.code == IngestErrorCode::StreamFinished).then_some(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use reqwest::StatusCode;
+
+    use super::*;
+
+    fn ingest_error(code: IngestErrorCode, quota: Option<RecordingIngestQuota>) -> anyhow::Error {
+        IngestRequestError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            code,
+            quota,
+            message: "ingest rejected the batch".to_owned(),
+            retry_after_seconds: None,
+        }
+        .into()
+    }
+
+    #[test]
+    fn rolls_over_only_permanent_stream_boundaries() {
+        assert_eq!(
+            stream_rollover(&ingest_error(
+                IngestErrorCode::QuotaExceeded,
+                Some(RecordingIngestQuota::MaximumStreamBytes),
+            )),
+            Some(true)
+        );
+        assert_eq!(
+            stream_rollover(&ingest_error(IngestErrorCode::StreamFinished, None)),
+            Some(false)
+        );
+        assert_eq!(
+            stream_rollover(&ingest_error(
+                IngestErrorCode::QuotaExceeded,
+                Some(RecordingIngestQuota::MaximumBytesPerDay),
+            )),
+            None
+        );
+    }
 }

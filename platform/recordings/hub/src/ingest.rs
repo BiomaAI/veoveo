@@ -17,14 +17,15 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,
     RecordingDraft, RecordingId, RecordingIngestBatchDraft, RecordingIngestBatchState,
-    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, SegmentDraft,
-    SegmentId, SegmentRecord, SegmentState, TenantId,
+    RecordingIngestQuota, RecordingIngestStreamId, RecordingIngestStreamRecord,
+    RecordingIngestStreamState, SegmentDraft, SegmentId, SegmentRecord, SegmentState, StoreError,
+    TenantId,
 };
 use veoveo_recording_protocol::{
     DEFAULT_MAXIMUM_BATCH_BYTES, REQUIRED_SCOPE,
     v1::{
         AppendRecordingBatchResult, AuthorizedRecordingProducer, RecordingBatch, RecordingStream,
-        RecordingStreamState, RerunPayloadFormat,
+        RecordingStreamFinishMode, RecordingStreamState, RerunPayloadFormat,
     },
 };
 
@@ -246,13 +247,15 @@ impl RecordingIngestService {
                 .into(),
             );
         }
-        ensure!(
-            stream.byte_len
-                + i64::try_from(batch.encoded_rrd.len()).context("batch length exceeds i64")?
-                <= i64::try_from(producer.maximum_stream_bytes)
-                    .context("stream limit exceeds i64")?,
-            "stream byte quota exceeded"
-        );
+        if stream.byte_len
+            + i64::try_from(batch.encoded_rrd.len()).context("batch length exceeds i64")?
+            > i64::try_from(producer.maximum_stream_bytes).context("stream limit exceeds i64")?
+        {
+            return Err(StoreError::RecordingIngestQuotaExceeded {
+                quota: RecordingIngestQuota::MaximumStreamBytes,
+            }
+            .into());
+        }
         validate_rrd_identity(
             &batch.encoded_rrd,
             batch.message_count,
@@ -297,6 +300,7 @@ impl RecordingIngestService {
         gateway: &GatewayInternalResourceIdentity,
         producer: &AuthorizedRecordingProducer,
         stream_id: RecordingIngestStreamId,
+        mode: RecordingStreamFinishMode,
     ) -> Result<RecordingStream> {
         let identity = self.authorize(gateway, producer, None).await?;
         let _guard = self.materialization.lock().await;
@@ -309,13 +313,15 @@ impl RecordingIngestService {
             .store
             .finish_recording_ingest_stream(identity.tenant_id, stream_id)
             .await?;
-        self.store
-            .finish_recording(
-                &identity,
-                typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?,
-                stream.finished_at.unwrap_or_else(chrono::Utc::now),
-            )
-            .await?;
+        if mode == RecordingStreamFinishMode::CompleteRecording {
+            self.store
+                .finish_recording(
+                    &identity,
+                    typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?,
+                    stream.finished_at.unwrap_or_else(chrono::Utc::now),
+                )
+                .await?;
+        }
         self.stream_response(&stream)
     }
 

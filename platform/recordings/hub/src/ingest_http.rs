@@ -10,13 +10,16 @@ use axum::{
 };
 use prost::Message;
 use veoveo_mcp_contract::{GatewayInternalResourceIdentity, GatewayInternalResourceTokenVerifier};
-use veoveo_platform_store::{RecordingIngestStreamId, StoreError};
+use veoveo_platform_store::{
+    RecordingIngestQuota as StoreRecordingIngestQuota, RecordingIngestStreamId, StoreError,
+};
 use veoveo_recording_protocol::{
     BatchValidationError, MEDIA_TYPE,
     v1::{
         AuthorizedFinishRecordingStreamRequest, AuthorizedOpenRecordingStreamRequest,
         AuthorizedRecordingBatchRequest, AuthorizedRecordingProducer, FinishRecordingStreamResult,
-        IngestError, IngestErrorCode,
+        IngestError, IngestErrorCode, RecordingIngestQuota as ProtocolRecordingIngestQuota,
+        RecordingStreamFinishMode,
     },
 };
 
@@ -199,11 +202,39 @@ async fn finish_stream(
             None,
         );
     };
+    let Some(request) = envelope.request.as_ref() else {
+        return ingest_error(
+            StatusCode::BAD_REQUEST,
+            IngestErrorCode::InvalidRequest,
+            "finish request is required",
+            None,
+        );
+    };
+    let mode = match RecordingStreamFinishMode::try_from(request.mode) {
+        Ok(RecordingStreamFinishMode::ContinueRecording) => {
+            RecordingStreamFinishMode::ContinueRecording
+        }
+        Ok(RecordingStreamFinishMode::CompleteRecording) => {
+            RecordingStreamFinishMode::CompleteRecording
+        }
+        _ => {
+            return ingest_error(
+                StatusCode::BAD_REQUEST,
+                IngestErrorCode::InvalidRequest,
+                "recording stream finish mode is required",
+                None,
+            );
+        }
+    };
     let stream_id = match parse_stream_id(&stream_id) {
         Ok(stream_id) => stream_id,
         Err(response) => return response,
     };
-    match state.service.finish(&gateway, producer, stream_id).await {
+    match state
+        .service
+        .finish(&gateway, producer, stream_id, mode)
+        .await
+    {
         Ok(stream) => protobuf_response(
             StatusCode::OK,
             &FinishRecordingStreamResult {
@@ -334,12 +365,9 @@ fn service_error(error: anyhow::Error) -> Response {
                 &store.to_string(),
                 None,
             ),
-            StoreError::RecordingIngestQuotaExceeded { .. } => ingest_error(
-                StatusCode::TOO_MANY_REQUESTS,
-                IngestErrorCode::QuotaExceeded,
-                &store.to_string(),
-                None,
-            ),
+            StoreError::RecordingIngestQuotaExceeded { quota } => {
+                ingest_quota_error(*quota, &store.to_string())
+            }
             StoreError::InvalidRecordingIngestField { .. } => ingest_error(
                 StatusCode::BAD_REQUEST,
                 IngestErrorCode::InvalidRequest,
@@ -400,6 +428,57 @@ fn ingest_error(
             message: message.to_owned(),
             expected_sequence,
             retry_after_seconds: None,
+            quota: None,
         },
     )
+}
+
+fn ingest_quota_error(quota: StoreRecordingIngestQuota, message: &str) -> Response {
+    let (quota, retry_after_seconds) = quota_response(quota);
+    protobuf_response(
+        StatusCode::TOO_MANY_REQUESTS,
+        &IngestError {
+            code: IngestErrorCode::QuotaExceeded.into(),
+            message: message.to_owned(),
+            expected_sequence: None,
+            retry_after_seconds,
+            quota: Some(quota.into()),
+        },
+    )
+}
+
+fn quota_response(quota: StoreRecordingIngestQuota) -> (ProtocolRecordingIngestQuota, Option<u64>) {
+    match quota {
+        StoreRecordingIngestQuota::MaximumStreamBytes => {
+            (ProtocolRecordingIngestQuota::MaximumStreamBytes, None)
+        }
+        StoreRecordingIngestQuota::MaximumConcurrentStreams => (
+            ProtocolRecordingIngestQuota::MaximumConcurrentStreams,
+            Some(30),
+        ),
+        StoreRecordingIngestQuota::MaximumBatchesPerMinute => (
+            ProtocolRecordingIngestQuota::MaximumBatchesPerMinute,
+            Some(1),
+        ),
+        StoreRecordingIngestQuota::MaximumBytesPerDay => {
+            (ProtocolRecordingIngestQuota::MaximumBytesPerDay, Some(60))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quota_responses_distinguish_rollover_from_retry() {
+        assert_eq!(
+            quota_response(StoreRecordingIngestQuota::MaximumStreamBytes),
+            (ProtocolRecordingIngestQuota::MaximumStreamBytes, None)
+        );
+        assert_eq!(
+            quota_response(StoreRecordingIngestQuota::MaximumBytesPerDay),
+            (ProtocolRecordingIngestQuota::MaximumBytesPerDay, Some(60))
+        );
+    }
 }
