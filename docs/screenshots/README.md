@@ -32,9 +32,12 @@ google-chrome \
 
 This command must open a visible X11 window. Do not add `--headless`,
 SwiftShader, or software-WebGL flags. Complete the normal enterprise login in
-that window. Install the pinned
-capture dependency without downloading another browser, then list or run the
-recipes:
+that window. Every Console and Rerun recipe performs a fail-closed browser
+preflight before navigation and again before capture. The preflight requires a
+hardware high-performance WebGPU adapter and a working hardware WebGL context.
+A missing or lost context aborts the run; API reachability does not substitute
+for visual verification. Install the pinned capture dependency without
+downloading another browser, then list or run the recipes:
 
 ```bash
 cd tools/screenshots
@@ -120,11 +123,11 @@ selected. Record the exact launch and port-forward commands in the catalog
 whenever a profile changes; the image is not a substitute for a repeatable
 runbook.
 
-Rerun capture performs a hardware preflight against the browser's
-high-performance WebGPU adapter. It rejects headless Chrome, SwiftShader,
-llvmpipe, software adapters, and any viewer that exposes Rerun's software
-rasterizer warning. It also rejects the standalone SUMO viewer unless Rerun's
-persisted theme is explicitly Dark.
+Every capture performs a hardware preflight against the browser's
+high-performance WebGPU adapter and WebGL renderer. It rejects headless Chrome,
+missing graphics contexts, SwiftShader, llvmpipe, software adapters, and any
+viewer that exposes Rerun's software rasterizer warning. It also rejects the
+standalone SUMO viewer unless Rerun's persisted theme is explicitly Dark.
 
 ## Capture policy
 

@@ -55,6 +55,24 @@ Pre-release dependencies require an explicit product reason. If the upstream
 project has no stable release, use its latest published pre-release and record
 that constraint beside the pin.
 
+## GPU Execution Is Mandatory
+
+Veoveo visual, simulation, perception, rendering, and visual-verification workflows
+must use an accessible hardware GPU. A software renderer is not a degraded mode and
+must never be accepted as evidence that a workflow works.
+
+Before browser automation, an interactive demo, or a screenshot run, prove that the
+browser is headed and that both its high-performance WebGPU adapter and WebGL context
+are hardware-backed. Reject missing contexts, SwiftShader, llvmpipe, software adapters,
+and software rasterizer warnings. If a browser loses WebGL or WebGPU, stop the workflow
+immediately. Do not keep using that browser, replace visual verification with an API-only
+check, capture an image, or report the visual workflow as verified.
+
+GPU containers must request the required Kubernetes GPU resource and fail closed when
+the NVIDIA device, driver capability, or hardware rendering backend is unavailable. Do
+not add CPU rendering fallbacks, optional GPU modes, or deployment profiles that remove
+a required GPU workload to fit the cluster.
+
 ## Provider Completion
 
 Provider job completion is webhook-only. Do not add provider status polling, polling

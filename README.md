@@ -173,6 +173,15 @@ receives a gateway bearer token. A short gateway delivery window lets concurrent
 stateless BFF requests receive the identical rotated successor; use of the consumed
 token after that window is replay and revokes the family.
 
+## GPU Execution Contract
+
+Veoveo treats hardware GPU access as part of the execution contract for simulation,
+perception, 3D rendering, Rerun, and visual acceptance. Required workloads request an
+NVIDIA device and fail closed when CUDA, Vulkan, WebGPU, or WebGL cannot reach hardware.
+Software rendering is not a supported fallback. Browser-driven verification must prove
+hardware WebGPU and WebGL before it interacts with the product, and it must stop if
+either context becomes unavailable.
+
 ## Develop With k3d
 
 Local container development uses k3d and the same Helm chart as a fielded
