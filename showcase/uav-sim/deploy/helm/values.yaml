@@ -37,9 +37,10 @@ recordingForwarder:
   privateKey:
     existingSecret: veoveo-recording-producer
     key: private-key.pem
-  maximumQueueBytes: 1073741824
+  maximumQueueBytes: 4294967296
   batchMessageLimit: 4096
   batchFlushMilliseconds: 1000
+  grpcMemoryLimitBytes: 268435456
   persistence:
     size: 5Gi
     storageClass: ""
@@ -47,10 +48,10 @@ recordingForwarder:
   resources:
     requests:
       cpu: 50m
-      memory: 128Mi
+      memory: 256Mi
     limits:
       cpu: "1"
-      memory: 1Gi
+      memory: 2Gi
 
 world:
   source: google_photorealistic_3d_tiles

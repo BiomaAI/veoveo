@@ -1500,7 +1500,7 @@
           "quotas": {
             "maximum_concurrent_streams": 8,
             "maximum_batches_per_minute": 1200,
-            "maximum_bytes_per_day": 10737418240,
+            "maximum_bytes_per_day": 68719476736,
             "maximum_stream_bytes": 2147483648
           },
           "retention": {

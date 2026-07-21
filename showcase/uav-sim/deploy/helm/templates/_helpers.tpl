@@ -149,6 +149,8 @@ seccompProfile:
     - {{ .root.Values.recordingForwarder.batchMessageLimit | quote }}
     - --batch-flush-milliseconds
     - {{ .root.Values.recordingForwarder.batchFlushMilliseconds | quote }}
+    - --grpc-memory-limit-bytes
+    - {{ printf "%.0f" .root.Values.recordingForwarder.grpcMemoryLimitBytes | quote }}
   env:
     - name: RUST_LOG
       value: info

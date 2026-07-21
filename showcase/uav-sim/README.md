@@ -43,6 +43,12 @@ and batch workloads have separate durable queue claims. Each forwarder
 authenticates through the gateway before Recording Hub accepts a versioned
 protobuf batch; no Hub raw-ingest Service exists.
 
+The forwarder keeps an explicit upload cursor and byte counter, which makes
+queue work independent of backlog depth. A recording continues across bounded
+ingest generations when it reaches the configured stream-byte quota. Rerun
+history stays one logical recording because each generation retains the same
+application and recording keys.
+
 ## Credentials
 
 Local Bioma provisioning reads `CESIUM_ION_ACCESS_TOKEN` and
