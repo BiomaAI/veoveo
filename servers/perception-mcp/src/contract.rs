@@ -2,24 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::ArtifactMetadata;
 
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct RecordingVideoSelection {
-    /// Canonical `recording://recordings/{recording_id}` URI.
-    pub recording_uri: String,
-    /// Exact Rerun entity path containing `VideoStream` samples.
-    pub entity_path: String,
-    /// Rerun duration, timestamp, or sequence timeline.
-    pub timeline: String,
-    pub range: IndexRange,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct IndexRange {
-    pub start: i64,
-    pub end: i64,
-}
+pub use veoveo_recording_video::{IndexRange, RecordingVideoSelection, VideoTimelineKind};
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -94,13 +77,6 @@ pub struct AnalysisResults {
     pub frames: Vec<FrameDetections>,
     pub processed_frames: u64,
     pub elapsed_ms: u64,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum VideoTimelineKind {
-    DurationNanoseconds,
-    TimestampNanoseconds,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]

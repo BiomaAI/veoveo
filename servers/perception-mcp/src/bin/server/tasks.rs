@@ -17,7 +17,9 @@ use veoveo_perception_mcp::{
     contract::{
         AnalyzeRecordingRequest, ExtractClipRequest, RecordingVideoSelection, SamplingPolicy,
     },
-    source::{materialize_video, recording_id_from_uri, validate_video_selection},
+};
+use veoveo_recording_video::{
+    materialize_video, recording_id_from_uri, timeline_kind, validate_video_selection,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState,
@@ -311,16 +313,9 @@ async fn run_task_inner(
                 "running DeepStream inference",
             )
             .await;
-            let timeline_kind = match source.clip.index_kind {
-                veoveo_recording_hub::VideoIndexKind::DurationNanoseconds => {
-                    veoveo_perception_mcp::contract::VideoTimelineKind::DurationNanoseconds
-                }
-                veoveo_recording_hub::VideoIndexKind::TimestampNanoseconds => {
-                    veoveo_perception_mcp::contract::VideoTimelineKind::TimestampNanoseconds
-                }
-                veoveo_recording_hub::VideoIndexKind::Sequence => {
-                    fail!("sequence-indexed video cannot be remuxed for DeepStream".to_owned())
-                }
+            let timeline_kind = match timeline_kind(&source.clip) {
+                Ok(kind) => kind,
+                Err(error) => fail!(format!("{error:#}")),
             };
             let execute = state.executor.analyze(
                 veoveo_perception_mcp::executor::DeepStreamAnalysisRequest {

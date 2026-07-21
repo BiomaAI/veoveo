@@ -11,9 +11,9 @@ use veoveo_perception_mcp::{
     contract::{
         AnalysisResults, AnalysisSummary, AnalyzeRecordingOutput, ExtractClipOutput, IndexRange,
     },
-    source::MaterializedVideo,
     uris,
 };
+use veoveo_recording_video::MaterializedVideo;
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_task_runtime::TaskId;
 

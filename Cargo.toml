@@ -14,6 +14,7 @@ members = [
     "platform/recordings/protocol",
     "platform/recordings/hub",
     "platform/recordings/rrd",
+    "platform/recordings/video",
     "platform/runtimes/duckdb",
     "platform/store",
     "platform/task-runtime",

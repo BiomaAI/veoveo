@@ -7,5 +7,4 @@ pub mod catalog;
 pub mod contract;
 pub mod executor;
 pub mod grounding;
-pub mod source;
 pub mod uris;
