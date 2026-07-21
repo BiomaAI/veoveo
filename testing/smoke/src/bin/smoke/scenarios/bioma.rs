@@ -21,6 +21,7 @@ const BIOMA_DEPLOYMENTS: &[&str] = &[
     "artifact-mcp",
     "media-mcp",
     "perception-mcp",
+    "reason-mcp",
     "timeseries-mcp",
     "duckdb-mcp",
     "optimization-mcp",
@@ -172,7 +173,7 @@ pub(crate) async fn bioma_verify(
     for deployment in BIOMA_DEPLOYMENTS {
         assert_available_deployment(context, deployment)?;
     }
-    assert_gpu_capacity(context, 3)?;
+    assert_gpu_capacity(context, 4)?;
 
     let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
     ensure!(
@@ -234,7 +235,7 @@ pub(crate) async fn bioma_verify(
     );
 
     println!(
-        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, and Perception are concurrently schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
+        "Bioma verify ok: the full server catalog is available, Isaac Sim, View, Perception, and Reason are concurrently schedulable, console assets and Entra authorization are public, object TLS is valid, and the Bioma JWKS is authoritative"
     );
     Ok(())
 }
