@@ -6,7 +6,7 @@ use rmcp::{
     },
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::ServerSlug;
+use veoveo_mcp_contract::{McpSurfaceCapabilities, ServerSlug};
 
 use super::GatewayMcp;
 
@@ -40,24 +40,7 @@ impl GatewayMcp {
         let mut capabilities = ServerCapabilities::default();
         let catalog = self.catalog.current();
         for (_, server) in catalog.profile_servers(&self.profile_id) {
-            if server.capabilities.tools {
-                capabilities.tools.get_or_insert_default();
-            }
-            if server.capabilities.prompts {
-                capabilities.prompts.get_or_insert_default();
-            }
-            if server.capabilities.resources || server.capabilities.resource_templates {
-                let resources = capabilities.resources.get_or_insert_default();
-                if server.capabilities.resource_subscriptions {
-                    resources.subscribe = Some(true);
-                }
-                if server.capabilities.notifications {
-                    resources.list_changed = Some(true);
-                }
-            }
-            if server.capabilities.completions {
-                capabilities.completions.get_or_insert_with(JsonObject::new);
-            }
+            merge_surface_capabilities(&mut capabilities, server.capabilities);
         }
         let mut extensions = self.auth_extension_capabilities();
         if catalog
@@ -104,5 +87,130 @@ impl GatewayMcp {
             info.capabilities.tasks = Some(tasks);
         }
         Ok(info)
+    }
+}
+
+fn merge_surface_capabilities(
+    capabilities: &mut ServerCapabilities,
+    surface: McpSurfaceCapabilities,
+) {
+    if surface.tools {
+        let tools = capabilities.tools.get_or_insert_default();
+        if surface.notifications {
+            tools.list_changed = Some(true);
+        }
+    }
+    if surface.prompts {
+        let prompts = capabilities.prompts.get_or_insert_default();
+        if surface.notifications {
+            prompts.list_changed = Some(true);
+        }
+    }
+    if surface.resources || surface.resource_templates {
+        let resources = capabilities.resources.get_or_insert_default();
+        if surface.resource_subscriptions {
+            resources.subscribe = Some(true);
+        }
+        if surface.notifications {
+            resources.list_changed = Some(true);
+        }
+    }
+    if surface.completions {
+        capabilities.completions.get_or_insert_with(JsonObject::new);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aggregated_capabilities_advertise_forwarded_list_change_notifications() {
+        let mut capabilities = ServerCapabilities::default();
+        merge_surface_capabilities(
+            &mut capabilities,
+            McpSurfaceCapabilities {
+                tools: true,
+                resources: true,
+                apps: false,
+                resource_templates: true,
+                resource_subscriptions: true,
+                prompts: true,
+                completions: true,
+                tasks: false,
+                notifications: true,
+            },
+        );
+
+        assert_eq!(
+            capabilities
+                .tools
+                .as_ref()
+                .and_then(|tools| tools.list_changed),
+            Some(true)
+        );
+        assert_eq!(
+            capabilities
+                .prompts
+                .as_ref()
+                .and_then(|prompts| prompts.list_changed),
+            Some(true)
+        );
+        assert_eq!(
+            capabilities
+                .resources
+                .as_ref()
+                .and_then(|resources| resources.list_changed),
+            Some(true)
+        );
+        assert_eq!(
+            capabilities
+                .resources
+                .as_ref()
+                .and_then(|resources| resources.subscribe),
+            Some(true)
+        );
+        assert!(capabilities.completions.is_some());
+    }
+
+    #[test]
+    fn static_surfaces_do_not_claim_list_change_notifications() {
+        let mut capabilities = ServerCapabilities::default();
+        merge_surface_capabilities(
+            &mut capabilities,
+            McpSurfaceCapabilities {
+                tools: true,
+                resources: true,
+                apps: false,
+                resource_templates: false,
+                resource_subscriptions: false,
+                prompts: true,
+                completions: false,
+                tasks: false,
+                notifications: false,
+            },
+        );
+
+        assert_eq!(
+            capabilities
+                .tools
+                .as_ref()
+                .and_then(|tools| tools.list_changed),
+            None
+        );
+        assert_eq!(
+            capabilities
+                .prompts
+                .as_ref()
+                .and_then(|prompts| prompts.list_changed),
+            None
+        );
+        assert_eq!(
+            capabilities
+                .resources
+                .as_ref()
+                .and_then(|resources| resources.list_changed),
+            None
+        );
     }
 }

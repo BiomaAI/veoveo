@@ -39,6 +39,18 @@ requires the explicit direct-adapter flag. Compatibility behavior remains additi
 does not create a second protocol or source of truth. Full-MCP clients never receive
 compatibility helper clutter.
 
+The gateway advertises list-change support whenever an exposed upstream can emit
+notifications, then forwards the upstream notification to the connected client. A new
+authenticated session always receives the current policy-filtered catalog.
+
+Client hosts may retain their own per-user tool permissions after OAuth grants change.
+Those permissions are outside gateway authority: reconnecting authentication refreshes
+identity and scopes, but it does not necessarily reset the host's selected tools. After
+an installation expands a profile, operators refresh the connector's tool permissions
+or reinstall the connector when its host does not ingest the changed catalog. A new
+conversation then loads the updated selection. The gateway continues to enforce every
+tool call independently of the host's selection.
+
 ## Component Boundaries
 
 ```text
