@@ -41,8 +41,10 @@ network while disconnected from the Internet.
 
 ## Durability
 
-The forwarder removes a local batch only after Recording Hub reports a durable
-checkpoint. Recording Hub first validates the complete Rerun payload, then
+The forwarder recovers and uploads one queued batch at a time, which keeps memory
+bounded by the negotiated batch limit even when its disk queue is full. It
+removes a local batch only after Recording Hub reports a durable checkpoint.
+Recording Hub first validates the complete Rerun payload, then
 writes a deterministic batch journal file through fsync and atomic rename. A
 SurrealDB transaction records the batch digest and advances the stream
 checkpoint only after that file exists durably. Startup reconciliation

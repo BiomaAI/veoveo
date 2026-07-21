@@ -401,7 +401,7 @@ types.
 | File | Responsibility |
 |---|---|
 | `src/batch.rs` | per-recording accumulation, IDR-aligned GoP boundaries, complete RRD encoding, and byte-bounded splitting |
-| `src/queue.rs` | fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
+| `src/queue.rs` | bounded-memory fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
 | `src/oauth.rs` | RFC 8414 discovery and `private_key_jwt` client-credentials tokens |
 | `src/client.rs` | typed protobuf discovery, open, append, and finish operations |
 | `src/runner.rs` | canonical-host transport routing, loopback Rerun receiver, retry loop, restart resume, and graceful drain |
