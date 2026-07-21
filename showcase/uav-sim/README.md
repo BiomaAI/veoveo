@@ -121,6 +121,11 @@ independently. A camera that remains black for 30 seconds after Google tiles
 become resident fails readiness instead of producing an apparently successful
 recording.
 
+The canonical render cadence matches the 20 fps camera. Rendering additional
+frames between sensor samples spends RTX work without adding observations to
+the recording. Profiles may raise both rates for a faster sensor, while
+`physicsHz` remains independent for PX4 lockstep and vehicle dynamics.
+
 ## Verification layers
 
 The central Rust smoke harness owns orchestration and assertions. The Justfile

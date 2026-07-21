@@ -73,7 +73,7 @@ session:
     ellipsoidHeightM: 30.0
   vehicleCount: 1
   physicsHz: 250
-  renderingHz: 30
+  renderingHz: 20
   tileReadyFrames: 30
   privacyConsent: false
   camera:
