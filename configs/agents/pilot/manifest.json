@@ -19,11 +19,15 @@
     "resource": "${PILOT_GATEWAY_RESOURCE}",
     "scopes": [
       "operator:use",
+      "view:read",
+      "view:write",
+      "view:capture",
       "map:dataset:read",
       "map:route",
       "map:route_matrix",
       "map:restriction:publish",
-      "map:restriction:withdraw"
+      "map:restriction:withdraw",
+      "time:read"
     ],
     "private_key_env": "PILOT_AGENT_PRIVATE_KEY_DER_B64",
     "private_key_kid": "pilot-agent-key"

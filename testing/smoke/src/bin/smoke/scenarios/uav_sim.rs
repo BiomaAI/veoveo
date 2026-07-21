@@ -7,6 +7,14 @@ use super::*;
 
 const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
+const OPERATOR_PROFILE_SCOPES: &[&str] = &[
+    "operator:use",
+    "view:read",
+    "view:write",
+    "view:capture",
+    "map:dataset:read",
+    "time:read",
+];
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -623,7 +631,7 @@ async fn assert_governed_artifact_access(
         base,
         "operator-service",
         "operator",
-        &["operator:use"],
+        OPERATOR_PROFILE_SCOPES,
         "independent-review",
     )
     .await?;
@@ -859,7 +867,7 @@ async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
         base,
         "operator-service",
         "operator",
-        &["operator:use"],
+        OPERATOR_PROFILE_SCOPES,
         "operations",
     )
     .await

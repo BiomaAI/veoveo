@@ -13,6 +13,7 @@ gateway-control-plane := "configs/gateway.local.json"
 gateway-smoke-control-plane := "configs/gateway.smoke.json"
 conformance := "cargo run -p veoveo-mcp-conformance --bin conformance --"
 smoke := "LD_LIBRARY_PATH=\"$PWD/target/debug/deps${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" DYLD_LIBRARY_PATH=\"$PWD/target/debug/deps${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}\" target/debug/smoke"
+operator-scope-args := "--scope operator:use --scope view:read --scope view:write --scope view:capture --scope map:dataset:read --scope time:read"
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
@@ -382,40 +383,40 @@ health public_base_url='':
     if [ -n '{{public_base_url}}' ]; then curl -fsS '{{public_base_url}}/healthz'; echo; fi
 
 # Mint a configured service access token for the operator profile.
-gateway-token scope='operator:use':
+gateway-token scope='operator:use view:read view:write view:capture map:dataset:read time:read':
     {{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope '{{scope}}'
 
 # Show gateway MCP server info and resource templates.
 info:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} info
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} info
 
 # List models through the gateway, optionally with a local query string.
 models query='':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; if [ -n '{{query}}' ]; then env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models; fi
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; if [ -n '{{query}}' ]; then env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models '{{query}}'; else env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} models; fi
 
 # Complete model ids by prefix through the gateway.
 complete prefix:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} complete '{{prefix}}'
 
 # Read one model schema through the gateway.
 schema model:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} schema '{{model}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} schema '{{model}}'
 
 # Run an arbitrary model through the gateway with a raw JSON input object.
 run model input output_dir='output':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{model}}' --tool-name media__run --input '{{input}}' --output-dir '{{output_dir}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{model}}' --tool-name media__run --input '{{input}}' --output-dir '{{output_dir}}'
 
 # Run the default image edit e2e against the public base URL and save returned artifacts.
 run-edit public_base_url output_dir='output/e2e':
-    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --tool-name media__run --input "$input" --output-dir '{{output_dir}}'
+    input="{\"prompt\":\"add a red wizard hat\",\"images\":[\"{{public_base_url}}/media/files/{{default-input-image}}\"]}"; token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} run '{{default-model}}' --tool-name media__run --input "$input" --output-dir '{{output_dir}}'
 
 # Read one gateway task usage report.
 usage task_id:
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} usage '{{task_id}}'
 
 # Read and save one artifact occurrence through the gateway.
 artifact artifact_id output_dir='output':
-    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} --scope operator:use)"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} artifact '{{artifact_id}}' --output-dir '{{output_dir}}'
+    token="$({{conformance}} gateway-token-exchange --token-url {{gateway-token-url}} {{operator-scope-args}})"; env -u VEOVEO_INTERNAL_SIGNING_KEY_DER_B64 MCP_BEARER_TOKEN="$token" {{conformance}} --url {{mcp-url}} artifact '{{artifact_id}}' --output-dir '{{output_dir}}'
 
 # Check the active stack, print MCP info, and run the default edit task.
 e2e public_base_url output_dir='output/e2e':

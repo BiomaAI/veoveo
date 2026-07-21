@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use anyhow::bail;
 
 use super::client::{Client, FinalTaskClient};
@@ -205,9 +207,8 @@ pub(super) async fn cmd_apps_check(client: &Client) -> Result<()> {
             veoveo_mcp_apps_extension::EXTENSION_ID
         );
     }
-    let resources = client.list_resources(Default::default()).await?;
+    let resources = list_all_resources(client).await?;
     let app_uris: Vec<String> = resources
-        .resources
         .iter()
         .filter(|resource| veoveo_mcp_apps_extension::is_app_resource(resource))
         .map(|resource| resource.uri.clone())
@@ -268,6 +269,28 @@ pub(super) async fn cmd_apps_check(client: &Client) -> Result<()> {
         linked_tools
     );
     Ok(())
+}
+
+async fn list_all_resources(client: &Client) -> Result<Vec<Resource>> {
+    const MAX_PAGES: usize = 1_024;
+
+    let mut resources = Vec::new();
+    let mut cursor = None;
+    let mut seen_cursors = BTreeSet::new();
+    for _ in 0..MAX_PAGES {
+        let page = client
+            .list_resources(Some(PaginatedRequestParams::default().with_cursor(cursor)))
+            .await?;
+        resources.extend(page.resources);
+        let Some(next_cursor) = page.next_cursor else {
+            return Ok(resources);
+        };
+        if !seen_cursors.insert(next_cursor.clone()) {
+            bail!("resources/list repeated cursor `{next_cursor}`");
+        }
+        cursor = Some(next_cursor);
+    }
+    bail!("resources/list exceeded {MAX_PAGES} pages")
 }
 
 /// Rejects fetch-capable references to external origins. Namespace
