@@ -6,8 +6,8 @@ use veoveo_recording_protocol::{
     DISCOVERY_PATH, MEDIA_TYPE, PROTOCOL_VERSION, REQUIRED_SCOPE, STREAMS_PATH,
     v1::{
         AppendRecordingBatchResult, FinishRecordingStreamRequest, FinishRecordingStreamResult,
-        IngestError, OpenRecordingStreamRequest, RecordingBatch, RecordingIngestDiscovery,
-        RecordingStream,
+        IngestError, IngestErrorCode, OpenRecordingStreamRequest, RecordingBatch,
+        RecordingIngestDiscovery, RecordingIngestQuota, RecordingStream, RecordingStreamFinishMode,
     },
 };
 
@@ -19,6 +19,8 @@ use crate::oauth::{
 #[error("recording ingest returned HTTP {status}: {message}")]
 pub struct IngestRequestError {
     pub status: reqwest::StatusCode,
+    pub code: IngestErrorCode,
+    pub quota: Option<RecordingIngestQuota>,
     pub message: String,
     pub retry_after_seconds: Option<u64>,
 }
@@ -129,9 +131,13 @@ impl RecordingIngestClient {
             .await
     }
 
-    pub async fn finish(&self, stream_id: &str) -> Result<FinishRecordingStreamResult> {
+    pub async fn finish(
+        &self,
+        stream_id: &str,
+        mode: RecordingStreamFinishMode,
+    ) -> Result<FinishRecordingStreamResult> {
         let url = self.stream_url(stream_id)?.join("finish")?;
-        self.post_protobuf(url, &FinishRecordingStreamRequest {})
+        self.post_protobuf(url, &FinishRecordingStreamRequest { mode: mode.into() })
             .await
     }
 
@@ -198,9 +204,14 @@ impl RecordingIngestClient {
                 message: "gateway returned an invalid protobuf error".to_owned(),
                 expected_sequence: None,
                 retry_after_seconds: None,
+                quota: None,
             });
             return Err(IngestRequestError {
                 status,
+                code: IngestErrorCode::try_from(error.code).unwrap_or(IngestErrorCode::Unspecified),
+                quota: error
+                    .quota
+                    .and_then(|quota| RecordingIngestQuota::try_from(quota).ok()),
                 message: error.message,
                 retry_after_seconds: error.retry_after_seconds,
             }

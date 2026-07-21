@@ -4,8 +4,9 @@ use surrealdb::types::{RecordId, SurrealValue};
 
 use crate::{
     PlatformIdentity, PlatformStore, RecordingId, RecordingIngestBatchId,
-    RecordingIngestBatchRecord, RecordingIngestBatchState, RecordingIngestStreamId,
-    RecordingIngestStreamRecord, RecordingIngestStreamState, StoreError, TenantId,
+    RecordingIngestBatchRecord, RecordingIngestBatchState, RecordingIngestQuota,
+    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, StoreError,
+    TenantId,
 };
 
 const MAX_TEXT_LENGTH: usize = 512;
@@ -529,15 +530,15 @@ fn classify_database_error(error: surrealdb::Error) -> StoreError {
     let message = error.to_string();
     if message.contains("recording_ingest_concurrent_stream_quota") {
         StoreError::RecordingIngestQuotaExceeded {
-            quota: "maximum_concurrent_streams",
+            quota: RecordingIngestQuota::MaximumConcurrentStreams,
         }
     } else if message.contains("recording_ingest_batches_per_minute_quota") {
         StoreError::RecordingIngestQuotaExceeded {
-            quota: "maximum_batches_per_minute",
+            quota: RecordingIngestQuota::MaximumBatchesPerMinute,
         }
     } else if message.contains("recording_ingest_bytes_per_day_quota") {
         StoreError::RecordingIngestQuotaExceeded {
-            quota: "maximum_bytes_per_day",
+            quota: RecordingIngestQuota::MaximumBytesPerDay,
         }
     } else if message.contains("recording_ingest_checkpoint_conflict") {
         StoreError::RecordingIngestCheckpointConflict

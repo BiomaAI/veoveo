@@ -1,5 +1,24 @@
 use thiserror::Error;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum RecordingIngestQuota {
+    MaximumStreamBytes,
+    MaximumConcurrentStreams,
+    MaximumBatchesPerMinute,
+    MaximumBytesPerDay,
+}
+
+impl std::fmt::Display for RecordingIngestQuota {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::MaximumStreamBytes => "maximum_stream_bytes",
+            Self::MaximumConcurrentStreams => "maximum_concurrent_streams",
+            Self::MaximumBatchesPerMinute => "maximum_batches_per_minute",
+            Self::MaximumBytesPerDay => "maximum_bytes_per_day",
+        })
+    }
+}
+
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum StoreConfigError {
     #[error("SurrealDB endpoint must use ws or wss, got {0}")]
@@ -102,7 +121,7 @@ pub enum StoreError {
     #[error("recording ingest checkpoint changed concurrently")]
     RecordingIngestCheckpointConflict,
     #[error("recording ingest producer exceeded the {quota} quota")]
-    RecordingIngestQuotaExceeded { quota: &'static str },
+    RecordingIngestQuotaExceeded { quota: RecordingIngestQuota },
     #[error("invalid domain usage field {field}: {reason}")]
     InvalidUsageField {
         field: &'static str,

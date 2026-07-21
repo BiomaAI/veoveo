@@ -39,7 +39,7 @@ pub use changefeed::{
 };
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
 pub use coordinates::{CoordinateFrameDraft, CoordinateOperationDraft};
-pub use error::{MigrationError, StoreConfigError, StoreError};
+pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
 pub use gateway_runtime::{
     GatewayAuditKind, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,
     GatewayRefreshRotation, GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,
