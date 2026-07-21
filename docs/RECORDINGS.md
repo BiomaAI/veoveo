@@ -14,7 +14,9 @@ format and never become archive playback URLs. The normal archive boundary is
 one hour, with a 192 MiB pre-compaction safety cap below the artifact-plane
 upload ceiling. A video-bearing writer that reaches either boundary waits for
 the next batch whose first video sample is an H.264 IDR, then starts the new
-shard with that batch.
+shard with that batch. The forwarder inspects the encoded sample and closes its
+pending batch before every IDR, which makes each video GoP an available durable
+rollover boundary even when telemetry and camera messages share one stream.
 
 Freeze runs one materialization pass with Rerun 0.34.1's `object-store`
 optimization profile. It compacts the one-row ingest chunks into chunks capped
@@ -77,13 +79,12 @@ the growing file.
 
 Rerun opens frozen archive sources with HTTP following disabled and the current
 live response with following enabled. Camera and telemetry therefore appear
-before shard freeze while earlier history stays on the same timeline. An
-encoded camera producer repeats codec and pinhole metadata with every keyframe.
-The canonical producer emits an IDR at least once per second, which bounds
-rollover delay and supplies the declared live preroll. At rollover, Console
-attaches the newly frozen archive and successor live source before detaching the
-old live receiver. The persistent viewer retains its layout, selection, and
-timeline state.
+before shard freeze while earlier history stays on the same timeline. The
+canonical camera producer emits the IDR first at each GoP timestamp, then
+reasserts pinhole metadata. Its one-second GoP bounds rollover delay and supplies
+the declared live preroll. At rollover, Console attaches the newly frozen
+archive and successor live source before detaching the old live receiver. The
+persistent viewer retains its layout, selection, and timeline state.
 
 Recording UUIDv7 values and artifact UUIDv7 values are occurrence identities.
 Filesystem paths are always tenant-internal implementation details and are not

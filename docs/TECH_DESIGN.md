@@ -340,8 +340,10 @@ inline route and keep text reads bounded.
 
 The Recording Hub is a push-based durability service. Producers send native Rerun log
 messages to a loopback forwarder. The forwarder obtains an OAuth client-credentials token
-and uploads bounded, sequenced protobuf batches through the gateway. Public, local-network,
-and Kubernetes traffic use this same resource and protocol.
+and uploads bounded, sequenced protobuf batches through the gateway. It begins a batch at
+each H.264 IDR, which gives storage a decoder-reentrant rollover boundary without changing
+the producer's logical recording. Public, local-network, and Kubernetes traffic use this
+same resource and protocol.
 
 The hub validates each complete Rerun payload, fsyncs it into a deterministic journal,
 and advances its SurrealDB checkpoint only after the journal rename is durable. One

@@ -151,8 +151,9 @@ schema merely because the server is first-party.
 
 ### `platform/recordings/rrd`
 
-Owns cross-domain Rerun/RRD spacetime types and adapters. Domain results that do not
-overlap Rerun concepts stay local to their MCP crate.
+Owns cross-domain Rerun/RRD spacetime types, adapters, and encoded-video boundary
+inspection. Domain results that do not overlap Rerun concepts stay local to their MCP
+crate.
 
 ### `platform/recordings/protocol`
 
@@ -399,7 +400,7 @@ types.
 
 | File | Responsibility |
 |---|---|
-| `src/batch.rs` | per-recording accumulation, complete RRD encoding, and byte-bounded splitting |
+| `src/batch.rs` | per-recording accumulation, IDR-aligned GoP boundaries, complete RRD encoding, and byte-bounded splitting |
 | `src/queue.rs` | fsynced producer queue, stream identity, checkpoint acknowledgement, and disk backpressure |
 | `src/oauth.rs` | RFC 8414 discovery and `private_key_jwt` client-credentials tokens |
 | `src/client.rs` | typed protobuf discovery, open, append, and finish operations |

@@ -43,6 +43,7 @@ uuid.workspace = true
 veoveo-platform-store.workspace = true
 veoveo-mcp-contract.workspace = true
 veoveo-recording-protocol.workspace = true
+veoveo-rrd.workspace = true
 tempfile = "3"
 
 re_sdk.workspace = true

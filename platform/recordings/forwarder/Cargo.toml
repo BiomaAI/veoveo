@@ -37,6 +37,7 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 veoveo-recording-protocol.workspace = true
+veoveo-rrd.workspace = true
 
 [dev-dependencies]
 re_sdk.workspace = true
