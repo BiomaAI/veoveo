@@ -79,6 +79,41 @@ struct PerceptionScenario {
     task_timeout_seconds: u64,
 }
 
+struct OperatorClient<'a> {
+    conformance: &'a Path,
+    base: &'a str,
+}
+
+impl OperatorClient<'_> {
+    async fn conformance(&self, operation: &[&str], timeout: Duration) -> Result<String> {
+        let token = gateway_token(self.conformance, self.base).await?;
+        gateway_conformance(self.conformance, self.base, &token, operation, timeout).await
+    }
+
+    async fn call_tool(&self, tool: &str, arguments: Value) -> Result<Value> {
+        let arguments = serde_json::to_string(&arguments)?;
+        let output = self
+            .conformance(
+                &["call", "--tool-name", tool, "--arguments", &arguments],
+                Duration::from_secs(120),
+            )
+            .await?;
+        structured_output(&output).with_context(|| format!("tool {tool} returned invalid output"))
+    }
+
+    async fn task_tool(&self, tool: &str, arguments: Value, timeout: Duration) -> Result<Value> {
+        let arguments = serde_json::to_string(&arguments)?;
+        let output = self
+            .conformance(
+                &["task-call", "--tool-name", tool, "--arguments", &arguments],
+                timeout,
+            )
+            .await?;
+        structured_output(&output)
+            .with_context(|| format!("task tool {tool} returned invalid output"))
+    }
+}
+
 impl UavAcceptanceScenario {
     fn load(path: &Path) -> Result<Self> {
         let bytes = fs::read(path)
@@ -213,15 +248,13 @@ pub(crate) async fn uav_sim_verify(
     .context("UAV live acceptance requires the Bioma Kubernetes cluster")?;
     assert_concurrent_gpu_workloads(context)?;
 
-    let token = gateway_token(conformance, public_base_url).await?;
-    let info = gateway_conformance(
+    let operator = OperatorClient {
         conformance,
-        public_base_url,
-        &token,
-        &["info"],
-        Duration::from_secs(60),
-    )
-    .await?;
+        base: public_base_url,
+    };
+    let info = operator
+        .conformance(&["info"], Duration::from_secs(60))
+        .await?;
     for tool in [
         "uav-sim__get_simulation_state",
         "uav-sim__execute_mission",
@@ -231,14 +264,9 @@ pub(crate) async fn uav_sim_verify(
         contains(&info, tool)?;
     }
 
-    let frame = gateway_conformance(
-        conformance,
-        public_base_url,
-        &token,
-        &["resource", &scenario.frame_uri],
-        Duration::from_secs(60),
-    )
-    .await?;
+    let frame = operator
+        .conformance(&["resource", &scenario.frame_uri], Duration::from_secs(60))
+        .await?;
     for expected in ["13.6929", "-89.2182", "700.0", "enu"] {
         contains(&frame, expected)?;
     }
@@ -250,7 +278,7 @@ pub(crate) async fn uav_sim_verify(
             .context("validated frame URI omitted its frame identity")?,
     )?;
 
-    let mut state = simulation_state(conformance, public_base_url, &token, &scenario).await?;
+    let mut state = simulation_state(&operator, &scenario).await?;
     assert_world_ready(&state, &scenario)?;
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
@@ -262,42 +290,28 @@ pub(crate) async fn uav_sim_verify(
     );
     let camera_entity = json_string(&state, "/recordings/0/camera_streams/0")?.to_owned();
 
-    call_tool(
-        conformance,
-        public_base_url,
-        &token,
-        "uav-sim__arm_vehicle",
-        serde_json::json!({
-            "session_id": scenario.session_id,
-            "vehicle_id": scenario.vehicle_id
-        }),
-    )
-    .await?;
-    wait_for_flight_state(
-        conformance,
-        public_base_url,
-        &token,
-        &["armed"],
-        Duration::from_secs(60),
-        &scenario,
-    )
-    .await?;
-    call_tool(
-        conformance,
-        public_base_url,
-        &token,
-        "uav-sim__takeoff_vehicle",
-        serde_json::json!({
-            "session_id": scenario.session_id,
-            "vehicle_id": scenario.vehicle_id,
-            "relative_altitude_m": scenario.takeoff.relative_altitude_m
-        }),
-    )
-    .await?;
+    operator
+        .call_tool(
+            "uav-sim__arm_vehicle",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "vehicle_id": scenario.vehicle_id
+            }),
+        )
+        .await?;
+    wait_for_flight_state(&operator, &["armed"], Duration::from_secs(60), &scenario).await?;
+    operator
+        .call_tool(
+            "uav-sim__takeoff_vehicle",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "vehicle_id": scenario.vehicle_id,
+                "relative_altitude_m": scenario.takeoff.relative_altitude_m
+            }),
+        )
+        .await?;
     state = wait_for_flight_state(
-        conformance,
-        public_base_url,
-        &token,
+        &operator,
         &["flying"],
         Duration::from_secs(scenario.takeoff.state_timeout_seconds),
         &scenario,
@@ -311,9 +325,7 @@ pub(crate) async fn uav_sim_verify(
         "UAV did not reach the configured aerial-tiles acceptance altitude: {state}"
     );
     state = wait_for_aerial_camera_content(
-        conformance,
-        public_base_url,
-        &token,
+        &operator,
         Duration::from_secs(scenario.camera.detail_timeout_seconds),
         &scenario,
     )
@@ -345,15 +357,13 @@ pub(crate) async fn uav_sim_verify(
             }]
         }]
     });
-    let mission_output = task_tool(
-        conformance,
-        public_base_url,
-        &token,
-        "uav-sim__execute_mission",
-        mission,
-        Duration::from_secs(scenario.mission.task_timeout_seconds),
-    )
-    .await?;
+    let mission_output = operator
+        .task_tool(
+            "uav-sim__execute_mission",
+            mission,
+            Duration::from_secs(scenario.mission.task_timeout_seconds),
+        )
+        .await?;
     ensure!(
         json_string(&mission_output, "/lifecycle")? == "completed"
             && mission_output
@@ -363,7 +373,7 @@ pub(crate) async fn uav_sim_verify(
         "UAV mission did not complete a waypoint: {mission_output}"
     );
 
-    state = simulation_state(conformance, public_base_url, &token, &scenario).await?;
+    state = simulation_state(&operator, &scenario).await?;
     let simulation_time_s = state
         .get("simulation_time_s")
         .and_then(Value::as_f64)
@@ -378,9 +388,7 @@ pub(crate) async fn uav_sim_verify(
     let range_end = (range_end_s * 1_000_000_000.0) as i64;
 
     wait_for_recording_camera_range(
-        conformance,
-        public_base_url,
-        &token,
+        &operator,
         recording_id,
         &camera_entity,
         range_start,
@@ -388,28 +396,26 @@ pub(crate) async fn uav_sim_verify(
         Duration::from_secs(scenario.recording.frozen_rows_timeout_seconds),
     )
     .await?;
-    let perception = task_tool(
-        conformance,
-        public_base_url,
-        &token,
-        "perception__analyze_recording",
-        serde_json::json!({
-            "video": {
-                "recording_uri": recording_uri,
-                "entity_path": camera_entity,
-                "timeline": "simulation_time",
-                "range": {"start": range_start, "end": range_end}
-            },
-            "pipeline_id": "traffic-object-detection",
-            "sampling": {
-                "mode": "maximum_frames",
-                "count": scenario.perception.maximum_frames
-            },
-            "include_source_clip": true
-        }),
-        Duration::from_secs(scenario.perception.task_timeout_seconds),
-    )
-    .await?;
+    let perception = operator
+        .task_tool(
+            "perception__analyze_recording",
+            serde_json::json!({
+                "video": {
+                    "recording_uri": recording_uri,
+                    "entity_path": camera_entity,
+                    "timeline": "simulation_time",
+                    "range": {"start": range_start, "end": range_end}
+                },
+                "pipeline_id": "traffic-object-detection",
+                "sampling": {
+                    "mode": "maximum_frames",
+                    "count": scenario.perception.maximum_frames
+                },
+                "include_source_clip": true
+            }),
+            Duration::from_secs(scenario.perception.task_timeout_seconds),
+        )
+        .await?;
     ensure!(
         perception
             .pointer("/summary/processed_frames")
@@ -424,29 +430,24 @@ pub(crate) async fn uav_sim_verify(
         "Perception result artifact identity must be UUIDv7"
     );
 
-    call_tool(
-        conformance,
-        public_base_url,
-        &token,
-        "uav-sim__land_vehicle",
-        serde_json::json!({
-            "session_id": scenario.session_id,
-            "vehicle_id": scenario.vehicle_id
-        }),
-    )
-    .await?;
+    operator
+        .call_tool(
+            "uav-sim__land_vehicle",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "vehicle_id": scenario.vehicle_id
+            }),
+        )
+        .await?;
     wait_for_flight_state(
-        conformance,
-        public_base_url,
-        &token,
+        &operator,
         &["landed", "standby"],
         Duration::from_secs(scenario.landing_timeout_seconds),
         &scenario,
     )
     .await?;
     assert_concurrent_gpu_workloads(context)?;
-    assert_governed_artifact_access(conformance, public_base_url, &token, &governed_artifact_id)
-        .await?;
+    assert_governed_artifact_access(conformance, public_base_url, &governed_artifact_id).await?;
 
     println!(
         "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, an authorized context member previewed it, an independent context was denied, and View remained available"
@@ -457,7 +458,6 @@ pub(crate) async fn uav_sim_verify(
 async fn assert_governed_artifact_access(
     conformance: &Path,
     base: &str,
-    authorized_token: &str,
     artifact_id: &str,
 ) -> Result<()> {
     let admin_token = gateway_token_for_context(
@@ -522,9 +522,10 @@ async fn assert_governed_artifact_access(
     );
 
     let download_url = format!("{base}/artifacts/operator/{artifact_id}/download");
+    let authorized_token = gateway_token(conformance, base).await?;
     let preview = client
         .get(&download_url)
-        .bearer_auth(authorized_token)
+        .bearer_auth(&authorized_token)
         .send()
         .await
         .context("previewing the governed artifact as an authorized context member")?
@@ -583,9 +584,7 @@ async fn assert_governed_artifact_access(
 }
 
 async fn wait_for_recording_camera_range(
-    conformance: &Path,
-    base: &str,
-    token: &str,
+    operator: &OperatorClient<'_>,
     recording_id: &str,
     camera_entity: &str,
     range_start: i64,
@@ -594,23 +593,21 @@ async fn wait_for_recording_camera_range(
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let recording = call_tool(
-            conformance,
-            base,
-            token,
-            "recording__query_recording",
-            serde_json::json!({
-                "recording_id": recording_id,
-                "entities": camera_entity,
-                "timeline": "simulation_time",
-                "range": {
-                    "start": range_start,
-                    "end": range_end
-                },
-                "max_rows": 1
-            }),
-        )
-        .await?;
+        let recording = operator
+            .call_tool(
+                "recording__query_recording",
+                serde_json::json!({
+                    "recording_id": recording_id,
+                    "entities": camera_entity,
+                    "timeline": "simulation_time",
+                    "range": {
+                        "start": range_start,
+                        "end": range_end
+                    },
+                    "max_rows": 1
+                }),
+            )
+            .await?;
         if recording
             .get("rows_by_recording")
             .and_then(Value::as_object)
@@ -703,32 +700,26 @@ fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result
 }
 
 async fn simulation_state(
-    conformance: &Path,
-    base: &str,
-    token: &str,
+    operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
 ) -> Result<Value> {
-    call_tool(
-        conformance,
-        base,
-        token,
-        "uav-sim__get_simulation_state",
-        serde_json::json!({"session_id": scenario.session_id}),
-    )
-    .await
+    operator
+        .call_tool(
+            "uav-sim__get_simulation_state",
+            serde_json::json!({"session_id": scenario.session_id}),
+        )
+        .await
 }
 
 async fn wait_for_flight_state(
-    conformance: &Path,
-    base: &str,
-    token: &str,
+    operator: &OperatorClient<'_>,
     accepted: &[&str],
     timeout: Duration,
     scenario: &UavAcceptanceScenario,
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let state = simulation_state(conformance, base, token, scenario).await?;
+        let state = simulation_state(operator, scenario).await?;
         let flight_state = json_string(&state, "/vehicles/0/flight_state")?;
         if accepted.contains(&flight_state) {
             return Ok(state);
@@ -745,15 +736,13 @@ async fn wait_for_flight_state(
 }
 
 async fn wait_for_aerial_camera_content(
-    conformance: &Path,
-    base: &str,
-    token: &str,
+    operator: &OperatorClient<'_>,
     timeout: Duration,
     scenario: &UavAcceptanceScenario,
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let state = simulation_state(conformance, base, token, scenario).await?;
+        let state = simulation_state(operator, scenario).await?;
         let camera_has_detail = state
             .pointer("/cameras/0/mean_luma")
             .and_then(Value::as_f64)
@@ -783,45 +772,6 @@ async fn wait_for_aerial_camera_content(
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-}
-
-async fn call_tool(
-    conformance: &Path,
-    base: &str,
-    token: &str,
-    tool: &str,
-    arguments: Value,
-) -> Result<Value> {
-    let arguments = serde_json::to_string(&arguments)?;
-    let output = gateway_conformance(
-        conformance,
-        base,
-        token,
-        &["call", "--tool-name", tool, "--arguments", &arguments],
-        Duration::from_secs(120),
-    )
-    .await?;
-    structured_output(&output).with_context(|| format!("tool {tool} returned invalid output"))
-}
-
-async fn task_tool(
-    conformance: &Path,
-    base: &str,
-    token: &str,
-    tool: &str,
-    arguments: Value,
-    timeout: Duration,
-) -> Result<Value> {
-    let arguments = serde_json::to_string(&arguments)?;
-    let output = gateway_conformance(
-        conformance,
-        base,
-        token,
-        &["task-call", "--tool-name", tool, "--arguments", &arguments],
-        timeout,
-    )
-    .await?;
-    structured_output(&output).with_context(|| format!("task tool {tool} returned invalid output"))
 }
 
 async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
