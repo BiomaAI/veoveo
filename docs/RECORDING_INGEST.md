@@ -44,6 +44,11 @@ network while disconnected from the Internet.
 The forwarder recovers and uploads one queued batch at a time, which keeps memory
 bounded by the negotiated batch limit even when its disk queue is full. It
 removes a local batch only after Recording Hub reports a durable checkpoint.
+Persisted enqueue and upload cursors make queue work constant with respect to
+backlog depth. Reconciliation inventories the directory once at startup, then
+normal appends and acknowledgements update the cached byte count and the next
+ordered path directly.
+
 Recording Hub first validates the complete Rerun payload, then
 writes a deterministic batch journal file through fsync and atomic rename. A
 SurrealDB transaction records the batch digest and advances the stream
@@ -96,6 +101,13 @@ The canonical batching window is one second or 4,096 Rerun messages, whichever
 arrives first. An H.264 IDR begins a new batch immediately, and the gateway's
 advertised byte limit splits any larger encoded result. This keeps serial,
 durable appends below the producer rate without weakening ordered checkpoints.
+
+The stream-byte quota bounds one ingest generation rather than one logical
+recording. When a generation reaches that limit, the forwarder closes it in
+continuation mode and resumes the same application and recording keys with a
+new source stream. Local batches retain their durable queue order while remote
+sequences restart from one. Playback and governance continue to address one
+recording across every generation.
 
 The producer registration supplies a JWKS public key. The matching private key stays on
 the producer as a PEM file and is selected by key ID and algorithm. A Bioma
