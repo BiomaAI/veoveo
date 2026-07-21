@@ -285,14 +285,18 @@ export function artifactPreviewUrl(artifactId: string): string {
 
 export async function loadRecordingPlayback(
   recordingId: string,
-  signal?: AbortSignal
+  options: { signal?: AbortSignal; playbackSession?: string } = {}
 ): Promise<RecordingPlaybackManifest> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (options.playbackSession) {
+    headers["X-Veoveo-Playback-Session"] = options.playbackSession;
+  }
   const response = await fetch(
     `/console/api/recordings/${encodeURIComponent(recordingId)}/playback`,
     {
       credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      signal,
+      headers,
+      signal: options.signal,
     }
   );
   if (response.status === 401) {
@@ -310,19 +314,19 @@ export async function loadRecordingPlayback(
 
 export function recordingSegmentUrl(
   recordingId: string,
-  ticket: string,
+  playbackSession: string,
   segmentId: string
 ): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/sources/${encodeURIComponent(ticket)}/segments/${encodeURIComponent(segmentId)}/data.rrd`;
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/playback-sessions/${encodeURIComponent(playbackSession)}/segments/${encodeURIComponent(segmentId)}/data.rrd`;
   return new URL(path, window.location.origin).toString();
 }
 
 export function recordingLiveSegmentUrl(
   recordingId: string,
-  ticket: string,
+  playbackSession: string,
   segmentId: string
 ): string {
-  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/sources/${encodeURIComponent(ticket)}/segments/${encodeURIComponent(segmentId)}/live.rrd`;
+  const path = `/console/api/recordings/${encodeURIComponent(recordingId)}/playback-sessions/${encodeURIComponent(playbackSession)}/segments/${encodeURIComponent(segmentId)}/live.rrd`;
   return new URL(path, window.location.origin).toString();
 }
 

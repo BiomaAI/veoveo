@@ -202,7 +202,7 @@ export interface RecordingPlaybackManifest {
   state: RecordingSummary["state"];
   started_at: string;
   ended_at?: string;
-  playback_ticket: string;
+  playback_session: string;
   archive: {
     rrd_version: string;
     optimization_profile: string;

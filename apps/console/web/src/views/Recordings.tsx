@@ -33,6 +33,7 @@ const GovernedRerunViewer = lazy(() => import("../components/GovernedRerunViewer
 
 type RecordingStateFilter = "all" | RecordingSummary["state"];
 const LIVE_MANIFEST_REFRESH_MS = 5_000;
+const PLAYBACK_SESSION_RENEW_MS = 60_000;
 
 const lifecycleDetail: Record<RecordingSummary["state"], string> = {
   live: "Receiving data",
@@ -144,7 +145,7 @@ export function RecordingsView({
   useEffect(() => {
     if (!resolvedSelectedId) return;
     const controller = new AbortController();
-    void loadRecordingPlayback(resolvedSelectedId, controller.signal)
+    void loadRecordingPlayback(resolvedSelectedId, { signal: controller.signal })
       .then((value) => {
         setManifest(value);
         setPlaybackError(undefined);
@@ -159,32 +160,32 @@ export function RecordingsView({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [
-    reloadToken,
-    selected?.playableByteLength,
-    selected?.playableSegmentCount,
-    selected?.segmentCount,
-    selected?.state,
-    resolvedSelectedId,
-  ]);
+  }, [reloadToken, resolvedSelectedId]);
 
   useEffect(() => {
-    if (!resolvedSelectedId || selected?.state !== "live") return;
+    if (!resolvedSelectedId || !manifest) return;
     const currentLiveSegmentId = manifest?.live?.segment_id;
     const currentManifestState = manifest?.state;
-    const currentArchiveCount = manifest?.archive.segments.length;
+    const currentArchiveIds = manifest.archive.segments.map((segment) => segment.segment_id);
+    const currentPlaybackSession = manifest.playback_session;
     let disposed = false;
     let refreshing = false;
-    const refreshLiveManifest = async () => {
+    const refreshPlaybackManifest = async () => {
       if (refreshing) return;
       refreshing = true;
       try {
-        const value = await loadRecordingPlayback(resolvedSelectedId);
+        const value = await loadRecordingPlayback(resolvedSelectedId, {
+          playbackSession: currentPlaybackSession,
+        });
         if (
           disposed ||
           (value.live?.segment_id === currentLiveSegmentId &&
             value.state === currentManifestState &&
-            value.archive.segments.length === currentArchiveCount)
+            value.archive.segments.length === currentArchiveIds.length &&
+            value.archive.segments.every(
+              (segment, index) => segment.segment_id === currentArchiveIds[index]
+            ) &&
+            value.playback_session === currentPlaybackSession)
         ) {
           return;
         }
@@ -192,27 +193,21 @@ export function RecordingsView({
         setPlaybackError(undefined);
       } catch (cause: unknown) {
         if (!disposed) {
-          console.warn("Live recording manifest refresh failed", cause);
+          console.warn("Recording playback session refresh failed", cause);
         }
       } finally {
         refreshing = false;
       }
     };
     const interval = window.setInterval(
-      () => void refreshLiveManifest(),
-      LIVE_MANIFEST_REFRESH_MS
+      () => void refreshPlaybackManifest(),
+      manifest.live ? LIVE_MANIFEST_REFRESH_MS : PLAYBACK_SESSION_RENEW_MS
     );
     return () => {
       disposed = true;
       window.clearInterval(interval);
     };
-  }, [
-    manifest?.archive.segments.length,
-    manifest?.live?.segment_id,
-    manifest?.state,
-    resolvedSelectedId,
-    selected?.state,
-  ]);
+  }, [manifest, resolvedSelectedId]);
 
   const selectRecording = (recordingId: string) => {
     if (recordingId === resolvedSelectedId) return;
@@ -242,14 +237,14 @@ export function RecordingsView({
     const archiveUrls = manifest.archive.segments.map((segment) =>
       recordingSegmentUrl(
         manifest.recording_id,
-        manifest.playback_ticket,
+        manifest.playback_session,
         segment.segment_id
       )
     );
     const liveUrl = manifest.live
       ? recordingLiveSegmentUrl(
           manifest.recording_id,
-          manifest.playback_ticket,
+          manifest.playback_session,
           manifest.live.segment_id
         )
       : undefined;

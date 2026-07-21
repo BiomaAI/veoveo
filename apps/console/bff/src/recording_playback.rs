@@ -27,63 +27,75 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const TICKET_TTL_SECONDS: i64 = 300;
-const MAX_TICKETS: usize = 1_024;
+const PLAYBACK_SESSION_HEADER: &str = "x-veoveo-playback-session";
+const PLAYBACK_SESSION_TTL_SECONDS: i64 = 300;
+const MAX_PLAYBACK_SESSIONS: usize = 1_024;
 
 #[derive(Clone)]
-struct PlaybackGrant {
+struct PlaybackSession {
     recording_id: uuid::Uuid,
     access_token: String,
     expires_at: i64,
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct PlaybackTicketStore(Arc<Mutex<HashMap<String, PlaybackGrant>>>);
+pub(crate) struct PlaybackSessionStore(Arc<Mutex<HashMap<String, PlaybackSession>>>);
 
-impl PlaybackTicketStore {
-    fn issue(
+impl PlaybackSessionStore {
+    fn renew_or_issue(
         &self,
+        requested_session: Option<&str>,
         recording_id: uuid::Uuid,
         access_token: String,
         access_expires_at: i64,
     ) -> anyhow::Result<String> {
         let now = Utc::now().timestamp();
-        let expires_at = access_expires_at.min(now.saturating_add(TICKET_TTL_SECONDS));
+        let expires_at = access_expires_at.min(now.saturating_add(PLAYBACK_SESSION_TTL_SECONDS));
         ensure!(expires_at > now, "playback access token is expired");
-        let ticket = random_token()?;
-        let mut grants = self
+        let mut sessions = self
             .0
             .lock()
-            .map_err(|_| anyhow::anyhow!("playback ticket store is poisoned"))?;
-        grants.retain(|_, grant| grant.expires_at > now);
-        if grants.len() >= MAX_TICKETS {
-            if let Some(oldest) = grants
+            .map_err(|_| anyhow::anyhow!("playback session store is poisoned"))?;
+        sessions.retain(|_, session| session.expires_at > now);
+        if let Some(session_id) = requested_session
+            && let Some(session) = sessions
+                .get_mut(session_id)
+                .filter(|session| session.recording_id == recording_id)
+        {
+            session.access_token = access_token;
+            session.expires_at = expires_at;
+            return Ok(session_id.to_owned());
+        }
+
+        if sessions.len() >= MAX_PLAYBACK_SESSIONS {
+            if let Some(oldest) = sessions
                 .iter()
-                .min_by_key(|(_, grant)| grant.expires_at)
-                .map(|(ticket, _)| ticket.clone())
+                .min_by_key(|(_, session)| session.expires_at)
+                .map(|(session_id, _)| session_id.clone())
             {
-                grants.remove(&oldest);
+                sessions.remove(&oldest);
             }
         }
-        grants.insert(
-            ticket.clone(),
-            PlaybackGrant {
+        let session_id = random_token()?;
+        sessions.insert(
+            session_id.clone(),
+            PlaybackSession {
                 recording_id,
                 access_token,
                 expires_at,
             },
         );
-        Ok(ticket)
+        Ok(session_id)
     }
 
-    fn authorize(&self, ticket: &str, recording_id: uuid::Uuid) -> Option<String> {
+    fn authorize(&self, session_id: &str, recording_id: uuid::Uuid) -> Option<String> {
         let now = Utc::now().timestamp();
-        let mut grants = self.0.lock().ok()?;
-        grants.retain(|_, grant| grant.expires_at > now);
-        grants
-            .get(ticket)
-            .filter(|grant| grant.recording_id == recording_id)
-            .map(|grant| grant.access_token.clone())
+        let mut sessions = self.0.lock().ok()?;
+        sessions.retain(|_, session| session.expires_at > now);
+        sessions
+            .get(session_id)
+            .filter(|session| session.recording_id == recording_id)
+            .map(|session| session.access_token.clone())
     }
 }
 
@@ -98,7 +110,7 @@ struct PlaybackManifest {
     archive: PlaybackArchive,
     live: Option<PlaybackLiveSegment>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    playback_ticket: Option<String>,
+    playback_session: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -185,18 +197,22 @@ pub(crate) async fn manifest(
     if manifest.recording_id != recording_id.to_string() {
         return (headers, StatusCode::BAD_GATEWAY).into_response();
     }
-    let ticket = match state.playback_tickets.issue(
+    let requested_session = request_headers
+        .get(PLAYBACK_SESSION_HEADER)
+        .and_then(|value| value.to_str().ok());
+    let playback_session = match state.playback_sessions.renew_or_issue(
+        requested_session,
         recording_id,
         session.session.access_token.clone(),
         session.session.access_expires_at,
     ) {
-        Ok(ticket) => ticket,
+        Ok(session_id) => session_id,
         Err(error) => {
-            tracing::error!(%error, %recording_id, "playback ticket issuance failed");
+            tracing::error!(%error, %recording_id, "playback session issuance failed");
             return (headers, StatusCode::INTERNAL_SERVER_ERROR).into_response();
         }
     };
-    manifest.playback_ticket = Some(ticket);
+    manifest.playback_session = Some(playback_session);
     let body = match serde_json::to_vec(&manifest) {
         Ok(body) => body,
         Err(error) => {
@@ -210,7 +226,7 @@ pub(crate) async fn manifest(
 
 pub(crate) async fn segment(
     State(state): State<AppState>,
-    Path((recording_id, ticket, segment_id)): Path<(String, String, String)>,
+    Path((recording_id, playback_session, segment_id)): Path<(String, String, String)>,
     request_headers: HeaderMap,
 ) -> Response {
     let (Some(recording_id), Some(segment_id)) =
@@ -218,7 +234,10 @@ pub(crate) async fn segment(
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(access_token) = state.playback_tickets.authorize(&ticket, recording_id) else {
+    let Some(access_token) = state
+        .playback_sessions
+        .authorize(&playback_session, recording_id)
+    else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
     proxy_source(
@@ -235,14 +254,17 @@ pub(crate) async fn segment(
 
 pub(crate) async fn live_segment(
     State(state): State<AppState>,
-    Path((recording_id, ticket, segment_id)): Path<(String, String, String)>,
+    Path((recording_id, playback_session, segment_id)): Path<(String, String, String)>,
 ) -> Response {
     let (Some(recording_id), Some(segment_id)) =
         (parse_uuid_v7(&recording_id), parse_uuid_v7(&segment_id))
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(access_token) = state.playback_tickets.authorize(&ticket, recording_id) else {
+    let Some(access_token) = state
+        .playback_sessions
+        .authorize(&playback_session, recording_id)
+    else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
     proxy_source(
@@ -330,25 +352,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ticket_is_scoped_to_recording_and_expiry() {
-        let tickets = PlaybackTicketStore::default();
+    fn playback_session_is_stable_and_scoped_to_one_recording() {
+        let sessions = PlaybackSessionStore::default();
         let recording_id = uuid::Uuid::now_v7();
         let other_recording_id = uuid::Uuid::now_v7();
-        let ticket = tickets
-            .issue(
+        let session_id = sessions
+            .renew_or_issue(
+                None,
                 recording_id,
                 "access-token".to_owned(),
                 Utc::now().timestamp() + 60,
             )
             .unwrap();
         assert_eq!(
-            tickets.authorize(&ticket, recording_id).as_deref(),
+            sessions.authorize(&session_id, recording_id).as_deref(),
             Some("access-token")
         );
-        assert_eq!(tickets.authorize(&ticket, other_recording_id), None);
+        let renewed_session_id = sessions
+            .renew_or_issue(
+                Some(&session_id),
+                recording_id,
+                "renewed-token".to_owned(),
+                Utc::now().timestamp() + 120,
+            )
+            .unwrap();
+        assert_eq!(renewed_session_id, session_id);
+        assert_eq!(
+            sessions.authorize(&session_id, recording_id).as_deref(),
+            Some("renewed-token")
+        );
+        assert_eq!(sessions.authorize(&session_id, other_recording_id), None);
+        let other_session_id = sessions
+            .renew_or_issue(
+                Some(&session_id),
+                other_recording_id,
+                "other-token".to_owned(),
+                Utc::now().timestamp() + 60,
+            )
+            .unwrap();
+        assert_ne!(other_session_id, session_id);
         assert!(
-            tickets
-                .issue(recording_id, "expired".to_owned(), Utc::now().timestamp(),)
+            sessions
+                .renew_or_issue(
+                    None,
+                    recording_id,
+                    "expired".to_owned(),
+                    Utc::now().timestamp(),
+                )
                 .is_err()
         );
     }
