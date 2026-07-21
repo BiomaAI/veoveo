@@ -18,6 +18,13 @@ the deployed checkpoint whenever reproducibility evidence matters.
 revision whenever the template changes, because results record the revision
 and greedy-decoded results are only comparable within one revision.
 
+Each model declares its inference engine budget. The vLLM engine requires a
+bounded `gpu_memory_utilization` and `max_model_len`; deployments size both
+against the other GPU workloads that must remain resident. The Helm defaults
+reserve 70% of device memory and an 8192-token context for the Reason engine.
+These are engine limits, not scheduler promises, and a pod still requests a
+real `nvidia.com/gpu` device.
+
 The observation block declares the resolution the runner samples frames to
 before the model observes them. The example uses the world model's native
 640x360 observation size.

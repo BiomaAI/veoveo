@@ -404,6 +404,7 @@
         "runtimeClassName",
         "image",
         "modelCache",
+        "engine",
         "resources"
       ],
       "properties": {
@@ -421,10 +422,30 @@
         "image": {
           "$ref": "#/definitions/image"
         },
-        "modelCache": {
-          "$ref": "#/definitions/persistence"
+      "modelCache": {
+        "$ref": "#/definitions/persistence"
+      },
+      "engine": {
+        "type": "object",
+        "required": [
+          "gpuMemoryUtilization",
+          "maxModelLen"
+        ],
+        "properties": {
+          "gpuMemoryUtilization": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 1.0
+          },
+          "maxModelLen": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 1048576
+          }
         },
-        "resources": {
+        "additionalProperties": false
+      },
+      "resources": {
           "type": "object"
         }
       },

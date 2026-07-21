@@ -6,7 +6,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-REQUEST_SCHEMA = "veoveo.reason-runner-request/v1"
+REQUEST_SCHEMA = "veoveo.reason-runner-request/v2"
 RESPONSE_SCHEMA = "veoveo.reason-runner-response/v1"
 
 
@@ -31,6 +31,12 @@ class RunnerPipeline(_Model):
     observation: Observation
 
 
+class VllmEngine(_Model):
+    kind: Literal["vllm"] = "vllm"
+    gpu_memory_utilization: float = Field(ge=0.1, le=1.0)
+    max_model_len: int = Field(ge=1_024, le=1_048_576)
+
+
 class RunnerModel(_Model):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", protected_namespaces=())
 
@@ -38,6 +44,7 @@ class RunnerModel(_Model):
     model_path: str
     format: str
     model_digest: str | None = None
+    engine: VllmEngine
 
 
 class DescribeSegment(_Model):
