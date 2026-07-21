@@ -112,12 +112,11 @@ async function captureConsoleShots(context, shots, defaults) {
   try {
     await page.setViewportSize(defaults.viewport);
     for (const shot of shots) {
-      if (shot.recipe === "recordings") {
-        await page.emulateMedia({ colorScheme: "dark" });
-        await assertHardwareCaptureBrowser(page, shot.id);
-      }
+      await page.emulateMedia({ colorScheme: "dark" });
+      await assertHardwareCaptureBrowser(page, shot.id);
       await loadConsoleBaseline(page, consoleUrl);
       await runConsoleRecipe(page, shot.recipe);
+      await assertHardwareCaptureBrowser(page, shot.id);
       await capturePage(page, shot);
     }
   } finally {
@@ -563,12 +562,26 @@ async function captureGovernedUavRecording(context, shot, defaults) {
 async function assertHardwareCaptureBrowser(page, shotId) {
   const renderer = await page.evaluate(async () => {
     const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
+    const canvas = document.createElement("canvas");
+    const webgl = canvas.getContext("webgl2", { failIfMajorPerformanceCaveat: true })
+      ?? canvas.getContext("webgl", { failIfMajorPerformanceCaveat: true });
+    const debugInfo = webgl?.getExtension("WEBGL_debug_renderer_info");
+    const webglVendor = webgl && debugInfo
+      ? webgl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)
+      : webgl?.getParameter(webgl.VENDOR) ?? "";
+    const webglRenderer = webgl && debugInfo
+      ? webgl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+      : webgl?.getParameter(webgl.RENDERER) ?? "";
+    webgl?.getExtension("WEBGL_lose_context")?.loseContext();
     return {
       userAgent: navigator.userAgent,
       vendor: adapter?.info?.vendor ?? "",
       architecture: adapter?.info?.architecture ?? "",
       device: adapter?.info?.device ?? "",
       description: adapter?.info?.description ?? "",
+      webglAvailable: Boolean(webgl),
+      webglVendor,
+      webglRenderer,
     };
   });
   if (renderer.userAgent.includes("HeadlessChrome")) {
@@ -583,7 +596,13 @@ async function assertHardwareCaptureBrowser(page, shotId) {
   if (!renderer.vendor || /(swiftshader|llvmpipe|software)/.test(fingerprint)) {
     throw new Error(`${shotId} requires a hardware WebGPU adapter; received ${fingerprint || "none"}`);
   }
+  const webglFingerprint = `${renderer.webglVendor} ${renderer.webglRenderer}`.trim().toLowerCase();
+  if (!renderer.webglAvailable || /(swiftshader|llvmpipe|software)/.test(webglFingerprint)) {
+    throw new Error(
+      `${shotId} requires a hardware WebGL context; received ${webglFingerprint || "none"}`,
+    );
+  }
   console.log(
-    `hardware renderer for ${shotId}: ${renderer.vendor} ${renderer.architecture}`.trim(),
+    `hardware renderer for ${shotId}: WebGPU ${renderer.vendor} ${renderer.architecture}; WebGL ${renderer.webglRenderer}`.trim(),
   );
 }
