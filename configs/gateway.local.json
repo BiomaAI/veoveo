@@ -900,6 +900,10 @@
               {
                 "kind": "scheme",
                 "scheme": "view"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://view/"
               }
             ]
           },
@@ -1074,6 +1078,10 @@
               {
                 "kind": "scheme",
                 "scheme": "view"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://view/"
               }
             ]
           },
