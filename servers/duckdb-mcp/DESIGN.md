@@ -449,10 +449,11 @@ operation, database, selection, task id, and row count where applicable.
 
 ## DuckDB Spatial
 
-Spatial is a required capability of the hosted DuckDB image. The Docker build
-downloads the official extension that matches DuckDB `1.5.4` for AMD64 or
-ARM64, verifies a pinned SHA-256 digest, installs the decompressed binary at a
-read-only canonical path, and copies it into the runtime image.
+[DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
+is a required capability of the hosted DuckDB image. The Docker build downloads
+the official extension that matches DuckDB `1.5.4` for AMD64 or ARM64, verifies
+a pinned SHA-256 digest, installs the decompressed binary at a read-only canonical
+path, and copies it into the runtime image.
 
 ```text
 /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
@@ -471,7 +472,8 @@ The installed extension enables DuckDB geometry types and functions, including:
 - CRS transforms backed by the Spatial extension's packaged PROJ data
 - R-tree spatial indexes
 - GeoJSON, WKB, and SVG geometry serialization
-- `ST_TileEnvelope`, `ST_AsMVTGeom`, and `ST_AsMVT` vector-tile computation
+- `ST_TileEnvelope`, `ST_AsMVTGeom`, and `ST_AsMVT` computation for
+  [Mapbox Vector Tile 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1)
 
 Availability of a function follows the pinned DuckDB Spatial version. Agents
 should query the database with SQL rather than depend on a second Veoveo
