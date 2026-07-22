@@ -761,6 +761,16 @@ impl ServerHandler for MapMcp {
                 "Feature layer publications".to_owned(),
                 "Immutable published layer revisions.",
             ));
+            resources.push(json_resource_descriptor(
+                uris::LAYER_PRODUCTS_URI.to_owned(),
+                "Feature layer products".to_owned(),
+                "Immutable artifacts derived from published feature layers.",
+            ));
+            resources.push(json_resource_descriptor(
+                uris::COMPOSITIONS_URI.to_owned(),
+                "Map compositions".to_owned(),
+                "Work Context-scoped maps built from immutable publication pins.",
+            ));
             for layer in self
                 .state
                 .authoring
@@ -790,6 +800,36 @@ impl ServerHandler for MapMcp {
                         .title
                         .unwrap_or_else(|| format!("publication {}", publication.publication_id)),
                     "Immutable authored feature layer publication.",
+                ));
+            }
+            for product in self
+                .state
+                .authoring
+                .list_layer_products(&identity, &scope, None)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::layer_product_uri(
+                        product.layer_id.as_str(),
+                        product.publication_id.as_str(),
+                        product.product_id.as_str(),
+                    ),
+                    format!("{:?} product {}", product.format, product.product_id),
+                    "Immutable artifact derived from a layer publication.",
+                ));
+            }
+            for composition in self
+                .state
+                .authoring
+                .list_compositions(&identity, &scope, false)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::composition_uri(composition.composition_id.as_str()),
+                    composition.title,
+                    "Governed map composition head.",
                 ));
             }
         }
@@ -899,6 +939,21 @@ impl ServerHandler for MapMcp {
                 "Feature layer publication",
                 "Immutable published layer revision.",
             ),
+            template(
+                uris::LAYER_PRODUCT_TEMPLATE,
+                "Feature layer product",
+                "Immutable artifact derived from a published layer revision.",
+            ),
+            template(
+                uris::COMPOSITION_TEMPLATE,
+                "Map composition",
+                "Mutable head of a governed publication-pinned map composition.",
+            ),
+            template(
+                uris::COMPOSITION_REVISION_TEMPLATE,
+                "Map composition revision",
+                "Immutable map composition revision.",
+            ),
         ];
         let page = mcp_page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
@@ -966,7 +1021,10 @@ impl ServerHandler for MapMcp {
         }
         if uri == uris::FEATURE_LAYERS_URI
             || uri == uris::PUBLICATIONS_URI
+            || uri == uris::LAYER_PRODUCTS_URI
+            || uri == uris::COMPOSITIONS_URI
             || uri.starts_with("map://feature-layer/")
+            || uri.starts_with("map://composition/")
         {
             let identity = require_scope(&context, "map:feature:read")?;
             let scope = self.state.scope(&identity).await.map_err(internal)?;
@@ -990,6 +1048,56 @@ impl ServerHandler for MapMcp {
                         .list_publications(&identity, &scope, None)
                         .await
                         .map_err(internal)?,
+                );
+            }
+            if uri == uris::LAYER_PRODUCTS_URI {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .list_layer_products(&identity, &scope, None)
+                        .await
+                        .map_err(internal)?,
+                );
+            }
+            if uri == uris::COMPOSITIONS_URI {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .list_compositions(&identity, &scope, false)
+                        .await
+                        .map_err(internal)?,
+                );
+            }
+            if let Some((composition, revision)) = uris::parse_composition_revision(uri) {
+                let composition_id: crate::contract::MapCompositionId =
+                    composition.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .composition_revision(&identity, &scope, &composition_id, revision)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("map composition revision"))?,
+                );
+            }
+            if let Some(composition) = uris::parse_composition(uri) {
+                let composition_id: crate::contract::MapCompositionId =
+                    composition.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .composition(&identity, &scope, &composition_id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("map composition"))?,
                 );
             }
             if let Some(request) = uris::parse_features_request(uri).map_err(invalid_params)? {
@@ -1092,6 +1200,25 @@ impl ServerHandler for MapMcp {
                         .map_err(internal)?
                         .ok_or_else(|| not_found("layer publication"))?,
                 );
+            }
+            if let Some((layer, publication, product)) = uris::parse_layer_product(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                let publication_id: crate::contract::LayerPublicationId =
+                    publication.parse().map_err(invalid_params)?;
+                let product_id: crate::contract::LayerProductId =
+                    product.parse().map_err(invalid_params)?;
+                let product = self
+                    .state
+                    .authoring
+                    .layer_product(&identity, &scope, &product_id)
+                    .await
+                    .map_err(internal)?
+                    .filter(|product| {
+                        product.layer_id == layer_id && product.publication_id == publication_id
+                    })
+                    .ok_or_else(|| not_found("map layer product"))?;
+                return json_resource(uri, &product);
             }
             if let Some(layer) = uris::parse_feature_layer(uri) {
                 let layer_id: crate::contract::FeatureLayerId =
@@ -1697,7 +1824,8 @@ async fn completion_values(
             | uris::FEATURE_TEMPLATE
             | uris::FEATURE_REVISION_TEMPLATE
             | uris::CHANGESET_TEMPLATE
-            | uris::PUBLICATION_TEMPLATE,
+            | uris::PUBLICATION_TEMPLATE
+            | uris::LAYER_PRODUCT_TEMPLATE,
             "layer_id",
         ) => state
             .authoring
@@ -1720,12 +1848,38 @@ async fn completion_values(
             .into_iter()
             .filter_map(|value| value.style.map(|style| style.version.to_string()))
             .collect(),
-        (uris::PUBLICATION_TEMPLATE | uris::FEATURES_TEMPLATE, "publication_id") => state
+        (
+            uris::PUBLICATION_TEMPLATE | uris::FEATURES_TEMPLATE | uris::LAYER_PRODUCT_TEMPLATE,
+            "publication_id",
+        ) => state
             .authoring
             .list_publications(identity, scope, None)
             .await?
             .into_iter()
             .map(|value| value.publication_id.to_string())
+            .collect(),
+        (uris::LAYER_PRODUCT_TEMPLATE, "product_id") => state
+            .authoring
+            .list_layer_products(identity, scope, None)
+            .await?
+            .into_iter()
+            .map(|value| value.product_id.to_string())
+            .collect(),
+        (uris::COMPOSITION_TEMPLATE | uris::COMPOSITION_REVISION_TEMPLATE, "composition_id") => {
+            state
+                .authoring
+                .list_compositions(identity, scope, true)
+                .await?
+                .into_iter()
+                .map(|value| value.composition_id.to_string())
+                .collect()
+        }
+        (uris::COMPOSITION_REVISION_TEMPLATE, "composition_revision") => state
+            .authoring
+            .list_compositions(identity, scope, true)
+            .await?
+            .into_iter()
+            .map(|value| value.current.revision.to_string())
             .collect(),
         _ => Vec::new(),
     };
@@ -1750,14 +1904,20 @@ fn is_subscribable(uri: &str) -> bool {
 }
 
 fn is_feature_subscribable(uri: &str) -> bool {
-    matches!(uri, uris::FEATURE_LAYERS_URI | uris::PUBLICATIONS_URI)
-        || uris::parse_feature_layer(uri).is_some()
+    matches!(
+        uri,
+        uris::FEATURE_LAYERS_URI
+            | uris::PUBLICATIONS_URI
+            | uris::LAYER_PRODUCTS_URI
+            | uris::COMPOSITIONS_URI
+    ) || uris::parse_feature_layer(uri).is_some()
         || uris::parse_features(uri).is_some()
         || uris::parse_feature(uri).is_some()
+        || uris::parse_composition(uri).is_some()
 }
 
 fn is_feature_template(uri: &str) -> bool {
-    uri.starts_with("map://feature-layer/")
+    uri.starts_with("map://feature-layer/") || uri.starts_with("map://composition/")
 }
 
 #[cfg(test)]

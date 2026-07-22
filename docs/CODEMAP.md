@@ -196,6 +196,7 @@ The only durable platform persistence layer.
 | `coordinates.rs` | frames and coordinate-operation persistence |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
+| `map_presentations.rs` | Immutable publication products plus governed, publication-pinned map compositions and revisions |
 | `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
 | `recordings.rs` | recording and segment catalog |
 | `recording_ingest.rs` | producer streams, idempotent batch checkpoints, and journal state |
@@ -356,12 +357,15 @@ The geospatial hard cut has three canonical servers:
 The crate-local design documents own their protocol, administration, persistence, and
 deployment details.
 
-Map authoring is split by responsibility. `src/contract/features.rs` owns the wire
-types and bounds. `src/authoring/service.rs` applies Work Context policy and optimistic
+Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
+types and bounds, while `src/contract/compositions.rs` owns publication products and
+composition contracts. `src/authoring/service.rs` applies Work Context policy and optimistic
 concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
 while `src/authoring/query.rs` owns the parameterized DuckDB Spatial and bounded CQL2
-query projection. `src/mcp/authoring.rs` publishes the write and query tools. The
-canonical SurrealDB schema is `platform/store/migrations/0025_map_authoring.surql`.
+query projection. `src/authoring/presentations.rs` governs immutable products and
+composition revisions. `src/mcp/authoring.rs` publishes the write and query tools. The
+canonical SurrealDB schemas are `platform/store/migrations/0025_map_authoring.surql`
+and `platform/store/migrations/0026_map_authoring_products.surql`.
 
 ### Temporal Domain
 

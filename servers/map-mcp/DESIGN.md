@@ -211,6 +211,18 @@ URI-addressed resources. Mutable heads and indexes support MCP subscriptions and
 resource-update notifications. Individual features are never expanded into the
 resource list; agents traverse them through the paginated query template.
 
+An immutable layer publication is the input boundary for export and presentation.
+Derived GeoJSON text sequence, GeoParquet, and vector-tile artifacts are separate
+layer-product records that retain the publication, layer revision, digest, size,
+format, artifact identity, creator, and Work Context authority. A product never
+changes its publication.
+
+A map composition orders at most 64 authored layers and pins one immutable
+publication for each layer. Every change appends a composition revision with a
+bounded WGS84 view and literal opacity and visibility settings. The mutable head,
+immutable revisions, root indexes, completions, and update subscriptions are MCP
+resources. A composition is the stable handoff to map presentation clients.
+
 `reference`, `named_locations`, `facilities`, `boundaries`, and
 `network_candidate` are authoring classifications, not routing authority. A
 generic feature commit or publication never changes an active source release or

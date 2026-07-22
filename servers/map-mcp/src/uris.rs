@@ -10,6 +10,7 @@ pub const ROUTES_URI: &str = "map://routes";
 pub const MATRICES_URI: &str = "map://matrices";
 pub const FEATURE_LAYERS_URI: &str = "map://feature-layers";
 pub const PUBLICATIONS_URI: &str = "map://publications";
+pub const LAYER_PRODUCTS_URI: &str = "map://layer-products";
 pub const COMPOSITIONS_URI: &str = "map://compositions";
 
 pub const SOURCE_TEMPLATE: &str = "map://source/{source_id}";
@@ -33,6 +34,11 @@ pub const FEATURE_REVISION_TEMPLATE: &str =
 pub const CHANGESET_TEMPLATE: &str = "map://feature-layer/{layer_id}/changeset/{changeset_id}";
 pub const PUBLICATION_TEMPLATE: &str =
     "map://feature-layer/{layer_id}/publication/{publication_id}";
+pub const LAYER_PRODUCT_TEMPLATE: &str =
+    "map://feature-layer/{layer_id}/publication/{publication_id}/product/{product_id}";
+pub const COMPOSITION_TEMPLATE: &str = "map://composition/{composition_id}";
+pub const COMPOSITION_REVISION_TEMPLATE: &str =
+    "map://composition/{composition_id}/revision/{composition_revision}";
 
 /// The map administration MCP App view. The slug segment matches the
 /// gateway's ServerOwned `ui://{slug}/{page}` projection.
@@ -108,6 +114,18 @@ pub fn changeset_uri(layer_id: &str, changeset_id: &str) -> String {
 
 pub fn publication_uri(layer_id: &str, publication_id: &str) -> String {
     format!("map://feature-layer/{layer_id}/publication/{publication_id}")
+}
+
+pub fn layer_product_uri(layer_id: &str, publication_id: &str, product_id: &str) -> String {
+    format!("map://feature-layer/{layer_id}/publication/{publication_id}/product/{product_id}")
+}
+
+pub fn composition_uri(composition_id: &str) -> String {
+    format!("map://composition/{composition_id}")
+}
+
+pub fn composition_revision_uri(composition_id: &str, revision: u64) -> String {
+    format!("map://composition/{composition_id}/revision/{revision}")
 }
 
 pub fn parse_artifact(uri: &str) -> Option<veoveo_mcp_contract::ArtifactId> {
@@ -250,6 +268,27 @@ pub fn parse_changeset(uri: &str) -> Option<(&str, &str)> {
 
 pub fn parse_publication(uri: &str) -> Option<(&str, &str)> {
     parse_layer_identity(uri, "/publication/")
+}
+
+pub fn parse_layer_product(uri: &str) -> Option<(&str, &str, &str)> {
+    let suffix = uri.strip_prefix("map://feature-layer/")?;
+    let (layer_id, remainder) = suffix.split_once("/publication/")?;
+    let (publication_id, product_id) = remainder.split_once("/product/")?;
+    (valid_segment(layer_id) && valid_segment(publication_id) && valid_segment(product_id))
+        .then_some((layer_id, publication_id, product_id))
+}
+
+pub fn parse_composition(uri: &str) -> Option<&str> {
+    parse_single(uri, "map://composition/")
+}
+
+pub fn parse_composition_revision(uri: &str) -> Option<(&str, u64)> {
+    let suffix = uri.strip_prefix("map://composition/")?;
+    let (composition_id, revision) = suffix.split_once("/revision/")?;
+    if !valid_segment(composition_id) {
+        return None;
+    }
+    Some((composition_id, revision.parse().ok()?))
 }
 
 fn parse_layer_version<'a>(uri: &'a str, separator: &str) -> Option<(&'a str, u64)> {
