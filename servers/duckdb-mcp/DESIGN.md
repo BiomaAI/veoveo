@@ -61,6 +61,20 @@ duckdb__ingest
 duckdb__export
 ```
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, structured content, notifications, and usage resources. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Canonical tool inputs and structured results. Open-ended DuckDB values remain JSON only where the SQL type system is genuinely dynamic. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
+| DuckDB SQL | The pinned DuckDB dialect is accepted inside the hardened database boundary. Veoveo does not claim a narrower ISO SQL subset or translate SQL through another query language. |
+| CSV, JSON/NDJSON, and [Apache Parquet](https://parquet.apache.org/docs/) | Governed source materialization and immutable export. Parsing behavior is pinned to the installed DuckDB release and explicit read options. |
+| DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. |
+| [Mapbox Vector Tile 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | SQL can compute MVT geometry and tile blobs. Tile identity, archives, styles, and serving remain Map responsibilities. |
+| HTTPS | Allowlisted external sources are downloaded by the governed materializer. Caller SQL never receives network authority. |
+| OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource; the hosted service verifies its short-lived assertion and caller authority before deriving an owner database. |
+
 ## Goals
 
 - Preserve DuckDB's expressive analytical SQL surface for agents.

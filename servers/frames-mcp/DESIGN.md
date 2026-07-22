@@ -23,6 +23,18 @@ health      /frames/healthz
 Frames has one canonical server, scheme, gateway namespace, deployment, and
 documentation surface.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, prompts, completions, notifications, and subscriptions. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Typed tool inputs, structured results, bootstrap documents, and resource models. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; `batch_transform` uses durable creation, status, cancellation, result, and subscription operations. |
+| WGS 84 geodetic coordinates | Latitude, longitude, and ellipsoidal height form the Earth-fixed exchange contract. |
+| EPSG:4978 Earth-Centered, Earth-Fixed | Cartesian ECEF coordinates in metres. |
+| Local ENU and NED conventions | Explicit tangent-frame origin, axes, handedness, and SI units; the frame definition travels with every local coordinate. |
+| OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource, then the hosted server verifies its short-lived Ed25519 assertion and forwarded caller authority. |
+
 ## Responsibility
 
 Frames answers a focused question: how should bounded positions be expressed

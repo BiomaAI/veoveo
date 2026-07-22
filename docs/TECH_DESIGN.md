@@ -5,6 +5,28 @@ boundaries in `ARCHITECTURE_DECISIONS.md`. The architecture is protocol-first.
 Known requests, responses, identities, and persisted records use explicit Rust types
 or declared schemas. Durable state and service ownership remain inside the installation.
 
+## Standards And Protocols
+
+This table is the cross-component protocol contract. Domain design documents narrow
+the data standards they implement; the root README provides the shorter product-level
+catalog.
+
+| Standard or protocol | Technical boundary |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP at client-to-gateway and gateway-to-server boundaries. Catalog projection preserves canonical resources, prompts, completions, subscriptions, notifications, and structured content. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Closed, dereferenced MCP tool input schemas generated from Rust or Python types. Controlled persisted and structured-result models use the same typed vocabulary. |
+| [Veoveo final task extension](../mcp/task-extension) | Version `2026-06-30`; durable task augmentation, discovery, lifecycle methods, results, cancellation, and subscriptions use MCP messages rather than a job REST API. |
+| [MCP Apps SEP-1865](../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; server-owned `ui://` resources use the sandboxed MCP Apps host bridge. |
+| OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
+| MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
+| HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, artifact delivery, and immutable RRD byte ranges. Internal cleartext HTTP exists only inside declared cluster trust boundaries. |
+| OpenTelemetry OTLP/HTTP | Optional traces and logs from shared server instrumentation. Export remains disabled unless the installation supplies an endpoint. |
+| Veoveo recording ingest | Version `2026-07-21`; authenticated protobuf batches preserve native Rerun messages, ordering, idempotency, and decoder-safe rollover markers. |
+| Rerun gRPC, RRD, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, viewer playback, and H.264 Annex B video with exact timeline indices. |
+| S3-compatible object API | Artifact bytes and presigned delivery. SurrealDB remains authoritative for occurrences, identity, grants, release state, shares, policy, and audit. |
+| Kubernetes, Helm, and OCI images | Canonical workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
+| Domain standards | Map, Time, Frames, View, UAV, Recording, Perception, and Reason designs pin their geospatial, temporal, 3D, vehicle, and media profiles independently. |
+
 ## Capability Model
 
 Veoveo does not flatten MCP into a collection of convenience tools. Each hosted

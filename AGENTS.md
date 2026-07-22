@@ -191,3 +191,12 @@ sections and get at most a closing sentence elsewhere. Keep one hard number wher
 earns trust.
 
 The abstract of docs/veoveo-whitepaper-print.html is the register exemplar.
+
+## Design Documentation
+
+Every design document must include a `## Standards And Protocols` section near
+its beginning. The section names each external standard, wire protocol, data
+format, and repository-owned extension that forms part of the design boundary.
+Pin a version when the implementation pins one, state the supported profile or
+subset, and distinguish an internal adapter protocol from a public contract.
+Do not imply complete conformance when Veoveo implements only selected features.

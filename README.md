@@ -38,6 +38,47 @@ product dependency or canonical hostname.
 The normative product boundaries are in
 [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md).
 
+## Standards And Protocols
+
+Veoveo uses published standards where they define a stable interoperability
+boundary. Repository-owned extensions are versioned and named explicitly. A row
+below states the implemented profile; it does not claim support for every optional
+feature of the referenced standard.
+
+### Agent And Application Protocols
+
+| Standard or protocol | Veoveo profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP between clients, the gateway, and hosted servers. Veoveo uses tools, resources and templates, prompts, completions, structured content, subscriptions, and notifications. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Canonical tool input schemas and typed structured-content contracts. Server schemas expose object types at property boundaries for MCP client interoperability. |
+| [Veoveo final task extension](mcp/task-extension) | Version `2026-06-30`; durable create, get, update, result, cancel, and subscription semantics over MCP. |
+| [MCP Apps, SEP-1865](mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; self-contained `ui://` resources communicate with a sandboxed host through the MCP Apps `postMessage` bridge. |
+| [OpenTelemetry](https://opentelemetry.io/docs/specs/) | OTLP/HTTP traces and logs from platform services when an exporter is configured. |
+
+### Identity And Authorization Protocols
+
+| Standard or protocol | Veoveo profile |
+|---|---|
+| [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0.html) | Enterprise identity-provider login and signed ID-token validation through discovery and JWKS. |
+| OAuth 2.0 | Authorization Code with S256 PKCE, Client Credentials, and JWT Bearer grants selected by registered gateway clients and protected resources. |
+| [OAuth Authorization Server Metadata, RFC 8414](https://www.rfc-editor.org/rfc/rfc8414.html) and [Protected Resource Metadata, RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) | Discovery for authorization servers and MCP protected resources. |
+| [OAuth Resource Indicators, RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html) | Access tokens are bound to the requested protected resource. |
+| [JWT, RFC 7519](https://www.rfc-editor.org/rfc/rfc7519.html), [JWS, RFC 7515](https://www.rfc-editor.org/rfc/rfc7515.html), and [JWK, RFC 7517](https://www.rfc-editor.org/rfc/rfc7517.html) | Signed access tokens, `private_key_jwt` client authentication, ID-JAG assertions, and short-lived gateway-to-service identity. Symmetric signing is rejected at hosted trust boundaries. |
+| MCP Enterprise-Managed Authorization / ID-JAG | Explicit grant-profile extension for enterprise-managed client identity; replay state and scope reduction are durable. |
+
+### Data, Media, And Deployment Protocols
+
+| Standard or protocol | Veoveo profile |
+|---|---|
+| [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Durable time-and-space recordings, viewer playback, derived annotations, and H.264 Annex B sensor video. |
+| Veoveo recording ingest | Version `2026-07-21`; authenticated protobuf batches from producer-local forwarders to the gateway and Recording Hub. |
+| S3-compatible object API | Governed artifact bytes and presigned delivery; SurrealDB retains identity, ownership, policy, and audit state. |
+| DuckDB SQL and Apache Parquet | Sandboxed analytical SQL, governed CSV/JSON/Parquet ingress, immutable Parquet/CSV exports, and pinned DuckDB Spatial. |
+| Geospatial standards | WGS84/EPSG coordinate identities, GeoJSON RFC 7946, OGC JSON-FG and CQL2, GeoParquet 1.0, Mapbox Vector Tile 2.1, and MapLibre Style 8. The precise profile is in [`servers/map-mcp/DESIGN.md`](servers/map-mcp/DESIGN.md#standards-and-protocols). |
+| Time standards | RFC 3339, RFC 9557, IANA TZDB/TZif, IANA leap-second data, TAI, GPS time, and authority-bound civil-time interpretation. The precise profile is in [`servers/time-mcp/DESIGN.md`](servers/time-mcp/DESIGN.md#standards-and-protocols). |
+| 3D and vehicle protocols | OGC 3D Tiles 1.0/1.1, glTF/GLB 2.0, Draco geometry compression, MAVLink 2, and private ROS 2 simulator data paths. The [`view-mcp`](servers/view-mcp/DESIGN.md#standards-and-protocols) and [`uav-sim-mcp`](servers/uav-sim-mcp/DESIGN.md#standards-and-protocols) designs state the supported subsets. |
+| Kubernetes, Helm, and OCI images | One declarative installation shape for connected, local k3d, GitOps, and offline deployments. GPU workloads require an NVIDIA device exposed through the Kubernetes runtime. |
+
 ## Architecture
 
 ```text
