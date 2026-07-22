@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared
+  namespace: veoveo
   labels:
     app.kubernetes.io/name: cloudflared
 spec:
