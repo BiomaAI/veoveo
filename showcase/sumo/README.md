@@ -117,6 +117,5 @@ showcase/sumo/
 
 Remove the composed platform and showcase releases with
 `just profile-down showcase/sumo/deploy/deployment.json`. The shared registry
-remains available for another profile. Deployment mechanics and enterprise
-composition are documented in
-[`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md).
+remains available for another profile. Local deployment mechanics are documented in
+[`../../docs/LOCAL_DEPLOYMENT_PROFILES.md`](../../docs/LOCAL_DEPLOYMENT_PROFILES.md).

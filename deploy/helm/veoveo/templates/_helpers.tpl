@@ -41,8 +41,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $registry := trimSuffix "/" $root.Values.global.veoveoRegistry -}}
 {{- $repository := $image.repository -}}
 {{- if $registry -}}{{- $repository = printf "%s/%s" $registry $repository -}}{{- end -}}
-{{- if $image.digest -}}
-{{- printf "%s@%s" $repository $image.digest -}}
+{{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
+{{- $digest := $image.digest | default $lockedDigest -}}
+{{- if $digest -}}
+{{- printf "%s@%s" $repository $digest -}}
 {{- else -}}
 {{- $tag := default $image.tag $root.Values.global.veoveoTag -}}
 {{- printf "%s:%s" $repository $tag -}}

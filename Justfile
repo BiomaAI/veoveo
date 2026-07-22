@@ -43,7 +43,7 @@ stdio-bridge listen='127.0.0.1:8790' +child='rerun viewer-mcp':
 gateway-validate:
     cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane {{gateway-control-plane}}
 
-# Validate typed self-hosted deployment profiles.
+# Validate typed local deployment profiles.
 deployments-validate:
     {{conformance}} deployment-validate --file configs/deployments.json
 
@@ -56,6 +56,25 @@ helm-check:
     {{helm}} template bioma deploy/helm/veoveo -f examples/bioma/values.yaml -f examples/bioma/k3d-values.yaml >/dev/null
     {{helm}} template sumo showcase/sumo/deploy/helm >/dev/null
     {{helm}} template uav-sim showcase/uav-sim/deploy/helm -f examples/bioma/uav-sim-values.yaml >/dev/null
+
+# Package and publish the platform and UAV extension charts to an OCI repository.
+charts-publish registry version revision='HEAD' plain_http='false':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    resolved_revision="$(git rev-parse --verify '{{revision}}^{commit}')"
+    head_revision="$(git rev-parse HEAD)"
+    [[ "$resolved_revision" == "$head_revision" ]] || { echo "revision must resolve to the checked-out HEAD" >&2; exit 1; }
+    git diff --quiet -- deploy/helm/veoveo showcase/uav-sim/deploy/helm
+    git diff --cached --quiet -- deploy/helm/veoveo showcase/uav-sim/deploy/helm
+    [[ '{{plain_http}}' == 'true' || '{{plain_http}}' == 'false' ]] || { echo "plain_http must be true or false" >&2; exit 1; }
+    output_dir="output/charts/{{version}}"
+    mkdir -p "$output_dir"
+    {{helm}} package deploy/helm/veoveo --version '{{version}}' --app-version "$resolved_revision" --destination "$output_dir"
+    {{helm}} package showcase/uav-sim/deploy/helm --version '{{version}}' --app-version "$resolved_revision" --destination "$output_dir"
+    push_args=()
+    [[ '{{plain_http}}' == 'false' ]] || push_args+=(--plain-http)
+    {{helm}} push "$output_dir/veoveo-{{version}}.tgz" "oci://{{registry}}" "${push_args[@]}"
+    {{helm}} push "$output_dir/uav-sim-{{version}}.tgz" "oci://{{registry}}" "${push_args[@]}"
 
 # Create a content-verified offline installation bundle.
 offline-bundle output='output/veoveo-offline-0.1.0.tar.gz' platform='linux/amd64':

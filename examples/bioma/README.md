@@ -1,269 +1,367 @@
-# Bioma deployment example
+# Bioma enterprise GitOps reference
 
-This directory owns the `veoveo.bioma.ai` installation profile. The public
-hostname reaches its k3d cluster through a remote-managed Cloudflare Tunnel.
+Bioma is the executable reference for an enterprise-owned Veoveo installation.
+The public endpoint at https://veoveo.bioma.ai reaches a GPU-enabled k3d cluster
+through an installation-owned Cloudflare Tunnel. Argo CD reconciles the platform
+and an independently packaged UAV MCP extension from Git and OCI artifacts.
 
-| Installation | k3d cluster | Kubernetes context | Host projection |
-|---|---|---|---|
-| Bioma public edge | `veoveo-bioma` | `k3d-veoveo-bioma` | `http://localhost:8781` |
+| Property | Value |
+|---|---|
+| k3d cluster | veoveo-bioma |
+| Kubernetes context | k3d-veoveo-bioma |
+| Application namespace | veoveo |
+| Argo namespace | argocd |
+| Loopback ingress | http://localhost:8781 |
+| Public origin | https://veoveo.bioma.ai |
+| Object-store origin | https://objects-veoveo.bioma.ai |
+| Root Application | bioma |
 
-Every Bioma recipe passes its Kubernetes context explicitly. The active
-kubectl context cannot redirect a recipe into another installation.
+This example follows the neutral contract in
+[Enterprise deployment](../../docs/ENTERPRISE_DEPLOYMENT.md). Bioma-specific
+identity, origins, capacity, and provider selection live here. The build and
+installation architecture does not contain Bioma-specific roles, scopes, or
+release machinery.
 
-## Profile ownership
+## Ownership and layout
 
-- `values.yaml` owns Bioma's public origins and gateway ConfigMap identity.
-- `deployment.json` composes image groups, Kubernetes resources, and Helm
-  releases through the repository-wide deployment contract.
-- `gateway.json` owns the Entra application, tenant mapping, and MCP profiles.
-- `recording-producer-jwks.json` is the public half of the UAV recording
-  producer credential mounted beside the gateway control plane.
-- `k3d.yaml` owns the cluster and loopback ingress. It attaches the shared local
-  OCI registry defined in `deploy/local/k3d/registry.json`.
-- `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
-  cluster and bootstraps the canonical UAV ENU frame without changing the
-  server catalog.
-- `uav-sim-values.yaml` binds the Isaac session to that frame, the typed nadir
-  camera, and the Bioma recording tenant.
-- `lan-values.yaml` enables canonical-host TLS at Traefik for direct LAN access.
-- `cloudflare-tunnel.json` is the desired remote tunnel ingress configuration.
-- `tunnel.yaml` runs the connector inside the Bioma cluster.
+The repository separates the local platform fixture from application desired state:
 
-The Bioma cluster deploys the complete Veoveo installation: the gateway,
-artifact and recording planes, console, and every hosted MCP server in
-`gateway.json`.
+~~~text
+examples/bioma/
+  platform/                     local cluster prerequisites
+    argocd/                     pinned Argo CD 3.4.5 installation
+    registry/                   TLS adapter for the loopback OCI registry
+  gitops/
+    bootstrap.yaml              root Application, applied once
+    project.yaml                installation reconciliation boundary
+    applications/
+      veoveo.yaml               platform OCI chart
+      uav-sim.yaml              independent extension OCI chart
+    cloudflared.yaml            installation edge connector
+  kustomization.yaml            root desired-state composition
+  values.yaml                   public identity and platform values
+  k3d-values.yaml               local capacity and storage values
+  uav-sim-values.yaml           UAV extension values
+  images.lock.yaml              production image digests
+  gateway.json                  MCP catalog, OAuth, policy, and routes
+  recording-producer-jwks.json  public producer key
+~~~
 
-Isaac Sim, View, Perception, and Reason each request one NVIDIA GPU allocation.
-The k3d node device plugin publishes four time-sliced allocations from the
-physical GPU, while every pod retains the normal `nvidia.com/gpu: 1` request
-and the `nvidia` runtime class. No release scales down another GPU service.
-Perception compiles the bundled TrafficCamNet ONNX model into a GPU-specific
-TensorRT engine on first startup and keeps that engine in its model-cache
-volume. Reason loads the site-selected world-model checkpoint from its own
-model-cache volume. View retains its direct Google Maps Platform path. Isaac
-loads Google Photorealistic
-3D Tiles through Cesium ion as a separate core world contract.
+The local platform fixture installs Argo CD and the registry adapter because this
+cluster has no enterprise platform team. A fielded installation uses its existing
+GitOps controller and secure OCI registry, then begins at the root Application.
+Veoveo application desired state never owns the controller that reconciles it.
 
-The public root redirects to the operations console:
+The platform and UAV extension charts are separate OCI packages. Removing or
+upgrading the UAV Application does not replace the core platform release. A customer
+MCP server follows the same child-Application pattern after its image and chart are
+published and its server contract is registered in the gateway control plane.
 
-```text
-https://veoveo.bioma.ai/console/
-```
+## Release publication
 
-The console requests the operator and administrator scopes, Map administration,
-and the Map, Time, and View read scopes needed to inspect the complete admin MCP
-profile. Sign out and authenticate again after a deployment changes that scope
-set because an existing console session retains the scopes issued at login.
+Production workloads use the repository and digest map in images.lock.yaml. The
+Application manifests select chart version 0.1.0-92ba57cdf93d. That chart version
+was published from commit 92ba57cdf93d; the selected runtime image digests identify
+the independently published image release.
 
-The MCP page expands each hosted server into the tools, resource patterns,
-prompts, protocol capabilities, required scopes, and owned HTTP routes declared
-by the active gateway control plane. The Cluster page reads the live Kubernetes
-namespace through a dedicated read-only Role. It can list workloads, pods,
-services, ingress, storage claims, policies, disruption budgets, and ConfigMaps;
-it has no permission to read Secrets. Every inventory request also passes the
-gateway's `AdminRead` policy before the console contacts Kubernetes. Audit
-renders 25 events per page and can export the current filtered result as CSV.
+Publish a new local release directly to the shared registry:
 
-The Map page starts with the installation-owned OpenStreetMap El Salvador
-source declared in `k3d-values.yaml`. Catalog bootstrap is typed and idempotent:
-restarting Map preserves an existing source and registers it only when absent.
-The source is an acquisition authority, not an implicitly active release. Start
-an acquisition in the console, inspect the staged release, then activate it to
-move the validated projection into service.
+~~~bash
+REVISION=$(git rev-parse HEAD)
+CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 
-The acquisition form requires explicit WGS84 west, south, east, and north
-bounds. Its gray range text shows valid input limits, not default coordinates.
-Map retains the submitted bounds as the immutable coverage of the staged
-release.
+export VEOVEO_REGISTRY=localhost:5001
+export VEOVEO_IMAGE_TAG="$REVISION"
 
-The object-store hostname is an S3 API endpoint. Its bucket root returns
-`AccessDenied` without credentials and is not a browser console.
+docker buildx bake platform-full --push
+docker buildx bake showcase-uav-sim-base --push
+docker buildx bake showcase-uav-sim --push
 
-## Cloudflare state
+just charts-publish localhost:5001/charts   "$CHART_VERSION" "$REVISION" true
+~~~
 
-The remote-managed tunnel is named `veoveo-bioma-ai`. Its desired ingress maps
-both public hostnames to Traefik inside the Bioma cluster:
+BuildKit pushes only missing layers and does not load release images into the host
+Docker store. Record the manifest digest for every published image in
+images.lock.yaml, then update both Application targetRevision fields to the new chart
+version in the same reviewed commit. The full procedure and production registry
+requirements are in the enterprise deployment guide.
 
-```text
+## Create the local platform
+
+Hardware GPU access is mandatory. Build the pinned K3s node image, create the shared
+registry when it is absent, and create the Bioma cluster:
+
+~~~bash
+nvidia-smi
+just k3d-node-build
+source deploy/local/k3d/versions.env
+
+k3d registry create veoveo-registry.localhost   --port 127.0.0.1:5001   --image "$OCI_DISTRIBUTION_IMAGE"   --volume veoveo-registry:/var/lib/registry   --delete-enabled
+
+k3d cluster create --config examples/bioma/k3d.yaml
+kubectl --context k3d-veoveo-bioma apply   -f deploy/local/k3d/node/nvidia-device-plugin.yaml
+kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvidia-device-plugin --timeout=2m
+kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
+~~~
+
+The node must report four allocatable GPU shares before application bootstrap.
+Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
+class. The shares make Isaac Sim, View, Perception, and Reason schedulable together;
+they are not a CPU fallback.
+
+Install the local platform fixture separately:
+
+~~~bash
+kubectl --context k3d-veoveo-bioma apply -k examples/bioma/platform
+kubectl --context k3d-veoveo-bioma -n argocd wait   --for=condition=Available deployment --all --timeout=5m
+~~~
+
+The registry adapter gives stable Argo CD 3.4.5 an HTTPS endpoint for the
+loopback HTTP registry. A normal enterprise registry does not need this adapter.
+
+## Provision Secrets
+
+The enterprise owns Secret creation. For this local reference, load the main
+worktree .env and create the required Secret objects before the root Application.
+The following command reads values through the environment and sends the Secret
+documents directly to Kubernetes over stdin:
+
+~~~bash
+set -a
+source .env
+set +a
+
+kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/namespace.yaml
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-surreal-admin", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    username: env.VEOVEO_SURREAL_ADMIN_USERNAME,
+    password: env.VEOVEO_SURREAL_ADMIN_PASSWORD
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-surreal-runtime", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    username: env.VEOVEO_SURREAL_RUNTIME_USERNAME,
+    password: env.VEOVEO_SURREAL_RUNTIME_PASSWORD
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-installation-secrets", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "internal-signing-key-der-b64": env.VEOVEO_INTERNAL_SIGNING_KEY_DER_B64,
+    "internal-signing-key-id": env.VEOVEO_INTERNAL_SIGNING_KEY_ID,
+    "internal-trust-jwks": env.VEOVEO_INTERNAL_TRUST_JWKS,
+    "oidc-client-secret": env.VEOVEO_IDP_OIDC_CLIENT_SECRET,
+    "authorization-server-private-key-der-b64": env.VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64,
+    "refresh-delivery-key-b64": env.VEOVEO_REFRESH_DELIVERY_KEY_B64,
+    "console-session-key": env.VEOVEO_CONSOLE_SESSION_KEY,
+    "object-store-access-key": env.VEOVEO_OBJECT_STORE_ACCESS_KEY,
+    "object-store-secret-key": env.VEOVEO_OBJECT_STORE_SECRET_KEY,
+    "media-provider-api-key": env.MEDIA_PROVIDER_API_KEY,
+    "google-maps-api-key": env.GOOGLE_MAPS_API_KEY,
+    "media-provider-webhook-secret": env.MEDIA_PROVIDER_WEBHOOK_SECRET
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-uav-sim-secrets", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "cesium-ion-access-token": env.CESIUM_ION_ACCESS_TOKEN
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "veoveo-recording-producer", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {
+    "private-key.pem": env.VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {name: "bioma-cloudflared", namespace: "veoveo"},
+  type: "Opaque",
+  stringData: {token: env.CLOUDFLARED_TUNNEL_TOKEN}
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+~~~
+
+A production installation projects the same keys from its secret manager. The UAV,
+Cloudflare, and recording-producer credentials remain separate least-privilege
+Secrets. The committed recording-producer JWKS contains only the public key.
+
+## Connect Argo CD to Git and OCI
+
+Argo repository credentials are platform Secrets. The Bioma repository is private, so
+the local fixture uses a GitHub token. Replace this with a GitHub App, deploy key, or
+enterprise repository credential in a fielded installation.
+
+~~~bash
+export GITHUB_TOKEN=$(gh auth token)
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {
+    name: "bioma-git-repository",
+    namespace: "argocd",
+    labels: {"argocd.argoproj.io/secret-type": "repository"}
+  },
+  type: "Opaque",
+  stringData: {
+    type: "git",
+    url: "https://github.com/BiomaAI/veoveo.git",
+    username: "git",
+    password: env.GITHUB_TOKEN
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+
+jq -n '{
+  apiVersion: "v1", kind: "Secret",
+  metadata: {
+    name: "bioma-chart-repository",
+    namespace: "argocd",
+    labels: {"argocd.argoproj.io/secret-type": "repository"}
+  },
+  type: "Opaque",
+  stringData: {
+    type: "helm",
+    name: "bioma-charts",
+    url: "charts-registry.argocd.svc.cluster.local/charts",
+    enableOCI: "true",
+    insecure: "true"
+  }
+}' | kubectl --context k3d-veoveo-bioma apply -f -
+~~~
+
+The insecure flag accepts the local Traefik-generated certificate; chart transport is
+still HTTPS. A production OCI repository uses its trusted certificate and omits that
+setting.
+
+## Bootstrap desired state
+
+Apply only the root Application:
+
+~~~bash
+kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/bootstrap.yaml
+~~~
+
+Argo creates the namespace configuration, gateway ConfigMap, AppProject, Cloudflare
+connector, platform child Application, and UAV extension child Application. Inspect
+reconciliation with standard Kubernetes or Argo CD commands:
+
+~~~bash
+kubectl --context k3d-veoveo-bioma -n argocd get applications
+kubectl --context k3d-veoveo-bioma -n veoveo get deployments,statefulsets,pods
+argocd app get bioma
+argocd app get bioma-veoveo
+argocd app get bioma-uav-sim
+~~~
+
+All three Applications must be Synced and Healthy. Helm remains the renderer, but Argo
+owns the live application resources; do not operate concurrent Helm releases for them.
+
+## Public edge
+
+The remote-managed tunnel is named veoveo-bioma-ai. Its desired ingress sends both
+public hostnames to Traefik in the cluster:
+
+~~~text
 veoveo.bioma.ai         -> http://traefik.kube-system.svc.cluster.local:80
 objects-veoveo.bioma.ai -> http://traefik.kube-system.svc.cluster.local:80
-```
+~~~
 
-Both proxied DNS records must target that tunnel's
-`<tunnel-id>.cfargotunnel.com` hostname. Cloudflare terminates public TLS. The
-origin leg is cluster-internal HTTP, and Traefik receives the matching public
-Host header.
+Both DNS records target the tunnel hostname. Cloudflare terminates public TLS. The
+object-store origin is an S3 endpoint, so an unauthenticated bucket-root request
+returns AccessDenied by design.
 
-The object hostname stays one label beneath `bioma.ai` because Cloudflare's
-Universal SSL certificate covers `*.bioma.ai`. A nested
-`objects.veoveo.bioma.ai` name requires a separately managed certificate and is
-not part of this profile.
+The operations console is available at:
 
-The `.env` file must define `CLOUDFLARE_ACCOUNT_ID`,
-`CLOUDFLARE_API_TOKEN`, `CLOUDFLARED_TUNNEL_TOKEN`,
-`CESIUM_ION_ACCESS_TOKEN`, `GOOGLE_MAPS_API_KEY`,
-`VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM`, and
-`VEOVEO_RECORDING_PRODUCER_KEY_ID`. The Cesium token is stored as
-`cesium-ion-access-token` in the least-privilege `veoveo-uav-sim-secrets`
-Secret for Isaac. The recording key is stored only in
-`veoveo-recording-producer` and must match the public JWKS registered for the
-gateway OAuth client. Its public JWKS is safe to commit and is loaded from the
-gateway ConfigMap; the private key never leaves `.env` and the Kubernetes
-Secret. The Google key remains the direct View MCP credential.
-The account token needs Tunnel:Edit and DNS:Edit for this account and zone. The
-tunnel token is stored only in the `bioma-cloudflared` Kubernetes Secret.
+~~~text
+https://veoveo.bioma.ai/console/
+~~~
 
-Keep the producer private key in a mode-`0600` file and load it into the
-deployment process without committing it:
+The complete Veoveo server catalog comes from gateway.json. The Map page begins with
+the installation-owned OpenStreetMap El Salvador source in k3d-values.yaml. The
+Cluster page uses a dedicated read-only Kubernetes Role and cannot read Secrets.
+Audit uses bounded pages.
 
-```bash
-install -d -m 0700 "$HOME/.config/veoveo/profiles/bioma"
-openssl genpkey -algorithm RSA \
-  -pkeyopt rsa_keygen_bits:3072 \
-  -out "$HOME/.config/veoveo/profiles/bioma/recording-producer.pem"
-chmod 0600 "$HOME/.config/veoveo/profiles/bioma/recording-producer.pem"
-export VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM="$(
-  openssl pkey \
-    -in "$HOME/.config/veoveo/profiles/bioma/recording-producer.pem"
-)"
-```
+## Identity
 
-Derive the matching public JWK for `recording-producer-jwks.json` whenever the
-producer key rotates. The committed JWK identifies the current public key; it
-cannot sign producer assertions.
+gateway.json uses one single-tenant Microsoft Entra application as the external OIDC
+provider:
 
-## Start Bioma
+- register https://veoveo.bioma.ai/oauth/callback as a Web redirect URI;
+- create and assign the operator and administrator app roles;
+- keep the tenant-specific v2 issuer, endpoints, and JWKS on one directory tenant;
+- grant openid, profile, and email;
+- store the client secret only in veoveo-installation-secrets.
 
-```bash
-just k3d-node-build
-PROFILE=examples/bioma/deployment.json
-REVISION=$(git rev-parse HEAD)
+Validate control-plane edits before committing:
 
-just profile-validate "$PROFILE"
-just profile-cluster-up "$PROFILE"
-just profile-publish "$PROFILE" "$REVISION"
-just profile-up "$PROFILE" "$REVISION"
-```
+~~~bash
+cargo run -p veoveo-mcp-gateway --bin gateway --   validate --control-plane examples/bioma/gateway.json
+~~~
 
-The profile reads the required Veoveo, media-provider, Cesium, Google, and
-Cloudflare values from the main worktree `.env`. Secret bytes pass to Kubernetes
-over stdin and never enter the profile or a temporary manifest. BuildKit publishes
-the platform and UAV image groups directly to the standalone local registry under
-the full Git revision. OCI blob deduplication keeps the Isaac dependency layers
-shared while thin source layers change. The install deploys that exact revision,
-applies the tunnel, and waits for Isaac tile and PX4 readiness without suspending
-View or Perception.
+Sign out and authenticate again after an app-role or requested-scope change because an
+existing browser session retains the claims issued at login.
 
-The registry is shared by local profiles and remains independent of this cluster.
-Cluster startup applies the profile's NVIDIA device-plugin bootstrap manifest and waits
-until Kubernetes reports allocatable GPU capacity before any workload installation.
-See [`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md) for
-the reusable enterprise and showcase workflow.
+## LAN producers
 
-## Local-network recording producers
+A LAN recording producer still uses the canonical public resource identity
+https://veoveo.bioma.ai. Configure internal DNS for the Traefik address and create the
+TLS Secret referenced by lan-values.yaml:
 
-A producer on the same local network uses the public installation name and the
-same OAuth resource as an Internet producer. Configure the LAN DNS resolver to
-return the Traefik address for `veoveo.bioma.ai`, then install a certificate for
-that name as the `bioma-lan-ingress-tls` Kubernetes TLS Secret. The certificate
-must chain to a CA trusted by each producer. An ACME DNS-01 certificate or an
-enterprise CA certificate works without exposing the LAN ingress to the
-Internet.
+~~~bash
+kubectl --context k3d-veoveo-bioma -n veoveo create secret tls   bioma-lan-ingress-tls   --cert=/secure/path/veoveo.bioma.ai.crt   --key=/secure/path/veoveo.bioma.ai.key   --dry-run=client -o yaml | kubectl --context k3d-veoveo-bioma apply -f -
+~~~
 
-Create or rotate the Secret from operator-controlled certificate files:
-
-```bash
-kubectl --context k3d-veoveo-bioma -n veoveo create secret tls \
-  bioma-lan-ingress-tls \
-  --cert=/secure/path/veoveo.bioma.ai.crt \
-  --key=/secure/path/veoveo.bioma.ai.key \
-  --dry-run=client -o yaml | \
-kubectl --context k3d-veoveo-bioma apply -f -
-```
-
-For a LAN deployment profile, copy `deployment.json` into the operator's
-configuration repository and add `lan-values.yaml` to the `veoveo` release's
-ordered `values` list. Validate and install that profile with the same
-`profile-validate` and `profile-up` commands. The profile remains an explicit
-installation contract rather than a special deployment recipe.
-
-The local DNS answer changes only the route. Discovery, token issuance, the
-protected-resource identifier, certificate hostname, and ingest URL remain
-`https://veoveo.bioma.ai`. The firewall exposes Traefik TCP/443 to the producer
-subnets; it does not expose Recording Hub ports 9876 or 9878. Cloudflare Tunnel
-can remain active because its origin leg continues to use Traefik HTTP port 80.
-The producer runs `recording-forwarder` locally and sends its SDK's native Rerun
-gRPC stream to `rerun+http://127.0.0.1:9876/proxy`.
+Add lan-values.yaml to the platform Application valueFiles list. The public issuer,
+protected-resource identifier, certificate hostname, and ingest URL remain unchanged.
+Only the route differs.
 
 ## Acceptance
 
-Run the installation check after the release and tunnel are active:
+Verify the reconciled installation and public edge:
 
-```bash
+~~~bash
 just bioma-verify
-```
+~~~
 
-The Bioma check requires every deployment, four allocatable NVIDIA GPU shares,
-a healthy public edge, and the Bioma authorization-server key at the public
-JWKS endpoint. Run the core UAV delivery proof separately after the simulation
-is ready:
+Then run the full GPU delivery proof:
 
-```bash
+~~~bash
 just bioma-uav-sim-verify
-```
+~~~
 
-The UAV check requires Google Photorealistic 3D Tiles to be resident inside
-Isaac, flies a PX4 mission, verifies the governed recording, processes the
-camera stream through Perception, and confirms all three GPU deployments remain
-available. Its default mission comes from
-`showcase/uav-sim/scenarios/bioma-aerial.json`; editing that file requires no
-Isaac build or deployment.
-
-The Access page reports policy sets from the active gateway control-plane
-revision. Policies are not independent CRUD records. Edit `gateway.json`,
-validate the complete document, and activate it as one atomic revision.
-It also presents the signed-in principal's effective artifact access, personal
-requests, and the review queue for the active Work Context. Approval creates a
-direct grant; it does not alter tenant or clearance controls. The reusable
-governance contract is documented in
-[`../../docs/WORK_CONTEXT_GOVERNANCE.md`](../../docs/WORK_CONTEXT_GOVERNANCE.md).
-
-## Entra application registration
-
-`gateway.json` uses one single-tenant Microsoft Entra application as the
-external OIDC provider. Its registration must match the control plane:
-
-- Register `https://veoveo.bioma.ai/oauth/callback` as a Web redirect URI.
-- Create the app roles `operator` and `administrator`, then allow user or
-  group assignment. The operations console requires `administrator`; operator
-  access requires `operator` or `administrator` according to the profile
-  policy. Sign out and authenticate again after changing an assignment because
-  existing tokens retain their original `roles` claim.
-- Treat the app-role UUID as part of the role identity. When a role value
-  changes, remove its assignments, disable and delete the old definition, then
-  create the canonical value with a new UUID and migrate the assignments. Entra
-  can continue issuing the retired value when a definition reuses its old UUID;
-  Veoveo does not accept that value.
-- Keep the tenant-specific v2 issuer, authorization endpoint, token endpoint,
-  and JWKS URI on the same directory tenant.
-- Grant only `openid`, `profile`, and `email`. Browser authorization uses code
-  flow with PKCE.
-- Put the client secret in `VEOVEO_IDP_OIDC_CLIENT_SECRET`.
-
-Validate control-plane changes before deployment:
-
-```bash
-cargo run -p veoveo-mcp-gateway --bin gateway -- \
-  validate --control-plane examples/bioma/gateway.json
-```
+The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, flies a
+PX4 mission, verifies the governed recording, runs Perception over the camera stream,
+runs Reason over that evidence, and confirms the concurrent GPU deployments remain
+available. Its runtime inputs come from
+showcase/uav-sim/scenarios/bioma-aerial.json.
 
 ## Cleanup
 
-Delete the local installation with:
+Delete the root Application and wait for its foreground finalizer to remove managed
+application resources before deleting the cluster:
 
-```bash
-just bioma-k3d-delete
-```
+~~~bash
+kubectl --context k3d-veoveo-bioma -n argocd delete application bioma
+kubectl --context k3d-veoveo-bioma -n argocd wait   --for=delete application/bioma --timeout=10m
+k3d cluster delete veoveo-bioma
+~~~
 
-Deleting the Bioma cluster disconnects the tunnel but does not delete its
-Cloudflare tunnel or DNS records.
+Deleting the cluster disconnects the tunnel. It does not delete the remote Cloudflare
+Tunnel, DNS records, or the shared registry volume.

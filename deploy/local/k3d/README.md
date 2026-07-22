@@ -6,9 +6,10 @@ Each simulator keeps its values and gateway profile beside its own source. The
 SUMO development cluster contains no simulator workload until that profile is
 installed.
 
-The optional Bioma profile uses a second cluster and explicit Kubernetes context.
-See [`examples/bioma/README.md`](../../../examples/bioma/README.md) for the
-concurrent Isaac Sim, View, Perception, and public-tunnel proof.
+The Bioma enterprise reference uses a second cluster and explicit Kubernetes context.
+It installs its GitOps controller as a separate local platform fixture, then reconciles
+OCI charts through the same boundary expected in a fielded cluster. See
+[`examples/bioma/README.md`](../../../examples/bioma/README.md).
 
 One standalone OCI Distribution registry serves every local cluster on loopback
 port 5001. All Veoveo images use full Git revisions as tags. Registry blob
@@ -130,5 +131,5 @@ just profile-cluster-delete showcase/sumo/deploy/deployment.json
 ```
 
 The standalone registry remains available to other profiles after cluster
-deletion. The complete profile contract is documented in
-[`../../../docs/DEPLOYMENT_PROFILES.md`](../../../docs/DEPLOYMENT_PROFILES.md).
+deletion. The complete local profile contract is documented in
+[`../../../docs/LOCAL_DEPLOYMENT_PROFILES.md`](../../../docs/LOCAL_DEPLOYMENT_PROFILES.md).

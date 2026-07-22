@@ -15,6 +15,8 @@ component:
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
+| [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, extensions, and acceptance |
+| [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
@@ -51,7 +53,7 @@ material they operate:
 | [`configs/reason/README.md`](../configs/reason/README.md) | reason catalog and runtime configuration |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
-| [`examples/bioma/README.md`](../examples/bioma/README.md) | isolated Bioma k3d cluster, Entra profile, and Cloudflare Tunnel operations |
+| [`examples/bioma/README.md`](../examples/bioma/README.md) | enterprise GitOps reference over k3d, OCI charts, Entra, and Cloudflare Tunnel |
 | [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
 | [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Pegasus/PX4 UAV simulation integration and operations |
@@ -94,7 +96,7 @@ is the browser edition of the harness document.
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Pegasus, and PX4 |
-| `examples/bioma/` | optional Bioma Entra/Cloudflare deployment overlay |
+| `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 

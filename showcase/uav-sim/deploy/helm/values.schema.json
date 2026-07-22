@@ -26,6 +26,14 @@
         "production": {"type": "boolean"},
         "veoveoRegistry": {"type": "string"},
         "veoveoTag": {"type": "string"},
+        "imageDigests": {
+          "type": "object",
+          "propertyNames": {"pattern": "^veoveo/[a-z0-9][a-z0-9-]*$"},
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
         "imagePullSecrets": {
           "type": "array",
           "items": {
