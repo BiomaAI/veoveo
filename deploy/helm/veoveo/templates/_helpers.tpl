@@ -119,8 +119,9 @@ catalog.json: |
         "prompt_template_path": "/etc/veoveo/reason/prompt-template.txt",
         "prompt_revision": "v1",
         "observation": {
-          "width": 640,
-          "height": 360
+          "width": {{ .Values.reason.observation.width }},
+          "height": {{ .Values.reason.observation.height }},
+          "maximum_frames": {{ .Values.reason.observation.maximumFrames }}
         }
       }
     ]
