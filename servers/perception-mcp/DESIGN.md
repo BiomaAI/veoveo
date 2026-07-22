@@ -13,6 +13,20 @@ bounded inference over recorded sensor data already inside the installation.
 It uses no LLM, NIM, NeMo Agent Toolkit, Triton server, transcription service,
 or provider API.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-only analysis, resources and templates, structured results, notifications, and usage records. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, pipeline, detection, tracking, provenance, and artifact contracts. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; analysis is durable, cancellable, resumable from governed recording identity, and result-addressable. |
+| Veoveo recording ingest | Version `2026-07-21`; authenticated protobuf batches carry producer Rerun messages into Recording Hub before perception begins. |
+| [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Frozen and sealed source recordings, exact timeline indices, and derived annotation recordings. |
+| H.264/AVC Annex B | One access unit per Rerun sample, strictly increasing indices, no B-frames, sparse keyframe markers, and decoder-reentrant IDRs with SPS/PPS. |
+| ISO Base Media File Format / MP4 | Selected Annex B samples are remuxed without re-encoding. The runner receives a zero-based presentation timeline plus the original Rerun decode-start index. |
+| GStreamer / NVIDIA DeepStream metadata | Process-local GPU runner boundary for decode, batching, inference, and optional tracking. It is not exposed as an MCP or public network protocol. |
+| OAuth bearer and signed JWT identity | Recording and artifact access retain gateway-resolved tenant, Work Context, classification, labels, and caller authority. |
+
 ## Data path
 
 ```text

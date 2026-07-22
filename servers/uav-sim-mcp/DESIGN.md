@@ -5,6 +5,21 @@ server governs interactive and durable work against one or more UAV simulation
 sessions without exposing simulator-native control ports through the Veoveo
 gateway.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with direct controls, task-only scenarios and missions, resources and templates, prompts, completions, subscriptions, and notifications. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Session, world, vehicle, mission, command, recording, and structured-result contracts. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; live scenarios, missions, and dataset captures are durable tasks with `interrupted_indeterminate` recovery. |
+| [MAVLink 2](https://mavlink.io/en/) | Pod-local PX4 command, acknowledgement, heartbeat, mission-position, and vehicle-state transport. The adapter uses `COMMAND_INT` and `MAV_FRAME_GLOBAL_INT` for repositioning. |
+| ROS 2 | Private simulator data plane. High-rate topics are not projected into MCP tools. |
+| OGC 3D Tiles | Google Photorealistic 3D Tiles streamed through Cesium ion into the simulator; tile readiness and residency are typed session state. |
+| WGS 84, ECEF, ENU, and NED | Durable Frames origin, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
+| [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
+| Veoveo recording ingest | Version `2026-07-21`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
+| Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and RTSP ports never become public gateway routes. |
+
 ## Identity
 
 ```text

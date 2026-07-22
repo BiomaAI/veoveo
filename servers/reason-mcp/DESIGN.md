@@ -21,6 +21,19 @@ not part of `media-mcp`, because reasoning runs entirely inside the
 installation. It uses no provider API, no webhook completion, no resident
 inference service, and no agent framework.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-only reasoning, resources and templates, typed structured results, notifications, and usage records. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; every reasoning invocation is a durable, cancellable, result-addressable task. |
+| [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed source recordings preserve exact time; derived semantic events are published as RRD annotations. |
+| H.264/AVC Annex B | The source profile matches Perception: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
+| ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
+| Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
+| OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
+
 ## Data path
 
 ```text

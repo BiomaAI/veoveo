@@ -29,6 +29,18 @@ The hosted server slug and URI scheme are both `optimization`. The canonical
 local tool name is `plan`; through the gateway it is exposed under the mounted
 server namespace.
 
+## Standards And Protocols
+
+| Standard or protocol | Design profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-required planning, canonical resources, structured results, notifications, and usage records. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Typed agents, tasks, options, constraints, objectives, plans, and artifact metadata. Raw JSON is reserved for explicitly opaque solver diagnostics. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; planning uses durable creation, progress, cancellation, results, and subscriptions rather than a second job protocol. |
+| [Rerun](https://rerun.io/docs/) RRD | Canonical append-only mission worldline and immutable plan evidence. A shared application id and recording id compose rotated segments into one logical recording. |
+| DuckDB SQL, CSV, and Apache Parquet | Analytical indexes, snapshots, diagnostics, and governed derived exports. These projections do not replace the RRD worldline. |
+| WGS 84, EPSG identities, ECEF, ENU, and NED | Reused through the shared coordinate contract. Frames performs frame conversion and Map owns projected CRS, geodesic, routing, and geofence semantics. |
+| OAuth bearer and signed JWT identity | Gateway policy fixes principal, tenant, Work Context, scopes, and labels before the server derives task and artifact ownership. |
+
 ## Goals
 
 - Expose high-level agent/task/option planning as a task-required MCP tool.

@@ -9,6 +9,16 @@ owns the pinned protocol constants and helpers; this document owns the rules.
 
 Implemented in this workspace.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | App discovery and invocation remain ordinary MCP resource, tool, and task traffic. The hosting path uses JSON-RPC 2.0 over Streamable HTTP. |
+| MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
+| [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
+| HTML iframe sandbox and Content Security Policy | Self-contained HTML runs in an opaque-origin `sandbox="allow-scripts"` frame under a deny-all CSP. Network, cookies, storage, and same-origin privilege are absent. |
+
 ## The rule
 
 A domain server's entire operational surface crosses exactly one protocol
