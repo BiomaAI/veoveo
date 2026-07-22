@@ -57,6 +57,8 @@ actually happened. Agents reach simulation and reality through the same
 interfaces, so a mission rehearsed in a synthetic world carries over to
 operations in the real one.
 
+[![Sensors, memories, and decisions feeding a world model that hands context to an agent](docs/images/world-model.png)](docs/images/world-model.png)
+
 ## From Instruction To Intelligence
 
 The product of the platform is operational intelligence: answers, forecasts,
@@ -66,6 +68,8 @@ identity and policy boundary, runs as durable work that survives
 disconnects, and lands as recordings and artifacts with full provenance.
 Operators steer and audit the same state agents act on, from the same
 Console.
+
+[![The operational loop: the world is recorded and perceived into a world model, an operator assigns a mission, an agent acts through the gateway's authentication, policy, and audit, and evidence feeds back](docs/images/harness-poster.png)](docs/images/harness-poster.png)
 
 ## An Agentic App Platform
 
@@ -208,6 +212,8 @@ gateway without adopting Veoveo's source build: publish an image and Helm
 chart, register the server in the typed control plane, and apply the
 installation's trust and policy contract.
 
+[![The agent runtime cycle: task results, timers, and messages wake the agent, which assembles context, runs an episode, persists, and sleeps, backed by state, memory, and log](docs/images/agent-loop.png)](docs/images/agent-loop.png)
+
 ## How It Fits Together
 
 ```text
@@ -274,6 +280,8 @@ edge, while the offline bundle serves air-gapped installations.
 Installation-owned values, gateway configuration, and Secret references
 compose the platform without baking customer state into the product
 repository.
+
+[![Edge, cluster, air-gap, and hybrid installations, all one platform](docs/images/deployment-map.png)](docs/images/deployment-map.png)
 
 | Path | Use it for | Guide |
 |---|---|---|
