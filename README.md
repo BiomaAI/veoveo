@@ -1,12 +1,13 @@
 # Veoveo
 
-Veoveo is an operations platform for physical AI. Teams use it to run agents
-that observe the physical world, rehearse in simulated worlds, act on real
-systems, and leave evidence of everything that happened. The organization
-deploying Veoveo owns the whole installation: cluster, identity, storage,
-models, policies, domain name, and release process.
+Veoveo is an operations platform for physical AI. Teams run agents that
+observe the physical world, rehearse in simulated worlds, act on real
+systems, and turn everything that happened into operational intelligence.
+The organization deploying Veoveo owns the whole installation: cluster,
+identity, storage, models, policies, domain name, and release process.
 
-[Product tour](#product-tour) · [Executable showcases](#executable-showcases) ·
+[Product tour](#product-tour) · [Agentic apps](#an-agentic-app-platform) ·
+[Executable showcases](#executable-showcases) ·
 [Deployment](#deploy-your-installation) · [Technical design](docs/TECH_DESIGN.md) ·
 [Screenshot gallery](docs/screenshots/GALLERY.md)
 
@@ -33,6 +34,9 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
 - **Hand evidence to anyone.** Every result becomes an artifact with
   ownership, provenance, and release state, shareable through expiring,
   revocable links.
+- **Build agentic apps.** Ship interactive apps where agents do the work
+  behind a live interface. Each app inherits the installation's identity,
+  policy, access, and audit from its first request.
 
 ## Worlds You Can Trust
 
@@ -54,6 +58,22 @@ disconnects, and lands as recordings and artifacts with full provenance.
 Operators steer and audit the same state agents act on, from the same
 Console.
 
+## An Agentic App Platform
+
+Agentic apps are one way an installation delivers operational intelligence
+to its users. An agentic app pairs an agent that plans and acts with a live
+interface that people can see and steer: an operator types an instruction,
+the agent drives simulation, perception, or vehicles, and the interface
+shows progress, results, and evidence as they land. The capabilities behind
+Veoveo's own charts, maps, forecasts, and 3D views are open to your teams.
+
+Apps built on Veoveo are enterprise software from the first request. They
+authenticate through the installation's identity provider, act within policy
+scopes and Work Context access, run as durable work that survives
+disconnects, and leave the same audit trail as every other actor. They
+deploy with the installation, scale with it, and run in the Console or in a
+compatible external host.
+
 ## Product Tour
 
 A deployment can begin with the standard server catalog, add its own
@@ -67,7 +87,7 @@ extensions, and retain the same identity and policy boundary throughout.
 | Interactive apps | Interfaces that ship with each server for charts, forecasts, maps, and 3D views rendered on cluster GPUs. The same app can run in the Console or a compatible external MCP host. |
 | Governed evidence | Work Context ownership, invocation provenance, immutable artifact identities, policy decisions, grants, release state, and revocable sharing. |
 | Open protocol surfaces | Profiles scoped by policy over tools, resources and templates, prompts, completions, durable tasks, subscriptions, notifications, structured content, and URI identities. |
-| Enterprise operation | OIDC/OAuth identity, Kubernetes scheduling, Helm packages, OCI delivery, GitOps reconciliation, audit export, and an offline installation path. |
+| Enterprise operation | OIDC/OAuth identity, Kubernetes scheduling and scaling, Helm packages, OCI delivery, GitOps reconciliation, audit export, and an offline installation path. |
 
 ### Operations stay connected to the work
 
@@ -166,10 +186,11 @@ without changing the underlying server identities.
 | `view` | 3D Tiles views rendered on cluster GPUs, camera control, and reproducible offscreen frame capture. |
 
 The runtime for autonomous agents adds durable episodes, detach and resume,
-wakes, budgets, analytical memory, tool use, and Rerun recording. Domain
-extensions can join the same gateway without adopting Veoveo's source build:
-publish an image and Helm chart, register the server in the typed control
-plane, and apply the installation's trust and policy contract.
+wakes, budgets, analytical memory, tool use, and Rerun recording. Your own
+agentic apps follow the same path as domain extensions and can join the
+gateway without adopting Veoveo's source build: publish an image and Helm
+chart, register the server in the typed control plane, and apply the
+installation's trust and policy contract.
 
 ## How It Fits Together
 
@@ -228,9 +249,15 @@ Read the neutral enterprise contract in
 
 ## Deploy Your Installation
 
-Helm is the package contract for every environment. Installation-owned values,
-gateway configuration, and Secret references compose the platform without
-baking customer state into the product repository.
+One Helm package contract covers every environment, from a laptop cluster to
+datacenter GPUs to an edge site with no outbound network. Kubernetes
+schedules GPU worlds onto hardware and scales the stateless servers with
+demand. Operations span sites: field producers stream recordings through the
+same authenticated gateway from Kubernetes, a local network, or the public
+edge, while the offline bundle serves air-gapped installations.
+Installation-owned values, gateway configuration, and Secret references
+compose the platform without baking customer state into the product
+repository.
 
 | Path | Use it for | Guide |
 |---|---|---|
