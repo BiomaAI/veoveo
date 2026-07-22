@@ -1,4 +1,13 @@
-# Veoveo
+<p align="center">
+  <img src="docs/assets/brand/veoveo-logo.png" width="128" alt="Veoveo lens logo">
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/veoveo.png">
+    <img src="docs/assets/brand/veoveo-dark.png" width="340" alt="VEOVEO">
+  </picture>
+</p>
 
 Veoveo is an operations platform for physical AI. Teams run agents that
 observe the physical world, rehearse in simulated worlds, act on real
