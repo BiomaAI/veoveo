@@ -10,14 +10,16 @@ use veoveo_platform_store::{
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
     CoordinateFrameDraft, CoordinateOperationDraft, GatewayReplayKind, GatewayReplayRecord,
-    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapFeatureCommitDraft,
-    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapReleaseDraft,
-    MapReleaseState, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable,
-    PrincipalKind, RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState,
-    SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig,
-    StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState,
-    TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord, WorkContextMembershipLevel,
-    decode_changefeed_entry, deterministic_work_context_id, gateway_replay_record_id,
+    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapCompositionDraft,
+    MapCompositionRevisionDraft, MapCompositionUpdateDraft, MapFeatureCommitDraft,
+    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapLayerProductDraft,
+    MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject, OutboxDraft,
+    PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft,
+    RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding,
+    SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
+    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
+    deterministic_work_context_id, gateway_replay_record_id,
 };
 
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
@@ -148,6 +150,103 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
         .unwrap();
     assert_eq!(replay.changeset, committed.changeset);
     assert_eq!(replay.revisions, committed.revisions);
+
+    let publication_key = format!("publication-{}", Uuid::now_v7());
+    store
+        .create_map_layer_publication(MapLayerPublicationDraft {
+            identity: identity.clone(),
+            authority: authority.clone(),
+            publication_key: publication_key.clone(),
+            layer_key: layer_key.clone(),
+            layer_revision: 1,
+            schema_version: 1,
+            style_revision_key: None,
+            artifact_uris: Vec::new(),
+            canonical_json: serde_json::json!({
+                "publication_id": publication_key,
+                "layer_id": layer_key,
+                "layer_revision": 1
+            })
+            .to_string(),
+            published_at: Utc::now(),
+        })
+        .await
+        .unwrap();
+    let product_key = format!("product-{}", Uuid::now_v7());
+    let product = MapLayerProductDraft {
+        identity: identity.clone(),
+        authority: authority.clone(),
+        product_key: product_key.clone(),
+        publication_key: publication_key.clone(),
+        layer_key: layer_key.clone(),
+        layer_revision: 1,
+        format: "geojson_seq".to_owned(),
+        artifact_uri: format!("artifact://artifact-{}", Uuid::now_v7()),
+        mime_type: "application/geo+json-seq".to_owned(),
+        digest_sha256: "d".repeat(64),
+        size_bytes: 128,
+        feature_count: 1,
+        canonical_json: serde_json::json!({
+            "product_id": product_key,
+            "publication_id": publication_key
+        })
+        .to_string(),
+        created_by_key: identity.principal_key.clone(),
+        created_at: Utc::now(),
+    };
+    let created_product = store
+        .create_map_layer_product(product.clone())
+        .await
+        .unwrap();
+    let replayed_product = store.create_map_layer_product(product).await.unwrap();
+    assert_eq!(created_product, replayed_product);
+
+    let composition_key = format!("composition-{}", Uuid::now_v7());
+    let composition = store
+        .create_map_composition(MapCompositionDraft {
+            identity: identity.clone(),
+            authority: authority.clone(),
+            composition_key: composition_key.clone(),
+            title: "Inspection map".to_owned(),
+            revision: MapCompositionRevisionDraft {
+                composition_revision_key: format!("composition-revision-{}", Uuid::now_v7()),
+                revision: 1,
+                publication_keys: vec![publication_key.clone()],
+                canonical_json: serde_json::json!({"revision": 1}).to_string(),
+            },
+            canonical_json: serde_json::json!({"current_revision": 1}).to_string(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(composition.current_revision, 1);
+    let updated = store
+        .update_map_composition(
+            MapCompositionUpdateDraft {
+                identity: identity.clone(),
+                authority: authority.clone(),
+                composition_key: composition_key.clone(),
+                title: "Inspection map".to_owned(),
+                revision: MapCompositionRevisionDraft {
+                    composition_revision_key: format!("composition-revision-{}", Uuid::now_v7()),
+                    revision: 2,
+                    publication_keys: vec![publication_key],
+                    canonical_json: serde_json::json!({"revision": 2}).to_string(),
+                },
+                canonical_json: serde_json::json!({"current_revision": 2}).to_string(),
+                archived_at: None,
+            },
+            1,
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated.current_revision, 2);
+    assert!(
+        store
+            .map_composition_revision("tenant-map-authoring", "operations", &composition_key, 1)
+            .await
+            .unwrap()
+            .is_some()
+    );
 
     let mut conflicting = draft;
     conflicting.request_digest_sha256 = "c".repeat(64);

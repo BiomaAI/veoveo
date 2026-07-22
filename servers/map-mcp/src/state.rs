@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PrincipalKind, SubscriptionHub};
@@ -31,6 +31,8 @@ pub struct MapApplication {
     pub valhalla_process: ValhallaProcess,
     pub activation: Arc<tokio::sync::Mutex<()>>,
     pub subscriptions: Arc<SubscriptionHub>,
+    pub authoring_task_root: PathBuf,
+    pub max_artifact_bytes: u64,
 }
 
 impl MapApplication {

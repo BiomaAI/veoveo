@@ -12,7 +12,7 @@ use crate::{
 };
 
 const MAX_AUTHORING_JSON_BYTES: usize = 2 * 1024 * 1024;
-const MAX_FEATURES_PER_CHANGESET: usize = 100;
+const MAX_FEATURES_PER_CHANGESET: usize = 10_000;
 
 #[derive(Clone, Debug)]
 pub struct MapFeatureSchemaDraft {
@@ -576,6 +576,25 @@ impl PlatformStore {
             context_id.record_id(),
         )
         .await
+    }
+
+    pub async fn map_style_revision_by_key(
+        &self,
+        tenant_key: &str,
+        context_key: &str,
+        style_revision_key: &str,
+    ) -> Result<Option<MapStyleRevisionRecord>, StoreError> {
+        let tenant_id = crate::deterministic_tenant_id(tenant_key)?;
+        let context_id = deterministic_work_context_id(tenant_key, context_key)?;
+        let mut response = self
+            .client()
+            .query("SELECT * FROM ONLY map_style_revision WHERE tenant = $tenant AND work_context = $context AND style_revision_key = $style_key;")
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("context", context_id.record_id()))
+            .bind(("style_key", style_revision_key.to_owned()))
+            .await?
+            .check()?;
+        Ok(response.take(0)?)
     }
 
     pub async fn commit_map_feature_changes(
@@ -1206,7 +1225,7 @@ fn validate_commit_draft(draft: &MapFeatureCommitDraft) -> Result<(), StoreError
     if draft.revisions.is_empty() || draft.revisions.len() > MAX_FEATURES_PER_CHANGESET {
         return Err(invalid(
             "revisions",
-            "must contain between one and 100 revisions",
+            "must contain between one and 10000 revisions",
         ));
     }
     let mut keys = std::collections::BTreeSet::new();

@@ -10,9 +10,11 @@ use veoveo_mcp_contract::tool;
 
 use crate::{
     contract::{
-        ArchiveFeatureLayerRequest, ArchiveMapCompositionRequest, CommitFeatureChangesOutput,
-        CommitFeatureChangesRequest, CreateFeatureLayerRequest, CreateMapCompositionRequest,
-        FeatureLayer, LayerPublication, MapComposition, PublishFeatureLayerRequest,
+        ArchiveFeatureLayerRequest, ArchiveMapCompositionRequest, BuildVectorTilesOutput,
+        BuildVectorTilesRequest, CommitFeatureChangesOutput, CommitFeatureChangesRequest,
+        CreateFeatureLayerRequest, CreateMapCompositionRequest, ExportFeatureLayerOutput,
+        ExportFeatureLayerRequest, FeatureLayer, ImportFeatureLayerOutput,
+        ImportFeatureLayerRequest, LayerPublication, MapComposition, PublishFeatureLayerRequest,
         QueryFeaturesOutput, QueryFeaturesRequest, RestoreFeatureRequest,
         UpdateFeatureLayerRequest, UpdateMapCompositionRequest, ValidateFeatureChangesOutput,
         ValidateFeatureChangesRequest,
@@ -388,6 +390,57 @@ impl MapMcp {
                 "Map composition",
             )],
         )
+    }
+
+    #[tool(
+        title = "Import feature layer artifact",
+        description = "Validate and atomically import up to 10000 GeoJSON FeatureCollection or RFC 8142 GeoJSON text sequence features from an authorized artifact. This operation requires durable task invocation.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ImportFeatureLayerOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn import_feature_layer(
+        &self,
+        Parameters(_request): Parameters<ImportFeatureLayerRequest>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        Err(McpError::invalid_request(
+            "import_feature_layer requires task-based invocation",
+            None,
+        ))
+    }
+
+    #[tool(
+        title = "Export published feature layer",
+        description = "Export an immutable layer publication as RFC 8142 GeoJSON text sequence or GeoParquet 1.0 WKB through a governed artifact. This operation requires durable task invocation.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ExportFeatureLayerOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn export_feature_layer(
+        &self,
+        Parameters(_request): Parameters<ExportFeatureLayerRequest>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        Err(McpError::invalid_request(
+            "export_feature_layer requires task-based invocation",
+            None,
+        ))
+    }
+
+    #[tool(
+        title = "Build published feature vector tiles",
+        description = "Build a bounded sorted set of Mapbox Vector Tile 2.1 tiles and a MapLibre Style projection from an immutable layer publication. This operation requires durable task invocation.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<BuildVectorTilesOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn build_vector_tiles(
+        &self,
+        Parameters(_request): Parameters<BuildVectorTilesRequest>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        Err(McpError::invalid_request(
+            "build_vector_tiles requires task-based invocation",
+            None,
+        ))
     }
 }
 

@@ -41,6 +41,7 @@ use super::{
 pub struct AuthoringService {
     store: PlatformStore,
     projection: AuthoringProjection,
+    pub(super) analytics: MapAnalytics,
 }
 
 #[derive(Debug)]
@@ -53,7 +54,8 @@ struct PreparedChanges {
 impl AuthoringService {
     pub fn new(store: PlatformStore, analytics: MapAnalytics) -> Self {
         Self {
-            projection: AuthoringProjection::new(store.clone(), analytics),
+            projection: AuthoringProjection::new(store.clone(), analytics.clone()),
+            analytics,
             store,
         }
     }
@@ -295,6 +297,7 @@ impl AuthoringService {
                 request.expected_layer_revision,
                 &request.mutations,
                 "validation",
+                true,
             )
             .await?;
         Ok(ValidateFeatureChangesOutput {
@@ -314,6 +317,37 @@ impl AuthoringService {
         require_access(identity, AccessLevel::Write)?;
         validate_idempotency_key(&request.idempotency_key)?;
         validate_mutation_envelope(&request.mutations)?;
+        self.commit_prevalidated_changes(identity, scope, request, true)
+            .await
+    }
+
+    pub async fn commit_import_changes(
+        &self,
+        identity: &GatewayInternalIdentity,
+        scope: &MapScope,
+        request: CommitFeatureChangesRequest,
+    ) -> Result<CommitFeatureChangesOutput> {
+        require_access(identity, AccessLevel::Write)?;
+        validate_idempotency_key(&request.idempotency_key)?;
+        if request.mutations.is_empty()
+            || request.mutations.len() > crate::contract::MAX_IMPORT_FEATURES
+        {
+            bail!(
+                "an import must contain between one and {} features",
+                crate::contract::MAX_IMPORT_FEATURES
+            );
+        }
+        self.commit_prevalidated_changes(identity, scope, request, false)
+            .await
+    }
+
+    async fn commit_prevalidated_changes(
+        &self,
+        identity: &GatewayInternalIdentity,
+        scope: &MapScope,
+        request: CommitFeatureChangesRequest,
+        check_create_conflicts: bool,
+    ) -> Result<CommitFeatureChangesOutput> {
         let request_value = serde_json::to_value(&request)?;
         let request_digest_sha256 = sha256(&canonical_json(&request_value)?);
         let prepared = self
@@ -324,6 +358,7 @@ impl AuthoringService {
                 request.expected_layer_revision,
                 &request.mutations,
                 &request.idempotency_key,
+                check_create_conflicts,
             )
             .await?;
         if !prepared.findings.is_empty() {
@@ -758,6 +793,7 @@ impl AuthoringService {
         expected_layer_revision: u64,
         mutations: &[FeatureMutation],
         stable_seed: &str,
+        check_create_conflicts: bool,
     ) -> Result<PreparedChanges> {
         let layer = self
             .layer(identity, scope, &layer_id)
@@ -793,6 +829,7 @@ impl AuthoringService {
                     mutation,
                     stable_seed,
                     index,
+                    check_create_conflicts,
                 )
                 .await;
             match result {
@@ -830,6 +867,7 @@ impl AuthoringService {
         mutation: &FeatureMutation,
         stable_seed: &str,
         index: usize,
+        check_create_conflicts: bool,
     ) -> Result<MapFeature> {
         let now = Utc::now();
         let provenance = provenance(identity);
@@ -847,10 +885,11 @@ impl AuthoringService {
                         .as_bytes(),
                     )
                 });
-                if self
-                    .feature(identity, scope, &layer.layer_id, &feature_id)
-                    .await?
-                    .is_some()
+                if check_create_conflicts
+                    && self
+                        .feature(identity, scope, &layer.layer_id, &feature_id)
+                        .await?
+                        .is_some()
                 {
                     bail!("feature {feature_id} already exists");
                 }

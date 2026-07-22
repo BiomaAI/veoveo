@@ -2,7 +2,9 @@ use anyhow::{Result, anyhow};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
     AccessLevel, ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactPlane, ArtifactPlaneError,
-    ArtifactPut, PlaneCaller, PutArtifactRequest,
+    ArtifactPut, ArtifactWriteIdempotencyKey, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, PlaneCaller, PutArtifactRequest,
+    RedeemArtifactWriteCapabilityRequest,
 };
 
 const SCHEME: &str = "map";
@@ -34,6 +36,43 @@ impl ArtifactRepository {
         };
         self.plane
             .put(caller, request, artifact.bytes)
+            .await
+            .map(|metadata| metadata.presented_under_scheme(SCHEME))
+            .map_err(plane_error)
+    }
+
+    pub async fn issue_write_capability(
+        &self,
+        caller: &PlaneCaller,
+        request: &IssueArtifactWriteCapabilityRequest,
+    ) -> Result<IssuedArtifactWriteCapability> {
+        self.plane
+            .issue_write_capability(caller, request)
+            .await
+            .map_err(plane_error)
+    }
+
+    pub async fn put_with_capability(
+        &self,
+        capability: &IssuedArtifactWriteCapability,
+        idempotency_key: ArtifactWriteIdempotencyKey,
+        artifact: ArtifactPut,
+    ) -> Result<ArtifactMetadata> {
+        let request = RedeemArtifactWriteCapabilityRequest {
+            capability_id: capability.capability_id,
+            task_id: capability.task_id.clone(),
+            idempotency_key,
+            artifact: PutArtifactRequest {
+                mime_type: artifact.mime_type,
+                filename: artifact.filename,
+                classification: artifact.compliance.classification,
+                data_labels: artifact.compliance.data_labels,
+                retention_expires_at: artifact.compliance.retention_expires_at,
+                metadata: artifact.metadata,
+            },
+        };
+        self.plane
+            .redeem_write_capability(&capability.secret, &request, artifact.bytes)
             .await
             .map(|metadata| metadata.presented_under_scheme(SCHEME))
             .map_err(plane_error)

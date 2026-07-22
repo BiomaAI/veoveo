@@ -57,6 +57,8 @@ pub(super) struct Args {
     pub helper_module: String,
     #[arg(long, default_value = "/var/lib/veoveo/map/acquisitions")]
     pub acquisition_scratch_root: PathBuf,
+    #[arg(long, default_value = "/var/lib/veoveo/map/authoring-tasks")]
+    pub authoring_task_root: PathBuf,
     #[arg(long, default_value = "/var/lib/veoveo/map/releases")]
     pub release_root: PathBuf,
     #[arg(long, default_value = "/var/lib/veoveo/map/valhalla/active")]

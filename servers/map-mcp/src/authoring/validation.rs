@@ -163,6 +163,9 @@ pub(super) fn validate_style(style: &LayerStyle) -> Result<()> {
         }
         if let Some(property) = &rule.label_property {
             validate_property_name(property)?;
+            if property == "geometry" {
+                bail!("style label_property cannot use the reserved vector geometry field");
+            }
         }
     }
     Ok(())
