@@ -323,7 +323,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, governed ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | local frame derivation, coordinate conversion, and operation provenance |
-| `servers/map-mcp` | Earth geography, source administration, releases, and logistics routing |
+| `servers/map-mcp` | Earth geography, governed feature authoring and products, source administration, releases, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
 | `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
 | `servers/perception-mcp` | local recorded-sensor inference and Rerun annotations |
@@ -359,12 +359,17 @@ deployment details.
 
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
 types and bounds, while `src/contract/compositions.rs` owns publication products and
-composition contracts. `src/authoring/service.rs` applies Work Context policy and optimistic
-concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
+composition contracts. `src/contract/transfers.rs` owns durable import, export, and
+vector-product task contracts. `src/authoring/service.rs` applies Work Context policy
+and optimistic concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
 while `src/authoring/query.rs` owns the parameterized DuckDB Spatial and bounded CQL2
 query projection. `src/authoring/presentations.rs` governs immutable products and
-composition revisions. `src/mcp/authoring.rs` publishes the write and query tools. The
-canonical SurrealDB schemas are `platform/store/migrations/0025_map_authoring.surql`
+composition revisions. `src/authoring/transfers.rs` owns bounded GeoJSON and RFC 8142
+imports, GeoJSON Sequence and GeoParquet 1.0 exports, and MVT 2.1 bundles.
+`src/mcp/authoring.rs` publishes the write and query tools. `src/server/tasks.rs` owns
+durable execution and task-local staging. `assets/editor-app.html` is the MCP-only
+feature editor. The canonical SurrealDB schemas are
+`platform/store/migrations/0025_map_authoring.surql`
 and `platform/store/migrations/0026_map_authoring_products.surql`.
 
 ### Temporal Domain

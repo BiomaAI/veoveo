@@ -222,6 +222,10 @@ consoleBff:
     - admin:manage
     - map:admin
     - map:dataset:read
+    - map:feature:admin
+    - map:feature:publish
+    - map:feature:read
+    - map:feature:write
     - time:read
     - view:read
     - view:write
@@ -336,6 +340,8 @@ domainServices:
       - /var/lib/veoveo/map/spill
       - --acquisition-scratch-root
       - /var/lib/veoveo/map/acquisitions
+      - --authoring-task-root
+      - /var/lib/veoveo/map/authoring-tasks
       - --release-root
       - /var/lib/veoveo/map/releases
       - --source-mount-root
