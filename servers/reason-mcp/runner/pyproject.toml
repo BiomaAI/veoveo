@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 # installing it from PyPI here would shadow the image's CUDA-matched build.
 dependencies = [
     "av>=15",
+    "num2words>=0.5.14",
     "numpy>=2",
     "pillow>=11",
     "pydantic>=2.8",
