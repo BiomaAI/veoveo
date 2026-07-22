@@ -7,6 +7,7 @@ pub mod acquisition;
 pub mod administration;
 pub mod analytics;
 pub mod artifacts;
+pub mod authoring;
 pub mod catalog;
 pub mod contract;
 pub mod geodesy;

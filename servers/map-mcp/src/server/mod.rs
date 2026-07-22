@@ -27,6 +27,7 @@ use crate::{
     },
     analytics::{MapAnalytics, MapAnalyticsConfig},
     artifacts::ArtifactRepository,
+    authoring::AuthoringService,
     catalog::MapCatalog,
     geography::GeographyService,
     mcp::MapMcp,
@@ -94,6 +95,8 @@ async fn serve(args: Args) -> Result<()> {
         threads: args.duckdb_threads,
     })?;
     analytics.verify_spatial()?;
+    let authoring = AuthoringService::new(catalog.store().clone(), analytics.clone());
+    authoring.reconcile_projection().await?;
     let valhalla_client = ValhallaClient::new(ValhallaClientConfig {
         base_url: args.valhalla_url.clone(),
         timeout: Duration::from_secs(args.valhalla_timeout_seconds),
@@ -143,6 +146,7 @@ async fn serve(args: Args) -> Result<()> {
         tasks,
         catalog: catalog.clone(),
         analytics: analytics.clone(),
+        authoring,
         routes,
         geography: GeographyService::new(catalog, analytics.clone()),
         acquisitions,

@@ -26,6 +26,7 @@ geo-types.workspace = true
 geographiclib-rs.workspace = true
 geojson.workspace = true
 hex.workspace = true
+jsonschema.workspace = true
 nix.workspace = true
 petgraph.workspace = true
 polyline.workspace = true

@@ -195,6 +195,7 @@ The only durable platform persistence layer.
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `coordinates.rs` | frames and coordinate-operation persistence |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
+| `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
 | `recordings.rs` | recording and segment catalog |
 | `recording_ingest.rs` | producer streams, idempotent batch checkpoints, and journal state |
@@ -348,12 +349,19 @@ The geospatial hard cut has three canonical servers:
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp` | Earth geography, governed source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
+| `servers/map-mcp` | Earth geography, governed authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
 | `servers/frames-mcp` | WGS84, ECEF, ENU, and NED local-frame derivation and conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
 The crate-local design documents own their protocol, administration, persistence, and
 deployment details.
+
+Map authoring is split by responsibility. `src/contract/features.rs` owns the wire
+types and bounds. `src/authoring/service.rs` applies Work Context policy and optimistic
+concurrency. `src/authoring/projection.rs` consumes canonical SurrealDB outbox events,
+while `src/authoring/query.rs` owns the parameterized DuckDB Spatial and bounded CQL2
+query projection. `src/mcp/authoring.rs` publishes the write and query tools. The
+canonical SurrealDB schema is `platform/store/migrations/0025_map_authoring.surql`.
 
 ### Temporal Domain
 
