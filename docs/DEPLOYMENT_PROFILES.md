@@ -65,7 +65,7 @@ The profile fields are:
 | `kubernetes.context` | Explicit kubectl and Helm context. |
 | `kubernetes.localCluster` | Optional k3d name, config, and node-bootstrap manifests. Omit it for an existing cluster. |
 | `namespace` | Namespace for generated resources and Helm releases. |
-| `resources.manifests` | Kubernetes manifests applied before Helm. |
+| `resources.manifests` | Kubernetes manifests applied in the profile namespace before Helm. |
 | `resources.configMaps` | Typed names and file-to-key projections. |
 | `resources.secrets` | Secret keys sourced from named environment variables. |
 | `releases` | Ordered Helm releases, values files, and bounded timeouts. |

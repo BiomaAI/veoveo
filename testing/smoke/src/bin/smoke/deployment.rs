@@ -322,7 +322,15 @@ pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
         let manifest = profile.resolve(manifest);
         status_checked(
             "kubectl",
-            ["--context", context, "apply", "-f", path_str(&manifest)?],
+            [
+                "--context",
+                context,
+                "--namespace",
+                profile.definition.namespace.as_str(),
+                "apply",
+                "-f",
+                path_str(&manifest)?,
+            ],
             &[],
             None,
         )?;
