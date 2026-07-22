@@ -1643,8 +1643,8 @@ sequenceDiagram
       <div class="ops" style="grid-template-columns:repeat(3,1fr)">
         <div class="card">
           <h4>Edge</h4>
-          <p><code>just sumo-k3d-create</code> creates a loopback-only Kubernetes cluster. Helm then
-             installs the selected profile with the same workload model used in the field.</p>
+          <p><code>just profile-cluster-up &lt;profile&gt;</code> creates a loopback-only Kubernetes cluster.
+             The same typed profile publishes immutable images and installs the workload model used in the field.</p>
         </div>
         <div class="card">
           <h4>Cluster</h4>

@@ -10,11 +10,10 @@ The optional Bioma profile uses a second cluster and explicit Kubernetes context
 See [`examples/bioma/README.md`](../../../examples/bioma/README.md) for the
 concurrent Isaac Sim, View, Perception, and public-tunnel proof.
 
-The Bioma cluster creates a pinned OCI Distribution registry on loopback port
-5001. UAV images use full Git revisions as tags. The Isaac dependency base
-remains stable, while registry blob deduplication moves only the thin runtime
-layers changed by a commit. The remaining platform images retain the existing
-import path.
+One standalone OCI Distribution registry serves every local cluster on loopback
+port 5001. All Veoveo images use full Git revisions as tags. Registry blob
+deduplication moves only missing layers, and k3d nodes pull those layers through
+the same registry contract used by connected enterprise clusters.
 
 The development ingress has one canonical origin: `http://localhost:8780`.
 Loopback HTTP is deliberate for the disposable local cluster. Fielded profiles
@@ -47,24 +46,24 @@ helm version
 
 Check the published SHA-256 files before installing downloaded binaries. The
 repository dependency policy requires an upstream release check whenever one of
-these versions is changed. `versions.env` also pins the OCI Distribution image
-used by the Bioma cluster.
+these versions is changed. `registry.json` pins the OCI Distribution image used
+by local deployment profiles.
 
 ## GPU cluster
 
 The node image combines K3s with the NVIDIA Container Toolkit. The cluster passes
 the host GPU through to its server node and installs NVIDIA's Kubernetes device
 plugin with `FAIL_ON_INIT_ERROR=true`. GPU workloads do not have a CPU fallback.
-The Bioma node profile publishes three time-sliced allocations from that device
-because Isaac Sim, View, and Perception run at the same time. Each workload still
+The node profile publishes four time-sliced allocations from that device because
+Isaac Sim, View, Perception, and Reason run at the same time. Each workload still
 requests one ordinary `nvidia.com/gpu` resource. Time-slicing provides
 schedulability, not memory or fault isolation; a fielded cluster may instead
-provide three physical GPUs or an operator-selected partitioning policy.
+provide physical GPUs or an operator-selected partitioning policy.
 
 ```bash
 nvidia-smi
 just k3d-node-build
-just sumo-k3d-create
+just profile-cluster-up showcase/sumo/deploy/deployment.json
 
 kubectl --context k3d-veoveo-sumo get node -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 kubectl --context k3d-veoveo-sumo delete job veoveo-gpu-probe --ignore-not-found
@@ -81,30 +80,26 @@ graphics capability fails the job.
 
 The SUMO deployment owns these files:
 
+- `showcase/sumo/deploy/deployment.json` composes the image groups and releases.
 - `showcase/sumo/deploy/gateway.json` selects the SUMO MCP surface.
 - `showcase/sumo/deploy/platform-values.yaml` removes unrelated domain services.
 - `showcase/sumo/deploy/helm` defines the simulation and its MCP server.
 
-Build and import the profile images after creating the cluster:
+Validate the profile, create the cluster, and publish one committed revision:
 
 ```bash
-just showcase-sumo-build
-just showcase-sumo-import
-```
-
-The two SUMO images share a large upstream runtime and LuST scenario. Their direct
-containerd stream avoids a temporary multi-gigabyte k3d archive. The remaining
-images use `k3d image import`.
-
-Apply the disposable local credentials and the profile-owned gateway data, then
-install the platform and simulation releases:
-
-```bash
-just showcase-sumo-resources
-just showcase-sumo-platform-up
-just showcase-sumo-up
+PROFILE=showcase/sumo/deploy/deployment.json
+REVISION=$(git rev-parse HEAD)
+just profile-validate "$PROFILE"
+just profile-cluster-up "$PROFILE"
+just profile-publish "$PROFILE" "$REVISION"
+just profile-up "$PROFILE" "$REVISION"
 just showcase-sumo-verify
 ```
+
+BuildKit pushes image layers directly to the registry. The SUMO images share
+their pinned upstream runtime and LuST scenario through the layer cache; the
+cluster pulls only missing blobs into containerd.
 
 [`development-resources.yaml`](development-resources.yaml) contains public,
 fixed development credentials. It is valid only for this loopback cluster. A
@@ -122,14 +117,18 @@ helm --kube-context k3d-veoveo-sumo -n veoveo list
 
 ## Cleanup
 
-Remove one simulator without disturbing the platform:
+Remove the profile's Helm releases:
 
 ```bash
-just showcase-sumo-down
+just profile-down showcase/sumo/deploy/deployment.json
 ```
 
 Delete the cluster to remove all local Kubernetes state and persistent volumes:
 
 ```bash
-just sumo-k3d-delete
+just profile-cluster-delete showcase/sumo/deploy/deployment.json
 ```
+
+The standalone registry remains available to other profiles after cluster
+deletion. The complete profile contract is documented in
+[`../../../docs/DEPLOYMENT_PROFILES.md`](../../../docs/DEPLOYMENT_PROFILES.md).

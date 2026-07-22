@@ -158,23 +158,23 @@ VEOVEO_RECORDING_PRODUCER_KEY_ID=recording-producer-2026
 ```
 
 The first credential belongs to Isaac/Cesium. The second remains owned by View
-MCP. Build and validate the UAV images with:
+MCP. Validate the runtime and deployment composition with:
 
 ```bash
 just showcase-uav-sim-test
-just showcase-uav-sim-build
 just helm-check
+just profile-validate examples/bioma/deployment.json
 ```
 
-The normal Bioma flow provisions the Secret, imports the smaller platform
-images, publishes the UAV dependency base plus commit-addressed runtime, MCP,
-and recording-forwarder images to the k3d-managed OCI registry, and installs
-the two charts:
+The normal profile flow provisions the Secrets, publishes the selected platform
+and UAV image groups under one Git revision, and installs both charts:
 
 ```bash
-just bioma-resources
-just bioma-uav-sim-publish
-just bioma-platform-up
+PROFILE=examples/bioma/deployment.json
+REVISION=$(git rev-parse HEAD)
+just profile-cluster-up "$PROFILE"
+just profile-publish "$PROFILE" "$REVISION"
+just profile-up "$PROFILE" "$REVISION"
 ```
 
 Interactive mode creates one `uav-sim` Deployment containing the Isaac runtime
@@ -184,15 +184,16 @@ Isaac, shader, and Cesium cache generation beneath its own directory. Changing
 the cache version starts clean without allowing interactive and batch writers
 to share files. Runtime data and shared memory remain ephemeral.
 
-`publish-images.py` refuses a dirty worktree, tags the thin runtime and MCP
-images with the full Git commit, and pushes through OCI. The stable dependency
-base tag contains Isaac, Cesium, Pegasus, PX4, and Python wheels. The runtime
-Docker stage starts from that published base reference, which lets a clean
-builder pull the immutable layers instead of rebuilding the dependency stage.
-A runtime-only change rebuilds the final source-copy layer and the registry
-transfers only missing blobs. Edit `scenarios/bioma-aerial.json` and rerun
+The generic profile publisher resolves a full Git commit and builds it from a
+detached worktree. Docker Bake connects the runtime target directly to the UAV
+base target, while the registry stores Isaac, Cesium, Pegasus, PX4, and Python
+layers once. A runtime-only change rebuilds the final source-copy layer and the
+registry transfers only missing blobs. Edit `scenarios/bioma-aerial.json` and rerun
 `just bioma-uav-sim-verify`; a mission-only change performs no image build,
 push, or Helm rollout.
+
+[`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md)
+defines the shared registry and enterprise profile contract.
 
 Development deployments derive the image tag from the same Git commit. A
 production render sets

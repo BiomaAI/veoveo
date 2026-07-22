@@ -64,12 +64,12 @@ same local cluster.
 
 ```bash
 just k3d-node-build
-just sumo-k3d-create
-just showcase-sumo-build
-just showcase-sumo-import
-just showcase-sumo-resources
-just showcase-sumo-platform-up
-just showcase-sumo-up
+PROFILE=showcase/sumo/deploy/deployment.json
+REVISION=$(git rev-parse HEAD)
+just profile-validate "$PROFILE"
+just profile-cluster-up "$PROFILE"
+just profile-publish "$PROFILE" "$REVISION"
+just profile-up "$PROFILE" "$REVISION"
 ```
 
 Normal clients use the `operator` gateway profile at
@@ -114,5 +114,8 @@ showcase/sumo/
     src/server/              # auth, MCP, tasks, artifacts, and HTTP
 ```
 
-Remove only this profile with `just showcase-sumo-down`. The platform remains
-available for another simulator profile.
+Remove the composed platform and showcase releases with
+`just profile-down showcase/sumo/deploy/deployment.json`. The shared registry
+remains available for another profile. Deployment mechanics and enterprise
+composition are documented in
+[`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md).
