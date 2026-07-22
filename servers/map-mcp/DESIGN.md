@@ -30,6 +30,7 @@ slug        map
 URI scheme  map
 MCP         /map/mcp
 admin app   ui://map/admin.html
+editor app  ui://map/editor.html
 health      /map/healthz
 ```
 
@@ -67,7 +68,7 @@ mcp-gateway
   | signed internal identity
   v
 map-mcp container
-  |-- MCP protocol, administrative tools, and the admin app view
+  |-- MCP protocol, feature authoring, durable tasks, and MCP App views
   |-- source catalog and release service
   |-- PROJ and GeographicLib calculations
   |-- DuckDB Spatial analytical projection
@@ -157,15 +158,18 @@ SurrealDB is the canonical operational catalog. It stores:
 - active release pointers and optimistic record versions;
 - mobility profiles and effective restrictions;
 - operational snapshots, routes, dependencies, and matrices;
-- acquisition jobs and durable task state.
+- acquisition jobs and durable task state;
 - authored feature layers, schema and style revisions, feature revisions and
-  heads, atomic changesets, and immutable layer publications.
+  heads, atomic changesets, and immutable layer publications;
+- immutable publication products, map composition heads, and composition
+  revisions.
 
 DuckDB Spatial is the local analytical projection. Its schema is tenant keyed
-and contains active-release pointers, locations, facilities, boundaries, and
-governed network edges. Spatial queries use `ST_Contains`, `ST_Intersects`, and
-`ST_Distance_Sphere`. The Spatial extension is copied into the image at build
-time and loaded only from its pinned local path.
+and contains active-release pointers, locations, facilities, boundaries,
+governed network edges, and authored feature revision and head projections.
+Spatial queries use `ST_Contains`, `ST_Intersects`, and `ST_Distance_Sphere`.
+The Spatial extension is copied into the image at build time and loaded only
+from its pinned local path.
 
 The artifact plane stores immutable raw source bytes, normalized products,
 routing builds, quality reports, and large task outputs. Cross-server artifact
@@ -182,19 +186,44 @@ from a tool request.
 
 Feature geometry uses WGS84 GeoJSON coordinates. The complete canonical feature
 remains a valid GeoJSON Feature and adds JSON-FG `featureType`, the required
-JSON-FG conformance declarations, and valid-time intervals whose open bound is `..`
-in the standard JSON-FG representation. The initial geometry set covers Point, MultiPoint, LineString,
-MultiLineString, Polygon, and MultiPolygon. Validators reject non-finite or
-out-of-range coordinates, malformed topology, incorrect polygon winding,
-unbounded property payloads, remote JSON Schema references, and unsafe style
-expressions.
+JSON-FG conformance declarations, and valid-time intervals whose open bound is
+`..`. Point, MultiPoint, LineString, MultiLineString, Polygon, and MultiPolygon
+are implemented. Validators reject non-finite or out-of-range coordinates,
+malformed topology, incorrect polygon winding, unbounded property payloads,
+remote JSON Schema references, and unsafe style expressions.
 
-SurrealDB owns the immutable truth. A direct commit contains at most 100 mutations
-and 1 MiB. One transaction checks the expected layer revision and each expected
-feature revision, creates immutable feature revisions, advances feature heads,
-records a scoped idempotent changeset, and appends the outbox event. The changeset
-stores the event sequence needed for read-your-write projection checks. A repeated
-idempotency key returns the original changeset only when its request digest matches.
+### Object Model
+
+The model separates mutable working state from immutable history and delivery
+artifacts.
+
+| Object | Mutability | Purpose |
+|---|---|---|
+| feature layer | optimistic mutable head | Work Context authority, content class, title, current schema/style, and current layer revision |
+| schema revision | immutable | JSON Schema 2020-12 property contract used by a range of layer revisions |
+| style revision | immutable | bounded literal styling rules used by a range of layer revisions |
+| feature revision | immutable | one complete canonical feature or tombstone at one layer revision |
+| feature head | optimistic mutable pointer | current revision and deletion state for one feature |
+| changeset | immutable and idempotent | one atomic commit, request digest, actor, authority, and projection event sequence |
+| publication | immutable | layer, schema, style, and layer-revision pin for stable reads |
+| layer product | immutable | exported artifact identity, format, digest, byte count, and publication provenance |
+| composition revision | immutable | ordered publication pins, visibility, opacity, and initial camera view |
+| composition head | optimistic mutable pointer | current composition revision and archival state |
+| durable task | mutable lifecycle record | owner-scoped bulk import, export, or vector-tile execution and recovery |
+
+Layer content classes are `reference`, `named_locations`, `facilities`,
+`boundaries`, and `network_candidate`. They express user intent. They do not
+grant authority to alter the routing data plane.
+
+### Storage Authority And Projection
+
+SurrealDB owns the immutable truth. A direct commit contains at most 100
+mutations and 1 MiB. One transaction checks the expected layer revision and
+each expected feature revision, creates feature revisions, advances heads,
+records the scoped idempotent changeset, and appends the outbox event. The
+changeset stores the event sequence needed for read-your-write projection
+checks. A repeated idempotency key returns the original changeset only when its
+request digest matches.
 
 DuckDB Spatial is a rebuildable query projection. Its outbox consumer writes a
 revision table, a current-head table, R-tree indexes, and a local contiguous
@@ -204,6 +233,33 @@ interval, geometry type, opaque keyset cursor, and a bounded Basic CQL2-JSON sub
 Property paths and literal values remain parameters. A dateline-crossing box is
 split into two query polygons.
 
+The artifact plane stores bulk input bytes and immutable output products. The
+task root stages a verified import under its parsed task identity. It survives
+process restart and is deleted after a terminal task state. Export tasks receive
+one task-bound write capability at submission. Durable task requests persist
+the verified internal identity and capability, never the caller bearer or an
+artifact download URL.
+
+### Standards Profile
+
+| Standard | Implemented profile |
+|---|---|
+| GeoJSON, RFC 7946 | WGS84 input geometry, FeatureCollection import, feature output |
+| OGC JSON-FG 1.0 | core and types/schemas conformance declarations, `featureType`, valid-time interval |
+| JSON Schema 2020-12 | local property schemas; remote references are rejected |
+| OGC CQL2 1.0 | bounded Basic CQL2-JSON equality, ordering, null, boolean, and logical predicates over top-level properties |
+| RFC 8142 | record-separator and LF-framed GeoJSON text sequence import/export |
+| GeoParquet 1.0 | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
+| Mapbox Vector Tile 2.1 | requested XYZ tiles with canonical feature identity retained as an attribute |
+| MapLibre Style Specification 8 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections |
+
+GeoParquet 2.0 is not claimed. The current pinned DuckDB Spatial writer emits
+GeoParquet 1.0 metadata and WKB rather than the 2.0 Parquet geometry logical
+type. A future 2.0 path requires an encoder and verifier that both implement
+that logical type.
+
+### Editing, Transfer, And Publication
+
 The public MCP surface includes create, update, validate, commit, query, restore,
 publish, and archive tools. Layer heads, schema revisions, style revisions,
 feature queries, feature heads and revisions, changesets, and publications are
@@ -211,11 +267,19 @@ URI-addressed resources. Mutable heads and indexes support MCP subscriptions and
 resource-update notifications. Individual features are never expanded into the
 resource list; agents traverse them through the paginated query template.
 
-An immutable layer publication is the input boundary for export and presentation.
-Derived GeoJSON text sequence, GeoParquet, and vector-tile artifacts are separate
-layer-product records that retain the publication, layer revision, digest, size,
-format, artifact identity, creator, and Work Context authority. A product never
-changes its publication.
+An import task accepts one authorized GeoJSON FeatureCollection or GeoJSON text
+sequence artifact. It stages and hashes the bounded input before task creation,
+maps external string or numeric identifiers to stable typed feature ids, and
+commits at most 10,000 features in one SurrealDB transaction. The request supplies
+a default semantic type for plain GeoJSON. JSON-FG records that declare
+`featureType` must declare the supported conformance classes.
+
+An immutable publication is the only input to export and presentation. Export
+tasks produce GeoJSON text sequence or GeoParquet 1.0. A vector task accepts at
+most 512 distinct XYZ coordinates through zoom 22 and emits a deterministic tar
+bundle containing MVT 2.1 tiles, a manifest, and a MapLibre Style 8 document.
+Every product retains the publication, layer revision, digest, size, format,
+artifact identity, creator, and Work Context authority.
 
 A map composition orders at most 64 authored layers and pins one immutable
 publication for each layer. Every change appends a composition revision with a
@@ -223,11 +287,37 @@ bounded WGS84 view and literal opacity and visibility settings. The mutable head
 immutable revisions, root indexes, completions, and update subscriptions are MCP
 resources. A composition is the stable handoff to map presentation clients.
 
+The editor app at `ui://map/editor.html` uses the MCP Apps bridge. It reads
+canonical resources and invokes canonical tools; it has no feature-specific REST
+API. The initial app supports JSON-oriented layer creation, validation, commit,
+query, publication, and composition authoring. It does not claim interactive
+canvas editing.
+
+### Deliberate Boundaries
+
 `reference`, `named_locations`, `facilities`, `boundaries`, and
 `network_candidate` are authoring classifications, not routing authority. A
 generic feature commit or publication never changes an active source release or
 Valhalla data. Routing influence requires a separate governed validation and
 release-promotion operation.
+
+The implementation does not provide arbitrary CQL2, spatial CQL2 predicates,
+GeoParquet 2.0, raster authoring, 3D authoring, an OGC API Features HTTP service,
+collaborative locks or CRDTs, or automatic promotion of a `network_candidate`.
+View MCP does not yet render authored compositions. These are new contracts,
+not compatibility details, and must be added through their owning components.
+
+Artifact write capabilities expire after 24 hours by artifact-plane policy. An
+output task that cannot redeem its submission-time capability within that
+window fails closed on recovery. It never refreshes authority through a stored
+caller bearer.
+
+The next implementation phase should add a validated network-candidate promotion
+task, a true GeoParquet 2.0 encoder, streaming artifact ingest for datasets above
+the transactional import bound, schema migration tasks, and a hardware-GPU map
+renderer that consumes composition resources. Property flattening and packaged
+tile pyramids belong in the vector product path when client requirements justify
+their storage cost.
 
 ## Authoritative Data Acquisition
 
@@ -503,9 +593,27 @@ operations renew leases while running and resume after a server restart.
 | `inspect_corridor` | direct | `map:dataset:read` | restrictions, facilities, boundaries, and gaps |
 | `publish_restriction` | direct | `map:restriction:publish` | effective restriction |
 | `withdraw_restriction` | direct | `map:restriction:withdraw` | ended restriction and invalidation count |
+| `create_feature_layer` | direct | `map:feature:write` | empty governed layer with schema and style revisions |
+| `update_feature_layer` | direct | `map:feature:write` | optimistic metadata, schema, or style revision |
+| `validate_feature_changes` | direct | `map:feature:write` | validation and concurrency findings without a write |
+| `commit_feature_changes` | direct | `map:feature:write` | atomic changeset and updated feature revisions |
+| `restore_feature` | direct | `map:feature:write` | new live revision of a tombstoned feature |
+| `query_features` | direct | `map:feature:read` | current or publication-pinned feature page |
+| `publish_feature_layer` | direct | `map:feature:publish` | immutable layer publication |
+| `archive_feature_layer` | direct | `map:feature:admin` | archived layer head with history retained |
+| `create_map_composition` | direct | `map:feature:write` | governed composition and first revision |
+| `update_map_composition` | direct | `map:feature:write` | optimistic immutable composition revision |
+| `archive_map_composition` | direct | `map:feature:admin` | archived composition head with history retained |
+| `import_feature_layer` | task only | `map:feature:write` | atomic import changeset from an authorized artifact |
+| `export_feature_layer` | task only | `map:feature:publish` | immutable GeoJSON sequence or GeoParquet 1.0 product |
+| `build_vector_tiles` | task only | `map:feature:publish` | immutable MVT 2.1 bundle and MapLibre style |
 
 All tool results use structured content schemas. Tool and resource lists are
 paginated. Task-only tools use the durable task extension.
+
+The listed scope is necessary but not sufficient for a Work Context-owned
+object. Reads require effective read access, edits require write access, and
+publication, product creation, or archival requires effective admin access.
 
 Map uses stateful Streamable HTTP sessions and SSE responses. This transport
 keeps Task API traffic, resource subscriptions, `resources/updated`, and
@@ -524,6 +632,10 @@ map://mobility-profiles
 map://restrictions
 map://routes
 map://matrices
+map://feature-layers
+map://publications
+map://layer-products
+map://compositions
 ```
 
 Resource templates are:
@@ -539,28 +651,42 @@ map://restriction/{restriction_id}
 map://route/{route_id}
 map://matrix/{matrix_id}
 map://artifact/{artifact_id}
+map://feature-layer/{layer_id}
+map://feature-layer/{layer_id}/schema/{schema_version}
+map://feature-layer/{layer_id}/style/{style_version}
+map://feature-layer/{layer_id}/features{?publication_id,bbox,datetime,geometry_type,filter,limit,cursor,minimum_commit_sequence}
+map://feature-layer/{layer_id}/feature/{feature_id}
+map://feature-layer/{layer_id}/feature/{feature_id}/revision/{feature_revision}
+map://feature-layer/{layer_id}/changeset/{changeset_id}
+map://feature-layer/{layer_id}/publication/{publication_id}
+map://feature-layer/{layer_id}/publication/{publication_id}/product/{product_id}
+map://composition/{composition_id}
+map://composition/{composition_id}/revision/{composition_revision}
 ```
 
 Source resources present public source fields. Routes and matrices are owner
 scoped. Dataset, geography, profile, and restriction resources are tenant
-scoped.
+scoped. Authored layers, publications, products, and compositions are Work
+Context scoped and filtered by the caller's data labels.
 
 ### Prompts And Completions
 
-Map exposes `prepare_route_request`, `review_route`, and
-`prepare_logistics_matrix`. They direct the client to inspect profile versions,
-provenance, status, bounds, and advisory rules.
+Map exposes `prepare_route_request`, `review_route`,
+`prepare_logistics_matrix`, and `author_feature_layer`. The authoring prompt
+directs agents through resource inspection, validation, optimistic commit,
+publication, and task-based bulk transfer without granting routing authority.
 
 Completion applies to resource-template arguments and returns only visible ids.
 The implementation completes source, dataset, release, location, facility,
-profile, restriction, route, and matrix identities from the caller's scope.
+profile, restriction, route, matrix, layer, publication, product, and composition
+identities from the caller's scope.
 
 ### Subscriptions And Notifications
 
-Subscriptions cover the mutable dataset, restriction, route, and matrix
-collections. The server emits resource-update and resource-list-change
-notifications after relevant mutations. Subscription state is session local;
-durable long-running work uses task subscriptions.
+Subscriptions cover the mutable dataset, restriction, route, feature-layer,
+publication-product, and composition surfaces. The server emits resource-update
+and resource-list-change notifications after relevant mutations. Subscription
+state is session local; durable long-running work uses task subscriptions.
 
 ## Installation Bootstrap
 
@@ -639,6 +765,17 @@ endpoint unavailable.
 - Routing archive expansion defaults to 16 GiB and 5,000,000 entries.
 - Route task leases last 120 seconds and renew every 40 seconds.
 - Task records default to a 7-day TTL.
+- Direct authored changesets contain at most 100 mutations and 1 MiB of encoded
+  mutation data.
+- Bulk imports contain at most 10,000 features and remain one atomic commit.
+- Bulk input and output artifacts default to a 256 MiB byte limit.
+- Feature queries return at most 1,000 records per page. CQL2 filters contain at
+  most 64 nodes and nest at most 16 levels.
+- A feature contains at most 50,000 coordinates, 256 properties, and 256 KiB of
+  encoded properties.
+- A style contains at most 32 rules. A composition contains at most 64 layers.
+- A vector product request contains at most 512 distinct XYZ tiles through zoom
+  22.
 
 Unavailable coverage, invalid profile versions, disallowed advisory status,
 unsupported objectives, source digest mismatch, unsafe archives, and
@@ -667,6 +804,7 @@ Important arguments include:
 --valhalla-active-dir
 --acquisition-scratch-root
 --release-root
+--authoring-task-root
 --source-mount-root
 --source-secret-root
 --max-artifact-bytes
@@ -712,13 +850,23 @@ servers/map-mcp/
       handlers.rs
     contract/
       admin.rs
+      compositions.rs
       datasets.rs
+      features.rs
       geometry.rs
       ids.rs
       mobility.rs
       operations.rs
       routes.rs
+      transfers.rs
       units.rs
+    authoring/
+      presentations.rs
+      projection.rs
+      query.rs
+      service.rs
+      transfers.rs
+      validation.rs
     routes/
       graph.rs
       service.rs
@@ -741,6 +889,9 @@ servers/map-mcp/
     release_products.rs
     state.rs
     uris.rs
+  assets/
+    admin-app.html
+    editor-app.html
   data/
     src/map_data/
       adapters/
