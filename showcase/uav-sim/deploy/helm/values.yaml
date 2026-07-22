@@ -100,6 +100,7 @@ session:
 
 interactive:
   enabled: true
+  progressDeadlineSeconds: 1800
 
 batch:
   enabled: false
