@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "veoveo.io/local-registry/v1",
+  "name": "veoveo-registry.localhost",
+  "hostPort": "127.0.0.1:5001",
+  "image": "docker.io/library/registry:3.1.1@sha256:1be55279f18a2fe1a74edf2664cac61c1bea305b7b4642dab412e7affdcb3e33",
+  "volume": "veoveo-registry:/var/lib/registry",
+  "deleteEnabled": true
+}

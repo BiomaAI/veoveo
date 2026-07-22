@@ -29,15 +29,17 @@ use rmcp::{
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    GatewayInternalTrustBundle, GatewayTaskStatusDocument, GatewayTaskStatusKind,
-    RELATED_TASK_META_KEY,
+    GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
 };
 
+#[path = "smoke/deployment.rs"]
+mod deployment;
 #[path = "smoke/scenarios.rs"]
 mod scenarios;
 #[path = "smoke/support.rs"]
 mod support;
 
+use deployment::*;
 use scenarios::*;
 
 fn install_rustls_provider() {
@@ -65,11 +67,59 @@ enum Cmd {
     },
     /// Smoke-test Helm and k3d local deployment rendering.
     HelmConfig,
-    /// Apply Bioma's typed ConfigMap and Secret resources to its isolated cluster.
-    BiomaResources {
-        /// Kubernetes context owned by the Bioma k3d cluster.
-        #[arg(long, default_value = "k3d-veoveo-bioma")]
-        context: String,
+    /// Validate one typed deployment profile and every selected build and Helm surface.
+    ProfileValidate {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+    },
+    /// Start the standalone local registry selected by a deployment profile.
+    ProfileRegistryUp {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+    },
+    /// Create or start the local k3d cluster selected by a deployment profile.
+    ProfileClusterUp {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+    },
+    /// Stop the local k3d cluster selected by a deployment profile.
+    ProfileClusterStop {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+    },
+    /// Delete the local k3d cluster selected by a deployment profile.
+    ProfileClusterDelete {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+    },
+    /// Build and publish a profile's image groups from one committed revision.
+    ProfilePublish {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+        /// Git revision to publish. Defaults to HEAD.
+        #[arg(long)]
+        revision: Option<String>,
+    },
+    /// Apply a profile's resources and Helm releases at one immutable revision.
+    ProfileUp {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
+        /// Published Git revision to deploy. Defaults to HEAD.
+        #[arg(long)]
+        revision: Option<String>,
+    },
+    /// Uninstall every Helm release selected by a deployment profile.
+    ProfileDown {
+        /// Deployment profile JSON.
+        #[arg(long)]
+        profile: PathBuf,
     },
     /// Verify the Bioma installation and its public Cloudflare edge.
     BiomaVerify {
@@ -479,7 +529,14 @@ async fn main() -> Result<()> {
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::HelmConfig => helm_config().await,
-        Cmd::BiomaResources { context } => bioma_resources(&context),
+        Cmd::ProfileValidate { profile } => profile_validate(&profile),
+        Cmd::ProfileRegistryUp { profile } => profile_registry_up(&profile),
+        Cmd::ProfileClusterUp { profile } => profile_cluster_up(&profile),
+        Cmd::ProfileClusterStop { profile } => profile_cluster_stop(&profile),
+        Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
+        Cmd::ProfilePublish { profile, revision } => profile_publish(&profile, revision.as_deref()),
+        Cmd::ProfileUp { profile, revision } => profile_up(&profile, revision.as_deref()),
+        Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::BiomaVerify {
             context,
             local_base_url,

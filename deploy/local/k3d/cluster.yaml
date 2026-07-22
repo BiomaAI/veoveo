@@ -14,6 +14,9 @@ ports:
   - port: 127.0.0.1:8895:30895
     nodeFilters:
       - loadbalancer
+registries:
+  use:
+    - k3d-veoveo-registry.localhost:5001
 env:
   - envVar: NVIDIA_VISIBLE_DEVICES=all
     nodeFilters:

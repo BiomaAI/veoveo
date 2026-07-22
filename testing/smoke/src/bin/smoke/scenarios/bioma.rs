@@ -1,18 +1,11 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::Write,
-    process::{Command, Stdio},
-};
+use std::collections::BTreeSet;
 
 use anyhow::ensure;
-use jsonwebtoken::jwk::JwkSet;
 use scraper::{Html, Selector};
-use secrecy::{ExposeSecret, SecretString};
 
 use super::*;
 
 const NAMESPACE: &str = "veoveo";
-const RECORDING_PRODUCER_JWKS_PATH: &str = "examples/bioma/recording-producer-jwks.json";
 const BIOMA_DEPLOYMENTS: &[&str] = &[
     "mcp-gateway",
     "artifact-service",
@@ -35,127 +28,6 @@ const BIOMA_DEPLOYMENTS: &[&str] = &[
     "rerun-bridge",
     "cloudflared",
 ];
-
-pub(crate) fn bioma_resources(context: &str) -> Result<()> {
-    ensure!(!context.trim().is_empty(), "Kubernetes context is required");
-
-    kubectl_apply(
-        context,
-        &serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "Namespace",
-            "metadata": {"name": NAMESPACE}
-        }),
-    )?;
-
-    let gateway = fs::read_to_string("examples/bioma/gateway.json")
-        .context("reading the Bioma gateway control plane")?;
-    let recording_producer_jwks = fs::read_to_string(RECORDING_PRODUCER_JWKS_PATH)
-        .context("reading the Bioma recording producer JWKS")?;
-    let parsed_recording_producer_jwks = serde_json::from_str::<JwkSet>(&recording_producer_jwks)
-        .context("decoding the Bioma recording producer JWKS")?;
-    ensure!(
-        parsed_recording_producer_jwks.keys.len() == 1
-            && parsed_recording_producer_jwks.keys[0]
-                .common
-                .key_id
-                .as_deref()
-                == Some("recording-producer-2026"),
-        "Bioma recording producer JWKS must contain exactly recording-producer-2026"
-    );
-    kubectl_apply(
-        context,
-        &serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "ConfigMap",
-            "metadata": {"name": "bioma-gateway-control-plane", "namespace": NAMESPACE},
-            "data": {
-                "gateway.json": gateway,
-                "recording-producer-jwks.json": recording_producer_jwks
-            }
-        }),
-    )?;
-
-    kubectl_apply(
-        context,
-        &secret_manifest(
-            "veoveo-surreal-admin",
-            [
-                ("username", "VEOVEO_SURREAL_ADMIN_USERNAME"),
-                ("password", "VEOVEO_SURREAL_ADMIN_PASSWORD"),
-            ],
-        )?,
-    )?;
-    let internal_trust_jwks = required_secret("VEOVEO_INTERNAL_TRUST_JWKS")?;
-    GatewayInternalTrustBundle::from_json(internal_trust_jwks.expose_secret())
-        .context("VEOVEO_INTERNAL_TRUST_JWKS must be canonical JSON")?;
-    kubectl_apply(
-        context,
-        &secret_manifest(
-            "veoveo-surreal-runtime",
-            [
-                ("username", "VEOVEO_SURREAL_RUNTIME_USERNAME"),
-                ("password", "VEOVEO_SURREAL_RUNTIME_PASSWORD"),
-            ],
-        )?,
-    )?;
-    kubectl_apply(
-        context,
-        &secret_manifest(
-            "veoveo-installation-secrets",
-            [
-                (
-                    "internal-signing-key-der-b64",
-                    "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-                ),
-                ("internal-signing-key-id", "VEOVEO_INTERNAL_SIGNING_KEY_ID"),
-                ("internal-trust-jwks", "VEOVEO_INTERNAL_TRUST_JWKS"),
-                ("oidc-client-secret", "VEOVEO_IDP_OIDC_CLIENT_SECRET"),
-                (
-                    "authorization-server-private-key-der-b64",
-                    "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
-                ),
-                (
-                    "refresh-delivery-key-b64",
-                    "VEOVEO_REFRESH_DELIVERY_KEY_B64",
-                ),
-                ("console-session-key", "VEOVEO_CONSOLE_SESSION_KEY"),
-                ("object-store-access-key", "VEOVEO_OBJECT_STORE_ACCESS_KEY"),
-                ("object-store-secret-key", "VEOVEO_OBJECT_STORE_SECRET_KEY"),
-                ("media-provider-api-key", "MEDIA_PROVIDER_API_KEY"),
-                ("google-maps-api-key", "GOOGLE_MAPS_API_KEY"),
-                (
-                    "media-provider-webhook-secret",
-                    "MEDIA_PROVIDER_WEBHOOK_SECRET",
-                ),
-            ],
-        )?,
-    )?;
-    kubectl_apply(
-        context,
-        &secret_manifest(
-            "veoveo-uav-sim-secrets",
-            [("cesium-ion-access-token", "CESIUM_ION_ACCESS_TOKEN")],
-        )?,
-    )?;
-    kubectl_apply(
-        context,
-        &secret_manifest(
-            "veoveo-recording-producer",
-            [(
-                "private-key.pem",
-                "VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM",
-            )],
-        )?,
-    )?;
-    kubectl_apply(
-        context,
-        &secret_manifest("bioma-cloudflared", [("token", "CLOUDFLARED_TUNNEL_TOKEN")])?,
-    )?;
-
-    println!("Bioma Kubernetes resources applied to {context}");
-    Ok(())
-}
 
 pub(crate) async fn bioma_verify(
     context: &str,
@@ -336,92 +208,6 @@ async fn verify_public_console(public_base_url: &str) -> Result<()> {
             && identity_provider.host_str() == Some("login.microsoftonline.com"),
         "Bioma console authorization must continue at Microsoft Entra"
     );
-    Ok(())
-}
-
-fn secret_manifest<const N: usize>(name: &str, mappings: [(&str, &str); N]) -> Result<Value> {
-    let mut string_data = BTreeMap::new();
-    for (key, environment_name) in mappings {
-        let value = required_secret(environment_name)?;
-        string_data.insert(key, value.expose_secret().to_owned());
-    }
-    Ok(serde_json::json!({
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": {"name": name, "namespace": NAMESPACE},
-        "type": "Opaque",
-        "stringData": string_data
-    }))
-}
-
-fn required_secret(name: &str) -> Result<SecretString> {
-    let value = match env::var(name) {
-        Ok(value) => value,
-        Err(env::VarError::NotPresent) => secret_from_main_worktree(name)?.with_context(|| {
-            format!("required environment variable {name} is absent from the process and main worktree .env")
-        })?,
-        Err(error) => return Err(error).with_context(|| format!("reading environment variable {name}")),
-    };
-    ensure!(
-        !value.trim().is_empty(),
-        "required environment variable {name} is empty"
-    );
-    Ok(SecretString::from(value))
-}
-
-fn secret_from_main_worktree(name: &str) -> Result<Option<String>> {
-    let output = Command::new("git")
-        .args(["worktree", "list", "--porcelain"])
-        .output()
-        .context("discovering the main Git worktree")?;
-    ensure!(output.status.success(), "git worktree list failed");
-    let listing = String::from_utf8(output.stdout).context("decoding git worktree list")?;
-    let Some(main_worktree) = listing
-        .lines()
-        .find_map(|line| line.strip_prefix("worktree "))
-    else {
-        return Ok(None);
-    };
-    let environment_file = Path::new(main_worktree).join(".env");
-    if !environment_file.is_file() {
-        return Ok(None);
-    }
-    for item in dotenvy::from_path_iter(&environment_file)
-        .with_context(|| format!("reading {}", environment_file.display()))?
-    {
-        let (key, value) = item.context("decoding main worktree .env")?;
-        if key == name {
-            return Ok(Some(value));
-        }
-    }
-    Ok(None)
-}
-
-fn kubectl_apply(context: &str, manifest: &Value) -> Result<()> {
-    let mut child = Command::new("kubectl")
-        .args(["--context", context, "apply", "-f", "-"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("spawning kubectl apply")?;
-    let encoded = serde_json::to_vec(manifest)?;
-    child
-        .stdin
-        .take()
-        .context("kubectl stdin was unavailable")?
-        .write_all(&encoded)
-        .context("writing Kubernetes resource to kubectl")?;
-    let output = child
-        .wait_with_output()
-        .context("waiting for kubectl apply")?;
-    if !output.status.success() {
-        bail!(
-            "kubectl apply failed with status {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
     Ok(())
 }
 
