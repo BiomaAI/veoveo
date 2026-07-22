@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bioma
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  description: Bioma-owned Veoveo installation
+  sourceRepos:
+    - https://github.com/BiomaAI/veoveo.git
+    - k3d-veoveo-registry.localhost:5000/charts
+  destinations:
+    - namespace: veoveo
+      server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

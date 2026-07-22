@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bioma-veoveo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: bioma
+  sources:
+    - repoURL: k3d-veoveo-registry.localhost:5000/charts
+      chart: veoveo
+      targetRevision: 0.1.0-92ba57cdf93d
+      helm:
+        releaseName: veoveo
+        valueFiles:
+          - $configuration/examples/bioma/values.yaml
+          - $configuration/examples/bioma/k3d-values.yaml
+          - $configuration/examples/bioma/images.lock.yaml
+    - repoURL: https://github.com/BiomaAI/veoveo.git
+      targetRevision: main
+      ref: configuration
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: veoveo
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
