@@ -97,6 +97,11 @@ async fn serve(args: Args) -> Result<()> {
     analytics.verify_spatial()?;
     let authoring = AuthoringService::new(catalog.store().clone(), analytics.clone());
     authoring.reconcile_projection().await?;
+    if !args.authoring_task_root.is_absolute() {
+        anyhow::bail!("authoring task root must be absolute");
+    }
+    std::fs::create_dir_all(&args.authoring_task_root)?;
+    let authoring_task_root = args.authoring_task_root.canonicalize()?;
     let valhalla_client = ValhallaClient::new(ValhallaClientConfig {
         base_url: args.valhalla_url.clone(),
         timeout: Duration::from_secs(args.valhalla_timeout_seconds),
@@ -155,6 +160,8 @@ async fn serve(args: Args) -> Result<()> {
         valhalla_process: valhalla_process.clone(),
         activation: Arc::new(tokio::sync::Mutex::new(())),
         subscriptions: Arc::new(SubscriptionHub::new()),
+        authoring_task_root,
+        max_artifact_bytes: args.max_artifact_bytes,
     });
     recover_tasks(state.clone(), recovery.resumable).await?;
 

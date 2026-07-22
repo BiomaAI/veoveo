@@ -260,9 +260,8 @@ impl AuthoringService {
     ) -> Result<LayerProduct> {
         require_access(identity, AccessLevel::Admin)?;
         let publication = self
-            .publication(identity, scope, &product.layer_id, &product.publication_id)
-            .await?
-            .context("unknown layer publication")?;
+            .product_publication(identity, scope, &product.layer_id, &product.publication_id)
+            .await?;
         if publication.layer_revision != product.layer_revision
             || publication.work_context != product.work_context
             || product.created_by != identity.actor.id
@@ -290,6 +289,19 @@ impl AuthoringService {
             })
             .await?;
         decode(&record.canonical_json, "map layer product")
+    }
+
+    pub async fn product_publication(
+        &self,
+        identity: &GatewayInternalIdentity,
+        scope: &MapScope,
+        layer_id: &crate::contract::FeatureLayerId,
+        publication_id: &crate::contract::LayerPublicationId,
+    ) -> Result<crate::contract::LayerPublication> {
+        require_access(identity, AccessLevel::Admin)?;
+        self.publication(identity, scope, layer_id, publication_id)
+            .await?
+            .context("unknown layer publication")
     }
 
     pub async fn layer_product(

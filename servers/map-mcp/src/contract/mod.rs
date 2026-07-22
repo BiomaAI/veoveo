@@ -7,6 +7,7 @@ mod ids;
 mod mobility;
 mod operations;
 mod routes;
+mod transfers;
 mod units;
 
 pub use admin::*;
@@ -18,4 +19,5 @@ pub use ids::*;
 pub use mobility::*;
 pub use operations::*;
 pub use routes::*;
+pub use transfers::*;
 pub use units::*;

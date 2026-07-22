@@ -627,6 +627,16 @@ impl MapAnalytics {
             &self.settings,
         )
     }
+
+    pub(crate) fn task_connection(&self, directory: &Path) -> Result<Connection> {
+        open_connection(
+            &self.database_path,
+            false,
+            &[],
+            &FileAccess::RequestDirectory(directory.to_path_buf()),
+            &self.settings,
+        )
+    }
 }
 
 fn polygon_geojson(polygon: &crate::contract::Wgs84Polygon) -> Result<String> {

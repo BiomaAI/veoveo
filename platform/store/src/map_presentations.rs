@@ -130,7 +130,7 @@ impl PlatformStore {
         if let Some(existing) = select_scoped::<MapLayerProductRecord>(
             self,
             product_record.clone(),
-            draft.identity.tenant_id.clone(),
+            draft.identity.tenant_id,
             context.clone(),
         )
         .await?
@@ -188,7 +188,7 @@ impl PlatformStore {
             if let Some(existing) = select_scoped::<MapLayerProductRecord>(
                 self,
                 product_record,
-                draft.identity.tenant_id.clone(),
+                draft.identity.tenant_id,
                 context,
             )
             .await?
