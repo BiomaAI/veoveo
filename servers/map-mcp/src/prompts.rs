@@ -145,6 +145,24 @@ impl MapPrompt {
     }
 }
 
+fn required(name: &str, description: &str) -> PromptArgument {
+    PromptArgument::new(name)
+        .with_description(description)
+        .with_required(true)
+}
+
+fn optional(name: &str, description: &str) -> PromptArgument {
+    PromptArgument::new(name)
+        .with_description(description)
+        .with_required(false)
+}
+
+fn required_value(value: Option<String>, name: &str) -> Result<String, McpError> {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| McpError::invalid_params(format!("missing prompt argument `{name}`"), None))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,22 +183,4 @@ mod tests {
         assert!(text.contains("commit_feature_changes"));
         assert!(text.contains("Never treat generic authored features as routing restrictions"));
     }
-}
-
-fn required(name: &str, description: &str) -> PromptArgument {
-    PromptArgument::new(name)
-        .with_description(description)
-        .with_required(true)
-}
-
-fn optional(name: &str, description: &str) -> PromptArgument {
-    PromptArgument::new(name)
-        .with_description(description)
-        .with_required(false)
-}
-
-fn required_value(value: Option<String>, name: &str) -> Result<String, McpError> {
-    value
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| McpError::invalid_params(format!("missing prompt argument `{name}`"), None))
 }

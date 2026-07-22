@@ -51,6 +51,24 @@ struct PreparedChanges {
     findings: Vec<FeatureValidationFinding>,
 }
 
+#[derive(Clone, Copy)]
+enum PreparationMode<'a> {
+    Interactive(&'a str),
+    BulkImport(&'a str),
+}
+
+impl<'a> PreparationMode<'a> {
+    fn stable_seed(self) -> &'a str {
+        match self {
+            Self::Interactive(seed) | Self::BulkImport(seed) => seed,
+        }
+    }
+
+    fn checks_create_conflicts(self) -> bool {
+        matches!(self, Self::Interactive(_))
+    }
+}
+
 impl AuthoringService {
     pub fn new(store: PlatformStore, analytics: MapAnalytics) -> Self {
         Self {
@@ -296,8 +314,7 @@ impl AuthoringService {
                 request.layer_id.clone(),
                 request.expected_layer_revision,
                 &request.mutations,
-                "validation",
-                true,
+                PreparationMode::Interactive("validation"),
             )
             .await?;
         Ok(ValidateFeatureChangesOutput {
@@ -357,8 +374,11 @@ impl AuthoringService {
                 request.layer_id.clone(),
                 request.expected_layer_revision,
                 &request.mutations,
-                &request.idempotency_key,
-                check_create_conflicts,
+                if check_create_conflicts {
+                    PreparationMode::Interactive(&request.idempotency_key)
+                } else {
+                    PreparationMode::BulkImport(&request.idempotency_key)
+                },
             )
             .await?;
         if !prepared.findings.is_empty() {
@@ -792,8 +812,7 @@ impl AuthoringService {
         layer_id: crate::contract::FeatureLayerId,
         expected_layer_revision: u64,
         mutations: &[FeatureMutation],
-        stable_seed: &str,
-        check_create_conflicts: bool,
+        mode: PreparationMode<'_>,
     ) -> Result<PreparedChanges> {
         let layer = self
             .layer(identity, scope, &layer_id)
@@ -827,9 +846,9 @@ impl AuthoringService {
                     &layer,
                     expected_layer_revision + 1,
                     mutation,
-                    stable_seed,
+                    mode.stable_seed(),
                     index,
-                    check_create_conflicts,
+                    mode.checks_create_conflicts(),
                 )
                 .await;
             match result {
@@ -898,7 +917,6 @@ impl AuthoringService {
                     layer,
                     1,
                     resulting_layer_revision,
-                    false,
                     feature,
                     provenance,
                     now,
@@ -930,7 +948,6 @@ impl AuthoringService {
                     layer,
                     current.feature_revision + 1,
                     resulting_layer_revision,
-                    false,
                     feature,
                     provenance,
                     now,
@@ -985,7 +1002,6 @@ fn map_feature(
     layer: &FeatureLayer,
     feature_revision: u64,
     layer_revision: u64,
-    deleted: bool,
     input: &FeatureInput,
     provenance: FeatureProvenance,
     created_at: chrono::DateTime<Utc>,
@@ -1005,7 +1021,7 @@ fn map_feature(
         feature_revision,
         layer_revision,
         schema_version: layer.schema.version,
-        deleted,
+        deleted: false,
         title: input.title.clone(),
         related_resources: input.related_resources.clone(),
         evidence_resources: input.evidence_resources.clone(),
