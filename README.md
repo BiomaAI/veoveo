@@ -1,13 +1,10 @@
 # Veoveo
 
-Veoveo is a self-hosted operations platform for agents working with real and
-simulated worlds. It brings rich MCP servers, interactive MCP Apps, durable
-work, governed artifacts and recordings, and an operator console into one
-installation.
-
-The organization deploying Veoveo owns its cluster, identity provider, storage,
-models, policies, domain name, and release process. There is no required vendor
-control plane.
+Veoveo is an operations platform for physical AI. Teams use it to run agents
+that observe the physical world, rehearse in simulated worlds, act on real
+systems, and leave evidence of everything that happened. The organization
+deploying Veoveo owns the whole installation: cluster, identity, storage,
+models, policies, domain name, and release process.
 
 [Product tour](#product-tour) · [Executable showcases](#executable-showcases) ·
 [Deployment](#deploy-your-installation) · [Technical design](docs/TECH_DESIGN.md) ·
@@ -15,53 +12,68 @@ control plane.
 
 [![Veoveo 3D View MCP App in the operations Console](docs/screenshots/gallery/console-app-view.png)](docs/screenshots/gallery/console-app-view.png)
 
-*A reference installation running the GPU-backed View MCP App over live Google
-Photorealistic 3D Tiles.*
+*A reference installation running the View app over live Google
+Photorealistic 3D Tiles, rendered on cluster GPUs.*
+
+## What Teams Do With It
+
+- **Fly the mission before flying it.** Launch multirotor missions over
+  photorealistic terrain, with real flight dynamics and PX4 autopilot
+  firmware, and keep the entire run as a dataset.
+- **Operate a city's traffic.** Read live traffic state, retime signals,
+  reroute vehicles, and replay outcomes against a full simulated city.
+- **See through cameras.** Run detection and tracking over authorized video
+  streams on your own GPUs.
+- **Ask what happened.** Pose questions over synchronized recordings — world
+  state, sensors, poses, annotations on one timeline — and get grounded,
+  audited answers.
+- **Forecast, plan, and analyze.** Timeseries forecasts with uncertainty,
+  deterministic planning for one vehicle or a fleet, and SQL over
+  operational data.
+- **Hand evidence to anyone.** Every result becomes an artifact with
+  ownership, provenance, and release state, shareable through expiring,
+  revocable links.
+
+## Worlds You Can Trust
+
+Physical AI is only as good as its model of the world. Veoveo treats world
+models as governed infrastructure: authoritative geography and civil time,
+photorealistic 3D scenes streamed from live tiles, simulated cities and
+airspace with real vehicle dynamics, and continuous recordings of what
+actually happened. Agents reach simulation and reality through the same
+interfaces, so a mission rehearsed in a synthetic world carries over to
+operations in the real one.
+
+## From Instruction To Intelligence
+
+The product of the platform is operational intelligence: answers, forecasts,
+plans, and evidence that an enterprise can act on and defend. Every
+instruction, whether typed by an operator or issued by an agent, passes one
+identity and policy boundary, runs as durable work that survives
+disconnects, and lands as recordings and artifacts with full provenance.
+Operators steer and audit the same state agents act on, from the same
+Console.
 
 ## Product Tour
 
-Veoveo gives operators and agents one governed path from an instruction to live
-world interaction, durable execution, and evidence. A deployment can begin with
-the standard server catalog, add its own MCP extensions, and retain the same
-identity and policy boundary throughout.
+A deployment can begin with the standard server catalog, add its own
+extensions, and retain the same identity and policy boundary throughout.
 
 | Capability | What it provides |
 |---|---|
-| Rich MCP surfaces | Policy-scoped profiles over tools, resources and templates, prompts, completions, durable tasks, subscriptions, notifications, structured content, and URI identities. |
-| Interactive MCP Apps | Server-shipped interfaces for charts, forecasts, maps, and GPU-backed 3D views. The same app can run in the Console or a compatible external MCP host. |
-| Durable automation | Recoverable task execution, cancellation, budgets, agent wakes, and retained results for work that outlives one request. |
 | Real and simulated worlds | Governed recordings, spatial and time reference systems, traffic simulation, UAV simulation, camera streams, vehicle actuation, and 3D Tiles scenes. |
 | Analysis and planning | Sandboxed DuckDB SQL, forecasting, optimization, media processing, perception, and temporal reasoning. |
+| Durable automation | Recoverable task execution, cancellation, budgets, agent wakes, and retained results for work that outlives one request. |
+| Interactive apps | Interfaces that ship with each server for charts, forecasts, maps, and 3D views rendered on cluster GPUs. The same app can run in the Console or a compatible external MCP host. |
 | Governed evidence | Work Context ownership, invocation provenance, immutable artifact identities, policy decisions, grants, release state, and revocable sharing. |
+| Open protocol surfaces | Profiles scoped by policy over tools, resources and templates, prompts, completions, durable tasks, subscriptions, notifications, structured content, and URI identities. |
 | Enterprise operation | OIDC/OAuth identity, Kubernetes scheduling, Helm packages, OCI delivery, GitOps reconciliation, audit export, and an offline installation path. |
-
-### MCP Apps travel with the server
-
-An MCP server can deliver a self-contained interface with its protocol result.
-The host provides the sandbox and theme; Veoveo retains authorization, task,
-artifact, and audit semantics behind each action. The View app below was invoked
-from natural language and rendered by an external MCP host.
-
-<p align="center">
-  <a href="docs/screenshots/gallery/mcp-app-view-claude.png">
-    <img src="docs/screenshots/gallery/mcp-app-view-claude.png" width="560" alt="View MCP App rendering a Golden Gate Bridge scene inside Claude">
-  </a>
-</p>
-
-| | |
-|---|---|
-| [![Interactive chart MCP App](docs/screenshots/gallery/console-app-chart.png)](docs/screenshots/gallery/console-app-chart.png) | [![Timeseries forecast MCP App](docs/screenshots/gallery/console-app-timeseries.png)](docs/screenshots/gallery/console-app-timeseries.png) |
-| Interactive charts from typed results | Forecast means and uncertainty bands |
-| [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
-| Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
-| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | |
-| The map server's complete MCP capability inventory | |
 
 ### Operations stay connected to the work
 
-The Console is an authenticated operating surface, not a separate source of
-truth. It reads the same task, policy, artifact, recording, MCP, and Kubernetes
-state that agents use through the gateway.
+The Console is an authenticated operating surface. It reads the same task,
+policy, artifact, recording, MCP, and Kubernetes state that agents use
+through the gateway.
 
 | | |
 |---|---|
@@ -97,6 +109,37 @@ and Rust acceptance tests.
 | [![UAV simulation in Rerun](docs/screenshots/gallery/rerun-uav.png)](docs/screenshots/gallery/rerun-uav.png) | [![SUMO traffic simulation in Rerun](docs/screenshots/gallery/rerun-sumo.png)](docs/screenshots/gallery/rerun-sumo.png) |
 | Isaac Sim renders Google Photorealistic 3D Tiles while Pegasus and PX4 supply multirotor dynamics and MAVLink control. Camera, pose, telemetry, perception, and reasoning share one governed recording path. [Run the UAV showcase](showcase/uav-sim/README.md). | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and Rerun recording. [Run the SUMO showcase](showcase/sumo/README.md). |
 
+## Built On The Model Context Protocol
+
+Every capability above reaches agents and operators through the
+[Model Context Protocol](https://modelcontextprotocol.io/specification/):
+tools, resources, prompts, completions, durable tasks, subscriptions, and
+notifications behind one identity and policy boundary. Any compatible MCP
+host can drive the platform, and the Console speaks the same protocol that
+agents use.
+
+### Apps travel with the server
+
+An MCP server can deliver a self-contained interface with its protocol result.
+The host provides the sandbox and theme; Veoveo retains authorization, task,
+artifact, and audit semantics behind each action. The View app below was invoked
+from natural language and rendered by an external MCP host.
+
+<p align="center">
+  <a href="docs/screenshots/gallery/mcp-app-view-claude.png">
+    <img src="docs/screenshots/gallery/mcp-app-view-claude.png" width="560" alt="View MCP App rendering a Golden Gate Bridge scene inside Claude">
+  </a>
+</p>
+
+| | |
+|---|---|
+| [![Interactive chart MCP App](docs/screenshots/gallery/console-app-chart.png)](docs/screenshots/gallery/console-app-chart.png) | [![Timeseries forecast MCP App](docs/screenshots/gallery/console-app-timeseries.png)](docs/screenshots/gallery/console-app-timeseries.png) |
+| Interactive charts from typed results | Forecast means and uncertainty bands |
+| [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
+| Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
+| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | |
+| The map server's complete MCP capability inventory | |
+
 ## Capability Catalog
 
 The gateway assembles hosted servers into named profiles. An operator profile
@@ -120,13 +163,13 @@ without changing the underlying server identities.
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, governed artifacts, and an interactive forecast app. |
 | `uav-sim` | Live sessions, multi-vehicle missions, bounded dataset capture, and provider-neutral vehicle control. |
-| `view` | GPU-backed 3D Tiles views, camera control, and reproducible offscreen frame capture. |
+| `view` | 3D Tiles views rendered on cluster GPUs, camera control, and reproducible offscreen frame capture. |
 
-The autonomous-agent runtime adds durable episodes, detach and resume, wakes,
-budgets, analytical memory, tool use, and Rerun recording. Domain extensions can
-join the same gateway without adopting Veoveo's source build: publish an image
-and Helm chart, register the server in the typed control plane, and apply the
-installation's trust and policy contract.
+The runtime for autonomous agents adds durable episodes, detach and resume,
+wakes, budgets, analytical memory, tool use, and Rerun recording. Domain
+extensions can join the same gateway without adopting Veoveo's source build:
+publish an image and Helm chart, register the server in the typed control
+plane, and apply the installation's trust and policy contract.
 
 ## How It Fits Together
 
@@ -153,11 +196,10 @@ Platform metadata   Object storage,
  and coordination   GPU worlds, media
 ```
 
-SurrealDB is the required coordination store, not the platform's defining
-surface. It owns durable identity, policy, task, artifact, recording, agent,
-audit, and outbox records. S3-compatible storage holds governed bytes, while RRD
-segments retain time-and-space history. DuckDB remains an isolated analytical
-runtime rather than a platform database.
+SurrealDB is the required coordination store. It owns durable identity,
+policy, task, artifact, recording, agent, audit, and outbox records.
+S3-compatible storage holds governed bytes, while RRD segments retain history
+across time and space. DuckDB remains an isolated analytical runtime.
 
 The normative boundaries and call paths are in
 [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md) and
@@ -177,8 +219,9 @@ Console's bearer token.
 
 Artifacts use opaque `artifact://{uuidv7}` occurrence identities. Authorized
 users can receive explicit grants. A releasable artifact may also receive an
-expiring, revocable read-only link with an optional download limit. Hashes serve
-integrity and tenant-local deduplication; they are not public addresses.
+expiring, revocable read-only link with an optional download limit. Hashes
+serve integrity and deduplication within a tenant, while access always flows
+through grants and release links.
 
 Read the neutral enterprise contract in
 [`docs/WORK_CONTEXT_GOVERNANCE.md`](docs/WORK_CONTEXT_GOVERNANCE.md).
@@ -198,7 +241,7 @@ baking customer state into the product repository.
 
 [`examples/bioma`](examples/bioma/README.md) is the executable reference for the
 enterprise flow. Its hostname and infrastructure choices demonstrate one
-installation; they are not product dependencies or canonical customer names.
+installation; each deployment substitutes its own.
 
 ### GPU execution contract
 
@@ -208,9 +251,8 @@ workloads request an NVIDIA device and fail closed when CUDA, Vulkan, WebGPU, or
 WebGL cannot reach hardware. Software rendering is not a supported fallback.
 
 The local cluster applies the same `nvidia.com/gpu` scheduling contract used by
-fielded installations. Browser-driven verification proves hardware WebGPU and
-WebGL before interacting with a visual surface and stops if either context is
-lost.
+fielded installations. Browser verification proves hardware WebGPU and WebGL
+before interacting with a visual surface and stops if either context is lost.
 
 ## Standards And Protocols
 
@@ -261,13 +303,13 @@ pinned in [`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
 
 | Path | Responsibility |
 |---|---|
-| [`agents/`](agents/) | Autonomous-agent kernel and durable runtime. |
+| [`agents/`](agents/) | Kernel and durable runtime for autonomous agents. |
 | [`apps/console/`](apps/console/) | Rust Console BFF and React operations interface. |
 | [`mcp/`](mcp/) | Shared MCP contracts, task and app extensions, and bridges. |
 | [`platform/`](platform/) | Gateway, persistence, task, artifact, recording, and query runtimes. |
 | [`servers/`](servers/) | Hosted MCP servers and their domain designs. |
 | [`showcase/uav-sim/`](showcase/uav-sim/) | Isaac, Cesium, Pegasus, and PX4 UAV workload. |
-| [`showcase/sumo/`](showcase/sumo/) | SUMO, LuST, TraCI, and the traffic-world MCP server. |
+| [`showcase/sumo/`](showcase/sumo/) | SUMO, LuST, TraCI, and the traffic world MCP server. |
 | [`deploy/`](deploy/) | Helm, local k3d, and offline installation material. |
 | [`examples/bioma/`](examples/bioma/) | Enterprise GitOps reference installation. |
 | [`testing/`](testing/) | Protocol conformance and Rust multi-process smoke harnesses. |
