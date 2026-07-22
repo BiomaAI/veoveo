@@ -6,7 +6,7 @@
       "height": 1080
     },
     "theme": "Gray Dark",
-    "publicationState": "internal-review"
+    "publicationState": "published"
   },
   "screenshots": [
     {
@@ -138,6 +138,54 @@
       "requires": ["authenticated-console", "healthy-timeseries-mcp"],
       "redaction": "identity",
       "data": "The recipe sends a deterministic protocol fixture through the MCP App tool-input and tool-result notifications. It does not create a durable forecast artifact."
+    },
+    {
+      "id": "console-app-view",
+      "title": "GPU-backed 3D View MCP App",
+      "category": "mcp-app",
+      "purpose": "Show a live Google Photorealistic 3D Tiles scene, camera controls, and captured-frame state in the Console-hosted View MCP App.",
+      "output": "gallery/console-app-view.png",
+      "captureMode": "manual",
+      "recipe": "prepared-console-view",
+      "pageUrlPattern": "/console/#/apps/view/preview.html",
+      "viewport": {
+        "width": 1906,
+        "height": 1010
+      },
+      "requires": ["authenticated-console", "healthy-view-mcp", "google-photorealistic-3d-tiles", "webgl"],
+      "redaction": "identity",
+      "data": "The operator creates a real governed view, waits for the selected 3D Tiles layer to settle, and captures one rendered frame before recording the prepared browser tab.",
+      "rendering": {
+        "surface": "sandboxed View MCP App in Console",
+        "backend": "WebGL",
+        "adapter": "hardware GPU",
+        "theme": "Gray Dark",
+        "softwareFallbackAllowed": false
+      }
+    },
+    {
+      "id": "mcp-app-view-claude",
+      "title": "View MCP App in Claude",
+      "category": "mcp-app",
+      "purpose": "Show the same server-shipped interactive 3D view running inside an external MCP host after a natural-language tool invocation.",
+      "output": "gallery/mcp-app-view-claude.png",
+      "captureMode": "manual",
+      "recipe": "prepared-claude-view",
+      "pageUrlPattern": "claude.ai/",
+      "viewport": {
+        "width": 1633,
+        "height": 2039
+      },
+      "requires": ["authenticated-external-mcp-host", "operator-mcp-profile", "healthy-view-mcp", "google-photorealistic-3d-tiles", "webgl"],
+      "redaction": "identity",
+      "data": "The external host calls view__create_view through MCP and renders the app resource returned by that successful tool result.",
+      "rendering": {
+        "surface": "View MCP App in an external MCP host",
+        "backend": "WebGL",
+        "adapter": "hardware GPU",
+        "theme": "dark",
+        "softwareFallbackAllowed": false
+      }
     },
     {
       "id": "console-access",

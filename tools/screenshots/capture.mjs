@@ -49,6 +49,10 @@ try {
   for (const shot of selected.filter((candidate) => candidate.captureMode === "rerun")) {
     await captureRerunShot(context, shot, catalog.defaults);
   }
+
+  for (const shot of selected.filter((candidate) => candidate.captureMode === "manual")) {
+    await capturePreparedBrowserShot(context, shot, catalog.defaults);
+  }
 } finally {
   await browser.close();
 }
@@ -75,6 +79,14 @@ function validateCatalog(value) {
     ids.add(shot.id);
     if (!new Set(["console", "rerun", "manual"]).has(shot.captureMode)) {
       throw new Error(`unsupported captureMode ${shot.captureMode} for ${shot.id}`);
+    }
+    if (shot.captureMode === "manual" && typeof shot.pageUrlPattern !== "string") {
+      throw new Error(`manual screenshot ${shot.id} must define pageUrlPattern`);
+    }
+    if (shot.viewport !== undefined && (
+      !Number.isInteger(shot.viewport.width) || !Number.isInteger(shot.viewport.height)
+    )) {
+      throw new Error(`screenshot ${shot.id} has an invalid viewport`);
     }
     const resolved = path.resolve(screenshotRoot, shot.output);
     if (!resolved.startsWith(`${screenshotRoot}${path.sep}`)) {
@@ -455,6 +467,23 @@ async function capturePage(page, shot) {
   await mkdir(path.dirname(output), { recursive: true });
   await page.screenshot({ path: output, type: "png" });
   console.log(`captured ${shot.id} -> ${path.relative(repositoryRoot, output)}`);
+}
+
+async function capturePreparedBrowserShot(context, shot, defaults) {
+  const environmentName = `SCREENSHOT_${shot.id.toUpperCase().replaceAll("-", "_")}_URL_PATTERN`;
+  const pattern = process.env[environmentName] ?? shot.pageUrlPattern;
+  const page = context.pages().find((candidate) => candidate.url().includes(pattern));
+  if (!page) {
+    throw new Error(
+      `${shot.id} needs a prepared browser tab matching ${pattern}; override with ${environmentName}`,
+    );
+  }
+  await page.setViewportSize(shot.viewport ?? defaults.viewport);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.bringToFront();
+  await assertHardwareCaptureBrowser(page, shot.id);
+  await page.waitForTimeout(2_000);
+  await capturePage(page, shot);
 }
 
 async function redactRenderedIdentity(page) {

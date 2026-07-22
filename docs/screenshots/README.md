@@ -1,9 +1,9 @@
 # Screenshot catalog
 
 This directory records the current product gallery and the procedure used to
-rebuild it. The images are working material for future documentation. Every
-capture remains in internal review until its composition, data, and identity
-surface have been checked for publication.
+rebuild it. The catalog declares the publication state shared by the gallery.
+Every replacement must have its composition, data, and identity surface
+reviewed before it enters the published set.
 
 The [visual gallery](GALLERY.md) presents the current set as a contact sheet.
 The canonical inventory is [`catalog.json`](catalog.json). It names each
@@ -74,6 +74,58 @@ The chart recipe makes a real, stateless `create_chart_view` call through the
 authenticated Console MCP App bridge. The forecast recipe uses a deterministic
 structured-content fixture because a durable forecast run creates governed
 work and an artifact. Its catalog entry makes that distinction explicit.
+
+## Prepared MCP App captures
+
+The 3D View images preserve a live state that an operator composes before the
+capture. The screenshot tool still owns the browser viewport, identity
+redaction, hardware-renderer check, and PNG output. It never fabricates a view
+or substitutes fixture data for a scene.
+
+For the Console image, open **Apps → 3D view preview** in the GPU-enabled Chrome
+profile. Select the Google Photorealistic 3D Tiles layer, create a governed
+view, position the camera, and wait for the visible tile counter to settle.
+Capture a rendered frame, confirm that the app reports `frame captured`, then
+run:
+
+```bash
+cd tools/screenshots
+CHROME_CDP_URL=http://127.0.0.1:9227 \
+npm run capture -- --ids console-app-view
+```
+
+The external-host image uses the same View MCP server and app resource. Connect
+the host to `https://your-installation.example/mcp/operator` through its normal
+OAuth flow. The resulting session must have `operator:use`, `view:read`,
+`view:write`, and `view:capture`. Ask the host:
+
+> Use Veoveo to create and display an interactive 3D view of the Golden Gate
+> Bridge using the google-photorealistic scene layer.
+
+Wait for `view__create_view` to complete and for the embedded scene to report
+`scene loaded`. Arrange the conversation at a readable width in the same
+CDP-enabled Chrome profile, then run:
+
+```bash
+cd tools/screenshots
+CHROME_CDP_URL=http://127.0.0.1:9227 \
+npm run capture -- --ids mcp-app-view-claude
+```
+
+Prepared captures find an open tab by the URL substring recorded in the
+catalog. Override a match when a host changes its URL:
+
+```bash
+SCREENSHOT_CONSOLE_APP_VIEW_URL_PATTERN=/console/#/apps/view/preview.html \
+npm run capture -- --ids console-app-view
+
+SCREENSHOT_MCP_APP_VIEW_CLAUDE_URL_PATTERN=claude.ai/ \
+npm run capture -- --ids mcp-app-view-claude
+```
+
+The tool aborts if the tab lacks hardware WebGPU or WebGL. Publication review
+must also verify that the external conversation contains no account identity,
+private prompt content, or unrelated history.
 
 ## Rerun captures
 
