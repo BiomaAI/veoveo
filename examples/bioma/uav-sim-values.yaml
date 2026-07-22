@@ -1,3 +1,6 @@
+global:
+  production: true
+
 platform:
   instanceLabel: veoveo
   publicBaseUrl: https://veoveo.bioma.ai

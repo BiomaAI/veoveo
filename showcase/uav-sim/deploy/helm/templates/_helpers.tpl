@@ -17,11 +17,13 @@ app.kubernetes.io/component: uav-sim
 {{- $registry := trimSuffix "/" $root.Values.global.veoveoRegistry -}}
 {{- $repository := $image.repository -}}
 {{- if $registry -}}{{- $repository = printf "%s/%s" $registry $repository -}}{{- end -}}
-{{- if and $root.Values.global.production (not $image.digest) -}}
+{{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
+{{- $digest := $image.digest | default $lockedDigest -}}
+{{- if and $root.Values.global.production (not $digest) -}}
 {{- fail (printf "global.production requires an immutable digest for %s" $repository) -}}
 {{- end -}}
-{{- if $image.digest -}}
-{{- printf "%s@%s" $repository $image.digest -}}
+{{- if $digest -}}
+{{- printf "%s@%s" $repository $digest -}}
 {{- else -}}
 {{- $tag := default $image.tag $root.Values.global.veoveoTag -}}
 {{- printf "%s:%s" $repository $tag -}}
