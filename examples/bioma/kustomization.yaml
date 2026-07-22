@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gitops/namespace.yaml
+  - gitops/project.yaml
+  - gitops/applications/veoveo.yaml
+  - gitops/applications/uav-sim.yaml
+  - gitops/cloudflared.yaml
+configMapGenerator:
+  - name: bioma-gateway-control-plane
+    namespace: veoveo
+    files:
+      - gateway.json
+      - recording-producer-jwks.json
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/part-of: veoveo
+    app.kubernetes.io/managed-by: argocd

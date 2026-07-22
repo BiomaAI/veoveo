@@ -20,6 +20,35 @@ Veoveo is installed and operated by its owner. Each installation is autonomous:
 Kubernetes is the supported installation form and Helm is its package contract.
 k3d runs that same chart for local development.
 
+## Release and installation ownership
+
+Veoveo release engineering publishes OCI images and Helm charts. Production image
+references are digest-locked, and chart versions identify one committed release.
+The publisher does not hold cluster credentials or apply customer resources.
+
+The installation owner maintains a private configuration repository containing Helm
+values, gateway control data, public trust material, image locks, and Kubernetes
+resources outside the charts. Secret bytes remain in the owner's secret-management
+system and enter workloads through existing Kubernetes Secret references. One setting
+has one owner; an additional deployment document must not repeat chart selection,
+values, Secret bindings, and apply order.
+
+The installation owner also supplies the Kubernetes cluster and reconciliation
+controller. Argo CD is the reference GitOps implementation, not a Veoveo runtime
+dependency. The Veoveo root Application begins after the controller and repository
+credentials exist, and it cannot install, upgrade, or delete that controller. Direct
+Helm and other GitOps controllers consume the same package and configuration contracts.
+
+The platform chart and independently deployable MCP extension charts reconcile as
+separate applications. A customer-authored extension does not require Veoveo's build
+system once its image and chart are published, but its gateway registration continues
+to use the canonical control-plane, internal-trust, policy, audit, task, artifact, and
+URI contracts.
+
+Typed deployment profiles are confined to disposable repository-development
+environments. They are not an enterprise installation API. The Rust smoke harness
+verifies a reconciled installation and does not own installation orchestration.
+
 ## Tenancy
 
 One installation represents one enterprise boundary and may contain multiple

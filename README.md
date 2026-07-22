@@ -195,9 +195,9 @@ just profile-cluster-up showcase/sumo/deploy/deployment.json
 just sumo-k3d-status
 ```
 
-Workloads are selected by typed deployment profiles. Images publish once under a
-full Git revision and move through the shared local OCI registry by layer. The SUMO
-profile is the first complete local proof:
+Disposable showcase workloads are selected by typed local deployment profiles. Images
+publish once under a full Git revision and move through the shared local OCI registry
+by layer. The SUMO profile is the complete local proof:
 
 ```bash
 REVISION=$(git rev-parse HEAD)
@@ -211,13 +211,15 @@ The cluster maps its canonical loopback ingress to `http://localhost:8780` and
 SUMO MCP verification to `127.0.0.1:8895`. See
 [`deploy/local/k3d/README.md`](deploy/local/k3d/README.md) for GPU validation,
 profile isolation, and registry delivery. The reusable contract is documented in
-[`docs/DEPLOYMENT_PROFILES.md`](docs/DEPLOYMENT_PROFILES.md).
+[`docs/LOCAL_DEPLOYMENT_PROFILES.md`](docs/LOCAL_DEPLOYMENT_PROFILES.md).
 
 The Bioma example deploys the complete installation in the `veoveo-bioma`
-cluster and connects `veoveo.bioma.ai` through Cloudflare Tunnel. Its profile
-always uses `k3d-veoveo-bioma`. See
-[`examples/bioma/README.md`](examples/bioma/README.md) for the installation and
-acceptance sequence.
+cluster and connects `veoveo.bioma.ai` through Cloudflare Tunnel. It publishes
+immutable OCI charts, bootstraps enterprise-owned Argo CD separately, and reconciles
+the platform plus an independently packaged MCP extension from Git. See
+[`docs/ENTERPRISE_DEPLOYMENT.md`](docs/ENTERPRISE_DEPLOYMENT.md) for the neutral
+contract and [`examples/bioma/README.md`](examples/bioma/README.md) for the executable
+installation and acceptance sequence.
 
 ## Install With Helm
 
@@ -299,7 +301,7 @@ templates/python-mcp/       canonical Python server template (datasheet)
 showcase/sumo/              real SUMO world, simulator image, and showcase MCP server
 configs/                    canonical installation configuration
 deploy/                     Helm and offline installation material
-examples/bioma/             optional Entra and Cloudflare deployment example
+examples/bioma/             enterprise GitOps reference installation
 tools/screenshots/          repeatable authenticated Console and Rerun capture tool
 docs/screenshots/           screenshot catalog, gallery, and capture runbook
 ```

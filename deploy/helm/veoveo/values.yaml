@@ -1,6 +1,7 @@
 global:
   veoveoRegistry: ""
   veoveoTag: ""
+  imageDigests: {}
   imagePullSecrets: []
   imagePullPolicy: IfNotPresent
   defaultReplicas: 2
