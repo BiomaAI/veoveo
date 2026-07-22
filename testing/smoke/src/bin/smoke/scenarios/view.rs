@@ -57,6 +57,20 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
                 == Some("ui://view/preview.html"),
             "`{name}` is not linked to the preview app: {tool_json}"
         );
+        let structured_property = match name {
+            "create_view" | "set_camera" => Some("camera"),
+            "capture_frame" => Some("policy"),
+            _ => None,
+        };
+        if let Some(property) = structured_property {
+            let property_schema = tool_json
+                .pointer(&format!("/inputSchema/properties/{property}"))
+                .with_context(|| format!("`{name}` omitted `{property}` schema: {tool_json}"))?;
+            ensure!(
+                property_schema["type"] == "object" && property_schema.get("$ref").is_none(),
+                "`{name}.{property}` did not expose an inline object schema: {property_schema}"
+            );
+        }
     }
     assert_preview_app_resource(&session_a).await?;
 
@@ -66,10 +80,14 @@ pub(crate) async fn view_mcp(view_image: &str, retained_frame: Option<&Path>) ->
         json!({"scene_layer": LOCAL_LAYER, "camera": local_camera()}),
     )
     .await?;
+    let second_camera = local_camera();
     let second = call_structured(
         &session_b,
         "create_view",
-        json!({"scene_layer": LOCAL_LAYER, "camera": local_camera()}),
+        json!({
+            "scene_layer": LOCAL_LAYER,
+            "camera": serde_json::to_string(&second_camera)?
+        }),
     )
     .await?;
     let first_id = json_string(&first, "/view_id")?;

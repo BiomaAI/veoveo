@@ -11368,6 +11368,7 @@ dependencies = [
  "glam 0.32.1",
  "gltf",
  "image",
+ "jsonschema",
  "parking_lot",
  "reqwest 0.13.4",
  "rmcp",

@@ -56,5 +56,6 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
 approx = "0.5.1"
+jsonschema.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

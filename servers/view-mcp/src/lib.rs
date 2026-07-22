@@ -11,6 +11,7 @@ pub mod uris;
 
 mod app;
 mod mcp;
+mod transport;
 
 pub use server::run;
 
