@@ -55,6 +55,20 @@ mod tests {
     }
 
     #[test]
+    fn preview_app_uses_host_tool_identity_and_initial_result() {
+        let html = preview_app_html();
+        for needle in [
+            "hostContext.toolInfo.tool.name",
+            "projectedToolName(name)",
+            "ui/notifications/tool-input",
+            "ui/notifications/tool-result",
+            "result.structuredContent",
+        ] {
+            assert!(html.contains(needle), "app must contain {needle}");
+        }
+    }
+
+    #[test]
     fn preview_app_stays_under_the_host_size_cap() {
         assert!(
             preview_app_html().len() < MAX_COMPOSED_BYTES,
