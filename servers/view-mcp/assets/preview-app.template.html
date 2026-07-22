@@ -356,7 +356,7 @@ function toolFailureText(result, name) {
 
 /* Full CallToolResult (content blocks included); throws on isError. */
 async function callToolRaw(name, args, task) {
-  const params = { name, arguments: args };
+  const params = { name: projectedToolName(name), arguments: args };
   if (task) params.task = task;
   const result = await bridge.request("tools/call", params);
   if (result && (result.isError || result.is_error)) {
@@ -1408,6 +1408,8 @@ const PRESETS = [
     distance_meters: 1200, azimuth_degrees: 135, elevation_degrees: 25, vertical_fov_degrees: 50 }],
 ];
 
+const APP_TOOL_NAMES = new Set(["create_view", "set_camera", "capture_frame", "close_view"]);
+
 const app = {
   layers: [],
   view: null,          // ViewRecord from the server
@@ -1415,11 +1417,83 @@ const app = {
   localFromEcef: null, // Float64Array(16)
   captureTaskId: null,
   cancelRequested: false,
+  toolPrefix: "",
+  ready: false,
+  pendingToolInput: null,
+  pendingToolResult: null,
 };
 
 let sceneView = null;
 let tileLoader = null;
 let form = null;
+
+function configureToolProjection(hostContext) {
+  const publishedName = hostContext && hostContext.toolInfo &&
+    hostContext.toolInfo.tool && hostContext.toolInfo.tool.name;
+  if (typeof publishedName !== "string") return;
+  for (const localName of APP_TOOL_NAMES) {
+    if (publishedName === localName) {
+      app.toolPrefix = "";
+      return;
+    }
+    const suffix = `__${localName}`;
+    if (publishedName.endsWith(suffix)) {
+      app.toolPrefix = publishedName.slice(0, -localName.length);
+      return;
+    }
+  }
+}
+
+function projectedToolName(localName) {
+  if (!APP_TOOL_NAMES.has(localName)) {
+    throw new Error(`tool ${localName} is not available to this app`);
+  }
+  return `${app.toolPrefix}${localName}`;
+}
+
+function structuredArgument(value) {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function applyInitialToolInput(params) {
+  const args = params && params.arguments;
+  if (!args || !form) return;
+  const camera = structuredArgument(args.camera);
+  if (camera && typeof camera === "object") form.setDefinition(camera);
+  if (typeof args.scene_layer === "string") {
+    const layer = el("layer-select");
+    if ([...layer.options].some((option) => option.value === args.scene_layer)) {
+      layer.value = args.scene_layer;
+    }
+  }
+}
+
+async function applyInitialToolResult(result) {
+  const record = result && (result.structuredContent || result.structured_content);
+  if (!record || typeof record !== "object" || typeof record.view_id !== "string" ||
+      typeof record.view_uri !== "string" || !record.camera || !record.resolved_camera) return;
+  applyViewRecord(record);
+  setStatus(`created view ${record.view_id}`, false);
+  await refreshScene();
+}
+
+function flushInitialToolData() {
+  if (!app.ready) return;
+  if (app.pendingToolInput) {
+    applyInitialToolInput(app.pendingToolInput);
+    app.pendingToolInput = null;
+  }
+  if (app.pendingToolResult) {
+    const result = app.pendingToolResult;
+    app.pendingToolResult = null;
+    void applyInitialToolResult(result);
+  }
+}
 
 function sceneOrigin() {
   if (app.manifest) return app.manifest.local_origin;
@@ -1763,6 +1837,7 @@ function reportSize() {
 
 function applyHostContext(context) {
   if (!context) return;
+  configureToolProjection(context);
   if (context.theme === "dark" || context.theme === "light") {
     document.documentElement.dataset.theme = context.theme;
     if (sceneView) sceneView.setTheme(context.theme);
@@ -1772,8 +1847,14 @@ function applyHostContext(context) {
 bridge.on("ui/notifications/host-context-changed", (params) => {
   applyHostContext(params && (params.hostContext || params));
 });
-bridge.on("ui/notifications/tool-result", () => { void resyncView(); });
-bridge.on("ui/notifications/tool-input", () => {});
+bridge.on("ui/notifications/tool-result", (params) => {
+  app.pendingToolResult = params;
+  flushInitialToolData();
+});
+bridge.on("ui/notifications/tool-input", (params) => {
+  app.pendingToolInput = params;
+  flushInitialToolData();
+});
 bridge.on("ui/notifications/tool-cancelled", () => {});
 bridge.on("ui/resource-teardown", (_params, id) => {
   void closeView(true);
@@ -1836,9 +1917,11 @@ bridge.on("ui/resource-teardown", (_params, id) => {
 
     await draco.init();
     await loadLayers();
+    app.ready = true;
     updateViewChip();
     updateFrustum();
     setStatus("ready — create a view to load the scene", false);
+    flushInitialToolData();
     reportSize();
   } catch (cause) {
     el("boot").hidden = true;
