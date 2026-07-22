@@ -13,6 +13,7 @@ __all__ = [
     "host",
     "internal_auth",
     "pagination",
+    "schema",
     "task_extension",
     "tasks",
     "telemetry",

@@ -17,6 +17,7 @@ from mcp.shared.exceptions import McpError
 
 from veoveo_mcp.contract import UsageKind, UsageRecord, UsageReport
 from veoveo_mcp.pagination import PaginationError, paginate
+from veoveo_mcp.schema import mcp_input_schema
 from veoveo_mcp.tasks import parse_task_id
 
 from .. import engine, prompts, uris
@@ -85,7 +86,7 @@ def build_mcp_server(state: AppState) -> Server:
                     "Read the schema and a small sample of a CSV or Parquet "
                     "dataset from an artifact URI or inline CSV."
                 ),
-                inputSchema=PreviewDatasetRequest.model_json_schema(),
+                inputSchema=mcp_input_schema(PreviewDatasetRequest),
                 outputSchema=PreviewDatasetOutput.model_json_schema(),
                 annotations=types.ToolAnnotations(
                     readOnlyHint=True,
@@ -98,7 +99,7 @@ def build_mcp_server(state: AppState) -> Server:
                 name="column_stats",
                 title="Column statistics",
                 description="Compute summary statistics for one dataset column.",
-                inputSchema=ColumnStatsRequest.model_json_schema(),
+                inputSchema=mcp_input_schema(ColumnStatsRequest),
                 outputSchema=ColumnStatsOutput.model_json_schema(),
                 annotations=types.ToolAnnotations(
                     readOnlyHint=True,
@@ -114,7 +115,7 @@ def build_mcp_server(state: AppState) -> Server:
                     "Run a full dataset profile as an MCP task and optionally "
                     "store the JSON report through the shared artifact plane."
                 ),
-                inputSchema=ProfileDatasetRequest.model_json_schema(),
+                inputSchema=mcp_input_schema(ProfileDatasetRequest),
                 outputSchema=ProfileDatasetOutput.model_json_schema(),
                 annotations=types.ToolAnnotations(
                     readOnlyHint=False,
