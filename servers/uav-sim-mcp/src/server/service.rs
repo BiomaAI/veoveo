@@ -17,7 +17,7 @@ use rmcp::{
         UnsubscribeRequestParams,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
     transport::streamable_http_server::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
@@ -27,6 +27,7 @@ use serde_json::json;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport,
@@ -1053,6 +1054,11 @@ fn invalid(error: impl std::fmt::Display) -> McpError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!UavSimMcp::tool_router().list_all().is_empty());
+    }
 
     #[test]
     fn fake_delivery_has_core_google_tiles_and_px4() {

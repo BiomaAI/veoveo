@@ -6,9 +6,14 @@
     "split_column": "split"
   },
   "training_filter": {
-    "op": "eq",
-    "column": "split",
-    "value": "context"
+    "combination": "all",
+    "predicates": [
+      {
+        "op": "eq",
+        "column": "split",
+        "value": "context"
+      }
+    ]
   },
   "examples": [
     {

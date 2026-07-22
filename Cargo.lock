@@ -10706,6 +10706,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap",
+ "jsonschema",
  "jsonwebtoken",
  "rcgen",
  "reqwest 0.13.4",
@@ -10735,6 +10736,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "duckdb",
+ "jsonschema",
  "jsonwebtoken",
  "opentelemetry",
  "opentelemetry-appender-tracing",
@@ -10750,6 +10752,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "veoveo-mcp-schema-macros",
 ]
 
 [[package]]
@@ -10792,6 +10795,15 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-recording-protocol",
  "veoveo-task-runtime",
+]
+
+[[package]]
+name = "veoveo-mcp-schema-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
 ]
 
 [[package]]

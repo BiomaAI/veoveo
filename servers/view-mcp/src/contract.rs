@@ -149,7 +149,6 @@ pub struct OrbitTargetCamera {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[schemars(inline, extend("type" = "object"))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CameraDefinition {
     Pose(GeodeticCameraPose),
@@ -211,7 +210,6 @@ pub enum FrameEncoding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[schemars(inline)]
 pub struct CapturePolicy {
     pub width_px: u32,
     pub height_px: u32,
@@ -300,7 +298,6 @@ pub struct AttributionSet {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CreateViewRequest {
     pub scene_layer: LayerId,
-    #[serde(deserialize_with = "crate::transport::deserialize_structured")]
     pub camera: CameraDefinition,
 }
 
@@ -308,7 +305,6 @@ pub struct CreateViewRequest {
 pub struct SetCameraRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
-    #[serde(deserialize_with = "crate::transport::deserialize_structured")]
     pub camera: CameraDefinition,
 }
 
@@ -316,7 +312,6 @@ pub struct SetCameraRequest {
 pub struct CaptureFrameRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
-    #[serde(deserialize_with = "crate::transport::deserialize_structured")]
     pub policy: CapturePolicy,
 }
 
@@ -448,8 +443,8 @@ pub enum ContractError {
 
 #[cfg(test)]
 mod tests {
-    use rmcp::handler::server::tool::schema_for_input;
     use serde_json::{Value, json};
+    use veoveo_mcp_contract::mcp_input_schema as canonical_mcp_input_schema;
 
     use super::*;
 
@@ -480,7 +475,7 @@ mod tests {
     }
 
     fn mcp_input_schema<T: JsonSchema + 'static>() -> Value {
-        let schema = schema_for_input::<T>().expect("request must produce an MCP input schema");
+        let schema = canonical_mcp_input_schema::<T>();
         let schema = Value::Object(schema.as_ref().clone());
         jsonschema::meta::validate(&schema)
             .unwrap_or_else(|error| panic!("invalid generated JSON Schema: {error}"));
@@ -549,60 +544,5 @@ mod tests {
             "policy": capture_policy()
         });
         assert!(jsonschema::is_valid(&capture_schema, &capture));
-    }
-
-    #[test]
-    fn create_view_decodes_camera_object_and_json_string() {
-        let camera = orbit_camera();
-        let direct: CreateViewRequest = serde_json::from_value(json!({
-            "scene_layer": "google-photorealistic",
-            "camera": camera.clone()
-        }))
-        .expect("object camera must decode");
-        let encoded: CreateViewRequest = serde_json::from_value(json!({
-            "scene_layer": "google-photorealistic",
-            "camera": serde_json::to_string(&camera).unwrap()
-        }))
-        .expect("JSON-string camera must decode");
-
-        assert_eq!(direct.camera, encoded.camera);
-    }
-
-    #[test]
-    fn set_camera_decodes_camera_object_and_json_string() {
-        let camera = orbit_camera();
-        let direct: SetCameraRequest = serde_json::from_value(json!({
-            "view_id": "view-1",
-            "expected_revision": 1,
-            "camera": camera.clone()
-        }))
-        .expect("object camera must decode");
-        let encoded: SetCameraRequest = serde_json::from_value(json!({
-            "view_id": "view-1",
-            "expected_revision": 1,
-            "camera": serde_json::to_string(&camera).unwrap()
-        }))
-        .expect("JSON-string camera must decode");
-
-        assert_eq!(direct.camera, encoded.camera);
-    }
-
-    #[test]
-    fn capture_frame_decodes_policy_object_and_json_string() {
-        let policy = capture_policy();
-        let direct: CaptureFrameRequest = serde_json::from_value(json!({
-            "view_id": "view-1",
-            "expected_revision": 1,
-            "policy": policy.clone()
-        }))
-        .expect("object policy must decode");
-        let encoded: CaptureFrameRequest = serde_json::from_value(json!({
-            "view_id": "view-1",
-            "expected_revision": 1,
-            "policy": serde_json::to_string(&policy).unwrap()
-        }))
-        .expect("JSON-string policy must decode");
-
-        assert_eq!(direct.policy, encoded.policy);
     }
 }

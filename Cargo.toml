@@ -6,6 +6,7 @@ members = [
     "mcp/apps-extension",
     "mcp/bridges/stdio",
     "mcp/contract",
+    "mcp/schema-macros",
     "mcp/task-extension",
     "platform/artifacts/client",
     "platform/artifacts/service",
@@ -86,7 +87,9 @@ nix = { version = "0.31.3", features = ["process", "signal"] }
 parking_lot = "0.12.5"
 petgraph = { version = "0.8.3", default-features = false, features = ["std"] }
 polyline = "0.11.0"
+proc-macro2 = "1.0.106"
 proj = { version = "0.31.0", default-features = false, features = ["geo-types", "bundled_proj"] }
+quote = "1.0.46"
 rayon = "1.12.0"
 rangemap = "1.7.1"
 reqwest = { version = "0.13.4", default-features = false }
@@ -116,6 +119,7 @@ serde_json = "1.0.150"
 sguaba = { version = "0.10.3", features = ["serde"] }
 secrecy = "0.10.3"
 sha2 = "0.11.0"
+syn = "2.0.118"
 tokio = "1.52.4"
 tokio-util = "0.7.18"
 thiserror = "2.0.18"
@@ -131,6 +135,7 @@ uuid = { version = "1.23.4", features = ["v4", "v5", "v7"] }
 zeroize = "1.8.2"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
+veoveo-mcp-schema-macros = { path = "mcp/schema-macros" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
 veoveo-rrd = { path = "platform/recordings/rrd" }

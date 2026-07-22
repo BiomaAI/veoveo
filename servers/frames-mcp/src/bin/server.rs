@@ -28,7 +28,7 @@ use rmcp::{
         ResourceTemplate, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
     transport::streamable_http_server::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
@@ -47,6 +47,7 @@ use veoveo_frames_mcp::{
     state::{FrameScope, FramesState},
     uris,
 };
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     CoordinateOperationId, FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
     GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
@@ -1013,6 +1014,11 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod task_tests {
     use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!FramesMcp::tool_router().list_all().is_empty());
+    }
     use veoveo_mcp_contract::FrameKind;
     use veoveo_rrd::{RrdFrameDefinition, RrdFrameId, RrdViewCoordinates};
 

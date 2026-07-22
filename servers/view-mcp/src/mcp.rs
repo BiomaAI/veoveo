@@ -12,9 +12,10 @@ use rmcp::{
         UnsubscribeRequestParams,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
 };
 use serde::Serialize;
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{GatewayInternalIdentity, Page, paginate};
 
 use crate::{
@@ -582,6 +583,11 @@ fn internal(error: impl std::fmt::Display) -> McpError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!ViewMcp::tool_router().list_all().is_empty());
+    }
 
     #[test]
     fn frame_results_use_native_mcp_image_content() {

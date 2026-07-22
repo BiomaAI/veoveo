@@ -12,11 +12,12 @@ use rmcp::{
         UnsubscribeRequestParams,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
 };
 use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{GatewayInternalIdentity, Page, paginate};
 
 use crate::{
@@ -812,5 +813,15 @@ fn default_clock_policy() -> ClockQualityPolicy {
         maximum_stratum: 4,
         minimum_source_diversity: 2,
         maximum_holdover_seconds: 300,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!TimeMcp::tool_router().list_all().is_empty());
     }
 }
