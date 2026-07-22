@@ -8,7 +8,7 @@ use veoveo_recording_forwarder::{
     batch::RecordingAccumulator, client::RecordingIngestClient, config::ClientAssertionAlgorithm,
     oauth::OAuthTokenProvider,
 };
-use veoveo_recording_hub::{collect_segments, inspect_segment};
+use veoveo_recording_hub::{SegmentReadScope, collect_segments, inspect_segment};
 use veoveo_recording_protocol::v1::{
     OpenRecordingStreamRequest, RecordingStreamFinishMode, RecordingStreamState,
 };
@@ -224,7 +224,7 @@ pub(crate) async fn recording_ingest(
         "recording stream did not finish at its durable checkpoint: {finished:?}"
     );
 
-    let segments = collect_segments(&spool_dir)?;
+    let segments = collect_segments(&spool_dir, SegmentReadScope::Frozen)?;
     ensure!(
         segments.len() == 1,
         "expected one immutable segment, found {segments:?}"

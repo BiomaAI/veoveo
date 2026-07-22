@@ -21,6 +21,9 @@ struct Args {
     timeline: String,
     #[arg(long, default_value_t = 1_000_000)]
     max_rows: u64,
+    /// Include immutable RRD parts belonging to the current live tail.
+    #[arg(long, default_value_t = false)]
+    include_active: bool,
 }
 
 fn main() -> Result<()> {
@@ -30,6 +33,11 @@ fn main() -> Result<()> {
         &args.entities,
         &args.timeline,
         args.max_rows,
+        if args.include_active {
+            veoveo_recording_hub::SegmentReadScope::FrozenAndActive
+        } else {
+            veoveo_recording_hub::SegmentReadScope::Frozen
+        },
     )?;
     let total: u64 = result.rows_by_recording.values().sum();
     let out = serde_json::json!({

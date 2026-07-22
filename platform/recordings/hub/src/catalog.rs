@@ -23,7 +23,7 @@ use veoveo_platform_store::{
 use crate::config::DatasetName;
 use crate::governance::{governed_classification, governed_labels};
 use crate::ingest::is_authenticated_ingest_path;
-use crate::query::collect_segments;
+use crate::query::{SegmentReadScope, collect_segments};
 use crate::spool::{FrozenSegment, OpenedSegment, SegmentCatalog, SegmentKey};
 
 #[derive(Clone, Debug)]
@@ -117,7 +117,7 @@ impl PlatformCatalog {
     pub async fn reconcile(&self) -> Result<usize> {
         let mut reconciled = 0;
         let mut recovered_recordings = BTreeSet::new();
-        for path in collect_segments(&self.spool_root)? {
+        for path in collect_segments(&self.spool_root, SegmentReadScope::Frozen)? {
             if is_authenticated_ingest_path(&path) {
                 continue;
             }

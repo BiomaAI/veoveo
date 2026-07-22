@@ -13,8 +13,8 @@ use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::Scalars;
 use veoveo_recording_hub::{
-    DatasetName, DatasetRoute, Spooler, SpoolerConfig, collect_segments, inspect_segment,
-    query_tree, run_blocking,
+    DatasetName, DatasetRoute, SegmentReadScope, Spooler, SpoolerConfig, collect_segments,
+    inspect_segment, query_tree, run_blocking,
 };
 
 #[derive(Parser)]
@@ -97,9 +97,9 @@ async fn restart_kill() -> Result<()> {
     let mut second = spawn_child(&spool, 192 * 1024 * 1024, &["world="])?;
     push(&second.proxy, "sensor-suite", "restart-run", 20, false).await?;
     second.stop()?;
-    let result = query_tree(&spool, "/**", "tick", 10_000)?;
+    let result = query_tree(&spool, "/**", "tick", 10_000, SegmentReadScope::Frozen)?;
     ensure!(result.rows_by_recording.get("restart-run") == Some(&50));
-    let files = collect_segments(&spool)?;
+    let files = collect_segments(&spool, SegmentReadScope::Frozen)?;
     ensure!(
         files.len() == 2,
         "expected crash sibling pair, got {files:?}"
@@ -117,20 +117,20 @@ async fn catalog_rebuild() -> Result<()> {
     let mut child = spawn_child(&spool, 192 * 1024 * 1024, &["world="])?;
     push(&child.proxy, "sensor-suite", "catalog-run", 40, false).await?;
     child.stop()?;
-    let valid = collect_segments(&spool)?;
+    let valid = collect_segments(&spool, SegmentReadScope::Frozen)?;
     ensure!(valid.len() == 1);
     inspect_segment(&valid[0])?;
 
     let corrupt = valid[0].with_file_name("corrupt.rrd");
     std::fs::write(&corrupt, b"not-an-rrd")?;
     ensure!(inspect_segment(&corrupt).is_err());
-    let rebuild = collect_segments(&spool)?
+    let rebuild = collect_segments(&spool, SegmentReadScope::Frozen)?
         .iter()
         .map(|path| inspect_segment(path))
         .collect::<Result<Vec<_>>>();
     ensure!(rebuild.is_err(), "catalog rebuild did not fail closed");
     std::fs::remove_file(&corrupt)?;
-    let rebuilt = query_tree(&spool, "/**", "tick", 10_000)?;
+    let rebuilt = query_tree(&spool, "/**", "tick", 10_000, SegmentReadScope::Frozen)?;
     ensure!(rebuilt.rows_by_recording.get("catalog-run") == Some(&40));
     println!("catalog-rebuild: corruption rejected and 40 rows rebuilt");
     Ok(())
@@ -147,8 +147,20 @@ async fn agent_world() -> Result<()> {
     push(&child.proxy, "veoveo-sim-gnss", "world-run", 25, false).await?;
     push(&child.proxy, "veoveo-agent-pilot", "agent-run", 15, false).await?;
     child.stop()?;
-    let world = query_tree(&spool.join("world"), "/**", "tick", 10_000)?;
-    let agents = query_tree(&spool.join("agents"), "/**", "tick", 10_000)?;
+    let world = query_tree(
+        &spool.join("world"),
+        "/**",
+        "tick",
+        10_000,
+        SegmentReadScope::Frozen,
+    )?;
+    let agents = query_tree(
+        &spool.join("agents"),
+        "/**",
+        "tick",
+        10_000,
+        SegmentReadScope::Frozen,
+    )?;
     ensure!(world.rows_by_recording.get("world-run") == Some(&25));
     ensure!(!world.rows_by_recording.contains_key("agent-run"));
     ensure!(agents.rows_by_recording.get("agent-run") == Some(&15));
@@ -164,9 +176,15 @@ async fn rollover_burst(messages: usize) -> Result<()> {
     let mut child = spawn_child(&spool, 4_096, &["world="])?;
     push(&child.proxy, "burst-suite", "burst-run", messages, true).await?;
     child.stop()?;
-    let result = query_tree(&spool, "/**", "tick", messages as u64 + 1)?;
+    let result = query_tree(
+        &spool,
+        "/**",
+        "tick",
+        messages as u64 + 1,
+        SegmentReadScope::Frozen,
+    )?;
     ensure!(result.rows_by_recording.get("burst-run") == Some(&(messages as u64)));
-    let segments = collect_segments(&spool)?;
+    let segments = collect_segments(&spool, SegmentReadScope::Frozen)?;
     ensure!(
         segments.len() > 1,
         "burst did not exercise segment rollover"
