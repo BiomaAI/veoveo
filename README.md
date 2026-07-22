@@ -74,6 +74,13 @@ disconnects, and leave the same audit trail as every other actor. They
 deploy with the installation, scale with it, and run in the Console or in a
 compatible external host.
 
+## Roadmap
+
+Veoveo is working toward world models built from your operational reality:
+digital twins assembled from the geography, recordings, and telemetry an
+installation already governs, so simulation, rehearsal, and prediction start
+from the world you actually operate.
+
 ## Product Tour
 
 A deployment can begin with the standard server catalog, add its own
@@ -303,6 +310,45 @@ profiles live in their server designs, including
 [`time-mcp`](servers/time-mcp/DESIGN.md#standards-and-protocols),
 [`view-mcp`](servers/view-mcp/DESIGN.md#standards-and-protocols), and
 [`uav-sim-mcp`](servers/uav-sim-mcp/DESIGN.md#standards-and-protocols).
+
+## Tech Stack
+
+Veoveo is built from technology many engineers already run in production:
+Rust services and Python servers, a React and TypeScript Console, Kubernetes
+and Helm underneath, SurrealDB for coordination, DuckDB for analysis, Rerun
+for recordings, and NVIDIA runtimes for simulation and perception. If these
+tools feel like home, so will this repository.
+
+<p align="center">
+  <a href="https://www.rust-lang.org/"><img src="docs/assets/stack/rust.svg" height="40" alt="Rust" title="Rust"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.python.org/"><img src="docs/assets/stack/python.svg" height="40" alt="Python" title="Python"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.typescriptlang.org/"><img src="docs/assets/stack/typescript.svg" height="40" alt="TypeScript" title="TypeScript"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://react.dev/"><img src="docs/assets/stack/react.svg" height="40" alt="React" title="React"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://kubernetes.io/"><img src="docs/assets/stack/kubernetes.svg" height="40" alt="Kubernetes" title="Kubernetes"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://helm.sh/"><img src="docs/assets/stack/helm.svg" height="40" alt="Helm" title="Helm"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.docker.com/"><img src="docs/assets/stack/docker.svg" height="40" alt="Docker" title="Docker"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://opentelemetry.io/"><img src="docs/assets/stack/opentelemetry.svg" height="40" alt="OpenTelemetry" title="OpenTelemetry"></a>
+</p>
+<p align="center">
+  <a href="https://surrealdb.com/"><img src="docs/assets/stack/surrealdb.svg" height="40" alt="SurrealDB" title="SurrealDB"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://duckdb.org/"><img src="docs/assets/stack/duckdb.png" height="40" alt="DuckDB" title="DuckDB"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://rerun.io/"><img src="docs/assets/stack/rerun.png" height="40" alt="Rerun" title="Rerun"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://developer.nvidia.com/isaac/sim"><img src="docs/assets/stack/nvidia.svg" height="40" alt="NVIDIA Isaac Sim" title="NVIDIA Isaac Sim"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://px4.io/"><img src="docs/assets/stack/px4.png" height="40" alt="PX4 Autopilot" title="PX4 Autopilot"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://eclipse.dev/sumo/"><img src="docs/assets/stack/sumo.png" height="40" alt="Eclipse SUMO" title="Eclipse SUMO"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://cesium.com/"><img src="docs/assets/stack/cesium.svg" height="40" alt="Cesium" title="Cesium"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://maplibre.org/"><img src="docs/assets/stack/maplibre.svg" height="40" alt="MapLibre" title="MapLibre"></a>
+</p>
+
+*All logos belong to their respective projects.*
+
+The platform is also designed to be extended, deployed, and operated with
+coding agents. Toolchains are pinned, verification runs as executable
+harnesses, and deployments prove themselves with smoke tests. The same
+boundary that governs human operators governs agents: every action is
+authenticated, scoped by policy, bounded by budgets, and audited, so an
+installation can hand real work to agents and stay in control of what they
+touch.
 
 ## Develop And Verify
 
