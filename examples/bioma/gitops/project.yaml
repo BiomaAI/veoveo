@@ -9,7 +9,7 @@ spec:
   description: Bioma-owned Veoveo installation
   sourceRepos:
     - https://github.com/BiomaAI/veoveo.git
-    - k3d-veoveo-registry.localhost:5000/charts
+    - charts-registry.argocd.svc.cluster.local/charts
   destinations:
     - namespace: veoveo
       server: https://kubernetes.default.svc

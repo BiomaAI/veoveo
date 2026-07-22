@@ -10,7 +10,7 @@ metadata:
 spec:
   project: bioma
   sources:
-    - repoURL: k3d-veoveo-registry.localhost:5000/charts
+    - repoURL: charts-registry.argocd.svc.cluster.local/charts
       chart: veoveo
       targetRevision: 0.1.0-92ba57cdf93d
       helm:
