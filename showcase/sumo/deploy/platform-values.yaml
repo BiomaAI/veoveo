@@ -4,4 +4,8 @@ artifactService:
 perception:
   enabled: false
 
+recording:
+  tenantKey: tenant-a
+  workContext: traffic-operations
+
 domainServices: []
