@@ -318,15 +318,15 @@ pub(crate) async fn media_task_run(
         )],
     )?;
 
-    // Artifact access on the shared plane is principal + tenant + label + grant
-    // scoped, not gateway-profile scoped. A different principal in the same
-    // tenant holds no grant, so the plane denies the read (need-to-know).
+    // A principal outside the artifact's work context and grants cannot read it.
     assert_direct_mcp_denied(
         conformance,
         &mcp_url,
         [
             "--internal-principal-subject".into(),
             "intruder".into(),
+            "--internal-work-context".into(),
+            "intruder-context".into(),
             "artifact".into(),
             structured.artifacts[0].artifact_id.clone().into(),
             "--output-dir".into(),

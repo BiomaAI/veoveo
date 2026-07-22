@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use anyhow::bail;
+use anyhow::{bail, ensure};
 
 use super::client::{Client, FinalTaskClient};
 use super::*;
@@ -57,6 +57,8 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
         println!("instructions:\n{instructions}");
     }
     let tools = client.list_tools(Default::default()).await?;
+    validate_tool_schemas(&tools.tools)?;
+    println!("schema compatibility: {} tool(s) valid", tools.tools.len());
     for tool in tools.tools {
         println!(
             "\ntool `{}` (task support: {:?})",
@@ -92,6 +94,104 @@ pub(super) async fn cmd_info(client: &Client) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn validate_tool_schemas(tools: &[Tool]) -> Result<()> {
+    for tool in tools {
+        let schema = Value::Object(tool.input_schema.as_ref().clone());
+        jsonschema::meta::validate(&schema)
+            .map_err(|error| anyhow!("tool `{}` input schema is invalid: {error}", tool.name))?;
+        ensure!(
+            schema.get("type").and_then(Value::as_str) == Some("object"),
+            "tool `{}` input schema must have an object root: {schema}",
+            tool.name
+        );
+        ensure!(
+            !contains_key(&schema, "$ref"),
+            "tool `{}` input schema must be self-contained: {schema}",
+            tool.name
+        );
+        validate_property_types(&tool.name, &schema, "$")?;
+        validate_object_union_types(&tool.name, &schema, "$")?;
+    }
+    Ok(())
+}
+
+fn validate_property_types(tool: &str, value: &Value, path: &str) -> Result<()> {
+    match value {
+        Value::Object(object) => {
+            if let Some(properties) = object.get("properties").and_then(Value::as_object) {
+                for (name, property) in properties {
+                    ensure!(
+                        property.get("type").is_some(),
+                        "tool `{tool}` does not expose the JSON type at {path}/properties/{name}: {property}"
+                    );
+                }
+            }
+            for (name, child) in object {
+                validate_property_types(tool, child, &format!("{path}/{name}"))?;
+            }
+        }
+        Value::Array(values) => {
+            for (index, child) in values.iter().enumerate() {
+                validate_property_types(tool, child, &format!("{path}/{index}"))?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn contains_key(value: &Value, key: &str) -> bool {
+    match value {
+        Value::Object(object) => {
+            object.contains_key(key) || object.values().any(|value| contains_key(value, key))
+        }
+        Value::Array(values) => values.iter().any(|value| contains_key(value, key)),
+        _ => false,
+    }
+}
+
+fn validate_object_union_types(tool: &str, value: &Value, path: &str) -> Result<()> {
+    match value {
+        Value::Object(object) => {
+            for keyword in ["oneOf", "anyOf"] {
+                if let Some(variants) = object.get(keyword).and_then(Value::as_array)
+                    && !variants.is_empty()
+                    && variants.iter().all(schema_is_object)
+                {
+                    ensure!(
+                        schema_accepts_object(object.get("type")),
+                        "tool `{tool}` must expose object type at {path}: {value}"
+                    );
+                }
+            }
+            for (name, child) in object {
+                validate_object_union_types(tool, child, &format!("{path}/{name}"))?;
+            }
+        }
+        Value::Array(values) => {
+            for (index, child) in values.iter().enumerate() {
+                validate_object_union_types(tool, child, &format!("{path}/{index}"))?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn schema_is_object(value: &Value) -> bool {
+    value
+        .as_object()
+        .is_some_and(|schema| schema_accepts_object(schema.get("type")))
+}
+
+fn schema_accepts_object(value: Option<&Value>) -> bool {
+    match value {
+        Some(Value::String(value)) => value == "object",
+        Some(Value::Array(values)) => values.iter().any(|value| value == "object"),
+        _ => false,
+    }
 }
 
 pub(super) fn cmd_models_from_catalog(

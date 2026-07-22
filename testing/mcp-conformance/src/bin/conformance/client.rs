@@ -245,7 +245,7 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         authenticated_at: Some(Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: WorkContextId::new("conformance")?,
+        work_context: WorkContextId::new(args.internal_work_context.clone())?,
         tenant: TenantId::new(args.internal_tenant.clone())?,
         membership: WorkContextMembershipLevel::Owner,
         policy_revision: PolicyVersion::new("r1")?,
