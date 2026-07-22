@@ -19,6 +19,13 @@ component:
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 
+Exploratory documents preserve open design work. They are not normative and do not
+authorize implementation:
+
+| Document | Exploration |
+|---|---|
+| [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, and possible self-improving harness boundaries |
+
 MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
