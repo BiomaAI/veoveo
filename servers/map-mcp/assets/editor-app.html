@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Map feature editor</title>
+<style>
+  :root { --surface:#f7f8f8; --panel:#fff; --ink:#18212b; --muted:#66727e; --line:#dce1e5;
+    --accent:#2877d4; --good:#16845e; --bad:#bd3535; }
+  :root[data-theme="dark"] { --surface:#181a1c; --panel:#222528; --ink:#eef0f2; --muted:#a2abb4;
+    --line:#3a4046; --accent:#4994ec; --good:#43bc8e; --bad:#ed7777; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:14px; color:var(--ink); background:var(--surface);
+    font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  h1 { margin:0; font-size:16px; } h2 { margin:0 0 9px; font-size:13px; }
+  header span,.muted { color:var(--muted); } header .spacer { flex:1; }
+  main { display:grid; grid-template-columns:minmax(260px,0.7fr) minmax(420px,1.3fr); gap:12px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:11px; margin-bottom:12px; }
+  label { display:flex; flex-direction:column; gap:3px; color:var(--muted); font-size:11px; margin-bottom:7px; }
+  input,select,textarea,button { color:var(--ink); background:var(--surface); border:1px solid var(--line);
+    border-radius:5px; padding:6px 8px; font:inherit; }
+  textarea { width:100%; resize:vertical; font:11px/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace; }
+  button { cursor:pointer; font-weight:600; } button.primary { background:var(--accent); color:white; border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; }
+  .item { border-top:1px solid var(--line); padding:7px 0; } .item:first-child { border-top:0; }
+  .mono { font:11px ui-monospace,"SFMono-Regular",Consolas,monospace; overflow-wrap:anywhere; }
+  .status { min-height:20px; margin:8px 0; color:var(--muted); white-space:pre-wrap; }
+  .status.good { color:var(--good); } .status.bad { color:var(--bad); }
+  pre { margin:0; max-height:330px; overflow:auto; padding:8px; background:var(--surface); border-radius:5px;
+    white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace; }
+  @media(max-width:820px) { main { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header><h1>Map feature editor</h1><span>Governed GeoJSON and JSON-FG authoring</span><span class="spacer"></span><button id="refresh">Refresh</button></header>
+<div id="status" class="status">Connecting to the MCP host…</div>
+<main>
+  <div>
+    <section>
+      <h2>Feature layers</h2>
+      <label>Active layer<select id="layer-select"></select></label>
+      <div id="layer-detail" class="muted">No layer selected.</div>
+      <div class="actions"><button id="publish">Publish current revision</button></div>
+    </section>
+    <section>
+      <h2>Create layer</h2>
+      <form id="layer-form">
+        <label>Title<input id="layer-title" required maxlength="256"></label>
+        <label>Content class<select id="content-class"><option>reference</option><option>named_locations</option><option>facilities</option><option>boundaries</option><option>network_candidate</option></select></label>
+        <label>JSON Schema 2020-12<textarea id="schema-json" rows="8" spellcheck="false">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":true}</textarea></label>
+        <button class="primary" type="submit">Create layer</button>
+      </form>
+    </section>
+    <section>
+      <h2>Composition</h2>
+      <label>Create request JSON<textarea id="composition-json" rows="10" spellcheck="false">{"title":"Operational map","layers":[],"view":{"center":{"longitude_deg":-89.2,"latitude_deg":13.7},"zoom":10,"bearing_deg":0,"pitch_deg":0}}</textarea></label>
+      <button id="create-composition">Create composition</button>
+      <div id="compositions"></div>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Create feature changeset</h2>
+      <label>FeatureInput JSON<textarea id="feature-json" rows="17" spellcheck="false">{"geometry":{"type":"Point","coordinates":[-89.2,13.7]},"properties":{"name":"New place"},"semantic_type":"place","title":"New place","related_resources":[],"evidence_resources":[]}</textarea></label>
+      <div class="actions"><button id="validate">Validate</button><button class="primary" id="commit">Commit</button></div>
+      <pre id="validation">No validation run.</pre>
+    </section>
+    <section>
+      <h2>Current features</h2>
+      <div class="actions"><button id="query">Query first 100</button></div>
+      <pre id="features">[]</pre>
+    </section>
+  </div>
+</main>
+<script>
+"use strict";
+const bridge=(()=>{let next=1;const pending=new Map(),handlers=new Map();const post=m=>parent.postMessage(m,"*");
+  addEventListener("message",e=>{const m=e.data;if(!m||m.jsonrpc!=="2.0")return;if(m.id!==undefined&&(m.result!==undefined||m.error!==undefined)){const p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(new Error(m.error.message||"host error")):p.resolve(m.result);return;}const h=handlers.get(m.method);if(h)h(m.params,m.id);});
+  return{request:(method,params)=>new Promise((resolve,reject)=>{const id=next++;pending.set(id,{resolve,reject});post({jsonrpc:"2.0",id,method,params});}),notify:(method,params)=>post({jsonrpc:"2.0",method,params}),on:(method,h)=>handlers.set(method,h),post};})();
+const state={layers:[],publications:[],compositions:[]};
+const el=id=>document.getElementById(id);
+function selected(){return state.layers.find(layer=>layer.layer_id===el("layer-select").value);}
+function key(){return typeof crypto.randomUUID==="function"?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,"0")).join("");}
+function status(text,kind=""){el("status").textContent=text;el("status").className=`status ${kind}`;}
+async function read(uri){const result=await bridge.request("resources/read",{uri});const content=(result.contents||[])[0];if(!content||typeof content.text!=="string")throw new Error(`No JSON returned for ${uri}`);return JSON.parse(content.text);}
+async function tool(name,args){const result=await bridge.request("tools/call",{name,arguments:args});if(result&&(result.isError||result.is_error)){const text=(result.content||[]).find(v=>v.type==="text");throw new Error(text?text.text:`${name} failed`);}return result.structuredContent||result.structured_content||result;}
+function render(){const select=el("layer-select"),prior=select.value;select.replaceChildren();for(const layer of state.layers){const option=document.createElement("option");option.value=layer.layer_id;option.textContent=`${layer.title} · r${layer.revision}`;select.append(option);}if(state.layers.some(v=>v.layer_id===prior))select.value=prior;const layer=selected(),detail=el("layer-detail");if(layer){const id=document.createElement("div"),schema=document.createElement("div");id.className="mono";id.textContent=layer.layer_id;schema.textContent=`${layer.content_class} · schema v${layer.schema.version}`;detail.replaceChildren(id,schema);}else{detail.textContent="No layer selected.";}el("publish").disabled=!layer;el("validate").disabled=!layer;el("commit").disabled=!layer;el("query").disabled=!layer;el("compositions").replaceChildren(...state.compositions.map(value=>{const node=document.createElement("div");node.className="item";node.textContent=`${value.title} · r${value.current.revision}`;return node;}));}
+async function load(){status("Loading authored map resources…");[state.layers,state.publications,state.compositions]=await Promise.all([read("map://feature-layers"),read("map://publications"),read("map://compositions")]);render();status(`Loaded ${state.layers.length} layer(s), ${state.publications.length} publication(s), and ${state.compositions.length} composition(s).`,"good");}
+async function action(fn){try{status("Applying governed operation…");await fn();await load();}catch(error){status(error.message,"bad");}}
+el("refresh").onclick=()=>action(load);el("layer-select").onchange=render;
+el("layer-form").onsubmit=event=>{event.preventDefault();void action(async()=>{await tool("create_feature_layer",{title:el("layer-title").value,content_class:el("content-class").value,property_schema:JSON.parse(el("schema-json").value)});event.target.reset();});};
+function mutationRequest(){const layer=selected();if(!layer)throw new Error("Select a feature layer first.");return{layer_id:layer.layer_id,expected_layer_revision:layer.revision,mutations:[{action:"create",feature:JSON.parse(el("feature-json").value)}]};}
+el("validate").onclick=()=>action(async()=>{const result=await tool("validate_feature_changes",mutationRequest());el("validation").textContent=JSON.stringify(result,null,2);});
+el("commit").onclick=()=>action(async()=>{const request=mutationRequest();request.idempotency_key=key();const result=await tool("commit_feature_changes",request);el("validation").textContent=JSON.stringify(result,null,2);});
+el("query").onclick=()=>action(async()=>{const layer=selected();const result=await tool("query_features",{layer_id:layer.layer_id,limit:100});el("features").textContent=JSON.stringify(result,null,2);});
+el("publish").onclick=()=>action(async()=>{const layer=selected();await tool("publish_feature_layer",{layer_id:layer.layer_id,expected_layer_revision:layer.revision});});
+el("create-composition").onclick=()=>action(async()=>{await tool("create_map_composition",JSON.parse(el("composition-json").value));});
+function hostContext(context){if(context&&(context.theme==="dark"||context.theme==="light"))document.documentElement.dataset.theme=context.theme;}
+bridge.on("ui/notifications/host-context-changed",params=>hostContext(params&&(params.hostContext||params)));
+bridge.on("ui/notifications/tool-result",()=>void load());
+bridge.on("ui/resource-teardown",(_params,id)=>{if(id!==undefined)bridge.post({jsonrpc:"2.0",id,result:{}});});
+(async()=>{try{const initialized=await bridge.request("ui/initialize",{protocolVersion:"2026-01-26",appInfo:{name:"map-feature-editor",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}});bridge.notify("ui/notifications/initialized",{});hostContext(initialized&&initialized.hostContext);await load();}catch(error){status(`Host initialization failed: ${error.message}`,"bad");}})();
+</script>
+</body>
+</html>

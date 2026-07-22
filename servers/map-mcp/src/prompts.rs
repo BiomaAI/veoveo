@@ -10,10 +10,16 @@ pub enum MapPrompt {
     PrepareRoute,
     ReviewRoute,
     PrepareMatrix,
+    AuthorFeatureLayer,
 }
 
 impl MapPrompt {
-    pub const ALL: [Self; 3] = [Self::PrepareRoute, Self::ReviewRoute, Self::PrepareMatrix];
+    pub const ALL: [Self; 4] = [
+        Self::PrepareRoute,
+        Self::ReviewRoute,
+        Self::PrepareMatrix,
+        Self::AuthorFeatureLayer,
+    ];
 
     pub fn by_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|value| value.name() == name)
@@ -24,6 +30,7 @@ impl MapPrompt {
             Self::PrepareRoute => "prepare_route_request",
             Self::ReviewRoute => "review_route",
             Self::PrepareMatrix => "prepare_logistics_matrix",
+            Self::AuthorFeatureLayer => "author_feature_layer",
         }
     }
 
@@ -59,6 +66,24 @@ impl MapPrompt {
                     ),
                 ],
             ),
+            Self::AuthorFeatureLayer => (
+                "Author feature layer",
+                "Prepare a governed feature-layer change, validation, commit, and optional publication.",
+                vec![
+                    required(
+                        "objective",
+                        "The map content to create or change and its intended use.",
+                    ),
+                    optional(
+                        "layer_id",
+                        "Existing feature layer id, when updating a layer.",
+                    ),
+                    optional(
+                        "source_artifact_id",
+                        "Authorized artifact id for a bulk GeoJSON import.",
+                    ),
+                ],
+            ),
         };
         Prompt::new(self.name(), Some(description), Some(arguments)).with_title(title)
     }
@@ -73,6 +98,9 @@ impl MapPrompt {
             route_id: Option<String>,
             origins: Option<String>,
             destinations: Option<String>,
+            objective: Option<String>,
+            layer_id: Option<String>,
+            source_artifact_id: Option<String>,
         }
         let arguments: Arguments =
             serde_json::from_value(Value::Object(arguments.unwrap_or_default()))
@@ -98,11 +126,44 @@ impl MapPrompt {
                 origins = required_value(arguments.origins, "origins")?,
                 destinations = required_value(arguments.destinations, "destinations")?,
             ),
+            Self::AuthorFeatureLayer => format!(
+                "Author this map content: {objective}. {layer} Read the layer, schema, and style resources before changing existing content. Use validate_feature_changes before commit_feature_changes, keep the returned base revisions unchanged, and resolve every conflict explicitly rather than overwriting it. Use import_feature_layer as a durable task for {input}; use direct changesets only for bounded interactive edits. Query the committed head and inspect its changeset resource. Publish only when an immutable release is required, then use export_feature_layer or build_vector_tiles as durable tasks for derived artifacts. Never treat generic authored features as routing restrictions or routable network data.",
+                objective = required_value(arguments.objective, "objective")?,
+                layer = arguments.layer_id.as_deref().map_or_else(
+                    || "Create a layer with an explicit content class, JSON Schema 2020-12 property contract, and safe style.".to_owned(),
+                    |layer_id| format!("Work in map://feature-layer/{layer_id}.")
+                ),
+                input = arguments.source_artifact_id.as_deref().unwrap_or(
+                    "an authorized RFC 7946 GeoJSON, OGC JSON-FG 1.0, or RFC 8142 sequence artifact"
+                ),
+            ),
         };
         Ok(GetPromptResult::new(vec![PromptMessage::new_text(
             Role::User,
             text,
         )]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn authoring_prompt_requires_an_objective_and_explains_governance() {
+        let arguments = serde_json::from_value(json!({
+            "objective": "map inspected culverts",
+            "layer_id": "feature-layer-019be7be-68f8-7000-8000-000000000001"
+        }))
+        .unwrap();
+        let rendered = MapPrompt::AuthorFeatureLayer
+            .render(Some(arguments))
+            .unwrap();
+        let text = serde_json::to_string(&rendered).unwrap();
+        assert!(text.contains("validate_feature_changes"));
+        assert!(text.contains("commit_feature_changes"));
+        assert!(text.contains("Never treat generic authored features as routing restrictions"));
     }
 }
 

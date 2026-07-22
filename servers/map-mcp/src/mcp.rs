@@ -61,6 +61,23 @@ const ADMIN_TOOLS: &[&str] = &[
     "quarantine_release",
 ];
 
+const EDITOR_TOOLS: &[&str] = &[
+    "archive_feature_layer",
+    "archive_map_composition",
+    "build_vector_tiles",
+    "commit_feature_changes",
+    "create_feature_layer",
+    "create_map_composition",
+    "export_feature_layer",
+    "import_feature_layer",
+    "publish_feature_layer",
+    "query_features",
+    "restore_feature",
+    "update_feature_layer",
+    "update_map_composition",
+    "validate_feature_changes",
+];
+
 /// Self-contained icon for the admin app (lucide `map-pinned` outline).
 const ADMIN_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0YTdkZDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTggOGMwIDMuNjEzLTMuODY5IDcuNDI5LTUuMzkzIDguNzk1YTEgMSAwIDAgMS0xLjIxNCAwQzkuODcgMTUuNDI5IDYgMTEuNjEzIDYgOGE2IDYgMCAwIDEgMTIgMCIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iMiIvPjxwYXRoIGQ9Ik04LjcxNCAxNGgtMy43MWExIDEgMCAwIDAtLjk0OC42ODNsLTIuMDA0IDZBMSAxIDAgMCAwIDMgMjJoMThhMSAxIDAgMCAwIC45NDgtMS4zMTZsLTItNmExIDEgMCAwIDAtLjk0OS0uNjg0aC0zLjcxMiIvPjwvc3ZnPg==";
 
@@ -567,7 +584,7 @@ impl ServerHandler for MapMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
+            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Use durable tasks to import an authorized GeoJSON artifact, export a publication as GeoJSON Sequence or GeoParquet 1.0, or build an MVT 2.1 bundle. Compose publication pins through map://composition resources or the ui://map/editor.html MCP App. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
                 .to_owned(),
         );
         info
@@ -588,6 +605,15 @@ impl ServerHandler for MapMcp {
                     veoveo_mcp_apps_extension::link_tool_to_app(
                         tool,
                         uris::ADMIN_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else if EDITOR_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::EDITOR_APP_URI,
                         &[
                             veoveo_mcp_apps_extension::UiVisibility::Model,
                             veoveo_mcp_apps_extension::UiVisibility::App,
@@ -751,6 +777,14 @@ impl ServerHandler for MapMcp {
             }
         }
         if identity_has_scope(&identity, "map:feature:read") {
+            resources.push(
+                veoveo_mcp_apps_extension::app_resource(uris::EDITOR_APP_URI, "map-editor-app")
+                    .with_title("Map feature editor")
+                    .with_description(
+                        "Interactive MCP App for governed feature layers, changesets, publications, and compositions.",
+                    )
+                    .with_icons(vec![rmcp::model::Icon::new(ADMIN_APP_ICON)]),
+            );
             resources.push(json_resource_descriptor(
                 uris::FEATURE_LAYERS_URI.to_owned(),
                 "Authored feature layers".to_owned(),
@@ -976,6 +1010,15 @@ impl ServerHandler for MapMcp {
                 veoveo_mcp_apps_extension::app_html_contents(
                     uri,
                     include_str!("../assets/admin-app.html"),
+                ),
+            ]));
+        }
+        if uri == uris::EDITOR_APP_URI {
+            require_scope(&context, "map:feature:read")?;
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(
+                    uri,
+                    include_str!("../assets/editor-app.html"),
                 ),
             ]));
         }
@@ -1235,6 +1278,24 @@ impl ServerHandler for MapMcp {
                 );
             }
         }
+        if let Some(artifact_id) = uris::parse_artifact(uri) {
+            require_any_scope(&context, &["map:dataset:read", "map:feature:read"])?;
+            let artifact = self
+                .state
+                .artifacts
+                .get(&internal_caller(&context)?, &artifact_id)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| not_found("artifact"))?;
+            let content = ResourceContents::blob(BASE64_STANDARD.encode(&artifact.bytes), uri)
+                .with_mime_type(
+                    artifact
+                        .metadata
+                        .mime_type
+                        .unwrap_or_else(|| "application/octet-stream".to_owned()),
+                );
+            return Ok(ReadResourceResult::new(vec![content]));
+        }
         let identity = require_scope(&context, "map:dataset:read")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         match uri {
@@ -1441,23 +1502,6 @@ impl ServerHandler for MapMcp {
                     .ok_or_else(|| not_found("matrix"))?,
             );
         }
-        if let Some(artifact_id) = uris::parse_artifact(uri) {
-            let artifact = self
-                .state
-                .artifacts
-                .get(&internal_caller(&context)?, &artifact_id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("artifact"))?;
-            let content = ResourceContents::blob(BASE64_STANDARD.encode(&artifact.bytes), uri)
-                .with_mime_type(
-                    artifact
-                        .metadata
-                        .mime_type
-                        .unwrap_or_else(|| "application/octet-stream".to_owned()),
-                );
-            return Ok(ReadResourceResult::new(vec![content]));
-        }
         Err(McpError::resource_not_found(
             format!("unknown Map resource `{uri}`"),
             None,
@@ -1636,6 +1680,23 @@ fn require_scope(
     if !identity_has_scope(&identity, required) {
         return Err(McpError::invalid_request(
             format!("scope `{required}` is required"),
+            None,
+        ));
+    }
+    Ok(identity)
+}
+
+fn require_any_scope(
+    context: &RequestContext<RoleServer>,
+    required: &[&str],
+) -> Result<GatewayInternalIdentity, McpError> {
+    let identity = internal_identity(context)?;
+    if !required
+        .iter()
+        .any(|required| identity_has_scope(&identity, required))
+    {
+        return Err(McpError::invalid_request(
+            format!("one of scopes [{}] is required", required.join(", ")),
             None,
         ));
     }
@@ -1930,6 +1991,7 @@ mod admin_app_tests {
     }
 
     const ADMIN_APP: &str = include_str!("../assets/admin-app.html");
+    const EDITOR_APP: &str = include_str!("../assets/editor-app.html");
 
     #[test]
     fn acquisition_idempotency_uses_the_browser_uuid_generator() {
@@ -1943,5 +2005,24 @@ mod admin_app_tests {
         assert!(ADMIN_APP.contains("Enter west, south, east, and north coverage bounds"));
         assert!(ADMIN_APP.contains(r#"submit.textContent = "Starting…";"#));
         assert!(ADMIN_APP.contains("result.isError || result.is_error"));
+    }
+
+    #[test]
+    fn editor_uses_only_canonical_mcp_resources_and_tools() {
+        assert!(EDITOR_APP.contains("resources/read"));
+        assert!(EDITOR_APP.contains("tools/call"));
+        for tool in [
+            "create_feature_layer",
+            "validate_feature_changes",
+            "commit_feature_changes",
+            "query_features",
+            "publish_feature_layer",
+            "create_map_composition",
+        ] {
+            assert!(EDITOR_APP.contains(tool), "editor is missing {tool}");
+        }
+        assert!(!EDITOR_APP.contains("fetch("));
+        assert!(!EDITOR_APP.contains("XMLHttpRequest"));
+        assert!(!EDITOR_APP.contains("innerHTML"));
     }
 }
