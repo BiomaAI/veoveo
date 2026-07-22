@@ -6,7 +6,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-REQUEST_SCHEMA = "veoveo.reason-runner-request/v2"
+REQUEST_SCHEMA = "veoveo.reason-runner-request/v3"
 RESPONSE_SCHEMA = "veoveo.reason-runner-response/v1"
 
 
@@ -22,6 +22,7 @@ class IndexRange(_Model):
 class Observation(_Model):
     width: int
     height: int
+    maximum_frames: int = Field(ge=1, le=1_024)
 
 
 class RunnerPipeline(_Model):

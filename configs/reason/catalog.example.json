@@ -25,7 +25,8 @@
       "prompt_revision": "v1",
       "observation": {
         "width": 640,
-        "height": 360
+        "height": 360,
+        "maximum_frames": 6
       }
     }
   ]

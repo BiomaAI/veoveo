@@ -27,13 +27,17 @@ from .protocol import (
 from .video import ObservedFrame, sample_frames
 
 
+def observation_frame_limit(request: RunnerRequest) -> int:
+    return min(request.sampling.max_frames, request.pipeline.observation.maximum_frames)
+
+
 def run(request: RunnerRequest) -> RunnerResponse:
     from pathlib import Path
 
     started = time.monotonic()
     frames = sample_frames(
         Path(request.input_mp4),
-        request.sampling.max_frames,
+        observation_frame_limit(request),
         request.pipeline.observation.width,
         request.pipeline.observation.height,
         request.decode_start_index,

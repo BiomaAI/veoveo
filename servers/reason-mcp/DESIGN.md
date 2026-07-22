@@ -60,9 +60,10 @@ and one typed reasoning task:
   an inclusive source-timeline index range, a short label, and a description.
 - `answer_question` produces a text answer to one question about the range.
 
-Frame sampling is explicit. A pipeline declares its observation resolution,
-and the request bounds how many observation frames the model receives. The
-runner reports how many frames it actually observed.
+Frame sampling is explicit. A pipeline declares its observation resolution
+and the maximum frame count proven to fit its model, prompt, and context
+budget. A request may select a lower maximum. The runner applies the tighter
+bound and reports how many frames it actually observed.
 
 Every result carries its audit identity: the model, the optional engine
 digest from the catalog, the prompt template revision, and the decode
