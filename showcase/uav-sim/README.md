@@ -1,6 +1,6 @@
 # UAV simulation showcase
 
-This showcase runs UAV simulation as a first-class Bioma workload. Isaac Sim
+This showcase runs UAV simulation as a first-class Veoveo workload. Isaac Sim
 renders Google Photorealistic 3D Tiles through Cesium ion, Pegasus supplies the
 multirotor dynamics and PX4 bridge, and Veoveo governs the resulting sessions,
 missions, recordings, and perception work.
@@ -27,8 +27,8 @@ complementary and does not replace the tiles loaded inside Isaac.
 - `runtime/` owns the immutable Isaac, Cesium, Pegasus, and PX4 dependency
   base, the thin runtime overlay, the pod-private typed adapter, and conversion
   of sensor and world state into Rerun.
-- `deploy/` owns commit-addressed OCI publication and the interactive and batch
-  Kubernetes workloads.
+- `deploy/` owns the independently packaged Helm chart and the interactive and
+  batch Kubernetes workloads.
 - `scenarios/` owns runtime-loaded live mission and acceptance inputs. These
   files are deliberately outside the Isaac image build context.
 - `dependencies.lock.json` records every upstream version, commit, digest, and
@@ -51,7 +51,7 @@ application and recording keys.
 
 ## Credentials
 
-Local Bioma provisioning reads `CESIUM_ION_ACCESS_TOKEN` and
+The Bioma reference installation reads `CESIUM_ION_ACCESS_TOKEN` and
 `VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM` from the main worktree's `.env`.
 It writes them to the dedicated `veoveo-uav-sim-secrets` and
 `veoveo-recording-producer` Secrets. The platform installation Secret remains
@@ -77,7 +77,7 @@ operator decision.
 
 Isaac Sim, View, and Perception run concurrently. Each workload declares its
 GPU request, while the cluster provides enough schedulable capacity for the
-complete profile. No chart mode suspends an existing GPU workload to admit a
+complete installation. No chart mode suspends an existing GPU workload to admit a
 simulation session.
 
 The application chart consumes the standard NVIDIA runtime class and
@@ -163,18 +163,16 @@ MCP. Validate the runtime and deployment composition with:
 ```bash
 just showcase-uav-sim-test
 just helm-check
-just profile-validate examples/bioma/deployment.json
+kubectl kustomize examples/bioma >/dev/null
 ```
 
-The normal profile flow provisions the Secrets, publishes the selected platform
-and UAV image groups under one Git revision, and installs both charts:
+The simulator is an independent OCI chart. The Bioma enterprise reference selects
+that chart from a child Argo CD Application after its installation owner provisions
+the referenced Secrets:
 
 ```bash
-PROFILE=examples/bioma/deployment.json
-REVISION=$(git rev-parse HEAD)
-just profile-cluster-up "$PROFILE"
-just profile-publish "$PROFILE" "$REVISION"
-just profile-up "$PROFILE" "$REVISION"
+kubectl --context k3d-veoveo-bioma -n argocd get application bioma-uav-sim
+argocd app get bioma-uav-sim
 ```
 
 Interactive mode creates one `uav-sim` Deployment containing the Isaac runtime
@@ -184,23 +182,23 @@ Isaac, shader, and Cesium cache generation beneath its own directory. Changing
 the cache version starts clean without allowing interactive and batch writers
 to share files. Runtime data and shared memory remain ephemeral.
 
-The generic profile publisher resolves a full Git commit and builds it from a
-detached worktree. Docker Bake connects the runtime target directly to the UAV
-base target, while the registry stores Isaac, Cesium, Pegasus, PX4, and Python
-layers once. A runtime-only change rebuilds the final source-copy layer and the
-registry transfers only missing blobs. Edit `scenarios/bioma-aerial.json` and rerun
+Docker Bake connects the runtime target directly to the UAV base target, while the
+registry stores Isaac, Cesium, Pegasus, PX4, and Python layers once. A runtime-only
+change rebuilds the final source-copy layer and the registry transfers only missing
+blobs. Edit `scenarios/bioma-aerial.json` and rerun
 `just bioma-uav-sim-verify`; a mission-only change performs no image build,
 push, or Helm rollout.
 
-[`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md)
-defines the shared registry and enterprise profile contract.
+[`../../docs/ENTERPRISE_DEPLOYMENT.md`](../../docs/ENTERPRISE_DEPLOYMENT.md)
+defines the OCI, configuration, Secret, and GitOps ownership contract. The executable
+reference is under [`../../examples/bioma`](../../examples/bioma).
 
 Development deployments derive the image tag from the same Git commit. A
 production render sets
-`global.production=true` and must provide `images.runtime.digest`,
-`images.mcp.digest`, and `images.forwarder.digest`; Helm fails before producing
-a manifest when a digest is absent. CI records the published digests in the
-deployment values rather than treating a tag as immutable.
+`global.production=true` and must provide every owned image in
+`global.imageDigests`; Helm fails before producing a manifest when a digest is
+absent. The release pipeline records published digests in the installation image
+lock rather than treating a tag as immutable.
 
 Run the credentialed acceptance after all three GPU deployments are available:
 

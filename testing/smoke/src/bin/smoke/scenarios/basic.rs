@@ -142,6 +142,8 @@ pub(crate) async fn helm_config() -> Result<()> {
             "examples/bioma/values.yaml".into(),
             "--values".into(),
             "examples/bioma/k3d-values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/images.lock.yaml".into(),
         ],
         [],
     )?;
@@ -168,7 +170,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             bail!("Bioma k3d render must not contain `{forbidden}`");
         }
     }
-    let bioma_tunnel = fs::read_to_string("examples/bioma/tunnel.yaml")?;
+    let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
     for forbidden in ["--token", "$(TUNNEL_TOKEN)"] {
         if bioma_tunnel.contains(forbidden) {
@@ -206,14 +208,16 @@ pub(crate) async fn helm_config() -> Result<()> {
             "veoveo".into(),
             "--values".into(),
             "examples/bioma/uav-sim-values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/images.lock.yaml".into(),
         ],
         [],
     )?;
     for expected in [
         "name: uav-sim-mcp",
         "name: isaac-sim",
-        "image: veoveo/uav-sim-runtime:6.0.1",
-        "image: veoveo/uav-sim-mcp:0.1.0",
+        "image: k3d-veoveo-registry.localhost:5000/veoveo/uav-sim-runtime@sha256:",
+        "image: k3d-veoveo-registry.localhost:5000/veoveo/uav-sim-mcp@sha256:",
         "runtimeClassName: nvidia",
         "name: CESIUM_ION_ACCESS_TOKEN",
         "name: veoveo-uav-sim-secrets",
@@ -229,7 +233,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "claimName: uav-sim-runtime-cache",
         "name: uav-sim-recording-forwarder",
         "claimName: uav-sim-recording-forwarder",
-        "image: veoveo/recording-forwarder:0.1.0",
+        "image: k3d-veoveo-registry.localhost:5000/veoveo/recording-forwarder@sha256:",
         "http://mcp-gateway:8788/",
         "name: UAV_SIM_CAMERA_FOCAL_LENGTH_MM",
         "value: \"8\"",
@@ -269,6 +273,8 @@ pub(crate) async fn helm_config() -> Result<()> {
             "veoveo".into(),
             "--values".into(),
             "examples/bioma/uav-sim-values.yaml".into(),
+            "--values".into(),
+            "examples/bioma/images.lock.yaml".into(),
             "--set".into(),
             "interactive.enabled=false".into(),
             "--set".into(),
@@ -286,7 +292,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "claimName: uav-sim-batch-runtime-cache",
         "name: uav-sim-batch-recording-forwarder",
         "claimName: uav-sim-batch-recording-forwarder",
-        "image: veoveo/recording-forwarder:0.1.0",
+        "image: k3d-veoveo-registry.localhost:5000/veoveo/recording-forwarder@sha256:",
     ] {
         contains(&uav_batch, expected)?;
     }
@@ -504,14 +510,48 @@ pub(crate) async fn helm_config() -> Result<()> {
         "profile-publish profile revision='HEAD':",
         "profile-up profile revision='HEAD':",
         "profile-cluster-up profile:",
+        "charts-publish registry version revision='HEAD' plain_http='false':",
     ] {
         contains(&justfile, expected)?;
     }
     for forbidden in ["k3d image import", "docker save", "bioma-build:"] {
         not_contains(&justfile, forbidden)?;
     }
-    crate::deployment::profile_validate(Path::new("examples/bioma/deployment.json"))?;
+    ensure!(
+        !Path::new("examples/bioma/deployment.json").exists(),
+        "Bioma must use its enterprise GitOps contract rather than a deployment profile"
+    );
     crate::deployment::profile_validate(Path::new("showcase/sumo/deploy/deployment.json"))?;
+    let bioma_root = fs::read_to_string("examples/bioma/gitops/bootstrap.yaml")?;
+    for expected in [
+        "kind: Application",
+        "repoURL: https://github.com/BiomaAI/veoveo.git",
+        "path: examples/bioma",
+        "ServerSideApply=true",
+    ] {
+        contains(&bioma_root, expected)?;
+    }
+    let bioma_platform = fs::read_to_string("examples/bioma/platform/argocd/kustomization.yaml")?;
+    contains(
+        &bioma_platform,
+        "argoproj/argo-cd/v3.4.5/manifests/install.yaml",
+    )?;
+    for application in [
+        "examples/bioma/gitops/applications/veoveo.yaml",
+        "examples/bioma/gitops/applications/uav-sim.yaml",
+    ] {
+        let application = fs::read_to_string(application)?;
+        contains(
+            &application,
+            "charts-registry.argocd.svc.cluster.local/charts",
+        )?;
+        contains(
+            &application,
+            "$configuration/examples/bioma/images.lock.yaml",
+        )?;
+        contains(&application, "targetRevision: 0.1.0-92ba57cdf93d")?;
+        not_contains(&application, "ServerSideApply=true")?;
+    }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
         "showcase/uav-sim/scenarios/bioma-aerial.json",
     )?)?;
