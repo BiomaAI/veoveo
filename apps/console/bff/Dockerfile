@@ -25,7 +25,7 @@ COPY testing ./testing
 COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,target=/app/target \
+    --mount=type=cache,id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked \
     cargo build --release --jobs 4 -p veoveo-console-bff --bin console-bff \
     && cp /app/target/release/console-bff /out-console-bff
 

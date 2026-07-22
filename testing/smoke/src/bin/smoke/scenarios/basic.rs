@@ -475,6 +475,10 @@ pub(crate) async fn helm_config() -> Result<()> {
     contains(&gateway_dockerfile, "find /app/target -name 'libduckdb.so'")?;
     contains(
         &gateway_dockerfile,
+        "id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked",
+    )?;
+    contains(
+        &gateway_dockerfile,
         "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
