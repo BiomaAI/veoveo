@@ -181,8 +181,9 @@ on the canonical layer and every changeset instead of accepting authority fields
 from a tool request.
 
 Feature geometry uses WGS84 GeoJSON coordinates. The complete canonical feature
-remains a valid GeoJSON Feature and adds JSON-FG `featureType` and valid-time
-members. The initial geometry set covers Point, MultiPoint, LineString,
+remains a valid GeoJSON Feature and adds JSON-FG `featureType`, the required
+JSON-FG conformance declarations, and valid-time intervals whose open bound is `..`
+in the standard JSON-FG representation. The initial geometry set covers Point, MultiPoint, LineString,
 MultiLineString, Polygon, and MultiPolygon. Validators reject non-finite or
 out-of-range coordinates, malformed topology, incorrect polygon winding,
 unbounded property payloads, remote JSON Schema references, and unsafe style
@@ -199,7 +200,7 @@ DuckDB Spatial is a rebuildable query projection. Its outbox consumer writes a
 revision table, a current-head table, R-tree indexes, and a local contiguous
 checkpoint in one transaction. Queries can select a current layer or a published
 layer revision. They accept a validated WGS84 bounding box, open valid-time
-interval, geometry type, opaque keyset cursor, and a bounded CQL2 JSON subset.
+interval, geometry type, opaque keyset cursor, and a bounded Basic CQL2-JSON subset.
 Property paths and literal values remain parameters. A dateline-crossing box is
 split into two query polygons.
 
