@@ -5,7 +5,10 @@ use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use crate::contract::{FeatureInput, LayerStyle, MapFeature};
+use crate::contract::{
+    FeatureInput, JSON_FG_CORE_CONFORMANCE, JSON_FG_TYPES_SCHEMAS_CONFORMANCE, LayerStyle,
+    MapFeature,
+};
 
 const MAX_SCHEMA_BYTES: usize = 256 * 1024;
 const MAX_SCHEMA_DEPTH: usize = 32;
@@ -89,6 +92,14 @@ pub(super) fn validate_input(schema: &Value, input: &FeatureInput) -> Result<()>
 }
 
 pub(super) fn validate_feature(feature: &MapFeature, schema: &Value) -> Result<()> {
+    if feature.conforms_to
+        != [
+            JSON_FG_CORE_CONFORMANCE.to_owned(),
+            JSON_FG_TYPES_SCHEMAS_CONFORMANCE.to_owned(),
+        ]
+    {
+        bail!("canonical feature has an invalid JSON-FG conformance declaration");
+    }
     validate_input(
         schema,
         &FeatureInput {

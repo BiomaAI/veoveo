@@ -20,6 +20,9 @@ use super::{
 pub const MAX_DIRECT_FEATURE_MUTATIONS: usize = 100;
 pub const MAX_DIRECT_FEATURE_BYTES: usize = 1024 * 1024;
 pub const MAX_FEATURE_COORDINATES: usize = 50_000;
+pub const JSON_FG_CORE_CONFORMANCE: &str = "http://www.opengis.net/spec/json-fg-1/1.0/conf/core";
+pub const JSON_FG_TYPES_SCHEMAS_CONFORMANCE: &str =
+    "http://www.opengis.net/spec/json-fg-1/1.0/conf/types-schemas";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -268,16 +271,60 @@ impl std::fmt::Display for FeatureValidationError {
 
 impl std::error::Error for FeatureValidationError {}
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
+pub struct JsonFgTimeBoundary(String);
+
+impl JsonFgTimeBoundary {
+    pub fn open() -> Self {
+        Self("..".to_owned())
+    }
+
+    pub fn timestamp(value: DateTime<Utc>) -> Self {
+        Self(value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
+    }
+
+    pub fn as_timestamp(&self) -> Option<DateTime<Utc>> {
+        (self.0 != "..").then(|| {
+            DateTime::parse_from_rfc3339(&self.0)
+                .expect("JsonFgTimeBoundary is validated at construction")
+                .with_timezone(&Utc)
+        })
+    }
+}
+
+impl TryFrom<String> for JsonFgTimeBoundary {
+    type Error = FeatureValidationError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value == ".." || DateTime::parse_from_rfc3339(&value).is_ok() {
+            Ok(Self(value))
+        } else {
+            Err(FeatureValidationError::new(
+                "a JSON-FG time boundary must be an RFC 3339 timestamp or `..`",
+            ))
+        }
+    }
+}
+
+impl From<JsonFgTimeBoundary> for String {
+    fn from(value: JsonFgTimeBoundary) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FeatureTime {
-    /// Inclusive valid-time interval. A null bound is open.
-    pub interval: [Option<DateTime<Utc>>; 2],
+    /// Inclusive JSON-FG valid-time interval. The `..` string is an open bound.
+    pub interval: [JsonFgTimeBoundary; 2],
 }
 
 impl FeatureTime {
     pub fn validate(&self) -> Result<(), FeatureValidationError> {
-        if let [Some(start), Some(end)] = self.interval
-            && start > end
+        if let [Some(start), Some(end)] = [
+            self.interval[0].as_timestamp(),
+            self.interval[1].as_timestamp(),
+        ] && start > end
         {
             return Err(FeatureValidationError::new(
                 "feature valid-time start must not exceed end",
@@ -305,6 +352,8 @@ pub struct FeatureProvenance {
 pub struct MapFeature {
     #[serde(rename = "type")]
     pub feature_type: GeoJsonFeatureType,
+    #[serde(rename = "conformsTo")]
+    pub conforms_to: Vec<String>,
     pub id: MapFeatureId,
     pub geometry: FeatureGeometry,
     #[serde(default)]
@@ -533,45 +582,56 @@ pub struct RestoreFeatureRequest {
     pub idempotency_key: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum Cql2Operator {
+    #[serde(rename = "and")]
+    And,
+    #[serde(rename = "or")]
+    Or,
+    #[serde(rename = "not")]
+    Not,
+    #[serde(rename = "=")]
+    Equal,
+    #[serde(rename = "<>")]
+    NotEqual,
+    #[serde(rename = "<")]
+    LessThan,
+    #[serde(rename = "<=")]
+    LessThanOrEqual,
+    #[serde(rename = ">")]
+    GreaterThan,
+    #[serde(rename = ">=")]
+    GreaterThanOrEqual,
+    #[serde(rename = "isNull")]
+    IsNull,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum Cql2Filter {
-    And {
-        args: Vec<Cql2Filter>,
-    },
-    Or {
-        args: Vec<Cql2Filter>,
-    },
-    Not {
-        arg: Box<Cql2Filter>,
-    },
-    Eq {
-        property: String,
-        value: serde_json::Value,
-    },
-    Ne {
-        property: String,
-        value: serde_json::Value,
-    },
-    Lt {
-        property: String,
-        value: serde_json::Value,
-    },
-    Le {
-        property: String,
-        value: serde_json::Value,
-    },
-    Gt {
-        property: String,
-        value: serde_json::Value,
-    },
-    Ge {
-        property: String,
-        value: serde_json::Value,
-    },
-    IsNull {
-        property: String,
-    },
+pub struct Cql2Filter {
+    pub op: Cql2Operator,
+    pub args: Vec<Cql2Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Cql2Expression {
+    Operation(Box<Cql2Filter>),
+    Property(Cql2PropertyReference),
+    Literal(Cql2Literal),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Cql2PropertyReference {
+    pub property: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Cql2Literal {
+    String(String),
+    Number(f64),
+    Boolean(bool),
+    Null(()),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -766,5 +826,28 @@ mod tests {
             FeatureGeometry::LineString(vec![position(179.0, 1.0), position(-179.0, 2.0)]);
         let bbox = geometry.bounding_box();
         assert_eq!((bbox.west, bbox.east), (179.0, -179.0));
+    }
+
+    #[test]
+    fn json_fg_time_uses_the_standard_open_interval_marker() {
+        let time = FeatureTime {
+            interval: [
+                JsonFgTimeBoundary::open(),
+                JsonFgTimeBoundary::timestamp(
+                    DateTime::parse_from_rfc3339("2026-07-22T12:00:00Z")
+                        .unwrap()
+                        .with_timezone(&Utc),
+                ),
+            ],
+        };
+
+        assert_eq!(
+            serde_json::to_value(&time).unwrap(),
+            serde_json::json!({"interval": ["..", "2026-07-22T12:00:00Z"]})
+        );
+        assert!(serde_json::from_value::<FeatureTime>(serde_json::json!({
+            "interval": [null, "2026-07-22T12:00:00Z"]
+        }))
+        .is_err());
     }
 }

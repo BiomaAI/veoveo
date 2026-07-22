@@ -5,8 +5,8 @@ use duckdb::{params_from_iter, types::Value as DuckValue};
 use crate::{
     analytics::MapAnalytics,
     contract::{
-        Cql2Filter, MapFeature, MapFeatureId, QueryFeaturesOutput, QueryFeaturesRequest,
-        Wgs84BoundingBox,
+        Cql2Expression, Cql2Filter, Cql2Literal, Cql2Operator, MapFeature, MapFeatureId,
+        QueryFeaturesOutput, QueryFeaturesRequest, Wgs84BoundingBox,
     },
 };
 
@@ -54,14 +54,14 @@ pub(super) fn query_features(
         predicates.push(bbox_predicate(bbox));
     }
     if let Some(interval) = &request.datetime {
-        if let Some(start) = interval.interval[0] {
+        if let Some(start) = interval.interval[0].as_timestamp() {
             predicates.push(
                 "(authored.valid_until IS NULL OR authored.valid_until >= ?::TIMESTAMPTZ)"
                     .to_owned(),
             );
             parameters.push(DuckValue::Text(start.to_rfc3339()));
         }
-        if let Some(end) = interval.interval[1] {
+        if let Some(end) = interval.interval[1].as_timestamp() {
             predicates.push(
                 "(authored.valid_from IS NULL OR authored.valid_from <= ?::TIMESTAMPTZ)".to_owned(),
             );
@@ -157,18 +157,27 @@ impl FilterCompiler {
         if self.nodes > MAX_FILTER_NODES {
             bail!("CQL2 filter exceeds maximum node count {MAX_FILTER_NODES}");
         }
-        match filter {
-            Cql2Filter::And { args } => self.logical("AND", args, depth),
-            Cql2Filter::Or { args } => self.logical("OR", args, depth),
-            Cql2Filter::Not { arg } => Ok(format!("(NOT {})", self.compile(arg, depth + 1)?)),
-            Cql2Filter::Eq { property, value } => self.comparison(property, "=", value, false),
-            Cql2Filter::Ne { property, value } => self.comparison(property, "<>", value, false),
-            Cql2Filter::Lt { property, value } => self.comparison(property, "<", value, true),
-            Cql2Filter::Le { property, value } => self.comparison(property, "<=", value, true),
-            Cql2Filter::Gt { property, value } => self.comparison(property, ">", value, true),
-            Cql2Filter::Ge { property, value } => self.comparison(property, ">=", value, true),
-            Cql2Filter::IsNull { property } => {
-                let path = property_path(property)?;
+        match filter.op {
+            Cql2Operator::And => self.logical("AND", &filter.args, depth),
+            Cql2Operator::Or => self.logical("OR", &filter.args, depth),
+            Cql2Operator::Not => {
+                let [argument] = filter.args.as_slice() else {
+                    bail!("the CQL2 not operator requires exactly one argument");
+                };
+                Ok(format!("(NOT {})", self.predicate(argument, depth + 1)?))
+            }
+            Cql2Operator::Equal => self.comparison(&filter.args, "=", false),
+            Cql2Operator::NotEqual => self.comparison(&filter.args, "<>", false),
+            Cql2Operator::LessThan => self.comparison(&filter.args, "<", true),
+            Cql2Operator::LessThanOrEqual => self.comparison(&filter.args, "<=", true),
+            Cql2Operator::GreaterThan => self.comparison(&filter.args, ">", true),
+            Cql2Operator::GreaterThanOrEqual => self.comparison(&filter.args, ">=", true),
+            Cql2Operator::IsNull => {
+                let [Cql2Expression::Property(property)] = filter.args.as_slice() else {
+                    bail!("the CQL2 isNull operator requires one property reference");
+                };
+                self.count_operands(1)?;
+                let path = property_path(&property.property)?;
                 self.parameters.push(DuckValue::Text(path.clone()));
                 self.parameters.push(DuckValue::Text(path));
                 Ok("(json_extract(authored.properties_json, ?) IS NULL OR json_type(authored.properties_json, ?) = 'NULL')".to_owned())
@@ -176,52 +185,72 @@ impl FilterCompiler {
         }
     }
 
-    fn logical(&mut self, operator: &str, args: &[Cql2Filter], depth: usize) -> Result<String> {
+    fn predicate(&mut self, expression: &Cql2Expression, depth: usize) -> Result<String> {
+        let Cql2Expression::Operation(filter) = expression else {
+            bail!("a CQL2 logical argument must be a predicate object");
+        };
+        self.compile(filter, depth)
+    }
+
+    fn logical(&mut self, operator: &str, args: &[Cql2Expression], depth: usize) -> Result<String> {
         if args.is_empty() || args.len() > 16 {
             bail!("a CQL2 logical operation must contain between 1 and 16 arguments");
         }
         let compiled = args
             .iter()
-            .map(|argument| self.compile(argument, depth + 1))
+            .map(|argument| self.predicate(argument, depth + 1))
             .collect::<Result<Vec<_>>>()?;
         Ok(format!("({})", compiled.join(&format!(" {operator} "))))
     }
 
     fn comparison(
         &mut self,
-        property: &str,
+        args: &[Cql2Expression],
         operator: &str,
-        value: &serde_json::Value,
         ordered: bool,
     ) -> Result<String> {
-        let path = property_path(property)?;
+        let [
+            Cql2Expression::Property(property),
+            Cql2Expression::Literal(value),
+        ] = args
+        else {
+            bail!(
+                "a supported CQL2 comparison requires a property reference followed by a scalar literal"
+            );
+        };
+        self.count_operands(2)?;
+        let path = property_path(&property.property)?;
         self.parameters.push(DuckValue::Text(path));
         let expression = match value {
-            serde_json::Value::String(value) => {
+            Cql2Literal::String(value) => {
                 self.parameters.push(DuckValue::Text(value.clone()));
                 "json_extract_string(authored.properties_json, ?)"
             }
-            serde_json::Value::Number(value) => {
-                let value = value
-                    .as_f64()
-                    .filter(|value| value.is_finite())
-                    .context("CQL2 numeric literal is outside the supported finite range")?;
-                self.parameters.push(DuckValue::Double(value));
+            Cql2Literal::Number(value) if value.is_finite() => {
+                self.parameters.push(DuckValue::Double(*value));
                 "TRY_CAST(json_extract_string(authored.properties_json, ?) AS DOUBLE)"
             }
-            serde_json::Value::Bool(value) if !ordered => {
+            Cql2Literal::Boolean(value) if !ordered => {
                 self.parameters.push(DuckValue::Boolean(*value));
                 "TRY_CAST(json_extract_string(authored.properties_json, ?) AS BOOLEAN)"
             }
-            serde_json::Value::Null => {
-                bail!("use the CQL2 is_null operation for null comparisons")
+            Cql2Literal::Number(_) => {
+                bail!("CQL2 numeric literal is outside the supported finite range")
             }
-            serde_json::Value::Bool(_) => bail!("ordered CQL2 comparisons do not accept booleans"),
-            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                bail!("CQL2 comparisons accept only scalar literals")
+            Cql2Literal::Null(()) => {
+                bail!("use the CQL2 isNull operator for null comparisons")
             }
+            Cql2Literal::Boolean(_) => bail!("ordered CQL2 comparisons do not accept booleans"),
         };
         Ok(format!("({expression} {operator} ?)"))
+    }
+
+    fn count_operands(&mut self, count: usize) -> Result<()> {
+        self.nodes += count;
+        if self.nodes > MAX_FILTER_NODES {
+            bail!("CQL2 filter exceeds maximum node count {MAX_FILTER_NODES}");
+        }
+        Ok(())
     }
 }
 
@@ -260,20 +289,34 @@ mod tests {
     #[test]
     fn cql2_properties_are_bound_as_json_pointers() {
         let mut compiler = FilterCompiler::default();
-        let sql = compiler
-            .compile(
-                &Cql2Filter::Eq {
-                    property: "name') OR true--".to_owned(),
-                    value: serde_json::json!("yard"),
-                },
-                1,
-            )
-            .unwrap();
+        let filter: Cql2Filter = serde_json::from_value(serde_json::json!({
+            "op": "=",
+            "args": [
+                {"property": "name') OR true--"},
+                "yard"
+            ]
+        }))
+        .unwrap();
+        let sql = compiler.compile(&filter, 1).unwrap();
         assert_eq!(
             sql,
             "(json_extract_string(authored.properties_json, ?) = ?)"
         );
         assert_eq!(compiler.parameters.len(), 2);
+    }
+
+    #[test]
+    fn cql2_json_round_trips_the_standard_operation_shape() {
+        let value = serde_json::json!({
+            "op": "and",
+            "args": [
+                {"op": "=", "args": [{"property": "kind"}, "hospital"]},
+                {"op": "isNull", "args": [{"property": "closed_at"}]}
+            ]
+        });
+        let filter: Cql2Filter = serde_json::from_value(value.clone()).unwrap();
+
+        assert_eq!(serde_json::to_value(filter).unwrap(), value);
     }
 
     #[test]

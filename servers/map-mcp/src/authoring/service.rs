@@ -22,11 +22,11 @@ use crate::contract::{
     ArchiveFeatureLayerRequest, CommitFeatureChangesOutput, CommitFeatureChangesRequest,
     CreateFeatureLayerRequest, FeatureChangeSet, FeatureChangeSetId, FeatureInput, FeatureLayer,
     FeatureMutation, FeatureProvenance, FeatureSchemaRevision, FeatureValidationFinding,
-    GeoJsonFeatureType, LayerPublication, LayerPublicationId, MAX_DIRECT_FEATURE_BYTES,
-    MAX_DIRECT_FEATURE_MUTATIONS, MapFeature, MapFeatureId, MapStyleRevision, ProjectionState,
-    PublishFeatureLayerRequest, QueryFeaturesOutput, QueryFeaturesRequest, RestoreFeatureRequest,
-    StyleRevisionId, UpdateFeatureLayerRequest, ValidateFeatureChangesOutput,
-    ValidateFeatureChangesRequest,
+    GeoJsonFeatureType, JSON_FG_CORE_CONFORMANCE, JSON_FG_TYPES_SCHEMAS_CONFORMANCE,
+    LayerPublication, LayerPublicationId, MAX_DIRECT_FEATURE_BYTES, MAX_DIRECT_FEATURE_MUTATIONS,
+    MapFeature, MapFeatureId, MapStyleRevision, ProjectionState, PublishFeatureLayerRequest,
+    QueryFeaturesOutput, QueryFeaturesRequest, RestoreFeatureRequest, StyleRevisionId,
+    UpdateFeatureLayerRequest, ValidateFeatureChangesOutput, ValidateFeatureChangesRequest,
 };
 
 use super::{
@@ -953,6 +953,10 @@ fn map_feature(
 ) -> MapFeature {
     MapFeature {
         feature_type: GeoJsonFeatureType::Feature,
+        conforms_to: vec![
+            JSON_FG_CORE_CONFORMANCE.to_owned(),
+            JSON_FG_TYPES_SCHEMAS_CONFORMANCE.to_owned(),
+        ],
         id: feature_id,
         geometry: input.geometry.clone(),
         properties: input.properties.clone(),
@@ -1004,8 +1008,14 @@ fn feature_revision_draft(
         bbox_south: bbox.south,
         bbox_east: bbox.east,
         bbox_north: bbox.north,
-        valid_from: feature.time.as_ref().and_then(|time| time.interval[0]),
-        valid_until: feature.time.as_ref().and_then(|time| time.interval[1]),
+        valid_from: feature
+            .time
+            .as_ref()
+            .and_then(|time| time.interval[0].as_timestamp()),
+        valid_until: feature
+            .time
+            .as_ref()
+            .and_then(|time| time.interval[1].as_timestamp()),
         semantic_type: feature.semantic_type.clone(),
         title: feature.title.clone(),
         canonical_json: serde_json::to_string(feature)?,

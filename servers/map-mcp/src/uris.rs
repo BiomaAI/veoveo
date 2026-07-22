@@ -299,10 +299,14 @@ fn parse_datetime_interval(value: &str) -> Result<crate::contract::FeatureTime, 
         .ok_or_else(|| "datetime must use start/end interval form".to_owned())?;
     let parse_bound = |bound: &str| {
         if bound == ".." || bound.is_empty() {
-            Ok(None)
+            Ok(crate::contract::JsonFgTimeBoundary::open())
         } else {
             chrono::DateTime::parse_from_rfc3339(bound)
-                .map(|value| Some(value.with_timezone(&chrono::Utc)))
+                .map(|value| {
+                    crate::contract::JsonFgTimeBoundary::timestamp(
+                        value.with_timezone(&chrono::Utc),
+                    )
+                })
                 .map_err(|error| format!("invalid datetime bound: {error}"))
         }
     };
@@ -339,6 +343,10 @@ mod tests {
         .unwrap();
         assert_eq!(request.limit, 25);
         assert_eq!(request.bbox.unwrap().west, 170.0);
-        assert!(request.datetime.unwrap().interval[0].is_none());
+        assert!(
+            request.datetime.unwrap().interval[0]
+                .as_timestamp()
+                .is_none()
+        );
     }
 }
