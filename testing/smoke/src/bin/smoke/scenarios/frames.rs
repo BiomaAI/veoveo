@@ -230,6 +230,8 @@ pub(crate) async fn frames_mcp(
             "frames".into(),
             "--internal-principal-subject".into(),
             "intruder".into(),
+            "--internal-work-context".into(),
+            "intruder-context".into(),
             "artifact".into(),
             artifact.artifact_id.clone().into(),
             "--output-dir".into(),

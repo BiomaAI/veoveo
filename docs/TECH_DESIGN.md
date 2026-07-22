@@ -25,6 +25,29 @@ The gateway discovers these surfaces from upstream servers and projects them int
 profile. It prefixes tool names only at the aggregation boundary, for example local
 `run` becomes `media__run`. Resource URIs keep their owning scheme.
 
+### Tool input schemas
+
+Tool inputs publish one canonical JSON Schema 2020-12 document generated from the
+request type. The document has an object root, contains no references, and declares
+the immediate JSON type of every property. Object-shaped unions expose `type: object`
+alongside their variants. This profile preserves the full typed contract while making
+the argument shape visible to clients that inspect a property without resolving schema
+references.
+
+Rust servers import `tool` from `veoveo_mcp_contract`. The macro selects the shared
+Schemars generator for every `Parameters<T>` handler and supplies the closed empty-object
+schema for handlers without arguments. Tagged Rust enums declare their object or string
+type on the domain type itself. Python servers pass each Pydantic request model through
+`veoveo_mcp.schema.mcp_input_schema` before publishing it.
+
+Recursive tool arguments are outside this profile because a finite self-contained
+schema cannot express unbounded recursion without references. Domain contracts model
+bounded collections explicitly. Servers deserialize the structured value described by
+the schema; the gateway does not rewrite schemas or convert JSON-encoded strings.
+
+The MCP conformance client's `info` command validates every advertised tool schema
+against its declared dialect and enforces this client-facing shape.
+
 Full-MCP clients can use the final task extension directly through a gateway profile.
 The gateway routes task-augmented tool calls, get, update, cancel, and subscriptions to
 the owning server without changing the canonical task identity. It applies profile

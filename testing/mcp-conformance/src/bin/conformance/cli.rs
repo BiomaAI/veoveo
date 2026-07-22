@@ -38,6 +38,9 @@ pub(super) struct Args {
     /// Veoveo profile id embedded in direct hosted-server conformance assertions.
     #[arg(long, default_value = "operator", global = true)]
     pub(super) internal_profile: String,
+    /// Work context embedded in direct hosted-server conformance assertions.
+    #[arg(long, default_value = "conformance", global = true)]
+    pub(super) internal_work_context: String,
     /// Principal subject embedded in direct hosted-server conformance assertions.
     /// Vary this to act as a different principal (e.g. to assert that a
     /// non-owner is denied an artifact they hold no grant for).

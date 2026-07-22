@@ -136,6 +136,7 @@ schema merely because the server is first-party.
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `coordinates.rs` | current shared coordinate ids, frame kinds, geofence rules, and operation provenance |
+| `schema.rs` | canonical self-contained JSON Schema 2020-12 generation for Rust MCP tool inputs |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
 | `gateway/ids.rs` | validated identity and configuration newtypes |
@@ -151,6 +152,11 @@ schema merely because the server is first-party.
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
 | `telemetry.rs` | tracing/log initialization and guards |
+
+### `mcp/schema-macros`
+
+The `tool` attribute composes the ordinary `rmcp` tool macro with the shared input
+schema generator. Rust servers use this attribute for every published tool handler.
 
 ### `platform/recordings/rrd`
 
@@ -485,6 +491,7 @@ stays the source of truth for every wire shape and schema.
 | `internal_auth.py` | gateway Ed25519 assertion verification and ASGI middleware |
 | `host.py` | host-authority validation and 421 rejection |
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
+| `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
 | `task_extension/` | final task extension models, ASGI middleware, projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
 | `artifacts.py` | artifact-plane HTTP client and capability redemption |

@@ -249,6 +249,8 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
             "datasheet".into(),
             "--internal-principal-subject".into(),
             "intruder".into(),
+            "--internal-work-context".into(),
+            "intruder-context".into(),
             "artifact".into(),
             artifact_id.clone().into(),
             "--output-dir".into(),

@@ -19,6 +19,7 @@ listed next to each obligation is where this template satisfies it.
 | `/{slug}/healthz` and `/{slug}/readyz` | `server/main.py` |
 | Host-authority allowlist, 421 for untrusted hosts | `veoveo_mcp.host` |
 | Gateway Ed25519 assertion verification, `kid` required | `veoveo_mcp.internal_auth` |
+| Self-contained JSON Schema 2020-12 tool inputs with explicit property types | `veoveo_mcp.schema` |
 | Full MCP surface: tools, resources, templates, prompts, completions, pagination, typed structured content | `server/mcp_server.py` |
 | Final task extension, protocol `2026-06-30`: `server/discover`, task-augmented `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel`, `subscriptions/listen` SSE | `veoveo_mcp.task_extension` + `server/task_extension.py` |
 | Durable tasks in the SurrealDB platform store with atomic outbox events, UUIDv7 ids, leases, recovery classes, retention pins | `veoveo_mcp.tasks` + `server/profile_task.py` |
@@ -32,7 +33,8 @@ listed next to each obligation is where this template satisfies it.
    (`datasheet_mcp` → `yourdomain_mcp`), the slug, the URI scheme in `uris.py`,
    and the default port.
 2. Replace `contract.py` and `engine.py` with your domain types and
-   computation. Keep the engine pure; it runs inside worker threads.
+   computation. Publish request models with `mcp_input_schema`; recursive tool
+   arguments are not supported. Keep the engine pure; it runs inside worker threads.
 3. Keep `server/` structurally intact: config, ownership, the task-extension
    handler, and the durable task module change names, not shape.
 4. Add the workload to `deploy/helm/veoveo`, register it in the intended

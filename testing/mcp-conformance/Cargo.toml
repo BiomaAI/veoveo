@@ -15,6 +15,7 @@ base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 jsonwebtoken.workspace = true
+jsonschema.workspace = true
 rcgen.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rmcp = { workspace = true, features = ["server", "client", "transport-streamable-http-client-reqwest", "transport-streamable-http-server", "reqwest-tls-no-provider"] }
