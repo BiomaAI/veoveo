@@ -280,9 +280,6 @@ pub(crate) fn profile_publish(path: &Path, revision: Option<&str>) -> Result<()>
         active: true,
     };
 
-    let mut args = vec!["buildx".to_owned(), "bake".to_owned()];
-    args.extend(profile.definition.image_groups.iter().cloned());
-    args.push("--push".to_owned());
     let envs = [
         (
             "VEOVEO_REGISTRY",
@@ -290,11 +287,23 @@ pub(crate) fn profile_publish(path: &Path, revision: Option<&str>) -> Result<()>
         ),
         ("VEOVEO_IMAGE_TAG", revision.as_str()),
     ];
-    let argument_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    status_checked("docker", argument_refs, &envs, Some(&worktree.source))?;
+    for (index, group) in profile.definition.image_groups.iter().enumerate() {
+        println!(
+            "Publishing image phase {}/{}: {}",
+            index + 1,
+            profile.definition.image_groups.len(),
+            group
+        );
+        status_checked(
+            "docker",
+            ["buildx", "bake", group.as_str(), "--push"],
+            &envs,
+            Some(&worktree.source),
+        )?;
+    }
     worktree.remove()?;
     println!(
-        "Published {} image groups for immutable revision {} to {}",
+        "Published {} ordered image phases for immutable revision {} to {}",
         profile.definition.image_groups.len(),
         revision,
         profile.definition.registry.address

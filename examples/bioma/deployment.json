@@ -6,6 +6,7 @@
     "localConfig": "../../deploy/local/k3d/registry.json"
   },
   "imageGroups": [
+    "showcase-uav-sim-base",
     "platform-full",
     "showcase-uav-sim"
   ],

@@ -34,9 +34,11 @@ just profile-up "$PROFILE" "$REVISION"
 ```
 
 `profile-publish` sends images directly from BuildKit to the selected OCI registry. It
-does not load release images into the host Docker image store. Registry and node caches
-exchange missing layers, while identical base layers remain shared across image names,
-clusters, and deployment profiles.
+does not load release images into the host Docker image store. Image groups are ordered
+publication phases. Targets within one phase build in parallel, while a heavyweight
+shared base belongs in an earlier phase than the images that consume it. Registry and
+node caches then exchange only missing layers, while identical base layers remain shared
+across image names, clusters, and deployment profiles.
 
 `profile-up` applies typed ConfigMaps and environment-backed Secrets before installing
 the profile's Helm releases. Every Veoveo-owned image receives the same registry and Git
@@ -61,7 +63,7 @@ The profile fields are:
 | `name` | Stable deployment profile identity. |
 | `registry.address` | OCI host and port without a URL scheme. |
 | `registry.localConfig` | Optional standalone k3d registry definition. Omit it for an enterprise registry. |
-| `imageGroups` | Reusable Docker Bake groups selected by this deployment. |
+| `imageGroups` | Ordered Docker Bake publication phases selected by this deployment. |
 | `kubernetes.context` | Explicit kubectl and Helm context. |
 | `kubernetes.localCluster` | Optional k3d name, config, and node-bootstrap manifests. Omit it for an existing cluster. |
 | `namespace` | Namespace for generated resources and Helm releases. |
