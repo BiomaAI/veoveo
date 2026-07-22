@@ -24,7 +24,7 @@ pub enum TimeseriesFilterValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
-pub enum TimeseriesRowFilter {
+pub enum TimeseriesFilterPredicate {
     Eq {
         column: String,
         value: TimeseriesFilterValue,
@@ -40,12 +40,21 @@ pub enum TimeseriesRowFilter {
     IsNotNull {
         column: String,
     },
-    And {
-        filters: Vec<TimeseriesRowFilter>,
-    },
-    Or {
-        filters: Vec<TimeseriesRowFilter>,
-    },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeseriesFilterCombination {
+    #[default]
+    All,
+    Any,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct TimeseriesRowFilter {
+    #[serde(default)]
+    pub combination: TimeseriesFilterCombination,
+    pub predicates: Vec<TimeseriesFilterPredicate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

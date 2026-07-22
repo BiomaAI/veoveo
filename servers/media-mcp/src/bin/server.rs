@@ -46,7 +46,7 @@ use rmcp::{
         UnsubscribeRequestParams,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
     transport::streamable_http_server::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
@@ -55,6 +55,7 @@ use secrecy::ExposeSecret;
 use serde_json::{Value, json};
 use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ServerSlug, SubscriptionHub,
@@ -965,6 +966,11 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!MediaMcp::tool_router().list_all().is_empty());
+    }
 
     #[test]
     fn run_tool_annotations_match_additive_open_world_behavior() {

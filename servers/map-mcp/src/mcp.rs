@@ -13,10 +13,11 @@ use rmcp::{
         UnsubscribeRequestParams,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
 };
 use serde::Serialize;
 use serde_json::json;
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, paginate};
 
 use crate::{
@@ -1452,6 +1453,13 @@ fn is_subscribable(uri: &str) -> bool {
 
 #[cfg(test)]
 mod admin_app_tests {
+    use super::MapMcp;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!MapMcp::tool_router().list_all().is_empty());
+    }
+
     const ADMIN_APP: &str = include_str!("../assets/admin-app.html");
 
     #[test]

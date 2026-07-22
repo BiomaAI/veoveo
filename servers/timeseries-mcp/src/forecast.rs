@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use crate::contract::{
-    TimeseriesFilterValue, TimeseriesForecastMethod, TimeseriesForecastRequest,
-    TimeseriesForecastSummary, TimeseriesPreviewForecastPoint, TimeseriesPreviewObservation,
-    TimeseriesRowFilter, TimeseriesSeriesPreview, TimeseriesSeriesSummary, TimeseriesTableMapping,
+    TimeseriesFilterCombination, TimeseriesFilterPredicate, TimeseriesFilterValue,
+    TimeseriesForecastMethod, TimeseriesForecastRequest, TimeseriesForecastSummary,
+    TimeseriesPreviewForecastPoint, TimeseriesPreviewObservation, TimeseriesRowFilter,
+    TimeseriesSeriesPreview, TimeseriesSeriesSummary, TimeseriesTableMapping,
 };
 use anyhow::{Context, Result, bail};
 use duckdb::Connection;
@@ -232,25 +233,31 @@ fn validate_identifier(label: &str, value: &str) -> Result<()> {
 }
 
 fn validate_row_filter(filter: &TimeseriesRowFilter) -> Result<()> {
-    match filter {
-        TimeseriesRowFilter::Eq { column, value } | TimeseriesRowFilter::Ne { column, value } => {
-            validate_identifier("filter column", column)?;
-            validate_filter_value(value)
-        }
-        TimeseriesRowFilter::IsNotNull { column } => validate_identifier("filter column", column),
-        TimeseriesRowFilter::In { column, values } => {
-            validate_identifier("filter column", column)?;
-            if values.is_empty() {
-                bail!("filter `in` values must not be empty");
-            }
-            for value in values {
+    if filter.predicates.is_empty() {
+        bail!("training filter must contain at least one predicate");
+    }
+    for predicate in &filter.predicates {
+        match predicate {
+            TimeseriesFilterPredicate::Eq { column, value }
+            | TimeseriesFilterPredicate::Ne { column, value } => {
+                validate_identifier("filter column", column)?;
                 validate_filter_value(value)?;
             }
-            Ok(())
+            TimeseriesFilterPredicate::IsNotNull { column } => {
+                validate_identifier("filter column", column)?;
+            }
+            TimeseriesFilterPredicate::In { column, values } => {
+                validate_identifier("filter column", column)?;
+                if values.is_empty() {
+                    bail!("filter `in` values must not be empty");
+                }
+                for value in values {
+                    validate_filter_value(value)?;
+                }
+            }
         }
-        TimeseriesRowFilter::And { filters } => validate_filter_group("and", filters),
-        TimeseriesRowFilter::Or { filters } => validate_filter_group("or", filters),
     }
+    Ok(())
 }
 
 fn validate_filter_value(value: &TimeseriesFilterValue) -> Result<()> {
@@ -258,16 +265,6 @@ fn validate_filter_value(value: &TimeseriesFilterValue) -> Result<()> {
         && !value.is_finite()
     {
         bail!("filter f64 values must be finite");
-    }
-    Ok(())
-}
-
-fn validate_filter_group(op: &str, filters: &[TimeseriesRowFilter]) -> Result<()> {
-    if filters.is_empty() {
-        bail!("filter `{op}` must contain at least one child filter");
-    }
-    for filter in filters {
-        validate_row_filter(filter)?;
     }
     Ok(())
 }
@@ -420,22 +417,35 @@ fn read_observations(
 }
 
 fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
-    Ok(match filter {
-        TimeseriesRowFilter::Eq { column, value } => {
+    let separator = match filter.combination {
+        TimeseriesFilterCombination::All => " AND ",
+        TimeseriesFilterCombination::Any => " OR ",
+    };
+    filter
+        .predicates
+        .iter()
+        .map(|predicate| row_filter_predicate_sql(predicate).map(|sql| format!("({sql})")))
+        .collect::<Result<Vec<_>>>()
+        .map(|predicates| predicates.join(separator))
+}
+
+fn row_filter_predicate_sql(predicate: &TimeseriesFilterPredicate) -> Result<String> {
+    Ok(match predicate {
+        TimeseriesFilterPredicate::Eq { column, value } => {
             format!(
                 "{} = {}",
                 duckdb_quote_identifier(column),
                 filter_value_sql(value)
             )
         }
-        TimeseriesRowFilter::Ne { column, value } => {
+        TimeseriesFilterPredicate::Ne { column, value } => {
             format!(
                 "{} <> {}",
                 duckdb_quote_identifier(column),
                 filter_value_sql(value)
             )
         }
-        TimeseriesRowFilter::In { column, values } => {
+        TimeseriesFilterPredicate::In { column, values } => {
             let values = values
                 .iter()
                 .map(filter_value_sql)
@@ -443,19 +453,9 @@ fn row_filter_sql(filter: &TimeseriesRowFilter) -> Result<String> {
                 .join(", ");
             format!("{} IN ({values})", duckdb_quote_identifier(column))
         }
-        TimeseriesRowFilter::IsNotNull { column } => {
+        TimeseriesFilterPredicate::IsNotNull { column } => {
             format!("{} IS NOT NULL", duckdb_quote_identifier(column))
         }
-        TimeseriesRowFilter::And { filters } => filters
-            .iter()
-            .map(|filter| row_filter_sql(filter).map(|sql| format!("({sql})")))
-            .collect::<Result<Vec<_>>>()?
-            .join(" AND "),
-        TimeseriesRowFilter::Or { filters } => filters
-            .iter()
-            .map(|filter| row_filter_sql(filter).map(|sql| format!("({sql})")))
-            .collect::<Result<Vec<_>>>()?
-            .join(" OR "),
     })
 }
 
@@ -911,13 +911,14 @@ mod tests {
 
     #[test]
     fn training_filter_sql_is_typed_and_quoted() {
-        let filter = TimeseriesRowFilter::And {
-            filters: vec![
-                TimeseriesRowFilter::Eq {
+        let filter = TimeseriesRowFilter {
+            combination: TimeseriesFilterCombination::All,
+            predicates: vec![
+                TimeseriesFilterPredicate::Eq {
                     column: "split".into(),
                     value: TimeseriesFilterValue::String("context".into()),
                 },
-                TimeseriesRowFilter::In {
+                TimeseriesFilterPredicate::In {
                     column: "series id".into(),
                     values: vec![
                         TimeseriesFilterValue::String("a'b".into()),

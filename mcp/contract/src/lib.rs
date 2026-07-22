@@ -19,6 +19,7 @@ pub mod host;
 pub mod internal_auth;
 pub mod pagination;
 pub mod provider;
+pub mod schema;
 pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
@@ -119,6 +120,7 @@ pub use internal_auth::{
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
+pub use schema::{mcp_empty_input_schema, mcp_input_schema};
 pub use storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
     ComplianceMetadata,
@@ -132,6 +134,7 @@ pub use tasks::{
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
 pub use uri::{ServerResourceUri, ServerResourceUriError, ServerResourceUris};
 pub use usage::{UsageKind, UsageRecord, UsageReport};
+pub use veoveo_mcp_schema_macros::tool;
 pub use waiters::WebhookWaiters;
 pub use work_context::{
     AccessSubject, InvocationAuthority, InvocationMode, InvocationProvenance,

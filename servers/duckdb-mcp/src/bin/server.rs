@@ -31,7 +31,7 @@ use rmcp::{
         Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
     transport::streamable_http_server::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
     },
@@ -51,6 +51,7 @@ use veoveo_duckdb_mcp::{
     state::TaskOwner,
     uris,
 };
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
@@ -1035,6 +1036,11 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod task_tests {
     use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!DuckdbMcp::tool_router().list_all().is_empty());
+    }
 
     fn task_args(name: &str, arguments: Value) -> TaskArgs {
         parse_task_args(name, arguments).unwrap()

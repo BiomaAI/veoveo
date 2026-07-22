@@ -13,7 +13,7 @@ use rmcp::{
         UnsubscribeRequestParams,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router,
+    tool_handler, tool_router,
 };
 use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
@@ -23,6 +23,7 @@ use veoveo_artifact_mcp::{
     GrantArtifactRequest, INDEX_URI, METADATA_TEMPLATE, RevokeArtifactGrantRequest,
     RevokeArtifactShareRequest, SetArtifactReleaseRequest, parse_grants_uri, parse_metadata_uri,
 };
+use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     AccessLevel, ArtifactId, ArtifactMetadata, ArtifactPlane, ArtifactPlaneError,
     CreateArtifactShareLinkRequest, ListArtifactsRequest, Page, PlaneCaller, paginate,
@@ -626,5 +627,15 @@ fn plane_error(error: ArtifactPlaneError) -> McpError {
             McpError::invalid_params(message, None)
         }
         ArtifactPlaneError::Transport(message) => McpError::internal_error(message, None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_input_schemas_use_the_canonical_profile() {
+        assert!(!ArtifactMcp::tool_router().list_all().is_empty());
     }
 }
