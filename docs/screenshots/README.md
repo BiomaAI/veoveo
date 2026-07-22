@@ -88,11 +88,11 @@ loopback Rerun server. Project that server to the workstation, then open a
 separate web viewer:
 
 ```bash
-just showcase-sumo-build
-just showcase-sumo-import
-just showcase-sumo-resources
-just showcase-sumo-platform-up
-just showcase-sumo-up
+PROFILE=showcase/sumo/deploy/deployment.json
+REVISION=$(git rev-parse HEAD)
+just profile-cluster-up "$PROFILE"
+just profile-publish "$PROFILE" "$REVISION"
+just profile-up "$PROFILE" "$REVISION"
 just showcase-sumo-verify
 
 kubectl --context k3d-veoveo-sumo -n veoveo \

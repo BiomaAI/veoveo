@@ -11,11 +11,11 @@ That boundary keeps simulators independent and lets new ones arrive as siblings.
 | [`uav-sim/`](uav-sim/README.md) | Isaac Sim renders Google Photorealistic 3D Tiles through Cesium ion while Pegasus and PX4 operate UAVs; a provider-neutral MCP server governs sessions and missions, and typed camera, transform, vehicle, and tile state enters Recording Hub for concurrent View and Perception workflows. |
 
 Task entry points for every showcase live in the root `Justfile`, namespaced
-`showcase-<name>-*` so each showcase's recipes group together. For SUMO:
-`just showcase-sumo-test`, `showcase-sumo-smoke`, `showcase-sumo-up`, and
-`showcase-sumo-verify`.
+`showcase-<name>-*` for domain tests and acceptance. Deployment uses the same
+typed profile commands as every installation. For SUMO, run
+`just showcase-sumo-test`, `showcase-sumo-smoke`, and `showcase-sumo-verify`;
+its composition lives in `sumo/deploy/deployment.json`.
 
-The UAV runtime uses `just showcase-uav-sim-test` and
-`showcase-uav-sim-build`. Its Bioma-bound live proof is
+The UAV runtime uses `just showcase-uav-sim-test`. Its Bioma-bound live proof is
 `just bioma-uav-sim-verify` and requires NVIDIA registry access plus
 `CESIUM_ION_ACCESS_TOKEN`.

@@ -191,30 +191,31 @@ Toolkit and fails closed when the host GPU is unavailable.
 
 ```bash
 just k3d-node-build
-just sumo-k3d-create
+just profile-cluster-up showcase/sumo/deploy/deployment.json
 just sumo-k3d-status
 ```
 
-Workloads are selected with profile-owned Helm values and gateway control data.
-The SUMO profile is the first complete local proof:
+Workloads are selected by typed deployment profiles. Images publish once under a
+full Git revision and move through the shared local OCI registry by layer. The SUMO
+profile is the first complete local proof:
 
 ```bash
-just showcase-sumo-build
-just showcase-sumo-import
-just showcase-sumo-resources
-just showcase-sumo-platform-up
-just showcase-sumo-up
+REVISION=$(git rev-parse HEAD)
+just profile-validate showcase/sumo/deploy/deployment.json
+just profile-publish showcase/sumo/deploy/deployment.json "$REVISION"
+just profile-up showcase/sumo/deploy/deployment.json "$REVISION"
 just showcase-sumo-verify
 ```
 
 The cluster maps its canonical loopback ingress to `http://localhost:8780` and
 SUMO MCP verification to `127.0.0.1:8895`. See
 [`deploy/local/k3d/README.md`](deploy/local/k3d/README.md) for GPU validation,
-profile isolation, and image import.
+profile isolation, and registry delivery. The reusable contract is documented in
+[`docs/DEPLOYMENT_PROFILES.md`](docs/DEPLOYMENT_PROFILES.md).
 
 The Bioma example deploys the complete installation in the `veoveo-bioma`
-cluster and connects `veoveo.bioma.ai` through Cloudflare Tunnel. Its recipes
-always use `k3d-veoveo-bioma`. See
+cluster and connects `veoveo.bioma.ai` through Cloudflare Tunnel. Its profile
+always uses `k3d-veoveo-bioma`. See
 [`examples/bioma/README.md`](examples/bioma/README.md) for the installation and
 acceptance sequence.
 

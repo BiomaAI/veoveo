@@ -13,10 +13,13 @@ kubectl context cannot redirect a recipe into another installation.
 ## Profile ownership
 
 - `values.yaml` owns Bioma's public origins and gateway ConfigMap identity.
+- `deployment.json` composes image groups, Kubernetes resources, and Helm
+  releases through the repository-wide deployment contract.
 - `gateway.json` owns the Entra application, tenant mapping, and MCP profiles.
 - `recording-producer-jwks.json` is the public half of the UAV recording
   producer credential mounted beside the gateway control plane.
-- `k3d.yaml` owns the cluster, loopback ingress, and pinned local OCI registry.
+- `k3d.yaml` owns the cluster and loopback ingress. It attaches the shared local
+  OCI registry defined in `deploy/local/k3d/registry.json`.
 - `k3d-values.yaml` sizes persistent volumes and replicas for the local Bioma
   cluster and bootstraps the canonical UAV ENU frame without changing the
   server catalog.
@@ -114,25 +117,27 @@ tunnel token is stored only in the `bioma-cloudflared` Kubernetes Secret.
 
 ```bash
 just k3d-node-build
-just bioma-k3d-create
-just bioma-build
-just bioma-import
-just bioma-resources
-just bioma-uav-sim-publish
-just bioma-platform-up
-just bioma-tunnel-up
+PROFILE=examples/bioma/deployment.json
+REVISION=$(git rev-parse HEAD)
+
+just profile-validate "$PROFILE"
+just profile-cluster-up "$PROFILE"
+just profile-publish "$PROFILE" "$REVISION"
+just profile-up "$PROFILE" "$REVISION"
 ```
 
-`bioma-resources` reads the required Veoveo, media-provider, Cesium, Google, and
-Cloudflare values from the main worktree `.env`, applies Kubernetes Secrets over
-stdin, and never writes their plaintext to a repository or temporary manifest.
-`bioma-build` and `bioma-import` cover the platform images.
-`bioma-uav-sim-publish` pushes the immutable UAV dependency base and thin
-commit-addressed runtime and MCP images to the cluster-managed OCI registry.
-The runtime build pulls that base by its versioned registry reference. OCI blob
-deduplication avoids another 20+ GB build or cluster import when only runtime
-source changes. `bioma-platform-up` deploys the exact Git commit and waits for
-Isaac tile and PX4 readiness without suspending View or Perception.
+The profile reads the required Veoveo, media-provider, Cesium, Google, and
+Cloudflare values from the main worktree `.env`. Secret bytes pass to Kubernetes
+over stdin and never enter the profile or a temporary manifest. BuildKit publishes
+the platform and UAV image groups directly to the standalone local registry under
+the full Git revision. OCI blob deduplication keeps the Isaac dependency layers
+shared while thin source layers change. The install deploys that exact revision,
+applies the tunnel, and waits for Isaac tile and PX4 readiness without suspending
+View or Perception.
+
+The registry is shared by local profiles and remains independent of this cluster.
+See [`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md) for
+the reusable enterprise and showcase workflow.
 
 ## Local-network recording producers
 
@@ -155,11 +160,11 @@ kubectl --context k3d-veoveo-bioma -n veoveo create secret tls \
 kubectl --context k3d-veoveo-bioma apply -f -
 ```
 
-Install the LAN overlay after the normal resources are present:
-
-```bash
-just bioma-platform-up-lan
-```
+For a LAN deployment profile, copy `deployment.json` into the operator's
+configuration repository and add `lan-values.yaml` to the `veoveo` release's
+ordered `values` list. Validate and install that profile with the same
+`profile-validate` and `profile-up` commands. The profile remains an explicit
+installation contract rather than a special deployment recipe.
 
 The local DNS answer changes only the route. Discovery, token issuance, the
 protected-resource identifier, certificate hostname, and ingest URL remain
@@ -177,7 +182,7 @@ Run the installation check after the release and tunnel are active:
 just bioma-verify
 ```
 
-The Bioma check requires every deployment, three allocatable NVIDIA GPU shares,
+The Bioma check requires every deployment, four allocatable NVIDIA GPU shares,
 a healthy public edge, and the Bioma authorization-server key at the public
 JWKS endpoint. Run the core UAV delivery proof separately after the simulation
 is ready:

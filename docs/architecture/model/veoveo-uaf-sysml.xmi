@@ -284,6 +284,15 @@
       <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-056" name="UAV simulation execution stack">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-056-COMMENT" body="Renders Google Photorealistic 3D Tiles, supplies multirotor physics and PX4 integration, and executes the simulator-native callbacks governed by the UAV adapter." />
       </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-057" name="Reason MCP server">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-057-COMMENT" body="Authorizes recorded video, runs bounded local world-model inference, grounds semantic events in recording time, and publishes governed annotations and reports." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-058" name="Recorded video materialization">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-058-COMMENT" body="Applies recording authority, resolves frozen or sealed RRD segments, extracts decoder-reentrant keyframe ranges, and remuxes bounded H.264 selections without re-encoding." />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="VV-CMP-059" name="MCP schema macro">
+        <ownedComment xmi:type="uml:Comment" xmi:id="VV-CMP-059-COMMENT" body="Publishes each typed tool parameter through the canonical client-facing JSON Schema generator while preserving the ordinary rmcp handler contract." />
+      </packagedElement>
       <packagedElement xmi:type="uml:Class" xmi:id="VV-SYS-001" name="Veoveo Installation System">
         <ownedComment xmi:type="uml:Comment" xmi:id="VV-SYS-001-COMMENT" body="Aggregate resource performer composed from the canonical Veoveo software and infrastructure service graph." />
       </packagedElement>
@@ -654,6 +663,12 @@
   <SysML:Block xmi:id="VV-CMP-055-SYSML" base_Class="VV-CMP-055" isEncapsulated="true" />
   <UAF:System xmi:id="VV-CMP-056-UAF" base_Class="VV-CMP-056" />
   <SysML:Block xmi:id="VV-CMP-056-SYSML" base_Class="VV-CMP-056" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-057-UAF" base_Class="VV-CMP-057" />
+  <SysML:Block xmi:id="VV-CMP-057-SYSML" base_Class="VV-CMP-057" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-058-UAF" base_Class="VV-CMP-058" />
+  <SysML:Block xmi:id="VV-CMP-058-SYSML" base_Class="VV-CMP-058" isEncapsulated="true" />
+  <UAF:Software xmi:id="VV-CMP-059-UAF" base_Class="VV-CMP-059" />
+  <SysML:Block xmi:id="VV-CMP-059-SYSML" base_Class="VV-CMP-059" isEncapsulated="true" />
   <UAF:System xmi:id="VV-SYS-001-UAF" base_Class="VV-SYS-001" />
   <SysML:Block xmi:id="VV-SYS-001-SYSML" base_Class="VV-SYS-001" isEncapsulated="true" />
   <UAF:ActualResource xmi:id="VV-AR-001-UAF" base_InstanceSpecification="VV-AR-001" />

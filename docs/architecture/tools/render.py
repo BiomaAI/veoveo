@@ -1072,7 +1072,7 @@ def diagram_deployment() -> None:
         svg.rect(x, 825, 540, 112, fill="#ffffff", stroke="#c0ccd1", rx=8)
         svg.text(x + 18, 855, "Form-specific controls", cls="node-id")
         form_controls = [
-            "k3d ports, image import, GPU node",
+            "k3d ports, registry pulls, GPU node",
             "Kubernetes Secrets, PVCs, Ingress",
             "Offline Helm values and image policy",
         ][index]

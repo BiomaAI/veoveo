@@ -6,7 +6,7 @@ into the whitepaper or a white-label publication.
 
 The architecture covers every buildable first-party component and every
 external runtime that participates in the stated platform architecture. The
-component catalog includes all 32 Rust workspace packages, the React console,
+component catalog includes all 35 Rust workspace packages, the React console,
 the Python SDK and hosted-server template, internal Python and C++ executors,
 deployment and verification components, and required or optional external
 runtimes.

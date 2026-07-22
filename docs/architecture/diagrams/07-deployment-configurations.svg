@@ -46,7 +46,7 @@
 <rect x="38" y="825" width="540" height="112" rx="8" fill="#ffffff" stroke="#c0ccd1" stroke-width="1" opacity="1"/>
 <text x="56" y="855" class="node-id" text-anchor="start">Form-specific controls</text>
 <text x="56" y="883" class="body" text-anchor="start">
-<tspan x="56" dy="0">k3d ports, image import, GPU node</tspan>
+<tspan x="56" dy="0">k3d ports, registry pulls, GPU node</tspan>
 </text>
 <rect x="611" y="135" width="540" height="190" rx="9" fill="#eee5d8" stroke="#b8c7cd" stroke-width="1" opacity="1" filter="url(#shadow)"/>
 <rect x="611" y="135" width="7" height="190" rx="7" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
