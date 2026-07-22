@@ -242,21 +242,26 @@ artifact download URL.
 
 ### Standards Profile
 
+The authoring contract pins dated standards. A later upstream revision does not
+silently change an existing layer or product contract.
+
 | Standard | Implemented profile |
 |---|---|
-| GeoJSON, RFC 7946 | WGS84 input geometry, FeatureCollection import, feature output |
-| OGC JSON-FG 1.0 | core and types/schemas conformance declarations, `featureType`, valid-time interval |
-| JSON Schema 2020-12 | local property schemas; remote references are rejected |
-| OGC CQL2 1.0 | bounded Basic CQL2-JSON equality, ordering, null, boolean, and logical predicates over top-level properties |
-| RFC 8142 | record-separator and LF-framed GeoJSON text sequence import/export |
-| GeoParquet 1.0 | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
-| Mapbox Vector Tile 2.1 | requested XYZ tiles with canonical feature identity retained as an attribute |
-| MapLibre Style Specification 8 | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections |
+| [GeoJSON, RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html) | WGS84 input geometry, FeatureCollection import, feature output |
+| [OGC JSON-FG 1.0, OGC 21-045r1](https://docs.ogc.org/is/21-045r1/21-045r1.html) | Core and Feature Types and Schemas conformance declarations, `featureType`, valid-time interval |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/json-schema-core) | local property schemas; remote references are rejected |
+| [OGC CQL2 1.0, OGC 21-065r2](https://docs.ogc.org/is/21-065r2/21-065r2.html) | bounded Basic CQL2-JSON equality, ordering, null, boolean, and logical predicates over top-level properties |
+| [GeoJSON Text Sequences, RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | record-separator and LF-framed import/export |
+| [GeoParquet 1.0.0](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md) | WKB primary geometry and GeoParquet metadata emitted by pinned DuckDB Spatial |
+| [Mapbox Vector Tile Specification 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | requested XYZ tiles with canonical feature identity retained as an attribute |
+| [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections |
 
-GeoParquet 2.0 is not claimed. The current pinned DuckDB Spatial writer emits
-GeoParquet 1.0 metadata and WKB rather than the 2.0 Parquet geometry logical
-type. A future 2.0 path requires an encoder and verifier that both implement
-that logical type.
+The image pins [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
+to DuckDB 1.5.4. Export verification rejects a generated Parquet file unless
+its `geo` metadata declares version `1.0.0`, names `geometry` as the primary
+column, and identifies its encoding as `WKB`. GeoParquet 2.0 is not claimed.
+A future 2.0 path requires an encoder and verifier that both implement its
+Parquet geometry logical type.
 
 ### Editing, Transfer, And Publication
 
