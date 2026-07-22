@@ -72,7 +72,6 @@ group "showcase-sumo" {
 
 group "showcase-uav-sim" {
   targets = [
-    "uav-sim-base",
     "uav-sim-runtime",
     "uav-sim-mcp",
   ]
