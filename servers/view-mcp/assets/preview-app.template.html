@@ -1013,8 +1013,6 @@ class SceneView {
     sun.position.set(600, 900, 400);
     this.scene.add(sun);
 
-    this.grid = new THREE.GridHelper(4000, 80, 0x6d7680, 0x9aa5b1);
-    this.scene.add(this.grid);
     this.compass = this.buildCompass();
     this.scene.add(this.compass);
 
@@ -1101,8 +1099,7 @@ class SceneView {
 
   focus(localPoint, distanceHint) {
     this.controls.target.set(localPoint[0], localPoint[1], localPoint[2]);
-    this.grid.position.set(localPoint[0], localPoint[1], localPoint[2]);
-    this.compass.position.copy(this.grid.position);
+    this.compass.position.set(localPoint[0], localPoint[1], localPoint[2]);
     const span = Math.max(200, Math.min(distanceHint || 800, 20000));
     const direction = this.camera.position.clone().sub(this.controls.target);
     if (direction.lengthSq() < 1) direction.set(0.6, 0.7, 0.6);
