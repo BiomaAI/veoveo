@@ -483,8 +483,11 @@ pub(crate) async fn helm_config() -> Result<()> {
     for expected in [
         "group \"platform-core\"",
         "group \"platform-full\"",
+        "group \"showcase-sumo-base\"",
         "group \"showcase-sumo\"",
+        "group \"showcase-uav-sim-base\"",
         "group \"showcase-uav-sim\"",
+        "sumo-base = \"target:sumo-base\"",
         "uav-sim-base = \"target:uav-sim-base\"",
         "VEOVEO_REGISTRY",
         "VEOVEO_IMAGE_TAG",

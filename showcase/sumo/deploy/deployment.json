@@ -6,6 +6,7 @@
     "localConfig": "../../../deploy/local/k3d/registry.json"
   },
   "imageGroups": [
+    "showcase-sumo-base",
     "platform-core",
     "showcase-sumo"
   ],

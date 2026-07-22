@@ -70,10 +70,22 @@ group "showcase-sumo" {
   ]
 }
 
+group "showcase-sumo-base" {
+  targets = [
+    "sumo-base",
+  ]
+}
+
 group "showcase-uav-sim" {
   targets = [
     "uav-sim-runtime",
     "uav-sim-mcp",
+  ]
+}
+
+group "showcase-uav-sim-base" {
+  targets = [
+    "uav-sim-base",
   ]
 }
 
@@ -205,12 +217,31 @@ target "sumo-sim" {
   context    = "showcase/sumo/sim"
   dockerfile = "Dockerfile"
   tags       = [image_ref("sumo-sim")]
+  contexts = {
+    sumo-base = "target:sumo-base"
+  }
+  args = {
+    SUMO_BASE_IMAGE = "sumo-base"
+  }
 }
 
 target "sumo-mcp" {
   inherits   = ["base"]
   dockerfile = "showcase/sumo/sumo-mcp/Dockerfile"
   tags       = [image_ref("sumo-mcp")]
+  contexts = {
+    sumo-base = "target:sumo-base"
+  }
+  args = {
+    SUMO_BASE_IMAGE = "sumo-base"
+  }
+}
+
+target "sumo-base" {
+  context    = "showcase/sumo/base"
+  dockerfile = "Dockerfile"
+  platforms  = ["linux/amd64"]
+  tags       = [image_ref("sumo-base")]
 }
 
 target "uav-sim-base" {

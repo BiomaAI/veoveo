@@ -4,6 +4,7 @@
 # arm64 workstation. Bullseye's glibc is intentionally older than the Ubuntu
 # 22.04 SUMO runtime, keeping the resulting binary ABI-compatible.
 ARG SUMO_PLATFORM=linux/amd64
+ARG SUMO_BASE_IMAGE=sumo-base
 FROM --platform=${SUMO_PLATFORM} rust:1.97.1-slim-bullseye AS builder
 
 WORKDIR /app
@@ -28,7 +29,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 
 # Keep the SUMO command-line tools in the same image as the server. There is no
 # fake generator fallback: missing or failing tools fail the durable task.
-FROM --platform=${SUMO_PLATFORM} ghcr.io/eclipse-sumo/sumo:v1_27_1@sha256:87623396d3501ca8d0ac25154e202bc38baa55a31c724e4dfd6ae60f297c6bf2
+FROM --platform=${SUMO_PLATFORM} ${SUMO_BASE_IMAGE}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
