@@ -102,4 +102,14 @@ mod tests {
             assert!(html.contains(needle), "app must contain {needle}");
         }
     }
+
+    #[test]
+    fn preview_app_keeps_orientation_without_a_reference_grid() {
+        let html = preview_app_html();
+        assert!(!html.contains("THREE.GridHelper"));
+        assert!(
+            html.contains("this.compass.position.set(localPoint[0], localPoint[1], localPoint[2])")
+        );
+        assert!(html.contains("this.helper = new THREE.CameraHelper"));
+    }
 }
