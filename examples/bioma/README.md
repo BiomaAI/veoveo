@@ -113,6 +113,25 @@ Secret. The Google key remains the direct View MCP credential.
 The account token needs Tunnel:Edit and DNS:Edit for this account and zone. The
 tunnel token is stored only in the `bioma-cloudflared` Kubernetes Secret.
 
+Keep the producer private key in a mode-`0600` file and load it into the
+deployment process without committing it:
+
+```bash
+install -d -m 0700 "$HOME/.config/veoveo/profiles/bioma"
+openssl genpkey -algorithm RSA \
+  -pkeyopt rsa_keygen_bits:3072 \
+  -out "$HOME/.config/veoveo/profiles/bioma/recording-producer.pem"
+chmod 0600 "$HOME/.config/veoveo/profiles/bioma/recording-producer.pem"
+export VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM="$(
+  openssl pkey \
+    -in "$HOME/.config/veoveo/profiles/bioma/recording-producer.pem"
+)"
+```
+
+Derive the matching public JWK for `recording-producer-jwks.json` whenever the
+producer key rotates. The committed JWK identifies the current public key; it
+cannot sign producer assertions.
+
 ## Start Bioma
 
 ```bash
