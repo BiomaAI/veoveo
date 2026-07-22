@@ -466,6 +466,10 @@ pub(crate) async fn helm_config() -> Result<()> {
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
     contains(&gpu_device_plugin, "replicas: 4")?;
+    contains(
+        &gpu_device_plugin,
+        "veoveo.ai/device-plugin-config: time-slicing-4",
+    )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
     contains(&gateway_dockerfile, "find /app/target -name 'libduckdb.so'")?;

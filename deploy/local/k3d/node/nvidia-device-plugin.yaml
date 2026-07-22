@@ -35,6 +35,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: nvidia-device-plugin
+      annotations:
+        veoveo.ai/device-plugin-config: time-slicing-4
     spec:
       runtimeClassName: nvidia
       priorityClassName: system-node-critical
