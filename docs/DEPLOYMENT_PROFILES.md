@@ -40,6 +40,12 @@ shared base belongs in an earlier phase than the images that consume it. Registr
 node caches then exchange only missing layers, while identical base layers remain shared
 across image names, clusters, and deployment profiles.
 
+Compatible Rust builders share a versioned Cargo target cache. BuildKit locks that cache
+while Cargo writes to it, then each following service reuses the compiled dependency and
+feature artifacts. Builders with a different operating-system ABI or native SDK keep a
+separate cache identity. This avoids both repeated compilation and unsafe reuse across
+incompatible toolchains.
+
 `profile-up` applies typed ConfigMaps and environment-backed Secrets before installing
 the profile's Helm releases. Every Veoveo-owned image receives the same registry and Git
 revision through `global.veoveoRegistry` and `global.veoveoTag`. Upstream images retain
