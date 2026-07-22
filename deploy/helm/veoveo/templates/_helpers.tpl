@@ -27,15 +27,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "veoveo.image" -}}
+{{- $image := index . 1 -}}
+{{- if $image.digest -}}
+{{- printf "%s@%s" $image.repository $image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" $image.repository $image.tag -}}
+{{- end -}}
+{{- end }}
+
+{{- define "veoveo.ownedImage" -}}
 {{- $root := index . 0 -}}
 {{- $image := index . 1 -}}
-{{- $registry := trimSuffix "/" $root.Values.global.imageRegistry -}}
+{{- $registry := trimSuffix "/" $root.Values.global.veoveoRegistry -}}
 {{- $repository := $image.repository -}}
 {{- if $registry -}}{{- $repository = printf "%s/%s" $registry $repository -}}{{- end -}}
 {{- if $image.digest -}}
 {{- printf "%s@%s" $repository $image.digest -}}
 {{- else -}}
-{{- printf "%s:%s" $repository $image.tag -}}
+{{- $tag := default $image.tag $root.Values.global.veoveoTag -}}
+{{- printf "%s:%s" $repository $tag -}}
 {{- end -}}
 {{- end }}
 

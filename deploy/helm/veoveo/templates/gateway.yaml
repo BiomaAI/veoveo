@@ -52,7 +52,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       containers:
         - name: gateway
-          image: {{ include "veoveo.image" (list . .Values.gateway.image) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.gateway.image) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           args:
             - serve

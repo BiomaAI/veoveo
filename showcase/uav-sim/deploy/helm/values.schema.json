@@ -21,9 +21,11 @@
     "global": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["production", "imagePullSecrets"],
+      "required": ["production", "veoveoRegistry", "veoveoTag", "imagePullSecrets"],
       "properties": {
         "production": {"type": "boolean"},
+        "veoveoRegistry": {"type": "string"},
+        "veoveoTag": {"type": "string"},
         "imagePullSecrets": {
           "type": "array",
           "items": {

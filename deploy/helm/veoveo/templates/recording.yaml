@@ -80,7 +80,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       containers:
         - name: recording-hub
-          image: {{ include "veoveo.image" (list . .Values.recording.hubImage) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.recording.hubImage) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           args:
             - spooler
@@ -147,7 +147,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: recording-mcp
-          image: {{ include "veoveo.image" (list . .Values.recording.mcpImage) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.recording.mcpImage) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           args:
             - --port
