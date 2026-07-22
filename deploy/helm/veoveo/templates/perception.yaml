@@ -119,7 +119,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       initContainers:
         - name: compile-model
-          image: {{ include "veoveo.image" (list . .Values.perception.image) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.perception.image) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           command: [/bin/sh, -ec]
           args:
@@ -152,7 +152,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: perception-mcp
-          image: {{ include "veoveo.image" (list . .Values.perception.image) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.perception.image) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           args:
             - --port

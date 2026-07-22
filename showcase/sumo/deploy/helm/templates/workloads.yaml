@@ -61,7 +61,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sumo
-          image: {{ printf "%s:%s" .Values.images.sim.repository .Values.images.sim.tag }}
+          image: {{ include "sumo.image" (list . .Values.images.sim) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
             - name: traci
@@ -126,7 +126,7 @@ spec:
       initContainers:
         - name: recording-forwarder
           restartPolicy: Always
-          image: {{ printf "%s:%s" .Values.images.forwarder.repository .Values.images.forwarder.tag }}
+          image: {{ include "sumo.image" (list . .Values.images.forwarder) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           args:
             - --gateway-url
@@ -172,7 +172,7 @@ spec:
               readOnly: true
       containers:
         - name: sumo-mcp
-          image: {{ printf "%s:%s" .Values.images.mcp.repository .Values.images.mcp.tag }}
+          image: {{ include "sumo.image" (list . .Values.images.mcp) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           args:
             - --port

@@ -24,12 +24,17 @@
     "global": {
       "type": "object",
       "required": [
+        "veoveoRegistry",
+        "veoveoTag",
         "existingSecret",
         "publicBaseUrl",
         "offline"
       ],
       "properties": {
-        "imageRegistry": {
+        "veoveoRegistry": {
+          "type": "string"
+        },
+        "veoveoTag": {
           "type": "string"
         },
         "imagePullSecrets": {

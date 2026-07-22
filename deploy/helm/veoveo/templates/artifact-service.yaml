@@ -43,7 +43,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       containers:
         - name: artifact-service
-          image: {{ include "veoveo.image" (list . .Values.artifactService.image) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.artifactService.image) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}

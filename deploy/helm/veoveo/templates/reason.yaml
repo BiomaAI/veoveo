@@ -75,7 +75,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       containers:
         - name: reason-mcp
-          image: {{ include "veoveo.image" (list . .Values.reason.image) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.reason.image) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           args:
             - --port

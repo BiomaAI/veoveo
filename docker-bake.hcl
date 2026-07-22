@@ -9,7 +9,25 @@ group "default" {
   ]
 }
 
-group "platform" {
+variable "VEOVEO_REGISTRY" {
+  default = ""
+}
+
+variable "VEOVEO_IMAGE_TAG" {
+  default = "0.1.0"
+}
+
+function "image_ref" {
+  params = [name]
+  result = format(
+    "%sveoveo/%s:%s",
+    VEOVEO_REGISTRY != "" ? format("%s/", VEOVEO_REGISTRY) : "",
+    name,
+    VEOVEO_IMAGE_TAG,
+  )
+}
+
+group "platform-core" {
   targets = [
     "mcp-gateway",
     "artifact-service",
@@ -20,7 +38,7 @@ group "platform" {
   ]
 }
 
-group "bioma" {
+group "platform-full" {
   targets = [
     "mcp-gateway",
     "artifact-service",
@@ -45,7 +63,7 @@ group "bioma" {
   ]
 }
 
-group "sumo-showcase" {
+group "showcase-sumo" {
   targets = [
     "mcp-gateway",
     "artifact-service",
@@ -58,6 +76,15 @@ group "sumo-showcase" {
   ]
 }
 
+group "showcase-uav-sim" {
+  targets = [
+    "recording-forwarder",
+    "uav-sim-base",
+    "uav-sim-runtime",
+    "uav-sim-mcp",
+  ]
+}
+
 target "base" {
   context = "."
 }
@@ -65,133 +92,133 @@ target "base" {
 target "mcp-gateway" {
   inherits   = ["base"]
   dockerfile = "platform/gateway/Dockerfile"
-  tags       = ["veoveo/mcp-gateway:0.1.0"]
+  tags       = [image_ref("mcp-gateway")]
 }
 
 target "artifact-service" {
   inherits   = ["base"]
   dockerfile = "platform/artifacts/service/Dockerfile"
-  tags       = ["veoveo/artifact-service:0.1.0"]
+  tags       = [image_ref("artifact-service")]
 }
 
 target "recording-forwarder" {
   inherits   = ["base"]
   dockerfile = "platform/recordings/forwarder/Dockerfile"
-  tags       = ["veoveo/recording-forwarder:0.1.0"]
+  tags       = [image_ref("recording-forwarder")]
 }
 
 target "recording-hub" {
   inherits   = ["base"]
   dockerfile = "platform/recordings/hub/Dockerfile"
-  tags       = ["veoveo/recording-hub:0.1.0"]
+  tags       = [image_ref("recording-hub")]
 }
 
 target "recording-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/recording-mcp/Dockerfile"
-  tags       = ["veoveo/recording-mcp:0.1.0"]
+  tags       = [image_ref("recording-mcp")]
 }
 
 target "console-bff" {
   inherits   = ["base"]
   dockerfile = "apps/console/bff/Dockerfile"
-  tags       = ["veoveo/console-bff:0.1.0"]
+  tags       = [image_ref("console-bff")]
 }
 
 target "artifact-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/artifact-mcp/Dockerfile"
-  tags       = ["veoveo/artifact-mcp:0.1.0"]
+  tags       = [image_ref("artifact-mcp")]
 }
 
 target "media-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/media-mcp/Dockerfile"
-  tags       = ["veoveo/media-mcp:0.1.0"]
+  tags       = [image_ref("media-mcp")]
 }
 
 target "perception-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/perception-mcp/Dockerfile"
-  tags       = ["veoveo/perception-mcp:0.1.0"]
+  tags       = [image_ref("perception-mcp")]
 }
 
 target "reason-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/reason-mcp/Dockerfile"
-  tags       = ["veoveo/reason-mcp:0.1.0"]
+  tags       = [image_ref("reason-mcp")]
 }
 
 target "timeseries-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/timeseries-mcp/Dockerfile"
-  tags       = ["veoveo/timeseries-mcp:0.1.0"]
+  tags       = [image_ref("timeseries-mcp")]
 }
 
 target "duckdb-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/duckdb-mcp/Dockerfile"
-  tags       = ["veoveo/duckdb-mcp:0.1.0"]
+  tags       = [image_ref("duckdb-mcp")]
 }
 
 target "optimization-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/optimization-mcp/Dockerfile"
-  tags       = ["veoveo/optimization-mcp:0.1.0"]
+  tags       = [image_ref("optimization-mcp")]
 }
 
 target "frames-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/frames-mcp/Dockerfile"
-  tags       = ["veoveo/frames-mcp:0.1.0"]
+  tags       = [image_ref("frames-mcp")]
 }
 
 target "map-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/map-mcp/Dockerfile"
-  tags       = ["veoveo/map-mcp:0.1.0"]
+  tags       = [image_ref("map-mcp")]
 }
 
 target "view-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/view-mcp/Dockerfile"
-  tags       = ["veoveo/view-mcp:0.1.0"]
+  tags       = [image_ref("view-mcp")]
 }
 
 target "time-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/time-mcp/Dockerfile"
-  tags       = ["veoveo/time-mcp:0.1.0"]
+  tags       = [image_ref("time-mcp")]
 }
 
 target "datasheet-mcp" {
   inherits   = ["base"]
   dockerfile = "templates/python-mcp/Dockerfile"
-  tags       = ["veoveo/datasheet-mcp:0.1.0"]
+  tags       = [image_ref("datasheet-mcp")]
 }
 
 target "chart-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/chart-mcp/Dockerfile"
-  tags       = ["veoveo/chart-mcp:0.1.0"]
+  tags       = [image_ref("chart-mcp")]
 }
 
 target "mcp-stdio-bridge" {
   inherits   = ["base"]
   dockerfile = "mcp/bridges/stdio/Dockerfile"
-  tags       = ["veoveo/mcp-stdio-bridge:0.1.0"]
+  tags       = [image_ref("mcp-stdio-bridge")]
 }
 
 target "sumo-sim" {
   context    = "showcase/sumo/sim"
   dockerfile = "Dockerfile"
-  tags       = ["veoveo/sumo-sim:1.27.1"]
+  tags       = [image_ref("sumo-sim")]
 }
 
 target "sumo-mcp" {
   inherits   = ["base"]
   dockerfile = "showcase/sumo/sumo-mcp/Dockerfile"
-  tags       = ["veoveo/sumo-mcp:0.1.0"]
+  tags       = [image_ref("sumo-mcp")]
 }
 
 target "uav-sim-base" {
@@ -199,7 +226,7 @@ target "uav-sim-base" {
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64"]
   target     = "runtime-base"
-  tags       = ["veoveo/uav-sim-base:isaac-6.0.1-cesium-0.29.0-pegasus-5.1.0-px4-1.17.0"]
+  tags       = [image_ref("uav-sim-base")]
 }
 
 target "uav-sim-runtime" {
@@ -207,9 +234,12 @@ target "uav-sim-runtime" {
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64"]
   target     = "runtime"
-  tags       = ["veoveo/uav-sim-runtime:6.0.1"]
+  tags       = [image_ref("uav-sim-runtime")]
+  contexts = {
+    uav-sim-base = "target:uav-sim-base"
+  }
   args = {
-    UAV_SIM_BASE_IMAGE = "veoveo/uav-sim-base:isaac-6.0.1-cesium-0.29.0-pegasus-5.1.0-px4-1.17.0"
+    UAV_SIM_BASE_IMAGE = "uav-sim-base"
   }
 }
 
@@ -217,5 +247,5 @@ target "uav-sim-mcp" {
   inherits   = ["base"]
   dockerfile = "servers/uav-sim-mcp/Dockerfile"
   platforms  = ["linux/amd64"]
-  tags       = ["veoveo/uav-sim-mcp:0.1.0"]
+  tags       = [image_ref("uav-sim-mcp")]
 }

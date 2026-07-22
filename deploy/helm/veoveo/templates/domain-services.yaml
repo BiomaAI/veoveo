@@ -74,7 +74,7 @@ spec:
         {{- include "veoveo.podSecurityContext" $ | nindent 8 }}
       containers:
         - name: {{ $service.name }}
-          image: {{ include "veoveo.image" (list $ $service.image) }}
+          image: {{ include "veoveo.ownedImage" (list $ $service.image) }}
           imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
           workingDir: /var/lib/veoveo/runtime
           args:

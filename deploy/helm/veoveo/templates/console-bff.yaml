@@ -43,7 +43,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       containers:
         - name: console-bff
-          image: {{ include "veoveo.image" (list . .Values.consoleBff.image) }}
+          image: {{ include "veoveo.ownedImage" (list . .Values.consoleBff.image) }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           env:
             - name: PORT

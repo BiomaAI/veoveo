@@ -1,3 +1,7 @@
+global:
+  veoveoRegistry: ""
+  veoveoTag: ""
+
 images:
   pullPolicy: IfNotPresent
   sim:
