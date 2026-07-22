@@ -10,10 +10,12 @@ use veoveo_mcp_contract::tool;
 
 use crate::{
     contract::{
-        ArchiveFeatureLayerRequest, CommitFeatureChangesOutput, CommitFeatureChangesRequest,
-        CreateFeatureLayerRequest, FeatureLayer, LayerPublication, PublishFeatureLayerRequest,
+        ArchiveFeatureLayerRequest, ArchiveMapCompositionRequest, CommitFeatureChangesOutput,
+        CommitFeatureChangesRequest, CreateFeatureLayerRequest, CreateMapCompositionRequest,
+        FeatureLayer, LayerPublication, MapComposition, PublishFeatureLayerRequest,
         QueryFeaturesOutput, QueryFeaturesRequest, RestoreFeatureRequest,
-        UpdateFeatureLayerRequest, ValidateFeatureChangesOutput, ValidateFeatureChangesRequest,
+        UpdateFeatureLayerRequest, UpdateMapCompositionRequest, ValidateFeatureChangesOutput,
+        ValidateFeatureChangesRequest,
     },
     uris,
 };
@@ -294,6 +296,117 @@ impl MapMcp {
             [(layer_uri, "Authored feature layer")],
         )
     }
+
+    #[tool(
+        title = "Create map composition",
+        description = "Create a governed map composition whose ordered layers pin immutable feature-layer publications and their publication styles.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MapComposition>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn create_map_composition(
+        &self,
+        Parameters(request): Parameters<CreateMapCompositionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:feature:write")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let composition = self
+            .state
+            .authoring
+            .create_composition(&identity, &scope, request)
+            .await
+            .map_err(invalid_params)?;
+        notify_composition(self, &context, &composition).await;
+        structured_with_links(
+            "created map composition",
+            &composition,
+            [(
+                uris::composition_uri(composition.composition_id.as_str()),
+                "Map composition",
+            )],
+        )
+    }
+
+    #[tool(
+        title = "Update map composition",
+        description = "Append an immutable composition revision with optimistic concurrency while retaining publication pins.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MapComposition>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn update_map_composition(
+        &self,
+        Parameters(request): Parameters<UpdateMapCompositionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:feature:write")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let composition = self
+            .state
+            .authoring
+            .update_composition(&identity, &scope, request)
+            .await
+            .map_err(invalid_params)?;
+        notify_composition(self, &context, &composition).await;
+        structured_with_links(
+            "updated map composition",
+            &composition,
+            [(
+                uris::composition_revision_uri(
+                    composition.composition_id.as_str(),
+                    composition.current.revision,
+                ),
+                "Map composition revision",
+            )],
+        )
+    }
+
+    #[tool(
+        title = "Archive map composition",
+        description = "Archive a composition under optimistic concurrency while preserving every immutable revision.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MapComposition>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn archive_map_composition(
+        &self,
+        Parameters(request): Parameters<ArchiveMapCompositionRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:feature:admin")?;
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let composition = self
+            .state
+            .authoring
+            .archive_composition(&identity, &scope, request)
+            .await
+            .map_err(invalid_params)?;
+        notify_composition(self, &context, &composition).await;
+        structured_with_links(
+            "archived map composition",
+            &composition,
+            [(
+                uris::composition_uri(composition.composition_id.as_str()),
+                "Map composition",
+            )],
+        )
+    }
+}
+
+async fn notify_composition(
+    service: &MapMcp,
+    context: &RequestContext<RoleServer>,
+    composition: &MapComposition,
+) {
+    service
+        .state
+        .subscriptions
+        .notify_resource_updated(uris::COMPOSITIONS_URI)
+        .await;
+    service
+        .state
+        .subscriptions
+        .notify_resource_updated(&uris::composition_uri(composition.composition_id.as_str()))
+        .await;
+    let _ = context.peer.notify_resource_list_changed().await;
 }
 
 async fn notify_commit(

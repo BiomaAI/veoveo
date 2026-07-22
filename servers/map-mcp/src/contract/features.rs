@@ -845,9 +845,11 @@ mod tests {
             serde_json::to_value(&time).unwrap(),
             serde_json::json!({"interval": ["..", "2026-07-22T12:00:00Z"]})
         );
-        assert!(serde_json::from_value::<FeatureTime>(serde_json::json!({
-            "interval": [null, "2026-07-22T12:00:00Z"]
-        }))
-        .is_err());
+        assert!(
+            serde_json::from_value::<FeatureTime>(serde_json::json!({
+                "interval": [null, "2026-07-22T12:00:00Z"]
+            }))
+            .is_err()
+        );
     }
 }

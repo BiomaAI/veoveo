@@ -1,4 +1,5 @@
 mod admin;
+mod compositions;
 mod datasets;
 mod features;
 mod geometry;
@@ -9,6 +10,7 @@ mod routes;
 mod units;
 
 pub use admin::*;
+pub use compositions::*;
 pub use datasets::*;
 pub use features::*;
 pub use geometry::*;

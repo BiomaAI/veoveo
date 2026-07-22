@@ -1119,7 +1119,10 @@ fn validate_description(value: &str) -> Result<()> {
     Ok(())
 }
 
-fn require_access(identity: &GatewayInternalIdentity, required: AccessLevel) -> Result<()> {
+pub(super) fn require_access(
+    identity: &GatewayInternalIdentity,
+    required: AccessLevel,
+) -> Result<()> {
     if !identity.authority.artifact_access().allows(required) {
         bail!(
             "Work Context membership {:?} does not grant {required:?} authoring access",
@@ -1158,7 +1161,7 @@ fn provenance(identity: &GatewayInternalIdentity) -> FeatureProvenance {
     }
 }
 
-fn authority_record(identity: &GatewayInternalIdentity) -> InvocationAuthorityRecord {
+pub(super) fn authority_record(identity: &GatewayInternalIdentity) -> InvocationAuthorityRecord {
     let authority = &identity.authority;
     let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {
         InvocationProvenance::Direct { initiator } => (
@@ -1245,14 +1248,14 @@ fn store_membership(
     }
 }
 
-fn wire<T: serde::Serialize>(value: &T) -> Result<String> {
+pub(super) fn wire<T: serde::Serialize>(value: &T) -> Result<String> {
     serde_json::to_value(value)?
         .as_str()
         .map(ToOwned::to_owned)
         .context("wire enum did not serialize as a string")
 }
 
-fn integer(value: u64) -> Result<i64> {
+pub(super) fn integer(value: u64) -> Result<i64> {
     i64::try_from(value).context("revision exceeds signed database range")
 }
 
@@ -1277,7 +1280,7 @@ fn finding(
     }
 }
 
-fn decode<T: serde::de::DeserializeOwned>(value: &str, kind: &str) -> Result<T> {
+pub(super) fn decode<T: serde::de::DeserializeOwned>(value: &str, kind: &str) -> Result<T> {
     serde_json::from_str(value).with_context(|| format!("decoding persisted {kind}"))
 }
 
