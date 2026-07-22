@@ -3,6 +3,7 @@ import json
 import pytest
 
 from reason_runner import protocol
+from reason_runner.inference import observation_frame_limit
 
 
 def request_document() -> dict:
@@ -17,7 +18,7 @@ def request_document() -> dict:
             "pipeline_id": "video-reasoning",
             "prompt_template_path": "/etc/veoveo/reason/prompt-template.txt",
             "prompt_revision": "v1",
-            "observation": {"width": 640, "height": 360},
+            "observation": {"width": 640, "height": 360, "maximum_frames": 6},
         },
         "model": {
             "model_id": "world-model",
@@ -57,6 +58,7 @@ def test_request_roundtrip_preserves_wire_names() -> None:
     assert request.grounding.track_ids() == {7}
     assert request.model.engine.gpu_memory_utilization == 0.7
     assert request.model.engine.max_model_len == 8_192
+    assert request.pipeline.observation.maximum_frames == 6
 
 
 def test_unsupported_schema_is_rejected() -> None:
@@ -78,6 +80,15 @@ def test_invalid_engine_budget_is_rejected() -> None:
     document["model"]["engine"]["gpu_memory_utilization"] = 0.0
     with pytest.raises(ValueError):
         protocol.parse_request(json.dumps(document).encode())
+
+
+def test_pipeline_observation_budget_bounds_the_request() -> None:
+    request = protocol.parse_request(json.dumps(request_document()).encode())
+    assert request.sampling.max_frames == 16
+    assert observation_frame_limit(request) == 6
+
+    request.sampling.max_frames = 4
+    assert observation_frame_limit(request) == 4
 
 
 def test_response_serializes_the_tagged_answer() -> None:

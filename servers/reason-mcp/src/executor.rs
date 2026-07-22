@@ -14,7 +14,7 @@ use crate::contract::{
 };
 use crate::grounding::grounded_track_ids;
 
-pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v2";
+pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v3";
 pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.reason-runner-response/v1";
 pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.reason-results/v1";
 
@@ -373,6 +373,7 @@ mod tests {
             observation: ObservationConfig {
                 width: 640,
                 height: 360,
+                maximum_frames: 6,
             },
         }
     }
@@ -513,6 +514,7 @@ mod tests {
         assert_eq!(request["decode_start_index"], 100);
         assert_eq!(request["requested_range"]["start"], 120);
         assert_eq!(request["pipeline"]["observation"]["width"], 640);
+        assert_eq!(request["pipeline"]["observation"]["maximum_frames"], 6);
         assert_eq!(request["model"]["engine"]["kind"], "vllm");
         assert_eq!(request["model"]["engine"]["gpu_memory_utilization"], 0.7);
         assert_eq!(request["model"]["engine"]["max_model_len"], 8_192);

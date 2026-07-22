@@ -56,6 +56,7 @@ pub struct PipelineConfig {
 pub struct ObservationConfig {
     pub width: u32,
     pub height: u32,
+    pub maximum_frames: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -147,7 +148,11 @@ impl PipelineCatalog {
             match pipeline.operation {
                 PipelineOperation::VideoReasoning => {}
             }
-            let ObservationConfig { width, height } = pipeline.observation;
+            let ObservationConfig {
+                width,
+                height,
+                maximum_frames,
+            } = pipeline.observation;
             ensure!(
                 width > 0
                     && height > 0
@@ -156,6 +161,11 @@ impl PipelineCatalog {
                     && width % 2 == 0
                     && height % 2 == 0,
                 "observation dimensions for `{}` must be positive even values within 3840x2160",
+                pipeline.id
+            );
+            ensure!(
+                (1..=1_024).contains(&maximum_frames),
+                "observation maximum_frames for `{}` must be within 1..=1024",
                 pipeline.id
             );
             let id = pipeline.id.clone();
@@ -287,6 +297,7 @@ mod tests {
             observation: ObservationConfig {
                 width: 640,
                 height: 360,
+                maximum_frames: 6,
             },
         }
     }
@@ -305,6 +316,14 @@ mod tests {
         odd.observation.width = 641;
         let error = PipelineCatalog::new(vec![model()], vec![odd]).unwrap_err();
         assert!(error.to_string().contains("observation dimensions"));
+    }
+
+    #[test]
+    fn catalog_rejects_unbounded_observation_frames() {
+        let mut unbounded = pipeline();
+        unbounded.observation.maximum_frames = 0;
+        let error = PipelineCatalog::new(vec![model()], vec![unbounded]).unwrap_err();
+        assert!(error.to_string().contains("observation maximum_frames"));
     }
 
     #[test]
