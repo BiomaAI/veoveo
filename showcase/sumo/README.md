@@ -60,7 +60,8 @@ just showcase-sumo-verify
 Use the latest versions pinned in `deploy/local/k3d/versions.env`. The cluster
 profile requires a working NVIDIA container runtime even though SUMO itself does
 not request a GPU. This proves that later GPU simulators and renderers can use the
-same local cluster.
+same local cluster. Startup applies the profile's NVIDIA device-plugin manifest and
+waits for allocatable GPU capacity before deployment.
 
 ```bash
 just k3d-node-build

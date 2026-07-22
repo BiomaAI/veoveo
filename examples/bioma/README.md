@@ -136,6 +136,8 @@ applies the tunnel, and waits for Isaac tile and PX4 readiness without suspendin
 View or Perception.
 
 The registry is shared by local profiles and remains independent of this cluster.
+Cluster startup applies the profile's NVIDIA device-plugin bootstrap manifest and waits
+until Kubernetes reports allocatable GPU capacity before any workload installation.
 See [`../../docs/DEPLOYMENT_PROFILES.md`](../../docs/DEPLOYMENT_PROFILES.md) for
 the reusable enterprise and showcase workflow.
 

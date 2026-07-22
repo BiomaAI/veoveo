@@ -13,7 +13,10 @@
     "context": "k3d-veoveo-sumo",
     "localCluster": {
       "name": "veoveo-sumo",
-      "config": "../../../deploy/local/k3d/cluster.yaml"
+      "config": "../../../deploy/local/k3d/cluster.yaml",
+      "nodeBootstrapManifests": [
+        "../../../deploy/local/k3d/node/nvidia-device-plugin.yaml"
+      ]
     }
   },
   "namespace": "veoveo",
