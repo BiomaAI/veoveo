@@ -13,7 +13,10 @@
     "context": "k3d-veoveo-bioma",
     "localCluster": {
       "name": "veoveo-bioma",
-      "config": "k3d.yaml"
+      "config": "k3d.yaml",
+      "nodeBootstrapManifests": [
+        "../../deploy/local/k3d/node/nvidia-device-plugin.yaml"
+      ]
     }
   },
   "namespace": "veoveo",

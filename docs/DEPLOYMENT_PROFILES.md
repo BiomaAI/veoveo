@@ -63,7 +63,7 @@ The profile fields are:
 | `registry.localConfig` | Optional standalone k3d registry definition. Omit it for an enterprise registry. |
 | `imageGroups` | Reusable Docker Bake groups selected by this deployment. |
 | `kubernetes.context` | Explicit kubectl and Helm context. |
-| `kubernetes.localCluster` | Optional k3d name and config. Omit it for an existing cluster. |
+| `kubernetes.localCluster` | Optional k3d name, config, and node-bootstrap manifests. Omit it for an existing cluster. |
 | `namespace` | Namespace for generated resources and Helm releases. |
 | `resources.manifests` | Kubernetes manifests applied before Helm. |
 | `resources.configMaps` | Typed names and file-to-key projections. |
@@ -122,9 +122,13 @@ revisions into containerd when Kubernetes schedules a pod. The node keeps its ow
 copy because containers cannot execute directly from a registry, but layer-aware pulls
 replace full-image tar imports.
 
-The profile runner checks allocatable `nvidia.com/gpu` capacity after cluster startup and
-again before deployment. A local Veoveo profile cannot proceed on a cluster that lost its
-NVIDIA device path.
+Local profiles declare the NVIDIA device plugin under
+`kubernetes.localCluster.nodeBootstrapManifests`. The runner applies those node-level
+prerequisites after cluster startup, then waits for allocatable `nvidia.com/gpu`
+capacity. It performs the same check before deployment. A local Veoveo profile cannot
+proceed on a cluster that lost its NVIDIA device path. Existing enterprise clusters own
+their GPU operator or device-plugin lifecycle and must expose allocatable capacity before
+Veoveo is installed.
 
 Use these lifecycle commands for any local profile:
 

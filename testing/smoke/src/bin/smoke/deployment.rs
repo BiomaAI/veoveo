@@ -4,6 +4,8 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail, ensure};
@@ -62,6 +64,8 @@ struct KubernetesTarget {
 struct LocalClusterSpec {
     name: String,
     config: PathBuf,
+    #[serde(default)]
+    node_bootstrap_manifests: Vec<PathBuf>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -205,7 +209,11 @@ pub(crate) fn profile_cluster_up(path: &Path) -> Result<()> {
             )?;
         }
     }
-    require_cluster_gpu(&profile.definition.kubernetes.context)?;
+    apply_local_cluster_bootstrap(&profile)?;
+    wait_for_cluster_gpu(
+        &profile.definition.kubernetes.context,
+        Duration::from_secs(120),
+    )?;
     println!(
         "Deployment profile {} cluster is ready with NVIDIA GPU capacity",
         profile.definition.name
@@ -298,7 +306,8 @@ pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
     let profile = LoadedProfile::load(path)?;
     let revision = resolve_revision(&profile.repository, revision)?;
     let context = profile.definition.kubernetes.context.as_str();
-    require_cluster_gpu(context)?;
+    apply_local_cluster_bootstrap(&profile)?;
+    wait_for_cluster_gpu(context, Duration::from_secs(120))?;
 
     kubectl_apply_value(
         context,
@@ -453,6 +462,12 @@ impl LoadedProfile {
                 "k3d cluster config must use registry {}",
                 profile.registry.address
             );
+            for manifest in &cluster.node_bootstrap_manifests {
+                require_file(
+                    &self.resolve(manifest),
+                    "local cluster node bootstrap manifest",
+                )?;
+            }
         }
         if let Some(config) = &profile.registry.local_config {
             let registry = load_local_registry(&self.resolve(config))?;
@@ -655,7 +670,44 @@ fn k3d_registries() -> Result<Vec<K3dRegistrySummary>> {
     serde_json::from_slice(&output).context("decoding k3d registry inventory")
 }
 
-fn require_cluster_gpu(context: &str) -> Result<()> {
+fn apply_local_cluster_bootstrap(profile: &LoadedProfile) -> Result<()> {
+    let Some(cluster) = &profile.definition.kubernetes.local_cluster else {
+        return Ok(());
+    };
+    for manifest in &cluster.node_bootstrap_manifests {
+        let manifest = profile.resolve(manifest);
+        status_checked(
+            "kubectl",
+            [
+                "--context",
+                profile.definition.kubernetes.context.as_str(),
+                "apply",
+                "-f",
+                path_str(&manifest)?,
+            ],
+            &[],
+            None,
+        )?;
+    }
+    Ok(())
+}
+
+fn wait_for_cluster_gpu(context: &str, timeout: Duration) -> Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if cluster_gpu_capacity(context)? > 0 {
+            return Ok(());
+        }
+        ensure!(
+            Instant::now() < deadline,
+            "Kubernetes context {context} exposes no allocatable NVIDIA GPU after {} seconds",
+            timeout.as_secs()
+        );
+        thread::sleep(Duration::from_secs(1));
+    }
+}
+
+fn cluster_gpu_capacity(context: &str) -> Result<u64> {
     let output = output_checked(
         "kubectl",
         ["--context", context, "get", "nodes", "-o", "json"],
@@ -672,11 +724,7 @@ fn require_cluster_gpu(context: &str) -> Result<()> {
         })
         .filter_map(|capacity| capacity.parse::<u64>().ok())
         .sum::<u64>();
-    ensure!(
-        gpu_capacity > 0,
-        "Kubernetes context {context} exposes no allocatable NVIDIA GPU"
-    );
-    Ok(())
+    Ok(gpu_capacity)
 }
 
 fn validate_bake_groups(profile: &LoadedProfile) -> Result<()> {
