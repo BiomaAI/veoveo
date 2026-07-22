@@ -43,6 +43,7 @@ pub const COMPOSITION_REVISION_TEMPLATE: &str =
 /// The map administration MCP App view. The slug segment matches the
 /// gateway's ServerOwned `ui://{slug}/{page}` projection.
 pub const ADMIN_APP_URI: &str = "ui://map/admin.html";
+pub const EDITOR_APP_URI: &str = "ui://map/editor.html";
 
 pub fn source_uri(id: &str) -> String {
     format!("map://source/{id}")
@@ -387,5 +388,26 @@ mod tests {
                 .as_timestamp()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn product_and_composition_parsers_reject_noncanonical_paths() {
+        assert_eq!(
+            parse_layer_product(
+                "map://feature-layer/layer-1/publication/publication-1/product/product-1"
+            ),
+            Some(("layer-1", "publication-1", "product-1"))
+        );
+        assert!(
+            parse_layer_product(
+                "map://feature-layer/layer-1/publication/publication-1/product/product-1/extra"
+            )
+            .is_none()
+        );
+        assert_eq!(
+            parse_composition_revision("map://composition/composition-1/revision/2"),
+            Some(("composition-1", 2))
+        );
+        assert!(parse_composition("map://composition/composition-1/revision/2").is_none());
     }
 }
