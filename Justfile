@@ -17,9 +17,6 @@ operator-scope-args := "--scope operator:use --scope view:read --scope view:writ
 default-model := "openai/gpt-image-2/edit"
 default-input-image := "gol-real-roblox.jpeg"
 architecture-python := "uv run --project docs/architecture --locked python"
-bioma-images := "veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-forwarder:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0 veoveo/artifact-mcp:0.1.0 veoveo/media-mcp:0.1.0 veoveo/perception-mcp:0.1.0 veoveo/reason-mcp:0.1.0 veoveo/timeseries-mcp:0.1.0 veoveo/duckdb-mcp:0.1.0 veoveo/optimization-mcp:0.1.0 veoveo/frames-mcp:0.1.0 veoveo/map-mcp:0.1.0 veoveo/view-mcp:0.1.0 veoveo/time-mcp:0.1.0 veoveo/datasheet-mcp:0.1.0 veoveo/chart-mcp:0.1.0 veoveo/mcp-stdio-bridge:0.1.0"
-bioma-registry := "veoveo-registry.localhost:5001"
-
 # List available recipes.
 default:
     @just --list
@@ -303,13 +300,45 @@ smoke-agent-live:
 k3d-node-build:
     source deploy/local/k3d/versions.env; docker build --build-arg K3S_VERSION="$K3S_VERSION" --build-arg CUDA_VERSION="$CUDA_VERSION" --build-arg NVIDIA_CONTAINER_TOOLKIT_VERSION="$NVIDIA_CONTAINER_TOOLKIT_VERSION" -t "$VEOVEO_K3D_NODE_IMAGE" deploy/local/k3d/node
 
-# Create the loopback-only SUMO development cluster.
-sumo-k3d-create:
-    {{k3d}} cluster create --config deploy/local/k3d/cluster.yaml
+# Validate a typed deployment profile, its Docker Bake groups, and Helm releases.
+profile-validate profile:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-validate --profile '{{profile}}'
 
-# Delete the SUMO development cluster and its Kubernetes state.
-sumo-k3d-delete:
-    {{k3d}} cluster delete veoveo-sumo
+# Start the standalone local registry selected by a deployment profile.
+profile-registry-up profile:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-registry-up --profile '{{profile}}'
+
+# Create or start a profile's GPU-enabled local k3d cluster.
+profile-cluster-up profile:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-cluster-up --profile '{{profile}}'
+
+# Stop a profile's local k3d cluster without deleting its Kubernetes state.
+profile-cluster-stop profile:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-cluster-stop --profile '{{profile}}'
+
+# Delete a profile's local k3d cluster and its Kubernetes state.
+profile-cluster-delete profile:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-cluster-delete --profile '{{profile}}'
+
+# Build and publish a profile's image groups from one committed revision.
+profile-publish profile revision='HEAD':
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-publish --profile '{{profile}}' --revision '{{revision}}'
+
+# Apply a profile's resources and Helm releases at one published revision.
+profile-up profile revision='HEAD':
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-up --profile '{{profile}}' --revision '{{revision}}'
+
+# Uninstall every Helm release selected by a deployment profile.
+profile-down profile:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} profile-down --profile '{{profile}}'
 
 # Show the SUMO cluster and workload status.
 sumo-k3d-status:
@@ -320,51 +349,11 @@ sumo-k3d-status:
 logs workload='mcp-gateway' context=sumo-kube-context:
     {{kubectl}} --context '{{context}}' -n veoveo logs -f deployment/{{workload}} --all-containers --tail=200
 
-# Create the Bioma cluster.
-bioma-k3d-create:
-    {{k3d}} cluster create --config examples/bioma/k3d.yaml
-
-# Delete the Bioma cluster and its Kubernetes state.
-bioma-k3d-delete:
-    {{k3d}} cluster delete veoveo-bioma
-
 # Show both isolated clusters and their workloads.
 clusters-status:
     {{k3d}} cluster list
     {{kubectl}} --context {{sumo-kube-context}} -n veoveo get pods
     {{kubectl}} --context {{bioma-kube-context}} -n veoveo get pods
-
-# Build the complete Veoveo installation used by Bioma.
-bioma-build:
-    docker buildx bake bioma
-
-# Import the platform images into the Bioma cluster.
-bioma-import:
-    {{k3d}} image import --cluster veoveo-bioma {{bioma-images}}
-
-# Publish commit-addressed UAV images to Bioma's incremental OCI registry.
-bioma-uav-sim-publish:
-    showcase/uav-sim/deploy/publish-images.py --registry {{bioma-registry}}
-
-# Apply Bioma's control plane and environment-backed Kubernetes Secrets.
-bioma-resources:
-    cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} bioma-resources --context {{bioma-kube-context}}
-
-# Install the Bioma-owned platform release in its isolated cluster.
-bioma-platform-up:
-    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --wait --timeout 12m
-    revision="$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="${revision}" --set-string images.forwarder.repository={{bioma-registry}}/veoveo/recording-forwarder --set-string images.forwarder.tag="${revision}" --wait --timeout 30m
-
-# Install Bioma with canonical-host TLS for direct LAN and split-horizon DNS access.
-bioma-platform-up-lan:
-    {{helm}} --kube-context {{bioma-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values examples/bioma/values.yaml --values examples/bioma/k3d-values.yaml --values examples/bioma/lan-values.yaml --wait --timeout 12m
-    revision="$(git rev-parse HEAD)"; {{helm}} --kube-context {{bioma-kube-context}} upgrade --install uav-sim showcase/uav-sim/deploy/helm --namespace veoveo --values examples/bioma/uav-sim-values.yaml --set-string images.runtime.repository={{bioma-registry}}/veoveo/uav-sim-runtime --set-string images.runtime.tag="${revision}" --set-string images.mcp.repository={{bioma-registry}}/veoveo/uav-sim-mcp --set-string images.mcp.tag="${revision}" --set-string images.forwarder.repository={{bioma-registry}}/veoveo/recording-forwarder --set-string images.forwarder.tag="${revision}" --wait --timeout 30m
-
-# Connect the Bioma cluster to its remote-managed Cloudflare Tunnel.
-bioma-tunnel-up:
-    {{kubectl}} --context {{bioma-kube-context}} -n veoveo apply -f examples/bioma/tunnel.yaml
-    {{kubectl}} --context {{bioma-kube-context}} -n veoveo rollout status deployment/cloudflared --timeout=5m
 
 # Verify the Bioma installation and its authoritative public edge.
 bioma-verify:
@@ -433,40 +422,9 @@ showcase-uav-sim-test:
     cargo test -p veoveo-uav-sim-mcp --all-targets
     PYTHONPATH=showcase/uav-sim/runtime uv run --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 
-# Build the immutable UAV dependency base, thin runtime, and UAV MCP images.
-showcase-uav-sim-build:
-    docker buildx bake uav-sim-base
-    docker buildx bake uav-sim-runtime uav-sim-mcp
-
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:
     cargo run -p veoveo-smoke -- sumo-push
-
-# Build the platform and SUMO images for the showcase profile.
-showcase-sumo-build:
-    docker buildx bake sumo-showcase
-
-# Import the showcase images into the active k3d node.
-showcase-sumo-import:
-    {{k3d}} image import --cluster veoveo-sumo veoveo/mcp-gateway:0.1.0 veoveo/artifact-service:0.1.0 veoveo/recording-forwarder:0.1.0 veoveo/recording-hub:0.1.0 veoveo/recording-mcp:0.1.0 veoveo/console-bff:0.1.0
-    docker save veoveo/sumo-sim:1.27.1 veoveo/sumo-mcp:0.1.0 | docker exec -i k3d-veoveo-sumo-server-0 ctr -n k8s.io images import -
-
-# Apply disposable credentials and the SUMO-owned gateway profile.
-showcase-sumo-resources:
-    {{kubectl}} --context {{sumo-kube-context}} apply -f deploy/local/k3d/development-resources.yaml
-    {{kubectl}} --context {{sumo-kube-context}} -n veoveo create configmap veoveo-gateway-control-plane --from-file=gateway.json=showcase/sumo/deploy/gateway.json --from-file=jwks.json=showcase/sumo/deploy/jwks.json --dry-run=client -o yaml | {{kubectl}} --context {{sumo-kube-context}} apply -f -
-
-# Install the local platform with only the services needed by SUMO.
-showcase-sumo-platform-up:
-    {{helm}} --kube-context {{sumo-kube-context}} upgrade --install veoveo deploy/helm/veoveo --namespace veoveo --create-namespace --values deploy/local/k3d/values.yaml --values showcase/sumo/deploy/platform-values.yaml --wait --timeout 12m
-
-# Bring up the full SUMO showcase (SUMO + sumo-mcp + hub).
-showcase-sumo-up:
-    {{helm}} --kube-context {{sumo-kube-context}} upgrade --install sumo showcase/sumo/deploy/helm --namespace veoveo --wait --timeout 12m
-
-# Stop only the SUMO profile while retaining the local platform.
-showcase-sumo-down:
-    {{helm}} --kube-context {{sumo-kube-context}} uninstall sumo --namespace veoveo
 
 # End-to-end verify: full SUMO showcase up, world durable in hub, served MCP driven e2e.
 showcase-sumo-verify:

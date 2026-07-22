@@ -320,9 +320,20 @@ pub(crate) async fn helm_config() -> Result<()> {
     let bioma_cluster = fs::read_to_string("examples/bioma/k3d.yaml")?;
     contains(&bioma_cluster, "name: veoveo-bioma")?;
     contains(&bioma_cluster, "127.0.0.1:8781:80")?;
-    contains(&bioma_cluster, "name: veoveo-registry.localhost")?;
-    contains(&bioma_cluster, "hostPort: \"5001\"")?;
-    contains(&bioma_cluster, "registry:3.1.1@sha256:")?;
+    contains(&bioma_cluster, "k3d-veoveo-registry.localhost:5001")?;
+    not_contains(&bioma_cluster, "create:")?;
+    let registry: Value =
+        serde_json::from_str(&fs::read_to_string("deploy/local/k3d/registry.json")?)?;
+    ensure!(
+        registry.get("schemaVersion").and_then(Value::as_str)
+            == Some("veoveo.io/local-registry/v1")
+            && registry.get("name").and_then(Value::as_str) == Some("veoveo-registry.localhost")
+            && registry
+                .get("image")
+                .and_then(Value::as_str)
+                .is_some_and(|image| image.contains("registry:3.1.1@sha256:")),
+        "local registry config must identify the shared immutable registry"
+    );
     let tunnel: Value = serde_json::from_str(&fs::read_to_string(
         "examples/bioma/cloudflare-tunnel.json",
     )?)?;
@@ -464,23 +475,32 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
     contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
-    let uav_publish = fs::read_to_string("showcase/uav-sim/deploy/publish-images.py")?;
+    let bake = fs::read_to_string("docker-bake.hcl")?;
     for expected in [
-        "git\", \"status\", \"--porcelain",
-        "uav-sim-base.tags=",
-        "uav-sim-runtime.tags=",
-        "uav-sim-runtime.args.UAV_SIM_BASE_IMAGE=",
-        "uav-sim-runtime.args.SOURCE_REVISION=",
-        "uav-sim-mcp.tags=",
-        "recording-forwarder.tags=",
-        "\"--push\"",
+        "group \"platform-core\"",
+        "group \"platform-full\"",
+        "group \"showcase-sumo\"",
+        "group \"showcase-uav-sim\"",
+        "uav-sim-base = \"target:uav-sim-base\"",
+        "VEOVEO_REGISTRY",
+        "VEOVEO_IMAGE_TAG",
     ] {
-        contains(&uav_publish, expected)?;
+        contains(&bake, expected)?;
     }
     let justfile = fs::read_to_string("Justfile")?;
-    contains(&justfile, "revision=\"$(git rev-parse HEAD)\"")?;
-    contains(&justfile, "images.forwarder.tag=\"${revision}\"")?;
-    not_contains(&justfile, "revision=\"$$(git rev-parse HEAD)\"")?;
+    for expected in [
+        "profile-validate profile:",
+        "profile-publish profile revision='HEAD':",
+        "profile-up profile revision='HEAD':",
+        "profile-cluster-up profile:",
+    ] {
+        contains(&justfile, expected)?;
+    }
+    for forbidden in ["k3d image import", "docker save", "bioma-build:"] {
+        not_contains(&justfile, forbidden)?;
+    }
+    crate::deployment::profile_validate(Path::new("examples/bioma/deployment.json"))?;
+    crate::deployment::profile_validate(Path::new("showcase/sumo/deploy/deployment.json"))?;
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
         "showcase/uav-sim/scenarios/bioma-aerial.json",
     )?)?;

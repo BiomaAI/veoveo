@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "veoveo.io/deployment/v1",
+  "name": "sumo",
+  "registry": {
+    "address": "k3d-veoveo-registry.localhost:5001",
+    "localConfig": "../../../deploy/local/k3d/registry.json"
+  },
+  "imageGroups": [
+    "platform-core",
+    "showcase-sumo"
+  ],
+  "kubernetes": {
+    "context": "k3d-veoveo-sumo",
+    "localCluster": {
+      "name": "veoveo-sumo",
+      "config": "../../../deploy/local/k3d/cluster.yaml"
+    }
+  },
+  "namespace": "veoveo",
+  "resources": {
+    "manifests": [
+      "../../../deploy/local/k3d/development-resources.yaml"
+    ],
+    "configMaps": [
+      {
+        "name": "veoveo-gateway-control-plane",
+        "files": {
+          "gateway.json": "gateway.json",
+          "jwks.json": "jwks.json"
+        }
+      }
+    ],
+    "secrets": []
+  },
+  "releases": [
+    {
+      "name": "veoveo",
+      "chart": "../../../deploy/helm/veoveo",
+      "values": [
+        "../../../deploy/local/k3d/values.yaml",
+        "platform-values.yaml"
+      ],
+      "createNamespace": true,
+      "timeoutSeconds": 720
+    },
+    {
+      "name": "sumo",
+      "chart": "helm",
+      "values": [],
+      "createNamespace": false,
+      "timeoutSeconds": 720
+    }
+  ],
+  "waitForDeployments": []
+}

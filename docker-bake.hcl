@@ -65,12 +65,6 @@ group "platform-full" {
 
 group "showcase-sumo" {
   targets = [
-    "mcp-gateway",
-    "artifact-service",
-    "recording-forwarder",
-    "recording-hub",
-    "recording-mcp",
-    "console-bff",
     "sumo-sim",
     "sumo-mcp",
   ]
@@ -78,7 +72,6 @@ group "showcase-sumo" {
 
 group "showcase-uav-sim" {
   targets = [
-    "recording-forwarder",
     "uav-sim-base",
     "uav-sim-runtime",
     "uav-sim-mcp",
