@@ -410,6 +410,7 @@
         "image",
         "modelCache",
         "engine",
+        "observation",
         "resources"
       ],
       "properties": {
@@ -446,6 +447,34 @@
             "type": "integer",
             "minimum": 1024,
             "maximum": 1048576
+          }
+        },
+        "additionalProperties": false
+      },
+      "observation": {
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "maximumFrames"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 3840,
+            "multipleOf": 2
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 2160,
+            "multipleOf": 2
+          },
+          "maximumFrames": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1024
           }
         },
         "additionalProperties": false

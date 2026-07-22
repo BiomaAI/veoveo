@@ -181,6 +181,10 @@ reason:
   engine:
     gpuMemoryUtilization: 0.6
     maxModelLen: 8192
+  observation:
+    width: 640
+    height: 360
+    maximumFrames: 6
   resources:
     requests:
       cpu: "1"
