@@ -55,7 +55,7 @@ helm-check:
     {{helm}} template veoveo deploy/helm/veoveo -f deploy/local/k3d/values.yaml >/dev/null
     {{helm}} template bioma deploy/helm/veoveo -f examples/bioma/values.yaml -f examples/bioma/k3d-values.yaml >/dev/null
     {{helm}} template sumo showcase/sumo/deploy/helm >/dev/null
-    {{helm}} template uav-sim showcase/uav-sim/deploy/helm -f examples/bioma/uav-sim-values.yaml >/dev/null
+    {{helm}} template uav-sim showcase/uav-sim/deploy/helm -f examples/bioma/uav-sim-values.yaml -f examples/bioma/images.lock.yaml >/dev/null
 
 # Package and publish the platform and UAV extension charts to an OCI repository.
 charts-publish registry version revision='HEAD' plain_http='false':
