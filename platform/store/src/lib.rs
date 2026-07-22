@@ -16,6 +16,7 @@ mod governance;
 mod identity;
 mod ids;
 mod map;
+mod map_authoring;
 mod migrations;
 mod models;
 mod outbox;
@@ -56,6 +57,11 @@ pub use map::{
     MapAcquisitionDraft, MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft,
     MapRestrictionDraft, MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft,
     MapSourceDraft,
+};
+pub use map_authoring::{
+    MapFeatureCommitDraft, MapFeatureCommitResult, MapFeatureLayerDraft,
+    MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
+    MapLayerPublicationDraft, MapStyleRevisionDraft, map_authoring_idempotency_key,
 };
 pub use migrations::{
     AppliedMigration, Migration, MigrationReport, SchemaStatus, migrations, schema_sql,

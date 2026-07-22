@@ -43,6 +43,8 @@ use crate::{
     uris,
 };
 
+mod authoring;
+
 const LIST_PAGE_SIZE: usize = 100;
 
 /// Tools the map administration app may invoke; each is linked to the app
@@ -72,10 +74,9 @@ pub struct MapMcp {
 #[tool_router]
 impl MapMcp {
     pub fn new(state: Arc<MapApplication>) -> Self {
-        Self {
-            state,
-            tool_router: Self::tool_router(),
-        }
+        let mut tool_router = Self::tool_router();
+        tool_router.merge(Self::authoring_tool_router());
+        Self { state, tool_router }
     }
 
     #[tool(
@@ -550,7 +551,7 @@ impl MapMcp {
     }
 }
 
-#[tool_handler]
+#[tool_handler(router = self.tool_router)]
 impl ServerHandler for MapMcp {
     fn get_info(&self) -> ServerInfo {
         let mut capabilities = ServerCapabilities::builder()
@@ -566,7 +567,7 @@ impl ServerHandler for MapMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. The server never fabricates a straight-line route when transport coverage is unavailable. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
+            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration runs through the map:admin-scoped tools and the ui://map/admin.html app view."
                 .to_owned(),
         );
         info
@@ -610,9 +611,18 @@ impl ServerHandler for MapMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = require_scope(&context, "map:dataset:read")?;
+        let identity = internal_identity(&context)?;
+        if !identity_has_scope(&identity, "map:dataset:read")
+            && !identity_has_scope(&identity, "map:feature:read")
+            && !identity_has_scope(&identity, "map:admin")
+        {
+            return Err(McpError::invalid_request(
+                "scope `map:dataset:read` or `map:feature:read` is required",
+                None,
+            ));
+        }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let mut resources = root_resources();
+        let mut resources = Vec::new();
         if identity_has_scope(&identity, "map:admin") {
             resources.push(
                 veoveo_mcp_apps_extension::app_resource(uris::ADMIN_APP_URI, "map-admin-app")
@@ -634,108 +644,154 @@ impl ServerHandler for MapMcp {
                 "Active dataset release pointers (map:admin).",
             ));
         }
-        for source in self
-            .state
-            .catalog
-            .list_sources(&scope)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(json_resource_descriptor(
-                uris::source_uri(source.source_id.as_str()),
-                format!("source {}", source.name),
-                "Authorized source provenance without acquisition secrets.",
-            ));
+        if identity_has_scope(&identity, "map:dataset:read") {
+            resources.extend(root_resources());
+            for source in self
+                .state
+                .catalog
+                .list_sources(&scope)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::source_uri(source.source_id.as_str()),
+                    format!("source {}", source.name),
+                    "Authorized source provenance without acquisition secrets.",
+                ));
+            }
+            for release in self
+                .state
+                .catalog
+                .list_releases(&scope)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::release_uri(release.dataset_id.as_str(), release.release_id.as_str()),
+                    format!("release {}", release.version_label),
+                    "Immutable governed dataset release.",
+                ));
+            }
+            for location in self
+                .state
+                .analytics
+                .list_locations(&scope.tenant_key(), 10_000)
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::location_uri(location.location_id.as_str()),
+                    location.name,
+                    "Named Earth location with source lineage.",
+                ));
+            }
+            for facility in self
+                .state
+                .analytics
+                .list_facilities(&scope.tenant_key(), 10_000)
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::facility_uri(facility.facility_id.as_str()),
+                    facility.name,
+                    "Logistics facility and transfer point.",
+                ));
+            }
+            for profile in self
+                .state
+                .catalog
+                .list_mobility_profiles(&scope)
+                .await
+                .map_err(internal)?
+            {
+                let metadata = profile.metadata();
+                resources.push(json_resource_descriptor(
+                    uris::mobility_profile_uri(metadata.profile_id.as_str(), metadata.version),
+                    metadata.name.clone(),
+                    "Versioned human or vehicle mobility profile.",
+                ));
+            }
+            for restriction in self
+                .state
+                .catalog
+                .list_restrictions(&scope)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::restriction_uri(restriction.restriction_id.as_str()),
+                    format!("restriction {}", restriction.restriction_id),
+                    "Effective governed transport restriction.",
+                ));
+            }
+            for route in self
+                .state
+                .catalog
+                .list_routes(&scope)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::route_uri(route.route_id.as_str()),
+                    format!("route {}", route.route_id),
+                    "Owner-scoped route with pinned provenance.",
+                ));
+            }
+            for matrix in self
+                .state
+                .catalog
+                .list_matrices(&scope)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::matrix_uri(matrix.matrix_id.as_str()),
+                    format!("matrix {}", matrix.matrix_id),
+                    "Owner-scoped many-to-many route matrix.",
+                ));
+            }
         }
-        for release in self
-            .state
-            .catalog
-            .list_releases(&scope)
-            .await
-            .map_err(internal)?
-        {
+        if identity_has_scope(&identity, "map:feature:read") {
             resources.push(json_resource_descriptor(
-                uris::release_uri(release.dataset_id.as_str(), release.release_id.as_str()),
-                format!("release {}", release.version_label),
-                "Immutable governed dataset release.",
+                uris::FEATURE_LAYERS_URI.to_owned(),
+                "Authored feature layers".to_owned(),
+                "Work Context-scoped mutable layer heads and immutable revision links.",
             ));
-        }
-        for location in self
-            .state
-            .analytics
-            .list_locations(&scope.tenant_key(), 10_000)
-            .map_err(internal)?
-        {
             resources.push(json_resource_descriptor(
-                uris::location_uri(location.location_id.as_str()),
-                location.name,
-                "Named Earth location with source lineage.",
+                uris::PUBLICATIONS_URI.to_owned(),
+                "Feature layer publications".to_owned(),
+                "Immutable published layer revisions.",
             ));
-        }
-        for facility in self
-            .state
-            .analytics
-            .list_facilities(&scope.tenant_key(), 10_000)
-            .map_err(internal)?
-        {
-            resources.push(json_resource_descriptor(
-                uris::facility_uri(facility.facility_id.as_str()),
-                facility.name,
-                "Logistics facility and transfer point.",
-            ));
-        }
-        for profile in self
-            .state
-            .catalog
-            .list_mobility_profiles(&scope)
-            .await
-            .map_err(internal)?
-        {
-            let metadata = profile.metadata();
-            resources.push(json_resource_descriptor(
-                uris::mobility_profile_uri(metadata.profile_id.as_str(), metadata.version),
-                metadata.name.clone(),
-                "Versioned human or vehicle mobility profile.",
-            ));
-        }
-        for restriction in self
-            .state
-            .catalog
-            .list_restrictions(&scope)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(json_resource_descriptor(
-                uris::restriction_uri(restriction.restriction_id.as_str()),
-                format!("restriction {}", restriction.restriction_id),
-                "Effective governed transport restriction.",
-            ));
-        }
-        for route in self
-            .state
-            .catalog
-            .list_routes(&scope)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(json_resource_descriptor(
-                uris::route_uri(route.route_id.as_str()),
-                format!("route {}", route.route_id),
-                "Owner-scoped route with pinned provenance.",
-            ));
-        }
-        for matrix in self
-            .state
-            .catalog
-            .list_matrices(&scope)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(json_resource_descriptor(
-                uris::matrix_uri(matrix.matrix_id.as_str()),
-                format!("matrix {}", matrix.matrix_id),
-                "Owner-scoped many-to-many route matrix.",
-            ));
+            for layer in self
+                .state
+                .authoring
+                .list_layers(&identity, &scope, false)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::feature_layer_uri(layer.layer_id.as_str()),
+                    layer.title,
+                    "Governed authored feature layer.",
+                ));
+            }
+            for publication in self
+                .state
+                .authoring
+                .list_publications(&identity, &scope, None)
+                .await
+                .map_err(internal)?
+            {
+                resources.push(json_resource_descriptor(
+                    uris::publication_uri(
+                        publication.layer_id.as_str(),
+                        publication.publication_id.as_str(),
+                    ),
+                    publication
+                        .title
+                        .unwrap_or_else(|| format!("publication {}", publication.publication_id)),
+                    "Immutable authored feature layer publication.",
+                ));
+            }
         }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
@@ -803,6 +859,46 @@ impl ServerHandler for MapMcp {
                 "Map artifact",
                 "Governed immutable map artifact.",
             ),
+            template(
+                uris::FEATURE_LAYER_TEMPLATE,
+                "Authored feature layer",
+                "Work Context-scoped layer head with pinned schema and style revisions.",
+            ),
+            template(
+                uris::FEATURE_SCHEMA_TEMPLATE,
+                "Feature schema revision",
+                "Immutable JSON Schema 2020-12 property contract.",
+            ),
+            template(
+                uris::FEATURE_STYLE_TEMPLATE,
+                "Feature style revision",
+                "Immutable safe map style revision.",
+            ),
+            template(
+                uris::FEATURES_TEMPLATE,
+                "Authored feature query",
+                "Paginated current or published GeoJSON features with spatial, temporal, and CQL2 filters.",
+            ),
+            template(
+                uris::FEATURE_TEMPLATE,
+                "Authored feature",
+                "Current canonical feature head.",
+            ),
+            template(
+                uris::FEATURE_REVISION_TEMPLATE,
+                "Authored feature revision",
+                "Immutable canonical feature revision.",
+            ),
+            template(
+                uris::CHANGESET_TEMPLATE,
+                "Feature changeset",
+                "Atomic authored feature commit.",
+            ),
+            template(
+                uris::PUBLICATION_TEMPLATE,
+                "Feature layer publication",
+                "Immutable published layer revision.",
+            ),
         ];
         let page = mcp_page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
@@ -867,6 +963,150 @@ impl ServerHandler for MapMcp {
                 .map_err(internal)?
                 .ok_or_else(|| not_found("acquisition"))?;
             return json_resource(uri, &job);
+        }
+        if uri == uris::FEATURE_LAYERS_URI
+            || uri == uris::PUBLICATIONS_URI
+            || uri.starts_with("map://feature-layer/")
+        {
+            let identity = require_scope(&context, "map:feature:read")?;
+            let scope = self.state.scope(&identity).await.map_err(internal)?;
+            if uri == uris::FEATURE_LAYERS_URI {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .list_layers(&identity, &scope, false)
+                        .await
+                        .map_err(internal)?,
+                );
+            }
+            if uri == uris::PUBLICATIONS_URI {
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .list_publications(&identity, &scope, None)
+                        .await
+                        .map_err(internal)?,
+                );
+            }
+            if let Some(request) = uris::parse_features_request(uri).map_err(invalid_params)? {
+                let output = self
+                    .state
+                    .authoring
+                    .query_features(&identity, &scope, request)
+                    .await
+                    .map_err(invalid_params)?;
+                return json_resource(uri, &output);
+            }
+            if let Some((layer, feature, revision)) = uris::parse_feature_revision(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                let feature_id: crate::contract::MapFeatureId =
+                    feature.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .feature_revision(&identity, &scope, &layer_id, &feature_id, revision)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("feature revision"))?,
+                );
+            }
+            if let Some((layer, version)) = uris::parse_feature_schema(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .schema_revision(&identity, &scope, &layer_id, version)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("feature schema revision"))?,
+                );
+            }
+            if let Some((layer, version)) = uris::parse_feature_style(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .style_revision(&identity, &scope, &layer_id, version)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("feature style revision"))?,
+                );
+            }
+            if let Some((layer, feature)) = uris::parse_feature(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                let feature_id: crate::contract::MapFeatureId =
+                    feature.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .feature(&identity, &scope, &layer_id, &feature_id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("feature"))?,
+                );
+            }
+            if let Some((layer, changeset)) = uris::parse_changeset(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                let changeset_id: crate::contract::FeatureChangeSetId =
+                    changeset.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .changeset(&identity, &scope, &layer_id, &changeset_id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("feature changeset"))?,
+                );
+            }
+            if let Some((layer, publication)) = uris::parse_publication(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                let publication_id: crate::contract::LayerPublicationId =
+                    publication.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .publication(&identity, &scope, &layer_id, &publication_id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("layer publication"))?,
+                );
+            }
+            if let Some(layer) = uris::parse_feature_layer(uri) {
+                let layer_id: crate::contract::FeatureLayerId =
+                    layer.parse().map_err(invalid_params)?;
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .authoring
+                        .layer(&identity, &scope, &layer_id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("feature layer"))?,
+                );
+            }
         }
         let identity = require_scope(&context, "map:dataset:read")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
@@ -1132,11 +1372,21 @@ impl ServerHandler for MapMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let identity = require_scope(&context, "map:dataset:read")?;
+        let identity = if is_feature_template(&reference.uri) {
+            require_scope(&context, "map:feature:read")?
+        } else {
+            require_scope(&context, "map:dataset:read")?
+        };
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let values = completion_values(&self.state, &scope, &reference.uri, &request.argument.name)
-            .await
-            .map_err(internal)?;
+        let values = completion_values(
+            &self.state,
+            &identity,
+            &scope,
+            &reference.uri,
+            &request.argument.name,
+        )
+        .await
+        .map_err(internal)?;
         let needle = request.argument.value.to_ascii_lowercase();
         let matching = values
             .into_iter()
@@ -1162,13 +1412,17 @@ impl ServerHandler for MapMcp {
         request: SubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        let identity = require_scope(&context, "map:dataset:read")?;
         if !is_subscribable(&request.uri) {
             return Err(McpError::invalid_params(
                 "resource is immutable or not subscribable",
                 None,
             ));
         }
+        let identity = if is_feature_subscribable(&request.uri) {
+            require_scope(&context, "map:feature:read")?
+        } else {
+            require_scope(&context, "map:dataset:read")?
+        };
         self.state
             .subscriptions
             .subscribe(request.uri, identity.actor.id, context.peer.clone())
@@ -1181,13 +1435,17 @@ impl ServerHandler for MapMcp {
         request: UnsubscribeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
-        let identity = require_scope(&context, "map:dataset:read")?;
         if !is_subscribable(&request.uri) {
             return Err(McpError::invalid_params(
                 "resource is immutable or not subscribable",
                 None,
             ));
         }
+        let identity = if is_feature_subscribable(&request.uri) {
+            require_scope(&context, "map:feature:read")?
+        } else {
+            require_scope(&context, "map:dataset:read")?
+        };
         self.state
             .subscriptions
             .unsubscribe(&request.uri, &identity.actor.id)
@@ -1357,6 +1615,7 @@ fn dataset_index(
 
 async fn completion_values(
     state: &MapApplication,
+    identity: &GatewayInternalIdentity,
     scope: &crate::catalog::MapScope,
     template: &str,
     argument: &str,
@@ -1430,6 +1689,44 @@ async fn completion_values(
             .into_iter()
             .map(|value| value.matrix_id.to_string())
             .collect(),
+        (
+            uris::FEATURE_LAYER_TEMPLATE
+            | uris::FEATURE_SCHEMA_TEMPLATE
+            | uris::FEATURE_STYLE_TEMPLATE
+            | uris::FEATURES_TEMPLATE
+            | uris::FEATURE_TEMPLATE
+            | uris::FEATURE_REVISION_TEMPLATE
+            | uris::CHANGESET_TEMPLATE
+            | uris::PUBLICATION_TEMPLATE,
+            "layer_id",
+        ) => state
+            .authoring
+            .list_layers(identity, scope, true)
+            .await?
+            .into_iter()
+            .map(|value| value.layer_id.to_string())
+            .collect(),
+        (uris::FEATURE_SCHEMA_TEMPLATE, "schema_version") => state
+            .authoring
+            .list_layers(identity, scope, true)
+            .await?
+            .into_iter()
+            .map(|value| value.schema.version.to_string())
+            .collect(),
+        (uris::FEATURE_STYLE_TEMPLATE, "style_version") => state
+            .authoring
+            .list_layers(identity, scope, true)
+            .await?
+            .into_iter()
+            .filter_map(|value| value.style.map(|style| style.version.to_string()))
+            .collect(),
+        (uris::PUBLICATION_TEMPLATE | uris::FEATURES_TEMPLATE, "publication_id") => state
+            .authoring
+            .list_publications(identity, scope, None)
+            .await?
+            .into_iter()
+            .map(|value| value.publication_id.to_string())
+            .collect(),
         _ => Vec::new(),
     };
     let mut values = values;
@@ -1449,6 +1746,18 @@ fn is_subscribable(uri: &str) -> bool {
         || uris::parse_single(uri, "map://restriction/").is_some()
         || uris::parse_single(uri, "map://route/").is_some()
         || uris::parse_single(uri, "map://dataset/").is_some()
+        || is_feature_subscribable(uri)
+}
+
+fn is_feature_subscribable(uri: &str) -> bool {
+    matches!(uri, uris::FEATURE_LAYERS_URI | uris::PUBLICATIONS_URI)
+        || uris::parse_feature_layer(uri).is_some()
+        || uris::parse_features(uri).is_some()
+        || uris::parse_feature(uri).is_some()
+}
+
+fn is_feature_template(uri: &str) -> bool {
+    uri.starts_with("map://feature-layer/")
 }
 
 #[cfg(test)]

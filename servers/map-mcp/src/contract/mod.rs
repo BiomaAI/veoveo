@@ -1,5 +1,6 @@
 mod admin;
 mod datasets;
+mod features;
 mod geometry;
 mod ids;
 mod mobility;
@@ -9,6 +10,7 @@ mod units;
 
 pub use admin::*;
 pub use datasets::*;
+pub use features::*;
 pub use geometry::*;
 pub use ids::*;
 pub use mobility::*;

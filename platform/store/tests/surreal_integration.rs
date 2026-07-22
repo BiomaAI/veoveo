@@ -10,12 +10,13 @@ use veoveo_platform_store::{
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
     CoordinateFrameDraft, CoordinateOperationDraft, GatewayReplayKind, GatewayReplayRecord,
-    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapReleaseDraft, MapReleaseState,
-    OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind,
-    RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState, SegmentDraft,
-    SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig, StoreCredentials,
-    StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind,
-    TimeSourceDraft, WorkContextInitialGrantRecord, WorkContextMembershipLevel,
+    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapFeatureCommitDraft,
+    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapReleaseDraft,
+    MapReleaseState, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable,
+    PrincipalKind, RecordIdKey, RecordingDraft, RecordingId, RecordingSeal, RecordingState,
+    SegmentDraft, SegmentId, SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig,
+    StoreCredentials, StoreError, TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState,
+    TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord, WorkContextMembershipLevel,
     decode_changefeed_entry, deterministic_work_context_id, gateway_replay_record_id,
 };
 
@@ -37,6 +38,123 @@ fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord 
         initiator_key: Some(identity.principal_key.clone()),
         delegation_id: None,
     }
+}
+
+#[tokio::test]
+async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
+    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+        return;
+    }
+
+    let endpoint =
+        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
+    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
+    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &endpoint,
+            "veoveo_integration",
+            format!("map_authoring_test_{}", Uuid::now_v7().simple()),
+            StoreCredentials::root(username, SecretString::from(password)),
+        )
+        .migrate_on_connect(true)
+        .build()
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    let identity = store
+        .ensure_identity(
+            "tenant-map-authoring",
+            "map-author",
+            "https://veoveo.local/services",
+            "map-author",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    let authority = artifact_authority(&identity);
+    let layer_key = format!("feature-layer-{}", Uuid::now_v7());
+    store
+        .create_map_feature_layer(MapFeatureLayerDraft {
+            identity: identity.clone(),
+            authority: authority.clone(),
+            layer_key: layer_key.clone(),
+            title: "Inspection areas".to_owned(),
+            description: None,
+            content_class: "boundaries".to_owned(),
+            schema: MapFeatureSchemaDraft {
+                schema_revision_key: format!("feature-schema-{}", Uuid::now_v7()),
+                schema_version: 1,
+                digest_sha256: "a".repeat(64),
+                schema_json: r#"{"type":"object"}"#.to_owned(),
+            },
+            style: None,
+            revision: 0,
+            archived_at: None,
+            canonical_json: r#"{"revision":0}"#.to_owned(),
+        })
+        .await
+        .unwrap();
+
+    let changeset_key = format!("changeset-{}", Uuid::now_v7());
+    let feature_key = format!("feature-{}", Uuid::now_v7());
+    let draft = MapFeatureCommitDraft {
+        identity: identity.clone(),
+        authority: authority.clone(),
+        layer_key: layer_key.clone(),
+        layer_canonical_json: r#"{"revision":1}"#.to_owned(),
+        expected_layer_revision: 0,
+        changeset_key: changeset_key.clone(),
+        idempotency_key: "first-inspection-area".to_owned(),
+        request_digest_sha256: "b".repeat(64),
+        changeset_canonical_json: r#"{"resulting_layer_revision":1}"#.to_owned(),
+        revisions: vec![MapFeatureRevisionDraft {
+            feature_key: feature_key.clone(),
+            feature_revision: 1,
+            layer_revision: 1,
+            schema_version: 1,
+            deleted: false,
+            geometry_type: "Point".to_owned(),
+            geometry_json: r#"{"type":"Point","coordinates":[-89.2,13.7]}"#.to_owned(),
+            bbox_west: -89.2,
+            bbox_south: 13.7,
+            bbox_east: -89.2,
+            bbox_north: 13.7,
+            valid_from: None,
+            valid_until: None,
+            semantic_type: "inspection_area".to_owned(),
+            title: Some("Area A".to_owned()),
+            canonical_json: r#"{"type":"Feature"}"#.to_owned(),
+            expected_feature_revision: None,
+        }],
+    };
+    let committed = store
+        .commit_map_feature_changes(draft.clone())
+        .await
+        .unwrap();
+    assert!(committed.changeset.commit_sequence > 0);
+    assert_eq!(committed.revisions.len(), 1);
+    assert_eq!(
+        store
+            .count_map_feature_heads("tenant-map-authoring", "operations", &layer_key)
+            .await
+            .unwrap(),
+        1
+    );
+    let replay = store
+        .commit_map_feature_changes(draft.clone())
+        .await
+        .unwrap();
+    assert_eq!(replay.changeset, committed.changeset);
+    assert_eq!(replay.revisions, committed.revisions);
+
+    let mut conflicting = draft;
+    conflicting.request_digest_sha256 = "c".repeat(64);
+    assert!(matches!(
+        store.commit_map_feature_changes(conflicting).await,
+        Err(StoreError::MapRecordConflict { .. })
+    ));
 }
 
 fn owner_grant(artifact_id: ArtifactId, identity: &PlatformIdentity) -> ArtifactGrantDraft {

@@ -74,7 +74,7 @@ hmac = "0.13.0"
 image = { version = "0.25.9", default-features = false, features = ["jpeg", "png"] }
 hifitime = { version = "4.3.0", default-features = false, features = ["std"] }
 h264-reader = "0.8.0"
-jsonschema = "0.46.9"
+jsonschema = "=0.48.5"
 jiff = { version = "0.2.32", features = ["tz-system"] }
 jsonwebtoken = { version = "10.4.0", default-features = false, features = ["rust_crypto", "use_pem"] }
 object_store = { version = "0.14.0", default-features = false, features = ["aws"] }

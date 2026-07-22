@@ -1046,6 +1046,152 @@ pub struct MapAcquisitionRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapFeatureLayerRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub work_context: RecordId,
+    pub authority: InvocationAuthorityRecord,
+    pub created_by_key: String,
+    pub owner_kind: ArtifactGrantSubjectKind,
+    pub owner_key: String,
+    pub layer_key: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub content_class: String,
+    pub schema_version: i64,
+    pub schema_revision_key: String,
+    pub style_version: Option<i64>,
+    pub style_revision_key: Option<String>,
+    pub revision: i64,
+    pub classification: Option<String>,
+    pub data_labels: Vec<String>,
+    pub archived_at: Option<DateTime<Utc>>,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapFeatureSchemaRevisionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub work_context: RecordId,
+    pub layer_key: String,
+    pub schema_revision_key: String,
+    pub schema_version: i64,
+    pub digest_sha256: String,
+    pub schema_json: String,
+    pub created_by: RecordId,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapStyleRevisionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub work_context: RecordId,
+    pub layer_key: String,
+    pub style_revision_key: String,
+    pub style_version: i64,
+    pub style_json: String,
+    pub created_by: RecordId,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapFeatureHeadRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub work_context: RecordId,
+    pub layer_key: String,
+    pub feature_key: String,
+    pub feature_revision: i64,
+    pub layer_revision: i64,
+    pub schema_version: i64,
+    pub changeset_key: String,
+    pub deleted: bool,
+    pub geometry_type: String,
+    pub geometry_json: String,
+    pub bbox_west: f64,
+    pub bbox_south: f64,
+    pub bbox_east: f64,
+    pub bbox_north: f64,
+    pub valid_from: Option<DateTime<Utc>>,
+    pub valid_until: Option<DateTime<Utc>>,
+    pub semantic_type: String,
+    pub title: Option<String>,
+    pub canonical_json: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapFeatureRevisionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub work_context: RecordId,
+    pub layer_key: String,
+    pub feature_key: String,
+    pub feature_revision: i64,
+    pub layer_revision: i64,
+    pub schema_version: i64,
+    pub changeset_key: String,
+    pub deleted: bool,
+    pub geometry_type: String,
+    pub geometry_json: String,
+    pub bbox_west: f64,
+    pub bbox_south: f64,
+    pub bbox_east: f64,
+    pub bbox_north: f64,
+    pub valid_from: Option<DateTime<Utc>>,
+    pub valid_until: Option<DateTime<Utc>>,
+    pub semantic_type: String,
+    pub title: Option<String>,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapFeatureChangeSetRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub work_context: RecordId,
+    pub actor_key: String,
+    pub work_context_key: String,
+    pub authority: InvocationAuthorityRecord,
+    pub layer_key: String,
+    pub changeset_key: String,
+    pub base_layer_revision: i64,
+    pub resulting_layer_revision: i64,
+    pub feature_keys: Vec<String>,
+    pub idempotency_key: String,
+    pub request_digest_sha256: String,
+    pub commit_sequence: i64,
+    pub canonical_json: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct MapLayerPublicationRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub work_context: RecordId,
+    pub published_by_key: String,
+    pub work_context_key: String,
+    pub authority: InvocationAuthorityRecord,
+    pub publication_key: String,
+    pub layer_key: String,
+    pub layer_revision: i64,
+    pub schema_version: i64,
+    pub style_revision_key: Option<String>,
+    pub artifact_uris: Vec<String>,
+    pub canonical_json: String,
+    pub published_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct TimeSourceRecord {
     pub id: RecordId,
     pub tenant: RecordId,

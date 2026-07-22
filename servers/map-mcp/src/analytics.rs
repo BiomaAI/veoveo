@@ -9,7 +9,7 @@ use crate::contract::{
     SearchLocationsRequest, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
@@ -546,7 +546,69 @@ impl MapAnalytics {
              CREATE TABLE IF NOT EXISTS map_network_edge (\
                tenant_key VARCHAR NOT NULL, edge_key VARCHAR NOT NULL, map_family VARCHAR NOT NULL, from_node VARCHAR NOT NULL, to_node VARCHAR NOT NULL, geometry_json VARCHAR NOT NULL, distance_m DOUBLE NOT NULL, nominal_duration_s DOUBLE NOT NULL, bidirectional BOOLEAN NOT NULL, source_release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, edge_key)\
              );\n\
-             CREATE INDEX IF NOT EXISTS map_network_edge_family ON map_network_edge(tenant_key, map_family);"
+             CREATE INDEX IF NOT EXISTS map_network_edge_family ON map_network_edge(tenant_key, map_family);
+             CREATE TABLE IF NOT EXISTS map_authored_feature_revision (
+               tenant_key VARCHAR NOT NULL,
+               work_context_key VARCHAR NOT NULL,
+               layer_key VARCHAR NOT NULL,
+               feature_key VARCHAR NOT NULL,
+               feature_revision BIGINT NOT NULL,
+               layer_revision BIGINT NOT NULL,
+               schema_version BIGINT NOT NULL,
+               changeset_key VARCHAR NOT NULL,
+               commit_sequence BIGINT NOT NULL,
+               deleted BOOLEAN NOT NULL,
+               geometry_type VARCHAR NOT NULL,
+               geometry GEOMETRY NOT NULL,
+               bbox_west DOUBLE NOT NULL,
+               bbox_south DOUBLE NOT NULL,
+               bbox_east DOUBLE NOT NULL,
+               bbox_north DOUBLE NOT NULL,
+               valid_from TIMESTAMPTZ,
+               valid_until TIMESTAMPTZ,
+               semantic_type VARCHAR NOT NULL,
+               title VARCHAR,
+               properties_json JSON NOT NULL,
+               canonical_json JSON NOT NULL,
+               created_at TIMESTAMPTZ NOT NULL,
+               PRIMARY KEY (tenant_key, layer_key, feature_key, feature_revision)
+             );
+             CREATE INDEX IF NOT EXISTS map_authored_revision_geometry ON map_authored_feature_revision USING RTREE (geometry);
+             CREATE INDEX IF NOT EXISTS map_authored_revision_layer ON map_authored_feature_revision(tenant_key, work_context_key, layer_key, layer_revision, feature_key);
+             CREATE TABLE IF NOT EXISTS map_authored_feature_head (
+               tenant_key VARCHAR NOT NULL,
+               work_context_key VARCHAR NOT NULL,
+               layer_key VARCHAR NOT NULL,
+               feature_key VARCHAR NOT NULL,
+               feature_revision BIGINT NOT NULL,
+               layer_revision BIGINT NOT NULL,
+               schema_version BIGINT NOT NULL,
+               changeset_key VARCHAR NOT NULL,
+               commit_sequence BIGINT NOT NULL,
+               deleted BOOLEAN NOT NULL,
+               geometry_type VARCHAR NOT NULL,
+               geometry GEOMETRY NOT NULL,
+               bbox_west DOUBLE NOT NULL,
+               bbox_south DOUBLE NOT NULL,
+               bbox_east DOUBLE NOT NULL,
+               bbox_north DOUBLE NOT NULL,
+               valid_from TIMESTAMPTZ,
+               valid_until TIMESTAMPTZ,
+               semantic_type VARCHAR NOT NULL,
+               title VARCHAR,
+               properties_json JSON NOT NULL,
+               canonical_json JSON NOT NULL,
+               updated_at TIMESTAMPTZ NOT NULL,
+               PRIMARY KEY (tenant_key, layer_key, feature_key)
+             );
+             CREATE INDEX IF NOT EXISTS map_authored_head_geometry ON map_authored_feature_head USING RTREE (geometry);
+             CREATE INDEX IF NOT EXISTS map_authored_head_layer ON map_authored_feature_head(tenant_key, work_context_key, layer_key, deleted, feature_key);
+             CREATE TABLE IF NOT EXISTS map_authored_projection (
+               consumer VARCHAR PRIMARY KEY,
+               last_sequence BIGINT NOT NULL,
+               updated_at TIMESTAMPTZ NOT NULL
+             );
+             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version = 2;"
         ))?;
         let version: i64 =
             connection.query_row("SELECT max(version) FROM map_schema", [], |row| row.get(0))?;
@@ -556,7 +618,7 @@ impl MapAnalytics {
         self.verify_spatial()
     }
 
-    fn connection(&self, read_only: bool) -> Result<Connection> {
+    pub(crate) fn connection(&self, read_only: bool) -> Result<Connection> {
         open_connection(
             &self.database_path,
             read_only,

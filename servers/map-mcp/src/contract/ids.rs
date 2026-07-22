@@ -131,6 +131,14 @@ map_id!(RouteMatrixId, "matrix-");
 map_id!(ReachableAreaId, "reachable-area-");
 map_id!(ValidationId, "validation-");
 map_id!(MapOperationId, "map-operation-");
+map_id!(FeatureLayerId, "feature-layer-");
+map_id!(MapFeatureId, "feature-");
+map_id!(FeatureChangeSetId, "changeset-");
+map_id!(FeatureSchemaRevisionId, "feature-schema-");
+map_id!(StyleRevisionId, "style-");
+map_id!(LayerPublicationId, "publication-");
+map_id!(MapCompositionId, "composition-");
+map_id!(MapCompositionRevisionId, "composition-revision-");
 
 #[cfg(test)]
 mod tests {

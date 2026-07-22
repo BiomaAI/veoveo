@@ -6,9 +6,9 @@ This document is the canonical design and operational contract for the
 `map-mcp` is Veoveo's Earth geography and logistics-routing domain. Agents use
 one strongly typed MCP surface to find places, inspect facilities and borders,
 work with coordinates, apply transport restrictions, calculate routes, build
-matrices, and inspect reachable areas. Source administration runs through the
-same MCP surface: `map:admin`-scoped tools for mutations, `map://` resources
-for reads, and the `ui://map/admin.html` MCP App view that hosts render
+matrices, inspect reachable areas, and author governed feature layers. Source
+administration runs through the same MCP surface: scoped tools for mutations,
+`map://` resources for reads, and MCP App views that hosts render
 (see `mcp/apps-extension/DESIGN.md`).
 
 ## Status
@@ -46,6 +46,8 @@ profile can travel there. It provides:
 - versioned human and vehicle mobility profiles;
 - route feasibility, geometry, cost, provenance, matrices, and reachable areas;
 - governed source acquisition and immutable release activation;
+- Work Context-owned GeoJSON and JSON-FG feature authoring, revision, query,
+  tombstone, restore, and publication;
 - map-owned analytical and routing-engine projections.
 
 Optimization consumes Map feasibility and route costs to compose fleet
@@ -156,6 +158,8 @@ SurrealDB is the canonical operational catalog. It stores:
 - mobility profiles and effective restrictions;
 - operational snapshots, routes, dependencies, and matrices;
 - acquisition jobs and durable task state.
+- authored feature layers, schema and style revisions, feature revisions and
+  heads, atomic changesets, and immutable layer publications.
 
 DuckDB Spatial is the local analytical projection. Its schema is tenant keyed
 and contains active-release pointers, locations, facilities, boundaries, and
@@ -167,6 +171,50 @@ The artifact plane stores immutable raw source bytes, normalized products,
 routing builds, quality reports, and large task outputs. Cross-server artifact
 identity remains `artifact://{artifact_id}`. Map projects those artifacts as
 `map://artifact/{artifact_id}` only after applying the normal artifact policy.
+
+## Authored Feature Layers
+
+An authored layer is a governed operational dataset inside one Work Context. The
+gateway resolves its business owner, initial grants, classification, labels,
+membership, policy revision, and invocation provenance. Map stamps that authority
+on the canonical layer and every changeset instead of accepting authority fields
+from a tool request.
+
+Feature geometry uses WGS84 GeoJSON coordinates. The complete canonical feature
+remains a valid GeoJSON Feature and adds JSON-FG `featureType` and valid-time
+members. The initial geometry set covers Point, MultiPoint, LineString,
+MultiLineString, Polygon, and MultiPolygon. Validators reject non-finite or
+out-of-range coordinates, malformed topology, incorrect polygon winding,
+unbounded property payloads, remote JSON Schema references, and unsafe style
+expressions.
+
+SurrealDB owns the immutable truth. A direct commit contains at most 100 mutations
+and 1 MiB. One transaction checks the expected layer revision and each expected
+feature revision, creates immutable feature revisions, advances feature heads,
+records a scoped idempotent changeset, and appends the outbox event. The changeset
+stores the event sequence needed for read-your-write projection checks. A repeated
+idempotency key returns the original changeset only when its request digest matches.
+
+DuckDB Spatial is a rebuildable query projection. Its outbox consumer writes a
+revision table, a current-head table, R-tree indexes, and a local contiguous
+checkpoint in one transaction. Queries can select a current layer or a published
+layer revision. They accept a validated WGS84 bounding box, open valid-time
+interval, geometry type, opaque keyset cursor, and a bounded CQL2 JSON subset.
+Property paths and literal values remain parameters. A dateline-crossing box is
+split into two query polygons.
+
+The public MCP surface includes create, update, validate, commit, query, restore,
+publish, and archive tools. Layer heads, schema revisions, style revisions,
+feature queries, feature heads and revisions, changesets, and publications are
+URI-addressed resources. Mutable heads and indexes support MCP subscriptions and
+resource-update notifications. Individual features are never expanded into the
+resource list; agents traverse them through the paginated query template.
+
+`reference`, `named_locations`, `facilities`, `boundaries`, and
+`network_candidate` are authoring classifications, not routing authority. A
+generic feature commit or publication never changes an active source release or
+Valhalla data. Routing influence requires a separate governed validation and
+release-promotion operation.
 
 ## Authoritative Data Acquisition
 
