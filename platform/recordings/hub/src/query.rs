@@ -36,29 +36,35 @@ impl QueryIndexRange {
     }
 }
 
-/// Recursively collect every `*.rrd` segment under `root`, sorted.
-pub fn collect_segments(root: &Path) -> Result<Vec<PathBuf>> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SegmentReadScope {
+    Frozen,
+    FrozenAndActive,
+}
+
+/// Recursively collect every readable `*.rrd` segment under `root`, sorted.
+pub fn collect_segments(root: &Path, scope: SegmentReadScope) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
-    collect_into(root, &mut out)?;
+    collect_into(root, scope, &mut out)?;
     out.sort();
     Ok(out)
 }
 
-fn collect_into(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
+fn collect_into(dir: &Path, scope: SegmentReadScope, out: &mut Vec<PathBuf>) -> Result<()> {
     if !dir.exists() {
         return Ok(());
     }
     for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
         let path = entry?.path();
         if path.is_dir() {
-            if path
+            let active_parts = path
                 .file_name()
                 .and_then(|value| value.to_str())
-                .is_some_and(|value| value.ends_with(".rrd.parts"))
-            {
+                .is_some_and(|value| value.ends_with(".rrd.parts"));
+            if active_parts && scope == SegmentReadScope::Frozen {
                 continue;
             }
-            collect_into(&path, out)?;
+            collect_into(&path, scope, out)?;
         } else if path.extension().is_some_and(|ext| ext == "rrd") {
             out.push(path);
         }
@@ -81,8 +87,14 @@ pub fn query_tree(
     entities: &str,
     timeline: &str,
     max_rows: u64,
+    scope: SegmentReadScope,
 ) -> Result<QueryResult> {
-    query_segments(&collect_segments(root)?, entities, timeline, max_rows)
+    query_segments(
+        &collect_segments(root, scope)?,
+        entities,
+        timeline,
+        max_rows,
+    )
 }
 
 /// Query an explicit, already-authorized segment set. Callers remain

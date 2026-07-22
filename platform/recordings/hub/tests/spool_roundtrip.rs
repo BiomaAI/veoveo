@@ -16,7 +16,8 @@ use re_sdk_types::components::VideoCodec;
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
 use veoveo_recording_hub::{
-    QueryIndexRange, VideoClipRequest, extract_video_clip, query_segments_in_range, remux_h264_mp4,
+    QueryIndexRange, SegmentReadScope, VideoClipRequest, extract_video_clip,
+    query_segments_in_range, remux_h264_mp4,
 };
 
 const H264_FIXTURE: &str = "AAAAAQkQAAAAAWdCwAraJbARAAADAAEAAAMABI8SJqAAAAABaM4PyAAAAQYF//9N3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMiBiMzU2MDVhIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTAgcmVmPTEgZGVibG9jaz0wOjA6MCBhbmFseXNlPTA6MCBtZT1kaWEgc3VibWU9MCBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0wIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MCA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0wIHRocmVhZHM9MSBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yIGtleWludF9taW49MiBzY2VuZWN1dD0wIGludHJhX3JlZnJlc2g9MCByYz1jcmYgbWJ0cmVlPTAgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MACAAAABZYiEOhGKAAIY8cAAQPY4AAh5SddeAAAAAQkwAAABQZogEqLAAAAAAQkQAAAAAWdCwAraJbARAAADAAEAAAMABI8SJqAAAAABaM4PyAAAAWWIggMoRigACT3HAAEOuOAAJfEnXXgAAAABCTAAAAFBmiASosA=";
@@ -102,8 +103,14 @@ async fn spool_run(
     let counters = drain.join().expect("join").expect("run_blocking");
     assert!(counters.messages > 0, "spooler saw messages");
 
-    let result =
-        veoveo_recording_hub::query_tree(spool_dir, "/**", "tick", 100_000).expect("query");
+    let result = veoveo_recording_hub::query_tree(
+        spool_dir,
+        "/**",
+        "tick",
+        100_000,
+        SegmentReadScope::Frozen,
+    )
+    .expect("query");
     result.rows_by_recording
 }
 
@@ -118,7 +125,8 @@ async fn roundtrip_counts_match() {
     );
 
     // The world dataset directory exists and holds a segment.
-    let segments = veoveo_recording_hub::collect_segments(dir.path()).expect("collect");
+    let segments = veoveo_recording_hub::collect_segments(dir.path(), SegmentReadScope::Frozen)
+        .expect("collect");
     assert!(!segments.is_empty(), "at least one segment written");
     assert!(
         segments
@@ -126,6 +134,32 @@ async fn roundtrip_counts_match() {
             .any(|p| p.to_string_lossy().contains("/world/")),
         "segment routed into the world dataset: {segments:?}"
     );
+
+    let live = tempfile::tempdir().expect("live tempdir");
+    let parts = live.path().join("rec-round.rrd.parts");
+    std::fs::create_dir_all(&parts).expect("create live parts directory");
+    std::fs::copy(&segments[0], parts.join("00000000000000000001.rrd"))
+        .expect("copy immutable live part");
+    assert!(
+        veoveo_recording_hub::collect_segments(live.path(), SegmentReadScope::Frozen)
+            .expect("collect frozen")
+            .is_empty(),
+        "frozen catalog scans exclude the live tail"
+    );
+    let live_result = veoveo_recording_hub::query_tree(
+        live.path(),
+        "/**",
+        "tick",
+        100_000,
+        SegmentReadScope::FrozenAndActive,
+    )
+    .expect("query live tail");
+    assert_eq!(
+        live_result.rows_by_recording.get("rec-round").copied(),
+        Some(25),
+        "live queries include immutable active RRD parts"
+    );
+
     let range = QueryIndexRange::new(5, 9).expect("valid query range");
     let selected =
         query_segments_in_range(&segments, "/**", "tick", 100, Some(range)).expect("range query");
@@ -154,7 +188,8 @@ async fn restart_resumes_into_sibling_segment() {
     );
 
     // Two physical segments for one recording (base + .r1).
-    let segments = veoveo_recording_hub::collect_segments(dir.path()).expect("collect");
+    let segments = veoveo_recording_hub::collect_segments(dir.path(), SegmentReadScope::Frozen)
+        .expect("collect");
     let resume_segments: Vec<_> = segments
         .iter()
         .filter(|p| p.to_string_lossy().contains("rec-resume"))
@@ -260,7 +295,8 @@ async fn h264_video_extracts_across_restart_segment_boundary() {
     )
     .await;
 
-    let segments = veoveo_recording_hub::collect_segments(dir.path()).expect("segments");
+    let segments = veoveo_recording_hub::collect_segments(dir.path(), SegmentReadScope::Frozen)
+        .expect("segments");
     assert_eq!(segments.len(), 2, "restart produced two physical segments");
     let clip = extract_video_clip(
         &segments,

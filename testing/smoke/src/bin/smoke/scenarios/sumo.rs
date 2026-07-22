@@ -8,7 +8,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, ensure};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use veoveo_recording_hub::{
-    DatasetName, DatasetRoute, Spooler, SpoolerConfig, query_tree, run_blocking,
+    DatasetName, DatasetRoute, SegmentReadScope, Spooler, SpoolerConfig, query_tree, run_blocking,
 };
 use veoveo_sumo_mcp::{
     driver::{FakeSimDriver, SimDriver},
@@ -79,6 +79,7 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
         "/world/sumo/**",
         "tick",
         u64::from(steps) + 1,
+        SegmentReadScope::Frozen,
     )?;
     ensure!(
         query.rows_by_recording.get("sumo-smoke") == Some(&u64::from(steps)),
@@ -265,7 +266,8 @@ pub(crate) async fn sumo_verify(conformance: &Path, context: &str) -> Result<()>
             "--".into(),
             "hub-query".into(),
             "--root".into(),
-            "/recordings/world".into(),
+            "/recordings".into(),
+            "--include-active".into(),
             "--entities".into(),
             "/world/sumo/**".into(),
             "--timeline".into(),

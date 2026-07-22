@@ -27,8 +27,8 @@ pub use ingest::{
 };
 pub use ingest_http::recording_ingest_internal_router;
 pub use query::{
-    QueryIndexRange, QueryResult, collect_segments, query_segments, query_segments_in_range,
-    query_tree,
+    QueryIndexRange, QueryResult, SegmentReadScope, collect_segments, query_segments,
+    query_segments_in_range, query_tree,
 };
 pub use sim::{
     Generator, LatLon, Sample, SensorId, SensorKind, SensorReport, SensorSpec, SensorStack,
