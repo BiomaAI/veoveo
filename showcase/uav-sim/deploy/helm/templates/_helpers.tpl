@@ -109,6 +109,32 @@ seccompProfile:
   value: {{ .root.Values.session.camera.mount.orientationWxyz.y | quote }}
 - name: UAV_SIM_CAMERA_ORIENTATION_Z
   value: {{ .root.Values.session.camera.mount.orientationWxyz.z | quote }}
+{{- if .root.Values.session.screenshot.enabled }}
+- name: UAV_SIM_SCREENSHOT_PATH
+  value: {{ .root.Values.session.screenshot.outputPath | quote }}
+- name: UAV_SIM_SCREENSHOT_WIDTH
+  value: {{ .root.Values.session.screenshot.width | quote }}
+- name: UAV_SIM_SCREENSHOT_HEIGHT
+  value: {{ .root.Values.session.screenshot.height | quote }}
+- name: UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M
+  value: {{ .root.Values.session.screenshot.minimumRelativeAltitudeM | quote }}
+- name: UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES
+  value: {{ .root.Values.session.screenshot.settleRenderedFrames | quote }}
+- name: UAV_SIM_SCREENSHOT_FOCAL_LENGTH_MM
+  value: {{ .root.Values.session.screenshot.focalLengthMm | quote }}
+- name: UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M
+  value: {{ .root.Values.session.screenshot.eyeOffsetM.x | quote }}
+- name: UAV_SIM_SCREENSHOT_EYE_OFFSET_Y_M
+  value: {{ .root.Values.session.screenshot.eyeOffsetM.y | quote }}
+- name: UAV_SIM_SCREENSHOT_EYE_OFFSET_Z_M
+  value: {{ .root.Values.session.screenshot.eyeOffsetM.z | quote }}
+- name: UAV_SIM_SCREENSHOT_TARGET_OFFSET_X_M
+  value: {{ .root.Values.session.screenshot.targetOffsetM.x | quote }}
+- name: UAV_SIM_SCREENSHOT_TARGET_OFFSET_Y_M
+  value: {{ .root.Values.session.screenshot.targetOffsetM.y | quote }}
+- name: UAV_SIM_SCREENSHOT_TARGET_OFFSET_Z_M
+  value: {{ .root.Values.session.screenshot.targetOffsetM.z | quote }}
+{{- end }}
 - name: UAV_SIM_RECORDING_KEY
   valueFrom:
     fieldRef:

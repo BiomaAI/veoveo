@@ -22,12 +22,20 @@ def run(config: RuntimeConfig) -> None:
     # Isaac requires SimulationApp to exist before importing Kit or simulator modules.
     from isaacsim import SimulationApp
 
+    viewport_width = (
+        config.screenshot.width if config.screenshot is not None else config.camera.width
+    )
+    viewport_height = (
+        config.screenshot.height
+        if config.screenshot is not None
+        else config.camera.height
+    )
     simulation_app = SimulationApp(
         {
             "headless": True,
             "renderer": "RaytracedLighting",
-            "width": config.camera.width,
-            "height": config.camera.height,
+            "width": viewport_width,
+            "height": viewport_height,
             "sync_loads": True,
             # Cesium's native USD schema plugin must be discovered before Kit
             # initializes USD's schema registry. Enabling it after
@@ -98,6 +106,7 @@ def run(config: RuntimeConfig) -> None:
     )
     from .px4 import Px4Commander
     from .recording import RecordingPublisher
+    from .screenshot import ShowcaseScreenshotCapture
     from .server import AdapterApplication, AdapterServer, TimelineControls
     from .state import RuntimeState, VehicleTelemetry
 
@@ -120,6 +129,8 @@ def run(config: RuntimeConfig) -> None:
     camera_black_streaks_after_tiles: dict[str, int] = {}
     camera_was_ready: set[str] = set()
     primary_camera_path: str | None = None
+    primary_camera_content_visible = False
+    screenshot_capture: ShowcaseScreenshotCapture | None = None
 
     try:
         recording = RecordingPublisher(config)
@@ -276,6 +287,10 @@ def run(config: RuntimeConfig) -> None:
         # Cesium for Omniverse drives tile selection from Kit viewports. The
         # RTX sensor render product alone is not a Cesium streaming camera.
         viewport.set_active_camera(primary_camera_path)
+        if config.screenshot is not None:
+            screenshot_capture = ShowcaseScreenshotCapture.create(
+                config.screenshot, stage, viewport
+            )
 
         world.reset()
 
@@ -412,6 +427,10 @@ def run(config: RuntimeConfig) -> None:
 
         while simulation_app.is_running():
             command_queue.drain()
+            if screenshot_capture is not None:
+                screenshot_capture.update_camera(
+                    tuple(float(value) for value in vehicles["uav-1"].state.position)
+                )
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
                 world.step(render=render)
@@ -462,6 +481,8 @@ def run(config: RuntimeConfig) -> None:
                     if pixels is not None:
                         rgb = normalize_rgb_frame(pixels.numpy())
                         quality = measure_camera_frame(rgb)
+                        if vehicle_id == "uav-1":
+                            primary_camera_content_visible = quality.visible
                         camera_frames_observed[vehicle_id] += 1
                         camera_operational_streaks[vehicle_id] = (
                             camera_operational_streaks[vehicle_id] + 1
@@ -551,6 +572,15 @@ def run(config: RuntimeConfig) -> None:
                     )
                     raise RuntimeError("Google Photorealistic 3D Tiles readiness timed out")
 
+            if screenshot_capture is not None and telemetry:
+                screenshot_capture.observe(
+                    rendered=render,
+                    tiles_ready=state.snapshot()["tiles"]["lifecycle"] == "ready",
+                    camera_content_visible=primary_camera_content_visible,
+                    vehicle_relative_altitude_m=telemetry[0].position_enu[2],
+                )
+                screenshot_capture.poll()
+
             for vehicle_id, future in connection_futures.items():
                 if future.done() and future.exception() is not None:
                     raise RuntimeError(f"PX4 connection failed for {vehicle_id}") from future.exception()
@@ -615,6 +645,8 @@ def run(config: RuntimeConfig) -> None:
             )
         if server is not None:
             _cleanup("adapter server", server.close)
+        if screenshot_capture is not None:
+            _cleanup("showcase screenshot capture", screenshot_capture.close)
         if timeline.is_playing():
             _cleanup("timeline", timeline.stop)
         for commander in commanders.values():
