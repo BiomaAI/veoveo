@@ -128,8 +128,8 @@ through the gateway.
 | Installation health and recent activity | Durable work across reasoning, perception, and simulation |
 | [![Work Context access](docs/screenshots/gallery/console-access.png)](docs/screenshots/gallery/console-access.png) | [![Paged audit trail](docs/screenshots/gallery/console-audit.png)](docs/screenshots/gallery/console-audit.png) |
 | Membership, authority, and access requests | Bounded policy decisions with trace context |
-| [![Kubernetes cluster inventory](docs/screenshots/gallery/console-cluster.png)](docs/screenshots/gallery/console-cluster.png) | |
-| Workloads, placement, storage, readiness, and image identity | |
+| [![Kubernetes cluster inventory](docs/screenshots/gallery/console-cluster.png)](docs/screenshots/gallery/console-cluster.png) | [![Reactive and proactive operational loops running nonstop](docs/images/operations-loop.png)](docs/images/operations-loop.png) |
+| Workloads, placement, storage, readiness, and image identity | Reactive and proactive loops that run nonstop |
 
 ### Recordings become governed evidence
 
@@ -195,8 +195,8 @@ from natural language and rendered by an external MCP host.
 | Interactive charts from typed results | Forecast means and uncertainty bands |
 | [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
 | Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
-| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | |
-| The map server's complete MCP capability inventory | |
+| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | [![Durable task sequence: call, task handle, sleep, wake, result](docs/images/task-sleepwake.png)](docs/images/task-sleepwake.png) |
+| The map server's complete MCP capability inventory | The final task extension: call, sleep, wake, result |
 
 ## Capability Catalog
 
