@@ -81,6 +81,7 @@ gateway:
   replicas: 2
   existingControlPlaneConfigMap: veoveo-gateway-control-plane
   controlPlaneKey: gateway.json
+  controlPlaneRevision: ""
   refreshDeliveryWindowSeconds: 5
   resources:
     requests:

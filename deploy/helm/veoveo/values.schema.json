@@ -279,9 +279,24 @@
         {
           "type": "object",
           "required": [
+            "existingControlPlaneConfigMap",
+            "controlPlaneKey",
+            "controlPlaneRevision",
             "refreshDeliveryWindowSeconds"
           ],
           "properties": {
+            "existingControlPlaneConfigMap": {
+              "type": "string",
+              "minLength": 1
+            },
+            "controlPlaneKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "controlPlaneRevision": {
+              "type": "string",
+              "pattern": "^$|^[a-f0-9]{64}$"
+            },
             "refreshDeliveryWindowSeconds": {
               "type": "integer",
               "minimum": 1,
