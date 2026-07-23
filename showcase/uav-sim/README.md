@@ -126,6 +126,22 @@ frames between sensor samples spends RTX work without adding observations to
 the recording. Profiles may raise both rates for a faster sensor, while
 `physicsHz` remains independent for PX4 lockstep and vehicle dynamics.
 
+## Headless showcase screenshots
+
+Interactive deployments expose an opt-in, one-shot screenshot camera through
+`session.screenshot`. The camera follows `uav-1` without replacing the
+canonical nadir sensor. Capture begins only after the configured relative
+altitude, resident-tile, visible-content, and rendered-frame gates all pass.
+Isaac writes the PNG inside the simulator container and restores the sensor
+camera when the capture completes.
+
+The chart defaults to a 1920×1080 chase camera and keeps capture disabled.
+Operators select the location through `session.origin`, enable the screenshot,
+fly the vehicle past `minimumRelativeAltitudeM`, and copy `outputPath` from the
+pod. The [screenshot runbook](../../docs/screenshots/README.md#isaac-sim-captures)
+records the Midtown Manhattan values used by the documentation gallery.
+Hardware Vulkan remains mandatory for this path.
+
 ## Verification layers
 
 The central Rust smoke harness owns orchestration and assertions. The Justfile

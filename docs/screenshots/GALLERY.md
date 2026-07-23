@@ -42,5 +42,7 @@ how to reproduce every view.
 
 | | |
 | --- | --- |
-| [![UAV simulation in Rerun](gallery/rerun-uav.png)](gallery/rerun-uav.png) | [![SUMO traffic simulation in Rerun](gallery/rerun-sumo.png)](gallery/rerun-sumo.png) |
-| UAV world, camera, telemetry, and timeline | Traffic map, vehicles, telemetry, and timeline |
+| [![UAV over Midtown Manhattan in Isaac Sim](gallery/isaac-uav-new-york.png)](gallery/isaac-uav-new-york.png) | [![UAV simulation in Rerun](gallery/rerun-uav.png)](gallery/rerun-uav.png) |
+| Headless RTX render over New York photogrammetry | UAV world, camera, telemetry, and timeline |
+| [![SUMO traffic simulation in Rerun](gallery/rerun-sumo.png)](gallery/rerun-sumo.png) | |
+| Traffic map, vehicles, telemetry, and timeline | |

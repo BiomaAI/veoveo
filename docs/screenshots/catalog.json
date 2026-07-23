@@ -221,6 +221,23 @@
       "redaction": "identity"
     },
     {
+      "id": "isaac-uav-new-york",
+      "title": "UAV over Midtown Manhattan in Isaac Sim",
+      "category": "simulation",
+      "purpose": "Show a live UAV flight against dense New York photogrammetry rendered by headless Isaac Sim.",
+      "output": "gallery/isaac-uav-new-york.png",
+      "captureMode": "isaac",
+      "recipe": "isaac-uav-new-york",
+      "requires": ["running-uav-showcase", "google-photorealistic-3d-tiles", "hardware-vulkan"],
+      "redaction": "none",
+      "rendering": {
+        "surface": "headless Isaac Sim showcase camera",
+        "backend": "RTX/Vulkan",
+        "adapter": "NVIDIA GeForce RTX 4090",
+        "softwareFallbackAllowed": false
+      }
+    },
+    {
       "id": "rerun-uav",
       "title": "UAV simulation in Rerun",
       "category": "simulation",
