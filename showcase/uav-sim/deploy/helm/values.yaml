@@ -98,6 +98,22 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
+  screenshot:
+    enabled: false
+    outputPath: /tmp/isaac-uav.png
+    width: 1920
+    height: 1080
+    minimumRelativeAltitudeM: 250.0
+    settleRenderedFrames: 30
+    focalLengthMm: 35.0
+    eyeOffsetM:
+      x: -4.0
+      "y": -4.0
+      z: 2.5
+    targetOffsetM:
+      x: 0.0
+      "y": 0.0
+      z: 0.2
 
 interactive:
   enabled: true
