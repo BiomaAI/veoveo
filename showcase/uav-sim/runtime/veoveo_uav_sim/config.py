@@ -161,12 +161,12 @@ class ScreenshotConfig:
                 "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES", "30", 1, 600
             ),
             focal_length_mm=_float(
-                "UAV_SIM_SCREENSHOT_FOCAL_LENGTH_MM", "35.0", 0.1, 1_000.0
+                "UAV_SIM_SCREENSHOT_FOCAL_LENGTH_MM", "45.0", 0.1, 1_000.0
             ),
             eye_offset_xyz_m=(
-                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M", "-4.0", -1_000.0, 1_000.0),
-                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Y_M", "-4.0", -1_000.0, 1_000.0),
-                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Z_M", "2.5", -1_000.0, 1_000.0),
+                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M", "-2.2", -1_000.0, 1_000.0),
+                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Y_M", "-2.2", -1_000.0, 1_000.0),
+                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Z_M", "1.2", -1_000.0, 1_000.0),
             ),
             target_offset_xyz_m=(
                 _float(
