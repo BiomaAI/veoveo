@@ -581,7 +581,7 @@ pub(crate) async fn helm_config() -> Result<()> {
             &application,
             "$configuration/examples/bioma/images.lock.yaml",
         )?;
-        contains(&application, "targetRevision: 0.1.0-3cf47ca91499")?;
+        contains(&application, "targetRevision: 0.1.0-1c047247c123")?;
         not_contains(&application, "ServerSideApply=true")?;
     }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
