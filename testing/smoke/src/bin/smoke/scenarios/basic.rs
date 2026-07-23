@@ -1,4 +1,5 @@
 use anyhow::ensure;
+use sha2::{Digest, Sha256};
 
 use super::*;
 
@@ -161,10 +162,24 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: reason-mcp",
         "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,datasheet\"",
         "checksum/reason-runtime:",
-        "checksum/control-plane: \"unresolved\"",
     ] {
         contains(&bioma, expected)?;
     }
+    let control_plane = fs::read("examples/bioma/gateway.json")?;
+    let control_plane_revision = hex::encode(Sha256::digest(control_plane));
+    let bioma_values = fs::read_to_string("examples/bioma/values.yaml")?;
+    contains(
+        &bioma_values,
+        &format!("controlPlaneRevision: {control_plane_revision}"),
+    )?;
+    contains(
+        &bioma,
+        &format!("checksum/control-plane: \"{control_plane_revision}\""),
+    )?;
+    contains(
+        &bioma,
+        &format!("bootstrap-{}", &control_plane_revision[..12]),
+    )?;
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
