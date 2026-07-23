@@ -13,4 +13,30 @@ spec:
     - name: http
       port: {{ .Values.service.port }}
       targetPort: mcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uav-sim-live
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.liveStream.service.type }}
+  selector:
+    {{- include "uav-sim.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: signaling
+      protocol: TCP
+      port: {{ .Values.liveStream.proxyPort }}
+      targetPort: stream-signal
+      {{- if eq .Values.liveStream.service.type "NodePort" }}
+      nodePort: {{ .Values.liveStream.service.signalNodePort }}
+      {{- end }}
+    - name: media
+      protocol: UDP
+      port: {{ .Values.liveStream.mediaPort }}
+      targetPort: stream-media
+      {{- if eq .Values.liveStream.service.type "NodePort" }}
+      nodePort: {{ .Values.liveStream.service.mediaNodePort }}
+      {{- end }}
 {{- end }}

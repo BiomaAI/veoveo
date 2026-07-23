@@ -1,0 +1,33 @@
+{{- if and .Values.interactive.enabled .Values.liveStream.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uav-sim-live
+  labels:
+    {{- include "uav-sim.labels" . | nindent 4 }}
+  {{- with .Values.liveStream.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.liveStream.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.liveStream.ingress.tlsSecret }}
+  tls:
+    - hosts:
+        - {{ $.Values.liveStream.ingress.host }}
+      secretName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.liveStream.ingress.host }}
+      http:
+        paths:
+          - path: {{ .Values.liveStream.ingress.path }}
+            pathType: Exact
+            backend:
+              service:
+                name: uav-sim-live
+                port:
+                  name: signaling
+{{- end }}
