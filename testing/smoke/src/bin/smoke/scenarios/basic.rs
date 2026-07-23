@@ -170,6 +170,16 @@ pub(crate) async fn helm_config() -> Result<()> {
             bail!("Bioma k3d render must not contain `{forbidden}`");
         }
     }
+    for component in ["map-mcp", "time-mcp"] {
+        let deployment = bioma
+            .split("\n---\n")
+            .find(|document| {
+                document.contains("kind: Deployment")
+                    && document.contains(&format!("name: {component}\n"))
+            })
+            .with_context(|| format!("finding rendered {component} deployment"))?;
+        contains(deployment, "strategy:\n    type: Recreate")?;
+    }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
     for forbidden in ["--token", "$(TUNNEL_TOKEN)"] {
