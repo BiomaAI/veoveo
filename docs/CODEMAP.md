@@ -28,6 +28,7 @@ authorize implementation:
 | Document | Exploration |
 |---|---|
 | [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, and possible self-improving harness boundaries |
+| [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 
 MCP designs live with the crate whose public contract they specify:
 
