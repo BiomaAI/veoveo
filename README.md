@@ -76,7 +76,12 @@ disconnects, and lands as recordings and artifacts with full provenance.
 Operators steer and audit the same state agents act on, from the same
 Console.
 
-[![The operational loop: the world is recorded and perceived into a world model, an operator assigns a mission, an agent acts through the gateway's authentication, policy, and audit, and evidence feeds back](docs/images/harness-poster.png)](docs/images/harness-poster.png)
+<a href="docs/images/harness-poster.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/harness-poster-dark.png">
+    <img src="docs/images/harness-poster.png" alt="The operational loop: the world is recorded and perceived into a world model, an operator assigns a mission, an agent acts through the gateway's authentication, policy, and audit, and evidence feeds back">
+  </picture>
+</a>
 
 ## An Agentic App Platform
 
@@ -89,17 +94,10 @@ Veoveo's own charts, maps, forecasts, and 3D views are open to your teams.
 
 Apps built on Veoveo are enterprise software from the first request. They
 authenticate through the installation's identity provider, act within policy
-scopes and Work Context access, run as durable work that survives
-disconnects, and leave the same audit trail as every other actor. They
+scopes and Work Context access, run as durable work that outlives any single
+session, and leave the same audit trail as every other actor. They
 deploy with the installation, scale with it, and run in the Console or in a
 compatible external host.
-
-## Roadmap
-
-Veoveo is working toward world models built from your operational reality:
-digital twins assembled from the geography, recordings, and telemetry an
-installation already governs, so simulation, rehearsal, and prediction start
-from the world you actually operate.
 
 ## Product Tour
 
@@ -128,7 +126,7 @@ through the gateway.
 | Installation health and recent activity | Durable work across reasoning, perception, and simulation |
 | [![Work Context access](docs/screenshots/gallery/console-access.png)](docs/screenshots/gallery/console-access.png) | [![Paged audit trail](docs/screenshots/gallery/console-audit.png)](docs/screenshots/gallery/console-audit.png) |
 | Membership, authority, and access requests | Bounded policy decisions with trace context |
-| [![Kubernetes cluster inventory](docs/screenshots/gallery/console-cluster.png)](docs/screenshots/gallery/console-cluster.png) | [![Reactive and proactive operational loops running nonstop](docs/images/operations-loop.png)](docs/images/operations-loop.png) |
+| [![Kubernetes cluster inventory](docs/screenshots/gallery/console-cluster.png)](docs/screenshots/gallery/console-cluster.png) | <a href="docs/images/operations-loop.png"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/operations-loop-dark.png"><img src="docs/images/operations-loop.png" alt="Reactive and proactive operational loops running nonstop"></picture></a> |
 | Workloads, placement, storage, readiness, and image identity | Reactive and proactive loops that run nonstop |
 
 ### Recordings become governed evidence
@@ -149,7 +147,7 @@ plane with ownership, provenance, release state, and effective access.
 
 The showcases exercise the platform against real simulator runtimes. They are
 maintained as deployable workloads with typed MCP contracts, recording paths,
-and Rust acceptance tests.
+and acceptance tests.
 
 ### UAV flight in Isaac Sim
 
@@ -195,7 +193,7 @@ from natural language and rendered by an external MCP host.
 | Interactive charts from typed results | Forecast means and uncertainty bands |
 | [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
 | Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
-| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | [![Durable task sequence: call, task handle, sleep, wake, result](docs/images/task-sleepwake.png)](docs/images/task-sleepwake.png) |
+| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | <a href="docs/images/task-sleepwake.png"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/task-sleepwake-dark.png"><img src="docs/images/task-sleepwake.png" alt="Durable task sequence: call, task handle, sleep, wake, result"></picture></a> |
 | The map server's complete MCP capability inventory | The final task extension: call, sleep, wake, result |
 
 ## Capability Catalog
@@ -230,7 +228,12 @@ gateway without adopting Veoveo's source build: publish an image and Helm
 chart, register the server in the typed control plane, and apply the
 installation's trust and policy contract.
 
-[![The agent runtime cycle: task results, timers, and messages wake the agent, which assembles context, runs an episode, persists, and sleeps, backed by state, memory, and log](docs/images/agent-loop.png)](docs/images/agent-loop.png)
+<a href="docs/images/agent-loop.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/agent-loop-dark.png">
+    <img src="docs/images/agent-loop.png" alt="The agent runtime cycle: task results, timers, and messages wake the agent, which assembles context, runs an episode, persists, and sleeps, backed by state, memory, and log">
+  </picture>
+</a>
 
 ## How It Fits Together
 
@@ -299,7 +302,12 @@ Installation-owned values, gateway configuration, and Secret references
 compose the platform without baking customer state into the product
 repository.
 
-[![Edge, cluster, air-gap, and hybrid installations, all one platform](docs/images/deployment-map.png)](docs/images/deployment-map.png)
+<a href="docs/images/deployment-map.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/deployment-map-dark.png">
+    <img src="docs/images/deployment-map.png" alt="Edge, cluster, air-gap, and hybrid installations, all one platform">
+  </picture>
+</a>
 
 | Path | Use it for | Guide |
 |---|---|---|
@@ -322,6 +330,13 @@ WebGL cannot reach hardware. Software rendering is not a supported fallback.
 The local cluster applies the same `nvidia.com/gpu` scheduling contract used by
 fielded installations. Browser verification proves hardware WebGPU and WebGL
 before interacting with a visual surface and stops if either context is lost.
+
+## Roadmap
+
+Veoveo is working toward world models built from your operational reality:
+digital twins assembled from the geography, recordings, and telemetry an
+installation already governs, so simulation, rehearsal, and prediction start
+from the world you actually operate.
 
 ## Standards And Protocols
 
@@ -349,10 +364,11 @@ profiles live in their server designs, including
 ## Tech Stack
 
 Veoveo is built from technology many engineers already run in production:
-Rust services and Python servers, a React and TypeScript Console, Kubernetes
-and Helm underneath, SurrealDB for coordination, DuckDB for analysis, Rerun
-for recordings, and NVIDIA runtimes for simulation and perception. If these
-tools feel like home, so will this repository.
+services that share one ontology of work, evidence, and worlds, MCP servers
+in any language that speaks the protocol, a Console that runs in any modern
+browser, Kubernetes and Helm underneath, SurrealDB for coordination, DuckDB
+for analysis, Rerun for recordings, and NVIDIA runtimes for simulation and
+perception. If these tools feel like home, so will this repository.
 
 <p align="center">
   <a href="https://www.rust-lang.org/"><img src="docs/assets/stack/rust.svg" height="40" alt="Rust" title="Rust"></a>&nbsp;&nbsp;&nbsp;
@@ -378,8 +394,9 @@ tools feel like home, so will this repository.
 *All logos belong to their respective projects.*
 
 The platform is also designed to be extended, deployed, and operated with
-coding agents. Toolchains are pinned, verification runs as executable
-harnesses, and deployments prove themselves with smoke tests. The same
+coding agents. Toolchains are pinned, contracts reject invalid work before
+it deploys, verification runs as executable harnesses, and deployments prove
+themselves with smoke tests. The same
 boundary that governs human operators governs agents: every action is
 authenticated, scoped by policy, bounded by budgets, and audited, so an
 installation can hand real work to agents and stay in control of what they
@@ -387,7 +404,7 @@ touch.
 
 ## Develop And Verify
 
-The Rust workspace, Python packages, container images, Helm charts, protocol
+The service workspace, Python packages, container images, Helm charts, protocol
 conformance clients, and smoke harnesses are all pinned in the repository.
 Docker is required for SurrealDB-backed tests and deployment work. Native Map
 builds also need a C/C++ toolchain, CMake, pkg-config, SQLite development files,
@@ -403,8 +420,9 @@ just showcase-sumo-smoke
 just showcase-uav-sim-test
 ```
 
-Smoke orchestration is implemented in Rust. The `Justfile` keeps short dispatch
-commands for humans. Local deployment profiles use the current tool versions
+Smoke orchestration is platform code, held to the same review and testing bar
+as everything it verifies. The `Justfile` keeps short dispatch commands for
+humans. Local deployment profiles use the current tool versions
 pinned in [`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
 
 ## Repository Guide
@@ -412,7 +430,7 @@ pinned in [`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
 | Path | Responsibility |
 |---|---|
 | [`agents/`](agents/) | Kernel and durable runtime for autonomous agents. |
-| [`apps/console/`](apps/console/) | Rust Console BFF and React operations interface. |
+| [`apps/console/`](apps/console/) | Console BFF and React operations interface. |
 | [`mcp/`](mcp/) | Shared MCP contracts, task and app extensions, and bridges. |
 | [`platform/`](platform/) | Gateway, persistence, task, artifact, recording, and query runtimes. |
 | [`servers/`](servers/) | Hosted MCP servers and their domain designs. |
@@ -420,7 +438,7 @@ pinned in [`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
 | [`showcase/sumo/`](showcase/sumo/) | SUMO, LuST, TraCI, and the traffic world MCP server. |
 | [`deploy/`](deploy/) | Helm, local k3d, and offline installation material. |
 | [`examples/bioma/`](examples/bioma/) | Enterprise GitOps reference installation. |
-| [`testing/`](testing/) | Protocol conformance and Rust multi-process smoke harnesses. |
+| [`testing/`](testing/) | Protocol conformance and multi-process smoke harnesses. |
 | [`tools/screenshots/`](tools/screenshots/) | Repeatable authenticated Console, MCP App, and Rerun captures. |
 | [`docs/`](docs/) | Architecture, governance, deployment, recording, and harness documentation. |
 
