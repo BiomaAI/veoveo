@@ -17,6 +17,7 @@ identity, storage, models, policies, domain name, and release process.
 
 [Product tour](#product-tour) · [Agentic apps](#an-agentic-app-platform) ·
 [Executable showcases](#executable-showcases) ·
+[Connectors](#enterprise-connectors) ·
 [Deployment](#deploy-your-installation) · [Technical design](docs/TECH_DESIGN.md) ·
 [Screenshot gallery](docs/screenshots/GALLERY.md)
 
@@ -244,6 +245,49 @@ becomes a governed capability of the installation.
     <img src="docs/images/agent-loop.png" alt="The agent runtime cycle: task results, timers, and messages wake the agent, which assembles context, runs an episode, persists, and sleeps, backed by state, memory, and log">
   </picture>
 </a>
+
+## Enterprise Connectors
+
+Veoveo meets an enterprise on the platforms it already runs. Connector
+recipes let a coding agent install a vendor's MCP server beside the Veoveo
+connector and put both to work in one session, from lakehouse queries to
+satellite tasking to incident response. The
+[connector catalog](docs/connectors/README.md) records the verified install
+surface, auth model, and status for every platform.
+
+<p align="center">
+  <a href="https://www.databricks.com/"><img src="docs/assets/connectors/databricks.svg" height="36" alt="Databricks" title="Databricks"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.snowflake.com/"><img src="docs/assets/connectors/snowflake.svg" height="36" alt="Snowflake" title="Snowflake"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://clickhouse.com/"><img src="docs/assets/connectors/clickhouse.svg" height="36" alt="ClickHouse" title="ClickHouse"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://motherduck.com/"><img src="docs/assets/connectors/duckdb.png" height="36" alt="MotherDuck DuckDB" title="MotherDuck / DuckDB"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://grafana.com/"><img src="docs/assets/connectors/grafana.svg" height="36" alt="Grafana" title="Grafana"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.datadoghq.com/"><img src="docs/assets/connectors/datadog.svg" height="36" alt="Datadog" title="Datadog"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.dynatrace.com/"><img src="docs/assets/connectors/dynatrace.svg" height="36" alt="Dynatrace" title="Dynatrace"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.splunk.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/splunk-dark.svg"><img src="docs/assets/connectors/splunk.svg" height="36" alt="Splunk" title="Splunk"></picture></a>
+</p>
+<p align="center">
+  <a href="https://www.mapbox.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/mapbox-dark.svg"><img src="docs/assets/connectors/mapbox.svg" height="36" alt="Mapbox" title="Mapbox"></picture></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.tomtom.com/"><img src="docs/assets/connectors/tomtom.svg" height="36" alt="TomTom" title="TomTom"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://carto.com/"><img src="docs/assets/connectors/carto.svg" height="36" alt="CARTO" title="CARTO"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.openstreetmap.org/"><img src="docs/assets/connectors/openstreetmap.svg" height="36" alt="OpenStreetMap" title="OpenStreetMap"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.planet.com/"><img src="docs/assets/connectors/planet.svg" height="36" alt="Planet" title="Planet"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.earthdata.nasa.gov/"><img src="docs/assets/connectors/nasa.svg" height="36" alt="NASA Earthdata" title="NASA Earthdata"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.palantir.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/palantir-dark.svg"><img src="docs/assets/connectors/palantir.svg" height="36" alt="Palantir" title="Palantir Foundry"></picture></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.crowdstrike.com/"><img src="docs/assets/connectors/crowdstrike.svg" height="36" alt="CrowdStrike" title="CrowdStrike Falcon"></a>
+</p>
+<p align="center">
+  <a href="https://www.ros.org/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/ros-dark.svg"><img src="docs/assets/connectors/ros.svg" height="36" alt="ROS" title="ROS"></picture></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.autodesk.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/autodesk-dark.svg"><img src="docs/assets/connectors/autodesk.svg" height="36" alt="Autodesk" title="Autodesk"></picture></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.pagerduty.com/"><img src="docs/assets/connectors/pagerduty.svg" height="36" alt="PagerDuty" title="PagerDuty"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://slack.com/"><img src="docs/assets/connectors/slack.svg" height="36" alt="Slack" title="Slack"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://www.atlassian.com/"><img src="docs/assets/connectors/atlassian.svg" height="36" alt="Atlassian" title="Atlassian"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://linear.app/"><img src="docs/assets/connectors/linear.svg" height="36" alt="Linear" title="Linear"></a>&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/connectors/github-dark.svg"><img src="docs/assets/connectors/github.svg" height="36" alt="GitHub" title="GitHub"></picture></a>
+</p>
+
+*The catalog spans geospatial, Earth observation, weather, data, observability,
+industrial operations, defense, and incident platforms. All logos belong to
+their respective owners.*
 
 ## How It Fits Together
 
