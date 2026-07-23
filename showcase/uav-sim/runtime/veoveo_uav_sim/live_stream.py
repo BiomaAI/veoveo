@@ -25,17 +25,29 @@ def _timestamp(value: datetime) -> str:
 
 def verify_nvidia_video_stack() -> None:
     try:
-        ctypes.CDLL("libcuda.so.1")
-        ctypes.CDLL("libnvidia-encode.so.1")
+        cuda = ctypes.CDLL("libcuda.so.1")
+        nvenc = ctypes.CDLL("libnvidia-encode.so.1")
     except OSError as error:
         raise RuntimeError(
             "NVIDIA CUDA and NVENC libraries are required for UAV live streaming"
         ) from error
+    cuda.cuInit.argtypes = [ctypes.c_uint]
+    cuda.cuInit.restype = ctypes.c_int
+    cuda.cuDeviceGetCount.argtypes = [ctypes.POINTER(ctypes.c_int)]
+    cuda.cuDeviceGetCount.restype = ctypes.c_int
+    device_count = ctypes.c_int()
+    if cuda.cuInit(0) != 0 or cuda.cuDeviceGetCount(ctypes.byref(device_count)) != 0:
+        raise RuntimeError("NVIDIA CUDA driver initialization failed")
+    if device_count.value < 1:
+        raise RuntimeError("an accessible NVIDIA CUDA device is required")
+    if not hasattr(nvenc, "NvEncodeAPICreateInstance"):
+        raise RuntimeError("the NVIDIA NVENC API is unavailable")
 
 
 @dataclass(slots=True)
 class LiveStreamLease:
     stream_id: str
+    access_token: str
     token_digest: bytes
     expires_at: datetime
     connected: bool = False
@@ -62,6 +74,7 @@ class LiveStreamLeaseManager:
             expires_at = datetime.now(timezone.utc) + self._ttl
             self._lease = LiveStreamLease(
                 stream_id=stream_id,
+                access_token=token,
                 token_digest=self._digest(token),
                 expires_at=expires_at,
             )
@@ -75,10 +88,9 @@ class LiveStreamLeaseManager:
     def renew(self, stream_id: str) -> dict[str, str]:
         with self._lock:
             lease = self._require(stream_id)
-            token = secrets.token_urlsafe(32)
-            lease.token_digest = self._digest(token)
             lease.expires_at = datetime.now(timezone.utc) + self._ttl
             expires_at = lease.expires_at
+            token = lease.access_token
         self._notify()
         return {
             "stream_id": stream_id,

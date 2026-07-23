@@ -72,6 +72,20 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(state["live_stream"]["hardware_encoder"], "nvidia_nvenc")
         self.assertEqual(state["live_stream"]["codec"], "h264")
 
+    def test_live_stream_fails_closed_on_invalid_gpu_stream_configuration(self) -> None:
+        for override, message in (
+            ({"UAV_SIM_LIVE_STREAM_PUBLIC_IP": ""}, "PUBLIC_IP"),
+            ({"UAV_SIM_FOLLOW_CAMERA_FPS": "30"}, "must match"),
+        ):
+            with self.subTest(override=override):
+                with patch.dict(
+                    os.environ,
+                    {**VALID_ENVIRONMENT, **override},
+                    clear=True,
+                ):
+                    with self.assertRaisesRegex(ValueError, message):
+                        RuntimeConfig.from_environment()
+
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             state = RuntimeState(RuntimeConfig.from_environment()).snapshot()
@@ -303,6 +317,10 @@ class LiveStreamLeaseTests(unittest.TestCase):
             "stream-1",
         )
         self.assertEqual(manager.public_state(), ("live", 1))
+        manager.disconnect("stream-1")
+        renewed = manager.renew("stream-1")
+        self.assertEqual(renewed["access_token"], opened["access_token"])
+        self.assertGreater(renewed["expires_at"], opened["expires_at"])
         manager.close("stream-1")
         self.assertFalse(manager.active("stream-1"))
         self.assertEqual(changes[-1], ("ready", 0))
