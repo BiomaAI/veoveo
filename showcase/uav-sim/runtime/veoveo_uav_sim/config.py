@@ -123,6 +123,66 @@ class CameraConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ScreenshotConfig:
+    output_path: Path
+    width: int
+    height: int
+    minimum_relative_altitude_m: float
+    settle_rendered_frames: int
+    focal_length_mm: float
+    eye_offset_xyz_m: tuple[float, float, float]
+    target_offset_xyz_m: tuple[float, float, float]
+
+    @classmethod
+    def from_environment(cls) -> "ScreenshotConfig | None":
+        raw_output_path = os.environ.get("UAV_SIM_SCREENSHOT_PATH", "").strip()
+        if not raw_output_path:
+            return None
+        output_path = Path(raw_output_path)
+        if (
+            not output_path.is_absolute()
+            or ".." in output_path.parts
+            or output_path.suffix.lower() != ".png"
+        ):
+            raise ValueError(
+                "UAV_SIM_SCREENSHOT_PATH must be an absolute normalized PNG path"
+            )
+        return cls(
+            output_path=output_path,
+            width=_int("UAV_SIM_SCREENSHOT_WIDTH", "1920", 64, 3_840),
+            height=_int("UAV_SIM_SCREENSHOT_HEIGHT", "1080", 64, 2_160),
+            minimum_relative_altitude_m=_float(
+                "UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M",
+                "250.0",
+                0.0,
+                100_000.0,
+            ),
+            settle_rendered_frames=_int(
+                "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES", "30", 1, 600
+            ),
+            focal_length_mm=_float(
+                "UAV_SIM_SCREENSHOT_FOCAL_LENGTH_MM", "35.0", 0.1, 1_000.0
+            ),
+            eye_offset_xyz_m=(
+                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M", "-4.0", -1_000.0, 1_000.0),
+                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Y_M", "-4.0", -1_000.0, 1_000.0),
+                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Z_M", "2.5", -1_000.0, 1_000.0),
+            ),
+            target_offset_xyz_m=(
+                _float(
+                    "UAV_SIM_SCREENSHOT_TARGET_OFFSET_X_M", "0.0", -1_000.0, 1_000.0
+                ),
+                _float(
+                    "UAV_SIM_SCREENSHOT_TARGET_OFFSET_Y_M", "0.0", -1_000.0, 1_000.0
+                ),
+                _float(
+                    "UAV_SIM_SCREENSHOT_TARGET_OFFSET_Z_M", "0.2", -1_000.0, 1_000.0
+                ),
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     session_id: str
     frame_uri: str
@@ -143,6 +203,7 @@ class RuntimeConfig:
     recording_proxy: str
     recording_key: uuid.UUID
     camera: CameraConfig
+    screenshot: ScreenshotConfig | None
     extension_directory: str
     exit_after_seconds: float | None
 
@@ -205,6 +266,7 @@ class RuntimeConfig:
             ),
             recording_key=recording_key,
             camera=CameraConfig.from_environment(),
+            screenshot=ScreenshotConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
             ),
