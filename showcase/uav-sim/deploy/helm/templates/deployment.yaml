@@ -50,6 +50,12 @@ spec:
           ports:
             - name: adapter
               containerPort: 8810
+            - name: stream-signal
+              containerPort: {{ .Values.liveStream.proxyPort }}
+              protocol: TCP
+            - name: stream-media
+              containerPort: {{ .Values.liveStream.mediaPort }}
+              protocol: UDP
           startupProbe:
             exec:
               command:
@@ -102,6 +108,12 @@ spec:
               value: "3600"
             - name: UAV_SIM_RECORDING_TENANT_KEY
               value: {{ .Values.platform.recordingTenantKey | quote }}
+            - name: UAV_SIM_LIVE_STREAM_SIGNALING_URL
+              value: {{ .Values.liveStream.signalingUrl | quote }}
+            - name: UAV_SIM_LIVE_STREAM_MEDIA_SERVER
+              value: {{ .Values.liveStream.publicMediaServer | quote }}
+            - name: UAV_SIM_LIVE_STREAM_MEDIA_PORT
+              value: {{ .Values.liveStream.mediaPort | quote }}
             - name: VEOVEO_SURREAL_ENDPOINT
               value: {{ printf "ws://%s:8000" .Values.platform.surrealService | quote }}
             - name: VEOVEO_SURREAL_NAMESPACE

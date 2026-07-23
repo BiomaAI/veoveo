@@ -10,6 +10,7 @@
     "world",
     "cache",
     "session",
+    "liveStream",
     "interactive",
     "batch",
     "service",
@@ -173,6 +174,7 @@
         "tileReadyFrames",
         "privacyConsent",
         "camera",
+        "followCamera",
         "screenshot"
       ],
       "properties": {
@@ -233,19 +235,34 @@
             }
           }
         },
+        "followCamera": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "width",
+            "height",
+            "fps",
+            "focalLengthMm",
+            "eyeOffsetM",
+            "targetOffsetM"
+          ],
+          "properties": {
+            "width": {"type": "integer", "minimum": 64, "maximum": 3840},
+            "height": {"type": "integer", "minimum": 64, "maximum": 2160},
+            "fps": {"type": "integer", "minimum": 1, "maximum": 60},
+            "focalLengthMm": {"type": "number", "minimum": 0.1, "maximum": 1000},
+            "eyeOffsetM": {"$ref": "#/definitions/vector3"},
+            "targetOffsetM": {"$ref": "#/definitions/vector3"}
+          }
+        },
         "screenshot": {
           "type": "object",
           "additionalProperties": false,
           "required": [
             "enabled",
             "outputPath",
-            "width",
-            "height",
             "minimumRelativeAltitudeM",
-            "settleRenderedFrames",
-            "focalLengthMm",
-            "eyeOffsetM",
-            "targetOffsetM"
+            "settleRenderedFrames"
           ],
           "properties": {
             "enabled": {"type": "boolean"},
@@ -253,8 +270,6 @@
               "type": "string",
               "pattern": "^/[A-Za-z0-9_./-]+\\.png$"
             },
-            "width": {"type": "integer", "minimum": 64, "maximum": 3840},
-            "height": {"type": "integer", "minimum": 64, "maximum": 2160},
             "minimumRelativeAltitudeM": {
               "type": "number",
               "minimum": 0,
@@ -264,14 +279,56 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 600
-            },
-            "focalLengthMm": {
-              "type": "number",
-              "minimum": 0.1,
-              "maximum": 1000
-            },
-            "eyeOffsetM": {"$ref": "#/definitions/vector3"},
-            "targetOffsetM": {"$ref": "#/definitions/vector3"}
+            }
+          }
+        }
+      }
+    },
+    "liveStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signalingUrl",
+        "signalingPath",
+        "privateSignalPort",
+        "proxyPort",
+        "publicMediaServer",
+        "mediaPort",
+        "publicIp",
+        "leaseTtlSeconds",
+        "service",
+        "ingress"
+      ],
+      "properties": {
+        "signalingUrl": {"type": "string", "pattern": "^wss?://[^/?#]+/[A-Za-z0-9_./-]+$"},
+        "signalingPath": {"type": "string", "pattern": "^/[A-Za-z0-9_./-]+$"},
+        "privateSignalPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "proxyPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "publicMediaServer": {"type": "string", "minLength": 1, "maxLength": 253},
+        "mediaPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "publicIp": {"type": "string", "minLength": 1, "maxLength": 253},
+        "leaseTtlSeconds": {"type": "integer", "minimum": 30, "maximum": 3600},
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "signalNodePort", "mediaNodePort"],
+          "properties": {
+            "type": {"enum": ["ClusterIP", "NodePort", "LoadBalancer"]},
+            "signalNodePort": {"type": "integer", "minimum": 30000, "maximum": 32767},
+            "mediaNodePort": {"type": "integer", "minimum": 30000, "maximum": 32767}
+          }
+        },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "className", "host", "path", "tlsSecret", "annotations"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "className": {"type": "string"},
+            "host": {"type": "string"},
+            "path": {"type": "string", "pattern": "^/[A-Za-z0-9_./-]+$"},
+            "tlsSecret": {"type": "string"},
+            "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
           }
         }
       }

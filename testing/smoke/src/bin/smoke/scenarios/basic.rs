@@ -241,6 +241,18 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"0.7071067811865476\"",
         "name: UAV_SIM_RECORDING_TENANT_KEY",
         "value: \"bioma\"",
+        "name: UAV_SIM_FOLLOW_CAMERA_WIDTH",
+        "value: \"1280\"",
+        "name: UAV_SIM_LIVE_STREAM_SIGNALING_URL",
+        "value: ws://127.0.0.1:49101/webrtc",
+        "name: UAV_SIM_LIVE_STREAM_PUBLIC_IP",
+        "name: uav-sim-live",
+        "name: stream-signal",
+        "containerPort: 49101",
+        "name: stream-media",
+        "containerPort: 47998",
+        "nodePort: 30910",
+        "nodePort: 30998",
         "name: ROS_DISTRO",
         "value: jazzy",
         "name: RMW_IMPLEMENTATION",
@@ -488,7 +500,14 @@ pub(crate) async fn helm_config() -> Result<()> {
         "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
-    contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
+    for expected in [
+        "--bin uav-sim-mcp",
+        "@nvidia/ov-web-rtc@6.6.0",
+        "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
+        "UAV_SIM_WEBRTC_CLIENT_BUNDLE=/tmp/ov-web-rtc.umd.cjs",
+    ] {
+        contains(&uav_mcp_dockerfile, expected)?;
+    }
     let bake = fs::read_to_string("docker-bake.hcl")?;
     for expected in [
         "group \"platform-core\"",
