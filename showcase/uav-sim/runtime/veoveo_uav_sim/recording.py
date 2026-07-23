@@ -13,6 +13,9 @@ from .state import VehicleTelemetry
 
 
 class H264CameraStream:
+    # TODO(GPU): Replace the NumPy/PyAV libx264 recording encoder with the
+    # canonical NVIDIA pre-encoded NVENC stream once Rerun packet fan-out is
+    # wired. The live viewer already bypasses this CPU path.
     def __init__(
         self,
         recording: rr.RecordingStream,

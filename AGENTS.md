@@ -61,6 +61,18 @@ Veoveo visual, simulation, perception, rendering, and visual-verification workfl
 must use an accessible hardware GPU. A software renderer is not a degraded mode and
 must never be accepted as evidence that a workflow works.
 
+Always choose the fastest compatible NVIDIA hardware-accelerated path for rendering,
+simulation, video encode and decode, perception, and other GPU-suitable work. A
+provider-neutral public contract does not justify replacing a faster NVIDIA data plane
+with a slower CPU implementation. Avoid GPU-to-CPU readback, duplicate encoding, and
+per-consumer rendering when a CUDA buffer, NVENC bitstream, or shared GPU render product
+can carry the same result.
+
+When existing code performs GPU-suitable work on the CPU and a compatible accelerated
+implementation is available, mark the exact path with `TODO(GPU)` and state the intended
+replacement. A TODO records migration debt; it does not authorize a new CPU fallback or
+allow the unaccelerated path to become acceptance evidence.
+
 Before browser automation, an interactive demo, or a screenshot run, prove that the
 browser is headed and that both its high-performance WebGPU adapter and WebGL context
 are hardware-backed. Reject missing contexts, SwiftShader, llvmpipe, software adapters,
