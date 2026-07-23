@@ -47,6 +47,9 @@ spec:
   {{- if $service.deploymentStrategy }}
   strategy:
     {{- toYaml $service.deploymentStrategy | nindent 4 }}
+  {{- else if $service.persistence }}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
