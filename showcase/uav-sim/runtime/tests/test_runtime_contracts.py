@@ -14,6 +14,7 @@ from veoveo_uav_sim.camera_quality import (
 from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.screenshot import ScreenshotGate
 from veoveo_uav_sim.state import RuntimeState
 
 
@@ -98,6 +99,42 @@ class RuntimeConfigTests(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True):
             with self.assertRaisesRegex(ValueError, "must be less than"):
                 RuntimeConfig.from_environment()
+
+    def test_showcase_screenshot_is_opt_in_and_typed(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            self.assertIsNone(RuntimeConfig.from_environment().screenshot)
+
+        environment = {
+            **VALID_ENVIRONMENT,
+            "UAV_SIM_SCREENSHOT_PATH": "/tmp/isaac-uav.png",
+            "UAV_SIM_SCREENSHOT_WIDTH": "1920",
+            "UAV_SIM_SCREENSHOT_HEIGHT": "1080",
+            "UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M": "295",
+            "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES": "45",
+            "UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M": "-6",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            screenshot = RuntimeConfig.from_environment().screenshot
+        self.assertIsNotNone(screenshot)
+        assert screenshot is not None
+        self.assertEqual(screenshot.output_path.as_posix(), "/tmp/isaac-uav.png")
+        self.assertEqual((screenshot.width, screenshot.height), (1920, 1080))
+        self.assertEqual(screenshot.minimum_relative_altitude_m, 295.0)
+        self.assertEqual(screenshot.settle_rendered_frames, 45)
+        self.assertEqual(screenshot.eye_offset_xyz_m, (-6.0, -4.0, 2.5))
+
+    def test_showcase_screenshot_rejects_a_relative_or_non_png_path(self) -> None:
+        for path in ("isaac-uav.png", "/tmp/isaac-uav.jpg"):
+            with self.subTest(path=path):
+                environment = {
+                    **VALID_ENVIRONMENT,
+                    "UAV_SIM_SCREENSHOT_PATH": path,
+                }
+                with patch.dict(os.environ, environment, clear=True):
+                    with self.assertRaisesRegex(
+                        ValueError, "absolute normalized PNG path"
+                    ):
+                        RuntimeConfig.from_environment()
 
 
 class AdapterContractTests(unittest.TestCase):
@@ -195,6 +232,18 @@ class CameraQualityTests(unittest.TestCase):
         normalized = normalize_rgb_frame(frame)
         self.assertEqual(normalized.dtype, np.uint8)
         self.assertEqual(int(normalized[0, 0, 0]), 128)
+
+
+class ScreenshotGateTests(unittest.TestCase):
+    def test_capture_requires_consecutive_ready_rendered_frames(self) -> None:
+        gate = ScreenshotGate(settle_rendered_frames=3)
+        self.assertFalse(gate.observe(rendered=True, ready=True))
+        self.assertFalse(gate.observe(rendered=False, ready=True))
+        self.assertFalse(gate.observe(rendered=True, ready=False))
+        self.assertFalse(gate.observe(rendered=True, ready=True))
+        self.assertFalse(gate.observe(rendered=True, ready=True))
+        self.assertTrue(gate.observe(rendered=True, ready=True))
+        self.assertFalse(gate.observe(rendered=True, ready=True))
 
 
 if __name__ == "__main__":

@@ -172,7 +172,8 @@
         "renderingHz",
         "tileReadyFrames",
         "privacyConsent",
-        "camera"
+        "camera",
+        "screenshot"
       ],
       "properties": {
         "id": {"$ref": "#/definitions/identity"},
@@ -230,6 +231,47 @@
                 "orientationWxyz": {"$ref": "#/definitions/quaternion"}
               }
             }
+          }
+        },
+        "screenshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "outputPath",
+            "width",
+            "height",
+            "minimumRelativeAltitudeM",
+            "settleRenderedFrames",
+            "focalLengthMm",
+            "eyeOffsetM",
+            "targetOffsetM"
+          ],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "outputPath": {
+              "type": "string",
+              "pattern": "^/[A-Za-z0-9_./-]+\\.png$"
+            },
+            "width": {"type": "integer", "minimum": 64, "maximum": 3840},
+            "height": {"type": "integer", "minimum": 64, "maximum": 2160},
+            "minimumRelativeAltitudeM": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "settleRenderedFrames": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600
+            },
+            "focalLengthMm": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 1000
+            },
+            "eyeOffsetM": {"$ref": "#/definitions/vector3"},
+            "targetOffsetM": {"$ref": "#/definitions/vector3"}
           }
         }
       }
