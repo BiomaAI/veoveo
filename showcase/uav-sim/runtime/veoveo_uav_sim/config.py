@@ -193,6 +193,12 @@ class LiveStreamConfig:
     signaling_path: str
     lease_ttl_seconds: int
 
+    def __post_init__(self) -> None:
+        if not self.public_ip:
+            raise ValueError("UAV_SIM_LIVE_STREAM_PUBLIC_IP must not be empty")
+        if not self.proxy_host:
+            raise ValueError("UAV_SIM_LIVE_STREAM_PROXY_HOST must not be empty")
+
     @classmethod
     def from_environment(cls) -> "LiveStreamConfig":
         signaling_path = os.environ.get(
@@ -285,6 +291,14 @@ class RuntimeConfig:
     screenshot: ScreenshotConfig | None
     extension_directory: str
     exit_after_seconds: float | None
+
+    def __post_init__(self) -> None:
+        if self.rendering_hz != self.camera.fps:
+            raise ValueError("UAV_SIM_RENDERING_HZ must match UAV_SIM_CAMERA_FPS")
+        if self.rendering_hz != self.follow_camera.fps:
+            raise ValueError(
+                "UAV_SIM_RENDERING_HZ must match UAV_SIM_FOLLOW_CAMERA_FPS"
+            )
 
     @classmethod
     def from_environment(cls) -> "RuntimeConfig":

@@ -524,6 +524,9 @@ def run(config: RuntimeConfig) -> None:
                 for vehicle_id, sensor in camera_sensors.items():
                     pixels, _information = sensor.get_data("rgb")
                     if pixels is not None:
+                        # TODO(GPU): Keep sensor quality analysis and durable
+                        # recording input on CUDA once the Recording Hub
+                        # accepts the canonical NVENC packet fan-out.
                         rgb = normalize_rgb_frame(pixels.numpy())
                         quality = measure_camera_frame(rgb)
                         if vehicle_id == "uav-1":
