@@ -29,19 +29,9 @@ catalog.
 
 ## Capability Model
 
-Veoveo does not flatten MCP into a collection of convenience tools. Each hosted
-server uses the protocol surface that matches its domain:
-
-| Need | Canonical MCP surface |
-|---|---|
-| action | tool with declared input and output JSON Schemas |
-| durable action | task-augmented tool through the MCP tasks API |
-| addressable state | resource or resource template |
-| discovery | resource list/template plus completion |
-| reusable interaction | prompt |
-| live condition | resource subscription and notification |
-| progress/result wake | task subscription |
-| cross-server identity | canonical URI and resource link |
+The normative server contract, including the need-to-surface mapping every
+hosted server follows, is [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
+This section describes how the gateway projects that contract.
 
 The gateway discovers these surfaces from upstream servers and projects them into a
 profile. It prefixes tool names only at the aggregation boundary, for example local
@@ -49,11 +39,11 @@ profile. It prefixes tool names only at the aggregation boundary, for example lo
 
 ### Tool input schemas
 
-Tool inputs publish one canonical JSON Schema 2020-12 document generated from the
-request type. The document has an object root, contains no references, and declares
-the immediate JSON type of every property. Object-shaped unions expose `type: object`
-alongside their variants. This profile preserves the full typed contract while making
-the argument shape visible to clients that inspect a property without resolving schema
+The canonical schema profile is normative in
+[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md#schemas-and-types): one
+JSON Schema 2020-12 document per tool input with an object root, no references,
+and immediate types, preserving the full typed contract while keeping argument
+shapes visible to clients that inspect a property without resolving schema
 references.
 
 Rust servers import `tool` from `veoveo_mcp_contract`. The macro selects the shared

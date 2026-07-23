@@ -33,6 +33,7 @@ MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
 |---|---|
+| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, schema profile, runtime boundary, packaging, well-known docs and contract resources, and the compliance checklist |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
