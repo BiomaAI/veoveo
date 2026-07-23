@@ -105,11 +105,11 @@ session:
     height: 1080
     minimumRelativeAltitudeM: 250.0
     settleRenderedFrames: 30
-    focalLengthMm: 35.0
+    focalLengthMm: 45.0
     eyeOffsetM:
-      x: -4.0
-      "y": -4.0
-      z: 2.5
+      x: -2.2
+      "y": -2.2
+      z: 1.2
     targetOffsetM:
       x: 0.0
       "y": 0.0
