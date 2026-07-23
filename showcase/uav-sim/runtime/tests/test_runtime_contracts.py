@@ -1,22 +1,26 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import socket
 import unittest
 from datetime import datetime
 from unittest.mock import patch
 
 import numpy as np
+from aiohttp import ClientSession, WSMsgType, web
 
 from veoveo_uav_sim.camera_quality import (
     measure_camera_frame,
     normalize_rgb_frame,
     should_record_camera_frame,
 )
-from veoveo_uav_sim.config import RuntimeConfig
+from veoveo_uav_sim.config import LiveStreamConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
 from veoveo_uav_sim.live_stream import (
     LiveStreamLeaseManager,
+    LiveStreamSignalingProxy,
     _authorization_token,
 )
 from veoveo_uav_sim.screenshot import ScreenshotGate
@@ -324,6 +328,72 @@ class LiveStreamLeaseTests(unittest.TestCase):
         manager.close("stream-1")
         self.assertFalse(manager.active("stream-1"))
         self.assertEqual(changes[-1], ("ready", 0))
+
+
+class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_authenticated_proxy_bridges_only_the_leased_viewer(self) -> None:
+        signal_port = _free_port()
+        proxy_port = _free_port()
+
+        async def echo(request: web.Request) -> web.WebSocketResponse:
+            websocket = web.WebSocketResponse(
+                protocols=["x-nv-sessionid.stream-1"]
+            )
+            await websocket.prepare(request)
+            async for message in websocket:
+                if message.type == WSMsgType.TEXT:
+                    await websocket.send_str(message.data)
+            return websocket
+
+        application = web.Application()
+        application.add_routes([web.get("/", echo)])
+        upstream = web.AppRunner(application)
+        await upstream.setup()
+        await web.TCPSite(upstream, "127.0.0.1", signal_port).start()
+
+        leases = LiveStreamLeaseManager(300, lambda _state, _viewers: None)
+        opened = leases.open("stream-1")
+        proxy = LiveStreamSignalingProxy(
+            LiveStreamConfig(
+                signal_port=signal_port,
+                media_port=47998,
+                public_ip="127.0.0.1",
+                proxy_host="127.0.0.1",
+                proxy_port=proxy_port,
+                signaling_path="/webrtc",
+                lease_ttl_seconds=300,
+            ),
+            leases,
+        )
+        proxy.start()
+        try:
+            async with ClientSession() as client:
+                with self.assertRaisesRegex(Exception, "401"):
+                    await client.ws_connect(
+                        f"ws://127.0.0.1:{proxy_port}/webrtc",
+                        protocols=["x-nv-sessionid.stream-1"],
+                    )
+                async with client.ws_connect(
+                    f"ws://127.0.0.1:{proxy_port}/webrtc",
+                    protocols=[
+                        "x-nv-sessionid.stream-1",
+                        f"Authorization.Bearer.{opened['access_token']}",
+                    ],
+                ) as websocket:
+                    await websocket.send_str("offer")
+                    message = await websocket.receive(timeout=5)
+                    self.assertEqual(message.type, WSMsgType.TEXT)
+                    self.assertEqual(message.data, "offer")
+                    self.assertEqual(leases.public_state(), ("live", 1))
+        finally:
+            proxy.close()
+            await upstream.cleanup()
+
+
+def _free_port() -> int:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
 
 
 if __name__ == "__main__":
