@@ -127,6 +127,60 @@ The tool aborts if the tab lacks hardware WebGPU or WebGL. Publication review
 must also verify that the external conversation contains no account identity,
 private prompt content, or unrelated history.
 
+## Isaac Sim captures
+
+The Isaac runtime can write a full-resolution showcase camera directly from its
+headless RTX viewport. Enable `session.screenshot` in the UAV chart and deploy
+the values through the installation owner. This gallery frame uses the
+following overrides:
+
+```yaml
+session:
+  origin:
+    latitudeDegrees: 40.7580
+    longitudeDegrees: -73.9855
+    ellipsoidHeightM: -17.0
+  screenshot:
+    enabled: true
+    outputPath: /tmp/isaac-uav.png
+    width: 1920
+    height: 1080
+    minimumRelativeAltitudeM: 295.0
+    settleRenderedFrames: 60
+    focalLengthMm: 45.0
+    eyeOffsetM:
+      x: -2.2
+      y: -2.2
+      z: 1.2
+    targetOffsetM:
+      x: 0.0
+      y: 0.0
+      z: 0.2
+```
+
+Prove that the pod reports an active NVIDIA Vulkan device before flight. Call
+`uav-sim__arm_vehicle` for `uav-1`, then call
+`uav-sim__takeoff_vehicle` with `relative_altitude_m` set to `300`.
+The capture waits for the altitude threshold, resident tiles, visible camera
+content, and 60 consecutive rendered frames. Copy the completed PNG from the
+pod:
+
+```bash
+POD=$(kubectl --context <context> -n <namespace> get pods \
+  -l app.kubernetes.io/component=uav-sim \
+  -o jsonpath='{.items[0].metadata.name}')
+
+kubectl --context <context> -n <namespace> logs "$POD" -c isaac-sim |
+  rg 'Graphics API: Vulkan|NVIDIA GeForce|screenshot written'
+
+kubectl --context <context> -n <namespace> cp -c isaac-sim \
+  "$POD:/tmp/isaac-uav.png" \
+  docs/screenshots/gallery/isaac-uav-new-york.png
+```
+
+The runtime restores the canonical sensor camera after the one-shot capture.
+Inspect the 1920×1080 output before accepting it into the gallery.
+
 ## Rerun captures
 
 The UAV recipe opens a complete governed recording from the authenticated

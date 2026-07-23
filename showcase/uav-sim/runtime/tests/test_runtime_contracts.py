@@ -121,7 +121,7 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual((screenshot.width, screenshot.height), (1920, 1080))
         self.assertEqual(screenshot.minimum_relative_altitude_m, 295.0)
         self.assertEqual(screenshot.settle_rendered_frames, 45)
-        self.assertEqual(screenshot.eye_offset_xyz_m, (-6.0, -4.0, 2.5))
+        self.assertEqual(screenshot.eye_offset_xyz_m, (-6.0, -2.2, 1.2))
 
     def test_showcase_screenshot_rejects_a_relative_or_non_png_path(self) -> None:
         for path in ("isaac-uav.png", "/tmp/isaac-uav.jpg"):
