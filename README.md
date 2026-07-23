@@ -35,6 +35,9 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   reroute vehicles, and replay outcomes against a full simulated city.
 - **See through cameras.** Run detection and tracking over authorized video
   streams on your own GPUs.
+- **See the whole operation.** Stream camera, telemetry, and vehicle state
+  from field work into one governed timeline, from a single sensor to a
+  working fleet.
 - **Ask what happened.** Pose questions over synchronized recordings — world
   state, sensors, poses, annotations on one timeline — and get grounded,
   audited answers.
@@ -53,16 +56,17 @@ world, from logistics and defense to first responders:
 
 <p align="center"><em>Response teams · Newsrooms · Search & rescue ·
 Field & logistics · Humanitarian aid · OSINT desks · Security teams ·
-Civic monitoring · Energy & utilities · Construction sites ·
-Conservation patrols · Solo operators</em></p>
+Civic monitoring · Energy & utilities · Industrial operations ·
+Construction sites · Ports & terminals · Conservation patrols ·
+Solo operators</em></p>
 
 ## Worlds You Can Trust
 
 Physical AI is only as good as its model of the world. Veoveo treats world
 models as governed infrastructure: authoritative geography and civil time,
-photorealistic 3D scenes streamed from live tiles, simulated cities and
-airspace with real vehicle dynamics, and continuous recordings of what
-actually happened. Agents reach simulation and reality through the same
+photorealistic 3D scenes streamed from live tiles, simulated cities,
+terrain, and airspace with real vehicle dynamics, and continuous recordings
+of what actually happened. Agents reach simulation and reality through the same
 interfaces, so a mission rehearsed in a synthetic world carries over to
 operations in the real one.
 
@@ -98,6 +102,10 @@ scopes and Work Context access, run as durable work that outlives any single
 session, and leave the same audit trail as every other actor. They
 deploy with the installation, scale with it, and run in the Console or in a
 compatible external host.
+
+The platform itself is built the same way: a small team working with coding
+agents can extend, deploy, and operate an installation inside the same
+identity, policy, and audit boundary.
 
 ## Product Tour
 
@@ -226,7 +234,9 @@ wakes, budgets, analytical memory, tool use, and Rerun recording. Your own
 agentic apps follow the same path as domain extensions and can join the
 gateway without adopting Veoveo's source build: publish an image and Helm
 chart, register the server in the typed control plane, and apply the
-installation's trust and policy contract.
+installation's trust and policy contract. Existing enterprise systems join
+the same way: put an MCP server in front of a system of record and it
+becomes a governed capability of the installation.
 
 <a href="docs/images/agent-loop.png">
   <picture>
@@ -334,9 +344,10 @@ before interacting with a visual surface and stops if either context is lost.
 ## Roadmap
 
 Veoveo is working toward world models built from your operational reality:
-digital twins assembled from the geography, recordings, and telemetry an
-installation already governs, so simulation, rehearsal, and prediction start
-from the world you actually operate.
+digital twins of the sites and fleets you operate, assembled from the
+geography, recordings, and telemetry an installation already governs, so
+simulation, rehearsal, and prediction start from the world you actually
+operate.
 
 ## Standards And Protocols
 
