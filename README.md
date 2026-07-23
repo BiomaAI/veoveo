@@ -47,6 +47,14 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   behind a live interface. Each app inherits the installation's identity,
   policy, access, and audit from its first request.
 
+The same installation serves any team whose operations touch the physical
+world, from logistics and defense to first responders:
+
+<p align="center"><em>Response teams · Newsrooms · Search & rescue ·
+Field & logistics · Humanitarian aid · OSINT desks · Security teams ·
+Civic monitoring · Energy & utilities · Construction sites ·
+Conservation patrols · Solo operators</em></p>
+
 ## Worlds You Can Trust
 
 Physical AI is only as good as its model of the world. Veoveo treats world
@@ -56,8 +64,6 @@ airspace with real vehicle dynamics, and continuous recordings of what
 actually happened. Agents reach simulation and reality through the same
 interfaces, so a mission rehearsed in a synthetic world carries over to
 operations in the real one.
-
-[![Sensors, memories, and decisions feeding a world model that hands context to an agent](docs/images/world-model.png)](docs/images/world-model.png)
 
 ## From Instruction To Intelligence
 
