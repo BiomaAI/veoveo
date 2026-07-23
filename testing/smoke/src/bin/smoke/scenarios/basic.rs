@@ -179,6 +179,10 @@ pub(crate) async fn helm_config() -> Result<()> {
             })
             .with_context(|| format!("finding rendered {component} deployment"))?;
         contains(deployment, "strategy:\n    type: Recreate")?;
+        if component == "map-mcp" {
+            contains(deployment, "startupProbe:")?;
+            contains(deployment, "failureThreshold: 60")?;
+        }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
     contains(&bioma_tunnel, "name: TUNNEL_TOKEN")?;
