@@ -20,10 +20,10 @@ identity, storage, models, policies, domain name, and release process.
 [Deployment](#deploy-your-installation) · [Technical design](docs/TECH_DESIGN.md) ·
 [Screenshot gallery](docs/screenshots/GALLERY.md)
 
-[![A multirotor under PX4 control above Midtown Manhattan photogrammetry in Isaac Sim](docs/screenshots/gallery/isaac-uav-new-york.png)](docs/screenshots/gallery/isaac-uav-new-york.png)
+[![Veoveo 3D View MCP App in the operations Console](docs/screenshots/gallery/console-app-view.png)](docs/screenshots/gallery/console-app-view.png)
 
-*A live Isaac Sim RTX frame from the UAV showcase: a multirotor under PX4
-control above Midtown Manhattan photogrammetry.*
+*A reference installation running the View app over live Google
+Photorealistic 3D Tiles, rendered on cluster GPUs.*
 
 ## What Teams Do With It
 
@@ -195,8 +195,8 @@ from natural language and rendered by an external MCP host.
 | Interactive charts from typed results | Forecast means and uncertainty bands |
 | [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
 | Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
-| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | [![Veoveo 3D View MCP App in the operations Console](docs/screenshots/gallery/console-app-view.png)](docs/screenshots/gallery/console-app-view.png) |
-| The map server's complete MCP capability inventory | The View app rendering live 3D Tiles inside the Console |
+| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | |
+| The map server's complete MCP capability inventory | |
 
 ## Capability Catalog
 
