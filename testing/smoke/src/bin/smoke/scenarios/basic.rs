@@ -244,7 +244,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: UAV_SIM_FOLLOW_CAMERA_WIDTH",
         "value: \"1280\"",
         "name: UAV_SIM_LIVE_STREAM_SIGNALING_URL",
-        "value: ws://127.0.0.1:49101/webrtc",
+        "value: \"ws://127.0.0.1:49101/webrtc\"",
         "name: UAV_SIM_LIVE_STREAM_PUBLIC_IP",
         "name: uav-sim-live",
         "name: stream-signal",
