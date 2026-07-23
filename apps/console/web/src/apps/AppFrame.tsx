@@ -7,8 +7,9 @@ import { useTheme } from "../theme";
 /**
  * One sandboxed MCP App view. `sandbox="allow-scripts"` without
  * `allow-same-origin` gives the document an opaque origin: no cookies, no
- * storage, no same-origin fetch — its only capability is the postMessage
- * bridge, whose tool calls go through the BFF's same-server allowlist.
+ * storage, or ambient same-origin authority. The postMessage bridge remains
+ * the control plane. Exact network origins declared in `_meta.ui.csp` may be
+ * admitted by the BFF for direct media data planes such as WebRTC signaling.
  */
 export function AppFrame({ app }: { app: AppDescriptor }) {
   const { appTheme } = useTheme();

@@ -1,6 +1,6 @@
 use rmcp::model::{Resource, ServerCapabilities, Tool};
 
-use crate::models::{APP_MIME_TYPE, EXTENSION_ID, ToolUiMeta, UI_META_KEY};
+use crate::models::{APP_MIME_TYPE, EXTENSION_ID, ResourceUiMeta, ToolUiMeta, UI_META_KEY};
 
 /// The host-side capability declaration announced at `initialize`:
 /// `capabilities.extensions["io.modelcontextprotocol/ui"]`. Declaring is
@@ -26,6 +26,12 @@ pub fn is_app_resource(resource: &Resource) -> bool {
     resource.mime_type.as_deref() == Some(APP_MIME_TYPE)
 }
 
+/// The app resource's declared host-enforced UI policy, when valid.
+pub fn resource_ui_meta(resource: &Resource) -> Option<ResourceUiMeta> {
+    let ui = resource.meta.as_ref()?.0.get(UI_META_KEY)?;
+    serde_json::from_value(ui.clone()).ok()
+}
+
 /// The tool's app link, when it has one.
 pub fn tool_app_link(tool: &Tool) -> Option<ToolUiMeta> {
     let ui = tool.meta.as_ref()?.0.get(UI_META_KEY)?;
@@ -42,7 +48,9 @@ pub fn tool_visible_to_app(tool: &Tool) -> bool {
 mod tests {
     use super::*;
     use crate::models::UiVisibility;
-    use crate::server::{app_resource, extend_capabilities, link_tool_to_app};
+    use crate::server::{
+        app_resource, app_resource_with_meta, extend_capabilities, link_tool_to_app,
+    };
 
     #[test]
     fn host_and_server_declarations_round_trip() {
@@ -62,6 +70,7 @@ mod tests {
     fn app_resources_and_tool_links_are_detected() {
         let resource = app_resource("ui://timeseries/forecast.html", "forecast-app");
         assert!(is_app_resource(&resource));
+        assert_eq!(resource_ui_meta(&resource), Some(ResourceUiMeta::default()));
         let plain = Resource::new("timeseries://usage", "usage");
         assert!(!is_app_resource(&plain));
 
@@ -77,5 +86,24 @@ mod tests {
             &[UiVisibility::Model],
         );
         assert!(!tool_visible_to_app(&model_only));
+
+        let networked = app_resource_with_meta(
+            "ui://uav-sim/live.html",
+            "uav-live",
+            ResourceUiMeta {
+                csp: Some(crate::UiCsp {
+                    connect_domains: vec!["wss://stream.example.com".to_owned()],
+                    ..crate::UiCsp::default()
+                }),
+                prefers_border: Some(false),
+            },
+        );
+        assert_eq!(
+            resource_ui_meta(&networked)
+                .and_then(|metadata| metadata.csp)
+                .expect("CSP parses")
+                .connect_domains,
+            vec!["wss://stream.example.com"]
+        );
     }
 }
