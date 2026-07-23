@@ -118,7 +118,8 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "notifications": true,
+        "apps": true
       },
       "tools": [
         "get_simulation_state",
@@ -131,7 +132,10 @@
         "land_vehicle",
         "run_scenario",
         "execute_mission",
-        "capture_dataset"
+        "capture_dataset",
+        "open_live_stream",
+        "renew_live_stream",
+        "close_live_stream"
       ],
       "prompts": [
         "uav-sim-mission-plan",
@@ -143,7 +147,8 @@
       "metadata": {
         "runtime": "isaac-sim-6.0.1",
         "world_source": "google_photorealistic_3d_tiles"
-      }
+      },
+      "resource_projection": "server_owned"
     },
     {
       "slug": "perception",
@@ -717,6 +722,10 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -1138,6 +1147,10 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -3776,10 +3789,14 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset"
+            "capture_dataset",
+            "open_live_stream",
+            "renew_live_stream",
+            "close_live_stream"
           ],
           "resource_schemes": [
-            "uav-sim"
+            "uav-sim",
+            "ui"
           ],
           "prompts": [
             "uav-sim-mission-plan",
@@ -3836,10 +3853,14 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset"
+            "capture_dataset",
+            "open_live_stream",
+            "renew_live_stream",
+            "close_live_stream"
           ],
           "resource_schemes": [
-            "uav-sim"
+            "uav-sim",
+            "ui"
           ],
           "prompts": [
             "uav-sim-mission-plan",
