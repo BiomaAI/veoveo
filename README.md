@@ -144,10 +144,21 @@ The showcases exercise the platform against real simulator runtimes. They are
 maintained as deployable workloads with typed MCP contracts, recording paths,
 and Rust acceptance tests.
 
-| UAV simulation | SUMO traffic world |
+### UAV flight in Isaac Sim
+
+| San Salvador | Midtown Manhattan |
+|---|---|
+| [![Isaac Sim UAV flight over San Salvador](docs/screenshots/gallery/isaac-uav-san-salvador.png)](docs/screenshots/gallery/isaac-uav-san-salvador.png) | [![Isaac Sim UAV flight over Midtown Manhattan](docs/screenshots/gallery/isaac-uav-new-york.png)](docs/screenshots/gallery/isaac-uav-new-york.png) |
+| UAV and PX4 flight above the Jorge “Mágico” González stadium district | Dense New York photogrammetry around Times Square and Central Park |
+
+Both frames come from the live headless Isaac Sim RTX viewport. The showcase
+camera follows the Pegasus vehicle after PX4 reaches the configured flight
+altitude. [Run the UAV showcase](showcase/uav-sim/README.md).
+
+| Governed UAV recording | SUMO traffic world |
 |---|---|
 | [![UAV simulation in Rerun](docs/screenshots/gallery/rerun-uav.png)](docs/screenshots/gallery/rerun-uav.png) | [![SUMO traffic simulation in Rerun](docs/screenshots/gallery/rerun-sumo.png)](docs/screenshots/gallery/rerun-sumo.png) |
-| Isaac Sim renders Google Photorealistic 3D Tiles while Pegasus and PX4 supply multirotor dynamics and MAVLink control. Camera, pose, telemetry, perception, and reasoning share one governed recording path. [Run the UAV showcase](showcase/uav-sim/README.md). | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and Rerun recording. [Run the SUMO showcase](showcase/sumo/README.md). |
+| Camera, pose, telemetry, perception, and reasoning share one governed recording path. | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and Rerun recording. [Run the SUMO showcase](showcase/sumo/README.md). |
 
 ## Built On The Model Context Protocol
 
