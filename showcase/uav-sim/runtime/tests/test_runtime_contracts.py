@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 import numpy as np
@@ -14,6 +15,10 @@ from veoveo_uav_sim.camera_quality import (
 from veoveo_uav_sim.config import RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.live_stream import (
+    LiveStreamLeaseManager,
+    _authorization_token,
+)
 from veoveo_uav_sim.screenshot import ScreenshotGate
 from veoveo_uav_sim.state import RuntimeState
 
@@ -53,6 +58,19 @@ class RuntimeConfigTests(unittest.TestCase):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.rendering_hz, 20)
         self.assertEqual(config.rendering_hz, config.camera.fps)
+        self.assertEqual(config.rendering_hz, config.follow_camera.fps)
+
+    def test_follow_camera_is_the_gpu_live_view(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            config = RuntimeConfig.from_environment()
+            state = RuntimeState(config).snapshot()
+        self.assertEqual(
+            (config.follow_camera.width, config.follow_camera.height),
+            (1280, 720),
+        )
+        self.assertEqual(state["live_stream"]["source"], "follow_camera")
+        self.assertEqual(state["live_stream"]["hardware_encoder"], "nvidia_nvenc")
+        self.assertEqual(state["live_stream"]["codec"], "h264")
 
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
@@ -107,21 +125,28 @@ class RuntimeConfigTests(unittest.TestCase):
         environment = {
             **VALID_ENVIRONMENT,
             "UAV_SIM_SCREENSHOT_PATH": "/tmp/isaac-uav.png",
-            "UAV_SIM_SCREENSHOT_WIDTH": "1920",
-            "UAV_SIM_SCREENSHOT_HEIGHT": "1080",
             "UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M": "295",
             "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES": "45",
-            "UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M": "-6",
+            "UAV_SIM_FOLLOW_CAMERA_WIDTH": "1920",
+            "UAV_SIM_FOLLOW_CAMERA_HEIGHT": "1080",
+            "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_X_M": "-6",
         }
         with patch.dict(os.environ, environment, clear=True):
-            screenshot = RuntimeConfig.from_environment().screenshot
+            config = RuntimeConfig.from_environment()
+            screenshot = config.screenshot
         self.assertIsNotNone(screenshot)
         assert screenshot is not None
         self.assertEqual(screenshot.output_path.as_posix(), "/tmp/isaac-uav.png")
-        self.assertEqual((screenshot.width, screenshot.height), (1920, 1080))
         self.assertEqual(screenshot.minimum_relative_altitude_m, 295.0)
         self.assertEqual(screenshot.settle_rendered_frames, 45)
-        self.assertEqual(screenshot.eye_offset_xyz_m, (-6.0, -2.2, 1.2))
+        self.assertEqual(
+            (config.follow_camera.width, config.follow_camera.height),
+            (1920, 1080),
+        )
+        self.assertEqual(
+            config.follow_camera.eye_offset_xyz_m,
+            (-6.0, -2.2, 1.2),
+        )
 
     def test_showcase_screenshot_rejects_a_relative_or_non_png_path(self) -> None:
         for path in ("isaac-uav.png", "/tmp/isaac-uav.jpg"):
@@ -244,6 +269,43 @@ class ScreenshotGateTests(unittest.TestCase):
         self.assertFalse(gate.observe(rendered=True, ready=True))
         self.assertTrue(gate.observe(rendered=True, ready=True))
         self.assertFalse(gate.observe(rendered=True, ready=True))
+
+
+class LiveStreamLeaseTests(unittest.TestCase):
+    def test_bearer_protocol_accepts_the_nvidia_client_shape(self) -> None:
+        self.assertEqual(
+            _authorization_token(
+                [
+                    "x-nv-sessionid.stream-1",
+                    "Authorization.Bearer.secret-token",
+                ]
+            ),
+            "secret-token",
+        )
+        self.assertIsNone(_authorization_token(["x-nv-sessionid.stream-1"]))
+
+    def test_one_short_lived_stream_lease_is_enforced(self) -> None:
+        changes: list[tuple[str, int]] = []
+        manager = LiveStreamLeaseManager(
+            300,
+            lambda lifecycle, viewers: changes.append((lifecycle, viewers)),
+        )
+        opened = manager.open("stream-1")
+        self.assertEqual(opened["stream_id"], "stream-1")
+        self.assertGreater(
+            datetime.fromisoformat(opened["expires_at"].replace("Z", "+00:00")),
+            datetime.now().astimezone(),
+        )
+        with self.assertRaisesRegex(RuntimeError, "already leased"):
+            manager.open("stream-2")
+        self.assertEqual(
+            manager.authorize(opened["access_token"]),
+            "stream-1",
+        )
+        self.assertEqual(manager.public_state(), ("live", 1))
+        manager.close("stream-1")
+        self.assertFalse(manager.active("stream-1"))
+        self.assertEqual(changes[-1], ("ready", 0))
 
 
 if __name__ == "__main__":

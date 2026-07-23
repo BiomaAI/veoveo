@@ -9,6 +9,7 @@ from typing import Any, Callable
 from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .camera_quality import CameraFrameQuality
+from .live_stream import live_stream_state
 
 
 def _timestamp() -> str:
@@ -68,6 +69,7 @@ class RuntimeState:
                 }
                 for index in range(config.vehicle_count)
             ],
+            "live_stream": live_stream_state(config.follow_camera),
             "vehicles": [],
             "recordings": [
                 {
@@ -154,6 +156,14 @@ class RuntimeState:
     def update_vehicles(self, vehicles: list[VehicleTelemetry]) -> None:
         with self._condition:
             self._state["vehicles"] = [self._vehicle_state(vehicle) for vehicle in vehicles]
+            self._touch()
+
+    def update_live_stream(self, lifecycle: str, connected_viewers: int) -> None:
+        with self._condition:
+            self._state["live_stream"].update(
+                lifecycle=lifecycle,
+                connected_viewers=max(0, connected_viewers),
+            )
             self._touch()
 
     def set_recording_active(self, active: bool) -> None:

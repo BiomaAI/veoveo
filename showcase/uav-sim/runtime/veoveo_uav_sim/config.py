@@ -123,15 +123,113 @@ class CameraConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class ScreenshotConfig:
-    output_path: Path
+class FollowCameraConfig:
     width: int
     height: int
-    minimum_relative_altitude_m: float
-    settle_rendered_frames: int
+    fps: int
     focal_length_mm: float
     eye_offset_xyz_m: tuple[float, float, float]
     target_offset_xyz_m: tuple[float, float, float]
+
+    @classmethod
+    def from_environment(cls) -> "FollowCameraConfig":
+        return cls(
+            width=_int("UAV_SIM_FOLLOW_CAMERA_WIDTH", "1280", 64, 3_840),
+            height=_int("UAV_SIM_FOLLOW_CAMERA_HEIGHT", "720", 64, 2_160),
+            fps=_int("UAV_SIM_FOLLOW_CAMERA_FPS", "20", 1, 60),
+            focal_length_mm=_float(
+                "UAV_SIM_FOLLOW_CAMERA_FOCAL_LENGTH_MM", "45.0", 0.1, 1_000.0
+            ),
+            eye_offset_xyz_m=(
+                _float(
+                    "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_X_M",
+                    "-2.2",
+                    -1_000.0,
+                    1_000.0,
+                ),
+                _float(
+                    "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_Y_M",
+                    "-2.2",
+                    -1_000.0,
+                    1_000.0,
+                ),
+                _float(
+                    "UAV_SIM_FOLLOW_CAMERA_EYE_OFFSET_Z_M",
+                    "1.2",
+                    -1_000.0,
+                    1_000.0,
+                ),
+            ),
+            target_offset_xyz_m=(
+                _float(
+                    "UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_X_M",
+                    "0.0",
+                    -1_000.0,
+                    1_000.0,
+                ),
+                _float(
+                    "UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_Y_M",
+                    "0.0",
+                    -1_000.0,
+                    1_000.0,
+                ),
+                _float(
+                    "UAV_SIM_FOLLOW_CAMERA_TARGET_OFFSET_Z_M",
+                    "0.2",
+                    -1_000.0,
+                    1_000.0,
+                ),
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class LiveStreamConfig:
+    signal_port: int
+    media_port: int
+    public_ip: str
+    proxy_host: str
+    proxy_port: int
+    signaling_path: str
+    lease_ttl_seconds: int
+
+    @classmethod
+    def from_environment(cls) -> "LiveStreamConfig":
+        signaling_path = os.environ.get(
+            "UAV_SIM_LIVE_STREAM_SIGNALING_PATH", "/webrtc"
+        ).strip()
+        if not signaling_path.startswith("/") or ".." in signaling_path:
+            raise ValueError(
+                "UAV_SIM_LIVE_STREAM_SIGNALING_PATH must be an absolute normalized path"
+            )
+        return cls(
+            signal_port=_int(
+                "UAV_SIM_LIVE_STREAM_SIGNAL_PORT", "49100", 1, 65_535
+            ),
+            media_port=_int(
+                "UAV_SIM_LIVE_STREAM_MEDIA_PORT", "47998", 1, 65_535
+            ),
+            public_ip=os.environ.get(
+                "UAV_SIM_LIVE_STREAM_PUBLIC_IP", "127.0.0.1"
+            ).strip(),
+            proxy_host=os.environ.get(
+                "UAV_SIM_LIVE_STREAM_PROXY_HOST", "0.0.0.0"
+            ),
+            proxy_port=_int(
+                "UAV_SIM_LIVE_STREAM_PROXY_PORT", "49101", 1, 65_535
+            ),
+            signaling_path=signaling_path,
+            lease_ttl_seconds=_int(
+                "UAV_SIM_LIVE_STREAM_LEASE_TTL_SECONDS", "300", 30, 3_600
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenshotConfig:
+    output_path: Path
+    minimum_relative_altitude_m: float
+    settle_rendered_frames: int
 
     @classmethod
     def from_environment(cls) -> "ScreenshotConfig | None":
@@ -149,8 +247,6 @@ class ScreenshotConfig:
             )
         return cls(
             output_path=output_path,
-            width=_int("UAV_SIM_SCREENSHOT_WIDTH", "1920", 64, 3_840),
-            height=_int("UAV_SIM_SCREENSHOT_HEIGHT", "1080", 64, 2_160),
             minimum_relative_altitude_m=_float(
                 "UAV_SIM_SCREENSHOT_MINIMUM_RELATIVE_ALTITUDE_M",
                 "250.0",
@@ -159,25 +255,6 @@ class ScreenshotConfig:
             ),
             settle_rendered_frames=_int(
                 "UAV_SIM_SCREENSHOT_SETTLE_RENDERED_FRAMES", "30", 1, 600
-            ),
-            focal_length_mm=_float(
-                "UAV_SIM_SCREENSHOT_FOCAL_LENGTH_MM", "45.0", 0.1, 1_000.0
-            ),
-            eye_offset_xyz_m=(
-                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_X_M", "-2.2", -1_000.0, 1_000.0),
-                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Y_M", "-2.2", -1_000.0, 1_000.0),
-                _float("UAV_SIM_SCREENSHOT_EYE_OFFSET_Z_M", "1.2", -1_000.0, 1_000.0),
-            ),
-            target_offset_xyz_m=(
-                _float(
-                    "UAV_SIM_SCREENSHOT_TARGET_OFFSET_X_M", "0.0", -1_000.0, 1_000.0
-                ),
-                _float(
-                    "UAV_SIM_SCREENSHOT_TARGET_OFFSET_Y_M", "0.0", -1_000.0, 1_000.0
-                ),
-                _float(
-                    "UAV_SIM_SCREENSHOT_TARGET_OFFSET_Z_M", "0.2", -1_000.0, 1_000.0
-                ),
             ),
         )
 
@@ -203,6 +280,8 @@ class RuntimeConfig:
     recording_proxy: str
     recording_key: uuid.UUID
     camera: CameraConfig
+    follow_camera: FollowCameraConfig
+    live_stream: LiveStreamConfig
     screenshot: ScreenshotConfig | None
     extension_directory: str
     exit_after_seconds: float | None
@@ -266,6 +345,8 @@ class RuntimeConfig:
             ),
             recording_key=recording_key,
             camera=CameraConfig.from_environment(),
+            follow_camera=FollowCameraConfig.from_environment(),
+            live_stream=LiveStreamConfig.from_environment(),
             screenshot=ScreenshotConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"

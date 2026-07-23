@@ -1,0 +1,324 @@
+from __future__ import annotations
+
+import asyncio
+import ctypes
+import hashlib
+import logging
+import secrets
+import threading
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable
+
+from aiohttp import ClientSession, WSMsgType, web
+
+from .config import FollowCameraConfig, LiveStreamConfig
+
+
+LOGGER = logging.getLogger("veoveo.uav_sim.live_stream")
+AUTH_PROTOCOL_PREFIXES = ("Authorization.Bearer.", "Authorization-Bearer.")
+
+
+def _timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def verify_nvidia_video_stack() -> None:
+    try:
+        ctypes.CDLL("libcuda.so.1")
+        ctypes.CDLL("libnvidia-encode.so.1")
+    except OSError as error:
+        raise RuntimeError(
+            "NVIDIA CUDA and NVENC libraries are required for UAV live streaming"
+        ) from error
+
+
+@dataclass(slots=True)
+class LiveStreamLease:
+    stream_id: str
+    token_digest: bytes
+    expires_at: datetime
+    connected: bool = False
+    revoked: bool = False
+
+
+class LiveStreamLeaseManager:
+    def __init__(
+        self,
+        ttl_seconds: int,
+        on_change: Callable[[str, int], None],
+    ) -> None:
+        self._ttl = timedelta(seconds=ttl_seconds)
+        self._on_change = on_change
+        self._lock = threading.Lock()
+        self._lease: LiveStreamLease | None = None
+
+    def open(self, stream_id: str) -> dict[str, str]:
+        with self._lock:
+            self._purge_expired()
+            if self._lease is not None and not self._lease.revoked:
+                raise RuntimeError("the follow-camera live stream is already leased")
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.now(timezone.utc) + self._ttl
+            self._lease = LiveStreamLease(
+                stream_id=stream_id,
+                token_digest=self._digest(token),
+                expires_at=expires_at,
+            )
+        self._notify()
+        return {
+            "stream_id": stream_id,
+            "access_token": token,
+            "expires_at": _timestamp(expires_at),
+        }
+
+    def renew(self, stream_id: str) -> dict[str, str]:
+        with self._lock:
+            lease = self._require(stream_id)
+            token = secrets.token_urlsafe(32)
+            lease.token_digest = self._digest(token)
+            lease.expires_at = datetime.now(timezone.utc) + self._ttl
+            expires_at = lease.expires_at
+        self._notify()
+        return {
+            "stream_id": stream_id,
+            "access_token": token,
+            "expires_at": _timestamp(expires_at),
+        }
+
+    def close(self, stream_id: str) -> None:
+        with self._lock:
+            lease = self._require(stream_id)
+            lease.revoked = True
+        self._notify()
+
+    def authorize(self, token: str) -> str:
+        with self._lock:
+            self._purge_expired()
+            lease = self._lease
+            if (
+                lease is None
+                or lease.revoked
+                or lease.connected
+                or not secrets.compare_digest(lease.token_digest, self._digest(token))
+            ):
+                raise PermissionError("live-stream lease is invalid or unavailable")
+            lease.connected = True
+            stream_id = lease.stream_id
+        self._notify()
+        return stream_id
+
+    def disconnect(self, stream_id: str) -> None:
+        with self._lock:
+            if self._lease is not None and self._lease.stream_id == stream_id:
+                self._lease.connected = False
+        self._notify()
+
+    def active(self, stream_id: str) -> bool:
+        with self._lock:
+            self._purge_expired()
+            return (
+                self._lease is not None
+                and self._lease.stream_id == stream_id
+                and not self._lease.revoked
+            )
+
+    def public_state(self) -> tuple[str, int]:
+        with self._lock:
+            self._purge_expired()
+            connected = int(
+                self._lease is not None
+                and self._lease.connected
+                and not self._lease.revoked
+            )
+        return ("live" if connected else "ready", connected)
+
+    def _require(self, stream_id: str) -> LiveStreamLease:
+        self._purge_expired()
+        if (
+            self._lease is None
+            or self._lease.stream_id != stream_id
+            or self._lease.revoked
+        ):
+            raise ValueError(f"unknown live stream {stream_id!r}")
+        return self._lease
+
+    def _purge_expired(self) -> None:
+        if (
+            self._lease is not None
+            and self._lease.expires_at <= datetime.now(timezone.utc)
+        ):
+            self._lease.revoked = True
+
+    def _notify(self) -> None:
+        lifecycle, connected = self.public_state()
+        self._on_change(lifecycle, connected)
+
+    @staticmethod
+    def _digest(token: str) -> bytes:
+        return hashlib.sha256(token.encode("utf-8")).digest()
+
+
+class LiveStreamSignalingProxy:
+    def __init__(
+        self,
+        config: LiveStreamConfig,
+        leases: LiveStreamLeaseManager,
+    ) -> None:
+        self._config = config
+        self._leases = leases
+        self._thread: threading.Thread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._runner: web.AppRunner | None = None
+        self._started = threading.Event()
+        self._error: BaseException | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(
+            target=self._run,
+            name="uav-live-stream-signaling",
+            daemon=True,
+        )
+        self._thread.start()
+        if not self._started.wait(30.0):
+            raise TimeoutError("UAV live-stream signaling proxy did not start")
+        if self._error is not None:
+            raise RuntimeError("UAV live-stream signaling proxy failed") from self._error
+
+    def close(self) -> None:
+        if self._loop is not None and self._runner is not None:
+            future = asyncio.run_coroutine_threadsafe(
+                self._runner.cleanup(), self._loop
+            )
+            future.result(timeout=30.0)
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        if self._thread is not None:
+            self._thread.join(timeout=30.0)
+
+    def _run(self) -> None:
+        try:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            application = web.Application(client_max_size=64 * 1024)
+            application.add_routes(
+                [web.get(self._config.signaling_path, self._websocket)]
+            )
+            self._runner = web.AppRunner(application, access_log=None)
+            self._loop.run_until_complete(self._runner.setup())
+            site = web.TCPSite(
+                self._runner,
+                self._config.proxy_host,
+                self._config.proxy_port,
+            )
+            self._loop.run_until_complete(site.start())
+            self._started.set()
+            self._loop.run_forever()
+        except BaseException as error:
+            self._error = error
+            self._started.set()
+
+    async def _websocket(self, request: web.Request) -> web.StreamResponse:
+        offered_protocols = [
+            value.strip()
+            for value in request.headers.get("Sec-WebSocket-Protocol", "").split(",")
+            if value.strip()
+        ]
+        token = _authorization_token(offered_protocols)
+        if token is None:
+            raise web.HTTPUnauthorized(text="live-stream bearer protocol is required")
+        try:
+            stream_id = self._leases.authorize(token)
+        except PermissionError as error:
+            raise web.HTTPForbidden(text=str(error)) from error
+
+        upstream_protocols = [
+            protocol
+            for protocol in offered_protocols
+            if not protocol.startswith(AUTH_PROTOCOL_PREFIXES)
+        ]
+        upstream_url = f"ws://127.0.0.1:{self._config.signal_port}/"
+        try:
+            async with ClientSession() as session:
+                upstream = await session.ws_connect(
+                    upstream_url,
+                    protocols=upstream_protocols,
+                    max_msg_size=16 * 1024 * 1024,
+                )
+                selected = [upstream.protocol] if upstream.protocol else []
+                downstream = web.WebSocketResponse(
+                    protocols=selected,
+                    max_msg_size=16 * 1024 * 1024,
+                    heartbeat=20.0,
+                )
+                await downstream.prepare(request)
+                LOGGER.info("NVIDIA WebRTC signaling connected: stream=%s", stream_id)
+                await self._bridge(stream_id, downstream, upstream)
+                return downstream
+        except BaseException:
+            self._leases.disconnect(stream_id)
+            raise
+
+    async def _bridge(
+        self,
+        stream_id: str,
+        downstream: web.WebSocketResponse,
+        upstream: Any,
+    ) -> None:
+        downstream_task = asyncio.create_task(_forward_websocket(downstream, upstream))
+        upstream_task = asyncio.create_task(_forward_websocket(upstream, downstream))
+        lease_task = asyncio.create_task(self._watch_lease(stream_id))
+        tasks = {downstream_task, upstream_task, lease_task}
+        try:
+            _, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+        finally:
+            await downstream.close()
+            await upstream.close()
+            self._leases.disconnect(stream_id)
+            LOGGER.info("NVIDIA WebRTC signaling closed: stream=%s", stream_id)
+
+    async def _watch_lease(self, stream_id: str) -> None:
+        while self._leases.active(stream_id):
+            await asyncio.sleep(1.0)
+
+
+def _authorization_token(protocols: list[str]) -> str | None:
+    for protocol in protocols:
+        for prefix in AUTH_PROTOCOL_PREFIXES:
+            if protocol.startswith(prefix):
+                token = protocol.removeprefix(prefix)
+                return token or None
+    return None
+
+
+async def _forward_websocket(source: Any, destination: Any) -> None:
+    async for message in source:
+        if message.type == WSMsgType.TEXT:
+            await destination.send_str(message.data)
+        elif message.type == WSMsgType.BINARY:
+            await destination.send_bytes(message.data)
+        elif message.type in {WSMsgType.CLOSE, WSMsgType.CLOSED}:
+            return
+        elif message.type == WSMsgType.ERROR:
+            raise RuntimeError("NVIDIA WebRTC signaling websocket failed")
+
+
+def live_stream_state(
+    follow_camera: FollowCameraConfig,
+    lifecycle: str = "starting",
+    connected_viewers: int = 0,
+) -> dict[str, object]:
+    return {
+        "lifecycle": lifecycle,
+        "source": "follow_camera",
+        "codec": "h264",
+        "hardware_encoder": "nvidia_nvenc",
+        "width": follow_camera.width,
+        "height": follow_camera.height,
+        "fps": follow_camera.fps,
+        "connected_viewers": connected_viewers,
+    }
