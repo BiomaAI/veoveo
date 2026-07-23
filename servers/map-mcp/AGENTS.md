@@ -67,10 +67,10 @@ Contract revision: 1
 - C15: met
 - C16: met
 - C17: pending — registration does not state the contract revision
-- C18: pending — well-known surface not yet wired
-- C19: pending — well-known surface not yet wired
-- C20: pending — well-known surface not yet wired
-- C21: pending — well-known surface not yet wired
+- C18: met
+- C19: met
+- C20: met
+- C21: met
 - C22: met
 - C23: met
 - C24: met

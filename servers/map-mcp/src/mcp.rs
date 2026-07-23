@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, LazyLock},
+};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::{
@@ -18,7 +21,11 @@ use rmcp::{
 use serde::Serialize;
 use serde_json::json;
 use veoveo_mcp_contract::tool;
-use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, paginate};
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, Page, PlaneCaller,
+    docs::{CapabilityInventory, ContractDeclaration, ServerDocs},
+    paginate,
+};
 
 use crate::{
     administration::{self, AdminOpError},
@@ -46,6 +53,17 @@ use crate::{
 mod authoring;
 
 const LIST_PAGE_SIZE: usize = 100;
+
+/// The crate documents embedded at build time and served under the well-known
+/// surface: `map://docs`, `map://docs/{doc_id}`, `map://contract`, and the
+/// administrative `admin/docs` routes (contract C18-C21).
+pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
+    LazyLock::new(|| veoveo_mcp_contract::server_docs!("map"));
+
+/// Scopes that may read the well-known surface; the same set gates
+/// `list_resources`, so any identity able to list resources can read the
+/// server's manual and contract declaration.
+const WELL_KNOWN_SCOPES: &[&str] = &["map:dataset:read", "map:feature:read", "map:admin"];
 
 /// Tools the map administration app may invoke; each is linked to the app
 /// view in `list_tools` and scope-gated to `map:admin` in its handler.
@@ -91,9 +109,53 @@ pub struct MapMcp {
 #[tool_router]
 impl MapMcp {
     pub fn new(state: Arc<MapApplication>) -> Self {
+        Self {
+            state,
+            tool_router: Self::full_tool_router(),
+        }
+    }
+
+    /// Every registered Map tool: the base router merged with the authoring
+    /// router. Both the served handler and the `map://contract` capability
+    /// inventory build from this one registration.
+    fn full_tool_router() -> ToolRouter<MapMcp> {
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::authoring_tool_router());
-        Self { state, tool_router }
+        tool_router
+    }
+
+    /// The capability inventory declared at `map://contract` (contract C19).
+    ///
+    /// Tools and prompts derive from the live registrations. Stable resources,
+    /// resource templates, and task-augmented tool names come from the lists
+    /// those surfaces are served from (`stable_resource_uris`,
+    /// `resource_templates`, `crate::server::tasks::TASK_TOOLS`), so the
+    /// declaration cannot silently diverge from what the handler registers.
+    pub(crate) fn capability_inventory() -> CapabilityInventory {
+        let mut tools: Vec<String> = Self::full_tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.into_owned())
+            .collect();
+        tools.sort();
+        let mut prompts: Vec<String> = MapPrompt::ALL
+            .into_iter()
+            .map(|prompt| prompt.definition().name)
+            .collect();
+        prompts.sort();
+        CapabilityInventory {
+            tools,
+            resources: stable_resource_uris(),
+            resource_templates: resource_templates()
+                .into_iter()
+                .map(|template| template.uri_template.clone())
+                .collect(),
+            prompts,
+            tasks: crate::server::tasks::TASK_TOOLS
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect(),
+        }
     }
 
     #[tool(
@@ -649,6 +711,7 @@ impl ServerHandler for MapMcp {
         }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let mut resources = Vec::new();
+        resources.extend(well_known_resources());
         if identity_has_scope(&identity, "map:admin") {
             resources.push(
                 veoveo_mcp_apps_extension::app_resource(uris::ADMIN_APP_URI, "map-admin-app")
@@ -881,115 +944,7 @@ impl ServerHandler for MapMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            template(
-                uris::SOURCE_TEMPLATE,
-                "Map source",
-                "Authorized source provenance.",
-            ),
-            template(
-                uris::ACQUISITION_TEMPLATE,
-                "Map acquisition",
-                "Governed acquisition job (map:admin).",
-            ),
-            template(
-                uris::DATASET_TEMPLATE,
-                "Map dataset",
-                "Release index for one dataset.",
-            ),
-            template(
-                uris::RELEASE_TEMPLATE,
-                "Dataset release",
-                "Immutable governed release.",
-            ),
-            template(
-                uris::LOCATION_TEMPLATE,
-                "Map location",
-                "Named location with lineage.",
-            ),
-            template(
-                uris::FACILITY_TEMPLATE,
-                "Map facility",
-                "Logistics facility.",
-            ),
-            template(
-                uris::MOBILITY_PROFILE_TEMPLATE,
-                "Mobility profile",
-                "Versioned mobility constraints.",
-            ),
-            template(
-                uris::RESTRICTION_TEMPLATE,
-                "Map restriction",
-                "Effective restriction.",
-            ),
-            template(uris::ROUTE_TEMPLATE, "Map route", "Owner-scoped route."),
-            template(
-                uris::MATRIX_TEMPLATE,
-                "Route matrix",
-                "Owner-scoped route matrix.",
-            ),
-            template(
-                uris::ARTIFACT_TEMPLATE,
-                "Map artifact",
-                "Governed immutable map artifact.",
-            ),
-            template(
-                uris::FEATURE_LAYER_TEMPLATE,
-                "Authored feature layer",
-                "Work Context-scoped layer head with pinned schema and style revisions.",
-            ),
-            template(
-                uris::FEATURE_SCHEMA_TEMPLATE,
-                "Feature schema revision",
-                "Immutable JSON Schema 2020-12 property contract.",
-            ),
-            template(
-                uris::FEATURE_STYLE_TEMPLATE,
-                "Feature style revision",
-                "Immutable safe map style revision.",
-            ),
-            template(
-                uris::FEATURES_TEMPLATE,
-                "Authored feature query",
-                "Paginated current or published GeoJSON features with spatial, temporal, and CQL2 filters.",
-            ),
-            template(
-                uris::FEATURE_TEMPLATE,
-                "Authored feature",
-                "Current canonical feature head.",
-            ),
-            template(
-                uris::FEATURE_REVISION_TEMPLATE,
-                "Authored feature revision",
-                "Immutable canonical feature revision.",
-            ),
-            template(
-                uris::CHANGESET_TEMPLATE,
-                "Feature changeset",
-                "Atomic authored feature commit.",
-            ),
-            template(
-                uris::PUBLICATION_TEMPLATE,
-                "Feature layer publication",
-                "Immutable published layer revision.",
-            ),
-            template(
-                uris::LAYER_PRODUCT_TEMPLATE,
-                "Feature layer product",
-                "Immutable artifact derived from a published layer revision.",
-            ),
-            template(
-                uris::COMPOSITION_TEMPLATE,
-                "Map composition",
-                "Mutable head of a governed publication-pinned map composition.",
-            ),
-            template(
-                uris::COMPOSITION_REVISION_TEMPLATE,
-                "Map composition revision",
-                "Immutable map composition revision.",
-            ),
-        ];
-        let page = mcp_page(templates, request.as_ref())?;
+        let page = mcp_page(resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -1003,6 +958,28 @@ impl ServerHandler for MapMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
+        // Well-known surface (contract C18, C19): readable by any identity
+        // that can list resources.
+        if uri == uris::DOCS_URI {
+            require_any_scope(&context, WELL_KNOWN_SCOPES)?;
+            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
+        }
+        if let Some(doc_id) = uris::parse_doc(uri) {
+            require_any_scope(&context, WELL_KNOWN_SCOPES)?;
+            let doc = SERVER_DOCS
+                .doc(doc_id)
+                .ok_or_else(|| not_found("server document"))?;
+            return Ok(ReadResourceResult::new(vec![
+                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+            ]));
+        }
+        if uri == uris::CONTRACT_URI {
+            require_any_scope(&context, WELL_KNOWN_SCOPES)?;
+            return json_resource(
+                uri,
+                &ContractDeclaration::from_docs(&SERVER_DOCS, Self::capability_inventory()),
+            );
+        }
         // Administration resources carry the admin scope, not dataset read.
         if uri == uris::ADMIN_APP_URI {
             require_scope(&context, "map:admin")?;
@@ -1625,6 +1602,124 @@ impl ServerHandler for MapMcp {
     }
 }
 
+/// Every advertised resource template. `list_resource_templates` serves this
+/// list and the `map://contract` capability inventory declares it, so the two
+/// cannot diverge.
+fn resource_templates() -> Vec<ResourceTemplate> {
+    vec![
+        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
+            .with_title("Server document")
+            .with_description("Embedded crate document body (contract C18).")
+            .with_mime_type("text/markdown"),
+        template(
+            uris::SOURCE_TEMPLATE,
+            "Map source",
+            "Authorized source provenance.",
+        ),
+        template(
+            uris::ACQUISITION_TEMPLATE,
+            "Map acquisition",
+            "Governed acquisition job (map:admin).",
+        ),
+        template(
+            uris::DATASET_TEMPLATE,
+            "Map dataset",
+            "Release index for one dataset.",
+        ),
+        template(
+            uris::RELEASE_TEMPLATE,
+            "Dataset release",
+            "Immutable governed release.",
+        ),
+        template(
+            uris::LOCATION_TEMPLATE,
+            "Map location",
+            "Named location with lineage.",
+        ),
+        template(
+            uris::FACILITY_TEMPLATE,
+            "Map facility",
+            "Logistics facility.",
+        ),
+        template(
+            uris::MOBILITY_PROFILE_TEMPLATE,
+            "Mobility profile",
+            "Versioned mobility constraints.",
+        ),
+        template(
+            uris::RESTRICTION_TEMPLATE,
+            "Map restriction",
+            "Effective restriction.",
+        ),
+        template(uris::ROUTE_TEMPLATE, "Map route", "Owner-scoped route."),
+        template(
+            uris::MATRIX_TEMPLATE,
+            "Route matrix",
+            "Owner-scoped route matrix.",
+        ),
+        template(
+            uris::ARTIFACT_TEMPLATE,
+            "Map artifact",
+            "Governed immutable map artifact.",
+        ),
+        template(
+            uris::FEATURE_LAYER_TEMPLATE,
+            "Authored feature layer",
+            "Work Context-scoped layer head with pinned schema and style revisions.",
+        ),
+        template(
+            uris::FEATURE_SCHEMA_TEMPLATE,
+            "Feature schema revision",
+            "Immutable JSON Schema 2020-12 property contract.",
+        ),
+        template(
+            uris::FEATURE_STYLE_TEMPLATE,
+            "Feature style revision",
+            "Immutable safe map style revision.",
+        ),
+        template(
+            uris::FEATURES_TEMPLATE,
+            "Authored feature query",
+            "Paginated current or published GeoJSON features with spatial, temporal, and CQL2 filters.",
+        ),
+        template(
+            uris::FEATURE_TEMPLATE,
+            "Authored feature",
+            "Current canonical feature head.",
+        ),
+        template(
+            uris::FEATURE_REVISION_TEMPLATE,
+            "Authored feature revision",
+            "Immutable canonical feature revision.",
+        ),
+        template(
+            uris::CHANGESET_TEMPLATE,
+            "Feature changeset",
+            "Atomic authored feature commit.",
+        ),
+        template(
+            uris::PUBLICATION_TEMPLATE,
+            "Feature layer publication",
+            "Immutable published layer revision.",
+        ),
+        template(
+            uris::LAYER_PRODUCT_TEMPLATE,
+            "Feature layer product",
+            "Immutable artifact derived from a published layer revision.",
+        ),
+        template(
+            uris::COMPOSITION_TEMPLATE,
+            "Map composition",
+            "Mutable head of a governed publication-pinned map composition.",
+        ),
+        template(
+            uris::COMPOSITION_REVISION_TEMPLATE,
+            "Map composition revision",
+            "Immutable map composition revision.",
+        ),
+    ]
+}
+
 fn internal_identity(
     context: &RequestContext<RoleServer>,
 ) -> Result<GatewayInternalIdentity, McpError> {
@@ -1735,6 +1830,66 @@ fn not_found(kind: &str) -> McpError {
     McpError::resource_not_found(format!("unknown {kind}"), None)
 }
 
+/// Well-known surface resources (contract C18, C19). `list_resources` serves
+/// these for every authorized identity and `stable_resource_uris` declares
+/// them in the `map://contract` capability inventory, so the two cannot
+/// diverge.
+fn well_known_resources() -> Vec<Resource> {
+    let mut resources = vec![json_resource_descriptor(
+        uris::DOCS_URI.to_owned(),
+        "Server documents".to_owned(),
+        "Index of the crate documents embedded at build time.",
+    )];
+    for doc in SERVER_DOCS.iter() {
+        resources.push(
+            Resource::new(uris::doc_uri(doc.id), doc.title)
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
+        );
+    }
+    resources.push(json_resource_descriptor(
+        uris::CONTRACT_URI.to_owned(),
+        "Contract declaration".to_owned(),
+        "Machine-readable contract revision, compliance, and capability inventory.",
+    ));
+    resources
+}
+
+/// Stable resource URIs declared in the `map://contract` capability
+/// inventory: the well-known surface, the app views, and the index resources
+/// `list_resources` always serves. Per-entity resources are enumerated per
+/// identity at list time and are covered by the resource templates instead.
+/// Constructed beside `list_resources`; when a stable resource is added or
+/// removed there, update this list in the same change so the served
+/// declaration cannot silently diverge.
+fn stable_resource_uris() -> Vec<String> {
+    let mut resource_uris: Vec<String> = well_known_resources()
+        .into_iter()
+        .map(|resource| resource.uri.clone())
+        .collect();
+    resource_uris.extend(
+        [
+            uris::ADMIN_APP_URI,
+            uris::EDITOR_APP_URI,
+            uris::ACQUISITIONS_URI,
+            uris::ACTIVE_RELEASES_URI,
+            uris::FEATURE_LAYERS_URI,
+            uris::PUBLICATIONS_URI,
+            uris::LAYER_PRODUCTS_URI,
+            uris::COMPOSITIONS_URI,
+        ]
+        .map(str::to_owned),
+    );
+    resource_uris.extend(
+        root_resources()
+            .into_iter()
+            .map(|resource| resource.uri.clone()),
+    );
+    resource_uris.sort();
+    resource_uris
+}
+
 fn root_resources() -> Vec<Resource> {
     [
         (uris::DATASETS_URI, "Map datasets"),
@@ -1809,6 +1964,7 @@ async fn completion_values(
     argument: &str,
 ) -> anyhow::Result<Vec<String>> {
     let values = match (template, argument) {
+        (uris::DOC_TEMPLATE, "doc_id") => SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect(),
         (uris::SOURCE_TEMPLATE, "source_id") => state
             .catalog
             .list_sources(scope)
@@ -1979,6 +2135,114 @@ fn is_feature_subscribable(uri: &str) -> bool {
 
 fn is_feature_template(uri: &str) -> bool {
     uri.starts_with("map://feature-layer/") || uri.starts_with("map://composition/")
+}
+
+#[cfg(test)]
+mod well_known_tests {
+    use veoveo_mcp_contract::docs::{
+        CONTRACT_REVISION, ComplianceStatus, ContractDeclaration, DOC_ID_AGENTS, DOC_ID_DESIGN,
+    };
+
+    use super::{MapMcp, SERVER_DOCS, resource_templates, stable_resource_uris};
+    use crate::uris;
+
+    #[test]
+    fn embedded_documents_carry_the_crate_manual_and_design() {
+        assert_eq!(SERVER_DOCS.server(), "map");
+        let agents = SERVER_DOCS.doc(DOC_ID_AGENTS).expect("agents document");
+        assert!(agents.body.contains("## Contract Compliance"));
+        let design = SERVER_DOCS.doc(DOC_ID_DESIGN).expect("design document");
+        assert!(!design.body.is_empty());
+        let index = SERVER_DOCS.llms_txt();
+        assert!(index.contains("(docs/agents)"));
+        assert!(index.contains("(docs/design)"));
+    }
+
+    #[test]
+    fn contract_declaration_resolves_from_the_embedded_manual() {
+        let declaration =
+            ContractDeclaration::from_docs(&SERVER_DOCS, MapMcp::capability_inventory());
+        assert_eq!(declaration.server, "map");
+        assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
+        for id in ["C18", "C19", "C20", "C21"] {
+            let item = declaration
+                .compliance
+                .iter()
+                .find(|item| item.id == id)
+                .expect("declared checklist item");
+            assert_eq!(item.status, ComplianceStatus::Met, "{id} must be met");
+        }
+        let c17 = declaration
+            .compliance
+            .iter()
+            .find(|item| item.id == "C17")
+            .expect("C17 declared");
+        assert_eq!(c17.status, ComplianceStatus::Pending);
+        assert!(c17.note.is_some(), "pending items must state a reason");
+        let json = serde_json::to_value(&declaration).expect("declaration serializes");
+        assert_eq!(json["server"], "map");
+    }
+
+    #[test]
+    fn capability_inventory_matches_the_registered_surface() {
+        let inventory = MapMcp::capability_inventory();
+        for tool in ["search_locations", "route", "commit_feature_changes"] {
+            assert!(
+                inventory.tools.iter().any(|name| name == tool),
+                "inventory is missing tool {tool}"
+            );
+        }
+        for uri in [
+            uris::DOCS_URI,
+            uris::CONTRACT_URI,
+            uris::ADMIN_APP_URI,
+            uris::EDITOR_APP_URI,
+            uris::DATASETS_URI,
+        ] {
+            assert!(
+                inventory.resources.contains(&uri.to_owned()),
+                "inventory is missing resource {uri}"
+            );
+        }
+        assert!(inventory.resources.contains(&uris::doc_uri("agents")));
+        assert_eq!(
+            stable_resource_uris().len(),
+            inventory.resources.len(),
+            "inventory resources come from stable_resource_uris"
+        );
+        assert!(
+            inventory
+                .resource_templates
+                .contains(&uris::DOC_TEMPLATE.to_owned())
+        );
+        assert_eq!(
+            resource_templates().len(),
+            inventory.resource_templates.len()
+        );
+        assert!(
+            inventory
+                .prompts
+                .iter()
+                .any(|name| name == "prepare_route_request")
+        );
+        assert_eq!(
+            inventory.tasks,
+            [
+                "route",
+                "route_matrix",
+                "reachable_area",
+                "import_feature_layer",
+                "export_feature_layer",
+                "build_vector_tiles",
+            ]
+        );
+        for task in &inventory.tasks {
+            assert!(
+                inventory.tools.contains(task),
+                "task-augmented tool {task} must also be a registered tool"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
