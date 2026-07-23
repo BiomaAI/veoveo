@@ -592,6 +592,29 @@
             "type": "string",
             "minLength": 1
           },
+          "startupProbe": {
+            "type": "object",
+            "required": [
+              "failureThreshold",
+              "periodSeconds",
+              "timeoutSeconds"
+            ],
+            "properties": {
+              "failureThreshold": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "periodSeconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "timeoutSeconds": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          },
           "duckdbSandbox": {
             "type": "boolean"
           },

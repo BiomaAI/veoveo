@@ -321,6 +321,10 @@ domainServices:
       - "67108864"
   - name: map-mcp
     replicas: 1
+    startupProbe:
+      failureThreshold: 60
+      periodSeconds: 5
+      timeoutSeconds: 3
     image:
       repository: veoveo/map-mcp
       tag: 0.1.0
