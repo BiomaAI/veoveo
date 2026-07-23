@@ -17,6 +17,16 @@ CESIUM_ION_ACCESS_TOKEN
   -> View, Perception, agents, and governed artifacts
 ```
 
+The operator live-view path stays separate from the durable sensor recording:
+
+```text
+Isaac persistent follow viewport
+  -> NVIDIA Kit WebRTC
+  -> NVIDIA NVENC H.264
+  -> authenticated signaling proxy plus encrypted media
+  -> ui://uav-sim/live.html
+```
+
 View MCP retains its direct `GOOGLE_MAPS_API_KEY` source. That path is
 complementary and does not replace the tiles loaded inside Isaac.
 
@@ -126,17 +136,39 @@ frames between sensor samples spends RTX work without adding observations to
 the recording. Profiles may raise both rates for a faster sensor, while
 `physicsHz` remains independent for PX4 lockstep and vehicle dynamics.
 
+## Live follow camera
+
+Interactive sessions keep one persistent follow camera active in the headless
+viewport. The same camera feeds screenshots and the browser App, which removes
+duplicate render work. Kit's WebRTC extensions send that framebuffer directly
+through NVIDIA NVENC; there is no RTSP relay, CPU transcoder, or per-viewer
+renderer on this path.
+
+Open the UAV follow-camera entry in the Console's discovered Apps navigation.
+The App obtains one short-lived owner-scoped lease through MCP, connects with
+the pinned NVIDIA browser client, renews before expiry, and revokes the lease
+on teardown. Only one viewer can hold the stream. The App is view-only; vehicle
+and timeline control remain the typed MCP tools.
+
+Local k3d publishes authenticated signaling at
+`ws://127.0.0.1:49101/webrtc` and WebRTC media at
+`127.0.0.1:47998/udp`. A fielded deployment must supply an exact WSS URL and a
+directly reachable UDP media hostname. If WSS uses the optional chart Ingress,
+`liveStream.signalingPath`, `liveStream.ingress.path`, and the URL path must be
+identical.
+
 ## Headless showcase screenshots
 
-Interactive deployments expose an opt-in, one-shot screenshot camera through
-`session.screenshot`. The camera follows `uav-1` without replacing the
-canonical nadir sensor. Capture begins only after the configured relative
+Interactive deployments expose an opt-in, one-shot capture from the persistent
+follow camera through `session.screenshot`. It follows `uav-1` without
+replacing the canonical nadir sensor. Capture begins only after the configured relative
 altitude, resident-tile, visible-content, and rendered-frame gates all pass.
 Isaac writes the PNG inside the simulator container and restores the sensor
 camera when the capture completes.
 
-The chart defaults to a 1920×1080 chase camera and keeps capture disabled.
-Operators select the location through `session.origin`, enable the screenshot,
+The chart defaults to a 1280×720 follow camera and keeps capture disabled.
+Operators select the location through `session.origin`, tune
+`session.followCamera`, enable the screenshot,
 fly the vehicle past `minimumRelativeAltitudeM`, and copy `outputPath` from the
 pod. The [screenshot runbook](../../docs/screenshots/README.md#isaac-sim-captures)
 records the Midtown Manhattan values used by the documentation gallery.
@@ -151,7 +183,8 @@ contains only short dispatch recipes.
 - Image tests verify dependency revisions, extension discovery, the Pegasus
   patch, and PX4 startup.
 - Helm tests render interactive and batch workloads and reject plaintext token
-  values.
+  values. They also require the NVIDIA stream ports, runtime variables, and
+  NodePort wiring.
 - Live acceptance loads Google Photorealistic 3D Tiles inside Isaac, reads its
   climb, camera thresholds, waypoint, perception capture, and reasoning prompt
   from `scenarios/bioma-aerial.json`, retains its Rerun recording, runs
@@ -224,4 +257,5 @@ just bioma-uav-sim-verify
 
 That command verifies resident Google tiles inside Isaac, a PX4 mission,
 canonical Frames and Recording Hub identities, Perception over the Isaac camera
-stream, and continued availability of View and Perception.
+stream, NVIDIA NVENC follow-camera readiness, owner-scoped stream open/close,
+and continued availability of View and Perception.
