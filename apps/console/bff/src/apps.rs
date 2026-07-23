@@ -11,7 +11,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_apps_extension::{APP_MIME_TYPE, is_app_resource, tool_app_link};
+use veoveo_mcp_apps_extension::{APP_MIME_TYPE, is_app_resource, resource_ui_meta, tool_app_link};
 
 use crate::{AppState, api, mcp_client::McpSession};
 
@@ -22,11 +22,9 @@ const MAX_CALL_RESULT_BYTES: usize = 2 * 1024 * 1024;
 const MAX_TRACKED_APP_TASKS: usize = 1024;
 const APP_TASK_RETENTION: Duration = Duration::from_secs(60 * 60);
 
-/// The frame document's CSP: no network, no storage, inline-only. Veoveo
-/// apps are self-contained by contract; `_meta.ui.csp` connect domains are
-/// deliberately not honored (deny-all host policy).
-const FRAME_CSP: &str = "default-src 'none'; script-src 'unsafe-inline'; \
-     style-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'";
+const FRAME_CSP_OFFLINE: &str = "default-src 'none'; script-src 'unsafe-inline'; \
+     style-src 'unsafe-inline'; img-src data: blob:; media-src blob:; \
+     worker-src blob:; frame-ancestors 'self'; object-src 'none'; base-uri 'none'";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,19 +278,31 @@ pub(crate) async fn app_frame(
     if app_uri_server(&query.uri).is_none() {
         return StatusCode::BAD_REQUEST.into_response();
     }
-    let uri = query.uri.as_str();
-    let read = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
-            .await
+    let uri = query.uri.clone();
+    let read = with_apps_session(&state, &request_headers, |mcp| {
+        let uri = uri.clone();
+        async move {
+            let resources = mcp.list_all_resources().await?;
+            let resource = resources
+                .into_iter()
+                .find(|resource| resource.uri == uri && is_app_resource(resource));
+            let contents = mcp
+                .read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
+                .await?;
+            Ok((resource, contents))
+        }
     })
     .await;
-    let result = match read {
+    let (resource, result) = match read {
         Ok((_, Ok(result))) => result,
         Ok((_, Err(error))) => {
             tracing::warn!(%error, uri = %query.uri, "console app frame read failed");
             return StatusCode::NOT_FOUND.into_response();
         }
         Err(response) => return response,
+    };
+    let Some(resource) = resource else {
+        return StatusCode::NOT_FOUND.into_response();
     };
     let Some(html) = result.contents.iter().find_map(|contents| match contents {
         rmcp::model::ResourceContents::TextResourceContents {
@@ -310,10 +320,11 @@ pub(crate) async fn app_frame(
         CONTENT_TYPE,
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
-    headers.insert(
-        "content-security-policy",
-        HeaderValue::from_static(FRAME_CSP),
-    );
+    let Ok(frame_csp) = frame_csp(&resource) else {
+        tracing::warn!(uri = %query.uri, "console rejected invalid MCP App CSP");
+        return StatusCode::BAD_GATEWAY.into_response();
+    };
+    headers.insert("content-security-policy", frame_csp);
     headers.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
     headers.insert("cache-control", HeaderValue::from_static("no-store"));
     headers.insert(
@@ -321,6 +332,78 @@ pub(crate) async fn app_frame(
         HeaderValue::from_static("nosniff"),
     );
     (StatusCode::OK, headers, html).into_response()
+}
+
+fn frame_csp(resource: &rmcp::model::Resource) -> Result<HeaderValue, ()> {
+    let Some(metadata) = resource_ui_meta(resource) else {
+        return HeaderValue::from_str(FRAME_CSP_OFFLINE).map_err(|_| ());
+    };
+    let Some(csp) = metadata.csp else {
+        return HeaderValue::from_str(FRAME_CSP_OFFLINE).map_err(|_| ());
+    };
+    let connect = csp_sources(&csp.connect_domains, &["http", "https", "ws", "wss"])?;
+    let resources = csp_sources(&csp.resource_domains, &["http", "https"])?;
+    let frames = csp_sources(&csp.frame_domains, &["http", "https"])?;
+    let bases = csp_sources(&csp.base_uri_domains, &["http", "https"])?;
+    let resource_sources = if resources.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", resources.join(" "))
+    };
+    let font_sources = if resources.is_empty() {
+        "'none'".to_owned()
+    } else {
+        resources.join(" ")
+    };
+    let mut policy = format!(
+        "default-src 'none'; script-src 'unsafe-inline'{resource_sources}; \
+         style-src 'unsafe-inline'{resource_sources}; \
+         img-src data: blob:{resource_sources}; media-src blob:{resource_sources}; \
+         font-src {font_sources}; worker-src blob:; object-src 'none'; \
+         frame-ancestors 'self'"
+    );
+    if !connect.is_empty() {
+        policy.push_str("; connect-src ");
+        policy.push_str(&connect.join(" "));
+    }
+    if !frames.is_empty() {
+        policy.push_str("; frame-src ");
+        policy.push_str(&frames.join(" "));
+    }
+    policy.push_str("; base-uri ");
+    let base_sources = bases.join(" ");
+    policy.push_str(if bases.is_empty() {
+        "'none'"
+    } else {
+        &base_sources
+    });
+    HeaderValue::from_str(&policy).map_err(|_| ())
+}
+
+fn csp_sources(values: &[String], allowed_schemes: &[&str]) -> Result<Vec<String>, ()> {
+    let mut sources = Vec::with_capacity(values.len());
+    for value in values {
+        let url = url::Url::parse(value).map_err(|_| ())?;
+        if !allowed_schemes.contains(&url.scheme())
+            || url.host_str().is_none()
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+            || !matches!(url.path(), "" | "/")
+        {
+            return Err(());
+        }
+        let mut source = format!("{}://{}", url.scheme(), url.host_str().ok_or(())?);
+        if let Some(port) = url.port() {
+            source.push(':');
+            source.push_str(&port.to_string());
+        }
+        sources.push(source);
+    }
+    sources.sort();
+    sources.dedup();
+    Ok(sources)
 }
 
 #[derive(Deserialize)]
@@ -701,6 +784,42 @@ mod tests {
         ));
         assert!(!app_resource_uri_allowed("map", "map://../escape"));
         assert!(!app_resource_uri_allowed("time", "timeseries://usage"));
+    }
+
+    #[test]
+    fn frame_csp_admits_only_exact_declared_origins() {
+        let resource = veoveo_mcp_apps_extension::app_resource_with_meta(
+            "ui://uav-sim/live.html",
+            "uav-live",
+            veoveo_mcp_apps_extension::ResourceUiMeta {
+                csp: Some(veoveo_mcp_apps_extension::UiCsp {
+                    connect_domains: vec![
+                        "wss://stream.example.com".to_owned(),
+                        "ws://127.0.0.1:49101".to_owned(),
+                    ],
+                    ..veoveo_mcp_apps_extension::UiCsp::default()
+                }),
+                prefers_border: Some(false),
+            },
+        );
+        let policy = frame_csp(&resource).expect("valid CSP");
+        let policy = policy.to_str().expect("ASCII CSP");
+        assert!(policy.contains("connect-src ws://127.0.0.1:49101 wss://stream.example.com"));
+        assert!(policy.contains("media-src blob:"));
+        assert!(policy.contains("worker-src blob:"));
+
+        let invalid = veoveo_mcp_apps_extension::app_resource_with_meta(
+            "ui://uav-sim/live.html",
+            "uav-live",
+            veoveo_mcp_apps_extension::ResourceUiMeta {
+                csp: Some(veoveo_mcp_apps_extension::UiCsp {
+                    connect_domains: vec!["wss://stream.example.com/path".to_owned()],
+                    ..veoveo_mcp_apps_extension::UiCsp::default()
+                }),
+                prefers_border: None,
+            },
+        );
+        assert!(frame_csp(&invalid).is_err());
     }
 
     #[test]
