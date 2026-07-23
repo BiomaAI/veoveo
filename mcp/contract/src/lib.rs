@@ -12,6 +12,7 @@ pub mod artifact_service;
 pub mod bootstrap;
 pub mod coordinates;
 pub mod deployment;
+pub mod docs;
 pub mod duckdb;
 pub mod gateway;
 pub mod generation;
