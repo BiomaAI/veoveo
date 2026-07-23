@@ -20,16 +20,17 @@ identity, storage, models, policies, domain name, and release process.
 [Deployment](#deploy-your-installation) · [Technical design](docs/TECH_DESIGN.md) ·
 [Screenshot gallery](docs/screenshots/GALLERY.md)
 
-[![Veoveo 3D View MCP App in the operations Console](docs/screenshots/gallery/console-app-view.png)](docs/screenshots/gallery/console-app-view.png)
+[![A multirotor under PX4 control above Midtown Manhattan photogrammetry in Isaac Sim](docs/screenshots/gallery/isaac-uav-new-york.png)](docs/screenshots/gallery/isaac-uav-new-york.png)
 
-*A reference installation running the View app over live Google
-Photorealistic 3D Tiles, rendered on cluster GPUs.*
+*A live Isaac Sim RTX frame from the UAV showcase: a multirotor under PX4
+control above Midtown Manhattan photogrammetry.*
 
 ## What Teams Do With It
 
-- **Fly the mission before flying it.** Launch multirotor missions over
-  photorealistic terrain, with real flight dynamics and PX4 autopilot
-  firmware, and keep the entire run as a dataset.
+- **Fly the mission before flying it.** Launch
+  [multirotor missions](#uav-flight-in-isaac-sim) over photorealistic
+  terrain, with real flight dynamics and PX4 autopilot firmware, and keep
+  the entire run as a dataset.
 - **Operate a city's traffic.** Read live traffic state, retime signals,
   reroute vehicles, and replay outcomes against a full simulated city.
 - **See through cameras.** Run detection and tracking over authorized video
@@ -155,7 +156,7 @@ and Rust acceptance tests.
 | San Salvador | Midtown Manhattan |
 |---|---|
 | [![Isaac Sim UAV flight over San Salvador](docs/screenshots/gallery/isaac-uav-san-salvador.png)](docs/screenshots/gallery/isaac-uav-san-salvador.png) | [![Isaac Sim UAV flight over Midtown Manhattan](docs/screenshots/gallery/isaac-uav-new-york.png)](docs/screenshots/gallery/isaac-uav-new-york.png) |
-| UAV and PX4 flight above the Jorge “Mágico” González stadium district | Dense New York photogrammetry around Times Square and Central Park |
+| A multirotor under PX4 control above the Jorge “Mágico” González stadium district | Dense New York photogrammetry around Times Square and Central Park |
 
 Both frames come from the live headless Isaac Sim RTX viewport. The showcase
 camera follows the Pegasus vehicle after PX4 reaches the configured flight
@@ -194,8 +195,8 @@ from natural language and rendered by an external MCP host.
 | Interactive charts from typed results | Forecast means and uncertainty bands |
 | [![Map administration MCP App](docs/screenshots/gallery/console-app-map.png)](docs/screenshots/gallery/console-app-map.png) | [![Reason MCP protocol surface](docs/screenshots/gallery/console-mcp-reason.png)](docs/screenshots/gallery/console-mcp-reason.png) |
 | Governed map sources and releases | Tools, prompts, resources, tasks, and scopes |
-| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | |
-| The map server's complete MCP capability inventory | |
+| [![Map MCP protocol surface](docs/screenshots/gallery/console-mcp-map.png)](docs/screenshots/gallery/console-mcp-map.png) | [![Veoveo 3D View MCP App in the operations Console](docs/screenshots/gallery/console-app-view.png)](docs/screenshots/gallery/console-app-view.png) |
+| The map server's complete MCP capability inventory | The View app rendering live 3D Tiles inside the Console |
 
 ## Capability Catalog
 
