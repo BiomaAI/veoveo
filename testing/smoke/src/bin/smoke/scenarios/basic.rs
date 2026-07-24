@@ -545,6 +545,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         &bioma_platform,
         "argoproj/argo-cd/v3.4.5/manifests/install.yaml",
     )?;
+    let mut chart_revision = None;
     for application in [
         "examples/bioma/gitops/applications/veoveo.yaml",
         "examples/bioma/gitops/applications/uav-sim.yaml",
@@ -558,7 +559,23 @@ pub(crate) async fn helm_config() -> Result<()> {
             &application,
             "$configuration/examples/bioma/images.lock.yaml",
         )?;
-        contains(&application, "targetRevision: 0.1.0-2635f5526f6f")?;
+        let revision = application
+            .lines()
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("targetRevision: ")
+                    .filter(|value| value.starts_with("0.1.0-"))
+            })
+            .context("Bioma application omitted its immutable chart revision")?
+            .to_owned();
+        if let Some(expected) = &chart_revision {
+            ensure!(
+                &revision == expected,
+                "Bioma applications must use one chart revision: {expected} != {revision}"
+            );
+        } else {
+            chart_revision = Some(revision);
+        }
         not_contains(&application, "ServerSideApply=true")?;
     }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
