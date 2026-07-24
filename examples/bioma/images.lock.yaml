@@ -6,7 +6,7 @@ global:
     veoveo/artifact-service: sha256:e5e6313f5549ecae6b9abb510a3bb108c0b9f47dfc706128d5a8912fbbe2bd4c
     veoveo/chart-mcp: sha256:ff487ceec258767b3811e54c0212fdc31c8629c875b62f0169f601d0dad125af
     veoveo/console-bff: sha256:73b00897330558b1c2a243efb63cdd390a9556edb2cfa80020fafd0493dddc7f
-    veoveo/datasheet-mcp: sha256:79d22ae55d594713190998a05d082acccdf4240ca4b6de7074a735c9f924fa97
+    veoveo/datasheet-mcp: sha256:8ac3da0eb4a016281f57a92fe8e5bd59d65550c6d8d4f5e8119ba497bcd36951
     veoveo/duckdb-mcp: sha256:1b24517d21f468e7a1f2652e9a1547494f07f62315eac5ab8678b639eeaffb01
     veoveo/frames-mcp: sha256:41338d6c3f92cdfbcaa9956379d478d2c0621ec4f14935433a885e9e8d04a2fa
     veoveo/map-mcp: sha256:ab58e02d6cf1171388ecd87e1f56021a4a9211391808bcddaf1b06e5aee3a126
