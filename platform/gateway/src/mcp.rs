@@ -13,7 +13,7 @@ mod upstream;
 mod upstream_authorized_http;
 mod upstream_cache;
 mod upstream_http;
-pub use upstream_http::build_upstream_http_client;
+pub use upstream_http::GatewayUpstreamHttpClientPool;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
@@ -62,6 +62,7 @@ pub struct GatewayMcp {
     platform_store: PlatformStore,
     profile_id: GatewayProfileId,
     internal_token_issuer: GatewayInternalTokenIssuer,
+    upstream_http: GatewayUpstreamHttpClientPool,
     upstreams: UpstreamConnectionCache,
     progress_tokens: progress::GatewayProgressTokens,
 }
@@ -73,6 +74,7 @@ impl GatewayMcp {
         state: GatewayState,
         platform_store: PlatformStore,
         internal_token_issuer: GatewayInternalTokenIssuer,
+        upstream_http: GatewayUpstreamHttpClientPool,
     ) -> Self {
         Self {
             catalog,
@@ -80,6 +82,7 @@ impl GatewayMcp {
             platform_store,
             profile_id,
             internal_token_issuer,
+            upstream_http,
             upstreams: UpstreamConnectionCache::new(),
             progress_tokens: progress::GatewayProgressTokens::default(),
         }
@@ -121,7 +124,10 @@ impl GatewayMcp {
             return Ok(peer);
         }
 
-        let http_client = build_upstream_http_client(snapshot.catalog(), &server).await?;
+        let http_client = self
+            .upstream_http
+            .client(snapshot.catalog(), &server)
+            .await?;
         let authorized_http_client = GatewayAuthorizedHttpClient::new(
             http_client,
             self.internal_token_issuer.clone(),
@@ -181,6 +187,7 @@ impl GatewayMcp {
             )
             .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
         final_tasks::FinalTaskClient::for_server(
+            &self.upstream_http,
             snapshot.catalog(),
             &server,
             internal_token.bearer_token,

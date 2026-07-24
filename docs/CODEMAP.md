@@ -250,7 +250,7 @@ The runtime is the source of truth. The extension is transport only.
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion projection |
 | `mcp/final_tasks.rs` | canonical upstream final task client/projection |
 | `mcp/tasks.rs` | explicit weak-client task projection |
-| `mcp/upstream*.rs` | authenticated streamable HTTP and cache behavior |
+| `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
 | `state/audit.rs` | durable policy/audit evidence |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC |

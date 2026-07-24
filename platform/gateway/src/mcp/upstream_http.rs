@@ -1,11 +1,83 @@
+use std::{collections::BTreeMap, sync::Arc};
+
 use rmcp::model::ErrorData as McpError;
+use sha2::{Digest, Sha256};
+use tokio::sync::{OnceCell, RwLock};
 use veoveo_mcp_contract::{CertificateAuthoritySource, SecretPurpose, ServerManifest};
 
 use crate::{GatewayCatalog, GatewaySecretResolver, mcp_support::mcp_internal};
 
 const UPSTREAM_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-pub async fn build_upstream_http_client(
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct UpstreamHttpClientKey {
+    catalog_sha256: [u8; 32],
+    configuration_sha256: [u8; 32],
+}
+
+/// Shared transport clients for gateway-to-server traffic.
+///
+/// MCP sessions retain their own protocol state and invocation authority, but
+/// transport-equivalent upstreams share one reqwest connection pool and one
+/// initialized TLS trust store for the active catalog revision.
+#[derive(Debug, Clone, Default)]
+pub struct GatewayUpstreamHttpClientPool {
+    clients: Arc<RwLock<BTreeMap<UpstreamHttpClientKey, Arc<OnceCell<reqwest::Client>>>>>,
+}
+
+impl GatewayUpstreamHttpClientPool {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn client(
+        &self,
+        catalog: &GatewayCatalog,
+        server: &ServerManifest,
+    ) -> Result<reqwest::Client, McpError> {
+        let key = upstream_http_client_key(catalog, server)?;
+        let cell = {
+            let mut clients = self.clients.write().await;
+            clients
+                .retain(|candidate, _| candidate.catalog_sha256 == catalog.configuration_sha256());
+            clients
+                .entry(key)
+                .or_insert_with(|| Arc::new(OnceCell::new()))
+                .clone()
+        };
+        cell.get_or_try_init(|| build_upstream_http_client(catalog, server))
+            .await
+            .cloned()
+    }
+
+    #[cfg(test)]
+    async fn entry_count(&self) -> usize {
+        self.clients.read().await.len()
+    }
+}
+
+fn upstream_http_client_key(
+    catalog: &GatewayCatalog,
+    server: &ServerManifest,
+) -> Result<UpstreamHttpClientKey, McpError> {
+    let configuration = serde_json::to_vec(&(
+        server.upstream.security,
+        &server.upstream.trusted_certificate_authorities,
+        &server.upstream.client_certificate,
+        &server.upstream.client_private_key,
+    ))
+    .map_err(|error| {
+        mcp_internal(format!(
+            "failed to fingerprint upstream HTTP client configuration: {error}"
+        ))
+    })?;
+    Ok(UpstreamHttpClientKey {
+        catalog_sha256: catalog.configuration_sha256(),
+        configuration_sha256: Sha256::digest(configuration).into(),
+    })
+}
+
+async fn build_upstream_http_client(
     catalog: &GatewayCatalog,
     server: &ServerManifest,
 ) -> Result<reqwest::Client, McpError> {
@@ -84,7 +156,7 @@ pub async fn build_upstream_http_client(
 mod tests {
     use rcgen::generate_simple_self_signed;
     use serde_json::json;
-    use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug};
+    use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug, UpstreamUrl};
 
     use super::*;
 
@@ -142,6 +214,28 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(ca_path);
+    }
+
+    #[tokio::test]
+    async fn transport_equivalent_servers_share_one_http_client() {
+        let control_plane: GatewayControlPlane =
+            serde_json::from_str(SMOKE_CONTROL_PLANE).expect("smoke control plane json");
+        let catalog = GatewayCatalog::from_control_plane(control_plane).expect("validated catalog");
+        let first = catalog
+            .server(&ServerSlug::new("media").expect("server slug"))
+            .expect("media server");
+        let mut second = first.clone();
+        second.slug = ServerSlug::new("second").expect("second server slug");
+        second.upstream.url =
+            UpstreamUrl::new("http://127.0.0.1:8788/second/mcp").expect("second upstream URL");
+        let pool = GatewayUpstreamHttpClientPool::new();
+
+        let (first_client, second_client) =
+            tokio::join!(pool.client(&catalog, first), pool.client(&catalog, &second));
+        first_client.expect("first shared client");
+        second_client.expect("second shared client");
+
+        assert_eq!(pool.entry_count().await, 1);
     }
 
     fn catalog_with_mutual_tls_upstream(

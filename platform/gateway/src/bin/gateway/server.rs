@@ -24,7 +24,8 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayMcp,
-    GatewayRefreshDeliveryWindow, GatewayTaskExtension, RefreshTokenDeliveryCipher,
+    GatewayRefreshDeliveryWindow, GatewayTaskExtension, GatewayUpstreamHttpClientPool,
+    RefreshTokenDeliveryCipher,
 };
 
 use super::{
@@ -99,6 +100,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
     let ct = CancellationToken::new();
     let allowed_hosts = Arc::new(public_allowed_hosts(&deployment, allow_loopback_hosts));
     let http = Arc::new(RwLock::new(build_http_client(&initial_catalog)?));
+    let upstream_http = GatewayUpstreamHttpClientPool::new();
     let state = AppState {
         catalog: catalog.clone(),
         gateway_state: gateway_state.clone(),
@@ -138,6 +140,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         gateway_state: gateway_state.clone(),
         platform_store: control_store.platform_store().clone(),
         internal_token_issuer: internal_token_issuer.clone(),
+        upstream_http: upstream_http.clone(),
         allowed_hosts: allowed_hosts.clone(),
         cancellation_token: ct.child_token(),
         services: Arc::new(RwLock::new(BTreeMap::new())),
@@ -197,6 +200,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
             catalog: catalog.clone(),
             gateway_state: gateway_state.clone(),
             internal_token_issuer: internal_token_issuer.clone(),
+            upstream_http: upstream_http.clone(),
         })
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
@@ -204,7 +208,8 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         ));
     router = router.merge(recording_playback_router);
 
-    let server_health = spawn_server_health_prober(catalog.clone(), ct.child_token());
+    let server_health =
+        spawn_server_health_prober(catalog.clone(), upstream_http.clone(), ct.child_token());
     let console_stream =
         spawn_console_wake_hub(control_store.platform_store().clone(), ct.child_token());
     let admin_state = AdminState {
@@ -213,6 +218,7 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         control_store,
         gateway_state: gateway_state.clone(),
         internal_token_issuer,
+        upstream_http,
         artifact_server: veoveo_mcp_contract::ServerSlug::new("artifact")?,
         artifact_service_url,
         offline_mode,
@@ -356,6 +362,7 @@ fn build_profile_mcp_service(
             let gateway_state = state.gateway_state.clone();
             let platform_store = state.platform_store.clone();
             let profile_id = profile_id.clone();
+            let upstream_http = state.upstream_http.clone();
             move || {
                 Ok(GatewayMcp::new(
                     catalog.clone(),
@@ -363,6 +370,7 @@ fn build_profile_mcp_service(
                     gateway_state.clone(),
                     platform_store.clone(),
                     internal_token_issuer.clone(),
+                    upstream_http.clone(),
                 ))
             }
         },
@@ -378,6 +386,7 @@ fn build_profile_mcp_service(
             state.gateway_state.clone(),
             state.platform_store.clone(),
             state.internal_token_issuer.clone(),
+            state.upstream_http.clone(),
         ))),
         veoveo_mcp_task_extension::ServerDiscovery::new(
             BTreeMap::from([
