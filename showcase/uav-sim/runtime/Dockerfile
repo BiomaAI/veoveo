@@ -61,6 +61,7 @@ ARG NVIDIA_LIVESTREAM_AOV_VERSION=10.2.0
 ARG NVIDIA_LIVESTREAM_AOV_BUILD=110.1.2.lx64.r.cp312
 ARG NVIDIA_LIVESTREAM_AOV_URL=https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.0%2B110.1.2.lx64.r.cp312.zip
 ARG NVIDIA_LIVESTREAM_AOV_SHA256=e842d29982283787b145f3a1f91210b4b16ecc9fbc7038e970ed4dc4bf482c49
+ARG NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256=71081c9a5190fc4ed116e31a97fbdf54423e83834c736ce7883343d7676bfad4
 
 USER root
 RUN curl --fail --location --show-error \
@@ -72,13 +73,14 @@ RUN curl --fail --location --show-error \
       "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
     && unzip -q /tmp/omni.kit.livestream.aov.zip \
       -d "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
+    && config="/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}/config/extension.toml" \
+    && echo "${NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256}  ${config}" \
+      | sha256sum --check --strict \
+    && sed -i \
+      '/^# Default values for settings applied to the first spectator stream/,$d' \
+      "${config}" \
+    && ! grep -q 'spectatorStream' "${config}" \
     && rm /tmp/omni.kit.livestream.aov.zip
-COPY patches/livestream-aov-10.2.0-explicit-streams.patch /tmp/livestream-aov.patch
-RUN patch \
-      --directory="/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
-      --strip=1 \
-      < /tmp/livestream-aov.patch \
-    && rm /tmp/livestream-aov.patch
 COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "aiohappyeyeballs==${AIOHAPPYEYEBALLS_VERSION}" \
