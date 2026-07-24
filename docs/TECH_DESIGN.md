@@ -75,7 +75,9 @@ does not create a second protocol or source of truth. Full-MCP clients never rec
 compatibility helper clutter.
 
 The gateway advertises list-change support whenever an exposed upstream can emit
-notifications, then forwards the upstream notification to the connected client. A new
+notifications, then forwards the upstream notification to the connected client. Delivery
+is dispatched outside the upstream response path and bounded, which prevents a client
+that is not consuming notifications from stalling the tool call that caused one. A new
 authenticated session always receives the current policy-filtered catalog.
 
 Client hosts may retain their own per-user tool permissions after OAuth grants change.
