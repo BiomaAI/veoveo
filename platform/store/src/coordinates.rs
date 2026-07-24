@@ -6,22 +6,11 @@ use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
 use crate::{
-    CoordinateOperationId, CoordinateOperationRecord, FrameId, FrameRecord, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, StoreError, TaskId, TaskRecord, TenantId,
+    CoordinateOperationId, CoordinateOperationRecord, OpenObject, OutboxDraft, PlatformIdentity,
+    PlatformStore, StoreError, TaskId, TaskRecord, TenantId,
 };
 
 const COORDINATE_EVENT_SCHEMA_VERSION: i64 = 1;
-
-#[derive(Clone, Debug)]
-pub struct CoordinateFrameDraft {
-    pub identity: PlatformIdentity,
-    pub frame_key: String,
-    pub display_name: String,
-    pub definition: OpenObject,
-    pub proj_pipeline: Option<String>,
-    pub classification: String,
-    pub labels: Vec<String>,
-}
 
 #[derive(Clone, Debug)]
 pub struct CoordinateOperationDraft {
@@ -33,20 +22,6 @@ pub struct CoordinateOperationDraft {
     pub classification: String,
     pub labels: Vec<String>,
     pub created_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-struct FrameContent {
-    tenant: RecordId,
-    owner: RecordId,
-    frame_key: String,
-    display_name: String,
-    definition: OpenObject,
-    proj_pipeline: Option<String>,
-    classification: String,
-    labels: Vec<String>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -64,98 +39,6 @@ struct CoordinateOperationContent {
 }
 
 impl PlatformStore {
-    pub async fn create_coordinate_frame(
-        &self,
-        mut draft: CoordinateFrameDraft,
-    ) -> Result<FrameRecord, StoreError> {
-        validate_text("frame_key", &draft.frame_key, 256)?;
-        validate_text("display_name", &draft.display_name, 512)?;
-        validate_text("classification", &draft.classification, 256)?;
-        validate_optional_text("proj_pipeline", draft.proj_pipeline.as_deref(), 8_192)?;
-        normalize_labels(&mut draft.labels)?;
-        if self
-            .coordinate_frame_by_key(draft.identity.tenant_id, &draft.frame_key)
-            .await?
-            .is_some()
-        {
-            return Err(StoreError::CoordinateFrameConflict(draft.frame_key));
-        }
-
-        let frame_id = FrameId::new();
-        let now = Utc::now();
-        let content = FrameContent {
-            tenant: draft.identity.tenant_id.record_id(),
-            owner: draft.identity.principal_id.record_id(),
-            frame_key: draft.frame_key.clone(),
-            display_name: draft.display_name,
-            definition: draft.definition,
-            proj_pipeline: draft.proj_pipeline,
-            classification: draft.classification,
-            labels: draft.labels,
-            created_at: now,
-            updated_at: now,
-        };
-        let outbox = coordinate_event(
-            &draft.identity,
-            "frame",
-            &draft.frame_key,
-            "coordinate.frame.created",
-        );
-        let result = self
-            .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $frame CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("frame", frame_id.record_id()))
-            .bind(("content", content))
-            .bind(("outbox", outbox))
-            .await
-            .and_then(|response| response.check());
-        if let Err(error) = result {
-            if self
-                .coordinate_frame_by_key(draft.identity.tenant_id, &draft.frame_key)
-                .await?
-                .is_some()
-            {
-                return Err(StoreError::CoordinateFrameConflict(draft.frame_key));
-            }
-            return Err(error.into());
-        }
-        self.coordinate_frame_by_key(draft.identity.tenant_id, &draft.frame_key)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "coordinate frame creation readback",
-            })
-    }
-
-    pub async fn coordinate_frame_by_key(
-        &self,
-        tenant_id: TenantId,
-        frame_key: &str,
-    ) -> Result<Option<FrameRecord>, StoreError> {
-        validate_text("frame_key", frame_key, 256)?;
-        let mut response = self
-            .client()
-            .query("SELECT * FROM frame WHERE tenant = $tenant AND frame_key = $frame_key LIMIT 1;")
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("frame_key", frame_key.to_owned()))
-            .await?
-            .check()?;
-        let records: Vec<FrameRecord> = response.take(0)?;
-        Ok(records.into_iter().next())
-    }
-
-    pub async fn list_coordinate_frames(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<FrameRecord>, StoreError> {
-        let mut response = self
-            .client()
-            .query("SELECT * FROM frame WHERE tenant = $tenant ORDER BY frame_key ASC;")
-            .bind(("tenant", tenant_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
     pub async fn upsert_coordinate_operation(
         &self,
         mut draft: CoordinateOperationDraft,
@@ -319,17 +202,6 @@ fn normalize_labels(labels: &mut Vec<String>) -> Result<(), StoreError> {
     }
     labels.sort();
     labels.dedup();
-    Ok(())
-}
-
-fn validate_optional_text(
-    field: &'static str,
-    value: Option<&str>,
-    max: usize,
-) -> Result<(), StoreError> {
-    if let Some(value) = value {
-        validate_text(field, value, max)?;
-    }
     Ok(())
 }
 

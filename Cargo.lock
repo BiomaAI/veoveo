@@ -9127,9 +9127,9 @@ dependencies = [
 
 [[package]]
 name = "sse-stream"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39f24a9b78c40b90817bbcd1821c74ddfd74916aadd29403d001532a9195532d"
+checksum = "c123f296ade4ec4b8b0f6162116e6629f5146922ca5ab40ca9d3c2e73ab4761e"
 dependencies = [
  "bytes",
  "futures-util",
@@ -10654,6 +10654,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "futures",
+ "glam 0.32.1",
  "hex",
  "rayon",
  "reqwest 0.13.4",
@@ -10779,6 +10780,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "duckdb",
+ "futures",
  "jsonschema",
  "jsonwebtoken",
  "opentelemetry",
@@ -10791,6 +10793,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
@@ -10823,6 +10826,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "sse-stream",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "tower",
@@ -11384,6 +11389,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "futures",
+ "hex",
  "reqwest 0.13.4",
  "rmcp",
  "rustls",
@@ -11391,6 +11397,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
@@ -11400,6 +11407,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-client",
+ "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",

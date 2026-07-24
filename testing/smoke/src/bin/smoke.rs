@@ -490,7 +490,10 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Runtime-loaded mission and acceptance parameters.
-        #[arg(long, default_value = "showcase/uav-sim/scenarios/bioma-aerial.json")]
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
         scenario: PathBuf,
         /// Kubernetes context owned by the Bioma development cluster.
         #[arg(long, default_value = "k3d-veoveo-bioma")]

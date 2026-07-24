@@ -66,7 +66,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "artifact",
@@ -118,9 +118,11 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true,
+        "apps": true
       },
       "tools": [
+        "configure_world",
         "get_simulation_state",
         "pause_simulation",
         "resume_simulation",
@@ -131,7 +133,10 @@
         "land_vehicle",
         "run_scenario",
         "execute_mission",
-        "capture_dataset"
+        "capture_dataset",
+        "open_live_stream",
+        "renew_live_stream",
+        "close_live_stream"
       ],
       "prompts": [
         "uav-sim-mission-plan",
@@ -143,7 +148,12 @@
       "metadata": {
         "runtime": "isaac-sim-6.0.1",
         "world_source": "google_photorealistic_3d_tiles"
-      }
+      },
+      "resource_projection": "server_owned",
+      "referenced_resource_schemes": [
+        "frames",
+        "recording"
+      ]
     },
     {
       "slug": "perception",
@@ -163,7 +173,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "analyze_recording",
@@ -196,7 +206,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "analyze_recording"
@@ -228,7 +238,7 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": false,
         "apps": true
       },
       "tools": [
@@ -258,7 +268,7 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "query",
@@ -289,7 +299,7 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "plan"
@@ -317,16 +327,17 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "batch_transform",
         "convert_frame",
-        "derive_local_frame"
+        "create_world",
+        "publish_world"
       ],
       "prompts": [
         "frames-frame-audit",
-        "frames-local-frame-select",
+        "frames-world-design",
         "frames-transform-explain"
       ],
       "required_scopes": [
@@ -352,7 +363,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": true,
         "apps": true
       },
       "tools": [
@@ -422,7 +433,7 @@
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": true,
         "apps": true
       },
       "tools": [
@@ -457,7 +468,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "assess_clock",
@@ -497,7 +508,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "column_stats",
@@ -531,7 +542,7 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "create_share_link",
@@ -568,7 +579,7 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "query_recording",
@@ -610,7 +621,7 @@
         "prompts": true,
         "completions": false,
         "tasks": false,
-        "notifications": false
+        "resources_list_changed": false
       },
       "resource_projection": "server_owned",
       "tools": [
@@ -649,7 +660,7 @@
         "prompts": false,
         "completions": false,
         "tasks": false,
-        "notifications": false
+        "resources_list_changed": false
       },
       "required_scopes": [
         "operator:use"
@@ -717,6 +728,10 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -856,7 +871,8 @@
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame"
+              "create_world",
+              "publish_world"
             ]
           },
           "resources": {
@@ -1138,6 +1154,10 @@
               {
                 "kind": "scheme",
                 "scheme": "uav-sim"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://uav-sim/"
               }
             ]
           },
@@ -1303,7 +1323,8 @@
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame"
+              "create_world",
+              "publish_world"
             ]
           },
           "resources": {
@@ -2569,14 +2590,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2619,14 +2641,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2666,14 +2689,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2716,14 +2740,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -3766,6 +3791,7 @@
             "uav-sim"
           ],
           "tools": [
+            "configure_world",
             "get_simulation_state",
             "pause_simulation",
             "resume_simulation",
@@ -3776,10 +3802,14 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset"
+            "capture_dataset",
+            "open_live_stream",
+            "renew_live_stream",
+            "close_live_stream"
           ],
           "resource_schemes": [
-            "uav-sim"
+            "uav-sim",
+            "ui"
           ],
           "prompts": [
             "uav-sim-mission-plan",
@@ -3826,6 +3856,7 @@
             "uav-sim"
           ],
           "tools": [
+            "configure_world",
             "get_simulation_state",
             "pause_simulation",
             "resume_simulation",
@@ -3836,10 +3867,14 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset"
+            "capture_dataset",
+            "open_live_stream",
+            "renew_live_stream",
+            "close_live_stream"
           ],
           "resource_schemes": [
-            "uav-sim"
+            "uav-sim",
+            "ui"
           ],
           "prompts": [
             "uav-sim-mission-plan",

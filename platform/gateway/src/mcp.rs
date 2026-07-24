@@ -10,9 +10,10 @@ mod task_extension;
 mod tasks;
 mod tools;
 mod upstream;
+mod upstream_authorized_http;
 mod upstream_cache;
 mod upstream_http;
-pub use upstream_http::build_upstream_http_client;
+pub use upstream_http::GatewayUpstreamHttpClientPool;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use rmcp::{
@@ -44,6 +45,7 @@ use crate::{
     mcp_support::{mcp_internal, mcp_invalid_params, mcp_invalid_request},
 };
 use upstream::GatewayUpstreamHandler;
+use upstream_authorized_http::GatewayAuthorizedHttpClient;
 use upstream_cache::{UpstreamCacheKey, UpstreamConnection, UpstreamConnectionCache};
 
 pub use final_tasks::FinalTaskClient;
@@ -52,7 +54,6 @@ pub use task_extension::GatewayTaskExtension;
 
 pub(super) const GATEWAY_PAGE_SIZE: usize = 100;
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 15 * 60;
-const INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS: i64 = 30;
 
 #[derive(Debug)]
 pub struct GatewayMcp {
@@ -61,6 +62,7 @@ pub struct GatewayMcp {
     platform_store: PlatformStore,
     profile_id: GatewayProfileId,
     internal_token_issuer: GatewayInternalTokenIssuer,
+    upstream_http: GatewayUpstreamHttpClientPool,
     upstreams: UpstreamConnectionCache,
     progress_tokens: progress::GatewayProgressTokens,
 }
@@ -72,6 +74,7 @@ impl GatewayMcp {
         state: GatewayState,
         platform_store: PlatformStore,
         internal_token_issuer: GatewayInternalTokenIssuer,
+        upstream_http: GatewayUpstreamHttpClientPool,
     ) -> Self {
         Self {
             catalog,
@@ -79,6 +82,7 @@ impl GatewayMcp {
             platform_store,
             profile_id,
             internal_token_issuer,
+            upstream_http,
             upstreams: UpstreamConnectionCache::new(),
             progress_tokens: progress::GatewayProgressTokens::default(),
         }
@@ -100,9 +104,8 @@ impl GatewayMcp {
             authorization_fingerprint,
             catalog_generation,
         };
-        let refresh_after = Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_REFRESH_WINDOW_SECONDS);
         self.upstreams.close_stale(catalog_generation).await;
-        if let Some(peer) = self.upstreams.reusable_peer(&key, refresh_after).await {
+        if let Some(peer) = self.upstreams.reusable_peer(&key).await {
             return Ok(peer);
         }
 
@@ -117,30 +120,25 @@ impl GatewayMcp {
             )));
         }
 
-        if let Some(peer) = self.upstreams.reusable_peer(&key, refresh_after).await {
+        if let Some(peer) = self.upstreams.reusable_peer(&key).await {
             return Ok(peer);
         }
-        self.upstreams
-            .close_if_not_reusable(&key, refresh_after, "expired or closed upstream connection")
-            .await;
 
-        let token_expires_at = internal_token_expires_at(subject)?;
-        let internal_token = self
-            .internal_token_issuer
-            .issue(
-                self.profile_id.clone(),
-                server_slug.clone(),
-                subject.actor.clone(),
-                subject.authority.clone(),
-                token_expires_at,
-            )
-            .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
-
-        let http_client = build_upstream_http_client(snapshot.catalog(), &server).await?;
-        let transport = StreamableHttpClientTransport::<reqwest::Client>::with_client(
+        let http_client = self
+            .upstream_http
+            .client(snapshot.catalog(), &server)
+            .await?;
+        let authorized_http_client = GatewayAuthorizedHttpClient::new(
             http_client,
+            self.internal_token_issuer.clone(),
+            self.profile_id.clone(),
+            server_slug.clone(),
+            subject.actor.clone(),
+            subject.authority.clone(),
+        );
+        let transport = StreamableHttpClientTransport::<GatewayAuthorizedHttpClient>::with_client(
+            authorized_http_client,
             StreamableHttpClientTransportConfig::with_uri(server.upstream.url.as_str().to_string())
-                .auth_header(internal_token.bearer_token)
                 .reinit_on_expired_session(false),
         );
         let handler = GatewayUpstreamHandler::new(
@@ -157,14 +155,7 @@ impl GatewayMcp {
             .map_err(|err| mcp_internal(format!("failed to initialize upstream MCP: {err}")))?;
         Ok(self
             .upstreams
-            .insert_or_reuse(
-                key,
-                UpstreamConnection {
-                    running,
-                    expires_at: internal_token.identity.expires_at,
-                },
-                refresh_after,
-            )
+            .insert_or_reuse(key, UpstreamConnection { running })
             .await)
     }
 
@@ -196,6 +187,7 @@ impl GatewayMcp {
             )
             .map_err(|err| mcp_internal(format!("failed to issue internal token: {err}")))?;
         final_tasks::FinalTaskClient::for_server(
+            &self.upstream_http,
             snapshot.catalog(),
             &server,
             internal_token.bearer_token,

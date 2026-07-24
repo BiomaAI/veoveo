@@ -49,6 +49,24 @@ impl ServerResourceUris {
         format!("{}://usage/task/{{task_id}}", self.scheme)
     }
 
+    /// Index of the server's embedded documents (contract C18).
+    pub fn docs_root_uri(&self) -> String {
+        format!("{}://docs", self.scheme)
+    }
+
+    pub fn doc_uri(&self, doc_id: &str) -> String {
+        format!("{}://docs/{}", self.scheme, doc_id)
+    }
+
+    pub fn doc_template(&self) -> String {
+        format!("{}://docs/{{doc_id}}", self.scheme)
+    }
+
+    /// The machine-readable contract declaration (contract C19).
+    pub fn contract_uri(&self) -> String {
+        format!("{}://contract", self.scheme)
+    }
+
     pub fn model_uri(&self, model_id: &str) -> String {
         format!("{}://model/{model_id}", self.scheme)
     }

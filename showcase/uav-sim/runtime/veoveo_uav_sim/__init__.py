@@ -1,4 +1,4 @@
-"""Bioma's typed Isaac Sim UAV runtime adapter."""
+"""Typed Isaac Sim UAV showcase runtime adapter."""
 
 from .config import RuntimeConfig
 

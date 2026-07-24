@@ -5,9 +5,9 @@ use futures::future::join_all;
 use serde::Serialize;
 use veoveo_mcp_contract::{ServerManifest, ServerSlug};
 
-use crate::GatewayCatalog;
+use crate::{GatewayCatalog, GatewayCatalogSnapshot};
 
-use super::upstream_http::build_upstream_http_client;
+use super::GatewayUpstreamHttpClientPool;
 
 const SERVER_HEALTH_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -26,14 +26,16 @@ pub struct GatewayServerHealth {
 }
 
 pub async fn probe_gateway_server_health(
-    catalog: &GatewayCatalog,
+    snapshot: &GatewayCatalogSnapshot,
+    upstream_http: &GatewayUpstreamHttpClientPool,
 ) -> BTreeMap<ServerSlug, GatewayServerHealth> {
     join_all(
-        catalog
+        snapshot
+            .catalog()
             .control_plane()
             .servers
             .iter()
-            .map(|server| probe_server(catalog, server)),
+            .map(|server| probe_server(snapshot.catalog(), upstream_http, server)),
     )
     .await
     .into_iter()
@@ -42,10 +44,11 @@ pub async fn probe_gateway_server_health(
 
 async fn probe_server(
     catalog: &GatewayCatalog,
+    upstream_http: &GatewayUpstreamHttpClientPool,
     server: &ServerManifest,
 ) -> (ServerSlug, GatewayServerHealth) {
     let checked_at = Utc::now();
-    let state = match build_upstream_http_client(catalog, server).await {
+    let state = match upstream_http.client(catalog, server).await {
         Ok(client) => match tokio::time::timeout(
             SERVER_HEALTH_TIMEOUT,
             client.head(server.upstream.url.as_str()).send(),

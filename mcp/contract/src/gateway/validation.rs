@@ -255,6 +255,29 @@ pub(super) fn validate_server_apps(
     Ok(())
 }
 
+pub(super) fn validate_server_capabilities(
+    server: &ServerManifest,
+) -> Result<(), GatewayControlPlaneError> {
+    let invalid = if server.capabilities.tools_list_changed && !server.capabilities.tools {
+        Some("tools_list_changed requires tools")
+    } else if server.capabilities.prompts_list_changed && !server.capabilities.prompts {
+        Some("prompts_list_changed requires prompts")
+    } else if server.capabilities.resources_list_changed && !server.capabilities.resources {
+        Some("resources_list_changed requires resources")
+    } else if server.capabilities.resource_subscriptions && !server.capabilities.resources {
+        Some("resource_subscriptions requires resources")
+    } else {
+        None
+    };
+    match invalid {
+        Some(reason) => Err(GatewayControlPlaneError::InvalidServerCapabilities {
+            server: server.slug.clone(),
+            reason,
+        }),
+        None => Ok(()),
+    }
+}
+
 pub(super) fn validate_server_upstream(
     server: &ServerManifest,
 ) -> Result<(), GatewayControlPlaneError> {

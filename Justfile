@@ -380,7 +380,7 @@ bioma-verify:
     {{smoke}} bioma-verify --context {{bioma-kube-context}}
 
 # Run the live Isaac/PX4/Google 3D Tiles/Recording/Perception acceptance path.
-bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/bioma-aerial.json':
+bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
 
@@ -439,7 +439,7 @@ showcase-sumo-test:
 # Test the UAV MCP contract and pod-private Python adapter without a GPU.
 showcase-uav-sim-test:
     cargo test -p veoveo-uav-sim-mcp --all-targets
-    PYTHONPATH=showcase/uav-sim/runtime uv run --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
+    PYTHONPATH=showcase/uav-sim/runtime uv run --with aiohttp==3.14.1 --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:

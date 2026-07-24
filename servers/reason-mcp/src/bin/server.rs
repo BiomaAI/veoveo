@@ -26,7 +26,7 @@ use rmcp::{
     service::RequestContext,
     tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use serde::Serialize;
@@ -134,7 +134,7 @@ impl ReasonMcp {
         .await
         .map_err(internal)?;
         let task_id = snapshot.task_id.to_string();
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         completed_payload(&self.state, &task_id).await
     }
 }
@@ -702,10 +702,8 @@ async fn main() -> anyhow::Result<()> {
             move || Ok(ReasonMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(false)
-            .with_json_response(true)
             .with_cancellation_token(cancellation.child_token()),
     );
     let task_extension = Arc::new(TaskExtensionAdapter::new(

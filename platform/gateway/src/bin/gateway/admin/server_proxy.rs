@@ -11,7 +11,7 @@ use axum::{
 };
 use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{GatewayAction, PolicyTarget, ServerSlug};
-use veoveo_mcp_gateway::{AuthenticatedSubject, build_upstream_http_client};
+use veoveo_mcp_gateway::AuthenticatedSubject;
 
 use crate::{
     admin::admin_profile_id,
@@ -111,7 +111,7 @@ pub(crate) async fn proxy_server_admin(
         Ok(body) => body,
         Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
     };
-    let client = match build_upstream_http_client(&catalog, &server_manifest).await {
+    let client = match state.upstream_http.client(&catalog, &server_manifest).await {
         Ok(client) => client,
         Err(error) => return internal_error_response(format!("admin upstream client: {error:?}")),
     };

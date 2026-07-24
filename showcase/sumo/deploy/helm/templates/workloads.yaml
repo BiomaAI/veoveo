@@ -51,6 +51,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: sumo-sim
+      annotations:
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
@@ -113,6 +115,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: sumo-mcp
+      annotations:
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64

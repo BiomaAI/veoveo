@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use parking_lot::RwLock;
+use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
     GatewayProfileId, IdentityProvider, IdentityProviderId, InvocationAuthority, InvocationMode,
@@ -140,6 +141,7 @@ impl GatewayCatalogSnapshot {
 #[derive(Debug, Clone)]
 pub struct GatewayCatalog {
     control_plane: Arc<GatewayControlPlane>,
+    configuration_sha256: [u8; 32],
     identity_providers: BTreeMap<IdentityProviderId, usize>,
     authorization_servers: BTreeMap<AuthorizationServerId, usize>,
     servers: BTreeMap<ServerSlug, usize>,
@@ -158,6 +160,7 @@ pub struct GatewayCatalog {
 impl GatewayCatalog {
     pub fn from_control_plane(control_plane: GatewayControlPlane) -> Result<Self> {
         control_plane.validate()?;
+        let configuration_sha256 = Sha256::digest(serde_json::to_vec(&control_plane)?).into();
 
         let identity_providers = control_plane
             .identity_providers
@@ -248,6 +251,7 @@ impl GatewayCatalog {
 
         Ok(Self {
             control_plane: Arc::new(control_plane),
+            configuration_sha256,
             identity_providers,
             authorization_servers,
             servers,
@@ -276,6 +280,10 @@ impl GatewayCatalog {
 
     pub fn control_plane(&self) -> &GatewayControlPlane {
         &self.control_plane
+    }
+
+    pub fn configuration_sha256(&self) -> [u8; 32] {
+        self.configuration_sha256
     }
 
     pub fn profiles(&self) -> impl Iterator<Item = &GatewayProfile> {

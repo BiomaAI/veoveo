@@ -35,7 +35,10 @@ def normalize_rgb_frame(pixels: np.ndarray) -> np.ndarray:
 
 
 def measure_camera_frame(rgb: np.ndarray) -> CameraFrameQuality:
-    """Measure whether the exact RGB8 encoder input contains a visible image."""
+    """Measure whether the exact RGB8 encoder input contains a visible image.
+
+    TODO(GPU): Move these reductions to CUDA with the recording readback cut.
+    """
     normalized = normalize_rgb_frame(rgb)
     luma = (
         normalized[..., 0].astype(np.float32) * 0.2126

@@ -74,6 +74,8 @@ pub(super) struct Args {
     pub max_artifact_bytes: u64,
     #[arg(long, default_value_t = 17_179_869_184)]
     pub max_routing_expanded_bytes: u64,
+    #[arg(long, default_value = "map:admin")]
+    pub admin_scope: String,
     #[arg(long, default_value_t = false)]
     pub allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]

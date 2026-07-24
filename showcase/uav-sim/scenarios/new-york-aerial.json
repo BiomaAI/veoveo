@@ -1,0 +1,143 @@
+{
+  "schema": "veoveo.uav-sim-acceptance/v6",
+  "session_id": "uav-showcase",
+  "world": {
+    "world_id": "uav-showcase-new-york",
+    "display_name": "UAV showcase — New York",
+    "description": "Complete Earth, Isaac, vehicle, and camera frame hierarchy for the New York aerial showcase.",
+    "simulation_frame_id": "isaac-world",
+    "tree": {
+      "frames": [
+        {
+          "frame_id": "earth-ecef",
+          "basis": {
+            "kind": "ecef_wgs84"
+          },
+          "description": "Earth-centered, Earth-fixed WGS84 root."
+        },
+        {
+          "frame_id": "times-square-enu",
+          "basis": {
+            "kind": "enu"
+          },
+          "parent_frame_id": "earth-ecef",
+          "parent_transform": {
+            "kind": "geodetic_tangent",
+            "origin": {
+              "latitude_degrees": 40.7580,
+              "longitude_degrees": -73.9855,
+              "ellipsoid_height_m": -17.0
+            }
+          },
+          "description": "East-north-up tangent frame anchored at Times Square."
+        },
+        {
+          "frame_id": "isaac-world",
+          "basis": {
+            "kind": "enu"
+          },
+          "parent_frame_id": "times-square-enu",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.0, 0.0, 0.0],
+            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+          },
+          "description": "Isaac Sim stage frame."
+        },
+        {
+          "frame_id": "uav-1-body",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "isaac-world",
+          "parent_transform": {
+            "kind": "dynamic_stream",
+            "stream_uri": "uav-sim://session/uav-showcase",
+            "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-1"
+          },
+          "description": "PX4 vehicle body frame resolved from the live pose stream."
+        },
+        {
+          "frame_id": "uav-1-imu",
+          "basis": {
+            "kind": "frd"
+          },
+          "parent_frame_id": "uav-1-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.0, 0.0, 0.0],
+            "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+          },
+          "description": "Vehicle inertial measurement frame."
+        },
+        {
+          "frame_id": "uav-1-down-camera",
+          "basis": {
+            "kind": "optical_rdf"
+          },
+          "parent_frame_id": "uav-1-body",
+          "parent_transform": {
+            "kind": "static_rigid",
+            "translation_m": [0.6, 0.0, 0.05],
+            "rotation_xyzw": [0.0, 0.0, -0.7071067811865476, 0.7071067811865476]
+          },
+          "description": "RTX nadir camera optical frame."
+        },
+        {
+          "frame_id": "follow-camera",
+          "basis": {
+            "kind": "optical_rdf"
+          },
+          "parent_frame_id": "isaac-world",
+          "parent_transform": {
+            "kind": "dynamic_stream",
+            "stream_uri": "uav-sim://session/uav-showcase",
+            "entity_path": "/world/uav-sim/uav-showcase/camera/follow"
+          },
+          "description": "Live operator follow-camera frame."
+        }
+      ]
+    }
+  },
+  "vehicle_id": "uav-1",
+  "world_ready_timeout_seconds": 1200,
+  "takeoff": {
+    "relative_altitude_m": 300.0,
+    "minimum_reached_altitude_m": 295.0,
+    "state_timeout_seconds": 360
+  },
+  "camera": {
+    "detail_timeout_seconds": 60,
+    "operational": {
+      "minimum_mean_luma": 2.0,
+      "minimum_non_black_fraction": 0.02
+    },
+    "aerial_detail": {
+      "minimum_mean_luma": 2.0,
+      "minimum_dynamic_range": 8,
+      "minimum_non_black_fraction": 0.02
+    }
+  },
+  "mission": {
+    "longitude_offset_degrees": 0.00002,
+    "relative_altitude_m": 300.0,
+    "speed_mps": 3.0,
+    "hold_seconds": 0.5,
+    "task_timeout_seconds": 1200
+  },
+  "recording": {
+    "frozen_rows_timeout_seconds": 1200
+  },
+  "perception": {
+    "range_lag_seconds": 10.0,
+    "range_duration_seconds": 25.0,
+    "maximum_frames": 8,
+    "task_timeout_seconds": 600
+  },
+  "reason": {
+    "prompt": "Describe the terrain, structures, and any moving objects visible during this aerial pass.",
+    "maximum_frames": 8,
+    "task_timeout_seconds": 900
+  },
+  "landing_timeout_seconds": 600
+}

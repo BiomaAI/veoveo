@@ -314,7 +314,9 @@ pub(crate) struct ServerCapabilitiesSummary {
     pub(crate) prompts: bool,
     pub(crate) completions: bool,
     pub(crate) tasks: bool,
-    pub(crate) notifications: bool,
+    pub(crate) tools_list_changed: bool,
+    pub(crate) prompts_list_changed: bool,
+    pub(crate) resources_list_changed: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -726,7 +728,9 @@ pub(crate) fn server_summary(
             prompts: server.capabilities.prompts,
             completions: server.capabilities.completions,
             tasks: server.capabilities.tasks,
-            notifications: server.capabilities.notifications,
+            tools_list_changed: server.capabilities.tools_list_changed,
+            prompts_list_changed: server.capabilities.prompts_list_changed,
+            resources_list_changed: server.capabilities.resources_list_changed,
         },
         tools: server.tools.iter().map(ToString::to_string).collect(),
         compatibility_helpers: server

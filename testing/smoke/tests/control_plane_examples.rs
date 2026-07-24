@@ -40,6 +40,28 @@ fn canonical_client_shape(control_plane: &Value) -> Value {
 }
 
 #[test]
+fn uav_surface_declares_canonical_cross_server_frame_uris() {
+    for path in ["configs/gateway.local.json", "examples/bioma/gateway.json"] {
+        let control_plane = load(path);
+        let uav = control_plane["servers"]
+            .as_array()
+            .expect("servers is an array")
+            .iter()
+            .find(|server| server["slug"] == "uav-sim")
+            .expect("UAV server");
+        assert_eq!(
+            uav["resource_projection"], "server_owned",
+            "{path} must namespace its MCP App resources"
+        );
+        assert_eq!(
+            uav["referenced_resource_schemes"],
+            serde_json::json!(["frames"]),
+            "{path} must preserve frames:// world identities returned by the UAV server"
+        );
+    }
+}
+
+#[test]
 fn reference_control_planes_satisfy_the_canonical_contract() {
     for path in [
         "configs/gateway.local.json",

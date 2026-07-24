@@ -23,7 +23,9 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
 spec:
-  replicas: {{ .Values.gateway.replicas }}
+  replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "veoveo.selectorLabels" . | nindent 6 }}
@@ -38,7 +40,10 @@ spec:
         {{- end }}
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
-        {{- if $controlPlane }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
+        {{- if .Values.gateway.controlPlaneRevision }}
+        checksum/control-plane: {{ .Values.gateway.controlPlaneRevision | quote }}
+        {{- else if $controlPlane }}
         checksum/control-plane: {{ get $controlPlane.data .Values.gateway.controlPlaneKey | sha256sum | quote }}
         {{- else }}
         checksum/control-plane: "unresolved"

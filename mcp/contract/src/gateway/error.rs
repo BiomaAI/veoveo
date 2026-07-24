@@ -26,6 +26,14 @@ pub enum GatewayControlPlaneError {
         reason: String,
     },
     ServerAppsRequireOwnedResources(ServerSlug),
+    InvalidServerCapabilities {
+        server: ServerSlug,
+        reason: &'static str,
+    },
+    UnknownServerReferencedResourceScheme {
+        server: ServerSlug,
+        scheme: ResourceScheme,
+    },
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
@@ -408,6 +416,16 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "server `{server}` declares apps but requires resources and server_owned \
                  resource projection"
+            ),
+            Self::InvalidServerCapabilities { server, reason } => {
+                write!(
+                    f,
+                    "server `{server}` has invalid MCP capabilities: {reason}"
+                )
+            }
+            Self::UnknownServerReferencedResourceScheme { server, scheme } => write!(
+                f,
+                "server `{server}` references unknown canonical resource scheme `{scheme}`"
             ),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
             Self::DuplicateOAuthClient(client) => {

@@ -12,7 +12,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{
     GatewayCatalog, GatewayCatalogHandle, GatewayControlStore, GatewayRefreshDeliveryWindow,
-    GatewayState, RefreshTokenDeliveryCipher,
+    GatewayState, GatewayUpstreamHttpClientPool, RefreshTokenDeliveryCipher,
 };
 use veoveo_platform_store::PlatformStore;
 
@@ -55,6 +55,7 @@ pub(super) struct AdminState {
     pub(super) control_store: GatewayControlStore,
     pub(super) gateway_state: GatewayState,
     pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+    pub(super) upstream_http: GatewayUpstreamHttpClientPool,
     pub(super) artifact_server: ServerSlug,
     pub(super) artifact_service_url: String,
     pub(super) offline_mode: bool,
@@ -68,6 +69,7 @@ pub(super) struct DynamicMcpState {
     pub(super) gateway_state: GatewayState,
     pub(super) platform_store: PlatformStore,
     pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+    pub(super) upstream_http: GatewayUpstreamHttpClientPool,
     pub(super) allowed_hosts: Arc<Vec<String>>,
     pub(super) cancellation_token: CancellationToken,
     pub(super) services: SharedProfileMcpServices,
@@ -88,6 +90,7 @@ pub(super) struct RecordingPlaybackState {
     pub(super) catalog: SharedCatalog,
     pub(super) gateway_state: GatewayState,
     pub(super) internal_token_issuer: GatewayInternalTokenIssuer,
+    pub(super) upstream_http: GatewayUpstreamHttpClientPool,
 }
 
 #[derive(Clone)]

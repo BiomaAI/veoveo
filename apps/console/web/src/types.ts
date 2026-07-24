@@ -228,7 +228,7 @@ export interface McpServerSummary {
   id: string;
   name: string;
   uriScheme: string;
-  transport: "streamable_http" | "sse" | "stdio";
+  transport: "streamable_http";
   endpoint: string;
   state: HealthState;
   checkedAt: string;
@@ -240,7 +240,9 @@ export interface McpServerSummary {
     prompts: boolean;
     completions: boolean;
     tasks: boolean;
-    notifications: boolean;
+    toolsListChanged: boolean;
+    promptsListChanged: boolean;
+    resourcesListChanged: boolean;
   };
   tools: string[];
   compatibilityHelpers: string[];

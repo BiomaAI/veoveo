@@ -19,17 +19,15 @@ def _cleanup(name: str, action: Callable[[], None]) -> None:
 
 
 def run(config: RuntimeConfig) -> None:
+    from .live_stream import verify_nvidia_video_stack
+
+    verify_nvidia_video_stack()
+
     # Isaac requires SimulationApp to exist before importing Kit or simulator modules.
     from isaacsim import SimulationApp
 
-    viewport_width = (
-        config.screenshot.width if config.screenshot is not None else config.camera.width
-    )
-    viewport_height = (
-        config.screenshot.height
-        if config.screenshot is not None
-        else config.camera.height
-    )
+    viewport_width = config.follow_camera.width
+    viewport_height = config.follow_camera.height
     simulation_app = SimulationApp(
         {
             "headless": True,
@@ -47,6 +45,34 @@ def run(config: RuntimeConfig) -> None:
                 config.extension_directory,
                 "--enable",
                 "cesium.usd.plugins",
+                "--enable",
+                "omni.kit.livestream.app",
+                "--enable",
+                "omni.kit.livestream.webrtc",
+                (
+                    "--/exts/omni.kit.livestream.app/primaryStream/"
+                    "streamType=webrtc"
+                ),
+                (
+                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort="
+                    f"{config.live_stream.signal_port}"
+                ),
+                (
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort="
+                    f"{config.live_stream.media_port}"
+                ),
+                (
+                    "--/exts/omni.kit.livestream.app/primaryStream/publicIp="
+                    f"{config.live_stream.public_ip}"
+                ),
+                (
+                    "--/exts/omni.kit.livestream.app/primaryStream/targetFps="
+                    f"{config.follow_camera.fps}"
+                ),
+                (
+                    "--/exts/omni.kit.livestream.app/primaryStream/"
+                    "allowDynamicResize=false"
+                ),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
             ],
@@ -71,6 +97,8 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "isaacsim.sensors.experimental.rtx",
+        "omni.kit.livestream.app",
+        "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
@@ -105,12 +133,22 @@ def run(config: RuntimeConfig) -> None:
         should_record_camera_frame,
     )
     from .px4 import Px4Commander
+    from .follow_camera import FollowCamera
+    from .live_stream import LiveStreamLeaseManager, LiveStreamSignalingProxy
     from .recording import RecordingPublisher
     from .screenshot import ShowcaseScreenshotCapture
-    from .server import AdapterApplication, AdapterServer, TimelineControls
+    from .server import (
+        AdapterApplication,
+        AdapterServer,
+        PreconfigurationApplication,
+        TimelineControls,
+    )
     from .state import RuntimeState, VehicleTelemetry
+    from .world_config import WorldConfiguration, WorldConfigurationSlot
 
-    state = RuntimeState(config)
+    state: RuntimeState | None = None
+    world_config: WorldConfiguration | None = None
+    world_slot = WorldConfigurationSlot()
     command_queue = MainThreadQueue()
     timeline = omni.timeline.get_timeline_interface()
     recording: RecordingPublisher | None = None
@@ -131,9 +169,26 @@ def run(config: RuntimeConfig) -> None:
     primary_camera_path: str | None = None
     primary_camera_content_visible = False
     screenshot_capture: ShowcaseScreenshotCapture | None = None
+    follow_camera: FollowCamera | None = None
+    live_stream_proxy: LiveStreamSignalingProxy | None = None
 
     try:
-        recording = RecordingPublisher(config)
+        preconfiguration = PreconfigurationApplication(config, world_slot)
+        server = AdapterServer(config, preconfiguration.application)
+        server.start()
+        LOGGER.info(
+            "UAV simulation session %s is waiting for an immutable Frames world revision",
+            config.session_id,
+        )
+        while simulation_app.is_running() and world_config is None:
+            world_config = world_slot.wait(0.05)
+            simulation_app.update()
+        if world_config is None:
+            raise RuntimeError(
+                "Isaac SimulationApp stopped before a frame world was configured"
+            )
+        state = RuntimeState(config, world_config)
+        recording = RecordingPublisher(config, world_config)
         world = World(
             physics_dt=1.0 / config.physics_hz,
             rendering_dt=1.0 / config.rendering_hz,
@@ -158,9 +213,9 @@ def run(config: RuntimeConfig) -> None:
         pegasus = PegasusInterface()
         pegasus._world = world
         pegasus.set_global_coordinates(
-            config.origin_latitude_degrees,
-            config.origin_longitude_degrees,
-            config.origin_ellipsoid_height_m,
+            world_config.georeference_origin.latitude_degrees,
+            world_config.georeference_origin.longitude_degrees,
+            world_config.georeference_origin.ellipsoid_height_m,
         )
 
         stage = omni.usd.get_context().get_stage()
@@ -196,13 +251,13 @@ def run(config: RuntimeConfig) -> None:
 
             georeference = get_or_create_cesium_georeference()
             georeference.GetGeoreferenceOriginLatitudeAttr().Set(
-                config.origin_latitude_degrees
+                world_config.georeference_origin.latitude_degrees
             )
             georeference.GetGeoreferenceOriginLongitudeAttr().Set(
-                config.origin_longitude_degrees
+                world_config.georeference_origin.longitude_degrees
             )
             georeference.GetGeoreferenceOriginHeightAttr().Set(
-                config.origin_ellipsoid_height_m
+                world_config.georeference_origin.ellipsoid_height_m
             )
             tileset_path = add_tileset_ion(
                 "Google_Photorealistic_3D_Tiles",
@@ -255,7 +310,9 @@ def run(config: RuntimeConfig) -> None:
                 if looks.IsValid():
                     looks.SetActive(False)
 
-            commander = Px4Commander(index, config.origin_ellipsoid_height_m)
+            commander = Px4Commander(
+                index, world_config.georeference_origin.ellipsoid_height_m
+            )
             commanders[vehicle_id] = commander
 
             camera_path = f"{vehicle_prim_path}/body/down_camera"
@@ -287,9 +344,10 @@ def run(config: RuntimeConfig) -> None:
         # Cesium for Omniverse drives tile selection from Kit viewports. The
         # RTX sensor render product alone is not a Cesium streaming camera.
         viewport.set_active_camera(primary_camera_path)
+        follow_camera = FollowCamera.create(config.follow_camera, stage, viewport)
         if config.screenshot is not None:
             screenshot_capture = ShowcaseScreenshotCapture.create(
-                config.screenshot, stage, viewport
+                config.screenshot, viewport
             )
 
         world.reset()
@@ -360,14 +418,29 @@ def run(config: RuntimeConfig) -> None:
 
             command_queue.submit(action)
 
+        live_stream_leases = LiveStreamLeaseManager(
+            config.live_stream.lease_ttl_seconds,
+            state.update_live_stream,
+        )
+        live_stream_proxy = LiveStreamSignalingProxy(
+            config.live_stream,
+            live_stream_leases,
+        )
+        live_stream_proxy.start()
+        state.update_live_stream("ready", 0)
+
         application = AdapterApplication(
             config,
             state,
             TimelineControls(pause=pause, resume=resume, reset=reset, step=step),
             commanders,
             recording,
+            live_stream_leases,
+            world_slot,
         )
-        server = AdapterServer(config, application)
+        assert server is not None
+        server.close()
+        server = AdapterServer(config, application.application)
         server.start()
 
         timeline.play()
@@ -427,10 +500,10 @@ def run(config: RuntimeConfig) -> None:
 
         while simulation_app.is_running():
             command_queue.drain()
-            if screenshot_capture is not None:
-                screenshot_capture.update_camera(
-                    tuple(float(value) for value in vehicles["uav-1"].state.position)
-                )
+            assert follow_camera is not None
+            follow_camera.update(
+                tuple(float(value) for value in vehicles["uav-1"].state.position)
+            )
             if timeline.is_playing():
                 render = physics_step % render_interval == 0
                 world.step(render=render)
@@ -479,6 +552,9 @@ def run(config: RuntimeConfig) -> None:
                 for vehicle_id, sensor in camera_sensors.items():
                     pixels, _information = sensor.get_data("rgb")
                     if pixels is not None:
+                        # TODO(GPU): Keep sensor quality analysis and durable
+                        # recording input on CUDA once the Recording Hub
+                        # accepts the canonical NVENC packet fan-out.
                         rgb = normalize_rgb_frame(pixels.numpy())
                         quality = measure_camera_frame(rgb)
                         if vehicle_id == "uav-1":
@@ -609,22 +685,14 @@ def run(config: RuntimeConfig) -> None:
                     snapshot["cameras"][0]["mean_luma"],
                 )
 
-            if (
-                config.exit_after_seconds is not None
-                and snapshot["lifecycle"] == "running"
-                and simulation_time_s >= config.exit_after_seconds
-            ):
-                LOGGER.info(
-                    "batch simulation reached %.3f seconds", config.exit_after_seconds
-                )
-                break
-
     except BaseException:
-        state.set_lifecycle("failed")
+        if state is not None:
+            state.set_lifecycle("failed")
         LOGGER.exception("UAV simulation runtime failed")
         raise
     finally:
-        state.set_lifecycle("stopping")
+        if state is not None:
+            state.set_lifecycle("stopping")
         if tileset_path is not None:
             def clear_ion_token() -> None:
                 stage = omni.usd.get_context().get_stage()
@@ -645,8 +713,10 @@ def run(config: RuntimeConfig) -> None:
             )
         if server is not None:
             _cleanup("adapter server", server.close)
-        if screenshot_capture is not None:
-            _cleanup("showcase screenshot capture", screenshot_capture.close)
+        if live_stream_proxy is not None:
+            _cleanup("NVIDIA WebRTC signaling proxy", live_stream_proxy.close)
+        if follow_camera is not None:
+            _cleanup("follow camera", follow_camera.close)
         if timeline.is_playing():
             _cleanup("timeline", timeline.stop)
         for commander in commanders.values():
@@ -656,6 +726,8 @@ def run(config: RuntimeConfig) -> None:
                 "Recording Hub publisher",
                 lambda: recording.close(simulation_time_s, physics_step),
             )
-            state.set_recording_active(False)
-        state.set_lifecycle("stopped")
+            if state is not None:
+                state.set_recording_active(False)
+        if state is not None:
+            state.set_lifecycle("stopped")
         _cleanup("Isaac SimulationApp", simulation_app.close)

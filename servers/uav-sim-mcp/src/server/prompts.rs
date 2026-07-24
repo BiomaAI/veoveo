@@ -56,7 +56,7 @@ impl UavSimPrompt {
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         let text = match self {
             Self::MissionPlan => format!(
-                "Read uav-sim://session/{0}, uav-sim://session/{0}/world, and uav-sim://session/{0}/vehicles. Prepare execute_mission for mission {1} using the session frame_uri and only declared vehicles. Objective: {2}. Keep every waypoint, speed, and hold duration explicit; do not execute until the operator accepts the typed request.",
+                "Read uav-sim://session/{0}, uav-sim://session/{0}/world, and uav-sim://session/{0}/vehicles. Prepare execute_mission for mission {1} using the session's immutable world revision and only declared vehicles. Objective: {2}. Keep every waypoint, speed, and hold duration explicit; do not execute until the operator accepts the typed request.",
                 args.session_id,
                 args.mission_id.as_deref().unwrap_or("unspecified"),
                 args.objective.as_deref().unwrap_or("unspecified")

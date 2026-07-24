@@ -233,10 +233,10 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
             1 => fake_llm_tool_call_choice(
                 "frames__convert_frame",
                 json!({
-                    "target_frame": "ECEF",
+                    "target": {"kind": "ecef_wgs84"},
                     "points": [{
-                        "kind": "wgs84", "latitude_deg": 37.7749,
-                        "longitude_deg": -122.4194, "height_m": 0.0
+                        "kind": "wgs84", "latitude_degrees": 37.7749,
+                        "longitude_degrees": -122.4194, "ellipsoid_height_m": 0.0
                     }]
                 }),
             ),
@@ -1022,7 +1022,8 @@ pub(super) async fn cmd_fake_hosted_mcp(
             move || Ok(FakeHostedMcp::new(server.clone(), scheme.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default().with_allowed_hosts(allowed_hosts),
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
+            .with_allowed_hosts(allowed_hosts),
     );
     let mcp_router = AxumRouter::new()
         .route_service("/", mcp_service.clone())

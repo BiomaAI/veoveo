@@ -27,6 +27,21 @@ readiness   /view/readyz
 Gateway-mounted tools use names such as `view__capture_frame`. Resource
 identities keep the `view://` scheme.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with view tools, task-only capture, resources and templates, completions, subscriptions, notifications, image content, and structured results. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Camera, scene, capture policy, layer, tile, frame, and structured-result contracts. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; frame capture uses durable creation, progress, cancellation, results, and subscriptions. |
+| [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://view/preview.html` drives canonical resources, direct view tools, and task-based capture. |
+| OGC 3D Tiles 1.0 and 1.1 | Explicit tile trees, external tilesets, bounding boxes/spheres/regions, transforms, geometric error, and `REPLACE`/`ADD` refinement. Implicit tiling and legacy payloads are rejected. |
+| glTF/GLB 2.0 | Meshes, standard materials and textures, node transforms, and GLB binary content. |
+| Draco glTF geometry compression | Native decode of Draco-compressed GLB geometry. Preview resources preserve the original compressed bytes. |
+| WGS 84 and ECEF | Exact geodetic camera definitions and `f64` planetary transforms resolved into a local east-up-north rendering frame. |
+| HTTPS | External tilesets and content follow configured credential, host, redirect, deadline, and byte policies. API keys never enter MCP requests or resource identities. |
+| PNG and JPEG | Bounded captured-frame encodings returned as MCP image content and governed frame resources. |
+
 ## Boundary
 
 Map owns geographic source truth, releases, coverage, licensing metadata, and

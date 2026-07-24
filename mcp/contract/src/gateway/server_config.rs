@@ -17,6 +17,10 @@ pub struct ServerManifest {
     pub capabilities: McpSurfaceCapabilities,
     #[serde(default)]
     pub resource_projection: ResourceProjectionMode,
+    /// Canonical schemes owned by other registered servers that remain unchanged when
+    /// `server_owned` projection namespaces this server's App and vendor resources.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub referenced_resource_schemes: BTreeSet<ResourceScheme>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<LocalToolName>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -655,7 +659,12 @@ pub struct McpSurfaceCapabilities {
     pub prompts: bool,
     pub completions: bool,
     pub tasks: bool,
-    pub notifications: bool,
+    #[serde(default)]
+    pub tools_list_changed: bool,
+    #[serde(default)]
+    pub prompts_list_changed: bool,
+    #[serde(default)]
+    pub resources_list_changed: bool,
 }
 
 #[derive(

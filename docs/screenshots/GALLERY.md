@@ -1,9 +1,9 @@
 # Product screenshot gallery
 
-These captures are internal review material for product documentation. Select
-an image to inspect the full 1920×1080 source. The [catalog](catalog.json)
-records its purpose, prerequisites, recipe, and redaction policy. The
-[capture guide](README.md) explains how to reproduce every view.
+These captures form the current product gallery. Select an image to inspect its
+full source. The [catalog](catalog.json) records purpose, prerequisites, recipe,
+publication state, and redaction policy. The [capture guide](README.md) explains
+how to reproduce every view.
 
 ## Console
 
@@ -24,8 +24,10 @@ records its purpose, prerequisites, recipe, and redaction policy. The
 | Reason MCP protocol surface | Map MCP protocol surface |
 | [![Interactive MCP chart app](gallery/console-app-chart.png)](gallery/console-app-chart.png) | [![Governed map administration app](gallery/console-app-map.png)](gallery/console-app-map.png) |
 | Interactive chart output | Governed map administration |
-| [![Interactive forecast app](gallery/console-app-timeseries.png)](gallery/console-app-timeseries.png) | |
-| Interactive forecast fixture | |
+| [![Interactive forecast app](gallery/console-app-timeseries.png)](gallery/console-app-timeseries.png) | [![GPU-backed 3D View MCP App](gallery/console-app-view.png)](gallery/console-app-view.png) |
+| Interactive forecast fixture | Live 3D Tiles, camera control, and captured-frame state |
+| [![View MCP App running in Claude](gallery/mcp-app-view-claude.png)](gallery/mcp-app-view-claude.png) | |
+| The server-shipped View MCP App running in an external MCP host | |
 
 ## Governance and operations
 
@@ -40,7 +42,7 @@ records its purpose, prerequisites, recipe, and redaction policy. The
 
 | | |
 | --- | --- |
-| [![UAV over Midtown Manhattan in Isaac Sim](gallery/isaac-uav-new-york.png)](gallery/isaac-uav-new-york.png) | [![UAV simulation in Rerun](gallery/rerun-uav.png)](gallery/rerun-uav.png) |
-| Headless RTX render over New York photogrammetry | UAV world, camera, telemetry, and timeline |
-| [![SUMO traffic simulation in Rerun](gallery/rerun-sumo.png)](gallery/rerun-sumo.png) | |
-| Traffic map, vehicles, telemetry, and timeline | |
+| [![UAV over San Salvador in Isaac Sim](gallery/isaac-uav-san-salvador.png)](gallery/isaac-uav-san-salvador.png) | [![UAV over Midtown Manhattan in Isaac Sim](gallery/isaac-uav-new-york.png)](gallery/isaac-uav-new-york.png) |
+| Headless RTX render over San Salvador | Headless RTX render over New York photogrammetry |
+| [![UAV simulation in Rerun](gallery/rerun-uav.png)](gallery/rerun-uav.png) | [![SUMO traffic simulation in Rerun](gallery/rerun-sumo.png)](gallery/rerun-sumo.png) |
+| UAV world, camera, telemetry, and timeline | Traffic map, vehicles, telemetry, and timeline |
