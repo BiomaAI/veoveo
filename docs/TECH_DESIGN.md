@@ -390,7 +390,11 @@ login. Unsafe requests require a constant-time CSRF token match.
 
 The React application receives installation projections and one-time share URLs, never a
 gateway bearer. CSP, frame denial, MIME sniff prevention, same-origin referrer policy,
-and no-store API responses are applied by the BFF.
+and no-store API responses are applied by the BFF. The installation snapshot is the
+browser's authentication bootstrap. Catalog and live-stream requests begin only after
+that bootstrap succeeds. Every unauthorized response enters one shared, non-retrying
+login transition, which prevents parallel API failures from starting competing OAuth
+flows.
 
 Recording playback remains inside this boundary. The BFF exposes authorized same-origin
 manifest and segment routes, including byte ranges, while the gateway evaluates the

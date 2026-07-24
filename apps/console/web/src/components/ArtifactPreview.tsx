@@ -11,6 +11,7 @@ import {
   Video,
 } from "lucide-react";
 import { artifactDownloadUrl, artifactPreviewUrl } from "../api";
+import { redirectToLogin } from "../auth";
 import { useArtifactAccessRequests, useRequestArtifactAccess } from "../queries";
 import type { ArtifactSummary } from "../types";
 
@@ -97,7 +98,7 @@ function AuthorizedArtifactPreview({
       .then(async (response) => {
         await response.body?.cancel();
         if (response.status === 401) {
-          window.location.assign("/auth/login");
+          redirectToLogin();
           return;
         }
         if (response.status === 403) {
