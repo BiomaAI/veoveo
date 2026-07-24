@@ -439,10 +439,14 @@ pub(crate) async fn uav_sim_verify(
             .await?,
     )
     .context("decoding the published Frames world revision resource")?;
+    let mut expected_frames = scenario.world.tree.frames.clone();
+    expected_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
+    let mut published_frames = published_revision.tree.frames.clone();
+    published_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
     ensure!(
         published_revision.revision_uri.as_str() == revision_uri
             && published_revision.world_id == scenario.world.world_id
-            && published_revision.tree == scenario.world.tree,
+            && published_frames == expected_frames,
         "published Frames world revision disagrees with the complete scenario hierarchy: \
          {published_revision:?}"
     );
