@@ -77,7 +77,7 @@ export function App() {
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
   const { data: snapshot, error, isLoading } = useSnapshot();
-  const { data: appsCatalog } = useApps();
+  const { data: appsCatalog } = useApps(Boolean(snapshot));
   const liveStatus = useConsoleLiveStream(snapshot?.stream.cursor);
   const [view, setView] = useState<ViewId>(initial.view);
   const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);
