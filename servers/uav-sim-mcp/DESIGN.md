@@ -310,6 +310,13 @@ optional Ingress terminates WSS while the media endpoint remains a directly
 reachable UDP address. The live stream is the canonical browser path. Durable
 recording remains a separate governed sensor product.
 
+The configured public signaling path is a prefix. The Ingress and proxy admit
+NVIDIA's signaling subtree, including `/sign_in`; the proxy strips the public
+prefix and preserves the remaining path and query when forwarding to Kit. It
+accepts the canonical `authorization.bearer.<token>` WebSocket subprotocol,
+removes that credential before forwarding, and retains NVIDIA's session
+subprotocol end to end.
+
 ## Security
 
 Gateway internal assertions are mandatory. Every task carries principal,

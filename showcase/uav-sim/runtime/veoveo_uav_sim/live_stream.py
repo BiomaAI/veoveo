@@ -16,7 +16,7 @@ from .config import FollowCameraConfig, LiveStreamConfig
 
 
 LOGGER = logging.getLogger("veoveo.uav_sim.live_stream")
-AUTH_PROTOCOL_PREFIXES = ("Authorization.Bearer.", "Authorization-Bearer.")
+AUTH_PROTOCOL_PREFIX = "authorization.bearer."
 
 
 def _timestamp(value: datetime) -> str:
@@ -213,7 +213,13 @@ class LiveStreamSignalingProxy:
             asyncio.set_event_loop(self._loop)
             application = web.Application(client_max_size=64 * 1024)
             application.add_routes(
-                [web.get(self._config.signaling_path, self._websocket)]
+                [
+                    web.get(self._config.signaling_path, self._websocket),
+                    web.get(
+                        f"{self._config.signaling_path}/{{signaling_suffix:.*}}",
+                        self._websocket,
+                    ),
+                ]
             )
             self._runner = web.AppRunner(application, access_log=None)
             self._loop.run_until_complete(self._runner.setup())
@@ -246,9 +252,22 @@ class LiveStreamSignalingProxy:
         upstream_protocols = [
             protocol
             for protocol in offered_protocols
-            if not protocol.startswith(AUTH_PROTOCOL_PREFIXES)
+            if not protocol.startswith(AUTH_PROTOCOL_PREFIX)
         ]
-        upstream_url = f"ws://127.0.0.1:{self._config.signal_port}/"
+        upstream_path = request.rel_url.raw_path.removeprefix(
+            self._config.signaling_path
+        )
+        if not upstream_path:
+            upstream_path = "/"
+        elif not upstream_path.startswith("/"):
+            raise web.HTTPNotFound()
+        upstream_url = (
+            f"ws://127.0.0.1:{self._config.signal_port}{upstream_path}"
+        )
+        if request.rel_url.raw_query_string:
+            upstream_url = (
+                f"{upstream_url}?{request.rel_url.raw_query_string}"
+            )
         try:
             async with ClientSession() as session:
                 upstream = await session.ws_connect(
@@ -300,10 +319,9 @@ class LiveStreamSignalingProxy:
 
 def _authorization_token(protocols: list[str]) -> str | None:
     for protocol in protocols:
-        for prefix in AUTH_PROTOCOL_PREFIXES:
-            if protocol.startswith(prefix):
-                token = protocol.removeprefix(prefix)
-                return token or None
+        if protocol.startswith(AUTH_PROTOCOL_PREFIX):
+            token = protocol.removeprefix(AUTH_PROTOCOL_PREFIX)
+            return token or None
     return None
 
 
