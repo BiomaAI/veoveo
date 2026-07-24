@@ -2,25 +2,25 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/artifact-mcp: sha256:1c96046c6cf3d5f2851a606225115d3c20a7fdda1c2ee54a0bfd20f7debba141
-    veoveo/artifact-service: sha256:c1f268207d51c006497076419e8b5aee28e9e3108261321a3e791016a592354a
+    veoveo/artifact-mcp: sha256:8ac8673d1234814078e1207f8c90296b9155aa085f281b2db09ad05b42831bf0
+    veoveo/artifact-service: sha256:686ea90d74ae71210d2b3b4e7135103d7ce77231d0e812f5da4c68d81a92d6a6
     veoveo/chart-mcp: sha256:03c3f41b30306c7e4b662e253a7e733416c4dcb0678381c5fbb0b44606d6fd3e
-    veoveo/console-bff: sha256:a759ec26ff1ac3243888343c3c84377aa27fe094c97e0284449313a50a1e47fb
+    veoveo/console-bff: sha256:f993b31425650a48272ae9bf474f372550b6a8ce06fafd3f2c27f9d323ec50c5
     veoveo/datasheet-mcp: sha256:459cdea0a93d4b893a37dd30021a965494dbca653eaddef7f2612e264371eb9b
-    veoveo/duckdb-mcp: sha256:9ca791c2a5dc5d0d92f6745abc652ba40b9288c4ab9e3bb39cb0610f630d502b
-    veoveo/frames-mcp: sha256:2af04c384876df8da6f35eeb87b62e02aa52138fdb438dd00eb64086341d0f59
-    veoveo/map-mcp: sha256:5458d38330fc5d6b985b2d05954acf8956ba0bcba99ba413a5969beb9df06825
-    veoveo/mcp-gateway: sha256:da6ca0a07af86f2dfdc8d6327e89c7284d1f45026163cf96cf5497336163cfc7
-    veoveo/mcp-stdio-bridge: sha256:20aeceadc746bf6be07042c9d5da9e2ba4f6f133f609d0c786e4b72954785a53
-    veoveo/media-mcp: sha256:b3fed5dc54843fadd70edbb3fd5bd840b132316985d78ac47b3e89f4a24b8b0a
-    veoveo/optimization-mcp: sha256:73168a5d383387c2e66e642f4fbe3be0181a3d1e3478a03c1fb43d0f8eed8de5
-    veoveo/perception-mcp: sha256:a5fdd93817550f0a77d8efddf18e04c75c31f110e566e73a6f7f42eeede84ed2
-    veoveo/reason-mcp: sha256:a691d13d3bd59a2845a44d40849cf637e0f81d2760369f7b5efaf460661eb69f
-    veoveo/recording-forwarder: sha256:d4ac6c30dc89b496d4d967ca69a32f5730717547a11664d29b82fc0098b52da5
-    veoveo/recording-hub: sha256:58ed96debae8cf7ee265ddc57cc00e6f72088df0fadc4df874f400dd3acae4e9
-    veoveo/recording-mcp: sha256:9269dc1d54e054f3f55d0ebb6ee0588cecffcfe282fcfa24f813974e81c86cfb
-    veoveo/time-mcp: sha256:de3639ffa0a0d42087c8e0f16c54307b96ca274bc4358185528348969c8df8d5
-    veoveo/timeseries-mcp: sha256:7a0d0565e4dafc461343c7cae3997e7c9dcdc70d2ebdead9f250318be244f177
-    veoveo/uav-sim-mcp: sha256:fa5e5c940cc67c2f712ef33e3244b418ac7d4eb8aa1a6ee75f5c1e240b1634c4
+    veoveo/duckdb-mcp: sha256:c52e20bc46302fb5a0a2b684864bb12db19d6c39065d5bbd77e2432a7f4afa3f
+    veoveo/frames-mcp: sha256:ad71ac7e21da9c7c519825d6afd1290b1f0aa36e158f800eb335d380f1fbd3b5
+    veoveo/map-mcp: sha256:f2a215fe001e3613b6dd56d849ad56d83fbb16c449277f8e0304db5d854553c4
+    veoveo/mcp-gateway: sha256:e25e18208fadec4481e11e111d3e1533d8307fca7fcf5b8d7fcbe11374d35f3c
+    veoveo/mcp-stdio-bridge: sha256:810f2db9efb33e2bafd5adbf755a4a6caa7ea6daf51399c4c75017d67f9a07c1
+    veoveo/media-mcp: sha256:9d909acc949b44899a0229c01f6cc925aced1fa978a362bd83e6a0493926ad0a
+    veoveo/optimization-mcp: sha256:bd1a0af3a9f99bb5323e6aaf09dcc12d8978da39b17e8ddcaf72bba21759bc6a
+    veoveo/perception-mcp: sha256:23a9f439feadd5444ab0e614800e774855d8391c227beff988e1c3082d5f70ea
+    veoveo/reason-mcp: sha256:7e3c3d81ef43fef52a357e50586d5d670da4ea1fa38be882d8cb120095891f1e
+    veoveo/recording-forwarder: sha256:5c0bda3193bd2c85d32ec41dc81cbe52e002995fb421dd4aec4cb1f9e286d263
+    veoveo/recording-hub: sha256:2b6472ca787f31e3597de864fec7e28912460dce3af856f96ea9f938df28d484
+    veoveo/recording-mcp: sha256:9c35ab8fae9f5c795634b83eb22ac3993c045c6acf29660d0ba07f331d61bceb
+    veoveo/time-mcp: sha256:278d6f7a049d82e9bfda96c46b77b17ea4d7e2c2477ffeed4b2b444d4446ebed
+    veoveo/timeseries-mcp: sha256:069870c4212d48e24f0c1ed84e16a564ab2d22491e8260d43fdc0f5ce92c4608
+    veoveo/uav-sim-mcp: sha256:b4bda58a8baf319f99b5fe2994213384ac3ee56100996f061bb0c11b023b2963
     veoveo/uav-sim-runtime: sha256:29c4bb3fb1b7c5c884e4561f3011ccf1d3fe44bd9a3c7737da9cc64bb0493bd8
-    veoveo/view-mcp: sha256:33d3598760ecb11f92106764ab983de37622a758942ca47ed8a4a8d54d975654
+    veoveo/view-mcp: sha256:1895d7e041f83fda75249fa7ceb1083e47d4855786aafb604a81e09b49e432cb
