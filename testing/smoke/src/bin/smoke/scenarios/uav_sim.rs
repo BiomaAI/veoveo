@@ -3,7 +3,8 @@ use std::process::Stdio;
 use anyhow::ensure;
 use serde::Deserialize;
 use veoveo_mcp_contract::{
-    FrameBasis, FrameId, FrameParentTransform, FrameWorldId, FrameWorldTree, Wgs84Position,
+    FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
+    FrameWorldTree, Wgs84Position,
 };
 
 use super::*;
@@ -412,22 +413,39 @@ pub(crate) async fn uav_sim_verify(
             }),
         )
         .await?;
-    let frame = operator
-        .conformance(
-            &["resource", &simulation_frame_uri],
-            Duration::from_secs(60),
-        )
-        .await?;
-    let origin = scenario.world.origin()?;
-    for expected in [
-        origin.latitude_degrees.to_string(),
-        origin.longitude_degrees.to_string(),
-        origin.ellipsoid_height_m.to_string(),
-        "enu".to_owned(),
-        scenario.world.simulation_frame_id.to_string(),
-    ] {
-        contains(&frame, &expected)?;
-    }
+    let frame: FrameNode = serde_json::from_str(
+        &operator
+            .conformance(
+                &["resource", &simulation_frame_uri],
+                Duration::from_secs(60),
+            )
+            .await?,
+    )
+    .context("decoding the published simulation frame resource")?;
+    let expected_frame = scenario
+        .world
+        .tree
+        .frames
+        .iter()
+        .find(|candidate| candidate.frame_id == scenario.world.simulation_frame_id)
+        .expect("validated simulation frame");
+    ensure!(
+        &frame == expected_frame,
+        "published simulation frame disagrees with the scenario: {frame:?}"
+    );
+    let published_revision: FrameWorldRevision = serde_json::from_str(
+        &operator
+            .conformance(&["resource", &revision_uri], Duration::from_secs(60))
+            .await?,
+    )
+    .context("decoding the published Frames world revision resource")?;
+    ensure!(
+        published_revision.revision_uri.as_str() == revision_uri
+            && published_revision.world_id == scenario.world.world_id
+            && published_revision.tree == scenario.world.tree,
+        "published Frames world revision disagrees with the complete scenario hierarchy: \
+         {published_revision:?}"
+    );
 
     let mut state = wait_for_world_ready(
         &operator,
