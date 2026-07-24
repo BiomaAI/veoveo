@@ -9,9 +9,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use anyhow::Result;
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpService, session::local::LocalSessionManager,
-};
+use rmcp::transport::streamable_http_server::StreamableHttpService;
 use serde_json::json;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
@@ -177,7 +175,7 @@ async fn serve(args: Args) -> Result<()> {
             let state = state.clone();
             move || Ok(MapMcp::new(state.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),

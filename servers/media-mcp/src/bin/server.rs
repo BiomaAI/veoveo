@@ -47,9 +47,7 @@ use rmcp::{
     },
     service::RequestContext,
     tool_handler, tool_router,
-    transport::streamable_http_server::{
-        StreamableHttpService, session::local::LocalSessionManager,
-    },
+    transport::streamable_http_server::StreamableHttpService,
 };
 use secrecy::ExposeSecret;
 use serde_json::{Value, json};
@@ -889,7 +887,7 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(MediaMcp::new(state.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(ct.child_token()),

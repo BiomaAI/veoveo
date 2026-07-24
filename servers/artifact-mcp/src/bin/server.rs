@@ -4,9 +4,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpService, session::local::LocalSessionManager,
-};
+use rmcp::transport::streamable_http_server::StreamableHttpService;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
@@ -76,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(ArtifactMcp::new(state.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),
