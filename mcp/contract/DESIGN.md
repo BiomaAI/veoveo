@@ -69,6 +69,13 @@ notification. Notification delivery preserves protocol order by awaiting the
 session peer. Each delivery has a fixed bound on backpressure. A server never
 detaches peer delivery into an unowned task.
 
+The gateway owns one immutable internal invocation authority for each
+gateway-to-server session. It signs a fresh, short-lived internal assertion for
+every Streamable HTTP request in that session, including GET reconnection and
+DELETE cleanup. A static bearer captured at initialization is prohibited
+because its expiry would break a live notification stream and prevent session
+cleanup. The session owner stops minting assertions when the session ends.
+
 Capability declarations name the exact signal a server can produce.
 `tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
 independent claims. The gateway merges and forwards only the declared claims.
