@@ -82,8 +82,16 @@ just charts-publish localhost:5001/charts   "$CHART_VERSION" "$REVISION" true
 
 BuildKit pushes only missing layers and does not load release images into the host
 Docker store. Record the manifest digest for every published image in
-images.lock.yaml, then update both Application targetRevision fields to the new chart
-version in the same reviewed commit. The full procedure and production registry
+images.lock.yaml, then update both chart targetRevision fields in one release-input
+commit. Record that commit's full SHA. A follow-up rollout commit must set the
+`configuration` source targetRevision in both child Applications to the recorded SHA.
+The parent Application then changes the chart and its values source in one child
+Application update.
+
+Never point a child Application's `configuration` source at a mutable branch. A mutable
+values source can expose new image digests to the old chart before the parent updates
+the chart revision. That ordering breaks the release boundary and can revive an old
+replica policy during the transition. The full procedure and production registry
 requirements are in the enterprise deployment guide.
 
 ## Create the local platform
