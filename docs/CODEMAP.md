@@ -35,7 +35,7 @@ authoritative until each planned change lands:
 
 | Document | Planned change |
 |---|---|
-| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, and governance |
+| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
 
 MCP designs live with the crate whose public contract they specify:
 

@@ -26,6 +26,8 @@ profiles:
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
 | `veoveo.io/deployment/v1` | repository-owned deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
+| Veoveo SDK compatibility manifest | planned public release contract relating SDK artifacts, contract and schema revisions, toolchains, protocol versions, and tested dependency resolutions |
+| Veoveo extension Helm library API | planned public chart-helper contract; consumer charts remain responsible for their values shape and installation policy |
 | OCI images and registries | reproducible build, digest pinning, SBOM, provenance, and release distribution boundary |
 | Kubernetes and Helm | deployment rendering and workload security boundary, using the versions pinned by the repository when implemented |
 | SPDX license expressions | dependency-license policy input |
@@ -63,6 +65,11 @@ showcase, or example.
 
 Adding a server will not require editing CI, `xtask`, a central smoke enum, the Console,
 a conformance registry, dependency-policy configuration, or copied contract checklists.
+
+The hardening implementation will not assume that every compatible extension belongs to
+the Veoveo workspace, shares the Veoveo repository revision, uses the core Helm release,
+or ships inside the core offline bundle. Future external extension work consumes the
+boundaries established here without becoming part of the immediate hardening scope.
 
 ## Baseline Audit
 
@@ -152,6 +159,91 @@ infrastructure remains unaware of concrete servers.
 When an `xtask` command replaces a Just recipe or shell orchestration path, the old
 command is removed in that change. Documentation and CI move with it. Temporary
 migration work must not leave permanent aliases or compatibility behavior.
+
+## Future Extension Compatibility
+
+The next extension program will publish SDK artifacts and conformance tooling, provide a
+reusable Helm library, compose gateway fragments, resolve a typed minimal platform, and
+support local development across repositories. Hardening prepares those seams without
+defining their final product schemas early.
+
+### Public Artifact Boundary
+
+Repository policy distinguishes private packages, published implementation packages,
+public facades, and developer tools. A public package may not expose an unpublished
+dependency or a repository-layout type. Published artifacts carry complete coordinates,
+checksums, license metadata, toolchain requirements, and provenance.
+
+The compatibility manifest is generated from typed release inputs, Cargo metadata, and
+the resolved artifact set. It is not a second hand-maintained version registry.
+
+The future curated MCP SDK controls the supported external surface. Hardening does not
+publish the current internal crate graph merely to satisfy that future.
+
+### Standalone Conformance
+
+`mcp/conformance` must build and publish without depending on a domain server or
+requiring an external consumer to compile the Veoveo workspace. A typed hosted-server
+profile selects checks from the server or extension declaration.
+
+Certification covers the applicable authentication boundary, Host validation,
+capability discovery, schemas, tools, resources, prompts, tasks, subscriptions,
+notifications, and URI ownership. The report records the exact compatibility inputs.
+
+### Canonical Gateway Safety
+
+Safety that applies to every complete gateway control plane belongs in
+`GatewayControlPlane::validate`. Route, mount, MCP path, URI-scheme, resource ownership,
+and policy identity collisions cannot be composer-only checks.
+
+A future fragment composer produces an ordinary validated `GatewayControlPlane`. The
+extension describes its surface while the installation continues to own exposure and
+authorization.
+
+### Source-Aware Evidence
+
+Initial xtask workflows may operate on one repository. Their internal command and
+evidence types still carry an explicit source root, resolved revision, artifact
+coordinate, image digest, and chart identity. They do not rely on one global `HEAD`, one
+image tag, or one chart root.
+
+This is a data-model constraint, not authorization to implement multi-repository
+publishing during P0 or P1.
+
+### Component-Oriented Deployment
+
+Deployment validation distinguishes MCP servers from platform components and evaluates
+a resolved component graph. It does not promote the core chart's current internal
+`domainServices` records into a public extension API.
+
+Semantic preflight verifies gateway and workload agreement, bootstrap targets, artifact
+audiences, recording dependencies, image selection, and mandatory GPU resources. Helm
+schema validates values shape; Rust owns semantic relationships.
+
+### Bundle And Composition Ownership
+
+Core, extension, and installation-composed bundles have separate ownership. The core
+offline builder never discovers and silently absorbs an external repository's
+artifacts. A combined bundle consumes explicit source and artifact locks and belongs to
+the installation or extension composition that selected them.
+
+### External Smoke Ownership
+
+First-party servers in this repository own workspace smoke packages. An external
+extension owns its smoke package in its repository and consumes the published
+conformance and smoke contracts. It does not join the Veoveo Cargo workspace to become
+verifiable.
+
+### Consumer-Generic Helm Enforcement
+
+Chart hardening accepts a chart root and rendered installation as inputs. Security,
+digest, identity, NetworkPolicy, secret mount, GPU, container, and init-container checks
+do not assume the core chart is the only consumer. The future library chart is verified
+through a reference consumer as well as Veoveo's own charts.
+
+The extension Helm library, compatibility manifest, fragment schemas, component
+selection schema, and multi-source profile are delivered by their owning future
+projects. This plan only prevents hardening from closing those paths.
 
 ## Enforcement Layers
 
@@ -270,7 +362,8 @@ directions. No crate registry is maintained by hand.
 The types currently embedded in the smoke deployment module move to
 `deploy/contract`. That crate owns deployment profiles, registry references,
 Kubernetes targets, resources, release specifications, secret formats, schema versions,
-and pure validation.
+pure validation, and the resolved distinction between platform components and MCP
+servers. It does not expose raw core-chart records as an extension-facing contract.
 
 `xtask` depends on this crate for operational commands. Process execution does not live
 in the contract library.
@@ -280,7 +373,8 @@ in the contract library.
 `deploy/offline` becomes a Rust package that owns the typed image manifest, bundle
 layout, integrity verification, builder, and loader. The current shell builder and
 loader are replaced through a hard cut. Source-inspection tests that look for shell
-fragments disappear.
+fragments disappear. Core bundle inputs remain core-owned; extension or combined bundles
+consume explicit artifact locks under their composition owner.
 
 ## Compiled Repository Command Surface
 
@@ -376,6 +470,10 @@ environment policy, failure summaries, and command discovery. It does not reimpl
 Clippy, rustfmt, Ruff, ESLint, Cargo dependency tools, Helm, Docker, protocol
 conformance, or smoke lifecycle behavior.
 
+Process and evidence APIs receive an explicit source context. The first implementation
+uses one source, but no command assumes that repository root, current revision, image
+tag, and chart root are universal installation identities.
+
 `cargo xtask doctor` reports missing or incorrect tools. Enforcement never installs or
 updates a developer tool automatically.
 
@@ -429,6 +527,11 @@ evidence, and implementation identity.
 
 Server smoke crates call the library directly. External operators may run the CLI
 against a registered extension.
+
+The conformance artifact publishes independently of the Veoveo workspace. Its
+hosted-server profile selects applicable checks from a typed declaration and includes
+authentication rejection, valid internal assertions, Host handling, advertised
+surfaces, schemas, tasks, subscriptions, and URI ownership where declared.
 
 Generic conformance depends on MCP contracts and protocol infrastructure only. Direct
 dependencies on Frames, Map, Media, another server, a showcase, or an example are
@@ -516,6 +619,10 @@ There is no central smoke enum.
 
 CI scopes are predicates over typed requirements. A new scenario enters the applicable
 PR, container, GPU, cluster, or external-service scope without a workflow-list edit.
+
+This discovery governs first-party packages in the current source context. External
+repositories retain their own workspace and expose compatible smoke descriptors or
+published conformance endpoints.
 
 ### Unique Production Binary Names
 
@@ -612,7 +719,8 @@ Existing Python products remain under test, but Rust owns orchestration.
 ### P1.1 Rust Policy
 
 Add stable Rust 2024 rustfmt policy, workspace lint inheritance, explicit unsafe policy,
-`rust-version`, private publication settings, repository metadata, and editor defaults.
+`rust-version`, package-audience classification, private publication settings,
+repository metadata, and editor defaults.
 
 Selected high-signal Clippy rules are baselined before they become errors. Blanket
 pedantic or nursery denial is not used as a substitute for judgment. The single known
@@ -632,6 +740,10 @@ operates on Cargo metadata and `Cargo.lock`.
 Current transitive duplication is baselined. New high-risk or major-version duplication
 is blocked before the baseline is ratcheted.
 
+Published packages receive an additional dependency-closure check. A public facade may
+depend on published implementation packages, but it cannot expose an unpublished crate
+or force consumers to reproduce the Veoveo repository layout.
+
 ### P1.4 Repository And Artifact Policy
 
 Add repository-wide checks for Docker build policy, image digests, container
@@ -640,6 +752,10 @@ workload security, documentation links, and typos.
 
 File discovery uses repository paths and extensions. Tool configuration does not list
 MCP servers. One dependency-update authority covers each ecosystem.
+
+Helm and Kubernetes enforcement accepts arbitrary chart roots and validates a reference
+consumer when the extension library is introduced. Render checks cover init containers
+and distinguish source-built images from pinned or mirrored upstream images.
 
 Release builds produce SBOM and provenance evidence. Rust binaries intended for
 distribution carry auditable dependency information.
@@ -688,6 +804,9 @@ policy inheritance, private publishing, and typed contract revision.
 
 Checks discover components. They contain no server names.
 
+Discovery distinguishes first-party workspace components from external artifacts and
+endpoints. External compatibility never requires workspace membership.
+
 ### P2.2 Dependency Direction
 
 Use Cargo metadata to enforce a small set of boundaries already supported by CODEMAP:
@@ -699,6 +818,7 @@ Use Cargo metadata to enforce a small set of boundaries already supported by COD
   implementation.
 - `mcp/conformance` does not depend on domain servers, examples, or showcases.
 - `tools/smoke-kit` does not depend on Veoveo production implementations.
+- A public SDK facade does not expose private or unpublished implementation packages.
 - Component smoke packages may depend on conformance and smoke-kit.
 - Examples and showcases may compose the components they own.
 
@@ -709,17 +829,27 @@ baseline is clean and its owning design document states the boundary.
 
 Typed Rust validation enforces uniqueness, URI and route consistency, declared
 cross-server schemes, contract revisions, profile references, image identity, singleton
-MCP workload semantics, bootstrap validity, and mandatory GPU resources.
+MCP workload semantics, bootstrap validity, artifact audiences, recording dependencies,
+and mandatory GPU resources. Universal gateway collision checks live in
+`GatewayControlPlane::validate`.
 
 Different environments may select different servers. Enforcement validates
 relationships inside the selected profile and does not require every server in every
 installation.
+
+Deployment preflight evaluates a resolved graph of platform components and MCP servers.
+It does not assume that every artifact shares one repository, revision, tag, chart, or
+Helm release.
 
 ### P2.4 Contract And Type Boundaries
 
 Public MCP inputs pass the shared schema profile. Controlled wire shapes use typed
 models. Cross-server identities use canonical URI and domain types. Shared transport,
 task, identity, and document machinery comes from the owning contract crates.
+
+Package audience, compatibility inputs, source identity, artifact coordinates, and
+conformance profiles are also typed. These models remain useful when the future SDK,
+Helm library, and fragment composer become external release products.
 
 Source-text searches are transitional evidence only. Type construction, schema
 inspection, Cargo metadata, and black-box observation carry the long-term gate.
@@ -784,18 +914,21 @@ The implementation proceeds through coherent hard cuts:
 11. Move server-owned smoke scenarios one component at a time.
 12. Move gateway, platform, agent, template, showcase, example, and deployment
     scenarios to their owners.
-13. Move `testing/mcp-conformance` to `mcp/conformance` and remove domain dependencies.
-14. Promote deployment and offline models into their contract crates.
+13. Move `testing/mcp-conformance` to `mcp/conformance`, remove domain dependencies, and
+    establish its standalone artifact boundary.
+14. Promote component-oriented deployment and ownership-aware offline models into their
+    contract crates.
 15. Remove the central smoke binary and the top-level `testing/` directory.
 16. Complete the Justfile hard cut.
 17. Enable component discovery and dependency-direction enforcement.
-18. Enable deployment, contract, type-boundary, and module-responsibility enforcement.
+18. Enable source-aware deployment, canonical gateway, contract, type-boundary, and
+    module-responsibility enforcement.
 19. Add repository governance and protected delivery settings.
 
 Each move removes the old owner and command in the same change. A migration commit
 leaves the repository coherent and the required gate green.
 
-## New MCP Server Onboarding Contract
+## New First-Party MCP Server Onboarding Contract
 
 After this plan, a new Rust MCP server requires:
 
@@ -817,6 +950,11 @@ After this plan, a new Rust MCP server requires:
 The server smoke first runs generic MCP conformance, then its owner-local domain
 scenarios. A composition that selects several real servers owns its own acceptance
 package.
+
+An external extension remains in its own repository. It consumes published SDK and
+conformance artifacts, owns its chart and smoke package, and joins an installation
+through explicit gateway, deployment, source, and artifact inputs. It does not require a
+Veoveo workspace, CI, xtask, or CODEMAP edit.
 
 ## Required CI Shape
 
@@ -844,17 +982,25 @@ The plan is complete when all of the following statements hold:
 - `cargo xtask enforce` is the canonical local and CI gate.
 - The Justfile no longer exists.
 - No Python or shell program defines repository quality or orchestration policy.
-- `mcp/conformance` is domain-neutral and can certify an arbitrary compatible server.
+- `mcp/conformance` is domain-neutral, independently publishable, capability-driven, and
+  can certify an arbitrary compatible server.
 - `tools/smoke-kit` has no production implementation dependency.
-- Every hosted MCP server owns a component-local smoke package.
+- Every first-party hosted MCP server owns a component-local smoke package.
 - Showcases and examples own cross-component acceptance.
 - The central `veoveo-smoke` package and top-level `testing/` directory no longer exist.
 - Adding a server requires no CI, xtask, conformance-list, scanner, or Console edit.
+- Public package policy rejects an unpublished or repository-local dependency from a
+  supported facade.
 - Contract additions fail compilation until shared profiles and conformance coverage are
   exhaustive.
 - Static generated projections fail the build when stale.
-- Deployment and gateway configuration fail typed enforcement when relationships
-  diverge.
+- Canonical gateway validation rejects route, mount, URI, ownership, and policy identity
+  collisions regardless of how the document was authored.
+- Deployment and gateway configuration fail typed enforcement when component, source,
+  artifact, or workload relationships diverge.
+- Core, extension, and installation-composed offline artifacts retain explicit owners.
+- An external extension can consume published verification contracts without joining the
+  Veoveo workspace.
 - GPU and browser evidence always proves hardware-backed execution.
 - Release artifacts carry exact dependency, SBOM, and provenance evidence.
 - Protected delivery prevents merging when any required enforcement layer fails.
