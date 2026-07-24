@@ -355,10 +355,33 @@ async def _forward_websocket(source: Any, destination: Any) -> None:
             await destination.send_str(message.data)
         elif message.type == WSMsgType.BINARY:
             await destination.send_bytes(message.data)
-        elif message.type in {WSMsgType.CLOSE, WSMsgType.CLOSED}:
+        elif message.type == WSMsgType.CLOSE:
+            await _close_websocket(destination, message.data, message.extra)
+            return
+        elif message.type == WSMsgType.CLOSED:
+            await _close_websocket(destination, source.close_code)
             return
         elif message.type == WSMsgType.ERROR:
             raise RuntimeError("NVIDIA WebRTC signaling websocket failed")
+    await _close_websocket(destination, source.close_code)
+
+
+async def _close_websocket(
+    websocket: Any,
+    code: object,
+    reason: object = "",
+) -> None:
+    if websocket.closed:
+        return
+    close_code = code if isinstance(code, int) else 1001
+    if (
+        close_code < 1000
+        or close_code >= 5000
+        or close_code in {1004, 1005, 1006, 1015}
+    ):
+        close_code = 1001
+    close_reason = reason if isinstance(reason, str) else ""
+    await websocket.close(code=close_code, message=close_reason.encode("utf-8"))
 
 
 def live_stream_state(

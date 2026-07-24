@@ -315,7 +315,9 @@ NVIDIA's signaling subtree, including `/sign_in`; the proxy strips the public
 prefix and preserves the remaining path and query when forwarding to Kit. It
 accepts the canonical `authorization.bearer.<token>` WebSocket subprotocol,
 removes that credential before forwarding, and retains NVIDIA's session
-subprotocol end to end.
+subprotocol end to end. The relay preserves valid WebSocket close codes and
+reasons in both directions because NVIDIA uses an application close code to
+hand its sign-in socket over to the persistent signaling connection.
 
 ## Security
 
