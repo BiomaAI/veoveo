@@ -6,7 +6,7 @@ import hashlib
 import logging
 import secrets
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
@@ -50,8 +50,14 @@ class LiveStreamLease:
     access_token: str
     token_digest: bytes
     expires_at: datetime
-    connected: bool = False
+    signaling_connection_ids: set[str] = field(default_factory=set)
     revoked: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedSignalingConnection:
+    stream_id: str
+    connection_id: str
 
 
 class LiveStreamLeaseManager:
@@ -104,26 +110,33 @@ class LiveStreamLeaseManager:
             lease.revoked = True
         self._notify()
 
-    def authorize(self, token: str) -> str:
+    def authorize(self, token: str) -> AuthenticatedSignalingConnection:
         with self._lock:
             self._purge_expired()
             lease = self._lease
             if (
                 lease is None
                 or lease.revoked
-                or lease.connected
                 or not secrets.compare_digest(lease.token_digest, self._digest(token))
             ):
                 raise PermissionError("live-stream lease is invalid or unavailable")
-            lease.connected = True
-            stream_id = lease.stream_id
+            connection = AuthenticatedSignalingConnection(
+                stream_id=lease.stream_id,
+                connection_id=secrets.token_urlsafe(16),
+            )
+            lease.signaling_connection_ids.add(connection.connection_id)
         self._notify()
-        return stream_id
+        return connection
 
-    def disconnect(self, stream_id: str) -> None:
+    def disconnect(self, connection: AuthenticatedSignalingConnection) -> None:
         with self._lock:
-            if self._lease is not None and self._lease.stream_id == stream_id:
-                self._lease.connected = False
+            if (
+                self._lease is not None
+                and self._lease.stream_id == connection.stream_id
+            ):
+                self._lease.signaling_connection_ids.discard(
+                    connection.connection_id
+                )
         self._notify()
 
     def active(self, stream_id: str) -> bool:
@@ -140,7 +153,7 @@ class LiveStreamLeaseManager:
             self._purge_expired()
             connected = int(
                 self._lease is not None
-                and self._lease.connected
+                and bool(self._lease.signaling_connection_ids)
                 and not self._lease.revoked
             )
         return ("live" if connected else "ready", connected)
@@ -245,7 +258,7 @@ class LiveStreamSignalingProxy:
         if token is None:
             raise web.HTTPUnauthorized(text="live-stream bearer protocol is required")
         try:
-            stream_id = self._leases.authorize(token)
+            connection = self._leases.authorize(token)
         except PermissionError as error:
             raise web.HTTPForbidden(text=str(error)) from error
 
@@ -254,6 +267,11 @@ class LiveStreamSignalingProxy:
             for protocol in offered_protocols
             if not protocol.startswith(AUTH_PROTOCOL_PREFIX)
         ]
+        if f"x-nv-sessionid.{connection.stream_id}" not in upstream_protocols:
+            self._leases.disconnect(connection)
+            raise web.HTTPForbidden(
+                text="live-stream session protocol does not match the lease"
+            )
         upstream_path = request.rel_url.raw_path.removeprefix(
             self._config.signaling_path
         )
@@ -282,22 +300,25 @@ class LiveStreamSignalingProxy:
                     heartbeat=20.0,
                 )
                 await downstream.prepare(request)
-                LOGGER.info("NVIDIA WebRTC signaling connected: stream=%s", stream_id)
-                await self._bridge(stream_id, downstream, upstream)
+                LOGGER.info(
+                    "NVIDIA WebRTC signaling connected: stream=%s",
+                    connection.stream_id,
+                )
+                await self._bridge(connection, downstream, upstream)
                 return downstream
         except BaseException:
-            self._leases.disconnect(stream_id)
+            self._leases.disconnect(connection)
             raise
 
     async def _bridge(
         self,
-        stream_id: str,
+        connection: AuthenticatedSignalingConnection,
         downstream: web.WebSocketResponse,
         upstream: Any,
     ) -> None:
         downstream_task = asyncio.create_task(_forward_websocket(downstream, upstream))
         upstream_task = asyncio.create_task(_forward_websocket(upstream, downstream))
-        lease_task = asyncio.create_task(self._watch_lease(stream_id))
+        lease_task = asyncio.create_task(self._watch_lease(connection.stream_id))
         tasks = {downstream_task, upstream_task, lease_task}
         try:
             _, pending = await asyncio.wait(
@@ -309,8 +330,11 @@ class LiveStreamSignalingProxy:
         finally:
             await downstream.close()
             await upstream.close()
-            self._leases.disconnect(stream_id)
-            LOGGER.info("NVIDIA WebRTC signaling closed: stream=%s", stream_id)
+            self._leases.disconnect(connection)
+            LOGGER.info(
+                "NVIDIA WebRTC signaling closed: stream=%s",
+                connection.stream_id,
+            )
 
     async def _watch_lease(self, stream_id: str) -> None:
         while self._leases.active(stream_id):
