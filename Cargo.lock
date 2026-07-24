@@ -10780,6 +10780,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "duckdb",
+ "futures",
  "jsonschema",
  "jsonwebtoken",
  "opentelemetry",
