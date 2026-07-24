@@ -109,6 +109,7 @@ spec:
         app.kubernetes.io/component: perception-mcp
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
       runtimeClassName: {{ .Values.perception.runtimeClassName }}
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}

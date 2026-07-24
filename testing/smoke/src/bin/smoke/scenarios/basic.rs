@@ -182,7 +182,24 @@ pub(crate) async fn helm_config() -> Result<()> {
             bail!("Bioma k3d render must not contain `{forbidden}`");
         }
     }
-    for component in ["map-mcp", "time-mcp"] {
+    for component in [
+        "mcp-gateway",
+        "artifact-mcp",
+        "media-mcp",
+        "perception-mcp",
+        "reason-mcp",
+        "timeseries-mcp",
+        "duckdb-mcp",
+        "optimization-mcp",
+        "frames-mcp",
+        "map-mcp",
+        "view-mcp",
+        "time-mcp",
+        "datasheet-mcp",
+        "chart-mcp",
+        "rerun-bridge",
+        "recording",
+    ] {
         let deployment = bioma
             .split("\n---\n")
             .find(|document| {
@@ -190,7 +207,9 @@ pub(crate) async fn helm_config() -> Result<()> {
                     && document.contains(&format!("name: {component}\n"))
             })
             .with_context(|| format!("finding rendered {component} deployment"))?;
+        contains(deployment, "replicas: 1")?;
         contains(deployment, "strategy:\n    type: Recreate")?;
+        contains(deployment, "veoveo.ai/chart-revision: \"0.1.0\"")?;
         if component == "map-mcp" {
             contains(deployment, "startupProbe:")?;
             contains(deployment, "failureThreshold: 60")?;
@@ -291,6 +310,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "http://127.0.0.1:8810/healthz",
         "http://127.0.0.1:8810/readyz",
         "nvidia.com/gpu: 1",
+        "veoveo.ai/chart-revision: \"0.1.0\"",
     ] {
         contains(&uav_sim, expected)?;
     }
@@ -381,6 +401,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: sumo-recording-forwarder",
         "claimName: sumo-recording-forwarder",
         "runAsUser: 10001",
+        "veoveo.ai/chart-revision: \"0.1.0\"",
     ] {
         contains(&sumo, expected)?;
     }

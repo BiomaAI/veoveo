@@ -64,6 +64,7 @@ spec:
         app.kubernetes.io/component: reason-mcp
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
         checksum/reason-runtime: {{ include "veoveo.reasonRuntimeData" . | sha256sum | quote }}
     spec:
       runtimeClassName: {{ .Values.reason.runtimeClassName }}
