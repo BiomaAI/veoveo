@@ -1,3 +1,5 @@
+use std::{fmt::Display, future::Future, time::Duration};
+
 use rmcp::{
     ClientHandler,
     model::{ClientInfo, Implementation},
@@ -8,6 +10,8 @@ use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug};
 use crate::{GatewayCatalogHandle, mcp_support::project_upstream_resource};
 
 use super::progress::GatewayProgressTokens;
+
+const DOWNSTREAM_NOTIFICATION_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
 pub(super) struct GatewayUpstreamHandler {
@@ -68,12 +72,10 @@ impl ClientHandler for GatewayUpstreamHandler {
             return;
         };
         params.progress_token = downstream_token;
-        if let Err(err) = self.downstream.notify_progress(params).await {
-            tracing::warn!(
-                upstream_server = %self.upstream_server,
-                "failed to forward progress notification: {err}"
-            );
-        }
+        let downstream = self.downstream.clone();
+        forward_notification(self.upstream_server.clone(), "progress", async move {
+            downstream.notify_progress(params).await
+        });
     }
 
     async fn on_resource_updated(
@@ -103,38 +105,59 @@ impl ClientHandler for GatewayUpstreamHandler {
                 return;
             }
         }
-        if let Err(err) = self.downstream.notify_resource_updated(params).await {
-            tracing::warn!(
-                upstream_server = %self.upstream_server,
-                "failed to forward resource update notification: {err}"
-            );
-        }
+        let downstream = self.downstream.clone();
+        forward_notification(
+            self.upstream_server.clone(),
+            "resource update",
+            async move { downstream.notify_resource_updated(params).await },
+        );
     }
 
     async fn on_resource_list_changed(&self, _context: NotificationContext<RoleClient>) {
-        if let Err(err) = self.downstream.notify_resource_list_changed().await {
-            tracing::warn!(
-                upstream_server = %self.upstream_server,
-                "failed to forward resource list notification: {err}"
-            );
-        }
+        let downstream = self.downstream.clone();
+        forward_notification(self.upstream_server.clone(), "resource list", async move {
+            downstream.notify_resource_list_changed().await
+        });
     }
 
     async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
-        if let Err(err) = self.downstream.notify_tool_list_changed().await {
-            tracing::warn!(
-                upstream_server = %self.upstream_server,
-                "failed to forward tool list notification: {err}"
-            );
-        }
+        let downstream = self.downstream.clone();
+        forward_notification(self.upstream_server.clone(), "tool list", async move {
+            downstream.notify_tool_list_changed().await
+        });
     }
 
     async fn on_prompt_list_changed(&self, _context: NotificationContext<RoleClient>) {
-        if let Err(err) = self.downstream.notify_prompt_list_changed().await {
-            tracing::warn!(
-                upstream_server = %self.upstream_server,
-                "failed to forward prompt list notification: {err}"
-            );
-        }
+        let downstream = self.downstream.clone();
+        forward_notification(self.upstream_server.clone(), "prompt list", async move {
+            downstream.notify_prompt_list_changed().await
+        });
     }
+}
+
+fn forward_notification<F, E>(upstream_server: ServerSlug, notification: &'static str, delivery: F)
+where
+    F: Future<Output = Result<(), E>> + Send + 'static,
+    E: Display + Send + 'static,
+{
+    tokio::spawn(async move {
+        match tokio::time::timeout(DOWNSTREAM_NOTIFICATION_TIMEOUT, delivery).await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                tracing::warn!(
+                    %upstream_server,
+                    notification,
+                    %error,
+                    "failed to forward MCP notification"
+                );
+            }
+            Err(_) => {
+                tracing::warn!(
+                    %upstream_server,
+                    notification,
+                    "timed out forwarding MCP notification"
+                );
+            }
+        }
+    });
 }

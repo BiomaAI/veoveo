@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    time::Duration,
+};
 
 use rmcp::{RoleServer, model::ResourceUpdatedNotificationParam, service::Peer};
 use tokio::sync::Mutex;
@@ -7,6 +10,8 @@ use crate::PrincipalId;
 
 type ResourceSubscriptionMap = HashMap<String, PrincipalSubscriptions>;
 type PrincipalSubscriptions = BTreeMap<PrincipalId, Vec<Peer<RoleServer>>>;
+
+const NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// In-memory resource subscription registry keyed by resource URI and principal.
 #[derive(Default)]
@@ -60,9 +65,25 @@ impl SubscriptionHub {
             })
             .unwrap_or_default();
         for peer in peers {
-            let _ = peer
-                .notify_resource_updated(ResourceUpdatedNotificationParam::new(uri.clone()))
-                .await;
+            let uri = uri.clone();
+            tokio::spawn(async move {
+                match tokio::time::timeout(
+                    NOTIFICATION_DELIVERY_TIMEOUT,
+                    peer.notify_resource_updated(ResourceUpdatedNotificationParam::new(
+                        uri.clone(),
+                    )),
+                )
+                .await
+                {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => {
+                        tracing::warn!(%uri, %error, "failed to deliver MCP resource update");
+                    }
+                    Err(_) => {
+                        tracing::warn!(%uri, "timed out delivering MCP resource update");
+                    }
+                }
+            });
         }
     }
 }
