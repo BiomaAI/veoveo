@@ -41,12 +41,12 @@ serverBootstrap:
           "z": up
         parent: WGS84
         origin:
-          latitude_deg: 13.6929
-          longitude_deg: -89.2182
-          height_m: 700.0
+          latitude_deg: 40.7580
+          longitude_deg: -73.9855
+          height_m: -17.0
         datum: WGS84
         ellipsoid: WGS84
-        description: Bioma UAV simulation origin in San Salvador.
+        description: Bioma UAV simulation origin at Times Square in New York.
   map-mcp:
     server: map
     tenantKey: bioma
