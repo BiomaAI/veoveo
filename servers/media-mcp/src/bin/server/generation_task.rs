@@ -105,6 +105,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
             if let Err(error) = record_usage_estimate(&state, &task_id, &job, &entry).await {
                 tracing::warn!(task_id, "failed to persist usage estimate: {error}");
             }
+            state.resource_lists.notify_changed().await;
             tracing::info!(
                 task_id,
                 provider_job_id = prediction.id,

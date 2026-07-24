@@ -149,8 +149,9 @@ health routes only.
 /duckdb/healthz   operational health
 ```
 
-The MCP transport is stateless. Durable task continuity comes from the shared
-task runtime rather than an HTTP session.
+The MCP transport is sessionful Streamable HTTP with event-stream responses.
+Durable task continuity comes from the shared task runtime rather than an
+in-memory task registry.
 
 ## MCP Capabilities
 

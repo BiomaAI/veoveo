@@ -65,7 +65,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "artifact",
@@ -117,7 +117,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": true,
         "apps": true
       },
       "tools": [
@@ -171,7 +171,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "analyze_recording",
@@ -204,7 +204,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "analyze_recording"
@@ -236,7 +236,7 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": false,
         "apps": true
       },
       "tools": [
@@ -266,7 +266,7 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "query",
@@ -297,7 +297,7 @@
         "prompts": false,
         "completions": false,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "plan"
@@ -325,7 +325,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "batch_transform",
@@ -361,7 +361,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": true,
         "apps": true
       },
       "tools": [
@@ -431,7 +431,7 @@
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "notifications": true,
+        "resources_list_changed": true,
         "apps": true
       },
       "tools": [
@@ -466,7 +466,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "assess_clock",
@@ -506,7 +506,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": false
       },
       "tools": [
         "column_stats",
@@ -540,7 +540,7 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "create_share_link",
@@ -577,7 +577,7 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "query_recording",
@@ -619,7 +619,7 @@
         "prompts": true,
         "completions": false,
         "tasks": false,
-        "notifications": false
+        "resources_list_changed": false
       },
       "resource_projection": "server_owned",
       "tools": [
@@ -658,7 +658,7 @@
         "prompts": false,
         "completions": false,
         "tasks": false,
-        "notifications": false
+        "resources_list_changed": false
       },
       "required_scopes": [
         "operator:use"

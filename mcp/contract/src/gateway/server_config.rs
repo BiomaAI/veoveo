@@ -659,7 +659,12 @@ pub struct McpSurfaceCapabilities {
     pub prompts: bool,
     pub completions: bool,
     pub tasks: bool,
-    pub notifications: bool,
+    #[serde(default)]
+    pub tools_list_changed: bool,
+    #[serde(default)]
+    pub prompts_list_changed: bool,
+    #[serde(default)]
+    pub resources_list_changed: bool,
 }
 
 #[derive(

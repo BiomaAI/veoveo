@@ -24,18 +24,23 @@ final message; the default is 15 seconds. Governed browser playback enters
 through the gateway and Console BFF. `recording-mcp` reads the shared PVC
 without exposing it.
 
-`duckdb-mcp` is intentionally one replica with a persistent `ReadWriteOnce`
-workspace. It provides owner-scoped mutable analytical databases and arbitrary
-sandboxed SQL, so it has a single-writer storage boundary. Its task, identity,
-policy, and audit state still lives in SurrealDB; the PVC stores only the DuckDB
-database files.
+Every MCP workload has one active pod and uses `Recreate`. This includes the
+gateway MCP endpoint, domain servers, GPU servers, and the stdio bridge that
+owns its child process. The chart does not expose replica or rollout controls
+for those workloads. Sessions, subscriptions, notifications, and task links
+remain attached to one process. Artifact byte delivery and the Console BFF are
+outside the MCP boundary and keep independent replica settings.
 
-`map-mcp` is also intentionally one replica with a persistent `ReadWriteOnce`
-volume. SurrealDB holds its canonical catalog, while the volume retains the
+`duckdb-mcp` has a persistent `ReadWriteOnce` workspace. It provides
+owner-scoped mutable analytical databases and arbitrary sandboxed SQL, so it
+also has a single-writer storage boundary. Its task, identity, policy, and
+audit state still lives in SurrealDB; the PVC stores only the DuckDB database
+files.
+
+`map-mcp` has a persistent `ReadWriteOnce` volume. SurrealDB holds its
+canonical catalog, while the volume retains the
 tenant-scoped DuckDB Spatial projection and activated Valhalla routing builds.
-Release activation serializes projection changes within that process. Scaling
-Map requires an explicit projection-distribution design and is not enabled by
-raising the replica count.
+Release activation serializes projection changes within that process.
 
 `serverBootstrap` delivers installation-time domain configuration to any MCP
 server component, keyed by domain-service name. Each entry renders a
@@ -66,9 +71,8 @@ activation remains serialized within the process.
 `nvidia.com/gpu`. Install NVIDIA GPU Operator or NVIDIA Container Toolkit,
 provide an `nvidia` RuntimeClass, and put `google-maps-api-key` in the
 installation secret. Readiness fails unless Bevy selects an NVIDIA Vulkan
-hardware adapter; the image does not install a Mesa Vulkan software ICD. The
-deployment uses a zero-surge rollout because each replica holds an exclusive
-GPU allocation.
+hardware adapter; the image does not install a Mesa Vulkan software ICD. Its
+non-overlapping replacement also preserves the exclusive GPU allocation.
 
 The operator must create these resources before installation:
 

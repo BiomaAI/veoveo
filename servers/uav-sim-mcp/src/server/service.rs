@@ -19,7 +19,7 @@ use rmcp::{
     service::RequestContext,
     tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use serde::Serialize;
@@ -366,7 +366,7 @@ impl UavSimMcp {
             .subscribers
             .notify_resource_updated(connection.stream.resource_uri.clone())
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_result(
             format!("opened {}", connection.stream.resource_uri),
             &connection,
@@ -435,7 +435,7 @@ impl UavSimMcp {
             .subscribers
             .notify_resource_updated(closed.resource_uri.clone())
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         let result = CommandAcknowledgement {
             accepted: true,
             detail: "live stream closed".to_owned(),
@@ -454,6 +454,7 @@ impl ServerHandler for UavSimMcp {
             .enable_prompts()
             .enable_resources()
             .enable_resources_subscribe()
+            .enable_resources_list_changed()
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
@@ -957,10 +958,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             move || Ok(UavSimMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(false)
-            .with_json_response(true)
             .with_cancellation_token(shutdown.child_token()),
     );
     let extension = Arc::new(TaskExtensionAdapter::new(

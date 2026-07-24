@@ -1022,7 +1022,8 @@ pub(super) async fn cmd_fake_hosted_mcp(
             move || Ok(FakeHostedMcp::new(server.clone(), scheme.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default().with_allowed_hosts(allowed_hosts),
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
+            .with_allowed_hosts(allowed_hosts),
     );
     let mcp_router = AxumRouter::new()
         .route_service("/", mcp_service.clone())

@@ -8,7 +8,7 @@ that were previously stated across `AGENTS.md`, `docs/TECH_DESIGN.md`, and
 this directory, `veoveo_mcp_contract`, implements the shared mechanics that
 make most of the contract hold by construction.
 
-**Contract revision: 1.** The crate exports the same value as
+**Contract revision: 2.** The crate exports the same value as
 `veoveo_mcp_contract::CONTRACT_REVISION`. A server declares the revision it
 complies with in its crate documents and in its contract resource.
 
@@ -51,6 +51,28 @@ same typed models, policy checks, audit paths, task state, artifact
 identities, and resource URIs. Hidden fallbacks, alternate completion paths,
 unaudited content URLs, and second sources of truth are prohibited.
 
+## Transport And Sessions
+
+Every network endpoint uses MCP Streamable HTTP. The server creates a session
+for initialization and retains it until the client terminates the session or
+the connection becomes invalid. Responses use event-stream framing, including
+ordinary request results. Direct JSON responses are not part of the Veoveo
+profile.
+
+Legacy HTTP+SSE is unsupported. Network stdio is not a transport or
+registration value. Stdio may exist only between one local bridge process and
+the child MCP server whose lifecycle that bridge owns. The gateway always sees
+the bridge as a Streamable HTTP endpoint.
+
+Sessions carry subscriptions, task and progress signals, and every other MCP
+notification. Notification delivery preserves protocol order by awaiting the
+session peer. Each delivery has a fixed bound on backpressure. A server never
+detaches peer delivery into an unowned task.
+
+Capability declarations name the exact signal a server can produce.
+`tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
+independent claims. The gateway merges and forwards only the declared claims.
+
 ## Schemas And Types
 
 Tool inputs publish one canonical JSON Schema 2020-12 document generated from
@@ -85,6 +107,19 @@ URI conventions, Work Context propagation, and internal identity.
 - A server has no private control database. Durable state lives in the
   platform stores.
 - A server has no private byte route. Bytes flow through the artifact plane.
+
+## Deployment Identity
+
+One active process owns each logical MCP endpoint. Kubernetes workloads for
+MCP servers, the gateway MCP frontend, and stdio bridges run with one replica
+and a non-overlapping replacement strategy. A PodDisruptionBudget does not
+pretend that a singleton is highly available.
+
+Capacity is expressed as separately named and registered MCP endpoints.
+Load-balanced replicas under one endpoint identity are prohibited because
+sessions, subscriptions, notifications, and task links belong to one process.
+Stateless services outside the MCP boundary may retain independent replica
+configuration.
 
 ## Packaging And Registration
 
@@ -161,6 +196,11 @@ Server crates are named `*-mcp`.
 | C22 | MUST | `DESIGN.md` exists beside the crate and pins the domain profile. |
 | C23 | MUST | `AGENTS.md` exists beside the crate with the required sections. |
 | C24 | MUST | The crate is named `*-mcp`. |
+| C25 | MUST | Every network endpoint uses Streamable HTTP; stdio exists only inside a local bridge that owns its child. |
+| C26 | MUST | Streamable HTTP is sessionful and every response uses event-stream framing rather than direct JSON. |
+| C27 | MUST | Notification delivery is ordered, awaited by the owning session, bounded for backpressure, and never detached. |
+| C28 | MUST | Tool, prompt, and resource list-change capabilities are declared independently and match emitted notifications. |
+| C29 | MUST | Each logical MCP endpoint has one active process and a non-overlapping replacement strategy. |
 
 ## Enforcement
 
@@ -177,6 +217,9 @@ rules:
 - **Construction** — C03, C08, C10, C18–C21 are inherited by consuming
   `veoveo_mcp_contract`; avoiding them requires bypassing the shared crate,
   which review treats as a contract change.
+- **Transport conformance** — the shared Streamable HTTP constructor and
+  deployment checks enforce C25–C29 for first-party Rust servers. Packaged
+  servers must pass the same black-box checks.
 - **Review** — C05, C06, C09, C13, and C14 are review-enforced boundaries;
   their violation is architectural, not stylistic.
 

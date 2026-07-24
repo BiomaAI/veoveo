@@ -1,7 +1,7 @@
 # Chart MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 1.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
 
 ## Purpose
 
@@ -15,8 +15,9 @@ Dockerfile; there is no first party source here.
 - This is a packaged server from a third party. Do not vendor or patch
   upstream behavior in this directory; change the pinned `flint-chart-mcp`
   version in the Dockerfile and follow the root Dependency Currency policy.
-- The deployment is stateless: `platformStore: false`, no persistence volume,
-  and `--disable-file-reference` stays set.
+- Domain behavior is stateless: `platformStore: false`, no persistence
+  volume, and `--disable-file-reference` stays set. MCP sessions live in the
+  singleton Veoveo launcher.
 - The service listens on port 8795 and is reached only through the gateway;
   keep `--allowed-hosts chart-mcp:8795`.
 - The container runs as the `veoveo` user with uid 10001.
@@ -33,7 +34,7 @@ Dockerfile; there is no first party source here.
 
 ## Contract Compliance
 
-Contract revision: 1
+Contract revision: 2
 
 - C01: pending — upstream surface not audited against the protocol table
 - C02: pending — unverified
@@ -58,4 +59,9 @@ Contract revision: 1
 - C21: pending — well-known surface not yet wired
 - C22: met
 - C23: met
+- C25: met
+- C26: met
+- C27: pending — upstream notification behavior is not yet audited
+- C28: met
+- C29: met
 - C24: pending — no Rust crate; the server is a pinned upstream npm package

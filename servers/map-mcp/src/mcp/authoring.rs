@@ -50,7 +50,7 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(uris::FEATURE_LAYERS_URI)
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_with_links(
             "created authored feature layer",
             &layer,
@@ -255,7 +255,7 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(&publication_uri)
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_with_links(
             "published authored feature layer",
             &publication,
@@ -291,7 +291,7 @@ impl MapMcp {
             .subscriptions
             .notify_resource_updated(&layer_uri)
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_with_links(
             "archived authored feature layer",
             &layer,
@@ -459,7 +459,7 @@ async fn notify_composition(
         .subscriptions
         .notify_resource_updated(&uris::composition_uri(composition.composition_id.as_str()))
         .await;
-    let _ = context.peer.notify_resource_list_changed().await;
+    veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
 }
 
 async fn notify_commit(
@@ -493,7 +493,7 @@ async fn notify_commit(
             ))
             .await;
     }
-    let _ = context.peer.notify_resource_list_changed().await;
+    veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
 }
 
 fn structured_with_links<T, I, U, L>(

@@ -240,6 +240,7 @@ impl TimeMcp {
             .subscriptions
             .notify_resource_updated(uris::EVENTS_URI)
             .await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_result(format!("scheduled {}", event.event_id), &event)
     }
 

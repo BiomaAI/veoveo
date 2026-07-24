@@ -8,8 +8,11 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::time::Duration;
 
 use crate::gateway::{ProviderTaskId, ResourceUri};
+
+const NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn is_terminal(status: &TaskStatus) -> bool {
     matches!(
@@ -134,13 +137,24 @@ pub async fn notify_progress(
     message: &str,
 ) {
     if let Some(token) = token {
-        let _ = peer
-            .notify_progress(
+        match tokio::time::timeout(
+            NOTIFICATION_DELIVERY_TIMEOUT,
+            peer.notify_progress(
                 ProgressNotificationParam::new(token.clone(), progress)
                     .with_total(1.0)
                     .with_message(message),
-            )
-            .await;
+            ),
+        )
+        .await
+        {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "failed to deliver MCP progress notification");
+            }
+            Err(_) => {
+                tracing::warn!("timed out delivering MCP progress notification");
+            }
+        }
     }
 }
 

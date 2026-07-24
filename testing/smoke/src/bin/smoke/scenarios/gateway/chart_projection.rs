@@ -159,7 +159,7 @@ fn write_chart_control_plane(base: &Path, output: &Path, upstream_url: &str) -> 
             "prompts": true,
             "completions": false,
             "tasks": false,
-            "notifications": false,
+            "resources_list_changed": false,
             "apps": true
         },
         "resource_projection": "server_owned",

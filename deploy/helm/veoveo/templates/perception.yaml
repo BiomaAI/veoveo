@@ -95,7 +95,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: perception-mcp
 spec:
-  replicas: {{ .Values.perception.replicas }}
+  replicas: 1
   strategy:
     type: Recreate
   selector:

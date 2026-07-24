@@ -696,7 +696,7 @@ Add an `optimization` server manifest to gateway control data:
     "prompts": false,
     "completions": false,
     "tasks": true,
-    "notifications": true
+    "resources_list_changed": false
   },
   "tools": [
     "plan"

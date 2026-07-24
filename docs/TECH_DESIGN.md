@@ -13,7 +13,7 @@ catalog.
 
 | Standard or protocol | Technical boundary |
 |---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP at client-to-gateway and gateway-to-server boundaries. Catalog projection preserves canonical resources, prompts, completions, subscriptions, notifications, and structured content. |
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over sessionful Streamable HTTP at client-to-gateway and gateway-to-server boundaries. Every response uses event-stream framing. Catalog projection preserves canonical resources, prompts, completions, subscriptions, notifications, and structured content. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Closed, dereferenced MCP tool input schemas generated from Rust or Python types. Controlled persisted and structured-result models use the same typed vocabulary. |
 | [Veoveo final task extension](../mcp/task-extension) | Version `2026-06-30`; durable task augmentation, discovery, lifecycle methods, results, cancellation, and subscriptions use MCP messages rather than a job REST API. |
 | [MCP Apps SEP-1865](../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; server-owned `ui://` resources use the sandboxed MCP Apps host bridge. |
@@ -74,11 +74,18 @@ requires the explicit direct-adapter flag. Compatibility behavior remains additi
 does not create a second protocol or source of truth. Full-MCP clients never receive
 compatibility helper clutter.
 
-The gateway advertises list-change support whenever an exposed upstream can emit
-notifications, then forwards the upstream notification to the connected client. Delivery
-is dispatched outside the upstream response path and bounded, which prevents a client
-that is not consuming notifications from stalling the tool call that caused one. A new
-authenticated session always receives the current policy-filtered catalog.
+The gateway declares tool, prompt, and resource list-change support independently. Each
+claim follows the exact upstream capability and no generic notification switch exists.
+Servers and the gateway await delivery through the owning session in protocol order.
+A two-second delivery bound prevents an unresponsive client from holding the handler
+indefinitely without detaching work after its session ends. A new authenticated session
+always receives the current policy-filtered catalog.
+
+Every logical MCP endpoint has one active process. Helm renders the gateway, hosted MCP
+servers, and local stdio bridges with one replica and `Recreate`. Stdio exists only
+between the bridge and the child whose lifecycle it owns. Legacy HTTP+SSE and network
+stdio are not registration choices. Independently stateless services, including the
+Console BFF and artifact byte service, retain their own replica configuration.
 
 Client hosts may retain their own per-user tool permissions after OAuth grants change.
 Those permissions are outside gateway authority: reconnecting authentication refreshes
@@ -204,7 +211,7 @@ recovery, and outbox transitions. Tenant, principal, profile, server, and operat
 part of idempotency scope.
 
 `veoveo-mcp-task-extension` implements the final `2026-06-30` extension wire contract:
-discovery, task-required tool invocation, get, update, cancel, list, and SSE task
+discovery, task-required tool invocation, get, update, cancel, list, and event-stream task
 subscriptions. It projects the shared runtime's task snapshots; it does not persist a
 parallel task model. Traits use native Rust return-position `impl Future`; the workspace
 does not require `async-trait` for controlled async contracts.
@@ -234,8 +241,9 @@ The media server keeps client/server async and provider/server async separate:
 5. The server durably records the unique event, redeems the preissued artifact
    capability, stores usage, commits the terminal task result, and emits outbox events.
 
-Any replica can receive a callback. Duplicate signed events are idempotent. Provider CDN
-URLs and opaque payloads are not returned to clients. Missing webhook delivery is an
+The one active media MCP process receives callbacks. Duplicate signed events are
+idempotent, and restart recovery replays durable unprocessed events. Provider CDN URLs
+and opaque payloads are not returned to clients. Missing webhook delivery is an
 operational failure; no timeout path queries provider status.
 
 Cancellation is intentionally asymmetric. `tasks/cancel` commits the local cancellation
@@ -445,7 +453,7 @@ Coverage includes:
 - real SurrealDB 3.2 migration/runtime credentials and multi-process durability;
 - gateway OAuth, Keycloak login, refresh rotation/replay, internal assertions, policy,
   admin operations, audit, task and artifact projection;
-- webhook-only media completion across process restart and replica boundaries;
+- webhook-only media completion across process restart and durable event replay;
 - task recovery classes, deterministic resume output, capability redemption, quotas;
 - arbitrary DuckDB SQL and interruption classification;
 - recording crash recovery, rollover, catalog rebuild, and SUMO push readback;

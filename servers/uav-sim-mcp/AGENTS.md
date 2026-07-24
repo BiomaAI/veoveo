@@ -1,7 +1,7 @@
 # UAV Sim MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 1.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
 
 ## Purpose
 
@@ -52,7 +52,7 @@ owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, and PX4 transport.
 
 ## Contract Compliance
 
-Contract revision: 1
+Contract revision: 2
 
 - C01: met
 - C02: met
@@ -77,4 +77,9 @@ Contract revision: 1
 - C21: pending — well-known surface not yet wired
 - C22: met
 - C23: met
+- C25: met
+- C26: met
+- C27: met
+- C28: met
+- C29: met
 - C24: met

@@ -4,7 +4,6 @@ global:
   imageDigests: {}
   imagePullSecrets: []
   imagePullPolicy: IfNotPresent
-  defaultReplicas: 2
   existingSecret: veoveo-installation-secrets
   publicBaseUrl: https://veoveo.enterprise.example
   offline: false
@@ -78,7 +77,6 @@ gateway:
     repository: veoveo/mcp-gateway
     tag: 0.1.0
     digest: ""
-  replicas: 2
   existingControlPlaneConfigMap: veoveo-gateway-control-plane
   controlPlaneKey: gateway.json
   controlPlaneRevision: ""
@@ -139,7 +137,6 @@ recording:
 
 perception:
   enabled: true
-  replicas: 1
   runtimeClassName: nvidia
   image:
     repository: veoveo/perception-mcp
@@ -170,7 +167,6 @@ perception:
 
 reason:
   enabled: false
-  replicas: 1
   runtimeClassName: nvidia
   image:
     repository: veoveo/reason-mcp
@@ -321,7 +317,6 @@ domainServices:
       - --max-artifact-bytes
       - "67108864"
   - name: map-mcp
-    replicas: 1
     startupProbe:
       failureThreshold: 60
       periodSeconds: 5
@@ -364,7 +359,6 @@ domainServices:
       storageClass: ""
       accessModes: [ReadWriteOnce]
   - name: time-mcp
-    replicas: 1
     image:
       repository: veoveo/time-mcp
       tag: 0.1.0
@@ -386,12 +380,6 @@ domainServices:
       storageClass: ""
       accessModes: [ReadWriteOnce]
   - name: view-mcp
-    replicas: 1
-    deploymentStrategy:
-      type: RollingUpdate
-      rollingUpdate:
-        maxSurge: 0
-        maxUnavailable: 1
     runtimeClassName: nvidia
     image:
       repository: veoveo/view-mcp
@@ -430,7 +418,6 @@ domainServices:
       - --artifact-service-url
       - http://artifact-service:8790
   - name: duckdb-mcp
-    replicas: 1
     image:
       repository: veoveo/duckdb-mcp
       tag: 0.1.0
@@ -468,8 +455,6 @@ domainServices:
     healthPath: /health
     platformStore: false
     args:
-      - --transport
-      - http
       - --host
       - 0.0.0.0
       - --port

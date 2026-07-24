@@ -27,7 +27,7 @@ use rmcp::{
     service::RequestContext,
     tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use serde::Serialize;
@@ -143,7 +143,7 @@ impl RecordingMcp {
             .subscribers
             .notify_resource_updated(uris::segments_uri(&request.recording_id))
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_result("recording sealed".to_owned(), &output)
     }
 }
@@ -681,7 +681,7 @@ async fn main() -> anyhow::Result<()> {
             move || Ok(RecordingMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts)
             .with_cancellation_token(cancellation.child_token()),
     );
