@@ -380,12 +380,16 @@ class LiveStreamLeaseTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "already leased"):
             manager.open("stream-2")
-        self.assertEqual(
-            manager.authorize(opened["access_token"]),
-            "stream-1",
-        )
+        sign_in = manager.authorize(opened["access_token"])
+        handoff = manager.authorize(opened["access_token"])
+        self.assertEqual(sign_in.stream_id, "stream-1")
+        self.assertEqual(handoff.stream_id, "stream-1")
+        self.assertNotEqual(sign_in.connection_id, handoff.connection_id)
         self.assertEqual(manager.public_state(), ("live", 1))
-        manager.disconnect("stream-1")
+        manager.disconnect(sign_in)
+        self.assertEqual(manager.public_state(), ("live", 1))
+        manager.disconnect(handoff)
+        self.assertEqual(manager.public_state(), ("ready", 0))
         renewed = manager.renew("stream-1")
         self.assertEqual(renewed["access_token"], opened["access_token"])
         self.assertGreater(renewed["expires_at"], opened["expires_at"])
@@ -457,9 +461,39 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(message.type, WSMsgType.TEXT)
                     self.assertEqual(message.data, "offer")
                     self.assertEqual(leases.public_state(), ("live", 1))
+                    async with client.ws_connect(
+                        (
+                            f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
+                            "?pairing_id=stream-1"
+                        ),
+                        protocols=[
+                            "x-nv-sessionid.stream-1",
+                            f"authorization.bearer.{opened['access_token']}",
+                        ],
+                    ) as handoff:
+                        await handoff.send_str("handoff")
+                        handoff_message = await handoff.receive(timeout=5)
+                        self.assertEqual(handoff_message.type, WSMsgType.TEXT)
+                        self.assertEqual(handoff_message.data, "handoff")
+                        self.assertEqual(leases.public_state(), ("live", 1))
                     self.assertEqual(
                         upstream_requests,
-                        ["/sign_in?pairing_id=stream-1"],
+                        [
+                            "/sign_in?pairing_id=stream-1",
+                            "/sign_in?pairing_id=stream-1",
+                        ],
+                    )
+                self.assertEqual(leases.public_state(), ("ready", 0))
+                with self.assertRaisesRegex(Exception, "403"):
+                    await client.ws_connect(
+                        (
+                            f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
+                            "?pairing_id=another-stream"
+                        ),
+                        protocols=[
+                            "x-nv-sessionid.another-stream",
+                            f"authorization.bearer.{opened['access_token']}",
+                        ],
                     )
         finally:
             proxy.close()

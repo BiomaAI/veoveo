@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::{net::IpAddr, process::Stdio};
 
 use anyhow::ensure;
 use serde::Deserialize;
@@ -122,6 +122,25 @@ struct ReasonScenario {
     prompt: String,
     maximum_frames: u64,
     task_timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct KubernetesService {
+    spec: KubernetesServiceSpec,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KubernetesServiceSpec {
+    ports: Vec<KubernetesServicePort>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct KubernetesServicePort {
+    name: String,
+    protocol: String,
+    node_port: u16,
 }
 
 struct OperatorClient<'a> {
@@ -483,6 +502,7 @@ pub(crate) async fn uav_sim_verify(
                 .is_some_and(|port| port > 0),
         "UAV live-stream endpoint is incomplete: {live}"
     );
+    assert_local_k3d_media_binding(context, &live)?;
     operator
         .call_tool(
             "uav-sim__close_live_stream",
@@ -698,6 +718,62 @@ pub(crate) async fn uav_sim_verify(
 
     println!(
         "UAV simulation acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, PX4 completed a mission, Recording Hub retained the world, Perception produced a governed artifact, Reason described the flight segment grounded in those detections, an authorized context member previewed it, an independent context was denied, and View remained available"
+    );
+    Ok(())
+}
+
+fn assert_local_k3d_media_binding(context: &str, live: &Value) -> Result<()> {
+    let media_server = json_string(live, "/endpoint/media_server")?;
+    let Ok(media_ip) = media_server.parse::<IpAddr>() else {
+        return Ok(());
+    };
+    if !media_ip.is_loopback() {
+        return Ok(());
+    }
+    let cluster = context.strip_prefix("k3d-").with_context(|| {
+        format!("loopback UAV media endpoint {media_server} requires a k3d context, got {context}")
+    })?;
+    let media_port = live
+        .pointer("/endpoint/media_port")
+        .and_then(Value::as_u64)
+        .and_then(|port| u16::try_from(port).ok())
+        .context("UAV live-stream endpoint returned an invalid media port")?;
+    let service: KubernetesService = serde_json::from_str(&run_checked(
+        Path::new("kubectl"),
+        [
+            "--context",
+            context,
+            "-n",
+            NAMESPACE,
+            "get",
+            "service",
+            "uav-sim-live",
+            "-o",
+            "json",
+        ]
+        .map(OsString::from),
+        [],
+    )?)
+    .context("decoding the UAV live-stream Service")?;
+    let node_port = service
+        .spec
+        .ports
+        .iter()
+        .find(|port| port.name == "media" && port.protocol == "UDP")
+        .map(|port| port.node_port)
+        .context("UAV live-stream Service omitted its UDP media NodePort")?;
+    let load_balancer = format!("k3d-{cluster}-serverlb");
+    let bindings = run_checked(
+        Path::new("docker"),
+        ["port".into(), load_balancer.clone().into()],
+        [],
+    )
+    .with_context(|| format!("reading host ports from {load_balancer}"))?;
+    let expected = format!("{node_port}/udp -> {media_ip}:{media_port}");
+    ensure!(
+        bindings.lines().any(|binding| binding.trim() == expected),
+        "{load_balancer} does not expose the UAV media binding {expected}; \
+         apply examples/bioma/k3d.yaml before browser acceptance"
     );
     Ok(())
 }

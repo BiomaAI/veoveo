@@ -327,12 +327,16 @@ credentials.
 
 NetworkPolicy permits Cesium ion and required NVIDIA asset egress, internal
 SurrealDB and recording traffic, the gateway-to-MCP path, authenticated
-WebSocket signaling, and SRTP media. The signaling proxy admits one connected
+WebSocket signaling, and SRTP media. The signaling proxy admits one logical
 viewer only after a constant-time comparison against the MCP-issued lease
-token. Closing or expiry tears down signaling. The MCP App declares its exact
-signaling origin through `_meta.ui.csp`; the Console rejects wildcard,
-credential-bearing, path-bearing, or unsupported origins before constructing
-the iframe CSP. The MCP server never proxies arbitrary URLs.
+token and an exact match with NVIDIA's stream-session subprotocol. A viewer
+lease may own overlapping authenticated WebSockets because NVIDIA hands
+signaling from its sign-in socket to a persistent socket. Those sockets share
+one lease lifecycle and still project one connected viewer. Closing or expiry
+tears down every signaling connection owned by the lease. The MCP App declares
+its exact signaling origin through `_meta.ui.csp`; the Console rejects
+wildcard, credential-bearing, path-bearing, or unsupported origins before
+constructing the iframe CSP. The MCP server never proxies arbitrary URLs.
 
 ## Acceptance
 
