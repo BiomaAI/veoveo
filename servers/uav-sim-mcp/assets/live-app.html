@@ -207,7 +207,7 @@ async function openStream(provided) {
   el("connect").disabled = true;
   setStatus("opening", false);
   try {
-    if (!provided) await requireHardwareDecode(liveCapability);
+    if (!provided) await requireCompatibleDecode(liveCapability);
     connection = provided || await callTool("open_live_stream", { session_id:sessionId });
     await connectNvidia(connection);
     scheduleRenew();

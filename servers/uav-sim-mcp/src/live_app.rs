@@ -33,10 +33,15 @@ mod tests {
             "close_live_stream",
             "ui/resource-teardown",
             "!result.supported || !result.smooth",
+            "requireCompatibleDecode(liveCapability)",
             "software H.264 decode",
             "hardware H.264 decode",
         ] {
             assert!(html.contains(needle), "missing {needle}");
         }
+        assert!(
+            !html.contains("requireHardwareDecode"),
+            "live App references the removed hardware-only decode gate"
+        );
     }
 }
