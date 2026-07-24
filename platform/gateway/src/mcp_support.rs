@@ -528,6 +528,9 @@ mod tests {
         server
             .referenced_resource_schemes
             .insert(ResourceScheme::new("frames").unwrap());
+        server
+            .referenced_resource_schemes
+            .insert(ResourceScheme::new("recording").unwrap());
         let mut result = CallToolResult::success(vec![]);
         result.structured_content = Some(serde_json::json!({
             "world": {
@@ -536,6 +539,7 @@ mod tests {
                     "frames://world/new-york/revision/revision-1/frame/isaac-world"
                 )
             },
+            "recording_uri": "recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e",
             "vendor_resource": "vendor://session/alpha",
             "app_resource": "ui://vendor/live.html"
         }));
@@ -550,6 +554,10 @@ mod tests {
         assert_eq!(
             structured["world"]["simulation_frame_uri"].as_str(),
             Some("frames://world/new-york/revision/revision-1/frame/isaac-world")
+        );
+        assert_eq!(
+            structured["recording_uri"].as_str(),
+            Some("recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e")
         );
         assert_eq!(
             structured["vendor_resource"].as_str(),

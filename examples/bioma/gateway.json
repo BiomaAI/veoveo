@@ -151,7 +151,8 @@
       },
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [
-        "frames"
+        "frames",
+        "recording"
       ]
     },
     {
