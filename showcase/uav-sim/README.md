@@ -48,9 +48,10 @@ NVIDIA GPU. Cesium asset `2275207` streams Google Photorealistic 3D Tiles into
 that viewport. The runtime fails if CUDA, NVENC, required extensions, tile
 residency, PX4, or visible camera content is unavailable.
 
-Kit encodes the persistent follow camera once through NVIDIA NVENC as H.264
-WebRTC. The authenticated signaling proxy admits one owner-scoped MCP lease.
-The native Kit signaling port remains private.
+Kit streams the persistent follow camera's primary viewport `LdrColor` AOV
+directly through its GPU render graph. NVIDIA NVENC encodes it once as H.264
+WebRTC. The authenticated signaling proxy admits one owner-scoped MCP lease,
+while the native Kit signaling port remains private.
 
 The browser checks the exact stream configuration through Media Capabilities.
 `supported && smooth` is required. `powerEfficient` selects the displayed

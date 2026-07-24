@@ -21,7 +21,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn app_is_self_contained_and_drives_the_typed_lifecycle() {
+    fn app_is_self_contained_and_starts_the_typed_stream_automatically() {
         let html = live_app_html();
         assert!(!html.contains(MARKER));
         for needle in [
@@ -32,13 +32,38 @@ mod tests {
             "renew_live_stream",
             "close_live_stream",
             "ui/resource-teardown",
+            "ResizeObserver",
+            "aspect-ratio:16 / 9",
+            "object-fit:contain",
+            "void openStream()",
             "!result.supported || !result.smooth",
-            "requireCompatibleDecode(liveCapability)",
             "software H.264 decode",
             "hardware H.264 decode",
         ] {
             assert!(html.contains(needle), "missing {needle}");
         }
+        assert!(
+            !html.contains("Open live view"),
+            "live App must start its view automatically"
+        );
+        for dashboard_control in [
+            "pause_simulation",
+            "resume_simulation",
+            "reset_simulation",
+            "step_simulation",
+            "arm_vehicle",
+            "takeoff_vehicle",
+            "land_vehicle",
+        ] {
+            assert!(
+                !html.contains(dashboard_control),
+                "live App contains dashboard control {dashboard_control}"
+            );
+        }
+        assert!(
+            !html.contains("#app { padding"),
+            "live App must remain an edge-to-edge tile"
+        );
         assert!(
             !html.contains("requireHardwareDecode"),
             "live App references the removed hardware-only decode gate"

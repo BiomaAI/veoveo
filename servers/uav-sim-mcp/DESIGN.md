@@ -19,7 +19,7 @@ gateway.
 | WGS 84, ECEF, ENU, and NED | Immutable ECEF-rooted Frames world, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
 | [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
 | Veoveo recording ingest | Version `2026-07-21`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
-| [NVIDIA Kit WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The persistent follow viewport is encoded once through NVIDIA NVENC and delivered as H.264 WebRTC. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
+| [NVIDIA Kit AOV streaming](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.aov/latest/Overview.html) and [WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The primary viewport `LdrColor` render product is copied through the GPU render graph, encoded once through NVIDIA NVENC, and delivered as H.264 WebRTC. The AOV extension is pinned to `10.2.0+110.1.2.lx64.r.cp312`. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
 | Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and the private Kit signaling port never become public gateway routes. |
 
 ## Identity
@@ -225,11 +225,18 @@ and invocation authority. They never serialize the WebRTC access token.
 
 ### Live follow-camera App
 
-The App opens the same typed stream tools advertised to model clients. It reads
-the session index once per second for low-rate flight context, renders the
-NVIDIA WebRTC video in a view-only element, reports transport statistics, and
-renews the lease halfway to expiry. Teardown terminates the client and closes
-the lease before acknowledging the host.
+The App is one clean, single-purpose follow-camera tile. It opens the same typed
+stream tools advertised to model clients automatically after initialization,
+without a play action. It reads the session index once per second for low-rate
+flight context, renders the NVIDIA WebRTC video in a view-only element, reports
+transport statistics, and renews the lease halfway to expiry. Teardown
+terminates the client and closes the lease before acknowledging the host.
+
+The App has no outer padding or dashboard controls. Its stage owns a `16:9`
+aspect ratio, displays the complete frame with `object-fit: contain`, and
+reports every intrinsic size change to the host. This keeps the video and stats
+strip inside the App frame without a nested scrollbar. A broader simulation
+dashboard is a separate App and cannot accrete controls into this tile.
 
 The exact H.264 configuration must be `supported` and `smooth` according to
 Media Capabilities. A `powerEfficient` result is labeled hardware H.264 decode.
@@ -237,6 +244,10 @@ When `powerEfficient` is false, the App may continue under the repository's
 single browser software-decode exception and labels the path software H.264
 decode. Headed hardware WebGPU and WebGL remain mandatory visual-verification
 preconditions. Kit rendering and NVIDIA NVENC remain mandatory server paths.
+The server streams the primary viewport's `LdrColor` AOV directly rather than
+capturing the complete application framebuffer. The direct AOV path keeps
+render completion, GPU buffer transfer, and NVENC submission within NVIDIA's
+render pipeline and avoids framebuffer handoff artifacts.
 
 The source tree carries a diagnostic client stub for ordinary Rust tests. The
 production MCP image downloads `@nvidia/ov-web-rtc` `6.6.0` from NVIDIA's
