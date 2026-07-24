@@ -22,6 +22,7 @@ struct UavAcceptanceScenario {
     schema: String,
     session_id: String,
     frame_uri: String,
+    origin: OriginScenario,
     vehicle_id: String,
     takeoff: TakeoffScenario,
     camera: CameraAcceptance,
@@ -30,6 +31,14 @@ struct UavAcceptanceScenario {
     perception: PerceptionScenario,
     reason: ReasonScenario,
     landing_timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OriginScenario {
+    latitude_degrees: f64,
+    longitude_degrees: f64,
+    ellipsoid_height_m: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,7 +162,7 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v4",
+            self.schema == "veoveo.uav-sim-acceptance/v5",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
@@ -163,6 +172,15 @@ impl UavAcceptanceScenario {
             self.frame_uri.starts_with("frames://frame/")
                 && self.frame_uri.len() > "frames://frame/".len(),
             "frame_uri must use frames://frame/{{frame_id}}"
+        );
+        ensure!(
+            self.origin.latitude_degrees.is_finite()
+                && (-90.0..=90.0).contains(&self.origin.latitude_degrees)
+                && self.origin.longitude_degrees.is_finite()
+                && (-180.0..=180.0).contains(&self.origin.longitude_degrees)
+                && self.origin.ellipsoid_height_m.is_finite()
+                && (-100_000.0..=100_000.0).contains(&self.origin.ellipsoid_height_m),
+            "origin must contain bounded WGS84 coordinates"
         );
         ensure!(
             self.takeoff.relative_altitude_m.is_finite()
@@ -291,6 +309,9 @@ pub(crate) async fn uav_sim_verify(
         .await?;
     for tool in [
         "uav-sim__get_simulation_state",
+        "uav-sim__open_live_stream",
+        "uav-sim__renew_live_stream",
+        "uav-sim__close_live_stream",
         "uav-sim__execute_mission",
         "perception__analyze_recording",
         "reason__analyze_recording",
@@ -302,8 +323,13 @@ pub(crate) async fn uav_sim_verify(
     let frame = operator
         .conformance(&["resource", &scenario.frame_uri], Duration::from_secs(60))
         .await?;
-    for expected in ["13.6929", "-89.2182", "700.0", "enu"] {
-        contains(&frame, expected)?;
+    for expected in [
+        scenario.origin.latitude_degrees.to_string(),
+        scenario.origin.longitude_degrees.to_string(),
+        scenario.origin.ellipsoid_height_m.to_string(),
+        "enu".to_owned(),
+    ] {
+        contains(&frame, &expected)?;
     }
     contains(
         &frame,
@@ -315,6 +341,39 @@ pub(crate) async fn uav_sim_verify(
 
     let mut state = simulation_state(&operator, &scenario).await?;
     assert_world_ready(&state, &scenario)?;
+    assert_georeference_origin(&state, &scenario)?;
+    let live = operator
+        .call_tool(
+            "uav-sim__open_live_stream",
+            serde_json::json!({"session_id": scenario.session_id}),
+        )
+        .await?;
+    ensure!(
+        json_string(&live, "/stream/hardware_encoder")? == "nvidia_nvenc"
+            && json_string(&live, "/stream/codec")? == "h264"
+            && json_string(&live, "/stream/source")? == "follow_camera"
+            && !json_string(&live, "/access_token")?.is_empty(),
+        "UAV live-stream lease is not NVIDIA accelerated: {live}"
+    );
+    ensure!(
+        live.pointer("/endpoint/signaling_port")
+            .and_then(Value::as_u64)
+            .is_some_and(|port| port > 0)
+            && live
+                .pointer("/endpoint/media_port")
+                .and_then(Value::as_u64)
+                .is_some_and(|port| port > 0),
+        "UAV live-stream endpoint is incomplete: {live}"
+    );
+    operator
+        .call_tool(
+            "uav-sim__close_live_stream",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "stream_id": json_string(&live, "/stream/stream_id")?,
+            }),
+        )
+        .await?;
     let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
     let recording_id = recording_uri
         .strip_prefix("recording://recordings/")
@@ -766,6 +825,23 @@ fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result
                 }),
         "Isaac nadir camera is not operational: {state}"
     );
+    ensure!(
+        matches!(
+            json_string(state, "/live_stream/lifecycle")?,
+            "ready" | "live"
+        ) && json_string(state, "/live_stream/source")? == "follow_camera"
+            && json_string(state, "/live_stream/codec")? == "h264"
+            && json_string(state, "/live_stream/hardware_encoder")? == "nvidia_nvenc"
+            && state
+                .pointer("/live_stream/width")
+                .and_then(Value::as_u64)
+                .is_some_and(|width| width >= 1280)
+            && state
+                .pointer("/live_stream/fps")
+                .and_then(Value::as_u64)
+                .is_some_and(|fps| fps >= 20),
+        "NVIDIA follow-camera live streaming is not ready: {state}"
+    );
     Ok(())
 }
 
@@ -970,6 +1046,25 @@ fn json_number(object: &serde_json::Map<String, Value>, key: &str) -> Result<f64
         .with_context(|| format!("georeference_origin omitted numeric {key}"))
 }
 
+fn assert_georeference_origin(state: &Value, scenario: &UavAcceptanceScenario) -> Result<()> {
+    let origin = state
+        .get("georeference_origin")
+        .and_then(Value::as_object)
+        .context("UAV state omitted georeference_origin")?;
+    for (key, expected) in [
+        ("latitude_degrees", scenario.origin.latitude_degrees),
+        ("longitude_degrees", scenario.origin.longitude_degrees),
+        ("ellipsoid_height_m", scenario.origin.ellipsoid_height_m),
+    ] {
+        let actual = json_number(origin, key)?;
+        ensure!(
+            (actual - expected).abs() <= 1e-9,
+            "UAV state {key} {actual} disagrees with scenario origin {expected}"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -982,8 +1077,11 @@ mod tests {
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v4");
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v5");
         assert_eq!(scenario.session_id, "bioma-uav");
+        assert_eq!(scenario.origin.latitude_degrees, 40.758);
+        assert_eq!(scenario.origin.longitude_degrees, -73.9855);
+        assert_eq!(scenario.origin.ellipsoid_height_m, -17.0);
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.frozen_rows_timeout_seconds, 1_200);

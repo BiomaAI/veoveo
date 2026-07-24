@@ -1,4 +1,5 @@
 use anyhow::ensure;
+use sha2::{Digest, Sha256};
 
 use super::*;
 
@@ -161,13 +162,39 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: reason-mcp",
         "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,datasheet\"",
         "checksum/reason-runtime:",
-        "checksum/control-plane: \"unresolved\"",
     ] {
         contains(&bioma, expected)?;
     }
+    let control_plane = fs::read("examples/bioma/gateway.json")?;
+    let control_plane_revision = hex::encode(Sha256::digest(control_plane));
+    let bioma_values = fs::read_to_string("examples/bioma/values.yaml")?;
+    contains(
+        &bioma_values,
+        &format!("controlPlaneRevision: {control_plane_revision}"),
+    )?;
+    contains(
+        &bioma,
+        &format!("checksum/control-plane: \"{control_plane_revision}\""),
+    )?;
+    contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
+    not_contains(&bioma, "bootstrap-1")?;
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
+        }
+    }
+    for component in ["map-mcp", "time-mcp"] {
+        let deployment = bioma
+            .split("\n---\n")
+            .find(|document| {
+                document.contains("kind: Deployment")
+                    && document.contains(&format!("name: {component}\n"))
+            })
+            .with_context(|| format!("finding rendered {component} deployment"))?;
+        contains(deployment, "strategy:\n    type: Recreate")?;
+        if component == "map-mcp" {
+            contains(deployment, "startupProbe:")?;
+            contains(deployment, "failureThreshold: 60")?;
         }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
@@ -241,6 +268,21 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"0.7071067811865476\"",
         "name: UAV_SIM_RECORDING_TENANT_KEY",
         "value: \"bioma\"",
+        "name: UAV_SIM_FOLLOW_CAMERA_WIDTH",
+        "value: \"1280\"",
+        "name: UAV_SIM_LIVE_STREAM_SIGNALING_URL",
+        "value: \"wss://veoveo.bioma.ai/webrtc\"",
+        "name: UAV_SIM_LIVE_STREAM_PUBLIC_IP",
+        "name: uav-sim-live",
+        "host: veoveo.bioma.ai",
+        "path: /webrtc",
+        "ingressClassName: traefik",
+        "name: stream-signal",
+        "containerPort: 49101",
+        "name: stream-media",
+        "containerPort: 47998",
+        "nodePort: 30910",
+        "nodePort: 30998",
         "name: ROS_DISTRO",
         "value: jazzy",
         "name: RMW_IMPLEMENTATION",
@@ -488,7 +530,14 @@ pub(crate) async fn helm_config() -> Result<()> {
         "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
-    contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
+    for expected in [
+        "--bin uav-sim-mcp",
+        "@nvidia/ov-web-rtc@6.6.0",
+        "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
+        "UAV_SIM_WEBRTC_CLIENT_BUNDLE=/tmp/ov-web-rtc.umd.cjs",
+    ] {
+        contains(&uav_mcp_dockerfile, expected)?;
+    }
     let bake = fs::read_to_string("docker-bake.hcl")?;
     for expected in [
         "group \"platform-core\"",
@@ -549,14 +598,22 @@ pub(crate) async fn helm_config() -> Result<()> {
             &application,
             "$configuration/examples/bioma/images.lock.yaml",
         )?;
-        contains(&application, "targetRevision: 0.1.0-92ba57cdf93d")?;
+        contains(&application, "targetRevision: 0.1.0-2635f5526f6f")?;
         not_contains(&application, "ServerSideApply=true")?;
     }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
         "showcase/uav-sim/scenarios/bioma-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v4")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v5")
+            && uav_scenario
+                .pointer("/origin/latitude_degrees")
+                .and_then(Value::as_f64)
+                == Some(40.758)
+            && uav_scenario
+                .pointer("/origin/longitude_degrees")
+                .and_then(Value::as_f64)
+                == Some(-73.9855)
             && uav_scenario
                 .pointer("/takeoff/relative_altitude_m")
                 .and_then(Value::as_f64)

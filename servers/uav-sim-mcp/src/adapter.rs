@@ -14,9 +14,10 @@ use veoveo_platform_store::{
 use crate::{
     contract::{
         CameraState, CaptureDatasetResult, CommandAcknowledgement, DurableOperation,
-        DurableOperationResult, MissionId, MissionLifecycle, MissionResult, RecordingId,
-        RecordingState, ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle,
-        SimulationState, TileState, VehicleFlightState, VehicleState, Wgs84Position,
+        DurableOperationResult, LiveStreamAccessToken, LiveStreamCapability, MissionId,
+        MissionLifecycle, MissionResult, RecordingId, RecordingState, ScenarioResult, SessionId,
+        SimulationCommand, SimulationLifecycle, SimulationState, StreamId, TileState,
+        VehicleFlightState, VehicleState, Wgs84Position,
     },
     uris,
 };
@@ -46,9 +47,18 @@ struct AdapterSimulationState {
     georeference_origin: Wgs84Position,
     tiles: TileState,
     cameras: Vec<CameraState>,
+    live_stream: LiveStreamCapability,
     vehicles: Vec<VehicleState>,
     recordings: Vec<AdapterRecordingState>,
     updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdapterLiveStreamLease {
+    pub stream_id: StreamId,
+    pub access_token: LiveStreamAccessToken,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,6 +163,7 @@ impl HttpAdapter {
             georeference_origin: state.georeference_origin,
             tiles: state.tiles,
             cameras: state.cameras,
+            live_stream: state.live_stream,
             vehicles: state.vehicles,
             recordings,
             updated_at: state.updated_at,
@@ -211,6 +222,48 @@ impl HttpAdapter {
                 })
             }
         })
+    }
+
+    pub async fn open_live_stream(
+        &self,
+        session_id: &SessionId,
+        stream_id: &StreamId,
+    ) -> Result<AdapterLiveStreamLease, AdapterError> {
+        self.post(
+            "v1/live-streams",
+            &serde_json::json!({"session_id": session_id, "stream_id": stream_id}),
+        )
+        .await
+    }
+
+    pub async fn renew_live_stream(
+        &self,
+        stream_id: &StreamId,
+    ) -> Result<AdapterLiveStreamLease, AdapterError> {
+        self.post(
+            &format!("v1/live-streams/{stream_id}/renew"),
+            &serde_json::json!({}),
+        )
+        .await
+    }
+
+    pub async fn close_live_stream(&self, stream_id: &StreamId) -> Result<(), AdapterError> {
+        let response = self
+            .client
+            .delete(self.endpoint(&format!("v1/live-streams/{stream_id}"))?)
+            .send()
+            .await
+            .map_err(AdapterError::Transport)?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let detail = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "adapter response body unavailable".to_owned());
+            Err(AdapterError::Rejected { status, detail })
+        }
     }
 
     async fn resolve_recording_keys(
@@ -341,11 +394,15 @@ where
 
 pub struct FakeAdapter {
     state: SimulationState,
+    live_stream: Option<AdapterLiveStreamLease>,
 }
 
 impl FakeAdapter {
     pub fn new(state: SimulationState) -> Self {
-        Self { state }
+        Self {
+            state,
+            live_stream: None,
+        }
     }
 
     pub fn state(&self) -> SimulationState {
@@ -495,6 +552,53 @@ impl FakeAdapter {
         }
     }
 
+    pub fn open_live_stream(
+        &mut self,
+        session_id: &SessionId,
+        stream_id: &StreamId,
+    ) -> Result<AdapterLiveStreamLease, AdapterError> {
+        self.require_session(session_id)?;
+        if self.live_stream.is_some() {
+            return Err(AdapterError::InvalidState(
+                "the follow-camera live stream is already leased".to_owned(),
+            ));
+        }
+        let lease = AdapterLiveStreamLease {
+            stream_id: stream_id.clone(),
+            access_token: LiveStreamAccessToken::new(format!("fake-{stream_id}-access"))
+                .map_err(|error| AdapterError::InvalidState(error.to_string()))?,
+            expires_at: Utc::now() + chrono::Duration::minutes(5),
+        };
+        self.live_stream = Some(lease.clone());
+        Ok(lease)
+    }
+
+    pub fn renew_live_stream(
+        &mut self,
+        stream_id: &StreamId,
+    ) -> Result<AdapterLiveStreamLease, AdapterError> {
+        let lease = self
+            .live_stream
+            .as_mut()
+            .filter(|lease| &lease.stream_id == stream_id)
+            .ok_or_else(|| AdapterError::UnknownLiveStream(stream_id.to_string()))?;
+        lease.expires_at = Utc::now() + chrono::Duration::minutes(5);
+        Ok(lease.clone())
+    }
+
+    pub fn close_live_stream(&mut self, stream_id: &StreamId) -> Result<(), AdapterError> {
+        if self
+            .live_stream
+            .as_ref()
+            .is_some_and(|lease| &lease.stream_id == stream_id)
+        {
+            self.live_stream = None;
+            Ok(())
+        } else {
+            Err(AdapterError::UnknownLiveStream(stream_id.to_string()))
+        }
+    }
+
     fn require_session(&self, session_id: &crate::contract::SessionId) -> Result<(), AdapterError> {
         if &self.state.session_id == session_id {
             Ok(())
@@ -556,6 +660,34 @@ impl Adapter {
             Self::Fake(adapter) => adapter.lock().await.execute(operation),
         }
     }
+
+    pub async fn open_live_stream(
+        &self,
+        session_id: &SessionId,
+        stream_id: &StreamId,
+    ) -> Result<AdapterLiveStreamLease, AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.open_live_stream(session_id, stream_id).await,
+            Self::Fake(adapter) => adapter.lock().await.open_live_stream(session_id, stream_id),
+        }
+    }
+
+    pub async fn renew_live_stream(
+        &self,
+        stream_id: &StreamId,
+    ) -> Result<AdapterLiveStreamLease, AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.renew_live_stream(stream_id).await,
+            Self::Fake(adapter) => adapter.lock().await.renew_live_stream(stream_id),
+        }
+    }
+
+    pub async fn close_live_stream(&self, stream_id: &StreamId) -> Result<(), AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.close_live_stream(stream_id).await,
+            Self::Fake(adapter) => adapter.lock().await.close_live_stream(stream_id),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -572,6 +704,8 @@ pub enum AdapterError {
     UnknownSession(String),
     #[error("unknown vehicle `{0}`")]
     UnknownVehicle(String),
+    #[error("unknown live stream `{0}`")]
+    UnknownLiveStream(String),
     #[error("invalid simulator state: {0}")]
     InvalidState(String),
     #[error("recording catalog failed: {0}")]
@@ -588,7 +722,8 @@ mod tests {
 
     use super::*;
     use crate::contract::{
-        CameraLifecycle, CameraState, EnuVector, NedVector, QuaternionXyzw, SessionId,
+        CameraLifecycle, CameraState, EnuVector, LiveStreamCodec, LiveStreamHardwareEncoder,
+        LiveStreamLifecycle, LiveStreamSource, NedVector, QuaternionXyzw, SessionId,
         StepSimulationRequest, TileLifecycle, TileState, VehicleId, VehicleState, Wgs84Position,
     };
 
@@ -625,6 +760,16 @@ mod tests {
                 non_black_fraction: 0.95,
                 diagnostic: None,
             }],
+            live_stream: LiveStreamCapability {
+                lifecycle: LiveStreamLifecycle::Ready,
+                source: LiveStreamSource::FollowCamera,
+                codec: LiveStreamCodec::H264,
+                hardware_encoder: LiveStreamHardwareEncoder::NvidiaNvenc,
+                width: 1280,
+                height: 720,
+                fps: 20,
+                connected_viewers: 0,
+            },
             vehicles: vec![VehicleState {
                 vehicle_id: VehicleId::new("uav-1").unwrap(),
                 flight_state: VehicleFlightState::Standby,

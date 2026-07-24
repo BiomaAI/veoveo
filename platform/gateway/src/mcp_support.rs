@@ -65,9 +65,7 @@ pub(crate) fn project_upstream_resource_uri_for_gateway(
             server.slug.as_str(),
             projected_ui_resource_path(path)
         )
-    } else if scheme == "http"
-        || scheme == "https"
-        || scheme == "data"
+    } else if matches!(scheme, "http" | "https" | "ws" | "wss" | "data")
         || scheme == server.uri_scheme.as_str()
     {
         upstream_uri.to_string()
@@ -99,7 +97,7 @@ pub(crate) fn project_gateway_resource_uri_for_upstream(
         && (scheme == server.uri_scheme.as_str()
             || scheme == "http"
             || scheme == "https"
-            || scheme == "data")
+            || matches!(scheme, "http" | "https" | "ws" | "wss" | "data"))
     {
         return Ok(Some(gateway_resource_uri(gateway_uri)?));
     }
@@ -510,6 +508,34 @@ mod tests {
         assert_eq!(
             structured["resources"][1]["resourceUri"].as_str(),
             Some("ui://charts/chart-view.html")
+        );
+    }
+
+    #[test]
+    fn server_owned_projection_preserves_app_websocket_csp_origins() {
+        let server = test_server("uav-sim", "uav-sim", ResourceProjectionMode::ServerOwned);
+        let mut resource = Resource::new("ui://uav-sim/live.html", "uav-sim-live-app").with_meta({
+            let mut meta = rmcp::model::Meta::new();
+            meta.insert(
+                "ui".to_owned(),
+                serde_json::json!({
+                    "csp": {
+                        "connectDomains": [
+                            "wss://veoveo.bioma.ai",
+                            "ws://127.0.0.1:49101"
+                        ]
+                    }
+                }),
+            );
+            meta
+        });
+
+        project_listed_resource_uri(&server, &mut resource).unwrap();
+
+        let connect_domains = &resource.meta.unwrap().0["ui"]["csp"]["connectDomains"];
+        assert_eq!(
+            connect_domains,
+            &serde_json::json!(["wss://veoveo.bioma.ai", "ws://127.0.0.1:49101"])
         );
     }
 }

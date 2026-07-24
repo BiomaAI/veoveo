@@ -17,7 +17,7 @@ Implemented in this workspace.
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`, with `ui://` resources, `text/html;profile=mcp-app`, tool-to-app metadata, host context, lifecycle notifications, and the `postMessage` bridge. |
 | [Veoveo final task extension](../task-extension) | Version `2026-06-30`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
-| HTML iframe sandbox and Content Security Policy | Self-contained HTML runs in an opaque-origin `sandbox="allow-scripts"` frame under a deny-all CSP. Network, cookies, storage, and same-origin privilege are absent. |
+| HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies network access; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
 
 ## The rule
 
@@ -51,8 +51,11 @@ A server shipping a view (see `servers/timeseries-mcp` and
    `.with_icons(...)` (data: URIs — hosts render nav/catalog entries from
    these fields, so they are the server-owned menu contribution).
 3. Serve the view: `app_html_contents(uri, include_str!(...))` from
-   `read_resource`. The document must be fully self-contained (inline
-   CSS/JS, `data:` images only) — hosts apply a deny-all frame CSP.
+   `read_resource`. The document stays self-contained unless its function
+   requires a declared live-data connection. Such a view uses
+   `app_resource_with_meta` and lists exact installation-owned origins in
+   `_meta.ui.csp`; it does not name wildcards, paths, credentials, queries, or
+   fragments.
 4. Link tools: `link_tool_to_app(tool, uri, &[Model, App])` in `list_tools`
    for every tool the view may invoke. Tools without an app link are never
    app-callable.
@@ -72,10 +75,11 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   (`is_app_resource`), derives ownership from the `ui://{server}/…` prefix,
   and attaches only that server's app-visible linked tools. There is no
   manual registration step anywhere.
-- **Frame** — app HTML is served same-origin with a deny-all CSP
-  (`default-src 'none'`; inline script/style; `data:` images) into an
-  `<iframe sandbox="allow-scripts">` (opaque origin: no cookies, storage, or
-  network).
+- **Frame** — app HTML is served same-origin with `default-src 'none'` into an
+  `<iframe sandbox="allow-scripts">`. The BFF validates every declared CSP
+  origin, sorts and deduplicates the result, and adds only those exact sources
+  to the relevant directive. Apps without a declaration keep the offline
+  policy. The opaque origin has no cookies, storage, or same-origin privilege.
 - **Bridge** — the host declares `serverTools` and `serverResources`
   capabilities. `tools/call` from a view is proxied only to app-visible
   tools linked to that exact view on that view's server. `resources/read`

@@ -38,7 +38,9 @@ spec:
         {{- end }}
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
-        {{- if $controlPlane }}
+        {{- if .Values.gateway.controlPlaneRevision }}
+        checksum/control-plane: {{ .Values.gateway.controlPlaneRevision | quote }}
+        {{- else if $controlPlane }}
         checksum/control-plane: {{ get $controlPlane.data .Values.gateway.controlPlaneKey | sha256sum | quote }}
         {{- else }}
         checksum/control-plane: "unresolved"

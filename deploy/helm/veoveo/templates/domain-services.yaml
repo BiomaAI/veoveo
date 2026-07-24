@@ -47,6 +47,9 @@ spec:
   {{- if $service.deploymentStrategy }}
   strategy:
     {{- toYaml $service.deploymentStrategy | nindent 4 }}
+  {{- else if $service.persistence }}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
@@ -130,6 +133,18 @@ spec:
           ports:
             - name: http
               containerPort: {{ $service.port }}
+          {{- with $service.startupProbe }}
+          startupProbe:
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ printf "%s:%v" $service.name $service.port | quote }}
+            failureThreshold: {{ .failureThreshold }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: {{ $service.healthPath }}

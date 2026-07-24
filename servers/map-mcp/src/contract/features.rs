@@ -456,6 +456,9 @@ pub struct CreateFeatureLayerRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub content_class: FeatureContentClass,
+    /// JSON Schema 2020-12 document in object form; `validate_schema` rejects
+    /// every other shape, so the advertised input contract declares an object.
+    #[schemars(with = "serde_json::Map<String, serde_json::Value>")]
     pub property_schema: serde_json::Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style: Option<LayerStyle>,
@@ -469,7 +472,10 @@ pub struct UpdateFeatureLayerRequest {
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// JSON Schema 2020-12 document in object form; `validate_schema` rejects
+    /// every other shape, so the advertised input contract declares an object.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<serde_json::Map<String, serde_json::Value>>")]
     pub property_schema: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style: Option<LayerStyle>,
@@ -606,10 +612,46 @@ pub enum Cql2Operator {
     IsNull,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Cql2Filter {
     pub op: Cql2Operator,
     pub args: Vec<Cql2Expression>,
+}
+
+/// `Cql2Filter` is recursive, which a canonical-profile input schema cannot
+/// express: the profile forbids references and requires immediate types. The
+/// advertised contract therefore describes one operation level and leaves
+/// nested arguments as typed open values; the query compiler fully validates
+/// structure, depth, and node count at the boundary.
+impl JsonSchema for Cql2Filter {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("Cql2Filter")
+    }
+
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "object",
+            "description": "Bounded Basic CQL2-JSON predicate: `op` with `args` of nested operations, `{\"property\": name}` references, or literals.",
+            "properties": {
+                "op": {
+                    "type": "string",
+                    "enum": ["and", "or", "not", "=", "<>", "<", "<=", ">", ">=", "isNull"]
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": ["object", "string", "number", "boolean", "null"]
+                    }
+                }
+            },
+            "required": ["op", "args"],
+            "additionalProperties": false
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -11,9 +11,9 @@ session:
   id: bioma-uav
   frameUri: frames://frame/bioma-uav-origin
   origin:
-    latitudeDegrees: 13.6929
-    longitudeDegrees: -89.2182
-    ellipsoidHeightM: 700.0
+    latitudeDegrees: 40.7580
+    longitudeDegrees: -73.9855
+    ellipsoidHeightM: -17.0
   camera:
     width: 640
     height: 480
@@ -33,3 +33,37 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
+  followCamera:
+    width: 1280
+    height: 720
+    fps: 20
+    focalLengthMm: 32.0
+    eyeOffsetM:
+      x: -8.0
+      "y": -8.0
+      z: 4.0
+    targetOffsetM:
+      x: 0.0
+      "y": 0.0
+      z: 0.2
+
+liveStream:
+  signalingUrl: wss://veoveo.bioma.ai/webrtc
+  signalingPath: /webrtc
+  privateSignalPort: 49100
+  proxyPort: 49101
+  publicMediaServer: 127.0.0.1
+  mediaPort: 47998
+  publicIp: 127.0.0.1
+  leaseTtlSeconds: 300
+  service:
+    type: NodePort
+    signalNodePort: 30910
+    mediaNodePort: 30998
+  ingress:
+    enabled: true
+    className: traefik
+    host: veoveo.bioma.ai
+    path: /webrtc
+    tlsSecret: ""
+    annotations: {}

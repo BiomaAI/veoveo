@@ -11,6 +11,7 @@ from aiohttp import web
 
 from .config import RuntimeConfig
 from .contracts import ContractError, DirectCommand, DurableOperation, parse_command, parse_operation
+from .live_stream import LiveStreamLeaseManager
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
 from .state import RuntimeState
@@ -36,12 +37,14 @@ class AdapterApplication:
         timeline: TimelineControls,
         commanders: dict[str, Px4Commander],
         recording: RecordingPublisher,
+        live_stream_leases: LiveStreamLeaseManager,
     ) -> None:
         self._config = config
         self._state = state
         self._timeline = timeline
         self._commanders = commanders
         self._recording = recording
+        self._live_stream_leases = live_stream_leases
         self._app = web.Application(client_max_size=2 * 1024 * 1024)
         self._app.add_routes(
             [
@@ -50,6 +53,15 @@ class AdapterApplication:
                 web.get("/v1/state", self._get_state),
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
+                web.post("/v1/live-streams", self._open_live_stream),
+                web.post(
+                    "/v1/live-streams/{stream_id}/renew",
+                    self._renew_live_stream,
+                ),
+                web.delete(
+                    "/v1/live-streams/{stream_id}",
+                    self._close_live_stream,
+                ),
             ]
         )
 
@@ -69,6 +81,7 @@ class AdapterApplication:
             and snapshot["tiles"]["lifecycle"] == "ready"
             and bool(snapshot["cameras"])
             and all(camera["lifecycle"] == "ready" for camera in snapshot["cameras"])
+            and snapshot["live_stream"]["lifecycle"] in {"ready", "live"}
             and bool(snapshot["vehicles"])
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             and snapshot["recordings"][0]["active"]
@@ -97,6 +110,46 @@ class AdapterApplication:
             return web.json_response({"error": str(error)}, status=400)
         except (RuntimeError, TimeoutError) as error:
             return web.json_response({"error": str(error)}, status=409)
+
+    async def _open_live_stream(self, request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or set(body) != {"session_id", "stream_id"}:
+                raise ValueError(
+                    "live stream open requires exactly session_id and stream_id"
+                )
+            session_id = _identity("session_id", body["session_id"])
+            stream_id = _identity("stream_id", body["stream_id"])
+            self._state.require_session(session_id)
+            return web.json_response(self._live_stream_leases.open(stream_id))
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=400)
+        except RuntimeError as error:
+            return web.json_response({"error": str(error)}, status=409)
+
+    async def _renew_live_stream(self, request: web.Request) -> web.Response:
+        try:
+            stream_id = _identity("stream_id", request.match_info["stream_id"])
+            return web.json_response(self._live_stream_leases.renew(stream_id))
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=404)
+
+    async def _close_live_stream(self, request: web.Request) -> web.Response:
+        try:
+            stream_id = _identity("stream_id", request.match_info["stream_id"])
+            self._live_stream_leases.close(stream_id)
+            return web.json_response(
+                {
+                    "accepted": True,
+                    "detail": "live stream closed",
+                    "resource_uri": (
+                        f"uav-sim://session/{self._config.session_id}/stream/"
+                        f"{stream_id}"
+                    ),
+                }
+            )
+        except (TypeError, ValueError) as error:
+            return web.json_response({"error": str(error)}, status=404)
 
     def _execute_command(self, command: DirectCommand) -> dict[str, object]:
         self._state.require_session(command.session_id)
@@ -296,3 +349,17 @@ class AdapterServer:
         except BaseException as error:
             self._error = error
             self._started.set()
+
+
+def _identity(field: str, value: object) -> str:
+    if not isinstance(value, str) or not 1 <= len(value) <= 128:
+        raise ValueError(f"{field} must be a 1-128 character identity")
+    if not all(
+        character.isascii()
+        and (character.isalnum() or character in {"_", "-", "."})
+        for character in value
+    ):
+        raise ValueError(
+            f"{field} must contain only ASCII letters, digits, underscore, dash, or dot"
+        )
+    return value

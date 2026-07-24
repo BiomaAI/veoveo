@@ -24,9 +24,14 @@ fn extension_declaration() -> rmcp::model::JsonObject {
 
 /// An app view resource listing: correct MIME plus default `_meta.ui`.
 pub fn app_resource(uri: &str, name: &str) -> Resource {
+    app_resource_with_meta(uri, name, ResourceUiMeta::default())
+}
+
+/// An app view resource listing with an explicit, host-enforced UI policy.
+pub fn app_resource_with_meta(uri: &str, name: &str, metadata: ResourceUiMeta) -> Resource {
     Resource::new(uri, name)
         .with_mime_type(APP_MIME_TYPE)
-        .with_meta(ui_meta(&ResourceUiMeta::default()))
+        .with_meta(ui_meta(&metadata))
 }
 
 /// The readable contents of an app view: a self-contained HTML document.

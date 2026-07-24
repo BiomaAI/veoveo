@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-07-17",
+  "verified_at": "2026-07-23",
   "architecture": "linux/amd64",
   "components": {
     "isaac_sim": {
@@ -58,6 +58,13 @@
     "nvidia_driver": {
       "version": "595.58.03",
       "source": "https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html"
+    },
+    "nvidia_ov_web_rtc": {
+      "version": "6.6.0",
+      "registry": "https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/",
+      "tarball_sha256": "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
+      "umd_sha256": "ef2bab07d13bee861c30922100f9c98fd61982826fdc8cedc6e43f032d8fa70d",
+      "source": "https://docs.omniverse.nvidia.com/ov-web-sdk/latest/web-streaming-library/overview.html"
     },
     "ros_2": {
       "distribution": "jazzy",
