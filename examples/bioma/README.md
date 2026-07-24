@@ -60,8 +60,8 @@ published and its server contract is registered in the gateway control plane.
 ## Release publication
 
 Production workloads use the repository and digest map in images.lock.yaml. The
-Application manifests select chart version 0.1.0-92ba57cdf93d. That chart version
-was published from commit 92ba57cdf93d; the selected runtime image digests identify
+Application manifests select chart version 0.1.0-d66aa818152d. That chart version
+was published from commit d66aa818152d; the selected runtime image digests identify
 the independently published image release.
 
 Publish a new local release directly to the shared registry:
