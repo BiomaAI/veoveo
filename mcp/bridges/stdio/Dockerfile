@@ -22,13 +22,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 
 FROM debian:trixie-slim
 
-ARG RERUN_VERSION=0.34.0
+ARG RERUN_VERSION=0.35.0
 ARG TARGETARCH
 
-# libvulkan1 + mesa-vulkan-drivers provide lavapipe software rendering for the
-# headless viewer's offscreen frames and screenshots.
+# The Vulkan loader resolves the hardware driver mounted by the GPU runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl libvulkan1 mesa-vulkan-drivers \
+    && apt-get install -y --no-install-recommends ca-certificates curl libvulkan1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN case "${TARGETARCH}" in \
@@ -39,7 +38,8 @@ RUN case "${TARGETARCH}" in \
     && curl -fsSL -o /usr/local/bin/rerun \
         "https://github.com/rerun-io/rerun/releases/download/${RERUN_VERSION}/rerun-cli-${RERUN_VERSION}-${rerun_arch}-unknown-linux-gnu" \
     && chmod +x /usr/local/bin/rerun \
-    && if ldd /usr/local/bin/rerun | grep "not found"; then exit 1; fi
+    && if ldd /usr/local/bin/rerun | grep "not found"; then exit 1; fi \
+    && /usr/local/bin/rerun --version | grep -F "rerun-cli ${RERUN_VERSION} "
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 

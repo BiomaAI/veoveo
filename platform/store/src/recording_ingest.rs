@@ -583,7 +583,7 @@ mod tests {
             identity,
             stream_id: RecordingIngestStreamId::new(),
             sequence: 0,
-            payload_format: "rrd_0_34_1".to_owned(),
+            payload_format: "rrd_0_35_0".to_owned(),
             sha256: "a".repeat(64),
             relative_path: "journal/stream/00000000000000000000.rrd".to_owned(),
             byte_len: 1,

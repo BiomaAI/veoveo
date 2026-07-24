@@ -117,6 +117,7 @@ pub fn query_segments_in_range(
     range: Option<QueryIndexRange>,
 ) -> Result<QueryResult> {
     let filter = EntityPathFilter::parse_forgiving(entities);
+    let timeline = TimelineName::try_new(timeline).context("invalid timeline name")?;
     let mut result = QueryResult::default();
 
     for segment in segments {
@@ -133,7 +134,7 @@ pub fn query_segments_in_range(
                 .collect();
             let expression = QueryExpression {
                 view_contents: Some(view_contents),
-                filtered_index: Some(TimelineName::new(timeline)),
+                filtered_index: Some(timeline),
                 filtered_index_range: range.map(QueryIndexRange::absolute),
                 sparse_fill_strategy: SparseFillStrategy::None,
                 ..Default::default()

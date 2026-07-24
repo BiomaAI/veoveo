@@ -448,7 +448,15 @@ pub(crate) async fn helm_config() -> Result<()> {
             && uav_dependencies
                 .pointer("/components/python_runtime/lxml")
                 .and_then(Value::as_str)
-                == Some("6.0.2"),
+                == Some("6.0.2")
+            && uav_dependencies
+                .pointer("/components/rerun/version")
+                .and_then(Value::as_str)
+                == Some("0.35.0")
+            && uav_dependencies
+                .pointer("/components/python_runtime/rerun_sdk")
+                .and_then(Value::as_str)
+                == Some("0.35.0"),
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
     let uav_runtime_dockerfile = fs::read_to_string("showcase/uav-sim/runtime/Dockerfile")?;
@@ -462,6 +470,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "cesium-0.29.0-preinstalled-vendor.patch",
         "lxml-6.0.2-cp312-cp312",
         "git -C pegasus apply --unidiff-zero --check",
+        "ARG RERUN_SDK_VERSION=0.35.0",
         "rerun-sdk==${RERUN_SDK_VERSION}",
         "AS runtime-base",
         "ARG UAV_SIM_BASE_IMAGE=veoveo/uav-sim-base:",
@@ -471,6 +480,18 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&uav_runtime_dockerfile, expected)?;
     }
+    contains(
+        &fs::read_to_string("platform/recordings/hub/Dockerfile")?,
+        "rerun-sdk==0.35.0",
+    )?;
+    let stdio_bridge_dockerfile = fs::read_to_string("mcp/bridges/stdio/Dockerfile")?;
+    contains(&stdio_bridge_dockerfile, "ARG RERUN_VERSION=0.35.0")?;
+    contains(
+        &stdio_bridge_dockerfile,
+        r#"rerun --version | grep -F "rerun-cli ${RERUN_VERSION} ""#,
+    )?;
+    not_contains(&stdio_bridge_dockerfile, "mesa-vulkan-drivers")?;
+    not_contains(&stdio_bridge_dockerfile, "lavapipe")?;
     let cesium_patch = fs::read_to_string(
         "showcase/uav-sim/runtime/patches/cesium-0.29.0-preinstalled-vendor.patch",
     )?;

@@ -390,7 +390,7 @@ mod tests {
         let payload = b"complete-rrd".to_vec();
         RecordingBatch {
             sequence: 0,
-            payload_format: RerunPayloadFormat::Rrd0341.into(),
+            payload_format: RerunPayloadFormat::Rrd0350.into(),
             sha256: Sha256::digest(&payload).to_vec(),
             encoded_rrd: payload,
             message_count: 1,

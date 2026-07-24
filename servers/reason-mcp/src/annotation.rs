@@ -1,7 +1,7 @@
 use std::fs;
 
 use anyhow::{Context, Result};
-use re_log_types::TimeCell;
+use re_log_types::{TimeCell, TimelineName};
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::{TextDocument, TextLog};
 use serde::Serialize;
@@ -43,6 +43,7 @@ pub fn write_annotation_rrd(task_id: &str, results: &ReasoningResults) -> Result
         .recording_name(format!("reason analysis {task_id}"))
         .save(&path)
         .context("opening annotation RRD sink")?;
+    let timeline = TimelineName::try_new(&results.timeline).context("invalid timeline name")?;
     recording.log_static(
         "/reason/provenance",
         &TextDocument::new(serde_json::to_string_pretty(&AnnotationProvenance {
@@ -77,15 +78,12 @@ pub fn write_annotation_rrd(task_id: &str, results: &ReasoningResults) -> Result
                 format!("{annotation_path}/answer").as_str(),
                 &TextDocument::new(text.clone()),
             )?;
-            recording.set_time(
-                results.timeline.as_str(),
-                time_cell(results.requested_range.start),
-            );
+            recording.set_time(timeline, time_cell(results.requested_range.start));
             recording.log(annotation_path.as_str(), &TextLog::new(text.clone()))?;
         }
         ReasoningAnswer::Events { events } => {
             for event in events {
-                recording.set_time(results.timeline.as_str(), time_cell(event.range.start));
+                recording.set_time(timeline, time_cell(event.range.start));
                 let mut line = format!("{}: {}", event.label, event.description);
                 if !event.track_ids.is_empty() {
                     let tracks = event

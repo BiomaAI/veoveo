@@ -10,7 +10,7 @@ pub mod v1 {
     include!(concat!(env!("OUT_DIR"), "/veoveo.recording.ingest.v1.rs"));
 }
 
-pub const PROTOCOL_VERSION: &str = "2026-07-21";
+pub const PROTOCOL_VERSION: &str = "2026-07-24";
 pub const REQUIRED_SCOPE: &str = "recording:ingest";
 pub const DEFAULT_MAXIMUM_BATCH_BYTES: u64 = 8 * 1024 * 1024;
 pub const MEDIA_TYPE: &str = "application/vnd.veoveo.recording-ingest.v1+protobuf";
@@ -41,7 +41,7 @@ impl v1::RecordingBatch {
             return Err(BatchValidationError::ZeroSequence);
         }
         if v1::RerunPayloadFormat::try_from(self.payload_format)
-            != Ok(v1::RerunPayloadFormat::Rrd0341)
+            != Ok(v1::RerunPayloadFormat::Rrd0350)
         {
             return Err(BatchValidationError::UnsupportedPayloadFormat);
         }
@@ -71,7 +71,7 @@ mod tests {
     fn batch(payload: &[u8]) -> v1::RecordingBatch {
         v1::RecordingBatch {
             sequence: 1,
-            payload_format: v1::RerunPayloadFormat::Rrd0341.into(),
+            payload_format: v1::RerunPayloadFormat::Rrd0350.into(),
             encoded_rrd: payload.to_vec(),
             sha256: Sha256::digest(payload).to_vec(),
             message_count: 1,
@@ -94,6 +94,12 @@ mod tests {
         assert_eq!(
             batch(b"large").validate(4),
             Err(BatchValidationError::PayloadTooLarge { maximum_bytes: 4 })
+        );
+        let mut old_release = batch(b"rrd");
+        old_release.payload_format = 1;
+        assert_eq!(
+            old_release.validate(DEFAULT_MAXIMUM_BATCH_BYTES),
+            Err(BatchValidationError::UnsupportedPayloadFormat)
         );
     }
 }

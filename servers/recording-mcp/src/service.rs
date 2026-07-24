@@ -229,7 +229,7 @@ impl RecordingService {
             started_at: recording.started_at.to_rfc3339(),
             ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
             archive: PlaybackArchive {
-                rrd_version: "0.34.1".to_owned(),
+                rrd_version: "0.35.0".to_owned(),
                 optimization_profile: "object-store".to_owned(),
                 segments,
             },
