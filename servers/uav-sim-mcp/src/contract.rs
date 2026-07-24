@@ -109,6 +109,10 @@ domain_id!(
 );
 domain_id!(MissionId, "Stable identity of one submitted mission.");
 domain_id!(RecordingId, "Stable identity of one governed recording.");
+domain_id!(
+    StreamId,
+    "Ephemeral identity of one authorized live-view lease."
+);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -138,6 +142,34 @@ pub enum CameraLifecycle {
     Ready,
     Degraded,
     Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStreamLifecycle {
+    Starting,
+    Ready,
+    Live,
+    Closed,
+    Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStreamSource {
+    FollowCamera,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStreamCodec {
+    H264,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStreamHardwareEncoder {
+    NvidiaNvenc,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -245,6 +277,19 @@ pub struct CameraState {
     pub diagnostic: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LiveStreamCapability {
+    pub lifecycle: LiveStreamLifecycle,
+    pub source: LiveStreamSource,
+    pub codec: LiveStreamCodec,
+    pub hardware_encoder: LiveStreamHardwareEncoder,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub connected_viewers: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RecordingState {
@@ -266,6 +311,7 @@ pub struct SimulationState {
     pub georeference_origin: Wgs84Position,
     pub tiles: TileState,
     pub cameras: Vec<CameraState>,
+    pub live_stream: LiveStreamCapability,
     pub vehicles: Vec<VehicleState>,
     pub recordings: Vec<RecordingState>,
     pub updated_at: DateTime<Utc>,
@@ -299,6 +345,105 @@ pub struct TakeoffRequest {
     pub vehicle_id: VehicleId,
     #[schemars(range(min = 0.5, max = 500.0))]
     pub relative_altitude_m: f64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OpenLiveStreamRequest {
+    pub session_id: SessionId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LiveStreamRequest {
+    pub session_id: SessionId,
+    pub stream_id: StreamId,
+}
+
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
+pub struct LiveStreamAccessToken(String);
+
+impl LiveStreamAccessToken {
+    pub fn new(value: impl Into<String>) -> Result<Self, LiveStreamTokenError> {
+        let value = value.into();
+        if value.is_empty() || value.len() > 4096 {
+            return Err(LiveStreamTokenError);
+        }
+        Ok(Self(value))
+    }
+
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LiveStreamTokenError;
+
+impl fmt::Display for LiveStreamTokenError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("live-stream access token must be 1 to 4096 characters")
+    }
+}
+
+impl std::error::Error for LiveStreamTokenError {}
+
+impl TryFrom<String> for LiveStreamAccessToken {
+    type Error = LiveStreamTokenError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<LiveStreamAccessToken> for String {
+    fn from(value: LiveStreamAccessToken) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Debug for LiveStreamAccessToken {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("LiveStreamAccessToken([REDACTED])")
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LiveStreamEndpoint {
+    pub signaling_server: String,
+    pub signaling_port: u16,
+    pub signaling_path: String,
+    pub media_server: String,
+    pub media_port: u16,
+    pub force_wss: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LiveStreamState {
+    pub stream_id: StreamId,
+    pub session_id: SessionId,
+    pub lifecycle: LiveStreamLifecycle,
+    pub source: LiveStreamSource,
+    pub codec: LiveStreamCodec,
+    pub hardware_encoder: LiveStreamHardwareEncoder,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub connected_viewers: u32,
+    pub resource_uri: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LiveStreamConnection {
+    pub stream: LiveStreamState,
+    pub endpoint: LiveStreamEndpoint,
+    pub access_token: LiveStreamAccessToken,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -458,5 +603,13 @@ mod tests {
             sensors: vec!["down-camera".to_owned()],
         });
         assert_eq!(operation.task_type(), "capture_dataset");
+    }
+
+    #[test]
+    fn live_stream_token_is_validated_and_debug_redacted() {
+        let token = LiveStreamAccessToken::new("never-log-this").unwrap();
+        assert_eq!(format!("{token:?}"), "LiveStreamAccessToken([REDACTED])");
+        assert_eq!(serde_json::to_string(&token).unwrap(), "\"never-log-this\"");
+        assert!(serde_json::from_str::<LiveStreamAccessToken>("\"\"").is_err());
     }
 }

@@ -4,6 +4,7 @@
 //! mobility profiles, routing, and dataset administration.
 
 pub mod acquisition;
+mod admin;
 pub mod administration;
 pub mod analytics;
 pub mod artifacts;

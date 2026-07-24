@@ -10,6 +10,7 @@ gateway.
 | Standard or protocol | Implemented profile |
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with direct controls, task-only scenarios and missions, resources and templates, prompts, completions, subscriptions, and notifications. |
+| [MCP Apps](https://apps.extensions.modelcontextprotocol.io/) | Version `2026-01-26`; `ui://uav-sim/live.html` drives the canonical stream tools and reads the same typed resources as every other client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Session, world, vehicle, mission, command, recording, and structured-result contracts. |
 | [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; live scenarios, missions, and dataset captures are durable tasks with `interrupted_indeterminate` recovery. |
 | [MAVLink 2](https://mavlink.io/en/) | Pod-local PX4 command, acknowledgement, heartbeat, mission-position, and vehicle-state transport. The adapter uses `COMMAND_INT` and `MAV_FRAME_GLOBAL_INT` for repositioning. |
@@ -18,7 +19,8 @@ gateway.
 | WGS 84, ECEF, ENU, and NED | Durable Frames origin, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
 | [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
 | Veoveo recording ingest | Version `2026-07-21`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
-| Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and RTSP ports never become public gateway routes. |
+| [NVIDIA Kit WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The persistent follow viewport is encoded once through NVIDIA NVENC and delivered as H.264 WebRTC. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
+| Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and the private Kit signaling port never become public gateway routes. |
 
 ## Identity
 
@@ -128,8 +130,8 @@ adapter keeps its own narrow mutex because its in-memory state is mutable.
 
 The controlled vocabulary includes:
 
-- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, and `FrameUri` validated
-  identity types.
+- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `StreamId`, and
+  `FrameUri` validated identity types.
 - `SimulationLifecycle`: `starting`, `ready`, `running`, `paused`, `stopping`,
   `stopped`, or `failed`.
 - `TileLoadState`: `connecting`, `streaming`, `ready`, or `failed` with counts
@@ -137,6 +139,12 @@ The controlled vocabulary includes:
 - `CameraLifecycle`: `warming`, `ready`, `degraded`, or `failed`, accompanied by
   frame count, mean luma, dynamic range, and non-black-pixel fraction measured
   from the exact RGB8 image delivered to the H.264 encoder.
+- `LiveStreamCapability` fixes the public source to `follow_camera`, codec to
+  `h264`, and hardware encoder to `nvidia_nvenc`. Resolution, frame rate,
+  lifecycle, and connected-viewer count remain typed state.
+- `LiveStreamState` records one owner-scoped lease without its credential.
+  `LiveStreamConnection` adds the short-lived redacted access-token type only
+  to open and renew results.
 - `VehicleFlightState`: `initializing`, `standby`, `armed`, `taking_off`,
   `flying`, `landing`, `landed`, or `failed`.
 - WGS84, local ENU, PX4 NED, velocity, attitude, battery, collision, sensor, and
@@ -161,6 +169,9 @@ may appear only as bounded, explicitly labeled diagnostic metadata.
 | `arm_vehicle` | Arms one PX4-backed vehicle after adapter safety checks. |
 | `takeoff_vehicle` | Starts a bounded takeoff to a typed relative altitude. |
 | `land_vehicle` | Commands one vehicle to land. |
+| `open_live_stream` | Opens the single owner-scoped follow-camera lease and returns its authenticated WebRTC endpoint. |
+| `renew_live_stream` | Extends the active owner-scoped lease without changing the credential used by the connected client. |
+| `close_live_stream` | Revokes the lease and disconnects its authenticated signaling path. |
 
 The state read is read-only. Mutations are marked destructive where they alter
 live vehicle or world state. A direct result returns a typed acknowledgement
@@ -189,15 +200,36 @@ uav-sim://session/{session_id}/tiles
 uav-sim://session/{session_id}/vehicles
 uav-sim://session/{session_id}/vehicle/{vehicle_id}
 uav-sim://session/{session_id}/recordings
+uav-sim://session/{session_id}/streams
+uav-sim://session/{session_id}/stream/{stream_id}
 uav-sim://mission/{mission_id}
 uav-sim://usage
 uav-sim://usage/task/{task_id}
+ui://uav-sim/live.html
 ```
 
 Session, world, tiles, vehicles, individual vehicles, mission, and recording
 resources support subscriptions. Mutations publish resource-update
 notifications after the adapter acknowledges the new state. Task usage reuses
-the shared usage model.
+the shared usage model. Stream list and item resources are filtered by the
+complete caller owner, which includes principal, tenant, profile, data labels,
+and invocation authority. They never serialize the WebRTC access token.
+
+### Live follow-camera App
+
+The App opens the same typed stream tools advertised to model clients. It reads
+the session index once per second for low-rate flight context, renders the
+NVIDIA WebRTC video in a view-only element, reports transport statistics, and
+renews the lease halfway to expiry. Teardown terminates the client and closes
+the lease before acknowledging the host. The App requires Media Capabilities
+to report H.264 WebRTC decoding as supported and power-efficient before it
+opens a lease; an unproven software-decoder path fails closed.
+
+The source tree carries a diagnostic client stub for ordinary Rust tests. The
+production MCP image downloads `@nvidia/ov-web-rtc` `6.6.0` from NVIDIA's
+registry, verifies the tarball and UMD bundle hashes, and embeds that exact
+bundle during the Rust build. NVIDIA client files are not copied into the
+repository.
 
 ### Prompts and completions
 
@@ -232,6 +264,12 @@ consecutive visible frames, and a camera that remains black for 30 seconds
 after Google tiles become resident fails the simulation. Native Recording Hub
 ports are not exposed publicly.
 
+`TODO(GPU)` marks the remaining NumPy readback, camera-quality reductions, and
+PyAV `libx264` recording path. They must converge on the canonical NVENC packet
+fan-out when Recording Hub accepts pre-encoded packets. This debt does not sit
+on the live-view path, which stays on the GPU from Kit rendering through
+NVENC.
+
 ## Kubernetes deployment
 
 The reference deployment is `showcase/uav-sim/deploy/helm`. One interactive
@@ -250,10 +288,13 @@ standard resource and runtime class with the pinned NVIDIA GPU Operator;
 development k3d provides the same contract through its device-plugin manifest.
 The UAV chart does not install or own node-level drivers.
 
-Simulator, MAVLink, ROS 2, and RTSP ports use private Services or pod-local
-transport. Only the MCP HTTP endpoint is registered with the gateway. WebRTC is
-an explicit diagnostic option and is not the canonical browser or recording
-path.
+Simulator, MAVLink, ROS 2, and Kit's native signaling port remain pod-local.
+The chart exposes only the authenticated signaling proxy over TCP and encrypted
+WebRTC media over UDP. Local k3d maps those ports to `49101` and `47998`.
+Fielded deployments set an exact public signaling URL and media host; an
+optional Ingress terminates WSS while the media endpoint remains a directly
+reachable UDP address. The live stream is the canonical browser path. Durable
+recording remains a separate governed sensor product.
 
 ## Security
 
@@ -264,9 +305,13 @@ uses the Isaac image's non-root user, and accepts only Secret references for
 credentials.
 
 NetworkPolicy permits Cesium ion and required NVIDIA asset egress, internal
-SurrealDB and recording traffic, and the gateway-to-MCP path. A future autonomy
-data-plane Service must declare its peers explicitly. The MCP server never
-proxies arbitrary URLs.
+SurrealDB and recording traffic, the gateway-to-MCP path, authenticated
+WebSocket signaling, and SRTP media. The signaling proxy admits one connected
+viewer only after a constant-time comparison against the MCP-issued lease
+token. Closing or expiry tears down signaling. The MCP App declares its exact
+signaling origin through `_meta.ui.csp`; the Console rejects wildcard,
+credential-bearing, path-bearing, or unsupported origins before constructing
+the iframe CSP. The MCP server never proxies arbitrary URLs.
 
 ## Acceptance
 
@@ -284,11 +329,13 @@ The live test passes only when all of the following are true at once:
    bounded mission, and lands.
 5. MCP resources, mutations, tasks, ownership, and notifications work through
    the gateway.
-6. Camera, pose, telemetry, mission, and tile state reach Recording Hub.
-7. Camera content passes the RGB8 luma, dynamic-range, and non-black-pixel
+6. The typed follow-camera capability reports H.264 through NVIDIA NVENC, and
+   an owner-scoped stream lease opens and closes through the gateway.
+7. Camera, pose, telemetry, mission, and tile state reach Recording Hub.
+8. Camera content passes the RGB8 luma, dynamic-range, and non-black-pixel
    acceptance gate before the session becomes ready.
-8. Perception reads the governed H.264 recording and publishes derived output.
-9. No credential appears in a rendered manifest, resource, task result, log,
+9. Perception reads the governed H.264 recording and publishes derived output.
+10. No credential appears in a rendered manifest, resource, task result, log,
    USD layer, or retained artifact.
 
 Missing credentials, unavailable tiles, unsupported Pegasus APIs, PX4 startup

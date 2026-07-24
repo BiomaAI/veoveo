@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAV follow camera</title>
+<style>
+:root { color-scheme: light dark; --bg:#07100f; --panel:#0d1917; --ink:#e8f3ef; --muted:#8ca39c; --green:#74d7a5; --red:#ff8e86; --line:#243934; }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.4 ui-sans-serif,system-ui,sans-serif; }
+#app { display:grid; grid-template-rows:auto minmax(260px,1fr) auto; min-height:420px; overflow:hidden; }
+header,footer { display:flex; align-items:center; gap:12px; padding:10px 12px; background:var(--panel); border-color:var(--line); }
+header { border-bottom:1px solid var(--line); } footer { border-top:1px solid var(--line); flex-wrap:wrap; }
+h1 { margin:0; font-size:14px; font-weight:650; letter-spacing:.01em; }
+.spacer { flex:1 }
+.chip { border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); }
+.chip.live { border-color:#35735a; color:var(--green); }
+button { border:1px solid #41755f; border-radius:6px; background:#173a2c; color:var(--ink); padding:6px 10px; cursor:pointer; }
+button:disabled { opacity:.45; cursor:default; }
+#stage { position:relative; display:grid; place-items:center; min-height:260px; background:#020606; }
+video { width:100%; height:100%; min-height:260px; object-fit:cover; pointer-events:none; background:#020606; }
+#empty { position:absolute; max-width:36ch; color:var(--muted); text-align:center; }
+#error { position:absolute; left:12px; right:12px; bottom:12px; padding:9px 11px; background:#401b1bd9; border:1px solid #8c4845; border-radius:6px; color:#ffd6d2; }
+dl { display:flex; gap:16px; margin:0; } dt { color:var(--muted); } dd { margin:0; font-variant-numeric:tabular-nums; }
+#flight { color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42%; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Follow camera</h1>
+    <span id="hardware" class="chip">NVIDIA NVENC · H.264</span>
+    <span id="status" class="chip">idle</span>
+    <span class="spacer"></span>
+    <button id="connect" type="button">Open live view</button>
+    <button id="close" type="button" disabled>Close</button>
+  </header>
+  <main id="stage">
+    <video id="remote-video" autoplay muted playsinline></video>
+    <div id="empty">Open the live view to watch the simulator’s persistent UAV follow camera.</div>
+    <div id="error" hidden></div>
+  </main>
+  <footer>
+    <dl><div><dt>Resolution</dt><dd id="resolution">—</dd></div><div><dt>FPS</dt><dd id="fps">—</dd></div><div><dt>RTD</dt><dd id="rtd">—</dd></div><div><dt>Bitrate</dt><dd id="bitrate">—</dd></div></dl>
+    <span class="spacer"></span><span id="flight">Waiting for session state</span>
+  </footer>
+</div>
+<script>/*__NVIDIA_OV_WEB_RTC__*/</script>
+<script>
+"use strict";
+const el = (id) => document.getElementById(id);
+const bridge = (() => {
+  let nextId = 1;
+  const pending = new Map();
+  const handlers = new Map();
+  const post = (message) => window.parent.postMessage(message, "*");
+  const request = (method, params) => new Promise((resolve, reject) => {
+    const id = nextId++;
+    pending.set(id, { resolve, reject });
+    post({ jsonrpc:"2.0", id, method, params });
+  });
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+      const waiter = pending.get(message.id);
+      if (!waiter) return;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message || "host error"));
+      else waiter.resolve(message.result);
+      return;
+    }
+    if (!message.method) return;
+    const handler = handlers.get(message.method);
+    if (handler) handler(message.params, message.id);
+    else if (message.id !== undefined) post({ jsonrpc:"2.0", id:message.id, error:{ code:-32601, message:"method not found" } });
+  });
+  return { request, notify:(method,params) => post({ jsonrpc:"2.0",method,params }), on:(method,handler) => handlers.set(method,handler), post };
+})();
+
+let sessionId = null;
+let connection = null;
+let streamer = null;
+let renewTimer = null;
+let stateTimer = null;
+let liveCapability = null;
+let hardwareDecodeVerified = false;
+
+function setStatus(text, live) {
+  el("status").textContent = text;
+  el("status").classList.toggle("live", Boolean(live));
+}
+function showError(cause) {
+  el("error").textContent = cause instanceof Error ? cause.message : String(cause);
+  el("error").hidden = false;
+}
+function clearError() { el("error").hidden = true; }
+function structured(result) {
+  if (result && (result.isError || result.is_error)) {
+    const content = Array.isArray(result.content) ? result.content : [];
+    throw new Error((content.find((entry) => entry.type === "text") || {}).text || "MCP tool failed");
+  }
+  return result && (result.structuredContent || result.structured_content) || result;
+}
+async function callTool(name, args) {
+  return structured(await bridge.request("tools/call", { name, arguments:args }));
+}
+async function readJson(uri) {
+  const result = await bridge.request("resources/read", { uri });
+  const content = result && result.contents && result.contents[0];
+  if (!content || typeof content.text !== "string") throw new Error(`resource ${uri} returned no JSON`);
+  return JSON.parse(content.text);
+}
+function scheduleRenew() {
+  clearTimeout(renewTimer);
+  if (!connection) return;
+  const expires = Date.parse(connection.stream.expires_at);
+  const delay = Math.max(5000, (expires - Date.now()) * 0.5);
+  renewTimer = setTimeout(async () => {
+    try {
+      connection = await callTool("renew_live_stream", {
+        session_id:connection.stream.session_id,
+        stream_id:connection.stream.stream_id,
+      });
+      scheduleRenew();
+    } catch (cause) {
+      showError(cause);
+      await closeStream(false);
+    }
+  }, delay);
+}
+async function requireHardwareDecode(stream) {
+  if (hardwareDecodeVerified) return;
+  if (!navigator.mediaCapabilities || !navigator.mediaCapabilities.decodingInfo) {
+    throw new Error("The browser cannot prove hardware H.264 decoding");
+  }
+  const result = await navigator.mediaCapabilities.decodingInfo({
+    type:"webrtc",
+    video:{
+      contentType:'video/H264; codecs="avc1.42E01E"',
+      width:stream.width,
+      height:stream.height,
+      bitrate:8000000,
+      framerate:stream.fps,
+    },
+  });
+  if (!result.supported || !result.powerEfficient) {
+    throw new Error("Hardware H.264 decoding is required for the UAV live view");
+  }
+  hardwareDecodeVerified = true;
+  el("hardware").textContent = "NVIDIA NVENC · hardware H.264 decode";
+}
+async function connectNvidia(value) {
+  const OV = globalThis.OVWebRTC;
+  if (!OV || globalThis.__VEOVEO_WEBRTC_STUB__) throw new Error("NVIDIA WebRTC client is unavailable in this build");
+  const endpoint = value.endpoint;
+  const stream = value.stream;
+  await requireHardwareDecode(stream);
+  streamer = new OV.AppStreamer();
+  streamer.connect({
+    streamSource:OV.StreamType.DIRECT,
+    logLevel:OV.LogLevel.WARN,
+    streamConfig:{
+      accessToken:value.access_token,
+      authenticate:true,
+      autoLaunch:true,
+      videoElementId:"remote-video",
+      sessionId:stream.stream_id,
+      signalingServer:endpoint.signaling_server,
+      signalingPort:endpoint.signaling_port,
+      signalingPath:endpoint.signaling_path,
+      mediaServer:endpoint.media_server,
+      mediaPort:endpoint.media_port,
+      forceWSS:endpoint.force_wss,
+      width:stream.width,
+      height:stream.height,
+      fps:stream.fps,
+      codec:OV.VideoCodec.H264,
+      localizeTextInput:false,
+      mic:false,
+      nativeTouchEvents:false,
+      onStart:(event) => {
+        if (event && event.status === OV.EventStatus.SUCCESS) {
+          setStatus("live", true);
+          el("empty").hidden = true;
+        }
+      },
+      onStop:() => { setStatus("disconnected", false); },
+      onStreamStats:(event) => {
+        const stats = event && event.data && event.data.stats;
+        el("fps").textContent = stats && stats.fps || "—";
+        const rtd = stats && stats.rtd;
+        el("rtd").textContent = rtd == null ? "—" : `${Number(rtd).toFixed(0)} ms`;
+        const bitrate = stats && stats.currentBitrate;
+        el("bitrate").textContent = bitrate == null ? "—" : `${Number(bitrate).toFixed(1)} Mb/s`;
+      },
+    },
+  });
+  el("resolution").textContent = `${stream.width}×${stream.height}`;
+  el("fps").textContent = String(stream.fps);
+}
+async function openStream(provided) {
+  if (connection) return;
+  clearError();
+  el("connect").disabled = true;
+  setStatus("opening", false);
+  try {
+    if (!provided) await requireHardwareDecode(liveCapability);
+    connection = provided || await callTool("open_live_stream", { session_id:sessionId });
+    await connectNvidia(connection);
+    scheduleRenew();
+    el("close").disabled = false;
+  } catch (cause) {
+    const failed = connection;
+    connection = null;
+    if (failed) {
+      try {
+        await callTool("close_live_stream", {
+          session_id:failed.stream.session_id,
+          stream_id:failed.stream.stream_id,
+        });
+      } catch (_) {}
+    }
+    showError(cause);
+    setStatus("failed", false);
+    el("connect").disabled = false;
+  }
+}
+async function closeStream(showFailure) {
+  clearTimeout(renewTimer);
+  if (streamer) {
+    try { streamer.terminate(); } catch (_) {}
+    streamer = null;
+  }
+  const active = connection;
+  connection = null;
+  if (active) {
+    try {
+      await callTool("close_live_stream", {
+        session_id:active.stream.session_id,
+        stream_id:active.stream.stream_id,
+      });
+    } catch (cause) {
+      if (showFailure) showError(cause);
+    }
+  }
+  el("remote-video").srcObject = null;
+  el("empty").hidden = false;
+  el("connect").disabled = !sessionId;
+  el("close").disabled = true;
+  setStatus("idle", false);
+}
+async function refreshSession() {
+  try {
+    const sessions = await readJson("uav-sim://sessions");
+    const session = sessions[0];
+    if (!session) throw new Error("No simulation session is available");
+    sessionId = session.session_id;
+    liveCapability = session.live_stream;
+    const vehicleText = `${session.vehicle_count} UAV${session.vehicle_count === 1 ? "" : "s"}`;
+    el("flight").textContent = `${session.lifecycle} · ${session.tile_lifecycle} tiles · ${vehicleText}`;
+    if (!connection) el("connect").disabled = false;
+  } catch (cause) {
+    if (!connection) showError(cause);
+  }
+}
+function reportSize() {
+  bridge.notify("ui/notifications/size-changed", { height:Math.ceil(document.documentElement.getBoundingClientRect().height) + 8 });
+}
+bridge.on("ui/notifications/tool-result", (params) => {
+  try {
+    const value = structured(params && (params.result || params));
+    if (value && value.stream && value.endpoint && value.access_token) void openStream(value);
+  } catch (cause) { showError(cause); }
+});
+bridge.on("ui/notifications/host-context-changed", (params) => {
+  const context = params && (params.hostContext || params);
+  if (context && (context.theme === "light" || context.theme === "dark")) document.documentElement.dataset.theme = context.theme;
+});
+bridge.on("ui/resource-teardown", (_params, id) => {
+  void closeStream(false).finally(() => {
+    clearInterval(stateTimer);
+    if (id !== undefined) bridge.post({ jsonrpc:"2.0", id, result:{} });
+  });
+});
+el("connect").addEventListener("click", () => void openStream());
+el("close").addEventListener("click", () => void closeStream(true));
+(async () => {
+  try {
+    await bridge.request("ui/initialize", {
+      protocolVersion:"2026-01-26",
+      appInfo:{ name:"uav-sim-live", version:"1.0.0" },
+      appCapabilities:{ availableDisplayModes:["inline"] },
+    });
+    bridge.notify("ui/notifications/initialized", {});
+    await refreshSession();
+    stateTimer = setInterval(() => void refreshSession(), 1000);
+    reportSize();
+  } catch (cause) { showError(cause); }
+})();
+</script>
+</body>
+</html>

@@ -439,7 +439,7 @@ showcase-sumo-test:
 # Test the UAV MCP contract and pod-private Python adapter without a GPU.
 showcase-uav-sim-test:
     cargo test -p veoveo-uav-sim-mcp --all-targets
-    PYTHONPATH=showcase/uav-sim/runtime uv run --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
+    PYTHONPATH=showcase/uav-sim/runtime uv run --with aiohttp==3.14.1 --with numpy==2.5.1 --python python3 python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 
 # Push smoke: SUMO sim (fake driver) pushes world state into the real hub.
 showcase-sumo-smoke:

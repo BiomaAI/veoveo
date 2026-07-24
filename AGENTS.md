@@ -61,6 +61,18 @@ Veoveo visual, simulation, perception, rendering, and visual-verification workfl
 must use an accessible hardware GPU. A software renderer is not a degraded mode and
 must never be accepted as evidence that a workflow works.
 
+Always choose the fastest compatible NVIDIA hardware-accelerated path for rendering,
+simulation, video encode and decode, perception, and other GPU-suitable work. A
+provider-neutral public contract does not justify replacing a faster NVIDIA data plane
+with a slower CPU implementation. Avoid GPU-to-CPU readback, duplicate encoding, and
+per-consumer rendering when a CUDA buffer, NVENC bitstream, or shared GPU render product
+can carry the same result.
+
+When existing code performs GPU-suitable work on the CPU and a compatible accelerated
+implementation is available, mark the exact path with `TODO(GPU)` and state the intended
+replacement. A TODO records migration debt; it does not authorize a new CPU fallback or
+allow the unaccelerated path to become acceptance evidence.
+
 Before browser automation, an interactive demo, or a screenshot run, prove that the
 browser is headed and that both its high-performance WebGPU adapter and WebGL context
 are hardware-backed. Reject missing contexts, SwiftShader, llvmpipe, software adapters,
@@ -79,19 +91,16 @@ Provider job completion is webhook-only. Do not add provider status polling, pol
 fallbacks, backup status checks, or timeout recovery paths that query the provider.
 Missing webhook delivery is an operational failure.
 
-## MCP Capability Bar
+## MCP Server Contract
 
-Do not reduce Veoveo MCP servers to the lowest common denominator of tool-only clients.
-Servers and the gateway should use the full MCP protocol surface when it fits the domain:
-resources, resource templates, prompts, completions, tasks, subscriptions,
-notifications, typed structured content, and URI-based identities.
-
-Compatibility helpers are allowed only when they are explicit product features requested
-or accepted for clients that cannot use the richer MCP surfaces well. They must be
-additive projections over the canonical protocol behavior, not replacements for it.
-Helpers must reuse the same typed models, policy checks, audit paths, task state,
-artifact identities, and resource URIs. Do not add hidden fallbacks, alternate provider
-completion paths, unaudited content URLs, or a second source of truth.
+Every hosted MCP server and registered extension complies with the normative
+server contract in [`mcp/contract/DESIGN.md`](mcp/contract/DESIGN.md): the full
+protocol surface for the domain, the canonical schema profile, the shared
+runtime boundary, packaging and registration, the well-known docs and contract
+resources, and the required crate documents (`DESIGN.md` and `AGENTS.md`).
+Work that changes protocol behavior starts from that document, and compliance
+gaps are declared in the server's `Contract Compliance` section rather than
+left silent.
 
 ## Strong Types
 

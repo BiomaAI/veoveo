@@ -34,6 +34,7 @@ MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
 |---|---|
+| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, schema profile, runtime boundary, packaging, well-known docs and contract resources, and the compliance checklist |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -44,7 +45,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
-| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, and recordings |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, and the owner-scoped live follow-camera App |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -336,14 +337,14 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, and recording references |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, and the typed live-stream App lifecycle |
 
 ### UAV Simulation Integration
 
 | Path | Responsibility |
 |---|---|
-| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, pod-private adapter, and Rerun publication |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication plus interactive and batch Helm workloads, versioned persistent caches, typed camera configuration, GPU requests, and network policy |
+| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, NVIDIA WebRTC/NVENC follow-camera stream, pod-private adapter, and Rerun publication |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication plus interactive and batch Helm workloads, authenticated signaling and WebRTC media services, versioned persistent caches, typed camera configuration, GPU requests, and network policy |
 | `showcase/uav-sim/scenarios/` | strongly typed runtime-loaded live mission and acceptance parameters that remain outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | Bioma session, Frames origin, camera optics and mount, public gateway origin, and recording tenant binding |
 | `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | scenario validation and credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU workload acceptance |

@@ -131,9 +131,9 @@ private prompt content, or unrelated history.
 
 The Isaac runtime can write a full-resolution showcase camera directly from its
 headless RTX viewport. Enable `session.screenshot` in the UAV chart and deploy
-the values through the installation owner. The San Salvador capture retains the
-Bioma installation origin at `13.6929`, `-89.2182`, and `700` meters. The New
-York capture uses the following overrides:
+the values through the installation owner. The Bioma installation uses its
+canonical Times Square origin at `40.7580`, `-73.9855`, and `-17` meters. The
+New York capture uses the following values:
 
 ```yaml
 session:
