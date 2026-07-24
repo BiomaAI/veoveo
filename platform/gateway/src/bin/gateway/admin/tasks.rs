@@ -188,23 +188,29 @@ pub(crate) async fn cancel_task(
         )
         .await;
     };
-    let client =
-        match FinalTaskClient::for_server(&catalog, &server, internal_token.bearer_token).await {
-            Ok(client) => client,
-            Err(error) => {
-                return audited_task_failure(
-                    &state,
-                    &profile,
-                    &subject,
-                    target,
-                    started_at,
-                    AdminOperationFailure::ConnectFinalTaskExtension,
-                    metadata,
-                    error,
-                )
-                .await;
-            }
-        };
+    let client = match FinalTaskClient::for_server(
+        &state.upstream_http,
+        &catalog,
+        &server,
+        internal_token.bearer_token,
+    )
+    .await
+    {
+        Ok(client) => client,
+        Err(error) => {
+            return audited_task_failure(
+                &state,
+                &profile,
+                &subject,
+                target,
+                started_at,
+                AdminOperationFailure::ConnectFinalTaskExtension,
+                metadata,
+                error,
+            )
+            .await;
+        }
+    };
     let result = match client.cancel(task_id).await {
         Ok(result) => result,
         Err(error) => {

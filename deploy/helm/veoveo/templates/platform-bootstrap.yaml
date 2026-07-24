@@ -1,10 +1,16 @@
+{{- $controlPlaneRevision := default (printf "release-%d" .Release.Revision) .Values.gateway.controlPlaneRevision -}}
+{{- $gatewayImage := include "veoveo.ownedImage" (list . .Values.gateway.image) -}}
+{{- $bootstrapRevision := printf "%s:%s" $controlPlaneRevision $gatewayImage | sha256sum -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ printf "%s-bootstrap-%d" (include "veoveo.fullname" .) .Release.Revision | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "%s-bootstrap-%s" (include "veoveo.fullname" .) ($bootstrapRevision | trunc 12) | trunc 63 | trimSuffix "-" }}
   labels:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: installation-bootstrap
+  annotations:
+    veoveo.ai/control-plane-revision: {{ $controlPlaneRevision | quote }}
+    veoveo.ai/bootstrap-revision: {{ $bootstrapRevision | quote }}
 spec:
   backoffLimit: 12
   ttlSecondsAfterFinished: 3600
@@ -15,6 +21,8 @@ spec:
         app.kubernetes.io/component: installation-bootstrap
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/control-plane-revision: {{ $controlPlaneRevision | quote }}
+        veoveo.ai/bootstrap-revision: {{ $bootstrapRevision | quote }}
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
@@ -25,7 +33,7 @@ spec:
         {{- include "veoveo.podSecurityContext" . | nindent 8 }}
       containers:
         - name: bootstrap
-          image: {{ include "veoveo.ownedImage" (list . .Values.gateway.image) }}
+          image: {{ $gatewayImage }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           args:
             - installation-bootstrap

@@ -1,5 +1,4 @@
 global:
-  defaultReplicas: 1
   publicBaseUrl: http://localhost:8780
 
 surrealdb:
@@ -11,9 +10,6 @@ objectStore:
     publicEndpoint: http://objects.localhost:8780
     persistence:
       size: 10Gi
-
-gateway:
-  replicas: 1
 
 artifactService:
   replicas: 1

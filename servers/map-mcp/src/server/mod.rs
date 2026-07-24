@@ -2,7 +2,7 @@ pub(super) mod auth;
 mod bootstrap;
 mod config;
 mod host;
-mod tasks;
+pub(crate) mod tasks;
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
@@ -10,7 +10,7 @@ use anyhow::Result;
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+    StreamableHttpService, session::local::LocalSessionManager,
 };
 use serde_json::json;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
@@ -42,7 +42,7 @@ use crate::{
     state::MapApplication,
 };
 
-use auth::{InternalAuthState, authenticate_internal};
+use auth::{AdminAuthState, InternalAuthState, authenticate_internal, authorize_admin};
 use config::{Args, Cli};
 use host::validate_host;
 use tasks::{MapTaskExtension, recover_tasks};
@@ -178,10 +178,8 @@ async fn serve(args: Args) -> Result<()> {
             move || Ok(MapMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(true)
-            .with_json_response(false)
             .with_cancellation_token(cancellation.child_token()),
     );
     let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(
@@ -205,6 +203,17 @@ async fn serve(args: Args) -> Result<()> {
         .layer(middleware::from_fn_with_state(
             task_extension,
             veoveo_mcp_task_extension::task_extension_middleware::<MapTaskExtension>,
+        ))
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_internal,
+        ));
+    let admin_router = crate::admin::router()
+        .layer(middleware::from_fn_with_state(
+            AdminAuthState {
+                required_scope: args.admin_scope.clone(),
+            },
+            authorize_admin,
         ))
         .layer(middleware::from_fn_with_state(
             auth_state,
@@ -238,7 +247,8 @@ async fn serve(args: Args) -> Result<()> {
                 }
             }),
         )
-        .nest("/mcp", mcp_router);
+        .nest("/mcp", mcp_router)
+        .nest("/admin", admin_router);
     let router = Router::new()
         .nest(public_endpoint.mount_path(), server_router)
         .layer(middleware::from_fn_with_state(
@@ -255,6 +265,7 @@ async fn serve(args: Args) -> Result<()> {
         service = "veoveo-map-mcp",
         %address,
         mcp_path = public_endpoint.path("mcp"),
+        admin_path = public_endpoint.path("admin"),
         "listening"
     );
     let listener = tokio::net::TcpListener::bind(address).await?;

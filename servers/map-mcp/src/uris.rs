@@ -1,3 +1,9 @@
+/// Well-known surface roots (contract C18, C19). These literals must match
+/// `veoveo_mcp_contract::ServerResourceUris::new("map")`; a unit test below
+/// pins that equivalence.
+pub const DOCS_URI: &str = "map://docs";
+pub const CONTRACT_URI: &str = "map://contract";
+
 pub const DATASETS_URI: &str = "map://datasets";
 pub const SOURCES_URI: &str = "map://sources";
 pub const ACQUISITIONS_URI: &str = "map://acquisitions";
@@ -13,6 +19,7 @@ pub const PUBLICATIONS_URI: &str = "map://publications";
 pub const LAYER_PRODUCTS_URI: &str = "map://layer-products";
 pub const COMPOSITIONS_URI: &str = "map://compositions";
 
+pub const DOC_TEMPLATE: &str = "map://docs/{doc_id}";
 pub const SOURCE_TEMPLATE: &str = "map://source/{source_id}";
 pub const ACQUISITION_TEMPLATE: &str = "map://acquisition/{acquisition_id}";
 pub const DATASET_TEMPLATE: &str = "map://dataset/{dataset_id}";
@@ -44,6 +51,10 @@ pub const COMPOSITION_REVISION_TEMPLATE: &str =
 /// gateway's ServerOwned `ui://{slug}/{page}` projection.
 pub const ADMIN_APP_URI: &str = "ui://map/admin.html";
 pub const EDITOR_APP_URI: &str = "ui://map/editor.html";
+
+pub fn doc_uri(doc_id: &str) -> String {
+    format!("map://docs/{doc_id}")
+}
 
 pub fn source_uri(id: &str) -> String {
     format!("map://source/{id}")
@@ -131,6 +142,10 @@ pub fn composition_revision_uri(composition_id: &str, revision: u64) -> String {
 
 pub fn parse_artifact(uri: &str) -> Option<veoveo_mcp_contract::ArtifactId> {
     veoveo_mcp_contract::ServerResourceUris::new("map").parse_artifact_uri(uri)
+}
+
+pub fn parse_doc(uri: &str) -> Option<&str> {
+    parse_single(uri, "map://docs/")
 }
 
 pub fn parse_single<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
@@ -360,6 +375,18 @@ fn parse_datetime_interval(value: &str) -> Result<crate::contract::FeatureTime, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn well_known_uris_match_the_shared_contract_conventions() {
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new("map");
+        assert_eq!(DOCS_URI, conventions.docs_root_uri());
+        assert_eq!(CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
+        assert_eq!(doc_uri("agents"), conventions.doc_uri("agents"));
+        assert_eq!(parse_doc("map://docs/agents"), Some("agents"));
+        assert_eq!(parse_doc("map://docs"), None);
+        assert_eq!(parse_doc("map://docs/agents/extra"), None);
+    }
 
     #[test]
     fn parsers_reject_extra_segments() {

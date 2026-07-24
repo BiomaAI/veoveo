@@ -12,6 +12,7 @@ use rmcp::model::ErrorData as McpError;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
+use veoveo_mcp_contract::ServerManifest;
 use veoveo_mcp_task_extension::{
     AcknowledgeTaskResult, CANCEL_TASK_METHOD, CancelTaskParams, CreateTaskResult, DISCOVER_METHOD,
     DetailedTask, DiscoverParams, DiscoverResult, EXTENSION_ID, GET_TASK_METHOD, GetTaskParams,
@@ -21,10 +22,8 @@ use veoveo_mcp_task_extension::{
     UPDATE_TASK_METHOD, UpdateTaskParams,
 };
 
+use super::GatewayUpstreamHttpClientPool;
 use crate::GatewayCatalog;
-
-use super::upstream_http::build_upstream_http_client;
-use veoveo_mcp_contract::ServerManifest;
 
 pub(super) type FinalTaskStream =
     Pin<Box<dyn Stream<Item = Result<DetailedTask, McpError>> + Send + 'static>>;
@@ -48,19 +47,16 @@ impl std::fmt::Debug for FinalTaskClient {
 
 impl FinalTaskClient {
     pub async fn for_server(
+        upstream_http: &GatewayUpstreamHttpClientPool,
         catalog: &GatewayCatalog,
         server: &ServerManifest,
         bearer_token: String,
     ) -> Result<Self, McpError> {
-        let http = build_upstream_http_client(catalog, server).await?;
+        let http = upstream_http.client(catalog, server).await?;
         Ok(Self::new(http, server.upstream.url.as_str(), bearer_token))
     }
 
-    pub(super) fn new(
-        http: reqwest::Client,
-        endpoint: impl Into<String>,
-        bearer_token: String,
-    ) -> Self {
+    fn new(http: reqwest::Client, endpoint: impl Into<String>, bearer_token: String) -> Self {
         Self {
             http,
             endpoint: endpoint.into(),

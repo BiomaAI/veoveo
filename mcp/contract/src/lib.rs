@@ -12,6 +12,7 @@ pub mod artifact_service;
 pub mod bootstrap;
 pub mod coordinates;
 pub mod deployment;
+pub mod docs;
 pub mod duckdb;
 pub mod gateway;
 pub mod generation;
@@ -24,6 +25,7 @@ pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
 pub mod telemetry;
+pub mod transport;
 pub mod uri;
 pub mod usage;
 pub mod waiters;
@@ -53,8 +55,11 @@ pub use bootstrap::{
 };
 pub use coordinates::{
     CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
-    CoordinateOperationProvenance, CoordinateOperationRef, CrsId, DatumId, EllipsoidId, FrameId,
-    FrameKind, GeofenceId, GeofenceRule, GeofenceViolation, TrajectoryId,
+    CoordinateOperationProvenance, CoordinateOperationRef, CoordinateSpace, CrsId, DatumId,
+    EllipsoidId, FrameAxes, FrameAxisDirection, FrameBasis, FrameId, FrameKind, FrameNode,
+    FrameParentTransform, FrameWorldId, FrameWorldRevision, FrameWorldRevisionId,
+    FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, GeofenceId, GeofenceRule,
+    GeofenceViolation, TrajectoryId, Wgs84Position, WorldFrameUri,
 };
 pub use deployment::{
     AnalyticalRuntimeDeployment, AnalyticalRuntimeEngine, AnalyticalRuntimePurpose,
@@ -125,13 +130,14 @@ pub use storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
     ComplianceMetadata,
 };
-pub use subscriptions::SubscriptionHub;
+pub use subscriptions::{ResourceListObservers, SubscriptionHub, notify_resource_list_changed};
 pub use tasks::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayTaskStatus, GatewayTaskStatusDocument,
     GatewayTaskStatusKind, RELATED_TASK_META_KEY, gateway_task_resource_uri, notify_progress,
     now_utc, parse_gateway_task_resource_uri, related_task_meta, set_related_task_meta,
 };
 pub use telemetry::{TelemetryGuard, init_server_telemetry};
+pub use transport::canonical_streamable_http_server_config;
 pub use uri::{ServerResourceUri, ServerResourceUriError, ServerResourceUris};
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use veoveo_mcp_schema_macros::tool;

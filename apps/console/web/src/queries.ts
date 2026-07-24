@@ -48,11 +48,12 @@ export function useCluster() {
 
 // The MCP app catalog is discovery data loaded once for the browser session.
 // A new deployment starts a new catalog generation and console session.
-export function useApps() {
+export function useApps(enabled = true) {
   return useQuery({
     queryKey: queryKeys.apps,
     queryFn: ({ signal }) => loadApps(signal),
     staleTime: Infinity,
+    enabled,
   });
 }
 

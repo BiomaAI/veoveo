@@ -45,6 +45,20 @@ const REACHABLE_AREA_TASK: &str = "reachable_area";
 const IMPORT_FEATURE_LAYER_TASK: &str = "import_feature_layer";
 const EXPORT_FEATURE_LAYER_TASK: &str = "export_feature_layer";
 const BUILD_VECTOR_TILES_TASK: &str = "build_vector_tiles";
+
+/// Tool names `start_tool_task` accepts as durable task invocations. The
+/// `map://contract` capability inventory declares this list; keep it in
+/// lockstep with the `start_tool_task` match arms so the served declaration
+/// cannot silently diverge from the task-augmented surface.
+pub(crate) const TASK_TOOLS: &[&str] = &[
+    ROUTE_TASK,
+    ROUTE_MATRIX_TASK,
+    REACHABLE_AREA_TASK,
+    IMPORT_FEATURE_LAYER_TASK,
+    EXPORT_FEATURE_LAYER_TASK,
+    BUILD_VECTOR_TILES_TASK,
+];
+
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 3_000;
 const TASK_LEASE_DURATION: Duration = Duration::from_secs(120);

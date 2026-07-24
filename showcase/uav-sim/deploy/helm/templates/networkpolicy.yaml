@@ -10,10 +10,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: veoveo
       app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
-    matchExpressions:
-      - key: app.kubernetes.io/component
-        operator: In
-        values: [uav-sim, uav-sim-batch]
+      app.kubernetes.io/component: uav-sim
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
@@ -25,6 +22,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8802
+    # The signaling proxy validates a short-lived MCP-issued bearer before it
+    # reaches Kit. SRTP media remains the only public UDP data plane.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: {{ .Values.liveStream.proxyPort }}
+        - protocol: UDP
+          port: {{ .Values.liveStream.mediaPort }}
   egress:
     - to:
         - podSelector:

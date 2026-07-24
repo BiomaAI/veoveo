@@ -19,7 +19,7 @@ use rmcp::{
     service::RequestContext,
     tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use serde::Serialize;
@@ -43,16 +43,20 @@ use veoveo_task_runtime::{
 
 use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
-    CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement, DurableOperation,
-    ExecuteMissionRequest, RunScenarioRequest, SessionId, SessionRequest, SimulationCommand,
-    SimulationLifecycle, SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle,
-    TileState, VehicleId, VehicleRequest, VehicleState, Wgs84Position,
+    CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement,
+    ConfigureWorldOutput, ConfigureWorldRequest, DurableOperation, ExecuteMissionRequest,
+    LiveStreamCapability, LiveStreamCodec, LiveStreamHardwareEncoder, LiveStreamLifecycle,
+    LiveStreamRequest, LiveStreamSource, OpenLiveStreamRequest, RunScenarioRequest, SessionId,
+    SessionRequest, SimulationCommand, SimulationLifecycle, SimulationState, StepSimulationRequest,
+    StreamId, TakeoffRequest, TileLifecycle, TileState, VehicleId, VehicleRequest, VehicleState,
+    Wgs84Position,
 };
 use crate::uris;
 
 use super::auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use super::config::{AdapterKind, Args};
 use super::host::validate_host;
+use super::live_stream::LiveStreamError;
 use super::ownership::{internal_caller, internal_identity, runtime_owner};
 use super::prompts::UavSimPrompt;
 use super::state::AppState;
@@ -61,6 +65,12 @@ use super::task_worker::{await_result, resume_queued_operation, start_operation}
 
 const SERVER_SLUG: &str = "uav-sim";
 const LIST_PAGE_SIZE: usize = 100;
+const LIVE_APP_TOOLS: &[&str] = &[
+    "get_simulation_state",
+    "open_live_stream",
+    "renew_live_stream",
+    "close_live_stream",
+];
 
 #[derive(Clone)]
 struct UavSimMcp {
@@ -131,6 +141,33 @@ impl UavSimMcp {
 
 #[tool_router]
 impl UavSimMcp {
+    #[tool(
+        title = "Configure UAV frame world",
+        description = "Bind an unconfigured simulation session to one immutable Frames world revision and one static simulation frame.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ConfigureWorldOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn configure_world(
+        &self,
+        Parameters(request): Parameters<ConfigureWorldRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let output = self
+            .state
+            .adapter
+            .configure_world(&request)
+            .await
+            .map_err(invalid)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::session(&request.session_id))
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::world(&request.session_id))
+            .await;
+        structured_result("configured immutable frame world".to_owned(), &output)
+    }
+
     #[tool(
         title = "Get UAV simulation state",
         description = "Read the current typed session, Google Photorealistic 3D Tiles, camera-content health, recording, and vehicle state.",
@@ -264,9 +301,15 @@ impl UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let state = self.state_for(&request.session_id).await?;
-        if request.frame_uri != state.frame_uri {
+        let Some(world) = &state.world else {
+            return Err(McpError::invalid_request(
+                "simulation world is not configured",
+                None,
+            ));
+        };
+        if request.expected_world_revision_uri != world.revision_uri {
             return Err(McpError::invalid_params(
-                "mission frame_uri does not match the session frame",
+                "mission expected_world_revision_uri does not match the session",
                 None,
             ));
         }
@@ -288,22 +331,137 @@ impl UavSimMcp {
         self.start_and_wait(&context, DurableOperation::CaptureDataset(request))
             .await
     }
+
+    #[tool(
+        title = "Open UAV live view",
+        description = "Open one short-lived, owner-scoped follow-camera stream encoded by NVIDIA NVENC and return its authenticated WebRTC connection.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::LiveStreamConnection>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn open_live_stream(
+        &self,
+        Parameters(request): Parameters<OpenLiveStreamRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let simulation = self.state_for(&request.session_id).await?;
+        require_live_stream_ready(&simulation.live_stream)?;
+        let owner = runtime_owner(&internal_identity(&context)?);
+        let stream_id = StreamId::new(uuid::Uuid::now_v7().to_string()).map_err(invalid)?;
+        let connection = self
+            .state
+            .live_streams
+            .open(
+                owner,
+                request.session_id.clone(),
+                stream_id,
+                &simulation.live_stream,
+            )
+            .await
+            .map_err(live_stream_error)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::streams(&request.session_id))
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(connection.stream.resource_uri.clone())
+            .await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        structured_result(
+            format!("opened {}", connection.stream.resource_uri),
+            &connection,
+        )
+    }
+
+    #[tool(
+        title = "Renew UAV live view",
+        description = "Extend one owner-scoped follow-camera stream lease without replacing the active WebRTC credential.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::LiveStreamConnection>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn renew_live_stream(
+        &self,
+        Parameters(request): Parameters<LiveStreamRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let simulation = self.state_for(&request.session_id).await?;
+        require_live_stream_ready(&simulation.live_stream)?;
+        let owner = runtime_owner(&internal_identity(&context)?);
+        let connection = self
+            .state
+            .live_streams
+            .renew(
+                &owner,
+                &request.session_id,
+                &request.stream_id,
+                &simulation.live_stream,
+            )
+            .await
+            .map_err(live_stream_error)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(connection.stream.resource_uri.clone())
+            .await;
+        structured_result(
+            format!("renewed {}", connection.stream.resource_uri),
+            &connection,
+        )
+    }
+
+    #[tool(
+        title = "Close UAV live view",
+        description = "Revoke one owner-scoped follow-camera stream lease and disconnect its signaling path.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<CommandAcknowledgement>(),
+        annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn close_live_stream(
+        &self,
+        Parameters(request): Parameters<LiveStreamRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        self.state_for(&request.session_id).await?;
+        let owner = runtime_owner(&internal_identity(&context)?);
+        let closed = self
+            .state
+            .live_streams
+            .close(&owner, &request.session_id, &request.stream_id)
+            .await
+            .map_err(live_stream_error)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::streams(&request.session_id))
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(closed.resource_uri.clone())
+            .await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        let result = CommandAcknowledgement {
+            accepted: true,
+            detail: "live stream closed".to_owned(),
+            resource_uri: closed.resource_uri,
+        };
+        structured_result(result.detail.clone(), &result)
+    }
 }
 
 #[tool_handler]
 impl ServerHandler for UavSimMcp {
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::default();
-        info.capabilities = ServerCapabilities::builder()
+        let mut capabilities = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
             .enable_resources()
             .enable_resources_subscribe()
+            .enable_resources_list_changed()
             .enable_completions()
             .build();
+        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+        info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. Google Photorealistic 3D Tiles readiness inside the simulation is part of session state. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Govern UAV simulation sessions through typed resources and bounded controls. The ui://uav-sim/live.html MCP App opens the owner-scoped NVIDIA-accelerated follow-camera stream through the canonical live-stream tools. Google Photorealistic 3D Tiles readiness inside the simulation is part of session state. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
                 .to_owned(),
         );
         info
@@ -315,6 +473,23 @@ impl ServerHandler for UavSimMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let mut tools = self.tool_router.list_all();
+        tools = tools
+            .into_iter()
+            .map(|tool| {
+                if LIVE_APP_TOOLS.contains(&tool.name.as_ref()) {
+                    veoveo_mcp_apps_extension::link_tool_to_app(
+                        tool,
+                        uris::LIVE_APP_URI,
+                        &[
+                            veoveo_mcp_apps_extension::UiVisibility::Model,
+                            veoveo_mcp_apps_extension::UiVisibility::App,
+                        ],
+                    )
+                } else {
+                    tool
+                }
+            })
+            .collect();
         tools.sort_by(|left, right| left.name.cmp(&right.name));
         let page = mcp_page(tools, request.as_ref())?;
         Ok(ListToolsResult {
@@ -338,6 +513,35 @@ impl ServerHandler for UavSimMcp {
             .await
             .map_err(internal)?;
         let mut resources = session_resources(&state);
+        resources.push(
+            veoveo_mcp_apps_extension::app_resource_with_meta(
+                uris::LIVE_APP_URI,
+                "uav-sim-live-app",
+                veoveo_mcp_apps_extension::ResourceUiMeta {
+                    csp: Some(veoveo_mcp_apps_extension::UiCsp {
+                        connect_domains: vec![self.state.live_stream_connect_origin.clone()],
+                        ..veoveo_mcp_apps_extension::UiCsp::default()
+                    }),
+                    prefers_border: Some(false),
+                },
+            )
+            .with_title("UAV follow camera")
+            .with_description(
+                "Live NVIDIA-accelerated follow-camera view with typed stream controls.",
+            ),
+        );
+        for stream in self
+            .state
+            .live_streams
+            .list(&owner, &state.live_stream)
+            .await
+        {
+            resources.push(descriptor(
+                stream.resource_uri.clone(),
+                format!("Live stream {}", stream.stream_id),
+                "Owner-scoped live follow-camera stream state.",
+            ));
+        }
         resources.push(descriptor(
             uris::USAGE.to_owned(),
             "UAV simulation task usage".to_owned(),
@@ -404,6 +608,16 @@ impl ServerHandler for UavSimMcp {
                 "Governed recording identities emitted by one session.",
             ),
             template(
+                uris::STREAMS_TEMPLATE,
+                "Simulation live streams",
+                "Owner-scoped live follow-camera stream index.",
+            ),
+            template(
+                uris::STREAM_TEMPLATE,
+                "Simulation live stream",
+                "Typed state for one owner-scoped live follow-camera stream.",
+            ),
+            template(
                 uris::MISSION_TEMPLATE,
                 "Simulation mission",
                 "Authorized durable mission task state.",
@@ -428,6 +642,11 @@ impl ServerHandler for UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         let uri = request.uri.as_str();
+        if uri == uris::LIVE_APP_URI {
+            return Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::live_app_html()),
+            ]));
+        }
         let state = self.current_state().await?;
         if uri == uris::SESSIONS {
             return json_resource(uri, &vec![session_summary(&state)]);
@@ -462,6 +681,26 @@ impl ServerHandler for UavSimMcp {
             return json_resource(uri, &state.recordings);
         }
         let owner = runtime_owner(&internal_identity(&context)?);
+        if let Some(session_id) = uris::parse_streams(uri) {
+            require_session(&state, session_id)?;
+            let streams = self
+                .state
+                .live_streams
+                .list(&owner, &state.live_stream)
+                .await;
+            return json_resource(uri, &streams);
+        }
+        if let Some((session_id, stream_id)) = uris::parse_stream(uri) {
+            require_session(&state, session_id)?;
+            let stream_id = StreamId::new(stream_id).map_err(invalid)?;
+            let stream = self
+                .state
+                .live_streams
+                .get(&owner, &stream_id, &state.live_stream)
+                .await
+                .ok_or_else(|| McpError::resource_not_found("live stream not found", None))?;
+            return json_resource(uri, &stream);
+        }
         let tasks = self
             .state
             .tasks
@@ -570,11 +809,21 @@ impl ServerHandler for UavSimMcp {
             | (uris::TILES_TEMPLATE, "session_id")
             | (uris::VEHICLES_TEMPLATE, "session_id")
             | (uris::RECORDINGS_TEMPLATE, "session_id")
+            | (uris::STREAMS_TEMPLATE, "session_id")
+            | (uris::STREAM_TEMPLATE, "session_id")
             | (uris::VEHICLE_TEMPLATE, "session_id") => vec![state.session_id.to_string()],
             (uris::VEHICLE_TEMPLATE, "vehicle_id") => state
                 .vehicles
                 .iter()
                 .map(|vehicle| vehicle.vehicle_id.to_string())
+                .collect(),
+            (uris::STREAM_TEMPLATE, "stream_id") => self
+                .state
+                .live_streams
+                .list(&owner, &state.live_stream)
+                .await
+                .into_iter()
+                .map(|stream| stream.stream_id.to_string())
                 .collect(),
             (uris::MISSION_TEMPLATE, "mission_id") => tasks
                 .iter()
@@ -597,6 +846,21 @@ impl UavSimMcp {
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
         let state = self.current_state().await?;
+        if let Some((session_id, stream_id)) = uris::parse_stream(uri) {
+            require_session(&state, session_id)?;
+            let owner = runtime_owner(&internal_identity(context)?);
+            let stream_id = StreamId::new(stream_id).map_err(invalid)?;
+            if self
+                .state
+                .live_streams
+                .get(&owner, &stream_id, &state.live_stream)
+                .await
+                .is_some()
+            {
+                return Ok(());
+            }
+            return Err(McpError::resource_not_found("live stream not found", None));
+        }
         if let Some(session_id) = session_from_subscribable(uri) {
             require_session(&state, session_id)?;
             if let Some((_, vehicle_id)) = uris::parse_vehicle(uri)
@@ -639,6 +903,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
+    let live_stream_endpoint = args.live_stream_endpoint()?;
+    let live_stream_connect_origin = args.live_stream_connect_origin()?;
     let tasks = TaskRuntime::connect(
         TaskRuntimeConfig::new(
             args.surreal_endpoint.clone(),
@@ -663,10 +929,13 @@ pub(super) async fn serve() -> anyhow::Result<()> {
         )?),
         AdapterKind::Fake => Adapter::Fake(Arc::new(Mutex::new(FakeAdapter::new(fake_state()?)))),
     };
+    let adapter = Arc::new(adapter);
     let state = Arc::new(AppState {
-        adapter: Arc::new(adapter),
+        adapter: adapter.clone(),
         tasks,
         subscribers: SubscriptionHub::new(),
+        live_streams: super::live_stream::LiveStreamService::new(adapter, live_stream_endpoint),
+        live_stream_connect_origin,
     });
     for snapshot in recovery.resumable {
         resume_queued_operation(state.clone(), snapshot)
@@ -689,10 +958,8 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             move || Ok(UavSimMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(false)
-            .with_json_response(true)
             .with_cancellation_token(shutdown.child_token()),
     );
     let extension = Arc::new(TaskExtensionAdapter::new(
@@ -754,17 +1021,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
     match state.adapter.state().await {
-        Ok(simulation)
-            if simulation.lifecycle != SimulationLifecycle::Failed
-                && simulation.tiles.lifecycle == TileLifecycle::Ready
-                && !simulation.cameras.is_empty()
-                && simulation
-                    .cameras
-                    .iter()
-                    .all(|camera| camera.lifecycle == CameraLifecycle::Ready) =>
-        {
-            StatusCode::OK
-        }
+        Ok(simulation) if simulation.lifecycle != SimulationLifecycle::Failed => StatusCode::OK,
         Ok(_) => StatusCode::SERVICE_UNAVAILABLE,
         Err(error) => {
             tracing::warn!(%error, "UAV simulation MCP readiness failed");
@@ -773,18 +1030,29 @@ async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
     }
 }
 
-fn fake_state() -> anyhow::Result<SimulationState> {
+pub(super) fn fake_state() -> anyhow::Result<SimulationState> {
+    let revision_uri = veoveo_mcp_contract::FrameWorldRevisionUri::new(
+        &veoveo_mcp_contract::FrameWorldId::new("test-world")?,
+        &veoveo_mcp_contract::FrameWorldRevisionId::new("revision-1")?,
+    );
     Ok(SimulationState {
         session_id: SessionId::new("session-alpha")?,
         lifecycle: SimulationLifecycle::Ready,
         simulation_time_s: 0.0,
         physics_step: 0,
-        frame_uri: "frames://frame/enu-alpha".to_owned(),
-        georeference_origin: Wgs84Position {
-            latitude_degrees: 13.6929,
-            longitude_degrees: -89.2182,
-            ellipsoid_height_m: 700.0,
-        },
+        world: Some(crate::contract::SimulationWorldBinding {
+            revision_uri: revision_uri.clone(),
+            spec_sha256: "a".repeat(64),
+            simulation_frame_uri: veoveo_mcp_contract::WorldFrameUri::new(
+                &revision_uri,
+                &veoveo_mcp_contract::FrameId::new("isaac-world")?,
+            ),
+            georeference_origin: Wgs84Position {
+                latitude_degrees: 13.6929,
+                longitude_degrees: -89.2182,
+                ellipsoid_height_m: 700.0,
+            },
+        }),
         tiles: TileState {
             lifecycle: TileLifecycle::Ready,
             source: "google_photorealistic_3d_tiles".to_owned(),
@@ -806,6 +1074,16 @@ fn fake_state() -> anyhow::Result<SimulationState> {
             non_black_fraction: 0.95,
             diagnostic: None,
         }],
+        live_stream: LiveStreamCapability {
+            lifecycle: LiveStreamLifecycle::Ready,
+            source: LiveStreamSource::FollowCamera,
+            codec: LiveStreamCodec::H264,
+            hardware_encoder: LiveStreamHardwareEncoder::NvidiaNvenc,
+            width: 1280,
+            height: 720,
+            fps: 20,
+            connected_viewers: 0,
+        },
         vehicles: vec![VehicleState {
             vehicle_id: VehicleId::new("uav-1")?,
             flight_state: crate::contract::VehicleFlightState::Standby,
@@ -877,6 +1155,11 @@ fn session_resources(state: &SimulationState) -> Vec<Resource> {
             format!("Recordings {session_id}"),
             "Governed recording identities emitted by the session.",
         ),
+        descriptor(
+            uris::streams(session_id),
+            format!("Live streams {session_id}"),
+            "Owner-scoped live follow-camera stream index.",
+        ),
     ];
     resources.extend(state.vehicles.iter().map(|vehicle| {
         descriptor(
@@ -906,10 +1189,11 @@ fn session_summary(state: &SimulationState) -> serde_json::Value {
     json!({
         "session_id": state.session_id,
         "lifecycle": state.lifecycle,
-        "frame_uri": state.frame_uri,
+        "world": state.world,
         "tile_lifecycle": state.tiles.lifecycle,
         "vehicle_count": state.vehicles.len(),
         "recording_count": state.recordings.len(),
+        "live_stream": state.live_stream,
         "updated_at": state.updated_at,
     })
 }
@@ -919,8 +1203,7 @@ fn world_view(state: &SimulationState) -> serde_json::Value {
         "session_id": state.session_id,
         "simulation_time_s": state.simulation_time_s,
         "physics_step": state.physics_step,
-        "frame_uri": state.frame_uri,
-        "georeference_origin": state.georeference_origin,
+        "world": state.world,
         "updated_at": state.updated_at,
     })
 }
@@ -1001,6 +1284,7 @@ fn session_from_subscribable(uri: &str) -> Option<&str> {
         .or_else(|| uris::parse_tiles(uri))
         .or_else(|| uris::parse_vehicles(uri))
         .or_else(|| uris::parse_recordings(uri))
+        .or_else(|| uris::parse_streams(uri))
         .or_else(|| uris::parse_vehicle(uri).map(|(session_id, _)| session_id))
 }
 
@@ -1051,13 +1335,38 @@ fn invalid(error: impl std::fmt::Display) -> McpError {
     McpError::invalid_params(error.to_string(), None)
 }
 
+fn live_stream_error(error: LiveStreamError) -> McpError {
+    match error {
+        LiveStreamError::NotFound => McpError::resource_not_found("live stream not found", None),
+        LiveStreamError::AlreadyLeased => McpError::invalid_params(error.to_string(), None),
+        LiveStreamError::AdapterIdentityMismatch | LiveStreamError::Adapter(_) => internal(error),
+    }
+}
+
+fn require_live_stream_ready(capability: &LiveStreamCapability) -> Result<(), McpError> {
+    if matches!(
+        capability.lifecycle,
+        LiveStreamLifecycle::Ready | LiveStreamLifecycle::Live
+    ) && capability.hardware_encoder == LiveStreamHardwareEncoder::NvidiaNvenc
+    {
+        Ok(())
+    } else {
+        Err(McpError::invalid_request(
+            "NVIDIA-accelerated follow-camera streaming is not ready",
+            None,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
-        assert!(!UavSimMcp::tool_router().list_all().is_empty());
+        let tools = UavSimMcp::tool_router().list_all();
+        assert!(!tools.is_empty());
+        assert!(tools.iter().any(|tool| tool.name == "configure_world"));
     }
 
     #[test]

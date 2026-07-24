@@ -132,8 +132,10 @@ pub enum StoreError {
         field: &'static str,
         reason: &'static str,
     },
-    #[error("coordinate frame `{0}` already exists in this tenant")]
-    CoordinateFrameConflict(String),
+    #[error("frame world `{0}` conflicts with its current durable state")]
+    FrameWorldConflict(String),
+    #[error("frame world `{0}` was not found")]
+    FrameWorldNotFound(String),
     #[error("coordinate operation `{0}` conflicts with its durable provenance")]
     CoordinateOperationConflict(String),
     #[error("invalid map field {field}: {reason}")]

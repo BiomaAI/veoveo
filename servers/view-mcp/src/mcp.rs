@@ -74,7 +74,7 @@ impl ViewMcp {
             .subscriptions
             .notify_resource_updated(uris::VIEWS)
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_result(format!("created {}", view.view_uri), &view)
     }
 
@@ -148,7 +148,7 @@ impl ViewMcp {
             .subscriptions
             .notify_resource_updated(uris::VIEWS)
             .await;
-        let _ = context.peer.notify_resource_list_changed().await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
         structured_result(format!("closed view {}", result.view_id), &result)
     }
 }

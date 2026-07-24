@@ -129,6 +129,22 @@ fn validate_property_types(tool: &str, value: &Value, path: &str) -> Result<()> 
                 }
             }
             for (name, child) in object {
+                // A schema's `properties` member maps field names to schemas
+                // and is not a schema itself. Descend into each field schema
+                // explicitly so a GeoJSON field literally named `properties`
+                // is not misread as another schema keyword map.
+                if name == "properties"
+                    && let Some(fields) = child.as_object()
+                {
+                    for (field, field_schema) in fields {
+                        validate_property_types(
+                            tool,
+                            field_schema,
+                            &format!("{path}/properties/{field}"),
+                        )?;
+                    }
+                    continue;
+                }
                 validate_property_types(tool, child, &format!("{path}/{name}"))?;
             }
         }
@@ -191,6 +207,46 @@ fn schema_accepts_object(value: Option<&Value>) -> bool {
         Some(Value::String(value)) => value == "object",
         Some(Value::Array(values)) => values.iter().any(|value| value == "object"),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod schema_validation_tests {
+    use super::*;
+
+    #[test]
+    fn property_type_validation_accepts_a_field_named_properties() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "feature": {
+                    "type": "object",
+                    "properties": {
+                        "properties": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        });
+
+        validate_property_types("map__commit_feature_changes", &schema, "$").unwrap();
+    }
+
+    #[test]
+    fn property_type_validation_still_rejects_an_untyped_field() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "untyped": {
+                    "description": "missing type"
+                }
+            }
+        });
+
+        let error = validate_property_types("bad-tool", &schema, "$").unwrap_err();
+        assert!(error.to_string().contains("does not expose the JSON type"));
     }
 }
 

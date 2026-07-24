@@ -170,6 +170,22 @@ fn validate_property_types<T: Any>(value: &serde_json::Value, path: String) {
                 }
             }
             for (name, child) in object {
+                // A schema's `properties` member maps field names to schemas
+                // and is not a schema itself; descend into each field schema
+                // so a field literally named `properties` (for example
+                // GeoJSON feature properties) is not misread as a schema
+                // node.
+                if name == "properties"
+                    && let Some(fields) = child.as_object()
+                {
+                    for (field, field_schema) in fields {
+                        validate_property_types::<T>(
+                            field_schema,
+                            format!("{path}/properties/{field}"),
+                        );
+                    }
+                    continue;
+                }
                 validate_property_types::<T>(child, format!("{path}/{name}"));
             }
         }
@@ -286,6 +302,29 @@ mod tests {
             Some("object")
         );
         assert!(!contains_reference(&schema_value));
+    }
+
+    #[allow(dead_code)]
+    #[derive(Deserialize, JsonSchema)]
+    struct FeatureLikeRequest {
+        name: String,
+        properties: std::collections::BTreeMap<String, i64>,
+    }
+
+    #[test]
+    fn canonical_input_schema_accepts_a_field_named_properties() {
+        // GeoJSON-style payloads carry a field literally named `properties`;
+        // the validator must treat its schema as one field schema, not as a
+        // schema `properties` map.
+        let schema = mcp_input_schema::<FeatureLikeRequest>();
+        let schema_value = serde_json::Value::Object(schema.as_ref().clone());
+        jsonschema::meta::validate(&schema_value).expect("schema must satisfy its meta-schema");
+        assert_eq!(
+            schema_value
+                .pointer("/properties/properties/type")
+                .and_then(serde_json::Value::as_str),
+            Some("object")
+        );
     }
 
     #[test]

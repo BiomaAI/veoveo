@@ -183,7 +183,7 @@ class TaskExtensionMiddleware:
             if not isinstance(method, str) or not isinstance(jsonrpc, str):
                 raise ValueError("invalid request fields")
         except (ValueError, KeyError):
-            await self.app(scope, _replay(body), send)
+            await self.app(scope, _replay(body, receive), send)
             return
         params = rpc.get("params")
 
@@ -196,7 +196,7 @@ class TaskExtensionMiddleware:
         handled = method in _HANDLED_METHODS
         extension_request = _request_protocol_version(params) is not None
         if not handled and not extension_request:
-            await self.app(scope, _replay(body), send)
+            await self.app(scope, _replay(body, receive), send)
             return
 
         headers = _headers(scope)
@@ -255,11 +255,13 @@ class TaskExtensionMiddleware:
                         return
                 await self.app(
                     _without_protocol_header(scope),
-                    _replay(json.dumps(rpc).encode()),
+                    _replay(json.dumps(rpc).encode(), receive),
                     send,
                 )
             else:
-                await self.app(_without_protocol_header(scope), _replay(body), send)
+                await self.app(
+                    _without_protocol_header(scope), _replay(body, receive), send
+                )
         except AdapterError as error:
             await _send_error(send, rpc_id, error)
 
@@ -280,15 +282,15 @@ async def _read_body(receive: Receive) -> bytes:
             return b"".join(chunks)
 
 
-def _replay(body: bytes) -> Receive:
+def _replay(body: bytes, upstream: Receive) -> Receive:
     sent = False
 
     async def receive() -> dict[str, Any]:
         nonlocal sent
-        if sent:
-            return {"type": "http.disconnect"}
-        sent = True
-        return {"type": "http.request", "body": body, "more_body": False}
+        if not sent:
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        return await upstream()
 
     return receive
 

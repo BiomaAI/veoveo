@@ -4,7 +4,7 @@ use rmcp::model::CallToolResult;
 use secrecy::SecretString;
 use serde_json::Value;
 use tokio::sync::RwLock;
-use veoveo_mcp_contract::{ServerPublicEndpoint, SubscriptionHub};
+use veoveo_mcp_contract::{ResourceListObservers, ServerPublicEndpoint, SubscriptionHub};
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
     provider::{ModelEntry, Prediction, ProviderClient},
@@ -39,6 +39,7 @@ pub(super) struct AppState {
     pub(super) artifacts: ArtifactRepository,
     pub(super) retention: MediaRetentionPolicy,
     pub(super) subscribers: SubscriptionHub,
+    pub(super) resource_lists: ResourceListObservers,
 }
 
 impl std::fmt::Debug for AppState {

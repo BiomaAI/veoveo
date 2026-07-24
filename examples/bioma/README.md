@@ -60,8 +60,8 @@ published and its server contract is registered in the gateway control plane.
 ## Release publication
 
 Production workloads use the repository and digest map in images.lock.yaml. The
-Application manifests select chart version 0.1.0-92ba57cdf93d. That chart version
-was published from commit 92ba57cdf93d; the selected runtime image digests identify
+Application manifests select chart version 0.1.0-3a592eb6b000. That chart version
+was published from commit 3a592eb6b000; the selected runtime image digests identify
 the independently published image release.
 
 Publish a new local release directly to the shared registry:
@@ -82,8 +82,16 @@ just charts-publish localhost:5001/charts   "$CHART_VERSION" "$REVISION" true
 
 BuildKit pushes only missing layers and does not load release images into the host
 Docker store. Record the manifest digest for every published image in
-images.lock.yaml, then update both Application targetRevision fields to the new chart
-version in the same reviewed commit. The full procedure and production registry
+images.lock.yaml, then update both chart targetRevision fields in one release-input
+commit. Record that commit's full SHA. A follow-up rollout commit must set the
+`configuration` source targetRevision in both child Applications to the recorded SHA.
+The parent Application then changes the chart and its values source in one child
+Application update.
+
+Never point a child Application's `configuration` source at a mutable branch. A mutable
+values source can expose new image digests to the old chart before the parent updates
+the chart revision. That ordering breaks the release boundary and can revive an old
+replica policy during the transition. The full procedure and production registry
 requirements are in the enterprise deployment guide.
 
 ## Create the local platform
@@ -350,7 +358,9 @@ The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, fl
 PX4 mission, verifies the governed recording, runs Perception over the camera stream,
 runs Reason over that evidence, and confirms the concurrent GPU deployments remain
 available. Its runtime inputs come from
-showcase/uav-sim/scenarios/bioma-aerial.json.
+showcase/uav-sim/scenarios/new-york-aerial.json. The acceptance client creates
+the complete world through Frames MCP and binds the returned immutable revision
+to the simulator before Isaac constructs its stage.
 
 ## Cleanup
 

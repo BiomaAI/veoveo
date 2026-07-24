@@ -48,7 +48,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "resources_list_changed": true
       },
       "tools": [
         "artifact",

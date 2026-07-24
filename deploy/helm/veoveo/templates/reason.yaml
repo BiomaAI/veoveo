@@ -50,7 +50,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: reason-mcp
 spec:
-  replicas: {{ .Values.reason.replicas }}
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -64,6 +64,7 @@ spec:
         app.kubernetes.io/component: reason-mcp
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
         checksum/reason-runtime: {{ include "veoveo.reasonRuntimeData" . | sha256sum | quote }}
     spec:
       runtimeClassName: {{ .Values.reason.runtimeClassName }}

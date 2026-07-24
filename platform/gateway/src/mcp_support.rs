@@ -50,6 +50,14 @@ fn projected_ui_resource_path(path: &str) -> &str {
     path.split_once('/').map(|(_, rest)| rest).unwrap_or(path)
 }
 
+fn preserves_canonical_scheme(server: &ServerManifest, scheme: &str) -> bool {
+    scheme == server.uri_scheme.as_str()
+        || server
+            .referenced_resource_schemes
+            .iter()
+            .any(|referenced| referenced.as_str() == scheme)
+}
+
 pub(crate) fn project_upstream_resource_uri_for_gateway(
     server: &ServerManifest,
     upstream_uri: &str,
@@ -65,10 +73,8 @@ pub(crate) fn project_upstream_resource_uri_for_gateway(
             server.slug.as_str(),
             projected_ui_resource_path(path)
         )
-    } else if scheme == "http"
-        || scheme == "https"
-        || scheme == "data"
-        || scheme == server.uri_scheme.as_str()
+    } else if matches!(scheme, "http" | "https" | "ws" | "wss" | "data")
+        || preserves_canonical_scheme(server, scheme)
     {
         upstream_uri.to_string()
     } else {
@@ -99,7 +105,7 @@ pub(crate) fn project_gateway_resource_uri_for_upstream(
         && (scheme == server.uri_scheme.as_str()
             || scheme == "http"
             || scheme == "https"
-            || scheme == "data")
+            || matches!(scheme, "http" | "https" | "ws" | "wss" | "data"))
     {
         return Ok(Some(gateway_resource_uri(gateway_uri)?));
     }
@@ -134,7 +140,7 @@ pub(crate) fn project_resource_template_uri(
                 server.slug.as_str(),
                 projected_ui_resource_path(path)
             )
-        } else if scheme != server.uri_scheme.as_str()
+        } else if !preserves_canonical_scheme(server, scheme)
             && scheme != "http"
             && scheme != "https"
             && scheme != "data"
@@ -411,9 +417,12 @@ mod tests {
                 prompts: true,
                 completions: false,
                 tasks: false,
-                notifications: false,
+                tools_list_changed: false,
+                prompts_list_changed: false,
+                resources_list_changed: false,
             },
             resource_projection,
+            referenced_resource_schemes: std::collections::BTreeSet::new(),
             tools: vec![LocalToolName::new("run").unwrap()],
             compatibility_helpers: Vec::new(),
             prompts: Vec::new(),
@@ -510,6 +519,81 @@ mod tests {
         assert_eq!(
             structured["resources"][1]["resourceUri"].as_str(),
             Some("ui://charts/chart-view.html")
+        );
+    }
+
+    #[test]
+    fn server_owned_projection_preserves_declared_cross_server_resource_uris() {
+        let mut server = test_server("uav-sim", "uav-sim", ResourceProjectionMode::ServerOwned);
+        server
+            .referenced_resource_schemes
+            .insert(ResourceScheme::new("frames").unwrap());
+        server
+            .referenced_resource_schemes
+            .insert(ResourceScheme::new("recording").unwrap());
+        let mut result = CallToolResult::success(vec![]);
+        result.structured_content = Some(serde_json::json!({
+            "world": {
+                "revision_uri": "frames://world/new-york/revision/revision-1",
+                "simulation_frame_uri": (
+                    "frames://world/new-york/revision/revision-1/frame/isaac-world"
+                )
+            },
+            "recording_uri": "recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e",
+            "vendor_resource": "vendor://session/alpha",
+            "app_resource": "ui://vendor/live.html"
+        }));
+
+        project_call_tool_resource_uris(&server, &mut result).unwrap();
+
+        let structured = result.structured_content.unwrap();
+        assert_eq!(
+            structured["world"]["revision_uri"].as_str(),
+            Some("frames://world/new-york/revision/revision-1")
+        );
+        assert_eq!(
+            structured["world"]["simulation_frame_uri"].as_str(),
+            Some("frames://world/new-york/revision/revision-1/frame/isaac-world")
+        );
+        assert_eq!(
+            structured["recording_uri"].as_str(),
+            Some("recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e")
+        );
+        assert_eq!(
+            structured["vendor_resource"].as_str(),
+            Some("uav-sim://session/alpha")
+        );
+        assert_eq!(
+            structured["app_resource"].as_str(),
+            Some("ui://uav-sim/live.html")
+        );
+    }
+
+    #[test]
+    fn server_owned_projection_preserves_app_websocket_csp_origins() {
+        let server = test_server("uav-sim", "uav-sim", ResourceProjectionMode::ServerOwned);
+        let mut resource = Resource::new("ui://uav-sim/live.html", "uav-sim-live-app").with_meta({
+            let mut meta = rmcp::model::Meta::new();
+            meta.insert(
+                "ui".to_owned(),
+                serde_json::json!({
+                    "csp": {
+                        "connectDomains": [
+                            "wss://veoveo.bioma.ai",
+                            "ws://127.0.0.1:49101"
+                        ]
+                    }
+                }),
+            );
+            meta
+        });
+
+        project_listed_resource_uri(&server, &mut resource).unwrap();
+
+        let connect_domains = &resource.meta.unwrap().0["ui"]["csp"]["connectDomains"];
+        assert_eq!(
+            connect_domains,
+            &serde_json::json!(["wss://veoveo.bioma.ai", "ws://127.0.0.1:49101"])
         );
     }
 }

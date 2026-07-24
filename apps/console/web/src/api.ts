@@ -19,6 +19,7 @@ import type {
   RecordingPlaybackManifest,
   ShareLinkCreated,
 } from "./types";
+import { authenticationRequired, redirectToLogin } from "./auth";
 
 let csrfToken: string | undefined;
 
@@ -34,8 +35,7 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
   });
   csrfToken = response.headers.get("x-veoveo-csrf-token") ?? undefined;
   if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
+    authenticationRequired();
   }
   if (response.status === 403) {
     throw new Error("Your account is authenticated but is not authorized to open this Console.");
@@ -55,8 +55,7 @@ export async function loadCluster(signal?: AbortSignal): Promise<ClusterSnapshot
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
   if (rotatedToken) csrfToken = rotatedToken;
   if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
+    authenticationRequired();
   }
   if (response.status === 403) {
     throw new Error("Cluster inventory is not permitted for this console session.");
@@ -80,8 +79,7 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
     headers
   });
   if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
+    authenticationRequired();
   }
   if (response.status === 403) {
     throw new Error("This operation is not permitted by the active console scopes and policy.");
@@ -115,7 +113,7 @@ export async function logoutConsole(): Promise<void> {
     throw new Error(`Console logout returned ${response.status}`);
   }
   csrfToken = undefined;
-  window.location.assign("/auth/login");
+  redirectToLogin();
 }
 
 export async function cancelTask(taskId: string): Promise<void> {
@@ -205,8 +203,7 @@ export async function loadArtifactAccessRequests(
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
   if (rotatedToken) csrfToken = rotatedToken;
   if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
+    authenticationRequired();
   }
   if (response.status === 403) {
     throw new Error("Access requests are not available to the active Work Context membership.");
@@ -308,8 +305,7 @@ export async function loadRecordingPlayback(
     }
   );
   if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
+    authenticationRequired();
   }
   if (response.status === 403) {
     throw new Error("Playback is not permitted by the active recording policy.");
@@ -347,8 +343,7 @@ export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
   if (rotatedToken) csrfToken = rotatedToken;
   if (response.status === 401) {
-    window.location.assign("/auth/login");
-    throw new Error("Authentication required");
+    authenticationRequired();
   }
   if (!response.ok) throw new Error(`App catalog returned ${response.status}`);
   return response.json() as Promise<AppCatalog>;

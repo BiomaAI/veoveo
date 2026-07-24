@@ -9,15 +9,15 @@ use veoveo_platform_store::{
     ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState,
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
-    CoordinateFrameDraft, CoordinateOperationDraft, GatewayReplayKind, GatewayReplayRecord,
-    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapCompositionDraft,
-    MapCompositionRevisionDraft, MapCompositionUpdateDraft, MapFeatureCommitDraft,
-    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapLayerProductDraft,
-    MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject, OutboxDraft,
-    PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey, RecordingDraft,
-    RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId, SegmentSealBinding,
-    SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
-    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
+    CoordinateOperationDraft, FrameWorldDraft, FrameWorldRevisionDraft, GatewayReplayKind,
+    GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord, InvocationMode,
+    MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
+    MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
+    MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
+    OutboxDraft, PlatformIdentity, PlatformStore, PlatformTable, PrincipalKind, RecordIdKey,
+    RecordingDraft, RecordingId, RecordingSeal, RecordingState, SegmentDraft, SegmentId,
+    SegmentSealBinding, SegmentState, ShareLinkId, StoreConfig, StoreCredentials, StoreError,
+    TaskId, TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
     WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
     deterministic_work_context_id, gateway_replay_record_id,
 };
@@ -497,7 +497,7 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
 }
 
 #[tokio::test]
-async fn coordinate_frames_and_operations_are_durable_and_idempotent() {
+async fn frame_world_revisions_and_operations_are_durable_and_idempotent() {
     if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
         return;
     }
@@ -529,30 +529,53 @@ async fn coordinate_frames_and_operations_are_durable_and_idempotent() {
         )
         .await
         .unwrap();
-    let frame = store
-        .create_coordinate_frame(CoordinateFrameDraft {
+    let world = store
+        .create_frame_world(FrameWorldDraft {
             identity: identity.clone(),
-            frame_key: "ENU:integration".to_owned(),
-            display_name: "Integration local frame".to_owned(),
-            definition: OpenObject::new(BTreeMap::from([(
-                "frame_id".to_owned(),
-                serde_json::json!("ENU:integration"),
-            )])),
-            proj_pipeline: None,
+            world_key: "integration-world".to_owned(),
+            display_name: "Integration frame world".to_owned(),
+            description: Some("A complete revisioned frame tree.".to_owned()),
             classification: "gateway_labels".to_owned(),
             labels: vec!["cui".to_owned()],
         })
         .await
         .unwrap();
-    assert_eq!(frame.frame_key, "ENU:integration");
+    assert_eq!(world.world_key, "integration-world");
+    assert_eq!(world.revision, 0);
     assert_eq!(
         store
-            .list_coordinate_frames(identity.tenant_id)
+            .list_frame_worlds(identity.tenant_id)
             .await
             .unwrap()
             .len(),
         1
     );
+    let revision_key = format!("revision-{}", Uuid::now_v7());
+    let revision_draft = FrameWorldRevisionDraft {
+        identity: identity.clone(),
+        world_key: world.world_key.clone(),
+        expected_head_revision_key: None,
+        revision_key: revision_key.clone(),
+        spec_sha256: "a".repeat(64),
+        root_frame_key: "earth-ecef".to_owned(),
+        definition: OpenObject::new(BTreeMap::from([(
+            "frames".to_owned(),
+            serde_json::json!([{"frame_id": "earth-ecef"}]),
+        )])),
+    };
+    let publication = store
+        .publish_frame_world_revision(revision_draft.clone())
+        .await
+        .unwrap();
+    assert!(publication.created);
+    assert_eq!(publication.world.revision, 1);
+    assert_eq!(publication.revision.revision_key, revision_key);
+    let replay = store
+        .publish_frame_world_revision(revision_draft)
+        .await
+        .unwrap();
+    assert!(!replay.created);
+    assert_eq!(replay.revision.id, publication.revision.id);
 
     let operation_key = format!("op-{}", Uuid::now_v7());
     let created_at = Utc::now();

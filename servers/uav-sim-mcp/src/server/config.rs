@@ -6,6 +6,8 @@ use url::Url;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_task_runtime::StoreAuthLevel;
 
+use crate::contract::LiveStreamEndpoint;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub(super) enum AdapterKind {
     Http,
@@ -45,6 +47,20 @@ pub(super) struct Args {
         default_value = "enterprise"
     )]
     pub(super) recording_tenant_key: String,
+    #[arg(
+        long,
+        env = "UAV_SIM_LIVE_STREAM_SIGNALING_URL",
+        default_value = "ws://127.0.0.1:49101/webrtc"
+    )]
+    pub(super) live_stream_signaling_url: String,
+    #[arg(
+        long,
+        env = "UAV_SIM_LIVE_STREAM_MEDIA_SERVER",
+        default_value = "127.0.0.1"
+    )]
+    pub(super) live_stream_media_server: String,
+    #[arg(long, env = "UAV_SIM_LIVE_STREAM_MEDIA_PORT", default_value_t = 47998)]
+    pub(super) live_stream_media_port: u16,
     #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
     pub(super) surreal_endpoint: String,
     #[arg(long = "surreal-namespace", env = "VEOVEO_SURREAL_NAMESPACE")]
@@ -97,6 +113,58 @@ impl Args {
             "adapter operation timeout must be positive"
         );
         Ok(Duration::from_secs(self.adapter_operation_timeout_seconds))
+    }
+
+    pub(super) fn live_stream_endpoint(&self) -> anyhow::Result<LiveStreamEndpoint> {
+        let url = Url::parse(&self.live_stream_signaling_url)?;
+        anyhow::ensure!(
+            matches!(url.scheme(), "ws" | "wss"),
+            "live-stream signaling URL must use ws or wss"
+        );
+        anyhow::ensure!(
+            url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none(),
+            "live-stream signaling URL must not contain credentials, a query, or fragment"
+        );
+        let signaling_server = url
+            .host_str()
+            .ok_or_else(|| anyhow::anyhow!("live-stream signaling URL requires a host"))?
+            .to_owned();
+        let signaling_port = url
+            .port_or_known_default()
+            .ok_or_else(|| anyhow::anyhow!("live-stream signaling URL requires a port"))?;
+        let signaling_path = url.path().to_owned();
+        anyhow::ensure!(
+            signaling_path.starts_with('/') && signaling_path.len() > 1,
+            "live-stream signaling URL requires a non-root path"
+        );
+        anyhow::ensure!(
+            !self.live_stream_media_server.trim().is_empty()
+                && !self.live_stream_media_server.contains('/')
+                && !self.live_stream_media_server.contains("://"),
+            "live-stream media server must be a hostname or IP address"
+        );
+        Ok(LiveStreamEndpoint {
+            signaling_server,
+            signaling_port,
+            signaling_path,
+            media_server: self.live_stream_media_server.clone(),
+            media_port: self.live_stream_media_port,
+            force_wss: url.scheme() == "wss",
+        })
+    }
+
+    pub(super) fn live_stream_connect_origin(&self) -> anyhow::Result<String> {
+        let url = Url::parse(&self.live_stream_signaling_url)?;
+        anyhow::ensure!(
+            url.host_str().is_some(),
+            "live-stream signaling URL requires a host"
+        );
+        Ok(url[..url::Position::BeforePath]
+            .trim_end_matches('/')
+            .to_owned())
     }
 }
 

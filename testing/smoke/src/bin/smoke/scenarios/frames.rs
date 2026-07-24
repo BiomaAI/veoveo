@@ -78,34 +78,73 @@ pub(crate) async fn frames_mcp(
         "server: frames",
         "tool `batch_transform`",
         "tool `convert_frame`",
-        "tool `derive_local_frame`",
+        "tool `create_world`",
+        "tool `publish_world`",
         "prompt `frames-frame-audit`",
-        "template: frames://frame/{frame_id}",
+        "template: frames://world/{world_id}",
+        "template: frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}",
         "template: frames://artifact/{artifact_id}",
     ] {
         contains(&info, expected)?;
     }
 
     let resources = run_frames_mcp(conformance, &mcp_url, ["resources".into()])?;
-    for expected in [
-        "frames://frames",
-        "frames://usage",
-        "frames://frame/WGS84",
-        "frames://frame/ECEF",
-    ] {
+    for expected in ["frames://worlds", "frames://usage"] {
         contains(&resources, expected)?;
     }
+    not_contains(&resources, "frames://world/smoke-world")?;
 
-    let frames = run_frames_mcp(
+    let worlds = run_frames_mcp(
         conformance,
         &mcp_url,
-        ["resource".into(), "frames://frames".into()],
+        ["resource".into(), "frames://worlds".into()],
     )?;
-    contains(&frames, "\"frame_id\": \"WGS84\"")?;
-    contains(
-        &frames,
-        "\"axis_convention\": \"latitude_longitude_height\"",
+    contains(&worlds, "[]")?;
+
+    let prompt = run_frames_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "prompt".into(),
+            "frames-world-design".into(),
+            "--arguments".into(),
+            r#"{"workflow":"UAV waypoint mission around a small survey site","earth_anchor_hint":"mission launch point"}"#
+                .into(),
+        ],
     )?;
+    contains(&prompt, "complete rooted frame tree")?;
+
+    let create = run_frames_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "call".into(),
+            "--tool-name".into(),
+            "create_world".into(),
+            "--arguments".into(),
+            r#"{"world_id":"smoke-world","display_name":"Smoke world","description":"Frames smoke world tree."}"#.into(),
+        ],
+    )?;
+    contains(&create, "created frame world smoke-world")?;
+
+    let publish = run_frames_mcp(
+        conformance,
+        &mcp_url,
+        [
+            "call".into(),
+            "--tool-name".into(),
+            "publish_world".into(),
+            "--arguments".into(),
+            r#"{"world_id":"smoke-world","tree":{"frames":[{"frame_id":"earth-ecef","basis":{"kind":"ecef_wgs84"}},{"frame_id":"launch-enu","basis":{"kind":"enu"},"parent_frame_id":"earth-ecef","parent_transform":{"kind":"geodetic_tangent","origin":{"latitude_degrees":37.4219999,"longitude_degrees":-122.0840575,"ellipsoid_height_m":10.0}}},{"frame_id":"robot-world","basis":{"kind":"enu"},"parent_frame_id":"launch-enu","parent_transform":{"kind":"static_rigid","translation_m":[0.0,0.0,0.0],"rotation_xyzw":[0.0,0.0,0.0,1.0]}}]}}"#.into(),
+        ],
+    )?;
+    contains(&publish, "published frame world revision")?;
+    let published: Value = structured_from_output(&publish)?;
+    let revision_uri = published
+        .pointer("/revision/revision_uri")
+        .and_then(Value::as_str)
+        .context("published frame world omitted revision_uri")?;
+    let robot_frame_uri = format!("{revision_uri}/frame/robot-world");
 
     let frame_completion = run_frames_mcp(
         conformance,
@@ -113,42 +152,21 @@ pub(crate) async fn frames_mcp(
         [
             "complete-resource".into(),
             "--uri".into(),
-            "frames://frame/{frame_id}".into(),
+            "frames://world/{world_id}".into(),
             "--argument".into(),
-            "frame_id".into(),
-            "WG".into(),
+            "world_id".into(),
+            "smoke".into(),
         ],
     )?;
-    contains(&frame_completion, "WGS84")?;
+    contains(&frame_completion, "smoke-world")?;
 
-    let prompt = run_frames_mcp(
+    let frame = run_frames_mcp(
         conformance,
         &mcp_url,
-        [
-            "prompt".into(),
-            "frames-local-frame-select".into(),
-            "--arguments".into(),
-            r#"{"workflow":"UAV waypoint mission around a small survey site","origin_hint":"mission launch point"}"#
-                .into(),
-        ],
+        ["resource".into(), robot_frame_uri.clone().into()],
     )?;
-    contains(&prompt, "derive_local_frame request")?;
-
-    let derive = run_frames_mcp(
-        conformance,
-        &mcp_url,
-        [
-            "call".into(),
-            "--tool-name".into(),
-            "derive_local_frame".into(),
-            "--arguments".into(),
-            r#"{"frame_id":"ENU:smoke","kind":"enu","origin":{"latitude_deg":37.4219999,"longitude_deg":-122.0840575,"height_m":10.0},"description":"smoke local tangent frame"}"#.into(),
-        ],
-    )?;
-    contains(&derive, "derived frame ENU:smoke")?;
-    let derived: Value = structured_from_output(&derive)?;
-    assert_json_pointer_str(&derived, "/frame/frame_id", "ENU:smoke")?;
-    assert_json_pointer_str(&derived, "/frame/axis_convention", "east_north_up")?;
+    contains(&frame, "\"frame_id\": \"robot-world\"")?;
+    contains(&frame, "\"parent_frame_id\": \"launch-enu\"")?;
 
     let convert = run_frames_mcp(
         conformance,
@@ -158,13 +176,25 @@ pub(crate) async fn frames_mcp(
             "--tool-name".into(),
             "convert_frame".into(),
             "--arguments".into(),
-            r#"{"target_frame":"ENU:smoke","points":[{"kind":"wgs84","latitude_deg":37.4220999,"longitude_deg":-122.0840575,"height_m":12.0}]}"#.into(),
+            serde_json::to_string(&serde_json::json!({
+                "target": {
+                    "kind": "world_frame",
+                    "frame_uri": robot_frame_uri,
+                },
+                "points": [{
+                    "kind": "wgs84",
+                    "latitude_degrees": 37.4220999,
+                    "longitude_degrees": -122.0840575,
+                    "ellipsoid_height_m": 12.0,
+                }],
+            }))?
+            .into(),
         ],
     )?;
     contains(&convert, "converted 1 point(s)")?;
     let converted: Value = structured_from_output(&convert)?;
-    assert_json_pointer_str(&converted, "/points/0/kind", "enu")?;
-    assert_json_pointer_str(&converted, "/points/0/frame_id", "ENU:smoke")?;
+    assert_json_pointer_str(&converted, "/points/0/kind", "world_frame")?;
+    assert_json_pointer_str(&converted, "/points/0/frame_uri", &robot_frame_uri)?;
     let operation_id = operation_id(&converted, "/provenance/operation/operation_id")?;
     let operation = run_frames_mcp(
         conformance,
@@ -175,7 +205,7 @@ pub(crate) async fn frames_mcp(
         ],
     )?;
     contains(&operation, "\"kind\": \"frame_conversion\"")?;
-    contains(&operation, "\"target_frame\": \"ENU:smoke\"")?;
+    contains(&operation, &robot_frame_uri)?;
 
     let batch = run_frames_mcp(
         conformance,
@@ -185,7 +215,7 @@ pub(crate) async fn frames_mcp(
             "--tool-name".into(),
             "batch_transform".into(),
             "--arguments".into(),
-            r#"{"artifact":true,"convert":{"target_frame":"ECEF","points":[{"kind":"wgs84","latitude_deg":37.4219999,"longitude_deg":-122.0840575,"height_m":10.0}]}}"#.into(),
+            r#"{"artifact":true,"convert":{"target":{"kind":"ecef_wgs84"},"points":[{"kind":"wgs84","latitude_degrees":37.4219999,"longitude_degrees":-122.0840575,"ellipsoid_height_m":10.0}]}}"#.into(),
             "--task".into(),
         ],
     )?;
@@ -193,7 +223,7 @@ pub(crate) async fn frames_mcp(
     contains(&batch, "batch transform completed with 1 point(s)")?;
     contains(&batch, "output: frames://artifact/")?;
     let batch_output: SmokeFramesBatchOutput = structured_from_output(&batch)?;
-    assert_json_pointer_str(&batch_output.result, "/points/0/kind", "ecef")?;
+    assert_json_pointer_str(&batch_output.result, "/points/0/kind", "ecef_wgs84")?;
     let artifact = batch_output
         .artifact
         .ok_or_else(|| anyhow!("batch output had no artifact metadata"))?;

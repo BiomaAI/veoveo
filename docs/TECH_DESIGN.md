@@ -5,21 +5,33 @@ boundaries in `ARCHITECTURE_DECISIONS.md`. The architecture is protocol-first.
 Known requests, responses, identities, and persisted records use explicit Rust types
 or declared schemas. Durable state and service ownership remain inside the installation.
 
+## Standards And Protocols
+
+This table is the cross-component protocol contract. Domain design documents narrow
+the data standards they implement; the root README provides the shorter product-level
+catalog.
+
+| Standard or protocol | Technical boundary |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over sessionful Streamable HTTP at client-to-gateway and gateway-to-server boundaries. Every response uses event-stream framing. Catalog projection preserves canonical resources, prompts, completions, subscriptions, notifications, and structured content. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Closed, dereferenced MCP tool input schemas generated from Rust or Python types. Controlled persisted and structured-result models use the same typed vocabulary. |
+| [Veoveo final task extension](../mcp/task-extension) | Version `2026-06-30`; durable task augmentation, discovery, lifecycle methods, results, cancellation, and subscriptions use MCP messages rather than a job REST API. |
+| [MCP Apps SEP-1865](../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; server-owned `ui://` resources use the sandboxed MCP Apps host bridge. |
+| OpenID Connect and OAuth 2.0 | OIDC Core login; S256 PKCE; Client Credentials and JWT Bearer grants; RFC 8414 authorization-server metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; signed JWT/JWS/JWK tokens and key discovery. |
+| MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
+| HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, artifact delivery, and immutable RRD byte ranges. Internal cleartext HTTP exists only inside declared cluster trust boundaries. |
+| OpenTelemetry OTLP/HTTP | Optional traces and logs from shared server instrumentation. Export remains disabled unless the installation supplies an endpoint. |
+| Veoveo recording ingest | Version `2026-07-21`; authenticated protobuf batches preserve native Rerun messages, ordering, idempotency, and decoder-safe rollover markers. |
+| Rerun gRPC, RRD, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, viewer playback, and H.264 Annex B video with exact timeline indices. |
+| S3-compatible object API | Artifact bytes and presigned delivery. SurrealDB remains authoritative for occurrences, identity, grants, release state, shares, policy, and audit. |
+| Kubernetes, Helm, and OCI images | Canonical workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
+| Domain standards | Map, Time, Frames, View, UAV, Recording, Perception, and Reason designs pin their geospatial, temporal, 3D, vehicle, and media profiles independently. |
+
 ## Capability Model
 
-Veoveo does not flatten MCP into a collection of convenience tools. Each hosted
-server uses the protocol surface that matches its domain:
-
-| Need | Canonical MCP surface |
-|---|---|
-| action | tool with declared input and output JSON Schemas |
-| durable action | task-augmented tool through the MCP tasks API |
-| addressable state | resource or resource template |
-| discovery | resource list/template plus completion |
-| reusable interaction | prompt |
-| live condition | resource subscription and notification |
-| progress/result wake | task subscription |
-| cross-server identity | canonical URI and resource link |
+The normative server contract, including the need-to-surface mapping every
+hosted server follows, is [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
+This section describes how the gateway projects that contract.
 
 The gateway discovers these surfaces from upstream servers and projects them into a
 profile. It prefixes tool names only at the aggregation boundary, for example local
@@ -27,11 +39,11 @@ profile. It prefixes tool names only at the aggregation boundary, for example lo
 
 ### Tool input schemas
 
-Tool inputs publish one canonical JSON Schema 2020-12 document generated from the
-request type. The document has an object root, contains no references, and declares
-the immediate JSON type of every property. Object-shaped unions expose `type: object`
-alongside their variants. This profile preserves the full typed contract while making
-the argument shape visible to clients that inspect a property without resolving schema
+The canonical schema profile is normative in
+[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md#schemas-and-types): one
+JSON Schema 2020-12 document per tool input with an object root, no references,
+and immediate types, preserving the full typed contract while keeping argument
+shapes visible to clients that inspect a property without resolving schema
 references.
 
 Rust servers import `tool` from `veoveo_mcp_contract`. The macro selects the shared
@@ -62,9 +74,18 @@ requires the explicit direct-adapter flag. Compatibility behavior remains additi
 does not create a second protocol or source of truth. Full-MCP clients never receive
 compatibility helper clutter.
 
-The gateway advertises list-change support whenever an exposed upstream can emit
-notifications, then forwards the upstream notification to the connected client. A new
-authenticated session always receives the current policy-filtered catalog.
+The gateway declares tool, prompt, and resource list-change support independently. Each
+claim follows the exact upstream capability and no generic notification switch exists.
+Servers and the gateway await delivery through the owning session in protocol order.
+A two-second delivery bound prevents an unresponsive client from holding the handler
+indefinitely without detaching work after its session ends. A new authenticated session
+always receives the current policy-filtered catalog.
+
+Every logical MCP endpoint has one active process. Helm renders the gateway, hosted MCP
+servers, and local stdio bridges with one replica and `Recreate`. Stdio exists only
+between the bridge and the child whose lifecycle it owns. Legacy HTTP+SSE and network
+stdio are not registration choices. Independently stateless services, including the
+Console BFF and artifact byte service, retain their own replica configuration.
 
 Client hosts may retain their own per-user tool permissions after OAuth grants change.
 Those permissions are outside gateway authority: reconnecting authentication refreshes
@@ -190,7 +211,7 @@ recovery, and outbox transitions. Tenant, principal, profile, server, and operat
 part of idempotency scope.
 
 `veoveo-mcp-task-extension` implements the final `2026-06-30` extension wire contract:
-discovery, task-required tool invocation, get, update, cancel, list, and SSE task
+discovery, task-required tool invocation, get, update, cancel, list, and event-stream task
 subscriptions. It projects the shared runtime's task snapshots; it does not persist a
 parallel task model. Traits use native Rust return-position `impl Future`; the workspace
 does not require `async-trait` for controlled async contracts.
@@ -220,8 +241,9 @@ The media server keeps client/server async and provider/server async separate:
 5. The server durably records the unique event, redeems the preissued artifact
    capability, stores usage, commits the terminal task result, and emits outbox events.
 
-Any replica can receive a callback. Duplicate signed events are idempotent. Provider CDN
-URLs and opaque payloads are not returned to clients. Missing webhook delivery is an
+The one active media MCP process receives callbacks. Duplicate signed events are
+idempotent, and restart recovery replays durable unprocessed events. Provider CDN URLs
+and opaque payloads are not returned to clients. Missing webhook delivery is an
 operational failure; no timeout path queries provider status.
 
 Cancellation is intentionally asymmetric. `tasks/cancel` commits the local cancellation
@@ -338,6 +360,11 @@ policy targets fail closed. Audit records carry explicit principal attributes an
 context but exclude prompts, artifact bytes, provider payloads, tokens, link bearers,
 webhook bodies, and signed URLs.
 
+Server-owned resource projection namespaces a server's Apps and opaque upstream resource
+schemes. A manifest declares `referenced_resource_schemes` when its typed outputs carry
+canonical resources owned by another registered server. Those identities pass through
+unchanged; the gateway rejects declarations for schemes absent from the same control plane.
+
 Refresh rotation is a durable compare-and-swap. The winner stores only an
 XChaCha20-Poly1305 successor envelope for the configured short delivery window. Its AAD
 binds the authorization server, profile, OAuth client, token family, and generation. A
@@ -363,7 +390,11 @@ login. Unsafe requests require a constant-time CSRF token match.
 
 The React application receives installation projections and one-time share URLs, never a
 gateway bearer. CSP, frame denial, MIME sniff prevention, same-origin referrer policy,
-and no-store API responses are applied by the BFF.
+and no-store API responses are applied by the BFF. The installation snapshot is the
+browser's authentication bootstrap. Catalog and live-stream requests begin only after
+that bootstrap succeeds. Every unauthorized response enters one shared, non-retrying
+login transition, which prevents parallel API failures from starting competing OAuth
+flows.
 
 Recording playback remains inside this boundary. The BFF exposes authorized same-origin
 manifest and segment routes, including byte ranges, while the gateway evaluates the
@@ -426,7 +457,7 @@ Coverage includes:
 - real SurrealDB 3.2 migration/runtime credentials and multi-process durability;
 - gateway OAuth, Keycloak login, refresh rotation/replay, internal assertions, policy,
   admin operations, audit, task and artifact projection;
-- webhook-only media completion across process restart and replica boundaries;
+- webhook-only media completion across process restart and durable event replay;
 - task recovery classes, deterministic resume output, capability redemption, quotas;
 - arbitrary DuckDB SQL and interruption classification;
 - recording crash recovery, rollover, catalog rebuild, and SUMO push readback;

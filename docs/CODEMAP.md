@@ -20,6 +20,7 @@ component:
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording ingest, catalog, sealing, and governed read path |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
+| [`connectors/README.md`](connectors/README.md) | third-party MCP connector catalog, recipe contract, and governed upstream path |
 
 Exploratory documents preserve open design work. They are not normative and do not
 authorize implementation:
@@ -27,11 +28,13 @@ authorize implementation:
 | Document | Exploration |
 |---|---|
 | [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, and possible self-improving harness boundaries |
+| [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 
 MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
 |---|---|
+| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, sessionful Streamable HTTP, notification ownership, singleton deployment identity, schema profile, packaging, well-known resources, and compliance |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -42,7 +45,7 @@ MCP designs live with the crate whose public contract they specify:
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | temporal authority, operational calendars, clock quality, and events |
 | [`servers/timeseries-mcp/DESIGN.md`](../servers/timeseries-mcp/DESIGN.md) | timeseries forecasting, preview contract, and the forecast MCP App view |
 | [`servers/view-mcp/DESIGN.md`](../servers/view-mcp/DESIGN.md) | headless geospatial points of view, 3D Tiles residency, and GPU frame capture |
-| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, and recordings |
+| [`servers/uav-sim-mcp/DESIGN.md`](../servers/uav-sim-mcp/DESIGN.md) | governed UAV simulation sessions, missions, vehicles, tiles, recordings, and the owner-scoped live follow-camera App |
 
 Deployment, examples, templates, and fixtures keep their instructions beside the
 material they operate:
@@ -144,7 +147,7 @@ schema merely because the server is first-party.
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
-| `coordinates.rs` | current shared coordinate ids, frame kinds, geofence rules, and operation provenance |
+| `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
 | `schema.rs` | canonical self-contained JSON Schema 2020-12 generation for Rust MCP tool inputs |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
@@ -160,6 +163,7 @@ schema merely because the server is first-party.
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
+| `transport.rs` | canonical sessionful Streamable HTTP configuration with event-stream responses |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `mcp/schema-macros`
@@ -195,7 +199,7 @@ The only durable platform persistence layer.
 | `identity.rs` | tenant/principal/group resolution |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `coordinates.rs` | frames and coordinate-operation persistence |
+| `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus authored frame worlds and immutable tree revisions |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `map_presentations.rs` | Immutable publication products plus governed, publication-pinned map compositions and revisions |
@@ -239,13 +243,14 @@ The runtime is the source of truth. The extension is transport only.
 | `control_store.rs` | immutable SurrealDB control revisions and activation |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, principals |
 | `policy.rs` | policy evaluation entrypoint |
+| `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/tools.rs` | aggregated tool projection and explicit helper gating |
 | `mcp/resources.rs` | resource/list/read/subscribe projection |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion projection |
 | `mcp/final_tasks.rs` | canonical upstream final task client/projection |
 | `mcp/tasks.rs` | explicit weak-client task projection |
-| `mcp/upstream*.rs` | authenticated streamable HTTP and cache behavior |
+| `mcp/upstream*.rs` | authenticated Streamable HTTP, session-local protocol state, and catalog-revision-scoped sharing of transport-equivalent HTTP/TLS clients |
 | `state/audit.rs` | durable policy/audit evidence |
 | `state/auth_state.rs` | durable OAuth authorization and replay state |
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC |
@@ -324,7 +329,7 @@ Current MCP crates under `servers/` are indexed here:
 |---|---|
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, governed ingest/export, and DuckDB Spatial |
-| `servers/frames-mcp` | local frame derivation, coordinate conversion, and operation provenance |
+| `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/map-mcp` | Earth geography, governed feature authoring and products, source administration, releases, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
 | `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
@@ -334,17 +339,17 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifacts |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | owner-scoped geospatial views, shared 3D Tiles streaming, offscreen Bevy rendering, and captured frames |
-| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, and recording references |
+| `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, missions, vehicles, tasks, subscriptions, recording references, and the typed live-stream App lifecycle |
 
 ### UAV Simulation Integration
 
 | Path | Responsibility |
 |---|---|
-| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, pod-private adapter, and Rerun publication |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication plus interactive and batch Helm workloads, versioned persistent caches, typed camera configuration, GPU requests, and network policy |
-| `showcase/uav-sim/scenarios/` | strongly typed runtime-loaded live mission and acceptance parameters that remain outside the Isaac image context |
-| `examples/bioma/uav-sim-values.yaml` | Bioma session, Frames origin, camera optics and mount, public gateway origin, and recording tenant binding |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | scenario validation and credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU workload acceptance |
+| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, NVIDIA WebRTC/NVENC follow-camera stream, pod-private adapter, and Rerun publication |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured interactive Helm workload, authenticated signaling and WebRTC media services, versioned persistent cache, typed camera configuration, GPU request, and network policy |
+| `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
+| `examples/bioma/uav-sim-values.yaml` | Bioma reference camera configuration, public gateway origin, and recording tenant binding |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU acceptance |
 
 ### Geospatial Domains
 
@@ -353,7 +358,7 @@ The geospatial hard cut has three canonical servers:
 | Path | Responsibility |
 |---|---|
 | `servers/map-mcp` | Earth geography, governed authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
-| `servers/frames-mcp` | WGS84, ECEF, ENU, and NED local-frame derivation and conversion, durable batch work, operation provenance, artifacts, and usage |
+| `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
 The crate-local design documents own their protocol, administration, persistence, and
@@ -579,7 +584,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `live.ts` | EventSource console stream feeding row upserts into the snapshot cache |
 | `theme.ts`, `ThemeProvider.tsx` | persisted Console theme registry, semantic palette selection, and MCP App light/dark host context |
 | `apps/` | MCP Apps host: sandboxed iframe component and the postMessage bridge |
-| `api.ts` | same-origin BFF calls and CSRF rotation |
+| `auth.ts` | one-way authentication transition shared by every 401 handler |
+| `api.ts` | ordered same-origin BFF calls and CSRF rotation |
 | `types.ts` | TypeScript snapshot and mutation response shapes |
 | `styles.css` | responsive work-focused visual system with accessible type-scale tokens |
 
@@ -616,6 +622,6 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change public routes in Helm ingress, then extend the Rust deployment smoke.
 - Change installation image/config content in Helm, the offline lock/builder, and
   deployment contract together.
-- Deliver install-time domain configuration through the generic `serverBootstrap` values and
-  the `mcp/contract` bootstrap envelope; the payload schema and `bootstrap-validate` verb live
-  in the owning `servers/*-mcp` crate, never in core templates.
+- Deliver install-time domain configuration through the generic `serverBootstrap` values only
+  when the owning server defines an installation-time contract. Frames worlds are runtime MCP
+  state and must never be placed in Helm bootstrap.

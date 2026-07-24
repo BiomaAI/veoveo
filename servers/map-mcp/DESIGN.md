@@ -37,6 +37,23 @@ health      /map/healthz
 Gateway-mounted tools use names such as `map__route`. Resource identities keep
 the `map://` scheme.
 
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
+| [Veoveo final task extension](../../mcp/task-extension) | Version `2026-06-30`; acquisition, routing, import, export, publication, and vector-product operations use durable task semantics where declared. |
+| [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/admin.html` and `ui://map/editor.html` use the sandboxed host bridge and canonical Map tools and resources. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
+| WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
+| [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
+| OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
+| GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
+| Mapbox Vector Tile 2.1 and MapLibre Style 8 | Deterministic bounded XYZ tile bundles and safe literal presentation styles. |
+| OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
+| HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
+| Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. It is an internal projection, never a public Map API. |
+
 ## Domain Scope
 
 Map answers where something is on Earth and whether a specific mobility

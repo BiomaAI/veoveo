@@ -8,7 +8,7 @@ use serde_json::Value;
 use validation::{
     validate_oauth_client_registration, validate_oidc_client_registration, validate_policy_set,
     validate_profile_auth_modes, validate_profile_server_exposure, validate_server_apps,
-    validate_server_compatibility_helpers, validate_server_upstream,
+    validate_server_capabilities, validate_server_compatibility_helpers, validate_server_upstream,
     validate_server_upstream_tls_material,
 };
 use wire::{
@@ -146,6 +146,23 @@ impl GatewayControlPlane {
             validate_server_compatibility_helpers(server)?;
             validate_server_upstream(server)?;
             validate_server_apps(server)?;
+            validate_server_capabilities(server)?;
+        }
+        for server in &self.servers {
+            for scheme in &server.referenced_resource_schemes {
+                if !self
+                    .servers
+                    .iter()
+                    .any(|candidate| candidate.uri_scheme == *scheme)
+                {
+                    return Err(
+                        GatewayControlPlaneError::UnknownServerReferencedResourceScheme {
+                            server: server.slug.clone(),
+                            scheme: scheme.clone(),
+                        },
+                    );
+                }
+            }
         }
 
         let mut policies = BTreeSet::new();

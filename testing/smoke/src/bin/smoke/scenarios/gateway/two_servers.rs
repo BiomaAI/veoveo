@@ -73,7 +73,7 @@ pub(crate) async fn gateway_two_servers(
         ],
         [],
     )?;
-    contains(&validation, "ok: 2 server(s), 1 profile(s)")?;
+    contains(&validation, "ok: 2 server(s), 2 profile(s)")?;
 
     let auth_private_key = run_checked(conformance, ["gateway-private-key-der-b64".into()], [])?;
     let platform_store = spawn_gateway_platform_store(gateway, &generated_control_plane).await?;
@@ -102,18 +102,10 @@ pub(crate) async fn gateway_two_servers(
         bail!("gateway readyz did not report two servers: {ready}");
     }
 
-    let token = run_checked(
+    let token = gateway_token(
         conformance,
-        [
-            "gateway-token-exchange".into(),
-            "--token-url".into(),
-            format!("{gateway_base}/oauth/token").into(),
-            "--scope".into(),
-            "operator:use".into(),
-            "--scope".into(),
-            "simulation:use".into(),
-        ],
-        [],
+        &gateway_base,
+        &["--scope", "operator:use", "--scope", "simulation:use"],
     )?;
     let token = token.trim();
     let info = run_mcp(conformance, &gateway_base, token, ["info".into()])?;
@@ -212,17 +204,7 @@ pub(crate) async fn gateway_two_servers(
     )?;
     contains(&completion, "orbital-docking")?;
 
-    let media_only_token = run_checked(
-        conformance,
-        [
-            "gateway-token-exchange".into(),
-            "--token-url".into(),
-            format!("{gateway_base}/oauth/token").into(),
-            "--scope".into(),
-            "operator:use".into(),
-        ],
-        [],
-    )?;
+    let media_only_token = gateway_token(conformance, &gateway_base, &["--scope", "operator:use"])?;
     let denied = run_raw(
         conformance,
         [

@@ -45,10 +45,10 @@ pub struct ResourceUiMeta {
     pub prefers_border: Option<bool>,
 }
 
-/// Content-security domains an app view declares. Veoveo apps are fully
-/// self-contained, so first-party servers leave every list empty and hosts
-/// apply a deny-all frame CSP; the field exists to faithfully parse
-/// third-party app resources.
+/// Content-security domains an app view declares. Most Veoveo apps are fully
+/// self-contained. A live-data app may name exact installation-owned origins;
+/// hosts validate and enforce the declaration rather than accepting arbitrary
+/// wildcard or path-bearing sources.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiCsp {

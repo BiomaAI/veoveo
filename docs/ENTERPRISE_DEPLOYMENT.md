@@ -159,7 +159,9 @@ An extension application normally selects two sources:
 Custom enterprise MCP servers follow the same pattern. They do not need Veoveo's build
 system when their image and chart are already published. Their gateway entry still uses
 the canonical typed control-plane model, internal assertion trust, policy checks, audit
-path, and URI identities.
+path, and URI identities. The complete normative server requirements, including the
+well-known docs and contract resources, are in
+[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
 
 ## Direct Helm
 

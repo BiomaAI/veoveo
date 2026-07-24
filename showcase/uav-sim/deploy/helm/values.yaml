@@ -68,12 +68,7 @@ cache:
   accessMode: ReadWriteOnce
 
 session:
-  id: bioma-uav
-  frameUri: frames://frame/bioma-uav-origin
-  origin:
-    latitudeDegrees: 37.7749
-    longitudeDegrees: -122.4194
-    ellipsoidHeightM: 30.0
+  id: uav-showcase
   vehicleCount: 1
   physicsHz: 250
   renderingHz: 20
@@ -98,13 +93,10 @@ session:
         x: 0.0
         "y": 0.0
         z: -0.7071067811865476
-  screenshot:
-    enabled: false
-    outputPath: /tmp/isaac-uav.png
-    width: 1920
-    height: 1080
-    minimumRelativeAltitudeM: 250.0
-    settleRenderedFrames: 30
+  followCamera:
+    width: 1280
+    height: 720
+    fps: 20
     focalLengthMm: 45.0
     eyeOffsetM:
       x: -2.2
@@ -114,17 +106,36 @@ session:
       x: 0.0
       "y": 0.0
       z: 0.2
+  screenshot:
+    enabled: false
+    outputPath: /tmp/isaac-uav.png
+    minimumRelativeAltitudeM: 250.0
+    settleRenderedFrames: 30
+
+liveStream:
+  signalingUrl: ws://127.0.0.1:49101/webrtc
+  signalingPath: /webrtc
+  privateSignalPort: 49100
+  proxyPort: 49101
+  publicMediaServer: 127.0.0.1
+  mediaPort: 47998
+  publicIp: 127.0.0.1
+  leaseTtlSeconds: 300
+  service:
+    type: NodePort
+    signalNodePort: 30910
+    mediaNodePort: 30998
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    path: /webrtc
+    tlsSecret: ""
+    annotations: {}
 
 interactive:
   enabled: true
   progressDeadlineSeconds: 1800
-
-batch:
-  enabled: false
-  sessionId: bioma-uav-batch
-  exitAfterSeconds: 60
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 86400
 
 service:
   port: 8802

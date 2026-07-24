@@ -3,6 +3,7 @@
 The Rust suite is the reference; these fixtures must not drift from it.
 """
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
@@ -241,6 +242,73 @@ async def test_task_creation_is_per_request_capability_gated():
     )
     assert response.status == 400
     assert response.json()["error"]["code"] == -32_602
+
+
+async def test_passthrough_replay_preserves_the_live_disconnect_signal():
+    handler = FakeHandler(uuid7())
+    discovery = ServerDiscovery(
+        capabilities={"tools": {}},
+        server_info=Implementation(name="streaming-server", version="1.0.0"),
+    )
+    client_disconnected = asyncio.Event()
+    inner_received_request = asyncio.Event()
+
+    async def streaming_app(scope, receive, send):
+        request = await receive()
+        assert request["type"] == "http.request"
+        inner_received_request.set()
+        pending_disconnect = asyncio.create_task(receive())
+        await asyncio.sleep(0)
+        assert not pending_disconnect.done()
+        client_disconnected.set()
+        assert await pending_disconnect == {"type": "http.disconnect"}
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"text/event-stream")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"event: message\ndata: {}\n\n",
+            }
+        )
+
+    middleware = TaskExtensionMiddleware(streaming_app, handler, discovery)
+    body = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": "initialize-1",
+            "method": "initialize",
+            "params": {},
+        }
+    ).encode()
+    body_available = True
+
+    async def receive() -> dict[str, Any]:
+        nonlocal body_available
+        if body_available:
+            body_available = False
+            return {"type": "http.request", "body": body, "more_body": False}
+        await client_disconnected.wait()
+        return {"type": "http.disconnect"}
+
+    response = Response()
+    await middleware(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": [(b"content-type", b"application/json")],
+        },
+        receive,
+        response.send,
+    )
+    assert inner_received_request.is_set()
+    assert response.status == 200
+    assert response.headers["content-type"] == "text/event-stream"
 
 
 async def test_lifecycle_methods_require_capability_and_exact_routing_headers():

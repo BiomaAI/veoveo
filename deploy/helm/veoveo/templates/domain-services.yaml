@@ -43,11 +43,9 @@ metadata:
     {{- include "veoveo.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $service.name }}
 spec:
-  replicas: {{ default $.Values.global.defaultReplicas $service.replicas }}
-  {{- if $service.deploymentStrategy }}
+  replicas: 1
   strategy:
-    {{- toYaml $service.deploymentStrategy | nindent 4 }}
-  {{- end }}
+    type: Recreate
   selector:
     matchLabels:
       {{- include "veoveo.selectorLabels" $ | nindent 6 }}
@@ -59,6 +57,7 @@ spec:
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
+        veoveo.ai/chart-revision: {{ $.Chart.Version | quote }}
         {{- if hasKey $.Values.serverBootstrap $service.name }}
         checksum/bootstrap: {{ toJson (index $.Values.serverBootstrap $service.name) | sha256sum }}
         {{- end }}
@@ -130,6 +129,18 @@ spec:
           ports:
             - name: http
               containerPort: {{ $service.port }}
+          {{- with $service.startupProbe }}
+          startupProbe:
+            httpGet:
+              path: {{ $service.healthPath }}
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: {{ printf "%s:%v" $service.name $service.port | quote }}
+            failureThreshold: {{ .failureThreshold }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: {{ $service.healthPath }}

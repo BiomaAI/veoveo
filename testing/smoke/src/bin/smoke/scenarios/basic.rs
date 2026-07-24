@@ -1,4 +1,5 @@
 use anyhow::ensure;
+use sha2::{Digest, Sha256};
 
 use super::*;
 
@@ -153,21 +154,65 @@ pub(crate) async fn helm_config() -> Result<()> {
         "https://veoveo.bioma.ai",
         "name: bioma-gateway-control-plane",
         "name: recording-hub",
-        "name: frames-mcp-bootstrap",
-        "bioma-uav-origin",
-        r#""view_coordinates":{"x":"right","y":"forward","z":"up"}"#,
         "name: view-mcp",
         "name: perception-mcp",
         "name: reason-mcp",
         "value: \"artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,datasheet\"",
         "checksum/reason-runtime:",
-        "checksum/control-plane: \"unresolved\"",
     ] {
         contains(&bioma, expected)?;
     }
+    not_contains(&bioma, "name: frames-mcp-bootstrap")?;
+    not_contains(&bioma, "frames://frame/")?;
+    let control_plane = fs::read("examples/bioma/gateway.json")?;
+    let control_plane_revision = hex::encode(Sha256::digest(control_plane));
+    let bioma_values = fs::read_to_string("examples/bioma/values.yaml")?;
+    contains(
+        &bioma_values,
+        &format!("controlPlaneRevision: {control_plane_revision}"),
+    )?;
+    contains(
+        &bioma,
+        &format!("checksum/control-plane: \"{control_plane_revision}\""),
+    )?;
+    contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
+    not_contains(&bioma, "bootstrap-1")?;
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
+        }
+    }
+    for component in [
+        "mcp-gateway",
+        "artifact-mcp",
+        "media-mcp",
+        "perception-mcp",
+        "reason-mcp",
+        "timeseries-mcp",
+        "duckdb-mcp",
+        "optimization-mcp",
+        "frames-mcp",
+        "map-mcp",
+        "view-mcp",
+        "time-mcp",
+        "datasheet-mcp",
+        "chart-mcp",
+        "rerun-bridge",
+        "recording",
+    ] {
+        let deployment = bioma
+            .split("\n---\n")
+            .find(|document| {
+                document.contains("kind: Deployment")
+                    && document.contains(&format!("name: {component}\n"))
+            })
+            .with_context(|| format!("finding rendered {component} deployment"))?;
+        contains(deployment, "replicas: 1")?;
+        contains(deployment, "strategy:\n    type: Recreate")?;
+        contains(deployment, "veoveo.ai/chart-revision: \"0.1.0\"")?;
+        if component == "map-mcp" {
+            contains(deployment, "startupProbe:")?;
+            contains(deployment, "failureThreshold: 60")?;
         }
     }
     let bioma_tunnel = fs::read_to_string("examples/bioma/gitops/cloudflared.yaml")?;
@@ -241,6 +286,22 @@ pub(crate) async fn helm_config() -> Result<()> {
         "value: \"0.7071067811865476\"",
         "name: UAV_SIM_RECORDING_TENANT_KEY",
         "value: \"bioma\"",
+        "name: UAV_SIM_FOLLOW_CAMERA_WIDTH",
+        "value: \"1280\"",
+        "name: UAV_SIM_LIVE_STREAM_SIGNALING_URL",
+        "value: \"wss://veoveo.bioma.ai/webrtc\"",
+        "name: UAV_SIM_LIVE_STREAM_PUBLIC_IP",
+        "name: uav-sim-live",
+        "host: veoveo.bioma.ai",
+        "path: /webrtc",
+        "pathType: Prefix",
+        "ingressClassName: traefik",
+        "name: stream-signal",
+        "containerPort: 49101",
+        "name: stream-media",
+        "containerPort: 47998",
+        "nodePort: 30910",
+        "nodePort: 30998",
         "name: ROS_DISTRO",
         "value: jazzy",
         "name: RMW_IMPLEMENTATION",
@@ -250,6 +311,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "http://127.0.0.1:8810/healthz",
         "http://127.0.0.1:8810/readyz",
         "nvidia.com/gpu: 1",
+        "veoveo.ai/chart-revision: \"0.1.0\"",
     ] {
         contains(&uav_sim, expected)?;
     }
@@ -262,45 +324,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         uav_sim.matches("name: CESIUM_ION_ACCESS_TOKEN").count() == 1,
         "interactive UAV render must inject the Cesium ion token exactly once"
     );
-
-    let uav_batch = run_checked(
-        Path::new("helm"),
-        [
-            "template".into(),
-            "uav-sim".into(),
-            "showcase/uav-sim/deploy/helm".into(),
-            "--namespace".into(),
-            "veoveo".into(),
-            "--values".into(),
-            "examples/bioma/uav-sim-values.yaml".into(),
-            "--values".into(),
-            "examples/bioma/images.lock.yaml".into(),
-            "--set".into(),
-            "interactive.enabled=false".into(),
-            "--set".into(),
-            "batch.enabled=true".into(),
-        ],
-        [],
-    )?;
-    for expected in [
-        "kind: Job",
-        "name: uav-sim-bioma-uav-batch",
-        "name: UAV_SIM_EXIT_AFTER_SECONDS",
-        "runtimeClassName: nvidia",
-        "name: CESIUM_ION_ACCESS_TOKEN",
-        "name: uav-sim-batch-runtime-cache",
-        "claimName: uav-sim-batch-runtime-cache",
-        "name: uav-sim-batch-recording-forwarder",
-        "claimName: uav-sim-batch-recording-forwarder",
-        "image: k3d-veoveo-registry.localhost:5000/veoveo/recording-forwarder@sha256:",
-    ] {
-        contains(&uav_batch, expected)?;
-    }
-    for forbidden in ["kind: Service", "name: uav-sim-mcp"] {
-        if uav_batch.contains(forbidden) {
-            bail!("batch UAV render must not contain `{forbidden}`");
-        }
-    }
 
     let production_without_digests = Command::new("helm")
         .args([
@@ -379,6 +402,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: sumo-recording-forwarder",
         "claimName: sumo-recording-forwarder",
         "runAsUser: 10001",
+        "veoveo.ai/chart-revision: \"0.1.0\"",
     ] {
         contains(&sumo, expected)?;
     }
@@ -488,7 +512,14 @@ pub(crate) async fn helm_config() -> Result<()> {
         "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
-    contains(&uav_mcp_dockerfile, "--bin uav-sim-mcp")?;
+    for expected in [
+        "--bin uav-sim-mcp",
+        "@nvidia/ov-web-rtc@6.6.0",
+        "77be78cd4799f797d320d386461834737f5a8368deacfb3b27ae26612f39c9a5",
+        "UAV_SIM_WEBRTC_CLIENT_BUNDLE=/tmp/ov-web-rtc.umd.cjs",
+    ] {
+        contains(&uav_mcp_dockerfile, expected)?;
+    }
     let bake = fs::read_to_string("docker-bake.hcl")?;
     for expected in [
         "group \"platform-core\"",
@@ -536,6 +567,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         &bioma_platform,
         "argoproj/argo-cd/v3.4.5/manifests/install.yaml",
     )?;
+    let mut chart_revision = None;
+    let mut configuration_revision = None;
     for application in [
         "examples/bioma/gitops/applications/veoveo.yaml",
         "examples/bioma/gitops/applications/uav-sim.yaml",
@@ -549,14 +582,54 @@ pub(crate) async fn helm_config() -> Result<()> {
             &application,
             "$configuration/examples/bioma/images.lock.yaml",
         )?;
-        contains(&application, "targetRevision: 0.1.0-92ba57cdf93d")?;
+        let revision = application
+            .lines()
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("targetRevision: ")
+                    .filter(|value| value.starts_with("0.1.0-"))
+            })
+            .context("Bioma application omitted its immutable chart revision")?
+            .to_owned();
+        if let Some(expected) = &chart_revision {
+            ensure!(
+                &revision == expected,
+                "Bioma applications must use one chart revision: {expected} != {revision}"
+            );
+        } else {
+            chart_revision = Some(revision);
+        }
+        let configuration_revision_value = application
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("targetRevision: "))
+            .find(|value| value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .context("Bioma application omitted its immutable configuration revision")?
+            .to_owned();
+        if let Some(expected) = &configuration_revision {
+            ensure!(
+                &configuration_revision_value == expected,
+                "Bioma applications must use one configuration revision: \
+                 {expected} != {configuration_revision_value}"
+            );
+        } else {
+            configuration_revision = Some(configuration_revision_value);
+        }
+        not_contains(&application, "targetRevision: main")?;
         not_contains(&application, "ServerSideApply=true")?;
     }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
-        "showcase/uav-sim/scenarios/bioma-aerial.json",
+        "showcase/uav-sim/scenarios/new-york-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v4")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v6")
+            && uav_scenario
+                .pointer("/world/tree/frames/1/parent_transform/origin/latitude_degrees")
+                .and_then(Value::as_f64)
+                == Some(40.758)
+            && uav_scenario
+                .pointer("/world/tree/frames/1/parent_transform/origin/longitude_degrees")
+                .and_then(Value::as_f64)
+                == Some(-73.9855)
             && uav_scenario
                 .pointer("/takeoff/relative_altitude_m")
                 .and_then(Value::as_f64)

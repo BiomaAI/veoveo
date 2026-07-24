@@ -71,6 +71,7 @@ spec:
         app.kubernetes.io/component: recording
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false

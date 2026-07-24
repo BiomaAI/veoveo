@@ -61,12 +61,31 @@ Veoveo visual, simulation, perception, rendering, and visual-verification workfl
 must use an accessible hardware GPU. A software renderer is not a degraded mode and
 must never be accepted as evidence that a workflow works.
 
+Always choose the fastest compatible NVIDIA hardware-accelerated path for rendering,
+simulation, video encode and decode, perception, and other GPU-suitable work. A
+provider-neutral public contract does not justify replacing a faster NVIDIA data plane
+with a slower CPU implementation. Avoid GPU-to-CPU readback, duplicate encoding, and
+per-consumer rendering when a CUDA buffer, NVENC bitstream, or shared GPU render product
+can carry the same result.
+
+When existing code performs GPU-suitable work on the CPU and a compatible accelerated
+implementation is available, mark the exact path with `TODO(GPU)` and state the intended
+replacement. A TODO records migration debt; it does not authorize a new CPU fallback or
+allow the unaccelerated path to become acceptance evidence.
+
 Before browser automation, an interactive demo, or a screenshot run, prove that the
 browser is headed and that both its high-performance WebGPU adapter and WebGL context
 are hardware-backed. Reject missing contexts, SwiftShader, llvmpipe, software adapters,
 and software rasterizer warnings. If a browser loses WebGL or WebGPU, stop the workflow
 immediately. Do not keep using that browser, replace visual verification with an API-only
 check, capture an image, or report the visual workflow as verified.
+
+Browser-side H.264 playback is the only software exception. A client may decode a
+stream in software when Media Capabilities reports the exact configuration as
+`supported` and `smooth` but not `powerEfficient`. The UI must identify that path as
+software H.264 decode and may claim hardware decode only when `powerEfficient` is true.
+This exception does not relax headed hardware WebGPU and WebGL verification, server-side
+NVENC, GPU rendering, simulation, perception, or any other accelerated workload.
 
 GPU containers must request the required Kubernetes GPU resource and fail closed when
 the NVIDIA device, driver capability, or hardware rendering backend is unavailable. Do
@@ -79,19 +98,16 @@ Provider job completion is webhook-only. Do not add provider status polling, pol
 fallbacks, backup status checks, or timeout recovery paths that query the provider.
 Missing webhook delivery is an operational failure.
 
-## MCP Capability Bar
+## MCP Server Contract
 
-Do not reduce Veoveo MCP servers to the lowest common denominator of tool-only clients.
-Servers and the gateway should use the full MCP protocol surface when it fits the domain:
-resources, resource templates, prompts, completions, tasks, subscriptions,
-notifications, typed structured content, and URI-based identities.
-
-Compatibility helpers are allowed only when they are explicit product features requested
-or accepted for clients that cannot use the richer MCP surfaces well. They must be
-additive projections over the canonical protocol behavior, not replacements for it.
-Helpers must reuse the same typed models, policy checks, audit paths, task state,
-artifact identities, and resource URIs. Do not add hidden fallbacks, alternate provider
-completion paths, unaudited content URLs, or a second source of truth.
+Every hosted MCP server and registered extension complies with the normative
+server contract in [`mcp/contract/DESIGN.md`](mcp/contract/DESIGN.md): the full
+protocol surface for the domain, the canonical schema profile, the shared
+runtime boundary, packaging and registration, the well-known docs and contract
+resources, and the required crate documents (`DESIGN.md` and `AGENTS.md`).
+Work that changes protocol behavior starts from that document, and compliance
+gaps are declared in the server's `Contract Compliance` section rather than
+left silent.
 
 ## Strong Types
 
@@ -191,3 +207,12 @@ sections and get at most a closing sentence elsewhere. Keep one hard number wher
 earns trust.
 
 The abstract of docs/veoveo-whitepaper-print.html is the register exemplar.
+
+## Design Documentation
+
+Every design document must include a `## Standards And Protocols` section near
+its beginning. The section names each external standard, wire protocol, data
+format, and repository-owned extension that forms part of the design boundary.
+Pin a version when the implementation pins one, state the supported profile or
+subset, and distinguish an internal adapter protocol from a public contract.
+Do not imply complete conformance when Veoveo implements only selected features.
