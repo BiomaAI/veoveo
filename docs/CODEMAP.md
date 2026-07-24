@@ -30,6 +30,13 @@ authorize implementation:
 | [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, and possible self-improving harness boundaries |
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 
+Approved implementation plans describe future hard cuts. Existing contracts remain
+authoritative until each planned change lands:
+
+| Document | Planned change |
+|---|---|
+| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, and governance |
+
 MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
