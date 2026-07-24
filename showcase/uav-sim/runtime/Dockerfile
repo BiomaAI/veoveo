@@ -73,6 +73,12 @@ RUN curl --fail --location --show-error \
     && unzip -q /tmp/omni.kit.livestream.aov.zip \
       -d "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
     && rm /tmp/omni.kit.livestream.aov.zip
+COPY patches/livestream-aov-10.2.0-explicit-streams.patch /tmp/livestream-aov.patch
+RUN patch \
+      --directory="/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
+      --strip=1 \
+      < /tmp/livestream-aov.patch \
+    && rm /tmp/livestream-aov.patch
 COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "aiohappyeyeballs==${AIOHAPPYEYEBALLS_VERSION}" \

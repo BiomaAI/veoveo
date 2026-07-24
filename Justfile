@@ -384,6 +384,10 @@ bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
 
+showcase-uav-sim-aov-smoke image:
+    cargo build -p veoveo-smoke --bin smoke
+    {{smoke}} uav-sim-aov-probe --image '{{image}}'
+
 # Check local health and, optionally, the operator-owned public edge.
 health public_base_url='':
     curl -fsS http://localhost:8780/healthz
