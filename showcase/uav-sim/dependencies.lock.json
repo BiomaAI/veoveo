@@ -66,6 +66,13 @@
       "umd_sha256": "ef2bab07d13bee861c30922100f9c98fd61982826fdc8cedc6e43f032d8fa70d",
       "source": "https://docs.omniverse.nvidia.com/ov-web-sdk/latest/web-streaming-library/overview.html"
     },
+    "nvidia_livestream_aov": {
+      "version": "10.2.0",
+      "kit_build": "110.1.2.lx64.r.cp312",
+      "url": "https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.0%2B110.1.2.lx64.r.cp312.zip",
+      "sha256": "e842d29982283787b145f3a1f91210b4b16ecc9fbc7038e970ed4dc4bf482c49",
+      "source": "https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.aov/latest/Overview.html"
+    },
     "ros_2": {
       "distribution": "jazzy",
       "required": false,

@@ -25,11 +25,16 @@ fn canonical_transport_and_deployment_surfaces_are_hard_cut() {
     let contract = fs::read_to_string(root.join("mcp/contract/src/transport.rs")).unwrap();
     assert!(contract.contains(".with_stateful_mode(true)"));
     assert!(contract.contains(".with_json_response(false)"));
+    let sessions = fs::read_to_string(root.join("mcp/contract/src/session.rs")).unwrap();
+    assert!(sessions.contains("MCP_SESSION_DISCONNECT_GRACE"));
+    assert!(sessions.contains("active_streams"));
 
     let python =
         fs::read_to_string(root.join("templates/python-mcp/src/datasheet_mcp/server/main.py"))
             .unwrap();
-    assert!(python.contains("json_response=False, stateless=False"));
+    assert!(python.contains("json_response=False"));
+    assert!(python.contains("stateless=False"));
+    assert!(python.contains("session_idle_timeout=60"));
 
     let gateway =
         fs::read_to_string(root.join("deploy/helm/veoveo/templates/gateway.yaml")).unwrap();
@@ -57,6 +62,46 @@ fn canonical_transport_and_deployment_surfaces_are_hard_cut() {
     let chart = fs::read_to_string(root.join("servers/chart-mcp/server.mjs")).unwrap();
     assert!(chart.contains("sessionIdGenerator: () => randomUUID()"));
     assert!(chart.contains("enableJsonResponse: false"));
+    assert!(chart.contains("SESSION_DISCONNECT_GRACE_MS = 60_000"));
+
+    for relative in [
+        "platform/gateway/src/bin/gateway/server.rs",
+        "mcp/bridges/stdio/src/bin/bridge.rs",
+        "showcase/sumo/sumo-mcp/src/server/service.rs",
+    ] {
+        let source = fs::read_to_string(root.join(relative)).unwrap();
+        assert!(source.contains("canonical_session_manager()"));
+        assert!(!source.contains("LocalSessionManager"));
+    }
+
+    for server in discovered_server_dirs() {
+        let rust = rust_sources(&server);
+        if rust.contains("StreamableHttpService") {
+            assert!(
+                rust.contains("canonical_session_manager()"),
+                "{} bypasses bounded canonical session ownership",
+                server.display()
+            );
+            assert!(
+                !rust.contains("LocalSessionManager"),
+                "{} uses unbounded local sessions",
+                server.display()
+            );
+        }
+    }
+}
+
+fn rust_sources(root: &std::path::Path) -> String {
+    let mut combined = String::new();
+    for entry in fs::read_dir(root).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            combined.push_str(&rust_sources(&path));
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+            combined.push_str(&fs::read_to_string(path).unwrap());
+        }
+    }
+    combined
 }
 
 #[test]

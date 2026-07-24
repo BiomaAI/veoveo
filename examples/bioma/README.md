@@ -45,6 +45,7 @@ examples/bioma/
   images.lock.yaml              production image digests
   gateway.json                  MCP catalog, OAuth, policy, and routes
   recording-producer-jwks.json  public producer key
+  service-client-jwks.json      public machine-client key
 ~~~
 
 The local platform fixture installs Argo CD and the registry adapter because this
@@ -209,7 +210,9 @@ jq -n '{
 
 A production installation projects the same keys from its secret manager. The UAV,
 Cloudflare, and recording-producer credentials remain separate least-privilege
-Secrets. The committed recording-producer JWKS contains only the public key.
+Secrets. The committed JWKS files contain public keys only. Bioma mounts the
+installation-owned machine-client JWKS with the gateway control plane, which keeps
+local client assertions independent of an external JWKS endpoint.
 
 ## Connect Argo CD to Git and OCI
 

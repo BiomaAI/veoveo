@@ -26,9 +26,7 @@ use rmcp::{
     },
     service::RequestContext,
     tool_handler, tool_router,
-    transport::streamable_http_server::{
-        StreamableHttpService, session::local::LocalSessionManager,
-    },
+    transport::streamable_http_server::StreamableHttpService,
 };
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
@@ -680,7 +678,7 @@ async fn main() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(RecordingMcp::new(state.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts)
             .with_cancellation_token(cancellation.child_token()),

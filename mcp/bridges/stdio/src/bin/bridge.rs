@@ -15,10 +15,7 @@ use axum::{Router, routing::get};
 use clap::Parser;
 use rmcp::{
     ServiceExt,
-    transport::{
-        TokioChildProcess,
-        streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
-    },
+    transport::{TokioChildProcess, streamable_http_server::StreamableHttpService},
 };
 use tokio::process::Command;
 use veoveo_mcp_contract::{TelemetryGuard, init_server_telemetry};
@@ -84,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let mcp_service = StreamableHttpService::new(
         move || Ok(BridgeMcp::new(peer.clone(), server_info.clone())),
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         http_config,
     );
     let router = Router::new()

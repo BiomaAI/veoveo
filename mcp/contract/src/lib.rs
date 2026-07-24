@@ -21,6 +21,7 @@ pub mod internal_auth;
 pub mod pagination;
 pub mod provider;
 pub mod schema;
+pub mod session;
 pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
@@ -126,6 +127,9 @@ pub use internal_auth::{
 pub use pagination::{Page, PaginationError, paginate};
 pub use provider::Provider;
 pub use schema::{mcp_empty_input_schema, mcp_input_schema};
+pub use session::{
+    BoundedLocalSessionManager, MCP_SESSION_DISCONNECT_GRACE, canonical_session_manager,
+};
 pub use storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
     ComplianceMetadata,

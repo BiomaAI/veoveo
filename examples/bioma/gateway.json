@@ -4260,8 +4260,8 @@
         "client_boundary": "operator_service"
       },
       "jwks": {
-        "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "source": "file",
+        "path": "/etc/veoveo/gateway/service-client-jwks.json"
       },
       "tenant": "bioma"
     },
@@ -4307,8 +4307,8 @@
         "client_boundary": "admin_service"
       },
       "jwks": {
-        "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "source": "file",
+        "path": "/etc/veoveo/gateway/service-client-jwks.json"
       },
       "tenant": "bioma"
     },
@@ -4351,8 +4351,8 @@
         "client_boundary": "agent"
       },
       "jwks": {
-        "source": "remote",
-        "jwks_uri": "https://bioma.ai/.well-known/veoveo-service-jwks.json"
+        "source": "file",
+        "path": "/etc/veoveo/gateway/service-client-jwks.json"
       },
       "tenant": "bioma"
     }

@@ -68,6 +68,135 @@ struct TakeoffScenario {
     state_timeout_seconds: u64,
 }
 
+pub(crate) async fn uav_sim_aov_probe(
+    image: &str,
+    frames: u32,
+    cache_directory: &Path,
+    timeout: Duration,
+) -> Result<()> {
+    ensure!(frames > 0, "AOV probe frame count must be positive");
+    ensure!(
+        timeout >= Duration::from_secs(60),
+        "AOV probe timeout must allow at least 60 seconds"
+    );
+    run_checked(
+        Path::new("docker"),
+        ["image".into(), "inspect".into(), image.into()],
+        [],
+    )
+    .with_context(|| format!("AOV probe image is unavailable: {image}"))?;
+
+    fs::create_dir_all(cache_directory).with_context(|| {
+        format!(
+            "creating persistent AOV probe cache {}",
+            cache_directory.display()
+        )
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(cache_directory, fs::Permissions::from_mode(0o777)).with_context(
+            || {
+                format!(
+                    "making AOV probe cache writable by the runtime container: {}",
+                    cache_directory.display()
+                )
+            },
+        )?;
+    }
+    let cache_directory = cache_directory.canonicalize()?;
+    let signal_port = reserve_local_port()?;
+    let media_port = reserve_local_port()?;
+    ensure!(
+        signal_port != media_port,
+        "AOV probe reserved the same signaling and media port"
+    );
+
+    let container_name = format!("veoveo-uav-aov-probe-{}", uuid::Uuid::new_v4());
+    let _container = ContainerGuard::new(container_name.clone());
+    let mut command = tokio::process::Command::new("docker");
+    command
+        .args([
+            "run",
+            "--rm",
+            "--name",
+            &container_name,
+            "--gpus",
+            "all",
+            "--network",
+            "host",
+            "--shm-size",
+            "2g",
+            "-e",
+            "NVIDIA_VISIBLE_DEVICES=all",
+            "-e",
+            "NVIDIA_DRIVER_CAPABILITIES=all",
+            "-e",
+            "XDG_CACHE_HOME=/var/lib/veoveo/runtime-cache/aov-probe",
+            "-v",
+            &format!(
+                "{}:/var/lib/veoveo/runtime-cache",
+                cache_directory.display()
+            ),
+            "--entrypoint",
+            "/isaac-sim/python.sh",
+            image,
+            "-m",
+            "veoveo_uav_sim.aov_probe",
+            "--frames",
+            &frames.to_string(),
+            "--signal-port",
+            &signal_port.to_string(),
+            "--media-port",
+            &media_port.to_string(),
+        ])
+        .kill_on_drop(true)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let output = tokio::time::timeout(timeout, command.output())
+        .await
+        .with_context(|| format!("NVIDIA AOV probe exceeded {timeout:?}"))??;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let transcript = format!("{stdout}\n{stderr}");
+    ensure!(
+        output.status.success(),
+        "NVIDIA AOV probe failed with {}\n{}",
+        output.status,
+        transcript
+    );
+    for marker in [
+        "Graphics API: Vulkan",
+        "NVIDIA ",
+        "AOV_PROBE_CONFIG explicit_streams=1",
+        "AOV_PROBE_AUX_SENSOR_STREAMING frames=",
+        "shape=(480, 640, 3)",
+        concat!(
+            "AOV_PROBE_RENDER_PRODUCT ",
+            "path=/Render/OmniverseKit/HydraTextures/uav_follow_camera"
+        ),
+        "AOV_PROBE_READY",
+        &format!("AOV_PROBE_PASS frames={frames}"),
+    ] {
+        ensure!(
+            transcript.contains(marker),
+            "NVIDIA AOV probe omitted marker {marker:?}\n{transcript}"
+        );
+    }
+    for software_renderer in ["SwiftShader", "llvmpipe", "Software Rasterizer"] {
+        ensure!(
+            !transcript.contains(software_renderer),
+            "NVIDIA AOV probe selected forbidden renderer {software_renderer}"
+        );
+    }
+    println!(
+        "NVIDIA AOV probe passed: image={image} frames={frames} cache={}",
+        cache_directory.display()
+    );
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CameraAcceptance {

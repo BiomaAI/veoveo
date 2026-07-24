@@ -70,9 +70,17 @@ class LiveStreamLeaseManager:
         self._on_change = on_change
         self._lock = threading.Lock()
         self._lease: LiveStreamLease | None = None
+        self._ready = False
+
+    def mark_ready(self) -> None:
+        with self._lock:
+            self._ready = True
+        self._notify()
 
     def open(self, stream_id: str) -> dict[str, str]:
         with self._lock:
+            if not self._ready:
+                raise RuntimeError("the follow-camera live stream is not ready")
             self._purge_expired()
             if self._lease is not None and not self._lease.revoked:
                 raise RuntimeError("the follow-camera live stream is already leased")
@@ -150,6 +158,8 @@ class LiveStreamLeaseManager:
 
     def public_state(self) -> tuple[str, int]:
         with self._lock:
+            if not self._ready:
+                return ("starting", 0)
             self._purge_expired()
             connected = int(
                 self._lease is not None
