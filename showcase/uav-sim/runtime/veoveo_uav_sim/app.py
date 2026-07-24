@@ -46,32 +46,48 @@ def run(config: RuntimeConfig) -> None:
                 "--enable",
                 "cesium.usd.plugins",
                 "--enable",
-                "omni.kit.livestream.app",
+                "omni.kit.livestream.aov",
                 "--enable",
                 "omni.kit.livestream.webrtc",
                 (
-                    "--/exts/omni.kit.livestream.app/primaryStream/"
-                    "streamType=webrtc"
+                    "--/exts/omni.kit.livestream.aov/"
+                    "Render.OmniverseKit.HydraTextures."
+                    "omni_kit_widget_viewport_ViewportTexture_0.LdrColor/"
+                    "spectatorStream/0/streamType=webrtc"
                 ),
                 (
-                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort="
+                    "--/exts/omni.kit.livestream.aov/"
+                    "Render.OmniverseKit.HydraTextures."
+                    "omni_kit_widget_viewport_ViewportTexture_0.LdrColor/"
+                    "spectatorStream/0/signalPort="
                     f"{config.live_stream.signal_port}"
                 ),
                 (
-                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort="
+                    "--/exts/omni.kit.livestream.aov/"
+                    "Render.OmniverseKit.HydraTextures."
+                    "omni_kit_widget_viewport_ViewportTexture_0.LdrColor/"
+                    "spectatorStream/0/streamPort="
                     f"{config.live_stream.media_port}"
                 ),
                 (
-                    "--/exts/omni.kit.livestream.app/primaryStream/publicIp="
+                    "--/exts/omni.kit.livestream.aov/"
+                    "Render.OmniverseKit.HydraTextures."
+                    "omni_kit_widget_viewport_ViewportTexture_0.LdrColor/"
+                    "spectatorStream/0/publicIp="
                     f"{config.live_stream.public_ip}"
                 ),
                 (
-                    "--/exts/omni.kit.livestream.app/primaryStream/targetFps="
+                    "--/exts/omni.kit.livestream.aov/"
+                    "Render.OmniverseKit.HydraTextures."
+                    "omni_kit_widget_viewport_ViewportTexture_0.LdrColor/"
+                    "spectatorStream/0/targetFps="
                     f"{config.follow_camera.fps}"
                 ),
                 (
-                    "--/exts/omni.kit.livestream.app/primaryStream/"
-                    "allowDynamicResize=false"
+                    "--/exts/omni.kit.livestream.aov/"
+                    "Render.OmniverseKit.HydraTextures."
+                    "omni_kit_widget_viewport_ViewportTexture_0.LdrColor/"
+                    "spectatorStream/0/allowDynamicResize=false"
                 ),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
@@ -97,7 +113,7 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "isaacsim.sensors.experimental.rtx",
-        "omni.kit.livestream.app",
+        "omni.kit.livestream.aov",
         "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):

@@ -57,8 +57,22 @@ ARG PROPCACHE_VERSION=0.5.2
 ARG PSUTIL_VERSION=7.2.2
 ARG PYARROW_VERSION=25.0.0
 ARG FASTCRC_VERSION=0.3.6
+ARG NVIDIA_LIVESTREAM_AOV_VERSION=10.2.0
+ARG NVIDIA_LIVESTREAM_AOV_BUILD=110.1.2.lx64.r.cp312
+ARG NVIDIA_LIVESTREAM_AOV_URL=https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.0%2B110.1.2.lx64.r.cp312.zip
+ARG NVIDIA_LIVESTREAM_AOV_SHA256=e842d29982283787b145f3a1f91210b4b16ecc9fbc7038e970ed4dc4bf482c49
 
 USER root
+RUN curl --fail --location --show-error \
+      --output /tmp/omni.kit.livestream.aov.zip \
+      "${NVIDIA_LIVESTREAM_AOV_URL}" \
+    && echo "${NVIDIA_LIVESTREAM_AOV_SHA256}  /tmp/omni.kit.livestream.aov.zip" \
+      | sha256sum --check --strict \
+    && mkdir -p \
+      "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
+    && unzip -q /tmp/omni.kit.livestream.aov.zip \
+      -d "/isaac-sim/extscache/omni.kit.livestream.aov-${NVIDIA_LIVESTREAM_AOV_VERSION}+${NVIDIA_LIVESTREAM_AOV_BUILD}" \
+    && rm /tmp/omni.kit.livestream.aov.zip
 COPY --from=upstream --chown=10001:10001 /src/cesium/ /opt/veoveo/extensions/
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir --no-deps \
       "aiohappyeyeballs==${AIOHAPPYEYEBALLS_VERSION}" \
