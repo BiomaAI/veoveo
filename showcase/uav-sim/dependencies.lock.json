@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-07-23",
+  "verified_at": "2026-07-24",
   "architecture": "linux/amd64",
   "components": {
     "isaac_sim": {
@@ -48,8 +48,8 @@
       "source": "https://docs.px4.io/main/en/test_and_ci/docker"
     },
     "rerun": {
-      "version": "0.34.1",
-      "source": "https://github.com/rerun-io/rerun/releases/tag/0.34.1"
+      "version": "0.35.0",
+      "source": "https://github.com/rerun-io/rerun/releases/tag/0.35.0"
     },
     "nvidia_gpu_operator": {
       "version": "26.3.3",
@@ -96,7 +96,7 @@
       "pyarrow": "25.0.0",
       "pymavlink": "2.4.49",
       "pyyaml": "6.0.3",
-      "rerun_sdk": "0.34.1",
+      "rerun_sdk": "0.35.0",
       "toml": "0.10.2",
       "typing_extensions": "4.16.0",
       "yarl": "1.24.2",

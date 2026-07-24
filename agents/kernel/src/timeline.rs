@@ -53,6 +53,7 @@ pub fn query_segments(rrd_dir: &Path, query: &TimelineQuery) -> Result<Vec<serde
     segments.sort();
 
     let filter = EntityPathFilter::parse_forgiving(&query.entities);
+    let timeline = TimelineName::try_new(&query.timeline).context("invalid timeline name")?;
     let mut rows = Vec::new();
     for segment in &segments {
         if rows.len() as u64 >= query.max_rows {
@@ -70,7 +71,7 @@ pub fn query_segments(rrd_dir: &Path, query: &TimelineQuery) -> Result<Vec<serde
                 .collect();
             let expression = QueryExpression {
                 view_contents: Some(view_contents),
-                filtered_index: Some(TimelineName::new(&query.timeline)),
+                filtered_index: Some(timeline),
                 sparse_fill_strategy: SparseFillStrategy::None,
                 ..Default::default()
             };

@@ -1,7 +1,7 @@
 use std::fs;
 
 use anyhow::{Context, Result};
-use re_log_types::TimeCell;
+use re_log_types::{TimeCell, TimelineName};
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::{Boxes2D, TextDocument};
 use serde::Serialize;
@@ -38,6 +38,7 @@ pub fn write_annotation_rrd(task_id: &str, results: &AnalysisResults) -> Result<
         .recording_name(format!("perception analysis {task_id}"))
         .save(&path)
         .context("opening annotation RRD sink")?;
+    let timeline = TimelineName::try_new(&results.timeline).context("invalid timeline name")?;
     recording.log_static(
         "/perception/provenance",
         &TextDocument::new(serde_json::to_string_pretty(&AnnotationProvenance {
@@ -62,7 +63,7 @@ pub fn write_annotation_rrd(task_id: &str, results: &AnalysisResults) -> Result<
             }
             VideoTimelineKind::DurationNanoseconds => TimeCell::from_duration_nanos(frame.index),
         };
-        recording.set_time(results.timeline.as_str(), time);
+        recording.set_time(timeline, time);
         if frame.detections.is_empty() {
             recording.log(annotation_path.as_str(), &Boxes2D::clear_fields())?;
             continue;

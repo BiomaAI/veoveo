@@ -62,3 +62,4 @@ re_entity_db.workspace = true
 
 [dev-dependencies]
 base64.workspace = true
+futures.workspace = true

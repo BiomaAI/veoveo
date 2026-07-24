@@ -96,7 +96,7 @@ fn encode_split(
     if encoded_rrd.len() as u64 <= maximum_batch_bytes {
         return Ok(vec![RecordingBatch {
             sequence: 0,
-            payload_format: RerunPayloadFormat::Rrd0341.into(),
+            payload_format: RerunPayloadFormat::Rrd0350.into(),
             sha256: Sha256::digest(&encoded_rrd).to_vec(),
             encoded_rrd,
             message_count: u64::try_from(messages.len() + 1)?,

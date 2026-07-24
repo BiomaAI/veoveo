@@ -6,7 +6,9 @@ package veoveo.recording.ingest.v1;
 // hard-cut protocol revision rather than an implicit decoder change.
 enum RerunPayloadFormat {
   RERUN_PAYLOAD_FORMAT_UNSPECIFIED = 0;
-  RERUN_PAYLOAD_FORMAT_RRD_0_34_1 = 1;
+  reserved 1;
+  reserved "RERUN_PAYLOAD_FORMAT_RRD_0_34_1";
+  RERUN_PAYLOAD_FORMAT_RRD_0_35_0 = 2;
 }
 
 enum RecordingStreamState {

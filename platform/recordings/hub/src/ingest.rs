@@ -807,7 +807,7 @@ fn validate_text(field: &str, value: &str) -> Result<()> {
 
 fn payload_format_name(value: i32) -> Result<&'static str> {
     match RerunPayloadFormat::try_from(value) {
-        Ok(RerunPayloadFormat::Rrd0341) => Ok("rrd_0_34_1"),
+        Ok(RerunPayloadFormat::Rrd0350) => Ok("rrd_0_35_0"),
         _ => anyhow::bail!("unsupported Rerun payload format"),
     }
 }

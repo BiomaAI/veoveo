@@ -18,10 +18,10 @@ function synchronizeSources(
 ) {
   const transition = planRerunSourceTransition(opened, desired);
   if (transition.archiveUrlsToOpen.length > 0) {
-    viewer.open(transition.archiveUrlsToOpen, { follow_if_http: false });
+    viewer.open(transition.archiveUrlsToOpen);
   }
   if (transition.liveUrlToOpen) {
-    viewer.open(transition.liveUrlToOpen, { follow_if_http: true });
+    viewer.open(transition.liveUrlToOpen);
   }
   if (transition.urlsToClose.length > 0) viewer.close(transition.urlsToClose);
   opened.archiveUrls = transition.next.archiveUrls;
