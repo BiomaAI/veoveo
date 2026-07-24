@@ -15,21 +15,3 @@ spec:
     requests:
       storage: {{ .Values.recordingForwarder.persistence.size }}
 {{- end }}
-{{- if .Values.batch.enabled }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: uav-sim-batch-recording-forwarder
-  labels:
-    {{- include "uav-sim.labels" . | nindent 4 }}
-spec:
-  accessModes:
-    - {{ .Values.recordingForwarder.persistence.accessMode }}
-  {{- with .Values.recordingForwarder.persistence.storageClass }}
-  storageClassName: {{ . | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.recordingForwarder.persistence.size }}
-{{- end }}

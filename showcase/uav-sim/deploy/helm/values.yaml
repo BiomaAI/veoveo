@@ -68,12 +68,7 @@ cache:
   accessMode: ReadWriteOnce
 
 session:
-  id: bioma-uav
-  frameUri: frames://frame/bioma-uav-origin
-  origin:
-    latitudeDegrees: 37.7749
-    longitudeDegrees: -122.4194
-    ellipsoidHeightM: 30.0
+  id: uav-showcase
   vehicleCount: 1
   physicsHz: 250
   renderingHz: 20
@@ -141,13 +136,6 @@ liveStream:
 interactive:
   enabled: true
   progressDeadlineSeconds: 1800
-
-batch:
-  enabled: false
-  sessionId: bioma-uav-batch
-  exitAfterSeconds: 60
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 86400
 
 service:
   port: 8802

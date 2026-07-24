@@ -11,9 +11,9 @@ struct FrameAuditArgs {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct LocalFrameSelectArgs {
+struct WorldDesignArgs {
     workflow: String,
-    origin_hint: Option<String>,
+    earth_anchor_hint: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -24,16 +24,12 @@ struct TransformExplainArgs {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FramesPrompt {
     FrameAudit,
-    LocalFrameSelect,
+    WorldDesign,
     TransformExplain,
 }
 
 impl FramesPrompt {
-    pub(super) const ALL: [Self; 3] = [
-        Self::FrameAudit,
-        Self::LocalFrameSelect,
-        Self::TransformExplain,
-    ];
+    pub(super) const ALL: [Self; 3] = [Self::FrameAudit, Self::WorldDesign, Self::TransformExplain];
 
     pub(super) fn by_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|prompt| prompt.name() == name)
@@ -42,7 +38,7 @@ impl FramesPrompt {
     pub(super) fn name(self) -> &'static str {
         match self {
             Self::FrameAudit => "frames-frame-audit",
-            Self::LocalFrameSelect => "frames-local-frame-select",
+            Self::WorldDesign => "frames-world-design",
             Self::TransformExplain => "frames-transform-explain",
         }
     }
@@ -50,7 +46,7 @@ impl FramesPrompt {
     fn title(self) -> &'static str {
         match self {
             Self::FrameAudit => "Coordinate frame audit",
-            Self::LocalFrameSelect => "Local frame selection",
+            Self::WorldDesign => "Frame world design",
             Self::TransformExplain => "Transform explanation",
         }
     }
@@ -60,8 +56,8 @@ impl FramesPrompt {
             Self::FrameAudit => {
                 "Audit a mission request for frame, unit, axis, datum, and origin assumptions."
             }
-            Self::LocalFrameSelect => {
-                "Choose ENU or NED and an origin strategy for a robot workflow."
+            Self::WorldDesign => {
+                "Design a complete rooted frame tree for a robot, sensor, or simulation world."
             }
             Self::TransformExplain => {
                 "Explain a recorded coordinate operation and its assumptions."
@@ -72,9 +68,9 @@ impl FramesPrompt {
     fn arguments(self) -> Vec<PromptArgument> {
         match self {
             Self::FrameAudit => vec![required_arg("mission", "Mission or tool request to audit.")],
-            Self::LocalFrameSelect => vec![
+            Self::WorldDesign => vec![
                 required_arg("workflow", "Robot, UAV, or simulation workflow."),
-                optional_arg("origin_hint", "Candidate local-frame origin."),
+                optional_arg("earth_anchor_hint", "Candidate Earth anchor."),
             ],
             Self::TransformExplain => vec![required_arg(
                 "operation_id",
@@ -108,17 +104,19 @@ impl FramesPrompt {
                     ),
                 ))
             }
-            Self::LocalFrameSelect => {
-                let args: LocalFrameSelectArgs = parse_prompt_args(self.name(), arguments)?;
+            Self::WorldDesign => {
+                let args: WorldDesignArgs = parse_prompt_args(self.name(), arguments)?;
                 Ok(prompt_text(
                     self.description(),
                     format!(
-                        "Select a local tangent frame for this workflow:\n\n{}\n\n\
-                         Origin hint: {}\n\n\
-                         Choose ENU or NED, state the origin and datum, and draft a \
-                         derive_local_frame request.",
+                        "Design a frame world for this workflow:\n\n{}\n\n\
+                         Earth anchor hint: {}\n\n\
+                         Define one ECEF root, every child frame, its basis, its single parent, \
+                         and a geodetic, static-rigid, or recording-backed dynamic transform. \
+                         Check connectivity and cycles, then draft create_world and publish_world \
+                         requests. Sessions must pin the returned immutable revision.",
                         args.workflow,
-                        args.origin_hint.as_deref().unwrap_or("not specified")
+                        args.earth_anchor_hint.as_deref().unwrap_or("not specified")
                     ),
                 ))
             }

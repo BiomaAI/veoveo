@@ -2,6 +2,9 @@ use std::process::Stdio;
 
 use anyhow::ensure;
 use serde::Deserialize;
+use veoveo_mcp_contract::{
+    FrameBasis, FrameId, FrameParentTransform, FrameWorldId, FrameWorldTree, Wgs84Position,
+};
 
 use super::*;
 
@@ -21,9 +24,9 @@ const OPERATOR_PROFILE_SCOPES: &[&str] = &[
 struct UavAcceptanceScenario {
     schema: String,
     session_id: String,
-    frame_uri: String,
-    origin: OriginScenario,
+    world: FrameWorldScenario,
     vehicle_id: String,
+    world_ready_timeout_seconds: u64,
     takeoff: TakeoffScenario,
     camera: CameraAcceptance,
     mission: MissionScenario,
@@ -35,10 +38,25 @@ struct UavAcceptanceScenario {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct OriginScenario {
-    latitude_degrees: f64,
-    longitude_degrees: f64,
-    ellipsoid_height_m: f64,
+struct FrameWorldScenario {
+    world_id: FrameWorldId,
+    display_name: String,
+    description: String,
+    simulation_frame_id: FrameId,
+    tree: FrameWorldTree,
+}
+
+impl FrameWorldScenario {
+    fn origin(&self) -> Result<&Wgs84Position> {
+        self.tree
+            .frames
+            .iter()
+            .find_map(|frame| match &frame.parent_transform {
+                Some(FrameParentTransform::GeodeticTangent { origin }) => Some(origin),
+                _ => None,
+            })
+            .context("world tree omitted a geodetic tangent anchor")
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -162,24 +180,48 @@ impl UavAcceptanceScenario {
 
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.schema == "veoveo.uav-sim-acceptance/v5",
+            self.schema == "veoveo.uav-sim-acceptance/v6",
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
         validate_identity("session_id", &self.session_id)?;
         validate_identity("vehicle_id", &self.vehicle_id)?;
         ensure!(
-            self.frame_uri.starts_with("frames://frame/")
-                && self.frame_uri.len() > "frames://frame/".len(),
-            "frame_uri must use frames://frame/{{frame_id}}"
+            !self.world.display_name.trim().is_empty(),
+            "world display name must not be blank"
         );
         ensure!(
-            self.origin.latitude_degrees.is_finite()
-                && (-90.0..=90.0).contains(&self.origin.latitude_degrees)
-                && self.origin.longitude_degrees.is_finite()
-                && (-180.0..=180.0).contains(&self.origin.longitude_degrees)
-                && self.origin.ellipsoid_height_m.is_finite()
-                && (-100_000.0..=100_000.0).contains(&self.origin.ellipsoid_height_m),
+            !self.world.description.trim().is_empty(),
+            "world description must not be blank"
+        );
+        ensure!(
+            self.world
+                .tree
+                .frames
+                .iter()
+                .any(|frame| frame.frame_id == self.world.simulation_frame_id),
+            "simulation_frame_id must identify a frame in the world tree"
+        );
+        ensure!(
+            self.world
+                .tree
+                .frames
+                .iter()
+                .filter(|frame| {
+                    frame.parent_frame_id.is_none() && frame.basis == FrameBasis::EcefWgs84
+                })
+                .count()
+                == 1,
+            "world tree must contain one ECEF root"
+        );
+        let origin = self.world.origin()?;
+        ensure!(
+            origin.latitude_degrees.is_finite()
+                && (-90.0..=90.0).contains(&origin.latitude_degrees)
+                && origin.longitude_degrees.is_finite()
+                && (-180.0..=180.0).contains(&origin.longitude_degrees)
+                && origin.ellipsoid_height_m.is_finite()
+                && (-100_000.0..=100_000.0).contains(&origin.ellipsoid_height_m),
             "origin must contain bounded WGS84 coordinates"
         );
         ensure!(
@@ -194,7 +236,8 @@ impl UavAcceptanceScenario {
             "takeoff.minimum_reached_altitude_m must be positive and no higher than takeoff"
         );
         ensure!(
-            self.takeoff.state_timeout_seconds > 0
+            self.world_ready_timeout_seconds > 0
+                && self.takeoff.state_timeout_seconds > 0
                 && self.camera.detail_timeout_seconds > 0
                 && self.mission.task_timeout_seconds > 0
                 && self.recording.frozen_rows_timeout_seconds > 0
@@ -308,6 +351,9 @@ pub(crate) async fn uav_sim_verify(
         .conformance(&["info"], Duration::from_secs(60))
         .await?;
     for tool in [
+        "frames__create_world",
+        "frames__publish_world",
+        "uav-sim__configure_world",
         "uav-sim__get_simulation_state",
         "uav-sim__open_live_stream",
         "uav-sim__renew_live_stream",
@@ -320,27 +366,77 @@ pub(crate) async fn uav_sim_verify(
         contains(&info, tool)?;
     }
 
-    let frame = operator
-        .conformance(&["resource", &scenario.frame_uri], Duration::from_secs(60))
+    let initial_state = simulation_state(&operator, &scenario).await?;
+    ensure!(
+        json_string(&initial_state, "/lifecycle")? == "unconfigured"
+            || initial_state
+                .pointer("/world")
+                .is_some_and(Value::is_object),
+        "UAV session must begin unconfigured or retain the same immutable binding: {initial_state}"
+    );
+    operator
+        .call_tool(
+            "frames__create_world",
+            serde_json::json!({
+                "world_id": scenario.world.world_id,
+                "display_name": scenario.world.display_name,
+                "description": scenario.world.description,
+            }),
+        )
         .await?;
+    let publication = operator
+        .call_tool(
+            "frames__publish_world",
+            serde_json::json!({
+                "world_id": scenario.world.world_id,
+                "tree": scenario.world.tree,
+            }),
+        )
+        .await?;
+    let revision = publication
+        .get("revision")
+        .cloned()
+        .context("Frames publication omitted its immutable revision")?;
+    let revision_uri = json_string(&publication, "/revision/revision_uri")?.to_owned();
+    let simulation_frame_uri = format!(
+        "{revision_uri}/frame/{}",
+        scenario.world.simulation_frame_id
+    );
+    operator
+        .call_tool(
+            "uav-sim__configure_world",
+            serde_json::json!({
+                "session_id": scenario.session_id,
+                "world_revision": revision,
+                "simulation_frame_uri": simulation_frame_uri,
+            }),
+        )
+        .await?;
+    let frame = operator
+        .conformance(
+            &["resource", &simulation_frame_uri],
+            Duration::from_secs(60),
+        )
+        .await?;
+    let origin = scenario.world.origin()?;
     for expected in [
-        scenario.origin.latitude_degrees.to_string(),
-        scenario.origin.longitude_degrees.to_string(),
-        scenario.origin.ellipsoid_height_m.to_string(),
+        origin.latitude_degrees.to_string(),
+        origin.longitude_degrees.to_string(),
+        origin.ellipsoid_height_m.to_string(),
         "enu".to_owned(),
+        scenario.world.simulation_frame_id.to_string(),
     ] {
         contains(&frame, &expected)?;
     }
-    contains(
-        &frame,
-        scenario
-            .frame_uri
-            .strip_prefix("frames://frame/")
-            .context("validated frame URI omitted its frame identity")?,
-    )?;
 
-    let mut state = simulation_state(&operator, &scenario).await?;
-    assert_world_ready(&state, &scenario)?;
+    let mut state = wait_for_world_ready(
+        &operator,
+        &scenario,
+        &revision_uri,
+        &simulation_frame_uri,
+        Duration::from_secs(scenario.world_ready_timeout_seconds),
+    )
+    .await?;
     assert_georeference_origin(&state, &scenario)?;
     let live = operator
         .call_tool(
@@ -426,7 +522,7 @@ pub(crate) async fn uav_sim_verify(
     .await?;
 
     let origin = state
-        .get("georeference_origin")
+        .pointer("/world/georeference_origin")
         .and_then(Value::as_object)
         .context("UAV state omitted georeference_origin")?;
     let latitude = json_number(origin, "latitude_degrees")?;
@@ -435,7 +531,7 @@ pub(crate) async fn uav_sim_verify(
     let mission = serde_json::json!({
         "session_id": scenario.session_id,
         "mission_id": format!("acceptance-{}", uuid::Uuid::now_v7()),
-        "frame_uri": scenario.frame_uri,
+        "expected_world_revision_uri": revision_uri,
         "vehicles": [{
             "vehicle_id": scenario.vehicle_id,
             "waypoints": [{
@@ -777,7 +873,12 @@ fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
     Ok(())
 }
 
-fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result<()> {
+fn assert_world_ready(
+    state: &Value,
+    scenario: &UavAcceptanceScenario,
+    revision_uri: &str,
+    simulation_frame_uri: &str,
+) -> Result<()> {
     ensure!(
         matches!(
             json_string(state, "/lifecycle")?,
@@ -786,8 +887,10 @@ fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result
         "UAV session is not ready: {state}"
     );
     ensure!(
-        json_string(state, "/frame_uri")? == scenario.frame_uri,
-        "UAV session uses the wrong Frames identity: {state}"
+        json_string(state, "/world/revision_uri")? == revision_uri
+            && json_string(state, "/world/simulation_frame_uri")? == simulation_frame_uri
+            && json_string(state, "/world/spec_sha256")?.len() == 64,
+        "UAV session uses the wrong immutable Frames world: {state}"
     );
     ensure!(
         json_string(state, "/tiles/source")? == "google_photorealistic_3d_tiles"
@@ -843,6 +946,32 @@ fn assert_world_ready(state: &Value, scenario: &UavAcceptanceScenario) -> Result
         "NVIDIA follow-camera live streaming is not ready: {state}"
     );
     Ok(())
+}
+
+async fn wait_for_world_ready(
+    operator: &OperatorClient<'_>,
+    scenario: &UavAcceptanceScenario,
+    revision_uri: &str,
+    simulation_frame_uri: &str,
+    timeout: Duration,
+) -> Result<Value> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let state = simulation_state(operator, scenario).await?;
+        let lifecycle = json_string(&state, "/lifecycle")?;
+        ensure!(
+            lifecycle != "failed",
+            "UAV simulation failed while loading its frame world: {state}"
+        );
+        if matches!(lifecycle, "ready" | "running" | "paused") {
+            assert_world_ready(&state, scenario, revision_uri, simulation_frame_uri)?;
+            return Ok(state);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            bail!("UAV frame world was not ready within {timeout:?}; final state: {state}");
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
 }
 
 async fn simulation_state(
@@ -1048,13 +1177,14 @@ fn json_number(object: &serde_json::Map<String, Value>, key: &str) -> Result<f64
 
 fn assert_georeference_origin(state: &Value, scenario: &UavAcceptanceScenario) -> Result<()> {
     let origin = state
-        .get("georeference_origin")
+        .pointer("/world/georeference_origin")
         .and_then(Value::as_object)
         .context("UAV state omitted georeference_origin")?;
+    let expected_origin = scenario.world.origin()?;
     for (key, expected) in [
-        ("latitude_degrees", scenario.origin.latitude_degrees),
-        ("longitude_degrees", scenario.origin.longitude_degrees),
-        ("ellipsoid_height_m", scenario.origin.ellipsoid_height_m),
+        ("latitude_degrees", expected_origin.latitude_degrees),
+        ("longitude_degrees", expected_origin.longitude_degrees),
+        ("ellipsoid_height_m", expected_origin.ellipsoid_height_m),
     ] {
         let actual = json_number(origin, key)?;
         ensure!(
@@ -1071,17 +1201,20 @@ mod tests {
 
     fn canonical_scenario() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../showcase/uav-sim/scenarios/bioma-aerial.json")
+            .join("../../showcase/uav-sim/scenarios/new-york-aerial.json")
     }
 
     #[test]
     fn canonical_mission_is_runtime_loaded_and_validated() {
         let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
-        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v5");
-        assert_eq!(scenario.session_id, "bioma-uav");
-        assert_eq!(scenario.origin.latitude_degrees, 40.758);
-        assert_eq!(scenario.origin.longitude_degrees, -73.9855);
-        assert_eq!(scenario.origin.ellipsoid_height_m, -17.0);
+        assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v6");
+        assert_eq!(scenario.session_id, "uav-showcase");
+        assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
+        assert_eq!(scenario.world.tree.frames.len(), 7);
+        let origin = scenario.world.origin().unwrap();
+        assert_eq!(origin.latitude_degrees, 40.758);
+        assert_eq!(origin.longitude_degrees, -73.9855);
+        assert_eq!(origin.ellipsoid_height_m, -17.0);
         assert_eq!(scenario.takeoff.relative_altitude_m, 300.0);
         assert_eq!(scenario.mission.speed_mps, 3.0);
         assert_eq!(scenario.recording.frozen_rows_timeout_seconds, 1_200);

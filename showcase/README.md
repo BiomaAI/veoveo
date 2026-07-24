@@ -16,6 +16,5 @@ typed profile commands as every installation. For SUMO, run
 `just showcase-sumo-test`, `showcase-sumo-smoke`, and `showcase-sumo-verify`;
 its composition lives in `sumo/deploy/deployment.json`.
 
-The UAV runtime uses `just showcase-uav-sim-test`. Its Bioma-bound live proof is
-`just bioma-uav-sim-verify` and requires NVIDIA registry access plus
-`CESIUM_ION_ACCESS_TOKEN`.
+The UAV runtime uses `just showcase-uav-sim-test`. Its installation-owned live
+proof requires NVIDIA registry access plus `CESIUM_ION_ACCESS_TOKEN`.

@@ -154,9 +154,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         "https://veoveo.bioma.ai",
         "name: bioma-gateway-control-plane",
         "name: recording-hub",
-        "name: frames-mcp-bootstrap",
-        "bioma-uav-origin",
-        r#""view_coordinates":{"x":"right","y":"forward","z":"up"}"#,
         "name: view-mcp",
         "name: perception-mcp",
         "name: reason-mcp",
@@ -165,6 +162,8 @@ pub(crate) async fn helm_config() -> Result<()> {
     ] {
         contains(&bioma, expected)?;
     }
+    not_contains(&bioma, "name: frames-mcp-bootstrap")?;
+    not_contains(&bioma, "frames://frame/")?;
     let control_plane = fs::read("examples/bioma/gateway.json")?;
     let control_plane_revision = hex::encode(Sha256::digest(control_plane));
     let bioma_values = fs::read_to_string("examples/bioma/values.yaml")?;
@@ -304,45 +303,6 @@ pub(crate) async fn helm_config() -> Result<()> {
         uav_sim.matches("name: CESIUM_ION_ACCESS_TOKEN").count() == 1,
         "interactive UAV render must inject the Cesium ion token exactly once"
     );
-
-    let uav_batch = run_checked(
-        Path::new("helm"),
-        [
-            "template".into(),
-            "uav-sim".into(),
-            "showcase/uav-sim/deploy/helm".into(),
-            "--namespace".into(),
-            "veoveo".into(),
-            "--values".into(),
-            "examples/bioma/uav-sim-values.yaml".into(),
-            "--values".into(),
-            "examples/bioma/images.lock.yaml".into(),
-            "--set".into(),
-            "interactive.enabled=false".into(),
-            "--set".into(),
-            "batch.enabled=true".into(),
-        ],
-        [],
-    )?;
-    for expected in [
-        "kind: Job",
-        "name: uav-sim-bioma-uav-batch",
-        "name: UAV_SIM_EXIT_AFTER_SECONDS",
-        "runtimeClassName: nvidia",
-        "name: CESIUM_ION_ACCESS_TOKEN",
-        "name: uav-sim-batch-runtime-cache",
-        "claimName: uav-sim-batch-runtime-cache",
-        "name: uav-sim-batch-recording-forwarder",
-        "claimName: uav-sim-batch-recording-forwarder",
-        "image: k3d-veoveo-registry.localhost:5000/veoveo/recording-forwarder@sha256:",
-    ] {
-        contains(&uav_batch, expected)?;
-    }
-    for forbidden in ["kind: Service", "name: uav-sim-mcp"] {
-        if uav_batch.contains(forbidden) {
-            bail!("batch UAV render must not contain `{forbidden}`");
-        }
-    }
 
     let production_without_digests = Command::new("helm")
         .args([
@@ -602,16 +562,16 @@ pub(crate) async fn helm_config() -> Result<()> {
         not_contains(&application, "ServerSideApply=true")?;
     }
     let uav_scenario: Value = serde_json::from_str(&fs::read_to_string(
-        "showcase/uav-sim/scenarios/bioma-aerial.json",
+        "showcase/uav-sim/scenarios/new-york-aerial.json",
     )?)?;
     ensure!(
-        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v5")
+        uav_scenario.get("schema").and_then(Value::as_str) == Some("veoveo.uav-sim-acceptance/v6")
             && uav_scenario
-                .pointer("/origin/latitude_degrees")
+                .pointer("/world/tree/frames/1/parent_transform/origin/latitude_degrees")
                 .and_then(Value::as_f64)
                 == Some(40.758)
             && uav_scenario
-                .pointer("/origin/longitude_degrees")
+                .pointer("/world/tree/frames/1/parent_transform/origin/longitude_degrees")
                 .and_then(Value::as_f64)
                 == Some(-73.9855)
             && uav_scenario

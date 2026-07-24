@@ -32,6 +32,9 @@ mod tests {
             "renew_live_stream",
             "close_live_stream",
             "ui/resource-teardown",
+            "!result.supported || !result.smooth",
+            "software H.264 decode",
+            "hardware H.264 decode",
         ] {
             assert!(html.contains(needle), "missing {needle}");
         }

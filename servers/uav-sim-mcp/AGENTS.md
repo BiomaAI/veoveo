@@ -22,10 +22,13 @@ owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, and PX4 transport.
 - Durable tools (`run_scenario`, `execute_mission`, `capture_dataset`) use
   `interrupted_indeterminate` recovery; live simulator work is never replayed
   after an unclean interruption. Compatibility task tools are not added.
-- Every session names one durable `frames://frame/{frame_id}` origin created
-  before the simulator becomes ready; frame disagreement fails session
-  creation. The adapter converts ENU/NED locally and makes no MCP calls in
-  the physics loop.
+- Every session starts `unconfigured`. `configure_world` binds it exactly once
+  to an immutable Frames world revision and a static simulation frame from that
+  revision. The adapter derives Cesium and Pegasus georeferencing from that
+  binding, converts ENU/NED locally, and makes no MCP calls in the physics loop.
+- NVIDIA NVENC remains mandatory at the server. Browser playback may use the
+  root policy's single software H.264 decode exception, with truthful UI
+  labeling, when the exact configuration is supported and smooth.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.
@@ -42,10 +45,10 @@ owns Isaac stage mutation, Cesium tiles, Pegasus vehicles, and PX4 transport.
   tests under `showcase/uav-sim/runtime/`.
 - Helm lint and template checks cover `showcase/uav-sim/deploy/helm`; the
   container builds from `servers/uav-sim-mcp/Dockerfile` (needs Docker).
-- Live acceptance is a separately invoked, billed test
-  (`just bioma-uav-sim-verify`): requires `CESIUM_ION_ACCESS_TOKEN`, NVIDIA
-  registry access, a cluster granting `nvidia.com/gpu: 1`, and the Isaac Sim
-  and PX4 runtimes. Unit and chart checks never require these.
+- Live acceptance is a separately invoked, installation-owned billed test. It
+  requires `CESIUM_ION_ACCESS_TOKEN`, NVIDIA registry access, a cluster
+  granting `nvidia.com/gpu: 1`, and the Isaac Sim and PX4 runtimes. Unit and
+  chart checks never require these.
 
 ## Contract Compliance
 

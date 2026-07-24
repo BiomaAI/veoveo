@@ -11,6 +11,7 @@ mod changefeed;
 mod config;
 mod coordinates;
 mod error;
+mod frame_worlds;
 mod gateway_runtime;
 mod governance;
 mod identity;
@@ -40,8 +41,9 @@ pub use changefeed::{
     ChangefeedBatch, ChangefeedCursor, ChangefeedEntry, LiveStream, decode_changefeed_entry,
 };
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
-pub use coordinates::{CoordinateFrameDraft, CoordinateOperationDraft};
+pub use coordinates::CoordinateOperationDraft;
 pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
+pub use frame_worlds::{FrameWorldDraft, FrameWorldPublication, FrameWorldRevisionDraft};
 pub use gateway_runtime::{
     GatewayAuditKind, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,
     GatewayRefreshRotation, GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,

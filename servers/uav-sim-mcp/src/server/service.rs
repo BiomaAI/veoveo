@@ -43,12 +43,13 @@ use veoveo_task_runtime::{
 
 use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
-    CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement, DurableOperation,
-    ExecuteMissionRequest, LiveStreamCapability, LiveStreamCodec, LiveStreamHardwareEncoder,
-    LiveStreamLifecycle, LiveStreamRequest, LiveStreamSource, OpenLiveStreamRequest,
-    RunScenarioRequest, SessionId, SessionRequest, SimulationCommand, SimulationLifecycle,
-    SimulationState, StepSimulationRequest, StreamId, TakeoffRequest, TileLifecycle, TileState,
-    VehicleId, VehicleRequest, VehicleState, Wgs84Position,
+    CameraLifecycle, CameraState, CaptureDatasetRequest, CommandAcknowledgement,
+    ConfigureWorldOutput, ConfigureWorldRequest, DurableOperation, ExecuteMissionRequest,
+    LiveStreamCapability, LiveStreamCodec, LiveStreamHardwareEncoder, LiveStreamLifecycle,
+    LiveStreamRequest, LiveStreamSource, OpenLiveStreamRequest, RunScenarioRequest, SessionId,
+    SessionRequest, SimulationCommand, SimulationLifecycle, SimulationState, StepSimulationRequest,
+    StreamId, TakeoffRequest, TileLifecycle, TileState, VehicleId, VehicleRequest, VehicleState,
+    Wgs84Position,
 };
 use crate::uris;
 
@@ -140,6 +141,33 @@ impl UavSimMcp {
 
 #[tool_router]
 impl UavSimMcp {
+    #[tool(
+        title = "Configure UAV frame world",
+        description = "Bind an unconfigured simulation session to one immutable Frames world revision and one static simulation frame.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<ConfigureWorldOutput>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
+    async fn configure_world(
+        &self,
+        Parameters(request): Parameters<ConfigureWorldRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let output = self
+            .state
+            .adapter
+            .configure_world(&request)
+            .await
+            .map_err(invalid)?;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::session(&request.session_id))
+            .await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::world(&request.session_id))
+            .await;
+        structured_result("configured immutable frame world".to_owned(), &output)
+    }
+
     #[tool(
         title = "Get UAV simulation state",
         description = "Read the current typed session, Google Photorealistic 3D Tiles, camera-content health, recording, and vehicle state.",
@@ -273,9 +301,15 @@ impl UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let state = self.state_for(&request.session_id).await?;
-        if request.frame_uri != state.frame_uri {
+        let Some(world) = &state.world else {
+            return Err(McpError::invalid_request(
+                "simulation world is not configured",
+                None,
+            ));
+        };
+        if request.expected_world_revision_uri != world.revision_uri {
             return Err(McpError::invalid_params(
-                "mission frame_uri does not match the session frame",
+                "mission expected_world_revision_uri does not match the session",
                 None,
             ));
         }
@@ -988,23 +1022,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
     match state.adapter.state().await {
-        Ok(simulation)
-            if simulation.lifecycle != SimulationLifecycle::Failed
-                && simulation.tiles.lifecycle == TileLifecycle::Ready
-                && !simulation.cameras.is_empty()
-                && simulation
-                    .cameras
-                    .iter()
-                    .all(|camera| camera.lifecycle == CameraLifecycle::Ready)
-                && matches!(
-                    simulation.live_stream.lifecycle,
-                    LiveStreamLifecycle::Ready | LiveStreamLifecycle::Live
-                )
-                && simulation.live_stream.hardware_encoder
-                    == LiveStreamHardwareEncoder::NvidiaNvenc =>
-        {
-            StatusCode::OK
-        }
+        Ok(simulation) if simulation.lifecycle != SimulationLifecycle::Failed => StatusCode::OK,
         Ok(_) => StatusCode::SERVICE_UNAVAILABLE,
         Err(error) => {
             tracing::warn!(%error, "UAV simulation MCP readiness failed");
@@ -1014,17 +1032,28 @@ async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
 }
 
 pub(super) fn fake_state() -> anyhow::Result<SimulationState> {
+    let revision_uri = veoveo_mcp_contract::FrameWorldRevisionUri::new(
+        &veoveo_mcp_contract::FrameWorldId::new("test-world")?,
+        &veoveo_mcp_contract::FrameWorldRevisionId::new("revision-1")?,
+    );
     Ok(SimulationState {
         session_id: SessionId::new("session-alpha")?,
         lifecycle: SimulationLifecycle::Ready,
         simulation_time_s: 0.0,
         physics_step: 0,
-        frame_uri: "frames://frame/enu-alpha".to_owned(),
-        georeference_origin: Wgs84Position {
-            latitude_degrees: 13.6929,
-            longitude_degrees: -89.2182,
-            ellipsoid_height_m: 700.0,
-        },
+        world: Some(crate::contract::SimulationWorldBinding {
+            revision_uri: revision_uri.clone(),
+            spec_sha256: "a".repeat(64),
+            simulation_frame_uri: veoveo_mcp_contract::WorldFrameUri::new(
+                &revision_uri,
+                &veoveo_mcp_contract::FrameId::new("isaac-world")?,
+            ),
+            georeference_origin: Wgs84Position {
+                latitude_degrees: 13.6929,
+                longitude_degrees: -89.2182,
+                ellipsoid_height_m: 700.0,
+            },
+        }),
         tiles: TileState {
             lifecycle: TileLifecycle::Ready,
             source: "google_photorealistic_3d_tiles".to_owned(),
@@ -1161,7 +1190,7 @@ fn session_summary(state: &SimulationState) -> serde_json::Value {
     json!({
         "session_id": state.session_id,
         "lifecycle": state.lifecycle,
-        "frame_uri": state.frame_uri,
+        "world": state.world,
         "tile_lifecycle": state.tiles.lifecycle,
         "vehicle_count": state.vehicles.len(),
         "recording_count": state.recordings.len(),
@@ -1175,8 +1204,7 @@ fn world_view(state: &SimulationState) -> serde_json::Value {
         "session_id": state.session_id,
         "simulation_time_s": state.simulation_time_s,
         "physics_step": state.physics_step,
-        "frame_uri": state.frame_uri,
-        "georeference_origin": state.georeference_origin,
+        "world": state.world,
         "updated_at": state.updated_at,
     })
 }
@@ -1337,7 +1365,9 @@ mod tests {
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
-        assert!(!UavSimMcp::tool_router().list_all().is_empty());
+        let tools = UavSimMcp::tool_router().list_all();
+        assert!(!tools.is_empty());
+        assert!(tools.iter().any(|tool| tool.name == "configure_world"));
     }
 
     #[test]

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 use secrecy::SecretString;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
@@ -10,11 +8,6 @@ use veoveo_task_runtime::StoreAuthLevel;
 pub(super) enum Cli {
     /// Run the MCP server.
     Serve(Box<Args>),
-    /// Validate a server bootstrap document without booting the server.
-    BootstrapValidate {
-        /// Path to a ServerBootstrapDocument JSON file.
-        path: PathBuf,
-    },
 }
 
 #[derive(clap::Args)]
@@ -28,9 +21,6 @@ pub(super) struct Args {
     pub(super) artifact_service_url: String,
     #[arg(long, default_value_t = 67_108_864)]
     pub(super) max_artifact_bytes: u64,
-    /// Installation-owned frame catalog to register once when entries are absent.
-    #[arg(long)]
-    pub(super) bootstrap_catalog: Option<PathBuf>,
     #[arg(long, default_value_t = false)]
     pub(super) allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]

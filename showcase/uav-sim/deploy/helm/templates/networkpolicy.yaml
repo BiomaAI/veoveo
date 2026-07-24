@@ -10,10 +10,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: veoveo
       app.kubernetes.io/instance: {{ .Values.platform.instanceLabel }}
-    matchExpressions:
-      - key: app.kubernetes.io/component
-        operator: In
-        values: [uav-sim, uav-sim-batch]
+      app.kubernetes.io/component: uav-sim
   policyTypes: [Ingress, Egress]
   ingress:
     - from:

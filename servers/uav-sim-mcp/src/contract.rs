@@ -3,6 +3,8 @@ use std::{collections::BTreeMap, fmt, str::FromStr};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use veoveo_mcp_contract::Wgs84Position;
+use veoveo_mcp_contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
     if value.is_empty() || value.len() > 128 {
@@ -117,6 +119,7 @@ domain_id!(
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SimulationLifecycle {
+    Unconfigured,
     Starting,
     Ready,
     Running,
@@ -193,16 +196,6 @@ pub enum MissionLifecycle {
     Completed,
     Cancelled,
     Failed,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct Wgs84Position {
-    #[schemars(range(min = -90.0, max = 90.0))]
-    pub latitude_degrees: f64,
-    #[schemars(range(min = -180.0, max = 180.0))]
-    pub longitude_degrees: f64,
-    pub ellipsoid_height_m: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -307,14 +300,39 @@ pub struct SimulationState {
     pub lifecycle: SimulationLifecycle,
     pub simulation_time_s: f64,
     pub physics_step: u64,
-    pub frame_uri: String,
-    pub georeference_origin: Wgs84Position,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world: Option<SimulationWorldBinding>,
     pub tiles: TileState,
     pub cameras: Vec<CameraState>,
     pub live_stream: LiveStreamCapability,
     pub vehicles: Vec<VehicleState>,
     pub recordings: Vec<RecordingState>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SimulationWorldBinding {
+    pub revision_uri: FrameWorldRevisionUri,
+    pub spec_sha256: String,
+    pub simulation_frame_uri: WorldFrameUri,
+    pub georeference_origin: Wgs84Position,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigureWorldRequest {
+    pub session_id: SessionId,
+    pub world_revision: FrameWorldRevision,
+    pub simulation_frame_uri: WorldFrameUri,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigureWorldOutput {
+    pub accepted: bool,
+    pub world: SimulationWorldBinding,
+    pub resource_uri: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -489,7 +507,7 @@ pub struct VehicleMission {
 pub struct ExecuteMissionRequest {
     pub session_id: SessionId,
     pub mission_id: MissionId,
-    pub frame_uri: String,
+    pub expected_world_revision_uri: FrameWorldRevisionUri,
     #[schemars(length(min = 1, max = 256))]
     pub vehicles: Vec<VehicleMission>,
 }

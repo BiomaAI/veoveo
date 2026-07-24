@@ -117,9 +117,11 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "notifications": true
+        "notifications": true,
+        "apps": true
       },
       "tools": [
+        "configure_world",
         "get_simulation_state",
         "pause_simulation",
         "resume_simulation",
@@ -130,8 +132,12 @@
         "land_vehicle",
         "run_scenario",
         "execute_mission",
-        "capture_dataset"
+        "capture_dataset",
+        "open_live_stream",
+        "renew_live_stream",
+        "close_live_stream"
       ],
+      "resource_projection": "server_owned",
       "prompts": [
         "uav-sim-mission-plan",
         "uav-sim-session-review"
@@ -321,11 +327,12 @@
       "tools": [
         "batch_transform",
         "convert_frame",
-        "derive_local_frame"
+        "create_world",
+        "publish_world"
       ],
       "prompts": [
         "frames-frame-audit",
-        "frames-local-frame-select",
+        "frames-world-design",
         "frames-transform-explain"
       ],
       "required_scopes": [
@@ -710,15 +717,19 @@
           "tools": {
             "mode": "all"
           },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "uav-sim"
-              }
-            ]
-          },
+            "resources": {
+              "mode": "listed",
+              "items": [
+                {
+                  "kind": "scheme",
+                  "scheme": "uav-sim"
+                },
+                {
+                  "kind": "uri_prefix",
+                  "prefix": "ui://uav-sim/"
+                }
+              ]
+            },
           "prompts": {
             "mode": "all"
           },
@@ -855,7 +866,8 @@
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame"
+              "create_world",
+              "publish_world"
             ]
           },
           "resources": {
@@ -1131,15 +1143,19 @@
           "tools": {
             "mode": "all"
           },
-          "resources": {
-            "mode": "listed",
-            "items": [
-              {
-                "kind": "scheme",
-                "scheme": "uav-sim"
-              }
-            ]
-          },
+            "resources": {
+              "mode": "listed",
+              "items": [
+                {
+                  "kind": "scheme",
+                  "scheme": "uav-sim"
+                },
+                {
+                  "kind": "uri_prefix",
+                  "prefix": "ui://uav-sim/"
+                }
+              ]
+            },
           "prompts": {
             "mode": "all"
           },
@@ -1302,7 +1318,8 @@
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame"
+              "create_world",
+              "publish_world"
             ]
           },
           "resources": {
@@ -2568,14 +2585,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2618,14 +2636,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2665,14 +2684,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2715,14 +2735,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -3765,6 +3786,7 @@
             "uav-sim"
           ],
           "tools": [
+            "configure_world",
             "get_simulation_state",
             "pause_simulation",
             "resume_simulation",
@@ -3775,10 +3797,14 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset"
+            "capture_dataset",
+            "open_live_stream",
+            "renew_live_stream",
+            "close_live_stream"
           ],
           "resource_schemes": [
-            "uav-sim"
+            "uav-sim",
+            "ui"
           ],
           "prompts": [
             "uav-sim-mission-plan",
@@ -3825,6 +3851,7 @@
             "uav-sim"
           ],
           "tools": [
+            "configure_world",
             "get_simulation_state",
             "pause_simulation",
             "resume_simulation",
@@ -3835,10 +3862,14 @@
             "land_vehicle",
             "run_scenario",
             "execute_mission",
-            "capture_dataset"
+            "capture_dataset",
+            "open_live_stream",
+            "renew_live_stream",
+            "close_live_stream"
           ],
           "resource_schemes": [
-            "uav-sim"
+            "uav-sim",
+            "ui"
           ],
           "prompts": [
             "uav-sim-mission-plan",

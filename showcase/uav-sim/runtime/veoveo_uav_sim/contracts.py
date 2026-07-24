@@ -71,7 +71,7 @@ class DurableOperation:
     parameters: Mapping[str, str] | None = None
     sensors: tuple[str, ...] | None = None
     mission_id: str | None = None
-    frame_uri: str | None = None
+    expected_world_revision_uri: str | None = None
     vehicles: tuple[VehicleMission, ...] | None = None
 
 
@@ -164,7 +164,14 @@ def parse_operation(payload: Any) -> DurableOperation:
         )
     if operation == "execute_mission":
         _exact_fields(
-            value, {"session_id", "mission_id", "frame_uri", "vehicles"}, "execute_mission"
+            value,
+            {
+                "session_id",
+                "mission_id",
+                "expected_world_revision_uri",
+                "vehicles",
+            },
+            "execute_mission",
         )
         vehicles = value["vehicles"]
         if not isinstance(vehicles, list) or not 1 <= len(vehicles) <= 256:
@@ -186,7 +193,11 @@ def parse_operation(payload: Any) -> DurableOperation:
             operation,
             _identity(value["session_id"], "session_id"),
             mission_id=_identity(value["mission_id"], "mission_id"),
-            frame_uri=value["frame_uri"] if isinstance(value["frame_uri"], str) else "",
+            expected_world_revision_uri=(
+                value["expected_world_revision_uri"]
+                if isinstance(value["expected_world_revision_uri"], str)
+                else ""
+            ),
             vehicles=tuple(parsed_vehicles),
         )
     raise ContractError("operation must be run_scenario, execute_mission, or capture_dataset")

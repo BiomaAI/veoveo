@@ -1104,12 +1104,13 @@ flowchart LR
           <div class="server-head">
             <span class="scheme">frames://</span>
             <h4><span class="dot" style="background:var(--hue-coords)"></span>Frames</h4>
-            <p>Local reference-frame derivation and conversion across WGS84, ECEF, ENU, and NED,
-               with durable batch work and operation provenance.</p>
+            <p>Complete ECEF-rooted frame worlds with immutable revisions, bounded conversion,
+               durable batch work, and operation provenance.</p>
           </div>
           <div class="tools"><table>
-            <tr><td class="tn">convert_frame</td><td>Convert between WGS84, ECEF, ENU, NED with explicit target frame and origin.</td></tr>
-            <tr><td class="tn">derive_local_frame</td><td>Create an ENU or NED local tangent frame from a WGS84 origin.</td></tr>
+            <tr><td class="tn">create_world</td><td>Create an empty authored world identity.</td></tr>
+            <tr><td class="tn">publish_world</td><td>Publish one validated, complete frame tree as an immutable revision.</td></tr>
+            <tr><td class="tn">convert_frame</td><td>Convert WGS84, ECEF, and revision-scoped world-frame points.</td></tr>
             <tr><td class="tn">batch_transform</td><td>Batch frame conversion as a durable task, optionally stored as an artifact.</td></tr>
           </table></div>
           <div class="server-foot">

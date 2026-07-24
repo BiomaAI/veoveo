@@ -268,10 +268,6 @@ class ScreenshotConfig:
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     session_id: str
-    frame_uri: str
-    origin_latitude_degrees: float
-    origin_longitude_degrees: float
-    origin_ellipsoid_height_m: float
     cesium_ion_access_token: str
     cesium_ion_asset_id: int
     tile_cache_policy: TileCachePolicy
@@ -290,7 +286,6 @@ class RuntimeConfig:
     live_stream: LiveStreamConfig
     screenshot: ScreenshotConfig | None
     extension_directory: str
-    exit_after_seconds: float | None
 
     def __post_init__(self) -> None:
         if self.rendering_hz != self.camera.fps:
@@ -303,9 +298,6 @@ class RuntimeConfig:
     @classmethod
     def from_environment(cls) -> "RuntimeConfig":
         session_id = _identity("UAV_SIM_SESSION_ID", _required("UAV_SIM_SESSION_ID"))
-        frame_uri = _required("UAV_SIM_FRAME_URI")
-        if not frame_uri.startswith("frames://frame/"):
-            raise ValueError("UAV_SIM_FRAME_URI must use frames://frame/{frame_id}")
 
         world_source = _required("UAV_SIM_WORLD_SOURCE")
         if world_source != "google_photorealistic_3d_tiles":
@@ -337,12 +329,6 @@ class RuntimeConfig:
             raise ValueError("XDG_CACHE_HOME must be an absolute normalized path")
         return cls(
             session_id=session_id,
-            frame_uri=frame_uri,
-            origin_latitude_degrees=_float("UAV_SIM_ORIGIN_LATITUDE", "37.7749", -90.0, 90.0),
-            origin_longitude_degrees=_float("UAV_SIM_ORIGIN_LONGITUDE", "-122.4194", -180.0, 180.0),
-            origin_ellipsoid_height_m=_float(
-                "UAV_SIM_ORIGIN_ELLIPSOID_HEIGHT_M", "30.0", -1_000.0, 100_000.0
-            ),
             cesium_ion_access_token=_required("CESIUM_ION_ACCESS_TOKEN"),
             cesium_ion_asset_id=asset_id,
             tile_cache_policy=cache_policy,
@@ -364,10 +350,5 @@ class RuntimeConfig:
             screenshot=ScreenshotConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
-            ),
-            exit_after_seconds=(
-                _float("UAV_SIM_EXIT_AFTER_SECONDS", "0", 0.1, 86_400.0)
-                if os.environ.get("UAV_SIM_EXIT_AFTER_SECONDS", "").strip()
-                else None
             ),
         )

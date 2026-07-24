@@ -236,13 +236,23 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
-        "derive-local-frame-request.schema.json",
-        DeriveLocalFrameRequest
+        "create-frame-world-request.schema.json",
+        CreateWorldRequest
     );
     add_schema!(
         schemas,
-        "derive-local-frame-output.schema.json",
-        DeriveLocalFrameOutput
+        "create-frame-world-output.schema.json",
+        CreateWorldOutput
+    );
+    add_schema!(
+        schemas,
+        "publish-frame-world-request.schema.json",
+        PublishWorldRequest
+    );
+    add_schema!(
+        schemas,
+        "publish-frame-world-output.schema.json",
+        PublishWorldOutput
     );
     add_schema!(
         schemas,

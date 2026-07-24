@@ -147,7 +147,7 @@ schema merely because the server is first-party.
 | `access.rs` | artifact access levels, user/group subjects, grant composition |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
-| `coordinates.rs` | current shared coordinate ids, frame kinds, geofence rules, and operation provenance |
+| `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
 | `schema.rs` | canonical self-contained JSON Schema 2020-12 generation for Rust MCP tool inputs |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
@@ -198,7 +198,7 @@ The only durable platform persistence layer.
 | `identity.rs` | tenant/principal/group resolution |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `coordinates.rs` | frames and coordinate-operation persistence |
+| `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus authored frame worlds and immutable tree revisions |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `map_presentations.rs` | Immutable publication products plus governed, publication-pinned map compositions and revisions |
@@ -327,7 +327,7 @@ Current MCP crates under `servers/` are indexed here:
 |---|---|
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, governed ingest/export, and DuckDB Spatial |
-| `servers/frames-mcp` | local frame derivation, coordinate conversion, and operation provenance |
+| `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/map-mcp` | Earth geography, governed feature authoring and products, source administration, releases, and logistics routing |
 | `servers/media-mcp` | webhook-completed provider media work and governed outputs |
 | `servers/optimization-mcp` | planning problem models, solver execution, validation, and mission outputs |
@@ -344,10 +344,10 @@ Current MCP crates under `servers/` are indexed here:
 | Path | Responsibility |
 |---|---|
 | `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, NVIDIA WebRTC/NVENC follow-camera stream, pod-private adapter, and Rerun publication |
-| `showcase/uav-sim/deploy/` | commit-addressed OCI publication plus interactive and batch Helm workloads, authenticated signaling and WebRTC media services, versioned persistent caches, typed camera configuration, GPU requests, and network policy |
-| `showcase/uav-sim/scenarios/` | strongly typed runtime-loaded live mission and acceptance parameters that remain outside the Isaac image context |
-| `examples/bioma/uav-sim-values.yaml` | Bioma session, Frames origin, camera optics and mount, public gateway origin, and recording tenant binding |
-| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | scenario validation and credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU workload acceptance |
+| `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured interactive Helm workload, authenticated signaling and WebRTC media services, versioned persistent cache, typed camera configuration, GPU request, and network policy |
+| `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
+| `examples/bioma/uav-sim-values.yaml` | Bioma reference camera configuration, public gateway origin, and recording tenant binding |
+| `testing/smoke/src/bin/smoke/scenarios/uav_sim.rs` | runtime world publication and binding plus credentialed Google tiles, PX4, Recording Hub, Perception, and concurrent GPU acceptance |
 
 ### Geospatial Domains
 
@@ -356,7 +356,7 @@ The geospatial hard cut has three canonical servers:
 | Path | Responsibility |
 |---|---|
 | `servers/map-mcp` | Earth geography, governed authored GeoJSON/JSON-FG layers, source acquisition, release activation, DuckDB Spatial analytics, CRS and geodesic work, geofences, restrictions, Valhalla land routing, governed network routing, matrices, and reachable areas |
-| `servers/frames-mcp` | WGS84, ECEF, ENU, and NED local-frame derivation and conversion, durable batch work, operation provenance, artifacts, and usage |
+| `servers/frames-mcp` | ECEF-rooted world trees, geodetic/static/dynamic transforms, immutable revisions, bounded coordinate conversion, durable batch work, operation provenance, artifacts, and usage |
 | `servers/view-mcp` | configured 3D scene layers, camera poses and target rigs, shared tile caching, NVIDIA-accelerated offscreen rendering, and frame resources |
 
 The crate-local design documents own their protocol, administration, persistence, and
@@ -619,6 +619,6 @@ There should be no smoke lifecycle, retry, assertion, or cleanup logic in shell 
 - Change public routes in Helm ingress, then extend the Rust deployment smoke.
 - Change installation image/config content in Helm, the offline lock/builder, and
   deployment contract together.
-- Deliver install-time domain configuration through the generic `serverBootstrap` values and
-  the `mcp/contract` bootstrap envelope; the payload schema and `bootstrap-validate` verb live
-  in the owning `servers/*-mcp` crate, never in core templates.
+- Deliver install-time domain configuration through the generic `serverBootstrap` values only
+  when the owning server defines an installation-time contract. Frames worlds are runtime MCP
+  state and must never be placed in Helm bootstrap.
