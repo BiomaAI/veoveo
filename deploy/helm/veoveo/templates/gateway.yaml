@@ -40,6 +40,7 @@ spec:
         {{- end }}
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
         {{- if .Values.gateway.controlPlaneRevision }}
         checksum/control-plane: {{ .Values.gateway.controlPlaneRevision | quote }}
         {{- else if $controlPlane }}

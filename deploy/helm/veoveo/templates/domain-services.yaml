@@ -57,6 +57,7 @@ spec:
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
+        veoveo.ai/chart-revision: {{ $.Chart.Version | quote }}
         {{- if hasKey $.Values.serverBootstrap $service.name }}
         checksum/bootstrap: {{ toJson (index $.Values.serverBootstrap $service.name) | sha256sum }}
         {{- end }}

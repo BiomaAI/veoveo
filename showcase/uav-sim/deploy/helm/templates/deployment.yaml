@@ -18,6 +18,8 @@ spec:
       labels:
         {{- include "uav-sim.selectorLabels" . | nindent 8 }}
         veoveo.ai/mcp-server: "true"
+      annotations:
+        veoveo.ai/chart-revision: {{ .Chart.Version | quote }}
     spec:
       runtimeClassName: {{ .Values.scheduling.runtimeClassName }}
       automountServiceAccountToken: false
