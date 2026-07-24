@@ -46,8 +46,6 @@ def run(config: RuntimeConfig) -> None:
                 "--enable",
                 "cesium.usd.plugins",
                 "--enable",
-                "omni.kit.livestream.aov",
-                "--enable",
                 "omni.kit.livestream.webrtc",
                 (
                     "--/exts/omni.kit.livestream.aov/"
@@ -113,7 +111,6 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "isaacsim.sensors.experimental.rtx",
-        "omni.kit.livestream.aov",
         "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):
@@ -443,7 +440,6 @@ def run(config: RuntimeConfig) -> None:
             live_stream_leases,
         )
         live_stream_proxy.start()
-        state.update_live_stream("ready", 0)
 
         application = AdapterApplication(
             config,
@@ -689,10 +685,28 @@ def run(config: RuntimeConfig) -> None:
                 and snapshot["vehicles"]
                 and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             ):
+                # AOV capture subscribes to Hydra render-product and frame
+                # events. Attach it only after Isaac has finished constructing
+                # the Replicator graph and both the Cesium viewport and RTX
+                # camera have produced stable frames. Starting it with
+                # SimulationApp lets the native capture callback observe that
+                # graph while World.reset() is replacing its nodes.
+                extension_manager.set_extension_enabled_immediate(
+                    "omni.kit.livestream.aov", True
+                )
+                if not extension_manager.is_extension_enabled(
+                    "omni.kit.livestream.aov"
+                ):
+                    raise RuntimeError(
+                        "failed to enable required extension "
+                        "omni.kit.livestream.aov"
+                    )
+                live_stream_leases.mark_ready()
                 state.set_lifecycle("running")
                 LOGGER.info(
                     (
-                        "UAV simulation ready: session=%s vehicles=%d "
+                        "UAV simulation and NVIDIA AOV stream ready: "
+                        "session=%s vehicles=%d "
                         "resident_tiles=%d camera_mean_luma=%.2f"
                     ),
                     config.session_id,
