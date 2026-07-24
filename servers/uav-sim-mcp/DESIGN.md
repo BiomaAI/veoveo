@@ -19,7 +19,7 @@ gateway.
 | WGS 84, ECEF, ENU, and NED | Immutable ECEF-rooted Frames world, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
 | [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
 | Veoveo recording ingest | Version `2026-07-21`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
-| [NVIDIA Kit AOV streaming](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.aov/latest/Overview.html) and [WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The primary viewport `LdrColor` render product is copied through the GPU render graph, encoded once through NVIDIA NVENC, and delivered as H.264 WebRTC. The AOV extension is pinned to `10.2.0+110.1.2.lx64.r.cp312`. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
+| [NVIDIA Kit AOV streaming](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.aov/latest/Overview.html) and [WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The named `/Render/OmniverseKit/HydraTextures/uav_follow_camera` `LdrColor` product stays in the GPU render graph through NVIDIA NVENC and H.264 WebRTC. The AOV extension is pinned to `10.2.0+110.1.2.lx64.r.cp312`. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
 | Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and the private Kit signaling port never become public gateway routes. |
 
 ## Identity
@@ -244,16 +244,23 @@ When `powerEfficient` is false, the App may continue under the repository's
 single browser software-decode exception and labels the path software H.264
 decode. Headed hardware WebGPU and WebGL remain mandatory visual-verification
 preconditions. Kit rendering and NVIDIA NVENC remain mandatory server paths.
-The server streams the primary viewport's `LdrColor` AOV directly rather than
-capturing the complete application framebuffer. The direct AOV path keeps
-render completion, GPU buffer transfer, and NVENC submission within NVIDIA's
-render pipeline and avoids framebuffer handoff artifacts.
-The runtime enables the AOV capture extension only after the immutable world,
-Replicator graph, Cesium viewport, and RTX camera have produced stable frames.
-This preserves NVIDIA's direct GPU path while keeping AOV frame subscriptions
-outside Isaac's render-product construction window. Stream leases remain
-unavailable until that attachment succeeds, and the App's automatic retry
-continues until the canonical stream reports ready.
+The server streams the named follow camera's `LdrColor` AOV directly rather
+than capturing the complete application framebuffer. The runtime creates that
+product and each nadir RGB product through Kit's RTX HydraTexture API in
+asynchronous low-latency mode. No Replicator render product, annotator, or
+Orchestrator graph participates in the live runtime. NVIDIA AOV and an active
+Replicator annotator graph contend during native render-product construction in
+Isaac Sim 6.0.1; the direct products remove that competing graph instead of
+depending on startup timing.
+
+The runtime image removes the AOV package's two implicit viewport stream
+declarations. One explicit configuration names
+`Render.OmniverseKit.HydraTextures.uav_follow_camera.LdrColor`, so the extension
+cannot attach NVENC streams to UI-era default viewports. The runtime enables
+AOV only after the immutable world, named RTX products, Cesium viewport, and
+nadir RGB capture have produced stable frames. Stream leases remain unavailable
+until that attachment succeeds, and the App's automatic retry continues until
+the canonical stream reports ready.
 
 The source tree carries a diagnostic client stub for ordinary Rust tests. The
 production MCP image downloads `@nvidia/ov-web-rtc` `6.6.0` from NVIDIA's
@@ -272,7 +279,9 @@ vehicle, mission, and task identities without crossing tenant ownership.
 
 The simulator emits a nadir `camera/down` stream, camera-content health, poses,
 transforms, IMU values, vehicle state, mission state, collision events, and
-tile-loading diagnostics. Image up follows vehicle forward, which keeps aerial
+tile-loading diagnostics. The nadir camera uses its own direct RTX HydraTexture
+and reads the rendered `LdrColor` resource into an RGB8 frame without creating a
+Replicator graph. Image up follows vehicle forward, which keeps aerial
 recordings oriented with the flight path. The co-located recording adapter
 converts these values into typed Rerun entities under:
 
