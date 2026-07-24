@@ -50,9 +50,7 @@ use rmcp::{
     transport::{
         StreamableHttpClientTransport,
         streamable_http_client::StreamableHttpClientTransportConfig,
-        streamable_http_server::{
-            StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-        },
+        streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
     },
 };
 use serde::{Deserialize, Serialize};

@@ -30,7 +30,7 @@ use rmcp::{
     service::RequestContext,
     tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -1008,10 +1008,8 @@ async fn main() -> anyhow::Result<()> {
             move || Ok(FramesMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(false)
-            .with_json_response(true)
             .with_cancellation_token(ct.child_token()),
     );
     let task_extension = Arc::new(TaskExtensionAdapter::new(

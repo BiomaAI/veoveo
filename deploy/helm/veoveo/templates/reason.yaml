@@ -50,7 +50,7 @@ metadata:
     {{- include "veoveo.labels" . | nindent 4 }}
     app.kubernetes.io/component: reason-mcp
 spec:
-  replicas: {{ .Values.reason.replicas }}
+  replicas: 1
   strategy:
     type: Recreate
   selector:

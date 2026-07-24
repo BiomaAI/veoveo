@@ -9,7 +9,7 @@ use anyhow::Result;
 use axum::{Router, middleware, routing::get};
 use clap::Parser;
 use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+    StreamableHttpService, session::local::LocalSessionManager,
 };
 use serde_json::json;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
@@ -125,10 +125,8 @@ pub async fn run() -> Result<()> {
             move || Ok(TimeMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(true)
-            .with_json_response(false)
             .with_cancellation_token(cancellation.child_token()),
     );
     let task_extension = Arc::new(veoveo_mcp_task_extension::TaskExtensionAdapter::new(

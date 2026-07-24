@@ -17,9 +17,7 @@ use rmcp::{
     ServiceExt,
     transport::{
         TokioChildProcess,
-        streamable_http_server::{
-            StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-        },
+        streamable_http_server::{StreamableHttpService, session::local::LocalSessionManager},
     },
 };
 use tokio::process::Command;
@@ -79,8 +77,8 @@ async fn main() -> anyhow::Result<()> {
     let peer = child.peer().clone();
 
     let ct = tokio_util::sync::CancellationToken::new();
-    let mut http_config =
-        StreamableHttpServerConfig::default().with_cancellation_token(ct.child_token());
+    let mut http_config = veoveo_mcp_contract::canonical_streamable_http_server_config()
+        .with_cancellation_token(ct.child_token());
     if !args.allowed_hosts.is_empty() {
         http_config = http_config.with_allowed_hosts(args.allowed_hosts.iter().cloned());
     }

@@ -96,13 +96,13 @@ fn merge_surface_capabilities(
 ) {
     if surface.tools {
         let tools = capabilities.tools.get_or_insert_default();
-        if surface.notifications {
+        if surface.tools_list_changed {
             tools.list_changed = Some(true);
         }
     }
     if surface.prompts {
         let prompts = capabilities.prompts.get_or_insert_default();
-        if surface.notifications {
+        if surface.prompts_list_changed {
             prompts.list_changed = Some(true);
         }
     }
@@ -111,7 +111,7 @@ fn merge_surface_capabilities(
         if surface.resource_subscriptions {
             resources.subscribe = Some(true);
         }
-        if surface.notifications {
+        if surface.resources_list_changed {
             resources.list_changed = Some(true);
         }
     }
@@ -138,7 +138,9 @@ mod tests {
                 prompts: true,
                 completions: true,
                 tasks: false,
-                notifications: true,
+                tools_list_changed: true,
+                prompts_list_changed: true,
+                resources_list_changed: true,
             },
         );
 
@@ -187,7 +189,9 @@ mod tests {
                 prompts: true,
                 completions: false,
                 tasks: false,
-                notifications: false,
+                tools_list_changed: false,
+                prompts_list_changed: false,
+                resources_list_changed: false,
             },
         );
 

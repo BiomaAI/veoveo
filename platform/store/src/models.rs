@@ -94,8 +94,6 @@ string_enum! {
 string_enum! {
     pub enum ServerTransport {
         StreamableHttp => "streamable_http",
-        Sse => "sse",
-        Stdio => "stdio",
     }
 }
 

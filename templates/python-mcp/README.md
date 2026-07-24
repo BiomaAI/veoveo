@@ -15,7 +15,7 @@ listed next to each obligation is where this template satisfies it.
 
 | Obligation | Where |
 |---|---|
-| Streamable HTTP MCP at `/{slug}/mcp`, stateless, JSON responses | `server/main.py` |
+| Sessionful Streamable HTTP MCP with event-stream responses at `/{slug}/mcp` | `server/main.py` |
 | `/{slug}/healthz` and `/{slug}/readyz` | `server/main.py` |
 | Host-authority allowlist, 421 for untrusted hosts | `veoveo_mcp.host` |
 | Gateway Ed25519 assertion verification, `kid` required | `veoveo_mcp.internal_auth` |

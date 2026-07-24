@@ -48,7 +48,7 @@ use rmcp::{
     service::RequestContext,
     tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpService, session::local::LocalSessionManager,
     },
 };
 use secrecy::ExposeSecret;
@@ -58,9 +58,9 @@ use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ServerSlug, SubscriptionHub,
-    TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ResourceListObservers,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry,
+    paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -355,6 +355,10 @@ impl ServerHandler for MediaMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        self.state
+            .resource_lists
+            .observe(context.peer.clone())
+            .await;
         let identity = internal_identity(&context)?;
         let mut resources = vec![
             Resource::new(uris::MODELS_URI, "models")
@@ -853,6 +857,7 @@ async fn main() -> anyhow::Result<()> {
         artifacts,
         retention,
         subscribers: SubscriptionHub::new(),
+        resource_lists: ResourceListObservers::new(),
     });
 
     run_retention_gc(&state).await?;
@@ -885,10 +890,8 @@ async fn main() -> anyhow::Result<()> {
             move || Ok(MediaMcp::new(state.clone()))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig::default()
+        veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_stateful_mode(true)
-            .with_json_response(true)
             .with_cancellation_token(ct.child_token()),
     );
     let task_extension = Arc::new(TaskExtensionAdapter::new(

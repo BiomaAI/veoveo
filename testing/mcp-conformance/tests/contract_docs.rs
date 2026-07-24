@@ -1,5 +1,5 @@
 //! Repository-structure enforcement for the MCP server contract
-//! (`mcp/contract/DESIGN.md` C22-C24).
+//! (`mcp/contract/DESIGN.md` C22-C29).
 //!
 //! Servers are discovered by globbing `servers/*-mcp/`; nothing here
 //! enumerates servers by hand, so adding a server extends coverage without
@@ -11,8 +11,87 @@ use veoveo_mcp_contract::docs::{
     CHECKLIST_IDS, ComplianceStatus, REQUIRED_AGENT_SECTIONS, parse_compliance,
 };
 
+fn repository_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
 fn servers_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../servers")
+}
+
+#[test]
+fn canonical_transport_and_deployment_surfaces_are_hard_cut() {
+    let root = repository_root();
+    let contract = fs::read_to_string(root.join("mcp/contract/src/transport.rs")).unwrap();
+    assert!(contract.contains(".with_stateful_mode(true)"));
+    assert!(contract.contains(".with_json_response(false)"));
+
+    let python =
+        fs::read_to_string(root.join("templates/python-mcp/src/datasheet_mcp/server/main.py"))
+            .unwrap();
+    assert!(python.contains("json_response=False, stateless=False"));
+
+    let gateway =
+        fs::read_to_string(root.join("deploy/helm/veoveo/templates/gateway.yaml")).unwrap();
+    let domains =
+        fs::read_to_string(root.join("deploy/helm/veoveo/templates/domain-services.yaml")).unwrap();
+    for manifest in [&gateway, &domains] {
+        assert!(manifest.contains("replicas: 1"));
+        assert!(manifest.contains("type: Recreate"));
+        assert!(!manifest.contains(".replicas"));
+        assert!(!manifest.contains("RollingUpdate"));
+    }
+
+    let values = fs::read_to_string(root.join("deploy/helm/veoveo/values.yaml")).unwrap();
+    assert!(!values.contains("defaultReplicas"));
+    assert!(!values.contains("deploymentStrategy"));
+
+    let store_model = fs::read_to_string(root.join("platform/store/src/models.rs")).unwrap();
+    let transport_start = store_model.find("pub enum ServerTransport").unwrap();
+    let transport_end = store_model[transport_start..].find("}\n}").unwrap() + transport_start;
+    let transport = &store_model[transport_start..transport_end];
+    assert!(transport.contains("StreamableHttp"));
+    assert!(!transport.contains("Sse"));
+    assert!(!transport.contains("Stdio"));
+
+    let chart = fs::read_to_string(root.join("servers/chart-mcp/server.mjs")).unwrap();
+    assert!(chart.contains("sessionIdGenerator: () => randomUUID()"));
+    assert!(chart.contains("enableJsonResponse: false"));
+}
+
+#[test]
+fn gateway_configs_use_exact_list_change_capabilities() {
+    let root = repository_root();
+    for relative in [
+        "configs/gateway.local.json",
+        "configs/gateway.smoke.json",
+        "examples/bioma/gateway.json",
+        "showcase/sumo/deploy/gateway.json",
+    ] {
+        let text = fs::read_to_string(root.join(relative)).unwrap();
+        assert!(
+            !text.contains("\"notifications\""),
+            "{relative} still uses the generic notification capability"
+        );
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        for server in value["servers"].as_array().unwrap() {
+            let capabilities = server["capabilities"].as_object().unwrap();
+            if capabilities
+                .get("resources_list_changed")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+            {
+                assert_eq!(
+                    capabilities
+                        .get("resources")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true),
+                    "{} claims resource list changes without resources",
+                    server["slug"]
+                );
+            }
+        }
+    }
 }
 
 fn discovered_server_dirs() -> Vec<PathBuf> {

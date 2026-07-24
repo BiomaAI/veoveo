@@ -68,10 +68,6 @@
             "Never"
           ]
         },
-        "defaultReplicas": {
-          "type": "integer",
-          "minimum": 1
-        },
         "existingSecret": {
           "type": "string",
           "minLength": 1
@@ -274,7 +270,7 @@
     "gateway": {
       "allOf": [
         {
-          "$ref": "#/definitions/workload"
+          "$ref": "#/definitions/mcpWorkload"
         },
         {
           "type": "object",
@@ -392,7 +388,6 @@
       "type": "object",
       "required": [
         "enabled",
-        "replicas",
         "runtimeClassName",
         "image",
         "modelCache",
@@ -402,10 +397,6 @@
       "properties": {
         "enabled": {
           "type": "boolean"
-        },
-        "replicas": {
-          "type": "integer",
-          "const": 1
         },
         "runtimeClassName": {
           "type": "string",
@@ -430,7 +421,6 @@
       "type": "object",
       "required": [
         "enabled",
-        "replicas",
         "runtimeClassName",
         "image",
         "modelCache",
@@ -441,10 +431,6 @@
       "properties": {
         "enabled": {
           "type": "boolean"
-        },
-        "replicas": {
-          "type": "integer",
-          "const": 1
         },
         "runtimeClassName": {
           "type": "string",
@@ -568,40 +554,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "replicas": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "deploymentStrategy": {
-            "type": "object",
-            "required": [
-              "type"
-            ],
-            "properties": {
-              "type": {
-                "const": "RollingUpdate"
-              },
-              "rollingUpdate": {
-                "type": "object",
-                "required": [
-                  "maxSurge",
-                  "maxUnavailable"
-                ],
-                "properties": {
-                  "maxSurge": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "maxUnavailable": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
           },
           "runtimeClassName": {
             "type": "string",
@@ -795,6 +747,20 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "mcpWorkload": {
+      "type": "object",
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "resources": {
+          "type": "object"
         }
       }
     },

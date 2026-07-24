@@ -34,7 +34,7 @@ MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
 |---|---|
-| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, schema profile, runtime boundary, packaging, well-known docs and contract resources, and the compliance checklist |
+| [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP server contract: protocol surface, sessionful Streamable HTTP, notification ownership, singleton deployment identity, schema profile, packaging, well-known resources, and compliance |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and governed data movement |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and bounded transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration |
@@ -163,6 +163,7 @@ schema merely because the server is first-party.
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
+| `transport.rs` | canonical sessionful Streamable HTTP configuration with event-stream responses |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `mcp/schema-macros`

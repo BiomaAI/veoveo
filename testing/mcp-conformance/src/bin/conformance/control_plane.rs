@@ -146,7 +146,7 @@ fn replace_media_server_with_duckdb(
             "prompts": false,
             "completions": false,
             "tasks": true,
-            "notifications": true
+            "resources_list_changed": true
         },
         "tools": ["query", "execute", "ingest", "export"],
         "required_scopes": ["operator:use"],
@@ -197,7 +197,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
         serde_json::json!({
             "tools": true, "resources": true, "resource_templates": true,
             "resource_subscriptions": false, "prompts": true, "completions": true,
-            "tasks": true, "notifications": true
+            "tasks": true, "resources_list_changed": true
         }),
         &[
             "batch_transform",
@@ -212,7 +212,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
         serde_json::json!({
             "tools": true, "resources": true, "resource_templates": true,
             "resource_subscriptions": false, "prompts": false, "completions": false,
-            "tasks": true, "notifications": true
+            "tasks": true, "resources_list_changed": true
         }),
         &["plan"],
     );
@@ -491,7 +491,7 @@ fn fake_hosted_capabilities() -> Value {
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "notifications": false
+        "resources_list_changed": false
     })
 }
 

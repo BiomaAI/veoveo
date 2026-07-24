@@ -1,6 +1,5 @@
 {{- if .Values.podDisruptionBudget.enabled }}
 {{- $workloads := list
-  (dict "name" "mcp-gateway" "component" "gateway")
   (dict "name" "artifact-service" "component" "artifact-service")
   (dict "name" "console-bff" "component" "console-bff")
 -}}
@@ -18,35 +17,5 @@ spec:
     matchLabels:
       {{- include "veoveo.selectorLabels" $ | nindent 6 }}
       app.kubernetes.io/component: {{ $workload.component }}
-{{- end }}
-{{- range $service := .Values.domainServices }}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ $service.name }}
-  labels:
-    {{- include "veoveo.labels" $ | nindent 4 }}
-spec:
-  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
-  selector:
-    matchLabels:
-      {{- include "veoveo.selectorLabels" $ | nindent 6 }}
-      app.kubernetes.io/component: {{ $service.name }}
-{{- end }}
-{{- if .Values.perception.enabled }}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: perception-mcp
-  labels:
-    {{- include "veoveo.labels" $ | nindent 4 }}
-spec:
-  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
-  selector:
-    matchLabels:
-      {{- include "veoveo.selectorLabels" $ | nindent 6 }}
-      app.kubernetes.io/component: perception-mcp
 {{- end }}
 {{- end }}
