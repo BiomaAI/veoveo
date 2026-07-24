@@ -356,12 +356,15 @@ class LiveStreamLeaseTests(unittest.TestCase):
             _authorization_token(
                 [
                     "x-nv-sessionid.stream-1",
-                    "Authorization.Bearer.secret-token",
+                    "authorization.bearer.secret-token",
                 ]
             ),
             "secret-token",
         )
         self.assertIsNone(_authorization_token(["x-nv-sessionid.stream-1"]))
+        self.assertIsNone(
+            _authorization_token(["Authorization.Bearer.secret-token"])
+        )
 
     def test_one_short_lived_stream_lease_is_enforced(self) -> None:
         changes: list[tuple[str, int]] = []
@@ -395,8 +398,10 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
     async def test_authenticated_proxy_bridges_only_the_leased_viewer(self) -> None:
         signal_port = _free_port()
         proxy_port = _free_port()
+        upstream_requests: list[str] = []
 
         async def echo(request: web.Request) -> web.WebSocketResponse:
+            upstream_requests.append(str(request.rel_url))
             websocket = web.WebSocketResponse(
                 protocols=["x-nv-sessionid.stream-1"]
             )
@@ -407,7 +412,7 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
             return websocket
 
         application = web.Application()
-        application.add_routes([web.get("/", echo)])
+        application.add_routes([web.get("/sign_in", echo)])
         upstream = web.AppRunner(application)
         await upstream.setup()
         await web.TCPSite(upstream, "127.0.0.1", signal_port).start()
@@ -431,14 +436,20 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
             async with ClientSession() as client:
                 with self.assertRaisesRegex(Exception, "401"):
                     await client.ws_connect(
-                        f"ws://127.0.0.1:{proxy_port}/webrtc",
+                        (
+                            f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
+                            "?pairing_id=stream-1"
+                        ),
                         protocols=["x-nv-sessionid.stream-1"],
                     )
                 async with client.ws_connect(
-                    f"ws://127.0.0.1:{proxy_port}/webrtc",
+                    (
+                        f"ws://127.0.0.1:{proxy_port}/webrtc/sign_in"
+                        "?pairing_id=stream-1"
+                    ),
                     protocols=[
                         "x-nv-sessionid.stream-1",
-                        f"Authorization.Bearer.{opened['access_token']}",
+                        f"authorization.bearer.{opened['access_token']}",
                     ],
                 ) as websocket:
                     await websocket.send_str("offer")
@@ -446,6 +457,10 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(message.type, WSMsgType.TEXT)
                     self.assertEqual(message.data, "offer")
                     self.assertEqual(leases.public_state(), ("live", 1))
+                    self.assertEqual(
+                        upstream_requests,
+                        ["/sign_in?pairing_id=stream-1"],
+                    )
         finally:
             proxy.close()
             await upstream.cleanup()
