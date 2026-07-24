@@ -176,10 +176,8 @@ pub(crate) async fn helm_config() -> Result<()> {
         &bioma,
         &format!("checksum/control-plane: \"{control_plane_revision}\""),
     )?;
-    contains(
-        &bioma,
-        &format!("bootstrap-{}", &control_plane_revision[..12]),
-    )?;
+    contains(&bioma, "veoveo.ai/bootstrap-revision:")?;
+    not_contains(&bioma, "bootstrap-1")?;
     for forbidden in ["name: otel-collector", "secretName: bioma-ingress-tls"] {
         if bioma.contains(forbidden) {
             bail!("Bioma k3d render must not contain `{forbidden}`");
