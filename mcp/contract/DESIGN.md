@@ -78,6 +78,10 @@ every Streamable HTTP request in that session, including GET reconnection and
 DELETE cleanup. A static bearer captured at initialization is prohibited
 because its expiry would break a live notification stream and prevent session
 cleanup. The session owner stops minting assertions when the session ends.
+Within that owner, upstream connection reuse keys contain the actor's stable
+authorization attributes and resolved invocation authority. The timestamp of
+each HTTP bearer re-verification is audit metadata and never creates a new
+protocol session.
 
 Protocol sessions remain independent because their authority, subscriptions,
 notifications, and cleanup are independent. Their HTTP transport does not.
