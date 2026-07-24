@@ -17,8 +17,8 @@ gateway.
 | ROS 2 | Private simulator data plane. High-rate topics are not projected into MCP tools. |
 | OGC 3D Tiles | Google Photorealistic 3D Tiles streamed through Cesium ion into the simulator; tile readiness and residency are typed session state. |
 | WGS 84, ECEF, ENU, and NED | Immutable ECEF-rooted Frames world, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
-| [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
-| Veoveo recording ingest | Version `2026-07-21`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
+| [Rerun 0.35.0](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
+| Veoveo recording ingest | Version `2026-07-24`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
 | [NVIDIA Kit AOV streaming](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.aov/latest/Overview.html) and [WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The named `/Render/OmniverseKit/HydraTextures/uav_follow_camera` `LdrColor` product stays in the GPU render graph through NVIDIA NVENC and H.264 WebRTC. The AOV extension is pinned to `10.2.0+110.1.2.lx64.r.cp312`. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
 | Cluster-private HTTP/JSON | Typed MCP-server-to-simulator adapter boundary. Simulator, MAVLink, ROS 2, and the private Kit signaling port never become public gateway routes. |
 

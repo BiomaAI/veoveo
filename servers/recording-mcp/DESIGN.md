@@ -10,8 +10,8 @@ in [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 |---|---|
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP for discovery, bounded queries, resources, templates, subscriptions, notifications, and artifact publication. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Recording query, manifest, subscription, and structured-result contracts. |
-| [Rerun](https://rerun.io/docs/) RRD | Immutable frozen and sealed segments retain one application id and recording id so the viewer presents a single logical store. |
-| Veoveo recording ingest | Version `2026-07-21`; authenticated protobuf batches carry native Rerun messages from a producer-local forwarder through the gateway to Recording Hub. |
+| [Rerun 0.35.0](https://rerun.io/docs/) RRD | Immutable frozen and sealed segments retain one application id and recording id so the viewer presents a single logical store. |
+| Veoveo recording ingest | Version `2026-07-24`; authenticated protobuf batches carry native Rerun messages from a producer-local forwarder through the gateway to Recording Hub. |
 | HTTP range requests | Archive routes implement byte ranges and immutable validators for RRD playback. Authorization is reevaluated before every shard response. |
 | H.264 Annex B in Rerun `VideoStream` | The governed video profile stores decoder-reentrant access units, keyframe markers, and original timeline indices inside RRD. |
 | SHA-256 | Frozen shard and artifact manifests bind immutable bytes to a digest. |

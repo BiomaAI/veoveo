@@ -18,7 +18,7 @@ shard with that batch. The forwarder inspects the encoded sample and closes its
 pending batch before every IDR, which makes each video GoP an available durable
 rollover boundary even when telemetry and camera messages share one stream.
 
-Freeze runs one materialization pass with Rerun 0.34.1's `object-store`
+Freeze runs one materialization pass with Rerun 0.35.0's `object-store`
 optimization profile. It compacts the one-row ingest chunks into chunks capped
 at 2 MiB or 65,536 sorted rows, separates thick image/video columns from thin
 telemetry, rebatches video chunks on GoP boundaries, repairs keyframe metadata,
