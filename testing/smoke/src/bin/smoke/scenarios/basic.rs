@@ -294,6 +294,7 @@ pub(crate) async fn helm_config() -> Result<()> {
         "name: uav-sim-live",
         "host: veoveo.bioma.ai",
         "path: /webrtc",
+        "pathType: Prefix",
         "ingressClassName: traefik",
         "name: stream-signal",
         "containerPort: 49101",

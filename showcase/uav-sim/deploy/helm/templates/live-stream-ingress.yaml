@@ -24,7 +24,7 @@ spec:
       http:
         paths:
           - path: {{ .Values.liveStream.ingress.path }}
-            pathType: Exact
+            pathType: Prefix
             backend:
               service:
                 name: uav-sim-live
