@@ -158,6 +158,17 @@ fn is_transport_error(error: &rmcp::ServiceError) -> bool {
     )
 }
 
+struct AppsSessionOutcome<T> {
+    session: McpSession,
+    response_headers: HeaderMap,
+    result: Result<T, rmcp::ServiceError>,
+}
+
+fn with_session_headers(mut response: Response, headers: HeaderMap) -> Response {
+    response.headers_mut().extend(headers);
+    response
+}
+
 /// Run `operation` against the pooled gateway MCP session, rebuilding the
 /// session and retrying once when the transport is dead (e.g. the gateway
 /// restarted and discarded every session). Returns the session actually
@@ -166,11 +177,13 @@ async fn with_apps_session<T, F>(
     state: &AppState,
     request_headers: &HeaderMap,
     operation: impl Fn(McpSession) -> F,
-) -> Result<(McpSession, Result<T, rmcp::ServiceError>), Response>
+) -> Result<AppsSessionOutcome<T>, Response>
 where
     F: Future<Output = Result<T, rmcp::ServiceError>>,
 {
     let upstream = api::upstream_session_for_apps(state, request_headers).await?;
+    let response_headers =
+        api::response_session_headers(state, &upstream).map_err(IntoResponse::into_response)?;
     let mut retried = false;
     loop {
         let mcp = state
@@ -197,7 +210,13 @@ where
                     .invalidate(&upstream.session.access_token, &mcp)
                     .await;
             }
-            result => return Ok((mcp, result)),
+            result => {
+                return Ok(AppsSessionOutcome {
+                    session: mcp,
+                    response_headers,
+                    result,
+                });
+            }
         }
     }
 }
@@ -212,13 +231,20 @@ pub(crate) async fn list_apps(
         Ok((resources, tools))
     })
     .await;
-    let (resources, tools) = match listing {
-        Ok((_, Ok(listing))) => listing,
-        Ok((_, Err(error))) => {
-            tracing::error!(%error, "console apps listing failed");
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
+    let AppsSessionOutcome {
+        response_headers,
+        result,
+        ..
+    } = match listing {
+        Ok(outcome) => outcome,
         Err(response) => return response,
+    };
+    let (resources, tools) = match result {
+        Ok(listing) => listing,
+        Err(error) => {
+            tracing::error!(%error, "console apps listing failed");
+            return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
+        }
     };
     let mut apps = Vec::new();
     for resource in resources
@@ -262,7 +288,7 @@ pub(crate) async fn list_apps(
             tools,
         });
     }
-    Json(AppCatalog { apps }).into_response()
+    with_session_headers(Json(AppCatalog { apps }).into_response(), response_headers)
 }
 
 #[derive(Deserialize)]
@@ -293,16 +319,23 @@ pub(crate) async fn app_frame(
         }
     })
     .await;
-    let (resource, result) = match read {
-        Ok((_, Ok(result))) => result,
-        Ok((_, Err(error))) => {
-            tracing::warn!(%error, uri = %query.uri, "console app frame read failed");
-            return StatusCode::NOT_FOUND.into_response();
-        }
+    let AppsSessionOutcome {
+        response_headers,
+        result: read,
+        ..
+    } = match read {
+        Ok(outcome) => outcome,
         Err(response) => return response,
     };
+    let (resource, result) = match read {
+        Ok(result) => result,
+        Err(error) => {
+            tracing::warn!(%error, uri = %query.uri, "console app frame read failed");
+            return with_session_headers(StatusCode::NOT_FOUND.into_response(), response_headers);
+        }
+    };
     let Some(resource) = resource else {
-        return StatusCode::NOT_FOUND.into_response();
+        return with_session_headers(StatusCode::NOT_FOUND.into_response(), response_headers);
     };
     let Some(html) = result.contents.iter().find_map(|contents| match contents {
         rmcp::model::ResourceContents::TextResourceContents {
@@ -310,10 +343,10 @@ pub(crate) async fn app_frame(
         } if mime_type.as_deref() == Some(APP_MIME_TYPE) => Some(text.clone()),
         _ => None,
     }) else {
-        return StatusCode::NOT_FOUND.into_response();
+        return with_session_headers(StatusCode::NOT_FOUND.into_response(), response_headers);
     };
     if html.len() > MAX_APP_HTML_BYTES {
-        return StatusCode::BAD_GATEWAY.into_response();
+        return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
     }
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -322,7 +355,7 @@ pub(crate) async fn app_frame(
     );
     let Ok(frame_csp) = frame_csp(&resource) else {
         tracing::warn!(uri = %query.uri, "console rejected invalid MCP App CSP");
-        return StatusCode::BAD_GATEWAY.into_response();
+        return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
     };
     headers.insert("content-security-policy", frame_csp);
     headers.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
@@ -331,7 +364,10 @@ pub(crate) async fn app_frame(
         "x-content-type-options",
         HeaderValue::from_static("nosniff"),
     );
-    (StatusCode::OK, headers, html).into_response()
+    with_session_headers(
+        (StatusCode::OK, headers, html).into_response(),
+        response_headers,
+    )
 }
 
 fn frame_csp(resource: &rmcp::model::Resource) -> Result<HeaderValue, ()> {
@@ -440,26 +476,42 @@ pub(crate) async fn read_app_resource(
             .await
     })
     .await;
-    let result = match read {
-        Ok((_, Ok(result))) => result,
-        Ok((_, Err(error))) => {
-            return call_error(
-                StatusCode::BAD_GATEWAY,
-                &format!("resource read failed: {error}"),
-            );
-        }
+    let AppsSessionOutcome {
+        response_headers,
+        result: read,
+        ..
+    } = match read {
+        Ok(outcome) => outcome,
         Err(response) => return response,
     };
+    let result = match read {
+        Ok(result) => result,
+        Err(error) => {
+            return with_session_headers(
+                call_error(
+                    StatusCode::BAD_GATEWAY,
+                    &format!("resource read failed: {error}"),
+                ),
+                response_headers,
+            );
+        }
+    };
     let Ok(body) = serde_json::to_vec(&result) else {
-        return StatusCode::BAD_GATEWAY.into_response();
+        return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
     };
     if body.len() > MAX_CALL_RESULT_BYTES {
-        return call_error(StatusCode::BAD_GATEWAY, "resource read exceeds the cap");
+        return with_session_headers(
+            call_error(StatusCode::BAD_GATEWAY, "resource read exceeds the cap"),
+            response_headers,
+        );
     }
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert("cache-control", HeaderValue::from_static("no-store"));
-    (StatusCode::OK, headers, body).into_response()
+    with_session_headers(
+        (StatusCode::OK, headers, body).into_response(),
+        response_headers,
+    )
 }
 
 #[derive(Deserialize)]
@@ -533,23 +585,36 @@ pub(crate) async fn call_app_tool(
     // The tool call below deliberately stays single-shot on the session the
     // listing just proved healthy: tool calls are not idempotent, so only
     // rmcp's own in-transport replay may retry them.
-    let (mcp, tools) = match listing {
-        Ok((mcp, Ok(tools))) => (mcp, tools),
-        Ok((_, Err(error))) => {
-            tracing::error!(%error, "console apps tool listing failed");
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
+    let AppsSessionOutcome {
+        session: mcp,
+        response_headers,
+        result: listing,
+    } = match listing {
+        Ok(outcome) => outcome,
         Err(response) => return response,
     };
+    let tools = match listing {
+        Ok(tools) => tools,
+        Err(error) => {
+            tracing::error!(%error, "console apps tool listing failed");
+            return with_session_headers(StatusCode::BAD_GATEWAY.into_response(), response_headers);
+        }
+    };
     let Some(tool) = tools.iter().find(|tool| tool.name.as_ref() == gateway_tool) else {
-        return call_error(StatusCode::NOT_FOUND, "unknown tool for this app");
+        return with_session_headers(
+            call_error(StatusCode::NOT_FOUND, "unknown tool for this app"),
+            response_headers,
+        );
     };
     let allowed = tool_app_link(tool)
         .is_some_and(|link| link.visible_to_app() && link.resource_uri == request.app_uri);
     if !allowed {
-        return call_error(
-            StatusCode::FORBIDDEN,
-            "tool is not app-visible for this view",
+        return with_session_headers(
+            call_error(
+                StatusCode::FORBIDDEN,
+                "tool is not app-visible for this view",
+            ),
+            response_headers,
         );
     }
     let mut params = rmcp::model::CallToolRequestParams::new(gateway_tool);
@@ -558,7 +623,12 @@ pub(crate) async fn call_app_tool(
             params = params.with_arguments(map.into_iter().collect());
         }
         serde_json::Value::Null => {}
-        _ => return call_error(StatusCode::BAD_REQUEST, "arguments must be a JSON object"),
+        _ => {
+            return with_session_headers(
+                call_error(StatusCode::BAD_REQUEST, "arguments must be a JSON object"),
+                response_headers,
+            );
+        }
     }
     if let Some(task) = request.task {
         // The typed `call_tool` helper only accepts a `CallToolResult`; a
@@ -572,33 +642,48 @@ pub(crate) async fn call_app_tool(
         {
             Ok(rmcp::model::ServerResult::CreateTaskResult(result)) => result,
             Ok(_) => {
-                return call_error(
-                    StatusCode::BAD_GATEWAY,
-                    "task-augmented call returned an unexpected result",
+                return with_session_headers(
+                    call_error(
+                        StatusCode::BAD_GATEWAY,
+                        "task-augmented call returned an unexpected result",
+                    ),
+                    response_headers,
                 );
             }
             Err(error) => {
-                return call_error(
-                    StatusCode::BAD_GATEWAY,
-                    &format!("tool call failed: {error}"),
+                return with_session_headers(
+                    call_error(
+                        StatusCode::BAD_GATEWAY,
+                        &format!("tool call failed: {error}"),
+                    ),
+                    response_headers,
                 );
             }
         };
         state
             .app_tasks
             .record(&result.task.task_id, &request.server, &request.app_uri);
-        return capped_json_response(&result, "tool result exceeds the cap");
+        return with_session_headers(
+            capped_json_response(&result, "tool result exceeds the cap"),
+            response_headers,
+        );
     }
     let result = match mcp.call_tool(params).await {
         Ok(result) => result,
         Err(error) => {
-            return call_error(
-                StatusCode::BAD_GATEWAY,
-                &format!("tool call failed: {error}"),
+            return with_session_headers(
+                call_error(
+                    StatusCode::BAD_GATEWAY,
+                    &format!("tool call failed: {error}"),
+                ),
+                response_headers,
             );
         }
     };
-    capped_json_response(&result, "tool result exceeds the cap")
+    with_session_headers(
+        capped_json_response(&result, "tool result exceeds the cap"),
+        response_headers,
+    )
 }
 
 #[derive(Deserialize)]
@@ -647,20 +732,28 @@ pub(crate) async fn get_app_task(
         .await
     })
     .await;
-    match outcome {
-        Ok((_, Ok(rmcp::model::ServerResult::GetTaskResult(result)))) => {
+    let AppsSessionOutcome {
+        response_headers,
+        result,
+        ..
+    } = match outcome {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let response = match result {
+        Ok(rmcp::model::ServerResult::GetTaskResult(result)) => {
             capped_json_response(&result, "task status exceeds the cap")
         }
-        Ok((_, Ok(_))) => call_error(
+        Ok(_) => call_error(
             StatusCode::BAD_GATEWAY,
             "task get returned an unexpected result",
         ),
-        Ok((_, Err(error))) => call_error(
+        Err(error) => call_error(
             StatusCode::BAD_GATEWAY,
             &format!("task get failed: {error}"),
         ),
-        Err(response) => response,
-    }
+    };
+    with_session_headers(response, response_headers)
 }
 
 pub(crate) async fn get_app_task_result(
@@ -681,18 +774,26 @@ pub(crate) async fn get_app_task_result(
         .await
     })
     .await;
-    match outcome {
+    let AppsSessionOutcome {
+        response_headers,
+        result,
+        ..
+    } = match outcome {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let response = match result {
         // Per spec the payload takes the shape of the original request's
         // result (`CallToolResult` for the calls this registry admits), so
         // whichever untagged variant it decoded into is serialized back
         // unchanged.
-        Ok((_, Ok(result))) => capped_json_response(&result, "task result exceeds the cap"),
-        Ok((_, Err(error))) => call_error(
+        Ok(result) => capped_json_response(&result, "task result exceeds the cap"),
+        Err(error) => call_error(
             StatusCode::BAD_GATEWAY,
             &format!("task result failed: {error}"),
         ),
-        Err(response) => response,
-    }
+    };
+    with_session_headers(response, response_headers)
 }
 
 pub(crate) async fn cancel_app_task(
@@ -713,25 +814,33 @@ pub(crate) async fn cancel_app_task(
     .await;
     // The registry entry deliberately stays: polling after a cancel keeps
     // observing the terminal status until the entry expires.
-    match outcome {
+    let AppsSessionOutcome {
+        response_headers,
+        result,
+        ..
+    } = match outcome {
+        Ok(outcome) => outcome,
+        Err(response) => return response,
+    };
+    let response = match result {
         // `CancelTaskResult` shares `GetTaskResult`'s wire shape, so the
         // untagged decode lands on the latter.
-        Ok((_, Ok(rmcp::model::ServerResult::GetTaskResult(result)))) => {
+        Ok(rmcp::model::ServerResult::GetTaskResult(result)) => {
             capped_json_response(&result, "task status exceeds the cap")
         }
-        Ok((_, Ok(rmcp::model::ServerResult::CancelTaskResult(result)))) => {
+        Ok(rmcp::model::ServerResult::CancelTaskResult(result)) => {
             capped_json_response(&result, "task status exceeds the cap")
         }
-        Ok((_, Ok(_))) => call_error(
+        Ok(_) => call_error(
             StatusCode::BAD_GATEWAY,
             "task cancel returned an unexpected result",
         ),
-        Ok((_, Err(error))) => call_error(
+        Err(error) => call_error(
             StatusCode::BAD_GATEWAY,
             &format!("task cancel failed: {error}"),
         ),
-        Err(response) => response,
-    }
+    };
+    with_session_headers(response, response_headers)
 }
 
 #[cfg(test)]
@@ -752,6 +861,41 @@ mod tests {
         assert!(!is_transport_error(&rmcp::ServiceError::Cancelled {
             reason: Some("caller cancelled the operation".to_owned()),
         }));
+    }
+
+    #[test]
+    fn app_responses_preserve_rotated_session_headers() {
+        let mut session_headers = HeaderMap::new();
+        session_headers.insert(
+            "set-cookie",
+            HeaderValue::from_static("__Host-veoveo-console=rotated"),
+        );
+        session_headers.insert(
+            "x-veoveo-csrf-token",
+            HeaderValue::from_static("rotated-csrf"),
+        );
+        let response = with_session_headers(
+            (
+                StatusCode::OK,
+                [(CONTENT_TYPE, HeaderValue::from_static("application/json"))],
+                "{}",
+            )
+                .into_response(),
+            session_headers,
+        );
+
+        assert_eq!(
+            response.headers().get("set-cookie").unwrap(),
+            "__Host-veoveo-console=rotated"
+        );
+        assert_eq!(
+            response.headers().get("x-veoveo-csrf-token").unwrap(),
+            "rotated-csrf"
+        );
+        assert_eq!(
+            response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
     }
 
     #[test]

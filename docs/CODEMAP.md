@@ -30,6 +30,13 @@ authorize implementation:
 | [`SELF_IMPROVING_HARNESS.md`](SELF_IMPROVING_HARNESS.md) | auth-aware profile strategies, MCP dynamics evidence, evaluation, and possible self-improving harness boundaries |
 | [`REGULATED_READINESS.md`](REGULATED_READINESS.md) | shared responsibility model, control fabric, gap register, and remediation backlog for regulated work |
 
+Approved implementation plans describe future hard cuts. Existing contracts remain
+authoritative until each planned change lands:
+
+| Document | Planned change |
+|---|---|
+| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
+
 MCP designs live with the crate whose public contract they specify:
 
 | Document | Domain |
@@ -163,7 +170,7 @@ schema merely because the server is first-party.
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
-| `transport.rs` | canonical sessionful Streamable HTTP configuration with event-stream responses |
+| `transport.rs`, `session.rs` | canonical sessionful Streamable HTTP configuration, event-stream responses, and bounded cleanup after client disconnect |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `mcp/schema-macros`
@@ -345,7 +352,7 @@ Current MCP crates under `servers/` are indexed here:
 
 | Path | Responsibility |
 |---|---|
-| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, NVIDIA WebRTC/NVENC follow-camera stream, pod-private adapter, and Rerun publication |
+| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, direct low-latency RTX HydraTexture cameras, NVIDIA AOV/WebRTC/NVENC follow-camera stream, isolated local GPU AOV probe, pod-private adapter, and Rerun publication |
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured interactive Helm workload, authenticated signaling and WebRTC media services, versioned persistent cache, typed camera configuration, GPU request, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | Bioma reference camera configuration, public gateway origin, and recording tenant binding |

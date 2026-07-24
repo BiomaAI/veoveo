@@ -5,44 +5,126 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UAV follow camera</title>
 <style>
-:root { color-scheme: light dark; --bg:#07100f; --panel:#0d1917; --ink:#e8f3ef; --muted:#8ca39c; --green:#74d7a5; --red:#ff8e86; --line:#243934; }
-* { box-sizing:border-box }
-body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.4 ui-sans-serif,system-ui,sans-serif; }
-#app { display:grid; grid-template-rows:auto minmax(260px,1fr) auto; min-height:420px; overflow:hidden; }
-header,footer { display:flex; align-items:center; gap:12px; padding:10px 12px; background:var(--panel); border-color:var(--line); }
-header { border-bottom:1px solid var(--line); } footer { border-top:1px solid var(--line); flex-wrap:wrap; }
-h1 { margin:0; font-size:14px; font-weight:650; letter-spacing:.01em; }
-.spacer { flex:1 }
-.chip { border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); }
+:root {
+  color-scheme:light dark;
+  --bg:#020606;
+  --panel:#0d1917;
+  --ink:#e8f3ef;
+  --muted:#8ca39c;
+  --green:#74d7a5;
+  --amber:#e7c16d;
+  --line:#243934;
+  --button:#173a2c;
+}
+:root[data-theme="light"] {
+  color-scheme:light;
+  --bg:#eef3f1;
+  --panel:#fff;
+  --ink:#13231e;
+  --muted:#587069;
+  --green:#16724a;
+  --amber:#856100;
+  --line:#ccd9d4;
+  --button:#dff1e8;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; width:100%; overflow:hidden; background:var(--bg); color:var(--ink); font:13px/1.4 ui-sans-serif,system-ui,sans-serif; }
+#app { width:100%; overflow:hidden; background:var(--panel); }
+header,footer { display:flex; align-items:center; gap:10px; padding:9px 12px; background:var(--panel); }
+header { min-height:48px; border-bottom:1px solid var(--line); }
+footer { min-height:56px; border-top:1px solid var(--line); }
+h1 { margin:0; font-size:14px; font-weight:680; letter-spacing:.01em; }
+.spacer { flex:1; }
+.chip {
+  display:inline-flex;
+  align-items:center;
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:3px 8px;
+  color:var(--muted);
+  white-space:nowrap;
+}
 .chip.live { border-color:#35735a; color:var(--green); }
-button { border:1px solid #41755f; border-radius:6px; background:#173a2c; color:var(--ink); padding:6px 10px; cursor:pointer; }
-button:disabled { opacity:.45; cursor:default; }
-#stage { position:relative; display:grid; place-items:center; min-height:260px; background:#020606; }
-video { width:100%; height:100%; min-height:260px; object-fit:cover; pointer-events:none; background:#020606; }
-#empty { position:absolute; max-width:36ch; color:var(--muted); text-align:center; }
-#error { position:absolute; left:12px; right:12px; bottom:12px; padding:9px 11px; background:#401b1bd9; border:1px solid #8c4845; border-radius:6px; color:#ffd6d2; }
-dl { display:flex; gap:16px; margin:0; } dt { color:var(--muted); } dd { margin:0; font-variant-numeric:tabular-nums; }
-#flight { color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42%; }
+.chip.warn { border-color:#80672d; color:var(--amber); }
+button {
+  border:1px solid #41755f;
+  border-radius:6px;
+  background:var(--button);
+  color:var(--ink);
+  padding:6px 10px;
+  font:inherit;
+  cursor:pointer;
+}
+button:hover { border-color:var(--green); }
+#stage {
+  position:relative;
+  width:100%;
+  aspect-ratio:16 / 9;
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+  background:#020606;
+}
+video {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  pointer-events:none;
+  background:#020606;
+}
+#empty { z-index:1; max-width:38ch; padding:18px; color:var(--muted); text-align:center; }
+#error {
+  position:absolute;
+  z-index:2;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  padding:9px 11px;
+  background:#401b1bed;
+  border:1px solid #8c4845;
+  border-radius:6px;
+  color:#ffd6d2;
+}
+.stats { display:grid; grid-template-columns:repeat(4,minmax(72px,auto)); gap:8px 18px; margin:0; }
+.stats div { min-width:0; }
+.stats dt { color:var(--muted); font-size:11px; }
+.stats dd { margin:0; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#flight { color:var(--muted); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:600px) {
+  header { flex-wrap:wrap; }
+  header .spacer { display:none; }
+  #decoder { order:3; }
+  footer { align-items:flex-start; flex-direction:column; }
+  .stats { width:100%; grid-template-columns:repeat(4,1fr); gap:8px; }
+  #flight { width:100%; text-align:left; }
+}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
     <h1>Follow camera</h1>
-    <span id="hardware" class="chip">NVIDIA NVENC · H.264</span>
-    <span id="status" class="chip">idle</span>
+    <span id="decoder" class="chip">NVIDIA NVENC · H.264</span>
+    <span id="status" class="chip">starting</span>
     <span class="spacer"></span>
-    <button id="connect" type="button">Open live view</button>
-    <button id="close" type="button" disabled>Close</button>
+    <button id="stream-action" type="button" hidden>Stop video</button>
   </header>
   <main id="stage">
     <video id="remote-video" autoplay muted playsinline></video>
-    <div id="empty">Open the live view to watch the simulator’s persistent UAV follow camera.</div>
+    <div id="empty">Starting the NVIDIA-accelerated follow-camera stream…</div>
     <div id="error" hidden></div>
   </main>
   <footer>
-    <dl><div><dt>Resolution</dt><dd id="resolution">—</dd></div><div><dt>FPS</dt><dd id="fps">—</dd></div><div><dt>RTD</dt><dd id="rtd">—</dd></div><div><dt>Bitrate</dt><dd id="bitrate">—</dd></div></dl>
-    <span class="spacer"></span><span id="flight">Waiting for session state</span>
+    <dl class="stats">
+      <div><dt>Resolution</dt><dd id="resolution">—</dd></div>
+      <div><dt>FPS</dt><dd id="fps">—</dd></div>
+      <div><dt>RTD</dt><dd id="rtd">—</dd></div>
+      <div><dt>Bitrate</dt><dd id="bitrate">—</dd></div>
+    </dl>
+    <span class="spacer"></span>
+    <span id="flight">Discovering simulation session</span>
   </footer>
 </div>
 <script>/*__NVIDIA_OV_WEB_RTC__*/</script>
@@ -81,20 +163,17 @@ const bridge = (() => {
 let sessionId = null;
 let connection = null;
 let streamer = null;
+let liveCapability = null;
 let renewTimer = null;
 let stateTimer = null;
-let liveCapability = null;
+let reopenTimer = null;
+let opening = false;
+let closing = false;
+let autoStreamEnabled = true;
 let decodeVerified = false;
+let refreshBusy = false;
+let lastReportedHeight = 0;
 
-function setStatus(text, live) {
-  el("status").textContent = text;
-  el("status").classList.toggle("live", Boolean(live));
-}
-function showError(cause) {
-  el("error").textContent = cause instanceof Error ? cause.message : String(cause);
-  el("error").hidden = false;
-}
-function clearError() { el("error").hidden = true; }
 function structured(result) {
   if (result && (result.isError || result.is_error)) {
     const content = Array.isArray(result.content) ? result.content : [];
@@ -111,6 +190,24 @@ async function readJson(uri) {
   if (!content || typeof content.text !== "string") throw new Error(`resource ${uri} returned no JSON`);
   return JSON.parse(content.text);
 }
+function setStatus(text, live = false, warning = false) {
+  el("status").textContent = text;
+  el("status").classList.toggle("live", live);
+  el("status").classList.toggle("warn", warning);
+}
+function showError(cause) {
+  el("error").textContent = cause instanceof Error ? cause.message : String(cause);
+  el("error").hidden = false;
+}
+function clearError() { el("error").hidden = true; }
+function reportSize() {
+  requestAnimationFrame(() => {
+    const height = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(height - lastReportedHeight) < 2) return;
+    lastReportedHeight = height;
+    bridge.notify("ui/notifications/size-changed", { height });
+  });
+}
 function scheduleRenew() {
   clearTimeout(renewTimer);
   if (!connection) return;
@@ -125,9 +222,15 @@ function scheduleRenew() {
       scheduleRenew();
     } catch (cause) {
       showError(cause);
-      await closeStream(false);
+      await closeStream(false, true);
+      scheduleAutomaticOpen();
     }
   }, delay);
+}
+function scheduleAutomaticOpen(delay = 3000) {
+  clearTimeout(reopenTimer);
+  if (!autoStreamEnabled || closing) return;
+  reopenTimer = setTimeout(() => void openStream(), delay);
 }
 async function requireCompatibleDecode(stream) {
   if (decodeVerified) return;
@@ -148,7 +251,7 @@ async function requireCompatibleDecode(stream) {
     throw new Error("Supported, smooth H.264 decoding is required for the UAV live view");
   }
   decodeVerified = true;
-  el("hardware").textContent = result.powerEfficient
+  el("decoder").textContent = result.powerEfficient
     ? "NVIDIA NVENC · hardware H.264 decode"
     : "NVIDIA NVENC · software H.264 decode";
 }
@@ -183,11 +286,23 @@ async function connectNvidia(value) {
       nativeTouchEvents:false,
       onStart:(event) => {
         if (event && event.status === OV.EventStatus.SUCCESS) {
+          void el("remote-video").play().catch((cause) => showError(cause));
           setStatus("live", true);
           el("empty").hidden = true;
+          el("stream-action").textContent = "Stop video";
+          el("stream-action").hidden = false;
+          reportSize();
+        } else {
+          showError("The NVIDIA stream did not start");
+          setStatus("retrying", false, true);
+          void closeStream(false, true).then(() => scheduleAutomaticOpen());
         }
       },
-      onStop:() => { setStatus("disconnected", false); },
+      onStop:() => {
+        if (!closing) {
+          void closeStream(false, true).then(() => scheduleAutomaticOpen());
+        }
+      },
       onStreamStats:(event) => {
         const stats = event && event.data && event.data.stats;
         el("fps").textContent = stats && stats.fps || "—";
@@ -202,16 +317,19 @@ async function connectNvidia(value) {
   el("fps").textContent = String(stream.fps);
 }
 async function openStream(provided) {
-  if (connection) return;
+  if (connection || opening || !sessionId || !liveCapability) return;
+  opening = true;
+  clearTimeout(reopenTimer);
   clearError();
-  el("connect").disabled = true;
-  setStatus("opening", false);
+  setStatus("opening");
+  el("empty").hidden = false;
+  el("empty").textContent = "Starting the NVIDIA-accelerated follow-camera stream…";
+  el("stream-action").hidden = true;
   try {
-    if (!provided) await requireCompatibleDecode(liveCapability);
+    await requireCompatibleDecode(liveCapability);
     connection = provided || await callTool("open_live_stream", { session_id:sessionId });
     await connectNvidia(connection);
     scheduleRenew();
-    el("close").disabled = false;
   } catch (cause) {
     const failed = connection;
     connection = null;
@@ -224,12 +342,20 @@ async function openStream(provided) {
       } catch (_) {}
     }
     showError(cause);
-    setStatus("failed", false);
-    el("connect").disabled = false;
+    setStatus("retrying", false, true);
+    el("empty").textContent = "The automatic live view will retry.";
+    el("stream-action").textContent = "Retry video";
+    el("stream-action").hidden = false;
+    scheduleAutomaticOpen();
+  } finally {
+    opening = false;
   }
 }
-async function closeStream(showFailure) {
+async function closeStream(showFailure, keepAutomatic = false) {
+  closing = true;
   clearTimeout(renewTimer);
+  clearTimeout(reopenTimer);
+  if (!keepAutomatic) autoStreamEnabled = false;
   if (streamer) {
     try { streamer.terminate(); } catch (_) {}
     streamer = null;
@@ -248,11 +374,15 @@ async function closeStream(showFailure) {
   }
   el("remote-video").srcObject = null;
   el("empty").hidden = false;
-  el("connect").disabled = !sessionId;
-  el("close").disabled = true;
-  setStatus("idle", false);
+  el("empty").textContent = keepAutomatic ? "Reconnecting the live view…" : "Live view stopped.";
+  el("stream-action").textContent = "Restart video";
+  el("stream-action").hidden = false;
+  setStatus(keepAutomatic ? "reconnecting" : "stopped", false, keepAutomatic);
+  closing = false;
 }
 async function refreshSession() {
+  if (refreshBusy) return;
+  refreshBusy = true;
   try {
     const sessions = await readJson("uav-sim://sessions");
     const session = sessions[0];
@@ -261,18 +391,18 @@ async function refreshSession() {
     liveCapability = session.live_stream;
     const vehicleText = `${session.vehicle_count} UAV${session.vehicle_count === 1 ? "" : "s"}`;
     el("flight").textContent = `${session.lifecycle} · ${session.tile_lifecycle} tiles · ${vehicleText}`;
-    if (!connection) el("connect").disabled = false;
+    if (autoStreamEnabled && !connection && !opening) void openStream();
   } catch (cause) {
     if (!connection) showError(cause);
+  } finally {
+    refreshBusy = false;
   }
 }
-function reportSize() {
-  bridge.notify("ui/notifications/size-changed", { height:Math.ceil(document.documentElement.getBoundingClientRect().height) + 8 });
-}
+
 bridge.on("ui/notifications/tool-result", (params) => {
   try {
     const value = structured(params && (params.result || params));
-    if (value && value.stream && value.endpoint && value.access_token) void openStream(value);
+    if (value && value.stream && value.endpoint && value.access_token && !connection) void openStream(value);
   } catch (cause) { showError(cause); }
 });
 bridge.on("ui/notifications/host-context-changed", (params) => {
@@ -280,13 +410,23 @@ bridge.on("ui/notifications/host-context-changed", (params) => {
   if (context && (context.theme === "light" || context.theme === "dark")) document.documentElement.dataset.theme = context.theme;
 });
 bridge.on("ui/resource-teardown", (_params, id) => {
+  autoStreamEnabled = false;
   void closeStream(false).finally(() => {
     clearInterval(stateTimer);
     if (id !== undefined) bridge.post({ jsonrpc:"2.0", id, result:{} });
   });
 });
-el("connect").addEventListener("click", () => void openStream());
-el("close").addEventListener("click", () => void closeStream(true));
+el("stream-action").addEventListener("click", () => {
+  if (connection || opening) {
+    void closeStream(true);
+  } else {
+    autoStreamEnabled = true;
+    void openStream();
+  }
+});
+new ResizeObserver(reportSize).observe(el("app"));
+window.addEventListener("resize", reportSize);
+
 (async () => {
   try {
     await bridge.request("ui/initialize", {
@@ -298,7 +438,10 @@ el("close").addEventListener("click", () => void closeStream(true));
     await refreshSession();
     stateTimer = setInterval(() => void refreshSession(), 1000);
     reportSize();
-  } catch (cause) { showError(cause); }
+  } catch (cause) {
+    showError(cause);
+    setStatus("failed");
+  }
 })();
 </script>
 </body>

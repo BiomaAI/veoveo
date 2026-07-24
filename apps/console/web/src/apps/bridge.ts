@@ -20,6 +20,7 @@ import {
   type TaskMetadata,
 } from "@modelcontextprotocol/sdk/types.js";
 import { callAppTool, cancelAppTask, getAppTask, getAppTaskResult, readAppResource } from "../api";
+import { appFrameOuterHeight } from "../appFrameSizing";
 import type { AppDescriptor } from "../types";
 import type { AppTheme } from "../theme";
 
@@ -28,9 +29,6 @@ export interface AppBridge {
   notifyToolResult: (result: CallToolResult) => void;
   notifyToolInput: (args: Record<string, unknown>) => void;
 }
-
-const MAX_FRAME_HEIGHT = 1400;
-const MIN_FRAME_HEIGHT = 180;
 
 const TASK_METHODS = new Set(["tasks/get", "tasks/result", "tasks/cancel"]);
 
@@ -155,7 +153,8 @@ export function attachAppBridge(
   bridge.onrequestdisplaymode = async () => ({ mode: "inline" });
   bridge.addEventListener("sizechange", ({ height }) => {
     if (height === undefined || !Number.isFinite(height)) return;
-    iframe.style.height = `${Math.min(MAX_FRAME_HEIGHT, Math.max(MIN_FRAME_HEIGHT, height))}px`;
+    const nonContentHeight = Math.max(0, iframe.offsetHeight - iframe.clientHeight);
+    iframe.style.height = `${appFrameOuterHeight(height, nonContentHeight)}px`;
   });
 
   const transport = interceptTaskRequests(

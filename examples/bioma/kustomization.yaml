@@ -12,6 +12,7 @@ configMapGenerator:
     files:
       - gateway.json
       - recording-producer-jwks.json
+      - service-client-jwks.json
 generatorOptions:
   disableNameSuffixHash: true
   labels:

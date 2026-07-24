@@ -48,9 +48,13 @@ NVIDIA GPU. Cesium asset `2275207` streams Google Photorealistic 3D Tiles into
 that viewport. The runtime fails if CUDA, NVENC, required extensions, tile
 residency, PX4, or visible camera content is unavailable.
 
-Kit encodes the persistent follow camera once through NVIDIA NVENC as H.264
-WebRTC. The authenticated signaling proxy admits one owner-scoped MCP lease.
-The native Kit signaling port remains private.
+Kit creates one named asynchronous low-latency RTX HydraTexture at
+`/Render/OmniverseKit/HydraTextures/uav_follow_camera` and streams its
+`LdrColor` AOV directly through the GPU render graph. NVIDIA NVENC encodes it
+once as H.264 WebRTC. Nadir cameras use separate direct RTX HydraTextures; no
+Replicator render product or annotator graph participates in the runtime. The
+authenticated signaling proxy admits one owner-scoped MCP lease, while the
+native Kit signaling port remains private.
 
 The browser checks the exact stream configuration through Media Capabilities.
 `supported && smooth` is required. `powerEfficient` selects the displayed
@@ -109,6 +113,17 @@ just showcase-uav-sim-test
 helm lint showcase/uav-sim/deploy/helm
 cargo test -p veoveo-smoke --bin smoke
 ```
+
+Run the isolated RTX camera and AOV regression without the cluster, Cesium,
+PX4, MCP server, or browser:
+
+```sh
+just showcase-uav-sim-aov-smoke <runtime-image>
+```
+
+The Docker smoke requires an NVIDIA GPU. It proves Vulkan selected NVIDIA
+hardware, captures a 640x480 RGB frame from the direct nadir HydraTexture,
+enables the named AOV stream, and advances 600 frames without a native crash.
 
 The live acceptance command is installation-owned. It must point at
 `showcase/uav-sim/scenarios/new-york-aerial.json` and a deployed gateway. The

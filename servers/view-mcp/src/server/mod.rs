@@ -8,9 +8,7 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::{Context, Result};
 use axum::{Json, Router, http::StatusCode, middleware, routing::get};
 use clap::Parser;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpService, session::local::LocalSessionManager,
-};
+use rmcp::transport::streamable_http_server::StreamableHttpService;
 use serde_json::json;
 use tokio::sync::Semaphore;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
@@ -104,7 +102,7 @@ pub async fn run() -> Result<()> {
             let state = state.clone();
             move || Ok(ViewMcp::new(state.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(cancellation.child_token()),

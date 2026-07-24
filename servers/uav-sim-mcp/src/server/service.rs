@@ -18,9 +18,7 @@ use rmcp::{
     },
     service::RequestContext,
     tool_handler, tool_router,
-    transport::streamable_http_server::{
-        StreamableHttpService, session::local::LocalSessionManager,
-    },
+    transport::streamable_http_server::StreamableHttpService,
 };
 use serde::Serialize;
 use serde_json::json;
@@ -461,7 +459,7 @@ impl ServerHandler for UavSimMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. The ui://uav-sim/live.html MCP App opens the owner-scoped NVIDIA-accelerated follow-camera stream through the canonical live-stream tools. Google Photorealistic 3D Tiles readiness inside the simulation is part of session state. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Govern UAV simulation sessions through typed resources and bounded controls. The ui://uav-sim/live.html MCP App opens the owner-scoped NVIDIA-accelerated follow-camera stream automatically through the canonical live-stream tools. Google Photorealistic 3D Tiles readiness inside the simulation is part of session state. Use the final task extension for scenarios, missions, and dataset captures; live operations are not replayed after an indeterminate interruption."
                 .to_owned(),
         );
         info
@@ -527,7 +525,7 @@ impl ServerHandler for UavSimMcp {
             )
             .with_title("UAV follow camera")
             .with_description(
-                "Live NVIDIA-accelerated follow-camera view with typed stream controls.",
+                "Automatic NVIDIA-accelerated follow-camera view with typed stream controls.",
             ),
         );
         for stream in self
@@ -957,7 +955,7 @@ pub(super) async fn serve() -> anyhow::Result<()> {
             let state = state.clone();
             move || Ok(UavSimMcp::new(state.clone()))
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(allowed_hosts.iter().cloned())
             .with_cancellation_token(shutdown.child_token()),

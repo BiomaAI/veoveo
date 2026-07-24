@@ -5,11 +5,17 @@ import os
 import socket
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 from aiohttp import ClientSession, WSMsgType, web
 
+from veoveo_uav_sim.aov import (
+    FOLLOW_CAMERA_LDR_COLOR_AOV,
+    FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
+    livestream_aov_arguments,
+)
 from veoveo_uav_sim.camera_quality import (
     measure_camera_frame,
     normalize_rgb_frame,
@@ -18,6 +24,7 @@ from veoveo_uav_sim.camera_quality import (
 from veoveo_uav_sim.config import LiveStreamConfig, RuntimeConfig
 from veoveo_uav_sim.contracts import ContractError, parse_command, parse_operation
 from veoveo_uav_sim.geo import enu_to_geodetic, horizontal_distance_m
+from veoveo_uav_sim.hydra_camera import render_product_path
 from veoveo_uav_sim.live_stream import (
     LiveStreamLeaseManager,
     LiveStreamSignalingProxy,
@@ -93,6 +100,43 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(state["live_stream"]["source"], "follow_camera")
         self.assertEqual(state["live_stream"]["hardware_encoder"], "nvidia_nvenc")
         self.assertEqual(state["live_stream"]["codec"], "h264")
+
+    def test_follow_camera_aov_has_one_named_render_product(self) -> None:
+        self.assertEqual(
+            FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
+            "/Render/OmniverseKit/HydraTextures/uav_follow_camera",
+        )
+        self.assertEqual(
+            FOLLOW_CAMERA_LDR_COLOR_AOV,
+            "Render.OmniverseKit.HydraTextures.uav_follow_camera.LdrColor",
+        )
+        arguments = livestream_aov_arguments(
+            signal_port=49100,
+            media_port=47998,
+            public_ip="127.0.0.1",
+            target_fps=20,
+        )
+        self.assertEqual(len(arguments), 6)
+        self.assertTrue(all(FOLLOW_CAMERA_LDR_COLOR_AOV in arg for arg in arguments))
+        self.assertFalse(any("ViewportTexture" in arg for arg in arguments))
+
+    def test_live_runtime_uses_only_direct_rtx_hydra_products(self) -> None:
+        self.assertEqual(
+            render_product_path("uav_follow_camera"),
+            FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
+        )
+        for invalid_name in ("", "uav/follow", "uav.follow", "uav follow"):
+            with self.subTest(name=invalid_name):
+                with self.assertRaisesRegex(ValueError, "render-product names"):
+                    render_product_path(invalid_name)
+
+        app_source = (
+            Path(__file__).parents[1] / "veoveo_uav_sim" / "app.py"
+        ).read_text()
+        self.assertNotIn("omni.replicator", app_source)
+        self.assertNotIn("import CameraSensor", app_source)
+        self.assertIn("HydraRgbCameraSensor", app_source)
+        self.assertIn("RtxHydraRenderProduct", app_source)
 
     def test_live_stream_fails_closed_on_invalid_gpu_stream_configuration(self) -> None:
         for override, message in (
@@ -372,6 +416,9 @@ class LiveStreamLeaseTests(unittest.TestCase):
             300,
             lambda lifecycle, viewers: changes.append((lifecycle, viewers)),
         )
+        with self.assertRaisesRegex(RuntimeError, "not ready"):
+            manager.open("stream-1")
+        manager.mark_ready()
         opened = manager.open("stream-1")
         self.assertEqual(opened["stream_id"], "stream-1")
         self.assertGreater(
@@ -424,6 +471,7 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
         await web.TCPSite(upstream, "127.0.0.1", signal_port).start()
 
         leases = LiveStreamLeaseManager(300, lambda _state, _viewers: None)
+        leases.mark_ready()
         opened = leases.open("stream-1")
         proxy = LiveStreamSignalingProxy(
             LiveStreamConfig(

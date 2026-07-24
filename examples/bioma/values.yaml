@@ -7,7 +7,7 @@ objectStore:
 
 gateway:
   existingControlPlaneConfigMap: bioma-gateway-control-plane
-  controlPlaneRevision: 3dd4c6a774d7c0c936b360864490a630aa7f202a6a10a3a0b3919ea75d7fce2d
+  controlPlaneRevision: af2e6cfec3ca7f0aaae6ab60a3cea8fef3d7eb6568d9e5f47e0bbec2f9d8ac61
 
 consoleBff:
   oauthResource: https://veoveo.bioma.ai/mcp/admin

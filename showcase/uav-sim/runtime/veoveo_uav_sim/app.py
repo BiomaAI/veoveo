@@ -5,6 +5,11 @@ import logging
 import time
 from collections.abc import Callable
 
+from .aov import (
+    FOLLOW_CAMERA_RENDER_PRODUCT_NAME,
+    FOLLOW_CAMERA_RENDER_PRODUCT_PATH,
+    livestream_aov_arguments,
+)
 from .config import RuntimeConfig
 
 
@@ -46,32 +51,12 @@ def run(config: RuntimeConfig) -> None:
                 "--enable",
                 "cesium.usd.plugins",
                 "--enable",
-                "omni.kit.livestream.app",
-                "--enable",
                 "omni.kit.livestream.webrtc",
-                (
-                    "--/exts/omni.kit.livestream.app/primaryStream/"
-                    "streamType=webrtc"
-                ),
-                (
-                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort="
-                    f"{config.live_stream.signal_port}"
-                ),
-                (
-                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort="
-                    f"{config.live_stream.media_port}"
-                ),
-                (
-                    "--/exts/omni.kit.livestream.app/primaryStream/publicIp="
-                    f"{config.live_stream.public_ip}"
-                ),
-                (
-                    "--/exts/omni.kit.livestream.app/primaryStream/targetFps="
-                    f"{config.follow_camera.fps}"
-                ),
-                (
-                    "--/exts/omni.kit.livestream.app/primaryStream/"
-                    "allowDynamicResize=false"
+                *livestream_aov_arguments(
+                    signal_port=config.live_stream.signal_port,
+                    media_port=config.live_stream.media_port,
+                    public_ip=config.live_stream.public_ip,
+                    target_fps=config.follow_camera.fps,
                 ),
                 "--portable-root",
                 str(config.cache_directory / "kit-portable"),
@@ -86,7 +71,7 @@ def run(config: RuntimeConfig) -> None:
     from isaacsim.core.api import World
     from isaacsim.core.api.materials import PhysicsMaterial
     from isaacsim.core.api.objects import GroundPlane
-    from isaacsim.sensors.experimental.rtx import CameraSensor, RtxCamera
+    from isaacsim.sensors.experimental.rtx import RtxCamera
     from omni.kit.viewport.utility import get_active_viewport
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
@@ -97,7 +82,6 @@ def run(config: RuntimeConfig) -> None:
         "cesium.omniverse",
         "isaacsim.core.experimental.prims",
         "isaacsim.sensors.experimental.rtx",
-        "omni.kit.livestream.app",
         "omni.kit.livestream.webrtc",
         "pegasus.simulator",
     ):
@@ -134,6 +118,7 @@ def run(config: RuntimeConfig) -> None:
     )
     from .px4 import Px4Commander
     from .follow_camera import FollowCamera
+    from .hydra_camera import HydraRgbCameraSensor, RtxHydraRenderProduct
     from .live_stream import LiveStreamLeaseManager, LiveStreamSignalingProxy
     from .recording import RecordingPublisher
     from .screenshot import ShowcaseScreenshotCapture
@@ -161,7 +146,8 @@ def run(config: RuntimeConfig) -> None:
     commanders: dict[str, Px4Commander] = {}
     vehicles: dict[str, Multirotor] = {}
     vehicle_callback_prefixes: dict[str, str] = {}
-    camera_sensors: dict[str, CameraSensor] = {}
+    camera_sensors: dict[str, HydraRgbCameraSensor] = {}
+    camera_sensor_sequences: dict[str, int] = {}
     camera_frames_observed: dict[str, int] = {}
     camera_operational_streaks: dict[str, int] = {}
     camera_black_streaks_after_tiles: dict[str, int] = {}
@@ -170,6 +156,7 @@ def run(config: RuntimeConfig) -> None:
     primary_camera_content_visible = False
     screenshot_capture: ShowcaseScreenshotCapture | None = None
     follow_camera: FollowCamera | None = None
+    follow_camera_render_product: RtxHydraRenderProduct | None = None
     live_stream_proxy: LiveStreamSignalingProxy | None = None
 
     try:
@@ -326,11 +313,14 @@ def run(config: RuntimeConfig) -> None:
             camera.camera.set_clipping_ranges(
                 config.camera.clipping_near_m, config.camera.clipping_far_m
             )
-            camera_sensors[vehicle_id] = CameraSensor(
-                camera,
-                resolution=(config.camera.height, config.camera.width),
-                annotators=["rgb"],
+            camera_sensors[vehicle_id] = HydraRgbCameraSensor(
+                name=f"uav_{index + 1}_nadir_camera",
+                camera_path=camera_path,
+                width=config.camera.width,
+                height=config.camera.height,
+                fps=config.camera.fps,
             )
+            camera_sensor_sequences[vehicle_id] = 0
             camera_frames_observed[vehicle_id] = 0
             camera_operational_streaks[vehicle_id] = 0
             camera_black_streaks_after_tiles[vehicle_id] = 0
@@ -345,6 +335,18 @@ def run(config: RuntimeConfig) -> None:
         # RTX sensor render product alone is not a Cesium streaming camera.
         viewport.set_active_camera(primary_camera_path)
         follow_camera = FollowCamera.create(config.follow_camera, stage, viewport)
+        follow_camera_render_product = RtxHydraRenderProduct(
+            name=FOLLOW_CAMERA_RENDER_PRODUCT_NAME,
+            camera_path=FollowCamera.CAMERA_PATH,
+            width=config.follow_camera.width,
+            height=config.follow_camera.height,
+            fps=config.follow_camera.fps,
+        )
+        if follow_camera_render_product.path != FOLLOW_CAMERA_RENDER_PRODUCT_PATH:
+            raise RuntimeError(
+                "RTX HydraTexture created an unexpected follow-camera render "
+                f"product: {follow_camera_render_product.path}"
+            )
         if config.screenshot is not None:
             screenshot_capture = ShowcaseScreenshotCapture.create(
                 config.screenshot, viewport
@@ -427,7 +429,6 @@ def run(config: RuntimeConfig) -> None:
             live_stream_leases,
         )
         live_stream_proxy.start()
-        state.update_live_stream("ready", 0)
 
         application = AdapterApplication(
             config,
@@ -550,12 +551,15 @@ def run(config: RuntimeConfig) -> None:
 
             if physics_step % camera_interval == 0:
                 for vehicle_id, sensor in camera_sensors.items():
-                    pixels, _information = sensor.get_data("rgb")
-                    if pixels is not None:
+                    frame = sensor.latest_frame(
+                        after_sequence=camera_sensor_sequences[vehicle_id]
+                    )
+                    if frame is not None:
+                        camera_sensor_sequences[vehicle_id] = frame.sequence
                         # TODO(GPU): Keep sensor quality analysis and durable
                         # recording input on CUDA once the Recording Hub
                         # accepts the canonical NVENC packet fan-out.
-                        rgb = normalize_rgb_frame(pixels.numpy())
+                        rgb = normalize_rgb_frame(frame.pixels)
                         quality = measure_camera_frame(rgb)
                         if vehicle_id == "uav-1":
                             primary_camera_content_visible = quality.visible
@@ -673,10 +677,25 @@ def run(config: RuntimeConfig) -> None:
                 and snapshot["vehicles"]
                 and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             ):
+                # AOV capture subscribes to the dedicated follow-camera
+                # HydraTexture. Attach it only after the direct RTX products,
+                # Cesium viewport, and RGB camera have produced stable frames.
+                extension_manager.set_extension_enabled_immediate(
+                    "omni.kit.livestream.aov", True
+                )
+                if not extension_manager.is_extension_enabled(
+                    "omni.kit.livestream.aov"
+                ):
+                    raise RuntimeError(
+                        "failed to enable required extension "
+                        "omni.kit.livestream.aov"
+                    )
+                live_stream_leases.mark_ready()
                 state.set_lifecycle("running")
                 LOGGER.info(
                     (
-                        "UAV simulation ready: session=%s vehicles=%d "
+                        "UAV simulation and NVIDIA AOV stream ready: "
+                        "session=%s vehicles=%d "
                         "resident_tiles=%d camera_mean_luma=%.2f"
                     ),
                     config.session_id,
@@ -715,6 +734,13 @@ def run(config: RuntimeConfig) -> None:
             _cleanup("adapter server", server.close)
         if live_stream_proxy is not None:
             _cleanup("NVIDIA WebRTC signaling proxy", live_stream_proxy.close)
+        for camera_sensor in camera_sensors.values():
+            _cleanup("RTX Hydra RGB camera sensor", camera_sensor.close)
+        if follow_camera_render_product is not None:
+            _cleanup(
+                "follow-camera render product",
+                follow_camera_render_product.close,
+            )
         if follow_camera is not None:
             _cleanup("follow camera", follow_camera.close)
         if timeline.is_playing():

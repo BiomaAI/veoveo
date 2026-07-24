@@ -200,8 +200,14 @@ fn invocation_authorization_fingerprint(
     actor: &Principal,
     authority: &InvocationAuthority,
 ) -> Result<[u8; 32], McpError> {
+    // `authenticated_at` records when this HTTP request re-verified the bearer
+    // token. It changes on every Streamable HTTP request even though the token
+    // and its effective authorization are unchanged, so it must not split the
+    // session-owned upstream MCP connection cache.
+    let mut stable_actor = actor.clone();
+    stable_actor.authenticated_at = None;
     Ok(Sha256::digest(
-        serde_json::to_vec(&(actor, authority))
+        serde_json::to_vec(&(stable_actor, authority))
             .map_err(|err| mcp_internal(format!("failed to fingerprint invocation: {err}")))?,
     )
     .into())
@@ -397,10 +403,17 @@ mod tests {
         let baseline = principal();
         let mut changed = baseline.clone();
         changed.roles.insert(RoleId::new("administrator").unwrap());
+        let mut reverified = baseline.clone();
+        reverified.authenticated_at = Some(Utc::now());
 
         assert_eq!(
             invocation_authorization_fingerprint(&baseline, &authority()).unwrap(),
             invocation_authorization_fingerprint(&baseline, &authority()).unwrap()
+        );
+        assert_eq!(
+            invocation_authorization_fingerprint(&baseline, &authority()).unwrap(),
+            invocation_authorization_fingerprint(&reverified, &authority()).unwrap(),
+            "HTTP bearer re-verification time is audit metadata, not authorization identity"
         );
         assert_ne!(
             invocation_authorization_fingerprint(&baseline, &authority()).unwrap(),
