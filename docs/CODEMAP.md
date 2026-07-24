@@ -242,6 +242,7 @@ The runtime is the source of truth. The extension is transport only.
 | `control_store.rs` | immutable SurrealDB control revisions and activation |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, principals |
 | `policy.rs` | policy evaluation entrypoint |
+| `mcp_support.rs` | MCP URI projection, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/tools.rs` | aggregated tool projection and explicit helper gating |
 | `mcp/resources.rs` | resource/list/read/subscribe projection |

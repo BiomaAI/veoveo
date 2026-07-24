@@ -147,6 +147,22 @@ impl GatewayControlPlane {
             validate_server_upstream(server)?;
             validate_server_apps(server)?;
         }
+        for server in &self.servers {
+            for scheme in &server.referenced_resource_schemes {
+                if !self
+                    .servers
+                    .iter()
+                    .any(|candidate| candidate.uri_scheme == *scheme)
+                {
+                    return Err(
+                        GatewayControlPlaneError::UnknownServerReferencedResourceScheme {
+                            server: server.slug.clone(),
+                            scheme: scheme.clone(),
+                        },
+                    );
+                }
+            }
+        }
 
         let mut policies = BTreeSet::new();
         let mut policy_by_id = BTreeMap::new();

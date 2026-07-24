@@ -26,6 +26,10 @@ pub enum GatewayControlPlaneError {
         reason: String,
     },
     ServerAppsRequireOwnedResources(ServerSlug),
+    UnknownServerReferencedResourceScheme {
+        server: ServerSlug,
+        scheme: ResourceScheme,
+    },
     DuplicateSecret(SecretReferenceId),
     DuplicateOAuthClient(OAuthClientId),
     DuplicateOidcClient(OidcClientRegistrationId),
@@ -408,6 +412,10 @@ impl fmt::Display for GatewayControlPlaneError {
                 f,
                 "server `{server}` declares apps but requires resources and server_owned \
                  resource projection"
+            ),
+            Self::UnknownServerReferencedResourceScheme { server, scheme } => write!(
+                f,
+                "server `{server}` references unknown canonical resource scheme `{scheme}`"
             ),
             Self::DuplicateSecret(secret) => write!(f, "duplicate secret reference `{secret}`"),
             Self::DuplicateOAuthClient(client) => {
