@@ -163,7 +163,7 @@ schema merely because the server is first-party.
 | `tasks.rs` | shared task ownership and platform task vocabulary |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `subscriptions.rs` | resource subscription hub |
-| `transport.rs` | canonical sessionful Streamable HTTP configuration with event-stream responses |
+| `transport.rs`, `session.rs` | canonical sessionful Streamable HTTP configuration, event-stream responses, and bounded cleanup after client disconnect |
 | `telemetry.rs` | tracing/log initialization and guards |
 
 ### `mcp/schema-macros`

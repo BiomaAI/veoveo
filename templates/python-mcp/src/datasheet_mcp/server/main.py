@@ -161,7 +161,10 @@ async def serve(config: Config) -> None:
 
     mcp_server = build_mcp_server(state)
     session_manager = StreamableHTTPSessionManager(
-        app=mcp_server, json_response=False, stateless=False
+        app=mcp_server,
+        json_response=False,
+        stateless=False,
+        session_idle_timeout=60,
     )
 
     async def mcp_asgi(scope, receive, send):

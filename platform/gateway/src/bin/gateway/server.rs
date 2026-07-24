@@ -11,9 +11,7 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use parking_lot::RwLock;
-use rmcp::transport::streamable_http_server::{
-    StreamableHttpService, session::local::LocalSessionManager,
-};
+use rmcp::transport::streamable_http_server::StreamableHttpService;
 use secrecy::{ExposeSecret, SecretString};
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
@@ -374,7 +372,7 @@ fn build_profile_mcp_service(
                 ))
             }
         },
-        LocalSessionManager::default().into(),
+        veoveo_mcp_contract::canonical_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()
             .with_allowed_hosts(state.allowed_hosts.iter().cloned())
             .with_cancellation_token(state.cancellation_token.child_token()),

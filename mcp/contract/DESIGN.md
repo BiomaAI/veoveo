@@ -54,10 +54,13 @@ unaudited content URLs, and second sources of truth are prohibited.
 ## Transport And Sessions
 
 Every network endpoint uses MCP Streamable HTTP. The server creates a session
-for initialization and retains it until the client terminates the session or
-the connection becomes invalid. Responses use event-stream framing, including
-ordinary request results. Direct JSON responses are not part of the Veoveo
-profile.
+for initialization and retains it while its event stream is connected.
+Explicit DELETE ends the session immediately. A disconnected session keeps a
+fixed 60-second reconnection grace, then the canonical session manager closes
+its transport and drops the owning handler. This bound also cleans up clients
+that terminate without sending DELETE. Responses use event-stream framing,
+including ordinary request results. Direct JSON responses are not part of the
+Veoveo profile.
 
 Legacy HTTP+SSE is unsupported. Network stdio is not a transport or
 registration value. Stdio may exist only between one local bridge process and

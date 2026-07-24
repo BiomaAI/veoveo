@@ -7,6 +7,8 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "./dist/server.js";
 
 const DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024;
+const SESSION_DISCONNECT_GRACE_MS = 60_000;
+const SESSION_REAP_INTERVAL_MS = 5_000;
 
 function parseArgs(argv) {
   const options = {
@@ -87,13 +89,58 @@ async function readBody(request) {
 const options = parseArgs(process.argv.slice(2));
 const sessions = new Map();
 
-async function closeSession(transport) {
-  const sessionId = transport.sessionId;
+async function closeSession(session) {
+  const sessionId = session.transport.sessionId;
   if (sessionId) {
     sessions.delete(sessionId);
   }
-  await transport.close();
+  await session.transport.close();
 }
+
+function trackRequest(transport, response) {
+  let tracked = false;
+  const begin = () => {
+    if (tracked || !transport.sessionId) {
+      return;
+    }
+    const session = sessions.get(transport.sessionId);
+    if (!session) {
+      return;
+    }
+    tracked = true;
+    session.activeRequests += 1;
+    session.lastActivity = Date.now();
+  };
+  response.once("close", () => {
+    begin();
+    if (!tracked || !transport.sessionId) {
+      return;
+    }
+    const session = sessions.get(transport.sessionId);
+    if (!session) {
+      return;
+    }
+    session.activeRequests = Math.max(0, session.activeRequests - 1);
+    session.lastActivity = Date.now();
+  });
+  begin();
+  return begin;
+}
+
+const sessionReaper = setInterval(() => {
+  const now = Date.now();
+  for (const session of sessions.values()) {
+    if (
+      session.activeRequests === 0 &&
+      now - session.lastActivity >= SESSION_DISCONNECT_GRACE_MS
+    ) {
+      void closeSession(session).catch((error) => {
+        process.stderr.write(`failed to reap abandoned MCP session: ${String(error)}\n`);
+      });
+    }
+  }
+}, SESSION_REAP_INTERVAL_MS);
+sessionReaper.unref();
 
 const httpServer = createHttpServer(async (request, response) => {
   try {
@@ -110,7 +157,9 @@ const httpServer = createHttpServer(async (request, response) => {
     }
 
     const sessionId = request.headers["mcp-session-id"];
-    let transport = typeof sessionId === "string" ? sessions.get(sessionId) : undefined;
+    let transport =
+      typeof sessionId === "string" ? sessions.get(sessionId)?.transport : undefined;
+    let beginRequestTracking = () => {};
     let body;
     if (request.method === "POST") {
       body = await readBody(request);
@@ -124,7 +173,12 @@ const httpServer = createHttpServer(async (request, response) => {
           enableDnsRebindingProtection: options.allowedHosts.length > 0,
           allowedHosts: options.allowedHosts,
           onsessioninitialized: (initializedSessionId) => {
-            sessions.set(initializedSessionId, transport);
+            sessions.set(initializedSessionId, {
+              transport,
+              activeRequests: 0,
+              lastActivity: Date.now(),
+            });
+            beginRequestTracking();
           },
         });
         transport.onclose = () => {
@@ -144,6 +198,7 @@ const httpServer = createHttpServer(async (request, response) => {
       response.writeHead(405, { allow: "GET, POST, DELETE" }).end();
       return;
     }
+    beginRequestTracking = trackRequest(transport, response);
     await transport.handleRequest(request, response, body);
   } catch (error) {
     if (!response.headersSent) {
@@ -161,6 +216,7 @@ httpServer.listen(options.port, options.host, () => {
 });
 
 async function shutdown() {
+  clearInterval(sessionReaper);
   await Promise.all([...sessions.values()].map(closeSession));
   httpServer.close(() => process.exit(0));
 }
