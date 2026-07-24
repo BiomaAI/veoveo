@@ -22,6 +22,7 @@ profiles:
 |---|---|
 | Rust 1.97.1 and Rust Edition 2024 | canonical compiled tooling and workspace implementation, pinned by `rust-toolchain.toml` |
 | Cargo metadata format version 1 | workspace, target, dependency, and smoke-package discovery |
+| Docker BuildKit and Docker Buildx Bake | internal OCI build graph, builder-family composition, cache mounts, and image publication; the implementation verifies and pins the latest stable compatible releases before making them canonical |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
 | `veoveo.io/deployment/v1` | repository-owned deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
@@ -71,6 +72,11 @@ the Veoveo workspace, shares the Veoveo repository revision, uses the core Helm 
 or ships inside the core offline bundle. Future external extension work consumes the
 boundaries established here without becoming part of the immediate hardening scope.
 
+Image publication will resolve selected images into a typed, source-local build plan.
+Compatible Rust build units share one Cargo invocation for each builder family and
+target platform. Runtime image targets consume those artifacts without carrying a
+second package list.
+
 ## Baseline Audit
 
 The initial audit on 2026-07-24 found a strong implementation base:
@@ -100,6 +106,18 @@ The same audit found enforcement drift:
 - `testing/mcp-conformance` depended directly on Frames, Map, and Media server crates.
 - The MCP checklist existed in the design, a Rust list, and fourteen server manuals.
   The design had reached C30, the Rust list stopped at C29, and a test still expected 24.
+- `profile-publish` created and deleted a fresh detached Git worktree for every
+  publication. All 1,130 tracked files received checkout-time modification timestamps,
+  which made reconstructed Docker copy layers present unchanged path sources as new to
+  Cargo.
+- `platform-full` selected eighteen Rust image builds. Fifteen held the same anonymous
+  Cargo registry and Git cache mounts with `sharing=locked` for their complete Cargo
+  commands, while twelve also shared one locked target cache and limited Cargo to four
+  jobs.
+- Rust image builds used eight target-cache identities. Frames and Perception shared the
+  anonymous `/app/target` identity despite different builder environments, while Map,
+  Time, and View duplicated registry and Git caches.
+- The root Docker context included about 64 MB under `docs/` that no Dockerfile copied.
 
 P0 begins by revalidating these findings against its starting revision. The audit
 snapshot informs the work but does not replace a fresh gate result.
@@ -141,6 +159,17 @@ do not express independent product choices. They must not require another edit.
 A new contract requirement is not implicitly met. A new smoke requirement is not
 silently skipped. A missing GPU is a failure for a GPU workflow. A stale lockfile, schema
 projection, generated section, image digest, or compliance profile blocks the gate.
+
+### Cache Is Not Evidence
+
+Build caches improve performance and never establish correctness. Every build works from
+an empty cache and from a cache containing any state permitted by its declared namespace.
+Cold and warm builds of one source revision produce equivalent artifacts and evidence.
+
+Compiled artifact caches cannot cross incompatible source, toolchain, target-platform,
+native SDK, feature, profile, or compile-environment boundaries. Cargo registry and Git
+download caches may span source contexts only under Cargo's integrity and concurrency
+model. Source materialization must not hide a changed file from Cargo freshness checks.
 
 ### Typed Boundaries
 
@@ -209,6 +238,17 @@ image tag, or one chart root.
 
 This is a data-model constraint, not authorization to implement multi-repository
 publishing during P0 or P1.
+
+### Source-Local Build Graphs
+
+Each source context resolves and builds its own image units. An external extension keeps
+its Cargo workspace, builder families, cache namespace, and release evidence in its
+repository. Installation composition consumes immutable image coordinates and digests;
+it does not combine external packages into the Veoveo workspace builder.
+
+The core build resolver may coordinate several explicit source contexts in a future
+workflow. It treats each source revision as an independent graph and never creates one
+universal package list.
 
 ### Component-Oriented Deployment
 
@@ -449,6 +489,7 @@ cargo xtask deploy cluster up
 cargo xtask deploy apply
 cargo xtask deploy down
 
+cargo xtask release images --profile <path> --revision <sha>
 cargo xtask release charts
 cargo xtask bundle validate
 cargo xtask bundle create
@@ -473,6 +514,16 @@ conformance, or smoke lifecycle behavior.
 Process and evidence APIs receive an explicit source context. The first implementation
 uses one source, but no command assumes that repository root, current revision, image
 tag, and chart root are universal installation identities.
+
+Image release uses a locked, tool-owned persistent publication worktree keyed by source
+identity. Moving that worktree to another exact revision preserves unchanged file
+metadata and updates changed paths. A disposable full checkout is not the canonical
+publication input.
+
+The release planner models build sources, build units, builder families, target
+platforms, produced artifacts, and immutable image coordinates with Rust types. Cargo
+metadata and the selected image graph provide membership. The planner does not maintain
+a parallel package registry.
 
 `cargo xtask doctor` reports missing or incorrect tools. Enforcement never installs or
 updates a developer tool automatically.
@@ -714,6 +765,24 @@ deployment behavior.
 
 Existing Python products remain under test, but Rust owns orchestration.
 
+### P0.4 Stabilize Image Publication Inputs
+
+- Exclude repository roots such as `docs/` from the Docker context when no Dockerfile
+  consumes them.
+- Replace the disposable publication checkout with a locked, tool-owned persistent
+  worktree keyed by source identity.
+- Resolve and verify one exact committed revision before changing the publication
+  worktree.
+- Preserve unchanged path metadata across revisions while allowing Git to update every
+  changed path.
+- Test source materialization with fixture revisions that distinguish changed and
+  unchanged files.
+- Prove that an empty BuildKit and Cargo cache remains a supported input.
+
+This hard cut removes the incremental rebuild amplification before the image graph is
+consolidated. It adds no compatibility alias for `profile-publish`. The later xtask hard
+cut removes that command when image release assumes deployment publishing.
+
 ## P1: Coding And Supply-Chain Policy
 
 ### P1.1 Rust Policy
@@ -760,6 +829,38 @@ and distinguish source-built images from pinned or mirrored upstream images.
 Release builds produce SBOM and provenance evidence. Rust binaries intended for
 distribution carry auditable dependency information.
 
+### P1.5 Image Build Graph And Cache Policy
+
+The image release planner resolves selected Rust image units and groups them by a typed
+builder-family identity. Compatibility includes:
+
+- Source identity.
+- Rust toolchain, builder image, libc, native SDK, and system dependency contract.
+- Target platform, architecture, and Rust target triple.
+- Cargo profile, feature resolution, rustflags, and compile-time environment.
+
+Each selected compatible family uses one Cargo invocation at Cargo's available
+parallelism. Unique production binary names land before this consolidation. Runtime
+targets consume the family artifact target through the Bake graph and keep their
+runtime-specific bases, files, users, and configuration.
+
+Build-unit membership comes from Cargo metadata and the intentional selected image
+definitions. A fixed shared-builder command that lists every package is prohibited.
+Adding a discovered first-party image must not require editing a second builder package
+list.
+
+Target-cache identities derive from source identity, builder family, target platform,
+and Cargo profile. They are never anonymous and are not fragmented by output image.
+Package registry and Git caches use a concurrency policy that does not hold one
+BuildKit-exclusive lock throughout independent compiles when Cargo's cache locking
+provides the required safety.
+
+Enforcement validates the resolved graph rather than imposing an elapsed-time threshold.
+It rejects incompatible cache sharing, anonymous Rust target caches, fixed low job
+limits on consolidated builders, and more than one Cargo build action for a selected
+family. Cold-cache and warm-cache acceptance compare produced artifact identities and
+release evidence.
+
 ### Planned Tool Set
 
 The implementation will verify the current stable release of each selected tool before
@@ -778,7 +879,7 @@ pinning it. The intended roles are:
 | ESLint type-aware configuration and TypeScript compiler | Console static and type checking | Console gate |
 | Ruff and one selected Python type checker | Python format, lint, and type policy | Python gate |
 | npm and uv locked modes | reproducible non-Rust environments | Console and Python gates |
-| Docker BuildKit checks and Hadolint | Dockerfile correctness and policy | artifact gate |
+| Docker BuildKit checks and Hadolint | Dockerfile correctness, resolved build graph, and cache policy | artifact gate |
 | Trivy | container and Kubernetes configuration scanning | artifact and deployment gates |
 | actionlint and zizmor | GitHub Actions correctness and security | repository gate |
 | ShellCheck and shfmt | transitional shell safety before shell removal | repository gate |
@@ -904,26 +1005,29 @@ The implementation proceeds through coherent hard cuts:
 1. Restore the canonical Rust gate and resolve current drift.
 2. Add the xtask foundation and route Rust enforcement through it.
 3. Add existing Console, Python, documentation, and configuration checks.
-4. Add Rust format, lint, metadata, and unsafe policy.
-5. Add compiled local hooks.
-6. Add dependency and vulnerability policy.
-7. Add container, workflow, Kubernetes, and documentation policy.
-8. Create `tools/smoke-kit` and the typed smoke descriptor protocol.
-9. Add Cargo-discovered xtask smoke dispatch.
-10. Give production server binaries unique local names.
-11. Move server-owned smoke scenarios one component at a time.
-12. Move gateway, platform, agent, template, showcase, example, and deployment
+4. Stabilize image source materialization and exclude unused Docker context roots.
+5. Add Rust format, lint, metadata, and unsafe policy.
+6. Add compiled local hooks.
+7. Add dependency and vulnerability policy.
+8. Add container, workflow, Kubernetes, and documentation policy.
+9. Give production server binaries unique local names.
+10. Add typed image release planning, enforce cache identities, and consolidate the
+    trixie and bookworm builder families.
+11. Create `tools/smoke-kit` and the typed smoke descriptor protocol.
+12. Add Cargo-discovered xtask smoke dispatch.
+13. Move server-owned smoke scenarios one component at a time.
+14. Move gateway, platform, agent, template, showcase, example, and deployment
     scenarios to their owners.
-13. Move `testing/mcp-conformance` to `mcp/conformance`, remove domain dependencies, and
+15. Move `testing/mcp-conformance` to `mcp/conformance`, remove domain dependencies, and
     establish its standalone artifact boundary.
-14. Promote component-oriented deployment and ownership-aware offline models into their
+16. Promote component-oriented deployment and ownership-aware offline models into their
     contract crates.
-15. Remove the central smoke binary and the top-level `testing/` directory.
-16. Complete the Justfile hard cut.
-17. Enable component discovery and dependency-direction enforcement.
-18. Enable source-aware deployment, canonical gateway, contract, type-boundary, and
+17. Remove the central smoke binary and the top-level `testing/` directory.
+18. Complete the Justfile hard cut.
+19. Enable component discovery and dependency-direction enforcement.
+20. Enable source-aware deployment, canonical gateway, contract, type-boundary, and
     module-responsibility enforcement.
-19. Add repository governance and protected delivery settings.
+21. Add repository governance and protected delivery settings.
 
 Each move removes the old owner and command in the same change. A migration commit
 leaves the repository coherent and the required gate green.
@@ -937,6 +1041,7 @@ After this plan, a new Rust MCP server requires:
 | Component code, manifest, tests, `DESIGN.md`, and `AGENTS.md` | required |
 | Component-local smoke package | required |
 | Cargo workspace membership | automatic through a safe glob where possible; otherwise one explicit build declaration |
+| Component image definition | required when the component ships an image; discovered into the selected source-local build plan |
 | CODEMAP ownership entry | required |
 | Gateway entry for an installation that exposes it | required for that installation |
 | Deployment entry for a profile that runs it | required for that profile |
@@ -946,6 +1051,7 @@ After this plan, a new Rust MCP server requires:
 | Console registration edit | prohibited |
 | Lint, dependency, or scanner configuration edit | prohibited |
 | Copied compliance checklist | prohibited |
+| Shared builder package-list edit | prohibited |
 
 The server smoke first runs generic MCP conformance, then its owner-local domain
 scenarios. A composition that selects several real servers owns its own acceptance
@@ -974,6 +1080,11 @@ Container, GPU, cluster, external-network, and billed scopes run only on compati
 runners and triggers. Requirement discovery determines scenario membership. Workflow
 YAML does not list components.
 
+Container lanes resolve representative image selections through the typed build planner.
+They verify builder-family grouping and cache identity before building. Performance
+regressions are prevented through graph invariants and cold-cache correctness rather
+than a timing threshold on shared runners.
+
 ## Completion Criteria
 
 The plan is complete when all of the following statements hold:
@@ -989,6 +1100,7 @@ The plan is complete when all of the following statements hold:
 - Showcases and examples own cross-component acceptance.
 - The central `veoveo-smoke` package and top-level `testing/` directory no longer exist.
 - Adding a server requires no CI, xtask, conformance-list, scanner, or Console edit.
+- Adding a first-party Rust image requires no shared builder package-list edit.
 - Public package policy rejects an unpublished or repository-local dependency from a
   supported facade.
 - Contract additions fail compilation until shared profiles and conformance coverage are
@@ -998,9 +1110,16 @@ The plan is complete when all of the following statements hold:
   collisions regardless of how the document was authored.
 - Deployment and gateway configuration fail typed enforcement when component, source,
   artifact, or workload relationships diverge.
+- Image publication materializes one exact committed source revision without resetting
+  unchanged path metadata on every run.
+- A selected image graph produces at most one Cargo build action for each compatible
+  source-local builder family, target platform, and profile.
+- Rust target caches are explicit, source-aware, platform-aware, and isolated across
+  incompatible builder contracts.
+- Cold-cache and warm-cache builds produce equivalent artifacts and release evidence.
 - Core, extension, and installation-composed offline artifacts retain explicit owners.
 - An external extension can consume published verification contracts without joining the
-  Veoveo workspace.
+  Veoveo workspace or core image builder.
 - GPU and browser evidence always proves hardware-backed execution.
 - Release artifacts carry exact dependency, SBOM, and provenance evidence.
 - Protected delivery prevents merging when any required enforcement layer fails.
