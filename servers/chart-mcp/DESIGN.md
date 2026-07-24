@@ -16,6 +16,9 @@ responses.
 - The server keeps no domain data in a private database
   (`platformStore: false`). MCP sessions remain local to the one active
   launcher process.
+- The launcher owns each transport lifecycle. MCP `DELETE` closes the
+  transport and removes its session without recursively closing the connected
+  protocol server.
 - The gateway entry in the installation control plane owns identity, routes,
   policy, and audit, the same as every Rust server.
 

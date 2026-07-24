@@ -131,7 +131,6 @@ const httpServer = createHttpServer(async (request, response) => {
           if (transport.sessionId) {
             sessions.delete(transport.sessionId);
           }
-          void server.close();
         };
         await server.connect(transport);
       }
