@@ -372,6 +372,9 @@ class LiveStreamLeaseTests(unittest.TestCase):
             300,
             lambda lifecycle, viewers: changes.append((lifecycle, viewers)),
         )
+        with self.assertRaisesRegex(RuntimeError, "not ready"):
+            manager.open("stream-1")
+        manager.mark_ready()
         opened = manager.open("stream-1")
         self.assertEqual(opened["stream_id"], "stream-1")
         self.assertGreater(
@@ -424,6 +427,7 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
         await web.TCPSite(upstream, "127.0.0.1", signal_port).start()
 
         leases = LiveStreamLeaseManager(300, lambda _state, _viewers: None)
+        leases.mark_ready()
         opened = leases.open("stream-1")
         proxy = LiveStreamSignalingProxy(
             LiveStreamConfig(

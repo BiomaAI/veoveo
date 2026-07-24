@@ -248,6 +248,12 @@ The server streams the primary viewport's `LdrColor` AOV directly rather than
 capturing the complete application framebuffer. The direct AOV path keeps
 render completion, GPU buffer transfer, and NVENC submission within NVIDIA's
 render pipeline and avoids framebuffer handoff artifacts.
+The runtime enables the AOV capture extension only after the immutable world,
+Replicator graph, Cesium viewport, and RTX camera have produced stable frames.
+This preserves NVIDIA's direct GPU path while keeping AOV frame subscriptions
+outside Isaac's render-product construction window. Stream leases remain
+unavailable until that attachment succeeds, and the App's automatic retry
+continues until the canonical stream reports ready.
 
 The source tree carries a diagnostic client stub for ordinary Rust tests. The
 production MCP image downloads `@nvidia/ov-web-rtc` `6.6.0` from NVIDIA's
