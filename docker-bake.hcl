@@ -203,7 +203,8 @@ target "datasheet-mcp" {
 
 target "chart-mcp" {
   inherits   = ["base"]
-  dockerfile = "servers/chart-mcp/Dockerfile"
+  context    = "servers/chart-mcp"
+  dockerfile = "Dockerfile"
   tags       = [image_ref("chart-mcp")]
 }
 
