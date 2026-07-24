@@ -76,6 +76,16 @@ DELETE cleanup. A static bearer captured at initialization is prohibited
 because its expiry would break a live notification stream and prevent session
 cleanup. The session owner stops minting assertions when the session ends.
 
+Protocol sessions remain independent because their authority, subscriptions,
+notifications, and cleanup are independent. Their HTTP transport does not.
+Gateway traffic with the same validated transport-security configuration and
+active catalog revision shares one process-wide connection pool and one
+initialized TLS trust store. Construction is single-flight under concurrency.
+A catalog revision or transport-security change selects a new pool identity.
+This boundary prevents catalog fan-out and health probes from rebuilding the
+system trust store per server or per session while preserving session-local
+authorization and protocol state.
+
 Capability declarations name the exact signal a server can produce.
 `tools.listChanged`, `prompts.listChanged`, and `resources.listChanged` are
 independent claims. The gateway merges and forwards only the declared claims.
@@ -208,6 +218,7 @@ Server crates are named `*-mcp`.
 | C27 | MUST | Notification delivery is ordered, awaited by the owning session, bounded for backpressure, and never detached. |
 | C28 | MUST | Tool, prompt, and resource list-change capabilities are declared independently and match emitted notifications. |
 | C29 | MUST | Each logical MCP endpoint has one active process and a non-overlapping replacement strategy. |
+| C30 | MUST | Gateway sessions with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and initialized TLS trust store while retaining independent MCP session state. |
 
 ## Enforcement
 
@@ -224,8 +235,8 @@ rules:
 - **Construction** — C03, C08, C10, C18–C21 are inherited by consuming
   `veoveo_mcp_contract`; avoiding them requires bypassing the shared crate,
   which review treats as a contract change.
-- **Transport conformance** — the shared Streamable HTTP constructor and
-  deployment checks enforce C25–C29 for first-party Rust servers. Packaged
+- **Transport conformance** — the shared Streamable HTTP constructor, gateway
+  upstream client pool, and deployment checks enforce C25–C30 for first-party Rust servers. Packaged
   servers must pass the same black-box checks.
 - **Review** — C05, C06, C09, C13, and C14 are review-enforced boundaries;
   their violation is architectural, not stylistic.

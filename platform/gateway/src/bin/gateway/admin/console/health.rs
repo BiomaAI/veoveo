@@ -5,10 +5,11 @@ use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::ServerSlug;
 use veoveo_mcp_gateway::{
-    GatewayServerHealth, GatewayServerHealthState, probe_gateway_server_health,
+    GatewayServerHealth, GatewayServerHealthState, GatewayUpstreamHttpClientPool,
+    probe_gateway_server_health,
 };
 
-use crate::runtime::{SharedCatalog, current_catalog};
+use crate::runtime::SharedCatalog;
 
 const SERVER_HEALTH_PROBE_INTERVAL: Duration = Duration::from_secs(15);
 
@@ -32,6 +33,7 @@ impl ServerHealthMonitor {
 
 pub(crate) fn spawn_server_health_prober(
     catalog: SharedCatalog,
+    upstream_http: GatewayUpstreamHttpClientPool,
     cancellation: CancellationToken,
 ) -> ServerHealthMonitor {
     let cache: ServerHealthCache = Arc::default();
@@ -42,8 +44,8 @@ pub(crate) fn spawn_server_health_prober(
     };
     tokio::spawn(async move {
         loop {
-            let current = current_catalog(&catalog);
-            let probed = probe_gateway_server_health(&current).await;
+            let snapshot = catalog.snapshot();
+            let probed = probe_gateway_server_health(&snapshot, &upstream_http).await;
             let states_changed = {
                 let mut cached = cache.write();
                 let changed = health_states(&cached) != health_states(&probed);

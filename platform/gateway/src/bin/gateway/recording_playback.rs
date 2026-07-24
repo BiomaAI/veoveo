@@ -11,9 +11,7 @@ use veoveo_mcp_contract::{
     AuditEvent, GatewayAction, GatewayProfileId, McpMethodName, PolicyEffect, PolicyTarget,
     PrincipalAuditAttributes, ResourceUri, ServerSlug, TraceId,
 };
-use veoveo_mcp_gateway::{
-    AuthenticatedSubject, PolicyRequest, build_upstream_http_client, merge_principal_audit_metadata,
-};
+use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
 
 use crate::runtime::{RecordingPlaybackState, current_catalog};
 
@@ -216,7 +214,7 @@ async fn proxy_playback(
             return StatusCode::UNAUTHORIZED.into_response();
         }
     };
-    let client = match build_upstream_http_client(&catalog, &manifest).await {
+    let client = match state.upstream_http.client(&catalog, &manifest).await {
         Ok(client) => client,
         Err(error) => {
             tracing::error!(?error, "failed to build recording playback client");
