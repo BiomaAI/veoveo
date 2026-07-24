@@ -79,9 +79,10 @@ pub(super) fn cmd_gateway_two_server_smoke_control_plane(
             "metadata": {}
         }),
     )?;
-    configure_operator_profile_for_fake_servers(&mut control_plane)?;
+    configure_profiles_for_fake_servers(&mut control_plane)?;
     configure_policy_for_fake_servers(&mut control_plane)?;
     add_scope_to_oauth_clients(&mut control_plane, "simulation:use")?;
+    drop_media_compatibility_helpers(&mut control_plane)?;
 
     let parsed: GatewayControlPlane = serde_json::from_value(control_plane.clone())?;
     parsed.validate()?;
@@ -472,6 +473,7 @@ fn configure_fake_server(
     });
     server["capabilities"] = fake_hosted_capabilities();
     server["tools"] = json!(["run"]);
+    server["compatibility_helpers"] = json!([]);
     server["prompts"] = json!([prompt]);
     server["owned_routes"] = json!([]);
     Ok(())
@@ -495,16 +497,18 @@ fn fake_hosted_capabilities() -> Value {
     })
 }
 
-fn configure_operator_profile_for_fake_servers(control_plane: &mut Value) -> Result<()> {
+fn configure_profiles_for_fake_servers(control_plane: &mut Value) -> Result<()> {
     let profiles = control_plane_array_mut(control_plane, "profiles")?;
-    let profile = profiles
-        .iter_mut()
-        .find(|profile| profile.get("id").and_then(Value::as_str) == Some("operator"))
-        .ok_or_else(|| anyhow!("control plane has no `operator` profile"))?;
-    profile["servers"] = json!([
-        fake_profile_server_exposure("media", "media"),
-        fake_profile_server_exposure("simulation", "simulation"),
-    ]);
+    for profile_id in ["operator", "admin"] {
+        let profile = profiles
+            .iter_mut()
+            .find(|profile| profile.get("id").and_then(Value::as_str) == Some(profile_id))
+            .ok_or_else(|| anyhow!("control plane has no `{profile_id}` profile"))?;
+        profile["servers"] = json!([
+            fake_profile_server_exposure("media", "media"),
+            fake_profile_server_exposure("simulation", "simulation"),
+        ]);
+    }
     Ok(())
 }
 
@@ -542,28 +546,46 @@ fn configure_policy_for_fake_servers(control_plane: &mut Value) -> Result<()> {
         .get_mut("rules")
         .and_then(Value::as_array_mut)
         .ok_or_else(|| anyhow!("policy has no rules array"))?;
-    let media_rule = rules
-        .iter_mut()
-        .find(|rule| rule.get("id").and_then(Value::as_str) == Some("allow_operator_mcp_use"))
-        .ok_or_else(|| anyhow!("policy has no `allow_operator_mcp_use` rule"))?;
-    *media_rule = fake_policy_rule(
-        "allow_operator_mcp_use",
-        "media",
-        "media",
-        "media-plan",
-        "operator:use",
-    );
-    rules.push(fake_policy_rule(
-        "allow_simulation_profile_use",
-        "simulation",
-        "simulation",
-        "simulation-plan",
-        "simulation:use",
-    ));
+    for (rule_id, simulation_rule_id, profile) in [
+        (
+            "allow_operator_mcp_use",
+            "allow_operator_simulation_use",
+            "operator",
+        ),
+        ("allow_admin_mcp_use", "allow_admin_simulation_use", "admin"),
+    ] {
+        let media_rule = rules
+            .iter_mut()
+            .find(|rule| rule.get("id").and_then(Value::as_str) == Some(rule_id))
+            .ok_or_else(|| anyhow!("policy has no `{rule_id}` rule"))?;
+        *media_rule = fake_policy_rule(
+            rule_id,
+            profile,
+            "media",
+            "media",
+            "media-plan",
+            "operator:use",
+        );
+        rules.push(fake_policy_rule(
+            simulation_rule_id,
+            profile,
+            "simulation",
+            "simulation",
+            "simulation-plan",
+            "simulation:use",
+        ));
+    }
     Ok(())
 }
 
-fn fake_policy_rule(id: &str, server: &str, scheme: &str, prompt: &str, scope: &str) -> Value {
+fn fake_policy_rule(
+    id: &str,
+    profile: &str,
+    server: &str,
+    scheme: &str,
+    prompt: &str,
+    scope: &str,
+) -> Value {
     json!({
         "id": id,
         "effect": "allow",
@@ -577,7 +599,7 @@ fn fake_policy_rule(id: &str, server: &str, scheme: &str, prompt: &str, scope: &
             "prompts_get",
             "completion_complete"
         ],
-        "profiles": ["operator"],
+        "profiles": [profile],
         "servers": [server],
         "tools": ["run"],
         "resource_schemes": [scheme],
