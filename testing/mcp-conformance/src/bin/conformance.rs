@@ -60,7 +60,8 @@ use serde_json::{Value, json};
 use url::Url;
 use veoveo_frames_mcp::contract::{
     BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-    CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
+    CoordinatePoint, CreateWorldOutput, CreateWorldRequest, PublishWorldOutput,
+    PublishWorldRequest,
 };
 use veoveo_map_mcp::contract::{
     GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,

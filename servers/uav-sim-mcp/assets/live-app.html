@@ -84,7 +84,7 @@ let streamer = null;
 let renewTimer = null;
 let stateTimer = null;
 let liveCapability = null;
-let hardwareDecodeVerified = false;
+let decodeVerified = false;
 
 function setStatus(text, live) {
   el("status").textContent = text;
@@ -129,10 +129,10 @@ function scheduleRenew() {
     }
   }, delay);
 }
-async function requireHardwareDecode(stream) {
-  if (hardwareDecodeVerified) return;
+async function requireCompatibleDecode(stream) {
+  if (decodeVerified) return;
   if (!navigator.mediaCapabilities || !navigator.mediaCapabilities.decodingInfo) {
-    throw new Error("The browser cannot prove hardware H.264 decoding");
+    throw new Error("The browser cannot assess smooth H.264 decoding");
   }
   const result = await navigator.mediaCapabilities.decodingInfo({
     type:"webrtc",
@@ -144,18 +144,20 @@ async function requireHardwareDecode(stream) {
       framerate:stream.fps,
     },
   });
-  if (!result.supported || !result.powerEfficient) {
-    throw new Error("Hardware H.264 decoding is required for the UAV live view");
+  if (!result.supported || !result.smooth) {
+    throw new Error("Supported, smooth H.264 decoding is required for the UAV live view");
   }
-  hardwareDecodeVerified = true;
-  el("hardware").textContent = "NVIDIA NVENC · hardware H.264 decode";
+  decodeVerified = true;
+  el("hardware").textContent = result.powerEfficient
+    ? "NVIDIA NVENC · hardware H.264 decode"
+    : "NVIDIA NVENC · software H.264 decode";
 }
 async function connectNvidia(value) {
   const OV = globalThis.OVWebRTC;
   if (!OV || globalThis.__VEOVEO_WEBRTC_STUB__) throw new Error("NVIDIA WebRTC client is unavailable in this build");
   const endpoint = value.endpoint;
   const stream = value.stream;
-  await requireHardwareDecode(stream);
+  await requireCompatibleDecode(stream);
   streamer = new OV.AppStreamer();
   streamer.connect({
     streamSource:OV.StreamType.DIRECT,

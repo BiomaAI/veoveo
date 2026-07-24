@@ -13,11 +13,12 @@ use veoveo_platform_store::{
 
 use crate::{
     contract::{
-        CameraState, CaptureDatasetResult, CommandAcknowledgement, DurableOperation,
-        DurableOperationResult, LiveStreamAccessToken, LiveStreamCapability, MissionId,
-        MissionLifecycle, MissionResult, RecordingId, RecordingState, ScenarioResult, SessionId,
-        SimulationCommand, SimulationLifecycle, SimulationState, StreamId, TileState,
-        VehicleFlightState, VehicleState, Wgs84Position,
+        CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
+        ConfigureWorldRequest, DurableOperation, DurableOperationResult, LiveStreamAccessToken,
+        LiveStreamCapability, MissionId, MissionLifecycle, MissionResult, RecordingId,
+        RecordingState, ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle,
+        SimulationState, SimulationWorldBinding, StreamId, TileState, VehicleFlightState,
+        VehicleState,
     },
     uris,
 };
@@ -43,8 +44,7 @@ struct AdapterSimulationState {
     lifecycle: SimulationLifecycle,
     simulation_time_s: f64,
     physics_step: u64,
-    frame_uri: String,
-    georeference_origin: Wgs84Position,
+    world: Option<SimulationWorldBinding>,
     tiles: TileState,
     cameras: Vec<CameraState>,
     live_stream: LiveStreamCapability,
@@ -159,8 +159,7 @@ impl HttpAdapter {
             lifecycle: state.lifecycle,
             simulation_time_s: state.simulation_time_s,
             physics_step: state.physics_step,
-            frame_uri: state.frame_uri,
-            georeference_origin: state.georeference_origin,
+            world: state.world,
             tiles: state.tiles,
             cameras: state.cameras,
             live_stream: state.live_stream,
@@ -168,6 +167,27 @@ impl HttpAdapter {
             recordings,
             updated_at: state.updated_at,
         })
+    }
+
+    pub async fn configure_world(
+        &self,
+        request: &ConfigureWorldRequest,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        let world = crate::world::world_binding(request)
+            .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        #[derive(serde::Serialize)]
+        struct AdapterWorldRequest<'a> {
+            session_id: &'a SessionId,
+            world: &'a SimulationWorldBinding,
+        }
+        self.post(
+            "v1/world",
+            &AdapterWorldRequest {
+                session_id: &request.session_id,
+                world: &world,
+            },
+        )
+        .await
     }
 
     pub async fn command(
@@ -409,6 +429,35 @@ impl FakeAdapter {
         self.state.clone()
     }
 
+    pub fn configure_world(
+        &mut self,
+        request: &ConfigureWorldRequest,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        self.require_session(&request.session_id)?;
+        let world = crate::world::world_binding(request)
+            .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        if let Some(existing) = &self.state.world {
+            if existing == &world {
+                return Ok(ConfigureWorldOutput {
+                    accepted: true,
+                    world,
+                    resource_uri: uris::world(&request.session_id),
+                });
+            }
+            return Err(AdapterError::InvalidState(
+                "simulation world is already configured".to_owned(),
+            ));
+        }
+        self.state.world = Some(world.clone());
+        self.state.lifecycle = SimulationLifecycle::Ready;
+        self.state.updated_at = Utc::now();
+        Ok(ConfigureWorldOutput {
+            accepted: true,
+            world,
+            resource_uri: uris::world(&request.session_id),
+        })
+    }
+
     pub fn command(
         &mut self,
         command: &SimulationCommand,
@@ -634,6 +683,16 @@ pub enum Adapter {
 }
 
 impl Adapter {
+    pub async fn configure_world(
+        &self,
+        request: &ConfigureWorldRequest,
+    ) -> Result<ConfigureWorldOutput, AdapterError> {
+        match self {
+            Self::Http(adapter) => adapter.configure_world(request).await,
+            Self::Fake(adapter) => adapter.lock().await.configure_world(request),
+        }
+    }
+
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.state().await,
@@ -724,8 +783,32 @@ mod tests {
     use crate::contract::{
         CameraLifecycle, CameraState, EnuVector, LiveStreamCodec, LiveStreamHardwareEncoder,
         LiveStreamLifecycle, LiveStreamSource, NedVector, QuaternionXyzw, SessionId,
-        StepSimulationRequest, TileLifecycle, TileState, VehicleId, VehicleState, Wgs84Position,
+        SimulationWorldBinding, StepSimulationRequest, TileLifecycle, TileState, VehicleId,
+        VehicleState, Wgs84Position,
     };
+    use veoveo_mcp_contract::{
+        FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
+    };
+
+    fn fake_world() -> SimulationWorldBinding {
+        let revision_uri = FrameWorldRevisionUri::new(
+            &FrameWorldId::new("test-world").unwrap(),
+            &FrameWorldRevisionId::new("revision-1").unwrap(),
+        );
+        SimulationWorldBinding {
+            revision_uri: revision_uri.clone(),
+            spec_sha256: "a".repeat(64),
+            simulation_frame_uri: WorldFrameUri::new(
+                &revision_uri,
+                &FrameId::new("isaac-world").unwrap(),
+            ),
+            georeference_origin: Wgs84Position {
+                latitude_degrees: 13.6929,
+                longitude_degrees: -89.2182,
+                ellipsoid_height_m: 700.0,
+            },
+        }
+    }
 
     fn fake_state() -> SimulationState {
         SimulationState {
@@ -733,12 +816,7 @@ mod tests {
             lifecycle: SimulationLifecycle::Running,
             simulation_time_s: 1.0,
             physics_step: 250,
-            frame_uri: "frames://frame/enu-alpha".to_owned(),
-            georeference_origin: Wgs84Position {
-                latitude_degrees: 13.6929,
-                longitude_degrees: -89.2182,
-                ellipsoid_height_m: 700.0,
-            },
+            world: Some(fake_world()),
             tiles: TileState {
                 lifecycle: TileLifecycle::Ready,
                 source: "google_photorealistic_3d_tiles".to_owned(),

@@ -122,6 +122,7 @@
         "apps": true
       },
       "tools": [
+        "configure_world",
         "get_simulation_state",
         "pause_simulation",
         "resume_simulation",
@@ -327,11 +328,12 @@
       "tools": [
         "batch_transform",
         "convert_frame",
-        "derive_local_frame"
+        "create_world",
+        "publish_world"
       ],
       "prompts": [
         "frames-frame-audit",
-        "frames-local-frame-select",
+        "frames-world-design",
         "frames-transform-explain"
       ],
       "required_scopes": [
@@ -865,7 +867,8 @@
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame"
+              "create_world",
+              "publish_world"
             ]
           },
           "resources": {
@@ -1316,7 +1319,8 @@
             "items": [
               "batch_transform",
               "convert_frame",
-              "derive_local_frame"
+              "create_world",
+              "publish_world"
             ]
           },
           "resources": {
@@ -2582,14 +2586,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2632,14 +2637,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2679,14 +2685,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -2729,14 +2736,15 @@
           "tools": [
             "batch_transform",
             "convert_frame",
-            "derive_local_frame"
+            "create_world",
+            "publish_world"
           ],
           "resource_schemes": [
             "frames"
           ],
           "prompts": [
             "frames-frame-audit",
-            "frames-local-frame-select",
+            "frames-world-design",
             "frames-transform-explain"
           ],
           "required_scopes": [
@@ -3779,6 +3787,7 @@
             "uav-sim"
           ],
           "tools": [
+            "configure_world",
             "get_simulation_state",
             "pause_simulation",
             "resume_simulation",
@@ -3843,6 +3852,7 @@
             "uav-sim"
           ],
           "tools": [
+            "configure_world",
             "get_simulation_state",
             "pause_simulation",
             "resume_simulation",

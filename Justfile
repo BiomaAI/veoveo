@@ -380,7 +380,7 @@ bioma-verify:
     {{smoke}} bioma-verify --context {{bioma-kube-context}}
 
 # Run the live Isaac/PX4/Google 3D Tiles/Recording/Perception acceptance path.
-bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/bioma-aerial.json':
+bioma-uav-sim-verify scenario='showcase/uav-sim/scenarios/new-york-aerial.json':
     cargo build -p veoveo-smoke --bin smoke -p veoveo-mcp-conformance --bin conformance
     {{smoke}} uav-sim-verify --context {{bioma-kube-context}} --scenario '{{scenario}}'
 

@@ -865,18 +865,35 @@ pub struct DomainUsageRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct FrameRecord {
+pub struct FrameWorldRecord {
     pub id: RecordId,
     pub tenant: RecordId,
     pub owner: RecordId,
-    pub frame_key: String,
+    pub world_key: String,
     pub display_name: String,
-    pub definition: OpenObject,
-    pub proj_pipeline: Option<String>,
+    pub description: Option<String>,
+    pub head_revision: Option<RecordId>,
+    pub head_revision_key: Option<String>,
+    pub revision: i64,
     pub classification: String,
     pub labels: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
+pub struct FrameWorldRevisionRecord {
+    pub id: RecordId,
+    pub tenant: RecordId,
+    pub owner: RecordId,
+    pub world: RecordId,
+    pub world_key: String,
+    pub revision_key: String,
+    pub revision: i64,
+    pub spec_sha256: String,
+    pub root_frame_key: String,
+    pub definition: OpenObject,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

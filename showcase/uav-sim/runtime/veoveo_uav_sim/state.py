@@ -10,6 +10,7 @@ from .config import RuntimeConfig
 from .geo import enu_to_geodetic
 from .camera_quality import CameraFrameQuality
 from .live_stream import live_stream_state
+from .world_config import WorldConfiguration
 
 
 def _timestamp() -> str:
@@ -29,8 +30,9 @@ class VehicleTelemetry:
 
 
 class RuntimeState:
-    def __init__(self, config: RuntimeConfig) -> None:
+    def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
         self._config = config
+        self._world = world
         self._condition = threading.Condition()
         started_at = _timestamp()
         self._state: dict[str, Any] = {
@@ -38,12 +40,7 @@ class RuntimeState:
             "lifecycle": "starting",
             "simulation_time_s": 0.0,
             "physics_step": 0,
-            "frame_uri": config.frame_uri,
-            "georeference_origin": {
-                "latitude_degrees": config.origin_latitude_degrees,
-                "longitude_degrees": config.origin_longitude_degrees,
-                "ellipsoid_height_m": config.origin_ellipsoid_height_m,
-            },
+            "world": world.as_dict(),
             "tiles": {
                 "lifecycle": "connecting",
                 "source": "google_photorealistic_3d_tiles",
@@ -204,9 +201,9 @@ class RuntimeState:
             east,
             north,
             up,
-            self._config.origin_latitude_degrees,
-            self._config.origin_longitude_degrees,
-            self._config.origin_ellipsoid_height_m,
+            self._world.georeference_origin.latitude_degrees,
+            self._world.georeference_origin.longitude_degrees,
+            self._world.georeference_origin.ellipsoid_height_m,
         )
         x, y, z, w = telemetry.attitude_xyzw
         velocity_east, velocity_north, velocity_up = telemetry.linear_velocity_enu_mps

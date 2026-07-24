@@ -80,6 +80,13 @@ and software rasterizer warnings. If a browser loses WebGL or WebGPU, stop the w
 immediately. Do not keep using that browser, replace visual verification with an API-only
 check, capture an image, or report the visual workflow as verified.
 
+Browser-side H.264 playback is the only software exception. A client may decode a
+stream in software when Media Capabilities reports the exact configuration as
+`supported` and `smooth` but not `powerEfficient`. The UI must identify that path as
+software H.264 decode and may claim hardware decode only when `powerEfficient` is true.
+This exception does not relax headed hardware WebGPU and WebGL verification, server-side
+NVENC, GPU rendering, simulation, perception, or any other accelerated workload.
+
 GPU containers must request the required Kubernetes GPU resource and fail closed when
 the NVIDIA device, driver capability, or hardware rendering backend is unavailable. Do
 not add CPU rendering fallbacks, optional GPU modes, or deployment profiles that remove

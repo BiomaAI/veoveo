@@ -16,7 +16,7 @@ gateway.
 | [MAVLink 2](https://mavlink.io/en/) | Pod-local PX4 command, acknowledgement, heartbeat, mission-position, and vehicle-state transport. The adapter uses `COMMAND_INT` and `MAV_FRAME_GLOBAL_INT` for repositioning. |
 | ROS 2 | Private simulator data plane. High-rate topics are not projected into MCP tools. |
 | OGC 3D Tiles | Google Photorealistic 3D Tiles streamed through Cesium ion into the simulator; tile readiness and residency are typed session state. |
-| WGS 84, ECEF, ENU, and NED | Durable Frames origin, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
+| WGS 84, ECEF, ENU, and NED | Immutable ECEF-rooted Frames world, local simulator stage, Pegasus body state, and PX4 navigation frame. Axis and handedness mappings remain explicit. |
 | [Rerun](https://rerun.io/docs/) RRD and `VideoStream` | Vehicle, sensor, transform, mission, tile, and camera evidence. Camera samples use H.264 Annex B with simulation timestamps. |
 | Veoveo recording ingest | Version `2026-07-21`; a producer-local forwarder carries the simulator's native Rerun messages to the gateway and Recording Hub. |
 | [NVIDIA Kit WebRTC](https://docs.omniverse.nvidia.com/kit/docs/omni.kit.livestream.webrtc/latest/Overview.html) | The persistent follow viewport is encoded once through NVIDIA NVENC and delivered as H.264 WebRTC. The browser client is pinned to `@nvidia/ov-web-rtc` `6.6.0`. |
@@ -87,24 +87,31 @@ rendered world and their product use is not narrowed by this contract.
 
 ## Spatial frames
 
-Every session names one durable `frames://frame/{frame_id}` origin. Installation
-bootstrap creates that definition through Frames MCP before the simulator
-becomes ready. The UAV chart supplies the same typed origin to the Cesium
-georeference and Pegasus world. Live acceptance reads the durable resource and
-requires it to agree with simulator state. The adapter performs high-rate
-ENU/NED conversion locally and attaches the frame URI to recorded transforms.
-It does not make MCP calls in the physics loop.
+Every session starts in the `unconfigured` lifecycle. `configure_world` accepts
+one immutable Frames world revision and one revision-scoped simulation frame.
+The server verifies the tree digest, confirms that the frame belongs to the
+revision, and resolves its static ancestors to a geodetic tangent anchor.
+
+The binding is write-once. An identical request is idempotent; a different
+revision or frame is rejected. The runtime derives the Cesium georeference,
+Pegasus origin, local vehicle conversion, and recording metadata from that one
+binding. Helm carries no frame URI or geodetic origin.
+
+The published tree also describes the ECEF root, local tangent frame, Isaac
+stage, PX4 body, IMU, nadir camera, and follow camera. Dynamic vehicle and camera
+nodes name their live stream and entity path. The adapter performs high-rate
+ENU/NED conversion locally and makes no MCP calls in the physics loop.
 
 The canonical chain is:
 
 ```text
-WGS84/ECEF -- Frames MCP definition --> local ENU stage
+WGS84/ECEF -- immutable Frames world revision --> local ENU stage
 local ENU  -- typed adapter mapping --> Pegasus body state
 local ENU  -- explicit axis mapping --> PX4 NED
 ```
 
-Axes, handedness, units, ellipsoid height, and origin are recorded. Missing or
-incompatible frame information fails session creation.
+Axes, handedness, units, ellipsoid height, origin, frame tree, and revision
+digest are recorded. Missing or incompatible information fails configuration.
 
 ## PX4 control link
 
@@ -130,10 +137,10 @@ adapter keeps its own narrow mutex because its in-memory state is mutable.
 
 The controlled vocabulary includes:
 
-- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `StreamId`, and
-  `FrameUri` validated identity types.
-- `SimulationLifecycle`: `starting`, `ready`, `running`, `paused`, `stopping`,
-  `stopped`, or `failed`.
+- `SessionId`, `VehicleId`, `MissionId`, `RecordingId`, `StreamId`,
+  `FrameWorldRevisionUri`, and `WorldFrameUri` validated identity types.
+- `SimulationLifecycle`: `unconfigured`, `starting`, `ready`, `running`,
+  `paused`, `stopping`, `stopped`, or `failed`.
 - `TileLoadState`: `connecting`, `streaming`, `ready`, or `failed` with counts
   and a redacted diagnostic.
 - `CameraLifecycle`: `warming`, `ready`, `degraded`, or `failed`, accompanied by
@@ -161,6 +168,7 @@ may appear only as bounded, explicitly labeled diagnostic metadata.
 
 | Tool | Behavior |
 |---|---|
+| `configure_world` | Binds an unconfigured session once to a verified immutable Frames revision and static simulation frame. |
 | `get_simulation_state` | Reads the current session, tile, camera-content, recording, and vehicle summary. |
 | `pause_simulation` | Pauses one running session. |
 | `resume_simulation` | Resumes one paused session. |
@@ -221,9 +229,14 @@ The App opens the same typed stream tools advertised to model clients. It reads
 the session index once per second for low-rate flight context, renders the
 NVIDIA WebRTC video in a view-only element, reports transport statistics, and
 renews the lease halfway to expiry. Teardown terminates the client and closes
-the lease before acknowledging the host. The App requires Media Capabilities
-to report H.264 WebRTC decoding as supported and power-efficient before it
-opens a lease; an unproven software-decoder path fails closed.
+the lease before acknowledging the host.
+
+The exact H.264 configuration must be `supported` and `smooth` according to
+Media Capabilities. A `powerEfficient` result is labeled hardware H.264 decode.
+When `powerEfficient` is false, the App may continue under the repository's
+single browser software-decode exception and labels the path software H.264
+decode. Headed hardware WebGPU and WebGL remain mandatory visual-verification
+preconditions. Kit rendering and NVIDIA NVENC remain mandatory server paths.
 
 The source tree carries a diagnostic client stub for ordinary Rust tests. The
 production MCP image downloads `@nvidia/ov-web-rtc` `6.6.0` from NVIDIA's
@@ -272,14 +285,15 @@ NVENC.
 
 ## Kubernetes deployment
 
-The reference deployment is `showcase/uav-sim/deploy/helm`. One interactive
-session is one pod containing the Isaac runtime, UAV MCP server, and recording
-adapter. Batch sessions use Jobs with the same container contract. Independent
-worlds never share an Isaac process.
+The deployment is `showcase/uav-sim/deploy/helm`. One session is one pod
+containing the Isaac runtime, UAV MCP server, and recording adapter.
+Independent worlds never share an Isaac process. The old batch Job was removed
+because it had no authenticated MCP path for a write-once world binding.
 
 Isaac requests `nvidia.com/gpu: 1`. The chart does not disable, scale down, or
-replace View or Perception. Bioma runs Isaac, View, and Perception concurrently,
-and Kubernetes places every declared request on available cluster capacity.
+replace View or Perception. Acceptance runs Isaac, View, and Perception
+concurrently, and Kubernetes places every declared request on available cluster
+capacity.
 Optional affinity and tolerations select capable nodes without imposing an
 exclusive node topology.
 
@@ -324,8 +338,10 @@ The live test passes only when all of the following are true at once:
 1. Isaac Sim, View, and Perception deployments remain available.
 2. Cesium authenticates and Google Photorealistic 3D Tiles become resident in
    the Isaac stage.
-3. Pegasus spawns a PX4-backed UAV against the declared frame.
-4. The UAV arms, climbs to the 300 m aerial acceptance altitude, follows a
+3. Frames creates and publishes the complete New York world tree, and the UAV
+   session binds its immutable revision before Isaac constructs the stage.
+4. Pegasus spawns a PX4-backed UAV, which arms, climbs to the 300 m aerial
+   acceptance altitude, follows a
    bounded mission, and lands.
 5. MCP resources, mutations, tasks, ownership, and notifications work through
    the gateway.

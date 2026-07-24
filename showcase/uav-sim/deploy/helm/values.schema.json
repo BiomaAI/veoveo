@@ -12,7 +12,6 @@
     "session",
     "liveStream",
     "interactive",
-    "batch",
     "service",
     "resources",
     "scheduling",
@@ -166,8 +165,6 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "frameUri",
-        "origin",
         "vehicleCount",
         "physicsHz",
         "renderingHz",
@@ -179,17 +176,6 @@
       ],
       "properties": {
         "id": {"$ref": "#/definitions/identity"},
-        "frameUri": {"type": "string", "pattern": "^frames://frame/[A-Za-z0-9_.-]+$"},
-        "origin": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["latitudeDegrees", "longitudeDegrees", "ellipsoidHeightM"],
-          "properties": {
-            "latitudeDegrees": {"type": "number", "minimum": -90, "maximum": 90},
-            "longitudeDegrees": {"type": "number", "minimum": -180, "maximum": 180},
-            "ellipsoidHeightM": {"type": "number", "minimum": -1000, "maximum": 100000}
-          }
-        },
         "vehicleCount": {"type": "integer", "minimum": 1, "maximum": 16},
         "physicsHz": {"type": "integer", "minimum": 30, "maximum": 1000},
         "renderingHz": {"type": "integer", "minimum": 1, "maximum": 120},
@@ -340,24 +326,6 @@
       "properties": {
         "enabled": {"type": "boolean"},
         "progressDeadlineSeconds": {"type": "integer", "minimum": 600, "maximum": 3600}
-      }
-    },
-    "batch": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "enabled",
-        "sessionId",
-        "exitAfterSeconds",
-        "backoffLimit",
-        "ttlSecondsAfterFinished"
-      ],
-      "properties": {
-        "enabled": {"type": "boolean"},
-        "sessionId": {"$ref": "#/definitions/identity"},
-        "exitAfterSeconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
-        "backoffLimit": {"type": "integer", "minimum": 0, "maximum": 10},
-        "ttlSecondsAfterFinished": {"type": "integer", "minimum": 0}
       }
     },
     "service": {

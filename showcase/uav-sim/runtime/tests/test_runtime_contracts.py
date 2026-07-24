@@ -25,17 +25,36 @@ from veoveo_uav_sim.live_stream import (
 )
 from veoveo_uav_sim.screenshot import ScreenshotGate
 from veoveo_uav_sim.state import RuntimeState
+from veoveo_uav_sim.world_config import (
+    GeoreferenceOrigin,
+    WorldConfiguration,
+    WorldConfigurationError,
+    WorldConfigurationSlot,
+)
 
 
 VALID_ENVIRONMENT = {
     "CESIUM_ION_ACCESS_TOKEN": "test-token",
     "UAV_SIM_CESIUM_ION_ASSET_ID": "2275207",
-    "UAV_SIM_FRAME_URI": "frames://frame/bioma-uav-origin",
     "UAV_SIM_RECORDING_KEY": "019f7122-3d89-7d21-8312-8940d1e0f510",
-    "UAV_SIM_SESSION_ID": "bioma-uav",
+    "UAV_SIM_SESSION_ID": "uav-showcase",
     "UAV_SIM_TILE_CACHE_POLICY": "persistent",
     "UAV_SIM_WORLD_SOURCE": "google_photorealistic_3d_tiles",
 }
+
+WORLD = WorldConfiguration(
+    revision_uri="frames://world/uav-showcase-new-york/revision/revision-1",
+    spec_sha256="1" * 64,
+    simulation_frame_uri=(
+        "frames://world/uav-showcase-new-york/revision/revision-1/"
+        "frame/isaac-world"
+    ),
+    georeference_origin=GeoreferenceOrigin(
+        latitude_degrees=40.758,
+        longitude_degrees=-73.9855,
+        ellipsoid_height_m=-17.0,
+    ),
+)
 
 
 class RuntimeConfigTests(unittest.TestCase):
@@ -43,7 +62,6 @@ class RuntimeConfigTests(unittest.TestCase):
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
         self.assertEqual(config.cesium_ion_asset_id, 2_275_207)
-        self.assertEqual(config.frame_uri, "frames://frame/bioma-uav-origin")
         self.assertEqual(config.tile_cache_policy.value, "persistent")
 
         invalid = {**VALID_ENVIRONMENT, "UAV_SIM_CESIUM_ION_ASSET_ID": "1"}
@@ -67,7 +85,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_follow_camera_is_the_gpu_live_view(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
             config = RuntimeConfig.from_environment()
-            state = RuntimeState(config).snapshot()
+            state = RuntimeState(config, WORLD).snapshot()
         self.assertEqual(
             (config.follow_camera.width, config.follow_camera.height),
             (1280, 720),
@@ -92,7 +110,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_nadir_camera_is_the_only_canonical_stream(self) -> None:
         with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
-            state = RuntimeState(RuntimeConfig.from_environment()).snapshot()
+            state = RuntimeState(RuntimeConfig.from_environment(), WORLD).snapshot()
         camera_path = state["cameras"][0]["entity_path"]
         recording_path = state["recordings"][0]["camera_streams"][0]
         self.assertTrue(camera_path.endswith("/camera/down"))
@@ -186,20 +204,20 @@ class AdapterContractTests(unittest.TestCase):
             parse_command(
                 {
                     "command": "arm",
-                    "session_id": "bioma-uav",
+                    "session_id": "uav-showcase",
                     "vehicle_id": "uav-1",
                     "legacy_vehicle": "one",
                 }
             )
 
-    def test_missions_require_the_typed_frame(self) -> None:
+    def test_missions_require_the_expected_world_revision(self) -> None:
         mission = parse_operation(
             {
                 "operation": "execute_mission",
                 "input": {
-                    "session_id": "bioma-uav",
+                    "session_id": "uav-showcase",
                     "mission_id": "mission-1",
-                    "frame_uri": "frames://frame/bioma-uav-origin",
+                    "expected_world_revision_uri": WORLD.revision_uri,
                     "vehicles": [
                         {
                             "vehicle_id": "uav-1",
@@ -219,7 +237,10 @@ class AdapterContractTests(unittest.TestCase):
                 },
             }
         )
-        self.assertEqual(mission.frame_uri, "frames://frame/bioma-uav-origin")
+        self.assertEqual(
+            mission.expected_world_revision_uri,
+            WORLD.revision_uri,
+        )
 
     def test_enu_origin_round_trips_to_wgs84(self) -> None:
         latitude, longitude, height = enu_to_geodetic(
@@ -233,6 +254,46 @@ class AdapterContractTests(unittest.TestCase):
         distance = horizontal_distance_m(13.6929, -89.2182, 13.6929, -89.21818)
         self.assertGreater(distance, 2.0)
         self.assertLess(distance, 2.3)
+
+
+class WorldConfigurationTests(unittest.TestCase):
+    def test_world_binding_is_strict_and_typed(self) -> None:
+        world = WorldConfiguration.from_request(
+            {"session_id": "uav-showcase", "world": WORLD.as_dict()},
+            "uav-showcase",
+        )
+        self.assertEqual(world, WORLD)
+
+    def test_world_binding_rejects_a_frame_from_another_revision(self) -> None:
+        payload = WORLD.as_dict()
+        payload["simulation_frame_uri"] = (
+            "frames://world/other/revision/revision-2/frame/isaac-world"
+        )
+        with self.assertRaisesRegex(
+            WorldConfigurationError, "frame in revision_uri"
+        ):
+            WorldConfiguration.from_request(
+                {"session_id": "uav-showcase", "world": payload},
+                "uav-showcase",
+            )
+
+    def test_world_slot_is_idempotent_and_immutable(self) -> None:
+        slot = WorldConfigurationSlot()
+        self.assertEqual(slot.configure(WORLD), WORLD)
+        self.assertEqual(slot.configure(WORLD), WORLD)
+        other = WorldConfiguration(
+            revision_uri=(
+                "frames://world/uav-showcase-new-york/revision/revision-2"
+            ),
+            spec_sha256="2" * 64,
+            simulation_frame_uri=(
+                "frames://world/uav-showcase-new-york/revision/revision-2/"
+                "frame/isaac-world"
+            ),
+            georeference_origin=WORLD.georeference_origin,
+        )
+        with self.assertRaisesRegex(WorldConfigurationError, "different world"):
+            slot.configure(other)
 
 
 class CameraQualityTests(unittest.TestCase):

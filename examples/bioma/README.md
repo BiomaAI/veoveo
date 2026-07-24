@@ -350,7 +350,9 @@ The UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, fl
 PX4 mission, verifies the governed recording, runs Perception over the camera stream,
 runs Reason over that evidence, and confirms the concurrent GPU deployments remain
 available. Its runtime inputs come from
-showcase/uav-sim/scenarios/bioma-aerial.json.
+showcase/uav-sim/scenarios/new-york-aerial.json. The acceptance client creates
+the complete world through Frames MCP and binds the returned immutable revision
+to the simulator before Isaac constructs its stage.
 
 ## Cleanup
 

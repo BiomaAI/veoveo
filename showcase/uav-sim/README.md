@@ -1,261 +1,121 @@
-# UAV simulation showcase
+# Isaac Sim UAV showcase
 
-This showcase runs UAV simulation as a first-class Veoveo workload. Isaac Sim
-renders Google Photorealistic 3D Tiles through Cesium ion, Pegasus supplies the
-multirotor dynamics and PX4 bridge, and Veoveo governs the resulting sessions,
-missions, recordings, and perception work.
+This showcase runs a PX4-backed UAV over Google Photorealistic 3D Tiles in
+Isaac Sim. Veoveo governs the simulation through a provider-neutral MCP server,
+records typed evidence in Rerun, and serves one low-latency follow-camera view
+encoded by NVIDIA NVENC.
 
-The core path is:
+## Components
 
-```text
-CESIUM_ION_ACCESS_TOKEN
-  -> Cesium ion
-  -> Google Photorealistic 3D Tiles in Isaac Sim
-  -> Pegasus vehicles and PX4 SITL
-  -> UAV Simulation MCP and authenticated recording forwarder
-  -> Recording Hub
-  -> View, Perception, agents, and governed artifacts
-```
+| Path | Responsibility |
+|---|---|
+| `runtime/` | Isaac Sim, Cesium for Omniverse, Pegasus, PX4, RTX cameras, NVIDIA WebRTC, the private adapter, and Rerun publication. |
+| `deploy/helm/` | One GPU-required interactive simulator pod, authenticated signaling and media services, durable cache and forwarder queues, and network policy. |
+| `scenarios/` | Reusable frame-world trees and live acceptance parameters that remain outside the runtime image. |
+| `../../servers/uav-sim-mcp/` | Typed MCP tools, resources, tasks, subscriptions, prompts, stream leases, and the live App. |
 
-The operator live-view path stays separate from the durable sensor recording:
+The public MCP identity is `uav-sim`. Provider names stay inside the adapter and
+deployment.
 
-```text
-Isaac persistent follow viewport
-  -> NVIDIA Kit WebRTC
-  -> NVIDIA NVENC H.264
-  -> authenticated signaling proxy plus encrypted media
-  -> ui://uav-sim/live.html
-```
+## Runtime world binding
 
-View MCP retains its direct `GOOGLE_MAPS_API_KEY` source. That path is
-complementary and does not replace the tiles loaded inside Isaac.
+The pod starts in the `unconfigured` lifecycle. It proves CUDA and NVENC
+availability, starts the private adapter, and waits without constructing a
+stage.
 
-## Component boundary
+The acceptance client then:
 
-- [`../../servers/uav-sim-mcp/DESIGN.md`](../../servers/uav-sim-mcp/DESIGN.md)
-  owns the provider-neutral MCP contract.
-- `runtime/` owns the immutable Isaac, Cesium, Pegasus, and PX4 dependency
-  base, the thin runtime overlay, the pod-private typed adapter, and conversion
-  of sensor and world state into Rerun.
-- `deploy/` owns the independently packaged Helm chart and the interactive and
-  batch Kubernetes workloads.
-- `scenarios/` owns runtime-loaded live mission and acceptance inputs. These
-  files are deliberately outside the Isaac image build context.
-- `dependencies.lock.json` records every upstream version, commit, digest, and
-  verification source used by the image and chart.
+1. creates an empty world through Frames MCP;
+2. publishes the complete ECEF-rooted frame tree as an immutable revision;
+3. binds the UAV session to that revision and its `isaac-world` frame with
+   `configure_world`;
+4. waits for Isaac, Cesium, cameras, PX4, and recording to become ready.
 
-The simulator chart installs beside the normal Veoveo chart. It references the
-existing SurrealDB, artifact, recording, gateway-trust, and installation Secret
-contracts rather than creating alternate platform services.
+The tree in `scenarios/new-york-aerial.json` contains the Earth ECEF root, a
+Times Square ENU anchor, the Isaac stage, vehicle body, IMU, nadir camera, and
+follow-camera frames. Static transforms travel with the revision. Live vehicle
+and follow-camera transforms name their stream URI and entity path.
 
-The Isaac runtime sends Rerun only to a producer-local forwarder. Interactive
-and batch workloads have separate durable queue claims. Each forwarder
-authenticates through the gateway before Recording Hub accepts a versioned
-protobuf batch; no Hub raw-ingest Service exists.
+Helm supplies no origin or frame URI. The accepted revision is the only source
+for the Cesium georeference, Pegasus global coordinates, local WGS84
+conversion, mission revision guard, and recording metadata. A second,
+different binding is rejected.
 
-The forwarder keeps an explicit upload cursor and byte counter, which makes
-queue work independent of backlog depth. A recording continues across bounded
-ingest generations when it reaches the configured stream-byte quota. Rerun
-history stays one logical recording because each generation retains the same
-application and recording keys.
+## Rendering and video
 
-## Credentials
+Isaac renders the follow viewport with `RaytracedLighting` on the assigned
+NVIDIA GPU. Cesium asset `2275207` streams Google Photorealistic 3D Tiles into
+that viewport. The runtime fails if CUDA, NVENC, required extensions, tile
+residency, PX4, or visible camera content is unavailable.
 
-The Bioma reference installation reads `CESIUM_ION_ACCESS_TOKEN` and
-`VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM` from the main worktree's `.env`.
-It writes them to the dedicated `veoveo-uav-sim-secrets` and
-`veoveo-recording-producer` Secrets. The platform installation Secret remains
-the authority for gateway trust. Helm accepts only Secret names and keys. It
-never accepts either credential value.
+Kit encodes the persistent follow camera once through NVIDIA NVENC as H.264
+WebRTC. The authenticated signaling proxy admits one owner-scoped MCP lease.
+The native Kit signaling port remains private.
 
-The runtime does not accept `GOOGLE_MAPS_API_KEY`. Cesium for Omniverse loads
-ion asset `2275207`, the canonical Google Photorealistic 3D Tiles asset, with
-the ion token. The token is authored only into the anonymous USD session layer
-required by Cesium, cleared during shutdown, and never exported.
+The browser checks the exact stream configuration through Media Capabilities.
+`supported && smooth` is required. `powerEfficient` selects the displayed
+decode label:
 
-Streamed tile geometry remains the core rendered world. The runtime adds one
-bounded, invisible collision surface at the configured local origin for PX4
-launch and landing because Cesium's streamed mesh is not an Isaac physics
-authority. The surface does not replace, filter, or prescribe how the tiles
-are used.
+- true: `hardware H.264 decode`;
+- false: `software H.264 decode`.
 
-NVIDIA registry credentials use a normal `imagePullSecret`. `ACCEPT_EULA=Y` is
-set explicitly for the Isaac container. Privacy consent remains a separate
-operator decision.
+Software decode is the repository's narrow browser playback exception. A
+headed browser with hardware-backed high-performance WebGPU and WebGL remains
+mandatory for visual acceptance. Server rendering and encoding never fall back
+to the CPU.
 
-## Concurrency
+The recording camera still contains explicitly marked GPU migration debt.
+`TODO(GPU)` identifies NumPy readback, CPU camera-quality reductions, and the
+PyAV `libx264` recording path. They must converge on NVENC packet fan-out; they
+are not acceptance evidence for the live stream.
 
-Isaac Sim, View, and Perception run concurrently. Each workload declares its
-GPU request, while the cluster provides enough schedulable capacity for the
-complete installation. No chart mode suspends an existing GPU workload to admit a
-simulation session.
+## Recording
 
-The application chart consumes the standard NVIDIA runtime class and
-`nvidia.com/gpu` resource contract. A fielded cluster supplies that contract
-with the pinned NVIDIA GPU Operator release in `dependencies.lock.json`; local
-k3d supplies the same contract through its pinned device-plugin manifest.
+The runtime publishes:
 
-## Dependency policy
+- vehicle poses, ENU and NED state, PX4 connection, battery, and collisions;
+- IMU values and camera transforms;
+- nadir H.264 camera samples with simulation timestamps;
+- tile residency and camera-content diagnostics;
+- mission lifecycle and the immutable world revision identity.
 
-The image builds only from the immutable pins in `dependencies.lock.json`.
-Cesium release bytes are checked before extraction. Pegasus and PX4 are checked
-out by commit SHA. The Isaac base uses the platform-specific manifest digest.
-Python wheels and their transitive dependencies are exact build-time pins.
-Isaac supplies its coupled NumPy and Pillow builds, while Cesium supplies its
-release-bundled lxml wheel. Package installation at container startup is
-forbidden.
+A producer-local forwarder carries Rerun messages through the gateway to
+Recording Hub. Public resources expose only canonical
+`recording://recordings/{recording_id}` identities.
 
-Pegasus 5.1.0 is the newest upstream release but targets Isaac 5.1.0. The
-showcase carries a focused source patch for Isaac 6.0.1. Its compatibility test
-must pass before an image can be published. Failure blocks the release; it does
-not select an older Isaac image.
+## Configuration
 
-PX4 1.17.0 and pymavlink use MAVLink 2 exclusively. A render-free physics
-bootstrap completes the simulator and commander handshakes before the first
-RTX/Cesium render can compile shaders. The runtime rebinds Pegasus's state,
-sensor, dynamics, and MAVLink callbacks after each Isaac physics reset because
-Isaac 6 recreates the underlying subscription interface.
+The generic chart requires:
 
-The stage authors a deterministic dome light and distant sun for headless RTX
-rendering. The canonical UAV sensor is a nadir camera at `camera/down`, with
-image up aligned to vehicle forward. Helm values carry its resolution, frame
-rate, focal length, clipping range, translation, and unit quaternion through
-validated runtime fields. Camera readiness is based on the exact RGB8 bytes
-sent to H.264: three consecutive frames must contain measurable luma and
-non-black pixels. This operational gate permits takeoff from the nearly uniform
-launch surface. The live scenario separately requires scene detail after the
-configured climb. Frames without visible detail are withheld from the video
-stream while the world warms. Once Google tiles are resident, every observed
-frame remains in the encoded timeline and camera quality describes degradation
-independently. A camera that remains black for 30 seconds after Google tiles
-become resident fails readiness instead of producing an apparently successful
-recording.
+- a Secret containing `cesium-ion-access-token`;
+- an exact public base URL and WebRTC signaling/media addresses;
+- platform database and recording-forwarder credentials;
+- `nvidia.com/gpu: 1` and the NVIDIA runtime class;
+- pinned image digests in production.
 
-The canonical render cadence matches the 20 fps camera. Rendering additional
-frames between sensor samples spends RTX work without adding observations to
-the recording. Profiles may raise both rates for a faster sensor, while
-`physicsHz` remains independent for PX4 lockstep and vehicle dynamics.
+Camera optics, mounts, follow offsets, physics cadence, rendering cadence, and
+cache policy remain typed chart values. World coordinates do not.
 
-## Live follow camera
+The chart supports the MCP-configured interactive pod only. The former batch
+Job was removed because it had no authenticated route for the required
+write-once world binding.
 
-Interactive sessions keep one persistent follow camera active in the headless
-viewport. The same camera feeds screenshots and the browser App, which removes
-duplicate render work. Kit's WebRTC extensions send that framebuffer directly
-through NVIDIA NVENC; there is no RTSP relay, CPU transcoder, or per-viewer
-renderer on this path.
+## Verification
 
-Open the UAV follow-camera entry in the Console's discovered Apps navigation.
-The App obtains one short-lived owner-scoped lease through MCP, connects with
-the pinned NVIDIA browser client, renews before expiry, and revokes the lease
-on teardown. Only one viewer can hold the stream. The App is view-only; vehicle
-and timeline control remain the typed MCP tools.
+Run credential-free contract, adapter, and chart checks:
 
-Local k3d publishes authenticated signaling at
-`ws://127.0.0.1:49101/webrtc` and WebRTC media at
-`127.0.0.1:47998/udp`. A fielded deployment must supply an exact WSS URL and a
-directly reachable UDP media hostname. If WSS uses the optional chart Ingress,
-`liveStream.signalingPath`, `liveStream.ingress.path`, and the URL path must be
-identical.
-
-## Headless showcase screenshots
-
-Interactive deployments expose an opt-in, one-shot capture from the persistent
-follow camera through `session.screenshot`. It follows `uav-1` without
-replacing the canonical nadir sensor. Capture begins only after the configured relative
-altitude, resident-tile, visible-content, and rendered-frame gates all pass.
-Isaac writes the PNG inside the simulator container and restores the sensor
-camera when the capture completes.
-
-The chart defaults to a 1280×720 follow camera and keeps capture disabled.
-Operators select the location through `session.origin`, tune
-`session.followCamera`, enable the screenshot,
-fly the vehicle past `minimumRelativeAltitudeM`, and copy `outputPath` from the
-pod. The [screenshot runbook](../../docs/screenshots/README.md#isaac-sim-captures)
-records the Midtown Manhattan values used by the documentation gallery.
-Hardware Vulkan remains mandatory for this path.
-
-## Verification layers
-
-The central Rust smoke harness owns orchestration and assertions. The Justfile
-contains only short dispatch recipes.
-
-- Contract tests run against a deterministic fake simulator adapter.
-- Image tests verify dependency revisions, extension discovery, the Pegasus
-  patch, and PX4 startup.
-- Helm tests render interactive and batch workloads and reject plaintext token
-  values. They also require the NVIDIA stream ports, runtime variables, and
-  NodePort wiring.
-- Live acceptance loads Google Photorealistic 3D Tiles inside Isaac, reads its
-  climb, camera thresholds, waypoint, perception capture, and reasoning prompt
-  from `scenarios/bioma-aerial.json`, retains its Rerun recording, runs
-  Perception over the governed camera range, and has Reason describe the same
-  range grounded in those detections while View remains healthy.
-
-The live test is the release proof. Fixture tiles exercise offline code paths
-but cannot replace it.
-
-## Build and deploy
-
-Put both provider credentials in the main worktree `.env` without copying them
-into an overlay:
-
-```dotenv
-CESIUM_ION_ACCESS_TOKEN=
-GOOGLE_MAPS_API_KEY=
-VEOVEO_RECORDING_PRODUCER_PRIVATE_KEY_PEM=
-VEOVEO_RECORDING_PRODUCER_KEY_ID=recording-producer-2026
-```
-
-The first credential belongs to Isaac/Cesium. The second remains owned by View
-MCP. Validate the runtime and deployment composition with:
-
-```bash
+```sh
 just showcase-uav-sim-test
-just helm-check
-kubectl kustomize examples/bioma >/dev/null
+helm lint showcase/uav-sim/deploy/helm
+cargo test -p veoveo-smoke --bin smoke
 ```
 
-The simulator is an independent OCI chart. The Bioma enterprise reference selects
-that chart from a child Argo CD Application after its installation owner provisions
-the referenced Secrets:
+The live acceptance command is installation-owned. It must point at
+`showcase/uav-sim/scenarios/new-york-aerial.json` and a deployed gateway. The
+test publishes the world, configures the session, verifies concurrent GPU
+workloads, flies the mission, checks the live NVENC lease, and validates
+Recording, Perception, and Reason results.
 
-```bash
-kubectl --context k3d-veoveo-bioma -n argocd get application bioma-uav-sim
-argocd app get bioma-uav-sim
-```
-
-Interactive mode creates one `uav-sim` Deployment containing the Isaac runtime
-and UAV MCP sidecar. Batch mode creates an Isaac-only Job. The workloads use
-separate persistent runtime-cache claims, and `cache.version` places every
-Isaac, shader, and Cesium cache generation beneath its own directory. Changing
-the cache version starts clean without allowing interactive and batch writers
-to share files. Runtime data and shared memory remain ephemeral.
-
-Docker Bake connects the runtime target directly to the UAV base target, while the
-registry stores Isaac, Cesium, Pegasus, PX4, and Python layers once. A runtime-only
-change rebuilds the final source-copy layer and the registry transfers only missing
-blobs. Edit `scenarios/bioma-aerial.json` and rerun
-`just bioma-uav-sim-verify`; a mission-only change performs no image build,
-push, or Helm rollout.
-
-[`../../docs/ENTERPRISE_DEPLOYMENT.md`](../../docs/ENTERPRISE_DEPLOYMENT.md)
-defines the OCI, configuration, Secret, and GitOps ownership contract. The executable
-reference is under [`../../examples/bioma`](../../examples/bioma).
-
-Development deployments derive the image tag from the same Git commit. A
-production render sets
-`global.production=true` and must provide every owned image in
-`global.imageDigests`; Helm fails before producing a manifest when a digest is
-absent. The release pipeline records published digests in the installation image
-lock rather than treating a tag as immutable.
-
-Run the credentialed acceptance after all three GPU deployments are available:
-
-```bash
-just bioma-uav-sim-verify
-```
-
-That command verifies resident Google tiles inside Isaac, a PX4 mission,
-canonical Frames and Recording Hub identities, Perception over the Isaac camera
-stream, NVIDIA NVENC follow-camera readiness, owner-scoped stream open/close,
-and continued availability of View and Perception.
+No screenshot or browser result counts unless the headed browser reports
+hardware WebGPU and WebGL and the live `<video>` element visibly renders the
+stream.

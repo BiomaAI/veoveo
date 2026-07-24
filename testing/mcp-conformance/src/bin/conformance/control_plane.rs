@@ -199,7 +199,12 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
             "resource_subscriptions": false, "prompts": true, "completions": true,
             "tasks": true, "notifications": true
         }),
-        &["batch_transform", "convert_frame", "derive_local_frame"],
+        &[
+            "batch_transform",
+            "convert_frame",
+            "create_world",
+            "publish_world",
+        ],
     );
     let optimization = pilot_server_manifest(
         "optimization",
@@ -229,7 +234,12 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
         profile["servers"] = serde_json::json!([
             pilot_profile_exposure(
                 "frames",
-                &["batch_transform", "convert_frame", "derive_local_frame",],
+                &[
+                    "batch_transform",
+                    "convert_frame",
+                    "create_world",
+                    "publish_world",
+                ],
                 "all"
             ),
             pilot_profile_exposure("optimization", &["plan"], "none"),
@@ -265,7 +275,7 @@ pub(super) fn cmd_gateway_pilot_smoke_control_plane(
                 "profiles": [profile],
                 "servers": ["frames"],
                 "tools": [
-                    "batch_transform", "convert_frame", "derive_local_frame"
+                    "batch_transform", "convert_frame", "create_world", "publish_world"
                 ],
                 "resource_schemes": ["frames"],
                 "required_scopes": ["operator:use"],

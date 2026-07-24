@@ -5,10 +5,10 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 ## Purpose
 
-Owns local spatial frames and bounded coordinate conversion for robots,
-sensors, vehicles, simulations, and mission workspaces: durable ENU and NED
-frames with explicit WGS84 origins, direct conversion between WGS84, ECEF,
-ENU, and NED, and durable batch transforms. Earth geography, projected CRS
+Owns complete rooted spatial-frame worlds and bounded coordinate conversion for
+robots, sensors, vehicles, simulations, and mission workspaces. A world revision
+contains its ECEF root, geodetic tangent anchors, static rigid transforms, and
+recording- or stream-backed dynamic transforms. Earth geography, projected CRS
 work, geodesics, geofences, and routing belong to `map-mcp`.
 
 ## Invariants
@@ -20,13 +20,17 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
   another hosted server. The server never guesses an origin or axis
   convention, never treats degrees as radians, and never copies a coordinate
   it could not transform.
-- Durable state (frames, operations, tasks, usage, ownership) lives in
+- Durable state (worlds, immutable revisions, operations, tasks, usage, ownership) lives in
   SurrealDB through the shared `TaskRuntime`. Large batch results go through
   the artifact plane, never object store paths or content URLs.
 - `batch_transform` requires the final task extension; direct calls are
   rejected. Direct conversions write their operation record before returning.
-- Bootstrap is create only and idempotent; it never updates a durable origin
-  implicitly.
+- Frames starts empty. Helm and installation bootstrap never create a world,
+  frame, origin, or revision. Clients author worlds with `create_world` and
+  atomically publish complete trees with `publish_world`.
+- Revision-scoped `frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}`
+  identities are the only local-frame identities. Sessions pin one immutable
+  revision and never follow a mutable world head implicitly.
 - Approximation permission is explicit per request, and every result carries
   a `CoordinateOperationProvenance` record.
 

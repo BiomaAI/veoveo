@@ -1,7 +1,7 @@
 //! Frames MCP server.
 //!
 //! MCP surface:
-//!   tools for frame conversion, CRS transforms, geodesics, geofence validation
+//!   tools for complete world publication and bounded coordinate conversion
 //!   task-required `batch_transform`
 //!   templates for frames, CRS metadata, operations, artifacts, and usage
 
@@ -41,7 +41,7 @@ use veoveo_frames_mcp::{
     artifacts::ArtifactRepository,
     contract::{
         BatchTransformOutput, BatchTransformRequest, ConvertFrameOutput, ConvertFrameRequest,
-        CoordinatePoint, DeriveLocalFrameOutput, DeriveLocalFrameRequest,
+        CreateWorldOutput, CreateWorldRequest, PublishWorldOutput, PublishWorldRequest,
     },
     engine,
     state::{FrameScope, FramesState},
@@ -49,10 +49,10 @@ use veoveo_frames_mcp::{
 };
 use veoveo_mcp_contract::tool;
 use veoveo_mcp_contract::{
-    CoordinateOperationId, FrameId, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
-    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
-    Page, ServerSlug, TelemetryGuard, TokenIssuer, UsageReport, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    CoordinateOperationId, CoordinateSpace, GATEWAY_INTERNAL_TOKEN_ISSUER,
+    GatewayInternalTokenVerifier, GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, Page, ServerSlug, TelemetryGuard, TokenIssuer, UsageReport,
+    WorldFrameUri, init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_mcp_task_extension::{
     Implementation as TaskExtensionImplementation, ServerDiscovery, TaskExtensionAdapter,
@@ -65,8 +65,6 @@ use veoveo_task_runtime::{
 
 #[path = "server/app_state.rs"]
 mod app_state;
-#[path = "server/bootstrap.rs"]
-mod bootstrap;
 #[path = "server/config.rs"]
 mod config;
 #[path = "server/host.rs"]
@@ -141,15 +139,8 @@ impl FramesMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = internal_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
-        let target = self
-            .state
-            .frames
-            .require_frame(&scope, &args.target_frame)
-            .await
-            .map_err(invalid_params)?;
-        let source_origins = resolve_source_origins(&self.state, &scope, &args).await?;
-        let output =
-            engine::convert_frame(args, &target, &source_origins).map_err(invalid_params)?;
+        let worlds = resolve_worlds(&self.state, &scope, &args).await?;
+        let output = engine::convert_frame(args, &worlds).map_err(invalid_params)?;
         record_direct_operation(&self.state, &scope, &output.provenance).await?;
         structured_result(
             format!("converted {} point(s)", output.points.len()),
@@ -158,31 +149,69 @@ impl FramesMcp {
     }
 
     #[tool(
-        title = "Derive local frame",
-        description = "Create an ENU or NED local tangent frame from a WGS84 origin.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<DeriveLocalFrameOutput>(),
+        title = "Create frame world",
+        description = "Create an empty authored frame world. Publish its complete rooted tree separately.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<CreateWorldOutput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
-            idempotent_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
-    async fn derive_local_frame(
+    async fn create_world(
         &self,
-        Parameters(args): Parameters<DeriveLocalFrameRequest>,
+        Parameters(args): Parameters<CreateWorldRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = internal_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
-        let output = engine::derive_local_frame(args).map_err(invalid_params)?;
-        self.state
+        let world = self
+            .state
             .frames
-            .insert_frame(&scope, output.frame.clone())
+            .create_world(&scope, args)
             .await
             .map_err(invalid_params)?;
-        record_direct_operation(&self.state, &scope, &output.provenance).await?;
-        structured_result(format!("derived frame {}", output.frame.frame_id), &output)
+        let output = CreateWorldOutput { world };
+        structured_result(
+            format!("created frame world {}", output.world.world_id),
+            &output,
+        )
+    }
+
+    #[tool(
+        title = "Publish frame world",
+        description = "Validate and atomically publish a complete rooted frame tree as a new immutable world revision.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<PublishWorldOutput>(),
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn publish_world(
+        &self,
+        Parameters(args): Parameters<PublishWorldRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let scope = frame_scope_from_identity(&self.state, &identity).await?;
+        let output = self
+            .state
+            .frames
+            .publish_world(&scope, args)
+            .await
+            .map_err(invalid_params)?;
+        let message = if output.created {
+            format!(
+                "published frame world revision {}",
+                output.revision.revision_uri
+            )
+        } else {
+            format!("frame world already at {}", output.revision.revision_uri)
+        };
+        structured_result(message, &output)
     }
 
     #[tool(
@@ -232,48 +261,32 @@ async fn record_direct_operation(
         .map_err(|error| McpError::internal_error(error.to_string(), None))
 }
 
-async fn resolve_source_origins(
+async fn resolve_worlds(
     state: &AppState,
     scope: &FrameScope,
     request: &ConvertFrameRequest,
-) -> Result<engine::ResolvedFrameOrigins, McpError> {
-    let mut resolved = engine::ResolvedFrameOrigins::default();
-    let mut seen = std::collections::HashSet::new();
+) -> Result<engine::ResolvedWorlds, McpError> {
+    let mut frame_uris = BTreeSet::new();
     for point in &request.points {
-        let local_frame = match point {
-            CoordinatePoint::Enu(point) => {
-                Some((&point.frame_id, veoveo_mcp_contract::FrameKind::Enu))
-            }
-            CoordinatePoint::Ned(point) => {
-                Some((&point.frame_id, veoveo_mcp_contract::FrameKind::Ned))
-            }
-            _ => None,
-        };
-        if let Some((frame_id, expected_kind)) = local_frame
-            && seen.insert(frame_id.clone())
-        {
-            let frame = state
-                .frames
-                .require_frame(scope, frame_id)
-                .await
-                .map_err(invalid_params)?;
-            if frame.kind != expected_kind {
-                return Err(invalid_params(format!(
-                    "point frame `{frame_id}` has kind {:?}, expected {:?}",
-                    frame.kind, expected_kind
-                )));
-            }
-            let origin = frame.origin.ok_or_else(|| {
-                invalid_params(format!("local frame `{frame_id}` has no WGS84 origin"))
-            })?;
-            resolved
-                .insert(
-                    frame_id.clone(),
-                    veoveo_frames_mcp::contract::Wgs84Position::try_from(origin)
-                        .map_err(invalid_params)?,
-                )
-                .map_err(invalid_params)?;
+        if let veoveo_frames_mcp::contract::CoordinatePoint::WorldFrame(point) = point {
+            frame_uris.insert(point.frame_uri.clone());
         }
+    }
+    if let CoordinateSpace::WorldFrame { frame_uri } = &request.target {
+        frame_uris.insert(frame_uri.clone());
+    }
+    let mut revisions = BTreeSet::new();
+    for frame_uri in frame_uris {
+        revisions.insert(frame_uri.revision_uri());
+    }
+    let mut resolved = engine::ResolvedWorlds::default();
+    for revision_uri in revisions {
+        let revision = state
+            .frames
+            .require_revision(scope, &revision_uri)
+            .await
+            .map_err(invalid_params)?;
+        resolved.insert(revision).map_err(invalid_params)?;
     }
     Ok(resolved)
 }
@@ -299,8 +312,9 @@ impl ServerHandler for FramesMcp {
         info.capabilities = caps;
         info.server_info = rmcp::model::Implementation::new("frames", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Frames planning server. Use resources for frames, operations, artifacts, and usage. \
-             Use direct tools for bounded transforms; use \
+            "Frames world-graph server. Create worlds at runtime, publish complete rooted frame \
+             trees as immutable revisions, and pin revision-scoped frame URIs in sessions and \
+             recordings. Use direct tools for bounded transforms; use \
              batch_transform as an MCP task for bulk conversion and artifact output."
                 .into(),
         );
@@ -330,34 +344,63 @@ impl ServerHandler for FramesMcp {
         let identity = internal_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         let mut resources = vec![
-            Resource::new(uris::FRAMES_URI, "frames")
-                .with_title("Coordinate frames")
-                .with_description("Visible coordinate frame definitions.")
+            Resource::new(uris::WORLDS_URI, "worlds")
+                .with_title("Frame worlds")
+                .with_description("Visible authored frame worlds and their current revisions.")
                 .with_mime_type("application/json"),
             Resource::new(uris::USAGE_ROOT_URI, "usage")
                 .with_title("Frames usage ledger")
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
         ];
-        for frame in self
+        for world in self
             .state
             .frames
-            .list_frames(&scope)
+            .list_worlds(&scope)
             .await
             .map_err(|error| McpError::internal_error(error.to_string(), None))?
         {
             resources.push(
                 Resource::new(
-                    uris::frame_uri(frame.frame_id.as_str()),
-                    format!("frame {}", frame.frame_id),
+                    world.world_uri.to_string(),
+                    format!("world {}", world.world_id),
                 )
                 .with_description(
-                    frame
+                    world
                         .description
                         .unwrap_or_else(|| "Coordinate frame.".into()),
                 )
                 .with_mime_type("application/json"),
             );
+            if let Some(revision) = self
+                .state
+                .frames
+                .get_head_revision(&scope, &world.world_id)
+                .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
+            {
+                resources.push(
+                    Resource::new(
+                        revision.revision_uri.to_string(),
+                        format!("world {} revision {}", revision.world_id, revision.revision),
+                    )
+                    .with_description("Immutable complete frame-world tree.")
+                    .with_mime_type("application/json"),
+                );
+                for frame in &revision.tree.frames {
+                    let frame_uri = WorldFrameUri::new(&revision.revision_uri, &frame.frame_id);
+                    resources.push(
+                        Resource::new(frame_uri.to_string(), format!("frame {}", frame.frame_id))
+                            .with_description(
+                                frame
+                                    .description
+                                    .clone()
+                                    .unwrap_or_else(|| "World frame.".into()),
+                            )
+                            .with_mime_type("application/json"),
+                    );
+                }
+            }
         }
         for task_id in self
             .state
@@ -398,11 +441,17 @@ impl ServerHandler for FramesMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let templates = vec![
-            ResourceTemplate::new(uris::FRAME_TEMPLATE, "frame")
-                .with_title("Coordinate frame")
-                .with_description(
-                    "Typed coordinate frame definition. frame_id supports completion.",
-                )
+            ResourceTemplate::new(uris::WORLD_TEMPLATE, "world")
+                .with_title("Frame world")
+                .with_description("Mutable world head and authoring metadata.")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::WORLD_REVISION_TEMPLATE, "world revision")
+                .with_title("Frame world revision")
+                .with_description("Immutable complete rooted frame tree.")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::WORLD_FRAME_TEMPLATE, "world frame")
+                .with_title("Revision-scoped world frame")
+                .with_description("Typed frame node inside one immutable world revision.")
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::OPERATION_TEMPLATE, "operation")
                 .with_title("Coordinate operation")
@@ -433,14 +482,14 @@ impl ServerHandler for FramesMcp {
         let uri = request.uri.as_str();
         let identity = internal_identity(&context)?;
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
-        if uri == uris::FRAMES_URI {
-            let frames = self
+        if uri == uris::WORLDS_URI {
+            let worlds = self
                 .state
                 .frames
-                .list_frames(&scope)
+                .list_worlds(&scope)
                 .await
                 .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-            return json_resource(uri, &frames);
+            return json_resource(uri, &worlds);
         }
         if uri == uris::USAGE_ROOT_URI {
             let mut entries = Vec::new();
@@ -465,19 +514,48 @@ impl ServerHandler for FramesMcp {
             }
             return json_resource(uri, &entries);
         }
-        if let Some(frame_id) = uris::parse_frame_uri(uri) {
-            let frame_id = FrameId::new(frame_id)
-                .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-            let frame = self
+        if let Some(frame_uri) = uris::parse_world_frame_uri(uri) {
+            let revision = self
                 .state
                 .frames
-                .get_frame(&scope, &frame_id)
+                .get_revision(&scope, &frame_uri.revision_uri())
                 .await
                 .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 .ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown frame `{frame_id}`"), None)
+                    McpError::resource_not_found(format!("unknown world frame `{frame_uri}`"), None)
                 })?;
+            let frame = revision.frame(&frame_uri).ok_or_else(|| {
+                McpError::resource_not_found(format!("unknown world frame `{frame_uri}`"), None)
+            })?;
             return json_resource(uri, &frame);
+        }
+        if let Some(revision_uri) = uris::parse_world_revision_uri(uri) {
+            let revision = self
+                .state
+                .frames
+                .get_revision(&scope, &revision_uri)
+                .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                .ok_or_else(|| {
+                    McpError::resource_not_found(
+                        format!("unknown frame world revision `{revision_uri}`"),
+                        None,
+                    )
+                })?;
+            return json_resource(uri, &revision);
+        }
+        if let Some(world_uri) = uris::parse_world_uri(uri) {
+            let world_id = world_uri.world_id();
+            let world = self
+                .state
+                .frames
+                .get_world(&scope, &world_id)
+                .await
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                .ok_or_else(|| {
+                    McpError::resource_not_found(format!("unknown frame world `{world_id}`"), None)
+                })?;
+            return json_resource(uri, &world);
         }
         if let Some(operation_id) = uris::parse_operation_uri(uri) {
             let operation_id = CoordinateOperationId::new(operation_id)
@@ -586,18 +664,18 @@ impl ServerHandler for FramesMcp {
         let Reference::Resource(res_ref) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let values = if res_ref.uri == uris::FRAME_TEMPLATE && request.argument.name == "frame_id" {
+        let values = if res_ref.uri == uris::WORLD_TEMPLATE && request.argument.name == "world_id" {
             let needle = request.argument.value.to_lowercase();
             let identity = internal_identity(&context)?;
             let scope = frame_scope_from_identity(&self.state, &identity).await?;
             self.state
                 .frames
-                .list_frames(&scope)
+                .list_worlds(&scope)
                 .await
                 .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 .into_iter()
-                .map(|frame| frame.frame_id.to_string())
-                .filter(|frame| frame.to_lowercase().contains(&needle))
+                .map(|world| world.world_id.to_string())
+                .filter(|world| world.to_lowercase().contains(&needle))
                 .collect::<Vec<_>>()
         } else {
             Vec::new()
@@ -800,28 +878,19 @@ async fn run_task_inner(
         Ok(scope) => scope,
         Err(error) => fail!(format!("coordinate identity failed: {error}")),
     };
-    let target = match state
-        .frames
-        .require_frame(&scope, &request.args.convert.target_frame)
-        .await
-    {
-        Ok(target) => target,
-        Err(error) => fail!(format!("target frame error: {error}")),
-    };
-    let source_origins = match resolve_source_origins(&state, &scope, &request.args.convert).await {
-        Ok(origins) => origins,
-        Err(error) => fail!(format!("origin resolution failed: {error}")),
+    let worlds = match resolve_worlds(&state, &scope, &request.args.convert).await {
+        Ok(worlds) => worlds,
+        Err(error) => fail!(format!("world resolution failed: {error}")),
     };
     let convert_args = request.args.convert.clone();
-    let mut converted = match tokio::task::spawn_blocking(move || {
-        engine::convert_frame(convert_args, &target, &source_origins)
-    })
-    .await
-    {
-        Ok(Ok(output)) => output,
-        Ok(Err(error)) => fail!(format!("batch transform failed: {error}")),
-        Err(error) => fail!(format!("batch worker failed: {error}")),
-    };
+    let mut converted =
+        match tokio::task::spawn_blocking(move || engine::convert_frame(convert_args, &worlds))
+            .await
+        {
+            Ok(Ok(output)) => output,
+            Ok(Err(error)) => fail!(format!("batch transform failed: {error}")),
+            Err(error) => fail!(format!("batch worker failed: {error}")),
+        };
     if cancellation.is_cancelled() {
         update_task(&state, &task_id, TaskTransition::Cancelled).await;
         return;
@@ -886,7 +955,6 @@ async fn main() -> anyhow::Result<()> {
         init_server_telemetry("veoveo-frames-mcp", "info,veoveo_frames_mcp=debug")?;
     let args = match Cli::parse() {
         Cli::Serve(args) => *args,
-        Cli::BootstrapValidate { path } => return bootstrap::run_validate(&path).await,
     };
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
@@ -910,9 +978,6 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     let recovery = tasks.recover().await?;
     let frames = FramesState::new(tasks.platform_store().clone());
-    if let Some(path) = &args.bootstrap_catalog {
-        bootstrap::apply(path, tasks.platform_store(), &frames).await?;
-    }
     let state = Arc::new(AppState {
         tasks,
         frames,
@@ -1019,48 +1084,23 @@ mod task_tests {
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!FramesMcp::tool_router().list_all().is_empty());
     }
-    use veoveo_mcp_contract::FrameKind;
-    use veoveo_rrd::{RrdFrameDefinition, RrdFrameId, RrdViewCoordinates};
-
-    fn ecef_frame() -> RrdFrameDefinition {
-        RrdFrameDefinition {
-            frame_id: RrdFrameId::new("ECEF").unwrap(),
-            kind: FrameKind::Ecef,
-            view_coordinates: Some(RrdViewCoordinates::xyz_meters()),
-            parent: Some(RrdFrameId::new("WGS84").unwrap()),
-            origin: None,
-            crs: Some(veoveo_mcp_contract::CrsId::new("EPSG:4978").unwrap()),
-            datum: Some(veoveo_mcp_contract::DatumId::new("WGS84").unwrap()),
-            ellipsoid: Some(veoveo_mcp_contract::EllipsoidId::new("WGS84").unwrap()),
-            epoch: None,
-            description: None,
-            metadata: Default::default(),
-        }
-    }
-
     #[test]
     fn resumed_batch_output_is_byte_deterministic() {
         let request = ConvertFrameRequest {
-            target_frame: FrameId::new("ECEF").unwrap(),
-            points: vec![CoordinatePoint::Wgs84(
-                veoveo_frames_mcp::contract::Wgs84Position {
-                    latitude_deg: 37.421_999_9,
-                    longitude_deg: -122.084_057_5,
-                    height_m: 10.0,
+            target: CoordinateSpace::EcefWgs84,
+            points: vec![veoveo_frames_mcp::contract::CoordinatePoint::Wgs84(
+                veoveo_mcp_contract::Wgs84Position {
+                    latitude_degrees: 37.421_999_9,
+                    longitude_degrees: -122.084_057_5,
+                    ellipsoid_height_m: 10.0,
                 },
             )],
             allow_approximation: false,
         };
-        let target = ecef_frame();
-        let mut first = engine::convert_frame(
-            request.clone(),
-            &target,
-            &engine::ResolvedFrameOrigins::default(),
-        )
-        .unwrap();
+        let mut first =
+            engine::convert_frame(request.clone(), &engine::ResolvedWorlds::default()).unwrap();
         let mut replay =
-            engine::convert_frame(request, &target, &engine::ResolvedFrameOrigins::default())
-                .unwrap();
+            engine::convert_frame(request, &engine::ResolvedWorlds::default()).unwrap();
         assert_ne!(
             first.provenance.operation.operation_id,
             replay.provenance.operation.operation_id

@@ -28,25 +28,6 @@ networkPolicy:
 podDisruptionBudget:
   enabled: false
 serverBootstrap:
-  frames-mcp:
-    server: frames
-    tenantKey: bioma
-    payload:
-      frames:
-      - frame_id: bioma-uav-origin
-        kind: enu
-        view_coordinates:
-          "x": right
-          "y": forward
-          "z": up
-        parent: WGS84
-        origin:
-          latitude_deg: 40.7580
-          longitude_deg: -73.9855
-          height_m: -17.0
-        datum: WGS84
-        ellipsoid: WGS84
-        description: Bioma UAV simulation origin at Times Square in New York.
   map-mcp:
     server: map
     tenantKey: bioma

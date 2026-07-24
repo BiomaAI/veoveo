@@ -67,14 +67,6 @@ seccompProfile:
   value: {{ printf "/var/lib/veoveo/runtime-cache/%s" .root.Values.cache.version | quote }}
 - name: UAV_SIM_SESSION_ID
   value: {{ .sessionId | quote }}
-- name: UAV_SIM_FRAME_URI
-  value: {{ .root.Values.session.frameUri | quote }}
-- name: UAV_SIM_ORIGIN_LATITUDE
-  value: {{ .root.Values.session.origin.latitudeDegrees | quote }}
-- name: UAV_SIM_ORIGIN_LONGITUDE
-  value: {{ .root.Values.session.origin.longitudeDegrees | quote }}
-- name: UAV_SIM_ORIGIN_ELLIPSOID_HEIGHT_M
-  value: {{ .root.Values.session.origin.ellipsoidHeightM | quote }}
 - name: UAV_SIM_VEHICLE_COUNT
   value: {{ .root.Values.session.vehicleCount | quote }}
 - name: UAV_SIM_PHYSICS_HZ

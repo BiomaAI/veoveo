@@ -10,6 +10,7 @@ import rerun as rr
 from .config import RuntimeConfig
 from .camera_quality import CameraFrameQuality, normalize_rgb_frame
 from .state import VehicleTelemetry
+from .world_config import WorldConfiguration
 
 
 class H264CameraStream:
@@ -87,7 +88,7 @@ def _video_packet(packet: av.Packet) -> rr.VideoStream:
 
 
 class RecordingPublisher:
-    def __init__(self, config: RuntimeConfig) -> None:
+    def __init__(self, config: RuntimeConfig, world: WorldConfiguration) -> None:
         self._config = config
         self._root = f"/world/uav-sim/{config.session_id}"
         self._recording = rr.RecordingStream(
@@ -98,10 +99,14 @@ class RecordingPublisher:
         self._recording.log(
             self._root,
             rr.AnyValues(
-                frame_uri=config.frame_uri,
-                origin_latitude_degrees=config.origin_latitude_degrees,
-                origin_longitude_degrees=config.origin_longitude_degrees,
-                origin_ellipsoid_height_m=config.origin_ellipsoid_height_m,
+                world_revision_uri=world.revision_uri,
+                world_spec_sha256=world.spec_sha256,
+                simulation_frame_uri=world.simulation_frame_uri,
+                origin_latitude_degrees=world.georeference_origin.latitude_degrees,
+                origin_longitude_degrees=world.georeference_origin.longitude_degrees,
+                origin_ellipsoid_height_m=(
+                    world.georeference_origin.ellipsoid_height_m
+                ),
             ),
             static=True,
         )

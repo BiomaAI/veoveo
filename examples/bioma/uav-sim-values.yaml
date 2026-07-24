@@ -8,12 +8,6 @@ platform:
   recordingTenantKey: bioma
 
 session:
-  id: bioma-uav
-  frameUri: frames://frame/bioma-uav-origin
-  origin:
-    latitudeDegrees: 40.7580
-    longitudeDegrees: -73.9855
-    ellipsoidHeightM: -17.0
   camera:
     width: 640
     height: 480

@@ -15,6 +15,11 @@ from .live_stream import LiveStreamLeaseManager
 from .px4 import Px4Commander
 from .recording import RecordingPublisher
 from .state import RuntimeState
+from .world_config import (
+    WorldConfiguration,
+    WorldConfigurationError,
+    WorldConfigurationSlot,
+)
 
 
 def _timestamp() -> str:
@@ -29,6 +34,97 @@ class TimelineControls:
     step: Callable[[int], None]
 
 
+def _world_configuration_response(
+    session_id: str, world: WorldConfiguration
+) -> dict[str, object]:
+    return {
+        "accepted": True,
+        "world": world.as_dict(),
+        "resource_uri": f"uav-sim://session/{session_id}/world",
+    }
+
+
+class PreconfigurationApplication:
+    def __init__(
+        self, config: RuntimeConfig, world_slot: WorldConfigurationSlot
+    ) -> None:
+        self._config = config
+        self._world_slot = world_slot
+        self._app = web.Application(client_max_size=2 * 1024 * 1024)
+        self._app.add_routes(
+            [
+                web.get("/healthz", self._health),
+                web.get("/readyz", self._ready),
+                web.get("/v1/state", self._get_state),
+                web.post("/v1/world", self._configure_world),
+            ]
+        )
+
+    @property
+    def application(self) -> web.Application:
+        return self._app
+
+    async def _health(self, _request: web.Request) -> web.Response:
+        status = "starting" if self._world_slot.get() is not None else "unconfigured"
+        return web.json_response({"status": status})
+
+    async def _ready(self, _request: web.Request) -> web.Response:
+        status = "starting" if self._world_slot.get() is not None else "unconfigured"
+        return web.json_response(
+            {"ready": True, "simulation_ready": False, "status": status}
+        )
+
+    async def _get_state(self, _request: web.Request) -> web.Response:
+        now = _timestamp()
+        world = self._world_slot.get()
+        return web.json_response(
+            {
+                "session_id": self._config.session_id,
+                "lifecycle": "starting" if world is not None else "unconfigured",
+                "simulation_time_s": 0.0,
+                "physics_step": 0,
+                "world": world.as_dict() if world is not None else None,
+                "tiles": {
+                    "lifecycle": "connecting",
+                    "source": "google_photorealistic_3d_tiles",
+                    "ion_asset_id": self._config.cesium_ion_asset_id,
+                    "resident_tiles": 0,
+                    "loading_tiles": 0,
+                    "failed_tiles": 0,
+                },
+                "cameras": [],
+                "live_stream": {
+                    "lifecycle": "starting",
+                    "source": "follow_camera",
+                    "codec": "h264",
+                    "hardware_encoder": "nvidia_nvenc",
+                    "width": self._config.follow_camera.width,
+                    "height": self._config.follow_camera.height,
+                    "fps": self._config.follow_camera.fps,
+                    "connected_viewers": 0,
+                },
+                "vehicles": [],
+                "recordings": [],
+                "updated_at": now,
+            }
+        )
+
+    async def _configure_world(self, request: web.Request) -> web.Response:
+        try:
+            world = WorldConfiguration.from_request(
+                await request.json(), self._config.session_id
+            )
+        except (TypeError, WorldConfigurationError) as error:
+            return web.json_response({"error": str(error)}, status=400)
+        try:
+            configured = self._world_slot.configure(world)
+        except WorldConfigurationError as error:
+            return web.json_response({"error": str(error)}, status=409)
+        return web.json_response(
+            _world_configuration_response(self._config.session_id, configured)
+        )
+
+
 class AdapterApplication:
     def __init__(
         self,
@@ -38,6 +134,7 @@ class AdapterApplication:
         commanders: dict[str, Px4Commander],
         recording: RecordingPublisher,
         live_stream_leases: LiveStreamLeaseManager,
+        world_slot: WorldConfigurationSlot,
     ) -> None:
         self._config = config
         self._state = state
@@ -45,12 +142,14 @@ class AdapterApplication:
         self._commanders = commanders
         self._recording = recording
         self._live_stream_leases = live_stream_leases
+        self._world_slot = world_slot
         self._app = web.Application(client_max_size=2 * 1024 * 1024)
         self._app.add_routes(
             [
                 web.get("/healthz", self._health),
                 web.get("/readyz", self._ready),
                 web.get("/v1/state", self._get_state),
+                web.post("/v1/world", self._configure_world),
                 web.post("/v1/commands", self._command),
                 web.post("/v1/operations", self._operation),
                 web.post("/v1/live-streams", self._open_live_stream),
@@ -76,7 +175,7 @@ class AdapterApplication:
 
     async def _ready(self, _request: web.Request) -> web.Response:
         snapshot = self._state.snapshot()
-        ready = (
+        simulation_ready = (
             snapshot["lifecycle"] in {"ready", "running", "paused"}
             and snapshot["tiles"]["lifecycle"] == "ready"
             and bool(snapshot["cameras"])
@@ -86,10 +185,32 @@ class AdapterApplication:
             and all(vehicle["px4_connected"] for vehicle in snapshot["vehicles"])
             and snapshot["recordings"][0]["active"]
         )
-        return web.json_response({"ready": ready}, status=200 if ready else 503)
+        return web.json_response(
+            {
+                "ready": snapshot["lifecycle"] != "failed",
+                "simulation_ready": simulation_ready,
+                "status": snapshot["lifecycle"],
+            },
+            status=503 if snapshot["lifecycle"] == "failed" else 200,
+        )
 
     async def _get_state(self, _request: web.Request) -> web.Response:
         return web.json_response(self._state.snapshot())
+
+    async def _configure_world(self, request: web.Request) -> web.Response:
+        try:
+            world = WorldConfiguration.from_request(
+                await request.json(), self._config.session_id
+            )
+        except (TypeError, WorldConfigurationError) as error:
+            return web.json_response({"error": str(error)}, status=400)
+        try:
+            configured = self._world_slot.configure(world)
+        except WorldConfigurationError as error:
+            return web.json_response({"error": str(error)}, status=409)
+        return web.json_response(
+            _world_configuration_response(self._config.session_id, configured)
+        )
 
     async def _command(self, request: web.Request) -> web.Response:
         try:
@@ -250,9 +371,12 @@ class AdapterApplication:
     def _execute_mission(self, operation: DurableOperation) -> dict[str, object]:
         assert operation.mission_id is not None
         assert operation.vehicles is not None
-        if operation.frame_uri != self._config.frame_uri:
+        world_revision_uri = self._state.snapshot()["world"]["revision_uri"]
+        if operation.expected_world_revision_uri != world_revision_uri:
             raise ValueError(
-                f"mission frame {operation.frame_uri!r} does not match {self._config.frame_uri!r}"
+                "mission expected world revision "
+                f"{operation.expected_world_revision_uri!r} does not match "
+                f"{world_revision_uri!r}"
             )
         vehicle_ids = [mission.vehicle_id for mission in operation.vehicles]
         if len(vehicle_ids) != len(set(vehicle_ids)):
@@ -309,7 +433,7 @@ class AdapterApplication:
 
 
 class AdapterServer:
-    def __init__(self, config: RuntimeConfig, application: AdapterApplication) -> None:
+    def __init__(self, config: RuntimeConfig, application: web.Application) -> None:
         self._config = config
         self._application = application
         self._thread: threading.Thread | None = None
@@ -338,7 +462,7 @@ class AdapterServer:
         try:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
-            self._runner = web.AppRunner(self._application.application, access_log=None)
+            self._runner = web.AppRunner(self._application, access_log=None)
             self._loop.run_until_complete(self._runner.setup())
             site = web.TCPSite(
                 self._runner, self._config.adapter_host, self._config.adapter_port

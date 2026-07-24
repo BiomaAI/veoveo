@@ -54,8 +54,11 @@ pub use bootstrap::{
 };
 pub use coordinates::{
     CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
-    CoordinateOperationProvenance, CoordinateOperationRef, CrsId, DatumId, EllipsoidId, FrameId,
-    FrameKind, GeofenceId, GeofenceRule, GeofenceViolation, TrajectoryId,
+    CoordinateOperationProvenance, CoordinateOperationRef, CoordinateSpace, CrsId, DatumId,
+    EllipsoidId, FrameAxes, FrameAxisDirection, FrameBasis, FrameId, FrameKind, FrameNode,
+    FrameParentTransform, FrameWorldId, FrameWorldRevision, FrameWorldRevisionId,
+    FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, GeofenceId, GeofenceRule,
+    GeofenceViolation, TrajectoryId, Wgs84Position, WorldFrameUri,
 };
 pub use deployment::{
     AnalyticalRuntimeDeployment, AnalyticalRuntimeEngine, AnalyticalRuntimePurpose,

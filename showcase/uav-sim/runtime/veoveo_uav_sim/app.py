@@ -137,10 +137,18 @@ def run(config: RuntimeConfig) -> None:
     from .live_stream import LiveStreamLeaseManager, LiveStreamSignalingProxy
     from .recording import RecordingPublisher
     from .screenshot import ShowcaseScreenshotCapture
-    from .server import AdapterApplication, AdapterServer, TimelineControls
+    from .server import (
+        AdapterApplication,
+        AdapterServer,
+        PreconfigurationApplication,
+        TimelineControls,
+    )
     from .state import RuntimeState, VehicleTelemetry
+    from .world_config import WorldConfiguration, WorldConfigurationSlot
 
-    state = RuntimeState(config)
+    state: RuntimeState | None = None
+    world_config: WorldConfiguration | None = None
+    world_slot = WorldConfigurationSlot()
     command_queue = MainThreadQueue()
     timeline = omni.timeline.get_timeline_interface()
     recording: RecordingPublisher | None = None
@@ -165,7 +173,22 @@ def run(config: RuntimeConfig) -> None:
     live_stream_proxy: LiveStreamSignalingProxy | None = None
 
     try:
-        recording = RecordingPublisher(config)
+        preconfiguration = PreconfigurationApplication(config, world_slot)
+        server = AdapterServer(config, preconfiguration.application)
+        server.start()
+        LOGGER.info(
+            "UAV simulation session %s is waiting for an immutable Frames world revision",
+            config.session_id,
+        )
+        while simulation_app.is_running() and world_config is None:
+            world_config = world_slot.wait(0.05)
+            simulation_app.update()
+        if world_config is None:
+            raise RuntimeError(
+                "Isaac SimulationApp stopped before a frame world was configured"
+            )
+        state = RuntimeState(config, world_config)
+        recording = RecordingPublisher(config, world_config)
         world = World(
             physics_dt=1.0 / config.physics_hz,
             rendering_dt=1.0 / config.rendering_hz,
@@ -190,9 +213,9 @@ def run(config: RuntimeConfig) -> None:
         pegasus = PegasusInterface()
         pegasus._world = world
         pegasus.set_global_coordinates(
-            config.origin_latitude_degrees,
-            config.origin_longitude_degrees,
-            config.origin_ellipsoid_height_m,
+            world_config.georeference_origin.latitude_degrees,
+            world_config.georeference_origin.longitude_degrees,
+            world_config.georeference_origin.ellipsoid_height_m,
         )
 
         stage = omni.usd.get_context().get_stage()
@@ -228,13 +251,13 @@ def run(config: RuntimeConfig) -> None:
 
             georeference = get_or_create_cesium_georeference()
             georeference.GetGeoreferenceOriginLatitudeAttr().Set(
-                config.origin_latitude_degrees
+                world_config.georeference_origin.latitude_degrees
             )
             georeference.GetGeoreferenceOriginLongitudeAttr().Set(
-                config.origin_longitude_degrees
+                world_config.georeference_origin.longitude_degrees
             )
             georeference.GetGeoreferenceOriginHeightAttr().Set(
-                config.origin_ellipsoid_height_m
+                world_config.georeference_origin.ellipsoid_height_m
             )
             tileset_path = add_tileset_ion(
                 "Google_Photorealistic_3D_Tiles",
@@ -287,7 +310,9 @@ def run(config: RuntimeConfig) -> None:
                 if looks.IsValid():
                     looks.SetActive(False)
 
-            commander = Px4Commander(index, config.origin_ellipsoid_height_m)
+            commander = Px4Commander(
+                index, world_config.georeference_origin.ellipsoid_height_m
+            )
             commanders[vehicle_id] = commander
 
             camera_path = f"{vehicle_prim_path}/body/down_camera"
@@ -411,8 +436,11 @@ def run(config: RuntimeConfig) -> None:
             commanders,
             recording,
             live_stream_leases,
+            world_slot,
         )
-        server = AdapterServer(config, application)
+        assert server is not None
+        server.close()
+        server = AdapterServer(config, application.application)
         server.start()
 
         timeline.play()
@@ -657,22 +685,14 @@ def run(config: RuntimeConfig) -> None:
                     snapshot["cameras"][0]["mean_luma"],
                 )
 
-            if (
-                config.exit_after_seconds is not None
-                and snapshot["lifecycle"] == "running"
-                and simulation_time_s >= config.exit_after_seconds
-            ):
-                LOGGER.info(
-                    "batch simulation reached %.3f seconds", config.exit_after_seconds
-                )
-                break
-
     except BaseException:
-        state.set_lifecycle("failed")
+        if state is not None:
+            state.set_lifecycle("failed")
         LOGGER.exception("UAV simulation runtime failed")
         raise
     finally:
-        state.set_lifecycle("stopping")
+        if state is not None:
+            state.set_lifecycle("stopping")
         if tileset_path is not None:
             def clear_ion_token() -> None:
                 stage = omni.usd.get_context().get_stage()
@@ -706,6 +726,8 @@ def run(config: RuntimeConfig) -> None:
                 "Recording Hub publisher",
                 lambda: recording.close(simulation_time_s, physics_step),
             )
-            state.set_recording_active(False)
-        state.set_lifecycle("stopped")
+            if state is not None:
+                state.set_recording_active(False)
+        if state is not None:
+            state.set_lifecycle("stopped")
         _cleanup("Isaac SimulationApp", simulation_app.close)
