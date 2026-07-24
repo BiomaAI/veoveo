@@ -403,6 +403,7 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
         signal_port = _free_port()
         proxy_port = _free_port()
         upstream_requests: list[str] = []
+        upstream_close_codes: list[int | None] = []
 
         async def echo(request: web.Request) -> web.WebSocketResponse:
             upstream_requests.append(str(request.rel_url))
@@ -413,6 +414,7 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
             async for message in websocket:
                 if message.type == WSMsgType.TEXT:
                     await websocket.send_str(message.data)
+            upstream_close_codes.append(websocket.close_code)
             return websocket
 
         application = web.Application()
@@ -476,6 +478,8 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(handoff_message.type, WSMsgType.TEXT)
                         self.assertEqual(handoff_message.data, "handoff")
                         self.assertEqual(leases.public_state(), ("live", 1))
+                        await websocket.close(code=4001, message=b"sign-in complete")
+                        self.assertEqual(leases.public_state(), ("live", 1))
                     self.assertEqual(
                         upstream_requests,
                         [
@@ -483,6 +487,11 @@ class LiveStreamSignalingTests(unittest.IsolatedAsyncioTestCase):
                             "/sign_in?pairing_id=stream-1",
                         ],
                     )
+                for _ in range(50):
+                    if 4001 in upstream_close_codes:
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertIn(4001, upstream_close_codes)
                 self.assertEqual(leases.public_state(), ("ready", 0))
                 with self.assertRaisesRegex(Exception, "403"):
                     await client.ws_connect(
