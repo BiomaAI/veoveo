@@ -33,6 +33,7 @@ mod tests {
             "close_live_stream",
             "ui/resource-teardown",
             "ResizeObserver",
+            "width:100%; overflow:hidden;",
             "aspect-ratio:16 / 9",
             "object-fit:contain",
             "void openStream()",
