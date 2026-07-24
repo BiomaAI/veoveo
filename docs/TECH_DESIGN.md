@@ -21,8 +21,8 @@ catalog.
 | MCP Enterprise-Managed Authorization / ID-JAG | Explicit enterprise grant profile with durable replay protection, client binding, tenant mapping, and scope reduction. |
 | HTTPS and HTTP range semantics | External acquisition, MCP transport, provider webhooks, artifact delivery, and immutable RRD byte ranges. Internal cleartext HTTP exists only inside declared cluster trust boundaries. |
 | OpenTelemetry OTLP/HTTP | Optional traces and logs from shared server instrumentation. Export remains disabled unless the installation supplies an endpoint. |
-| Veoveo recording ingest | Version `2026-07-21`; authenticated protobuf batches preserve native Rerun messages, ordering, idempotency, and decoder-safe rollover markers. |
-| Rerun gRPC, RRD, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, viewer playback, and H.264 Annex B video with exact timeline indices. |
+| Veoveo recording ingest | Version `2026-07-24`; authenticated protobuf batches preserve native Rerun 0.35.0 messages, ordering, idempotency, and decoder-safe rollover markers. |
+| Rerun 0.35.0 gRPC, RRD, and `VideoStream` | Producer-local log ingestion, immutable time-and-space records, viewer playback, and H.264 Annex B video with exact timeline indices. |
 | S3-compatible object API | Artifact bytes and presigned delivery. SurrealDB remains authoritative for occurrences, identity, grants, release state, shares, policy, and audit. |
 | Kubernetes, Helm, and OCI images | Canonical workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
 | Domain standards | Map, Time, Frames, View, UAV, Recording, Perception, and Reason designs pin their geospatial, temporal, 3D, vehicle, and media profiles independently. |

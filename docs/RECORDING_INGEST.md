@@ -12,9 +12,10 @@ Network location never changes producer authority.
 
 ## Protocol
 
-`platform/recordings/protocol` owns the wire schema and media type. A batch declares its
-monotonic sequence, exact Rerun RRD encoding release, message count, payload bytes, and
-SHA-256 digest. Stream creation is idempotent under the producer's `source_stream_id`.
+`platform/recordings/protocol` owns version `2026-07-24` of the wire schema and media
+type. A batch declares its monotonic sequence, exact Rerun 0.35.0 RRD encoding release,
+message count, payload bytes, and SHA-256 digest. Stream creation is idempotent under the
+producer's `source_stream_id`.
 Repeating an accepted sequence with the same digest succeeds without another append.
 A different digest conflicts, and a gap returns the next expected sequence.
 
