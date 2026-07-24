@@ -7,14 +7,18 @@ Delta over the repository root `AGENTS.md`. The normative server contract is
 
 Packages the pinned upstream `flint-chart-mcp` Node.js server as a hosted
 service exposing chart compilation, validation, rendering, view creation,
-resources, and prompts through the gateway. The directory holds only the
-Dockerfile; there is no first party source here.
+resources, and prompts through the gateway. The directory holds the image
+definition and Veoveo-owned network launcher; the chart domain implementation
+remains upstream.
 
 ## Invariants
 
 - This is a packaged server from a third party. Do not vendor or patch
   upstream behavior in this directory; change the pinned `flint-chart-mcp`
   version in the Dockerfile and follow the root Dependency Currency policy.
+- `server.mjs` owns only the sessionful Streamable HTTP lifecycle around that
+  implementation. Transport close removes the session exactly once and must
+  not re-enter protocol-server shutdown.
 - Domain behavior is stateless: `platformStore: false`, no persistence
   volume, and `--disable-file-reference` stays set. MCP sessions live in the
   singleton Veoveo launcher.
