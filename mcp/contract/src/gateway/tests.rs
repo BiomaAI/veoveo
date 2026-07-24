@@ -119,6 +119,7 @@ fn media_manifest() -> ServerManifest {
             notifications: true,
         },
         resource_projection: ResourceProjectionMode::Identity,
+        referenced_resource_schemes: BTreeSet::new(),
         tools: vec![LocalToolName::new("run").unwrap()],
         compatibility_helpers: Vec::new(),
         prompts: vec![PromptName::new("model_help").unwrap()],
@@ -883,6 +884,27 @@ fn control_plane_accepts_server_owned_projected_ui_resources() {
     config
         .validate()
         .expect("server-owned projected UI resources must validate");
+}
+
+#[test]
+fn control_plane_rejects_unregistered_cross_server_resource_scheme() {
+    let mut server = media_manifest();
+    server
+        .referenced_resource_schemes
+        .insert(ResourceScheme::new("frames").unwrap());
+    let config = control_plane_with_server_and_secrets(server, default_secrets());
+
+    let error = config
+        .validate()
+        .expect_err("cross-server resource schemes must name a registered server");
+
+    assert!(matches!(
+        error,
+        GatewayControlPlaneError::UnknownServerReferencedResourceScheme {
+            server,
+            scheme,
+        } if server.as_str() == "media" && scheme.as_str() == "frames"
+    ));
 }
 
 #[test]

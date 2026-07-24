@@ -138,6 +138,9 @@
         "close_live_stream"
       ],
       "resource_projection": "server_owned",
+      "referenced_resource_schemes": [
+        "frames"
+      ],
       "prompts": [
         "uav-sim-mission-plan",
         "uav-sim-session-review"

@@ -350,6 +350,11 @@ policy targets fail closed. Audit records carry explicit principal attributes an
 context but exclude prompts, artifact bytes, provider payloads, tokens, link bearers,
 webhook bodies, and signed URLs.
 
+Server-owned resource projection namespaces a server's Apps and opaque upstream resource
+schemes. A manifest declares `referenced_resource_schemes` when its typed outputs carry
+canonical resources owned by another registered server. Those identities pass through
+unchanged; the gateway rejects declarations for schemes absent from the same control plane.
+
 Refresh rotation is a durable compare-and-swap. The winner stores only an
 XChaCha20-Poly1305 successor envelope for the configured short delivery window. Its AAD
 binds the authorization server, profile, OAuth client, token family, and generation. A

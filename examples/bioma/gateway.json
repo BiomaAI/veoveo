@@ -149,7 +149,10 @@
         "runtime": "isaac-sim-6.0.1",
         "world_source": "google_photorealistic_3d_tiles"
       },
-      "resource_projection": "server_owned"
+      "resource_projection": "server_owned",
+      "referenced_resource_schemes": [
+        "frames"
+      ]
     },
     {
       "slug": "perception",

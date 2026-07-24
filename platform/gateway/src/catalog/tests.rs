@@ -115,6 +115,7 @@ fn media_manifest() -> ServerManifest {
             notifications: true,
         },
         resource_projection: ResourceProjectionMode::Identity,
+        referenced_resource_schemes: BTreeSet::new(),
         tools: vec![LocalToolName::new("run").unwrap()],
         compatibility_helpers: Vec::new(),
         prompts: vec![],
