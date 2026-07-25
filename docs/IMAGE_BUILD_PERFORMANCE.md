@@ -30,18 +30,18 @@ cores, 32 hardware threads, and 62 GiB of memory. Docker client and server were 
 Cargo and rustc were 1.97.1. The selected platform was `linux/amd64`.
 
 Buildx used the repository-managed 0.35.0 binary. The named `veoveo` builder ran the
-digest-pinned BuildKit 0.31.2 image. The shared family target cache was:
+digest-pinned BuildKit 0.31.2 image. The committed-source confirmation used this shared
+family target cache:
 
 ```text
-veoveo-target-v1-42641a0fbe67-0f4aa446a10e-linux-amd64-release
+veoveo-target-v1-42641a0fbe67-77b1d106e3f4-linux-amd64-release
 ```
 
-The measured source content was the implementation tree based on
-`e5633f163ac6bd6fe713c29d4f00cd66cd1c630b`. The first three records report a dirty
-checkout because the build implementation had not yet been committed. The cold and
-warm inputs were byte-identical. The gateway experiment added one source comment and
-removed it after the run. A clean committed-source confirmation is recorded below once
-the implementation checkpoint exists.
+The authoritative measurements use clean source at
+`7d7693aa0c97a1685729126020820c0243ccdd36`. An earlier implementation experiment used
+a dirty tree based on `e5633f163ac6bd6fe713c29d4f00cd66cd1c630b`. That experiment remains
+useful because it isolates a gateway-only source edit; it is not the committed-source
+performance baseline.
 
 ## Structural Baseline
 
@@ -58,7 +58,34 @@ The new planner proves the selected package set from Cargo metadata and Bake lab
 For `platform-core`, it resolves six packages, eight production binaries, and one Cargo
 action. No central builder package list repeats the selected image membership.
 
-## Measurements
+## Committed-Source Measurements
+
+| Case | Buildx-recorded time | Cargo result | Acceptance |
+|---|---:|---|---|
+| Cold cache namespace | 495.720 s | one family action; release compile finished in 5m39s | passed |
+| Settled warm identical input | 26.822 s | family Cargo layer was fully cached | passed |
+
+The settled warm duration was 94.6% lower than the cold duration. The builds loaded the
+runtime images locally and did not push them.
+
+One intervening warm run took 476.104 seconds while the host was writing the cold cache,
+reclaiming 191.2 GiB from unrelated worktrees, and running unrelated container
+workloads. BuildKit still reported a fully cached Cargo layer, and its six image digests
+matched the other committed-source runs. The record is retained as host-contention
+evidence and excluded from the cold-to-warm comparison.
+
+The committed-source evidence directories are:
+
+```text
+target/veoveo-xtask/evidence/7d7693aa0c97a1685729126020820c0243ccdd36/
+  build-group-platform-core-1785010290585910300-123271/
+  build-group-platform-core-1785010818386977821-157280/
+  build-group-platform-core-1785011379025669628-191532/
+```
+
+Each directory contains `plan.json`, `run.json`, and `buildx-metadata.json`.
+
+## Incremental-Edit Experiment
 
 | Case | Buildx-recorded time | Wall time | Cargo result | Acceptance |
 |---|---:|---:|---|---|
@@ -70,7 +97,9 @@ The warm Buildx duration was 90.9% lower than the cold Buildx duration. Image ex
 especially the Recording Hub runtime, now dominates the warm path. Export optimization
 can proceed independently because the Cargo invalidation objective is satisfied.
 
-The retained local evidence directories are:
+These preliminary runs used the earlier cache identity
+`veoveo-target-v1-42641a0fbe67-0f4aa446a10e-linux-amd64-release`. Their evidence
+directories are:
 
 ```text
 target/veoveo-xtask/evidence/e5633f163ac6bd6fe713c29d4f00cd66cd1c630b/
@@ -79,22 +108,21 @@ target/veoveo-xtask/evidence/e5633f163ac6bd6fe713c29d4f00cd66cd1c630b/
   build-group-platform-core-1785005046502456612-231171/
 ```
 
-Each directory contains `plan.json`, `run.json`, and `buildx-metadata.json`.
-
 ## Artifact Identity
 
-Cold and warm builds produced these identical runtime image digests:
+All three clean committed-source builds produced these identical runtime image digests:
 
 | Target | Digest |
 |---|---|
-| `artifact-service` | `sha256:93322fda9ef1c534dd7895cfa10a0f10982dd00710c1063a2bb6b97b83e985e9` |
-| `console-bff` | `sha256:6f592586b3b58eee3fa3181eea7ce90e5e3ad5f6b480b680297b0e65d7d958e5` |
-| `mcp-gateway` | `sha256:1a72c5ea6f98b713ad169feb08ef7d77b572a7c14a312f5adfe0eddf2826f11b` |
-| `recording-forwarder` | `sha256:927ae5efdcb3f314b618408607861f96b4f7abba56aeb5875a455a6a69a7e2a1` |
-| `recording-hub` | `sha256:1003cabe89652ea1a0f1e70fdf9250b16315fd914da927b1b54ddbdb02f64755` |
-| `recording-mcp` | `sha256:5e808ce467476ae522a79c001bba1d7fbace81fc5cda205e19db8c48001297a8` |
+| `artifact-service` | `sha256:e5890343b229fa67c977a1c36ab9c57dac0ebecccb1d86539e6fb1f35ab64aa8` |
+| `console-bff` | `sha256:35799ef140d0ba70c30bd1f9a0240962616e90a63c4af8d54da8c1d9e4303b99` |
+| `mcp-gateway` | `sha256:a39f70333714e61fda8d0b18dc3f65e532ca754776925a15abafbe52b249c003` |
+| `recording-forwarder` | `sha256:b7a1f90e963152afa93c832eff433abab554fdefc3ba4944e69b140ca87791be` |
+| `recording-hub` | `sha256:c64b129d20efbab71d3e1e5a4054e8c777134197595c55aa545c511c11302f12` |
+| `recording-mcp` | `sha256:79910a56e5358a4e146003e24f8462225884a8f361a9fceab2ed9f2164f358cd` |
 
-The gateway-only edit changed only `mcp-gateway`, to
+In the preliminary incremental-edit experiment, the gateway-only edit changed only
+`mcp-gateway`, to
 `sha256:253fb0db04fb593e76f6e3a9b7aa2f481fee93ddac2389970fbcc0b5bc556aef`.
 Every other digest remained identical.
 
@@ -119,7 +147,7 @@ experiments.
 | One Cargo action per compatible selected family | one `rust-trixie-v1` plan for six packages and eight binaries | pass |
 | No fixed low parallelism throttle | shared builder invokes Cargo without `--jobs` | pass |
 | Explicit compatible cache identity | source-, family-, platform-, and profile-derived target cache | pass |
-| Cold and warm output equality | all six runtime image digests match | pass |
+| Cold and warm output equality | all six runtime image digests match across three clean committed-source runs | pass |
 | Gateway edit avoids unrelated compilation | Cargo output names only `veoveo-mcp-gateway` | pass |
 | Unchanged runtime images remain identical | five non-gateway digests match | pass |
 | Execution evidence is immutable | unique create-only evidence directory for every run | pass |
