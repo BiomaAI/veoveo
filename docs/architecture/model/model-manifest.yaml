@@ -6,7 +6,7 @@ architecture:
   revision_date: 2026-07-25
   handling: reference_baseline_no_client_data
   source_repository: veoveo
-  source_commit: e5633f163ac6bd6fe713c29d4f00cd66cd1c630b
+  source_commit: 7d7693aa0c97a1685729126020820c0243ccdd36
 
 scope:
   rust_workspace_packages: 38

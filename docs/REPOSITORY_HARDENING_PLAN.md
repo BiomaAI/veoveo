@@ -99,8 +99,8 @@ their hard-cut boundary:
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
-[`IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md) once the implementation
-revision is committed.
+[`IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md), including clean
+committed-source evidence for implementation checkpoint `7d7693a`.
 
 ## Baseline Audit
 
