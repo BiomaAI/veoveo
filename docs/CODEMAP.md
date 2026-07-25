@@ -61,6 +61,7 @@ material they operate:
 |---|---|
 | [`configs/perception/README.md`](../configs/perception/README.md) | perception catalog and runtime configuration |
 | [`configs/reason/README.md`](../configs/reason/README.md) | reason catalog and runtime configuration |
+| [`deploy/contract/DESIGN.md`](../deploy/contract/DESIGN.md) | typed development profile and local registry declarations shared by operational tools |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
 | [`examples/bioma/README.md`](../examples/bioma/README.md) | enterprise GitOps reference over k3d, OCI charts, Entra, and Cloudflare Tunnel |
@@ -91,6 +92,7 @@ is the browser edition of the harness document.
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
+| `deploy/contract/` | typed deployment profiles, local registry declarations, path resolution, and pure validation |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
 | `AGENTS.md` | hard-cut, task, type, module, and smoke-test rules |
