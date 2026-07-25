@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     env, fs,
     io::Write,
     path::{Path, PathBuf},
@@ -12,122 +12,12 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use tempfile::TempDir;
+use veoveo_deploy_contract::{
+    ConfigMapSpec, LoadedProfile, ReleaseSpec, SecretFormat, SecretSpec, load_local_registry,
+};
 use veoveo_mcp_contract::GatewayInternalTrustBundle;
 
-const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v1";
-const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
 const VALIDATION_REVISION: &str = "0123456789abcdef0123456789abcdef01234567";
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct DeploymentProfile {
-    schema_version: String,
-    name: String,
-    registry: RegistryReference,
-    image_groups: Vec<String>,
-    kubernetes: KubernetesTarget,
-    namespace: String,
-    #[serde(default)]
-    resources: ResourceSet,
-    releases: Vec<ReleaseSpec>,
-    #[serde(default)]
-    wait_for_deployments: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct RegistryReference {
-    address: String,
-    local_config: Option<PathBuf>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct LocalRegistrySpec {
-    schema_version: String,
-    name: String,
-    host_port: String,
-    image: String,
-    volume: String,
-    delete_enabled: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct KubernetesTarget {
-    context: String,
-    local_cluster: Option<LocalClusterSpec>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct LocalClusterSpec {
-    name: String,
-    config: PathBuf,
-    #[serde(default)]
-    node_bootstrap_manifests: Vec<PathBuf>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ResourceSet {
-    #[serde(default)]
-    manifests: Vec<PathBuf>,
-    #[serde(default)]
-    config_maps: Vec<ConfigMapSpec>,
-    #[serde(default)]
-    secrets: Vec<SecretSpec>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ConfigMapSpec {
-    name: String,
-    files: BTreeMap<String, PathBuf>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct SecretSpec {
-    name: String,
-    data_from_env: Vec<SecretEnvironmentEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct SecretEnvironmentEntry {
-    key: String,
-    environment: String,
-    #[serde(default)]
-    format: SecretFormat,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-enum SecretFormat {
-    #[default]
-    Opaque,
-    GatewayInternalTrustJwks,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ReleaseSpec {
-    name: String,
-    chart: PathBuf,
-    #[serde(default)]
-    values: Vec<PathBuf>,
-    #[serde(default)]
-    create_namespace: bool,
-    timeout_seconds: u64,
-}
-
-#[derive(Debug)]
-struct LoadedProfile {
-    definition: DeploymentProfile,
-    directory: PathBuf,
-    repository: PathBuf,
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -154,7 +44,7 @@ struct K3dRegistrySummary {
 }
 
 pub(crate) fn profile_validate(path: &Path) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     validate_bake_groups(&profile)?;
     validate_helm_releases(&profile)?;
     println!(
@@ -167,12 +57,12 @@ pub(crate) fn profile_validate(path: &Path) -> Result<()> {
 }
 
 pub(crate) fn profile_registry_up(path: &Path) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     ensure_local_registry(&profile)
 }
 
 pub(crate) fn profile_cluster_up(path: &Path) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     ensure_local_registry(&profile)?;
     let cluster = profile
         .definition
@@ -222,7 +112,7 @@ pub(crate) fn profile_cluster_up(path: &Path) -> Result<()> {
 }
 
 pub(crate) fn profile_cluster_stop(path: &Path) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     let cluster = profile
         .definition
         .kubernetes
@@ -236,7 +126,7 @@ pub(crate) fn profile_cluster_stop(path: &Path) -> Result<()> {
 }
 
 pub(crate) fn profile_cluster_delete(path: &Path) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     let cluster = profile
         .definition
         .kubernetes
@@ -255,7 +145,7 @@ pub(crate) fn profile_cluster_delete(path: &Path) -> Result<()> {
 }
 
 pub(crate) fn profile_publish(path: &Path, revision: Option<&str>) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     if profile.definition.registry.local_config.is_some() {
         ensure_local_registry(&profile)?;
     }
@@ -312,7 +202,7 @@ pub(crate) fn profile_publish(path: &Path, revision: Option<&str>) -> Result<()>
 }
 
 pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     let revision = resolve_revision(&profile.repository, revision)?;
     let context = profile.definition.kubernetes.context.as_str();
     apply_local_cluster_bootstrap(&profile)?;
@@ -380,7 +270,7 @@ pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
 }
 
 pub(crate) fn profile_down(path: &Path) -> Result<()> {
-    let profile = LoadedProfile::load(path)?;
+    let profile = load_profile(path)?;
     let context = profile.definition.kubernetes.context.as_str();
     for release in profile.definition.releases.iter().rev() {
         let output = Command::new("helm")
@@ -413,169 +303,15 @@ pub(crate) fn profile_down(path: &Path) -> Result<()> {
     Ok(())
 }
 
-impl LoadedProfile {
-    fn load(path: &Path) -> Result<Self> {
-        let path = fs::canonicalize(path)
-            .with_context(|| format!("resolving deployment profile {}", path.display()))?;
-        let directory = path
-            .parent()
-            .context("deployment profile path has no parent directory")?
-            .to_path_buf();
-        let definition = serde_json::from_slice::<DeploymentProfile>(
-            &fs::read(&path).with_context(|| format!("reading {}", path.display()))?,
+fn load_profile(path: &Path) -> Result<LoadedProfile> {
+    let base = path.parent().unwrap_or_else(|| Path::new("."));
+    let repository = repository_root(base).or_else(|_| {
+        let current = env::current_dir().context("reading current working directory")?;
+        repository_root(&current).context(
+            "deployment profile is outside a Git worktree and the command was not run from the Veoveo repository",
         )
-        .with_context(|| format!("decoding {}", path.display()))?;
-        let repository = repository_root(&directory).or_else(|_| {
-            let current = env::current_dir().context("reading current working directory")?;
-            repository_root(&current).context(
-                "deployment profile is outside a Git worktree and the command was not run from the Veoveo repository",
-            )
-        })?;
-        let profile = Self {
-            definition,
-            directory,
-            repository,
-        };
-        profile.validate()?;
-        Ok(profile)
-    }
-
-    fn resolve(&self, path: &Path) -> PathBuf {
-        if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            self.directory.join(path)
-        }
-    }
-
-    fn validate(&self) -> Result<()> {
-        let profile = &self.definition;
-        ensure!(
-            profile.schema_version == PROFILE_SCHEMA,
-            "schemaVersion must be {PROFILE_SCHEMA}"
-        );
-        validate_name("profile", &profile.name)?;
-        validate_name("namespace", &profile.namespace)?;
-        validate_registry_address(&profile.registry.address)?;
-        ensure!(
-            !profile.image_groups.is_empty(),
-            "imageGroups cannot be empty"
-        );
-        ensure!(!profile.releases.is_empty(), "releases cannot be empty");
-        ensure_unique("image group", profile.image_groups.iter())?;
-        for group in &profile.image_groups {
-            validate_name("image group", group)?;
-        }
-        ensure!(
-            !profile.kubernetes.context.trim().is_empty(),
-            "Kubernetes context cannot be empty"
-        );
-        if let Some(cluster) = &profile.kubernetes.local_cluster {
-            validate_name("cluster", &cluster.name)?;
-            require_file(&self.resolve(&cluster.config), "k3d cluster config")?;
-            let cluster_config = fs::read_to_string(self.resolve(&cluster.config))?;
-            ensure!(
-                cluster_config.contains(&profile.registry.address),
-                "k3d cluster config must use registry {}",
-                profile.registry.address
-            );
-            for manifest in &cluster.node_bootstrap_manifests {
-                require_file(
-                    &self.resolve(manifest),
-                    "local cluster node bootstrap manifest",
-                )?;
-            }
-        }
-        if let Some(config) = &profile.registry.local_config {
-            let registry = load_local_registry(&self.resolve(config))?;
-            ensure!(
-                registry.address()? == profile.registry.address,
-                "local registry config resolves to {}, profile uses {}",
-                registry.address()?,
-                profile.registry.address
-            );
-        }
-        for manifest in &profile.resources.manifests {
-            require_file(&self.resolve(manifest), "Kubernetes manifest")?;
-        }
-        ensure_unique(
-            "ConfigMap",
-            profile.resources.config_maps.iter().map(|item| &item.name),
-        )?;
-        for config_map in &profile.resources.config_maps {
-            validate_name("ConfigMap", &config_map.name)?;
-            ensure!(
-                !config_map.files.is_empty(),
-                "ConfigMap {} has no files",
-                config_map.name
-            );
-            for (key, path) in &config_map.files {
-                validate_data_key(key)?;
-                require_file(&self.resolve(path), "ConfigMap source")?;
-            }
-        }
-        ensure_unique(
-            "Secret",
-            profile.resources.secrets.iter().map(|item| &item.name),
-        )?;
-        for secret in &profile.resources.secrets {
-            validate_name("Secret", &secret.name)?;
-            ensure!(
-                !secret.data_from_env.is_empty(),
-                "Secret {} has no data",
-                secret.name
-            );
-            ensure_unique(
-                "Secret data key",
-                secret.data_from_env.iter().map(|item| &item.key),
-            )?;
-            for item in &secret.data_from_env {
-                validate_data_key(&item.key)?;
-                ensure!(
-                    !item.environment.trim().is_empty(),
-                    "Secret environment name cannot be empty"
-                );
-            }
-        }
-        ensure_unique(
-            "Helm release",
-            profile.releases.iter().map(|item| &item.name),
-        )?;
-        for release in &profile.releases {
-            validate_name("Helm release", &release.name)?;
-            ensure!(release.timeout_seconds > 0, "Helm timeout must be positive");
-            require_directory(&self.resolve(&release.chart), "Helm chart")?;
-            for values in &release.values {
-                require_file(&self.resolve(values), "Helm values")?;
-            }
-        }
-        ensure_unique(
-            "deployment wait target",
-            profile.wait_for_deployments.iter(),
-        )?;
-        for deployment in &profile.wait_for_deployments {
-            validate_name("deployment wait target", deployment)?;
-        }
-        Ok(())
-    }
-}
-
-impl LocalRegistrySpec {
-    fn address(&self) -> Result<String> {
-        let (_, port) = self
-            .host_port
-            .rsplit_once(':')
-            .context("local registry hostPort must be HOST:PORT")?;
-        ensure!(
-            port.parse::<u16>().is_ok(),
-            "local registry port is invalid"
-        );
-        Ok(format!("k3d-{}:{port}", self.name))
-    }
-
-    fn container_name(&self) -> String {
-        format!("k3d-{}", self.name)
-    }
+    })?;
+    LoadedProfile::load(path, &repository)
 }
 
 struct PublicationWorktree {
@@ -647,34 +383,6 @@ fn ensure_local_registry(profile: &LoadedProfile) -> Result<()> {
     let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     status_checked("k3d", refs, &[], None)?;
     Ok(())
-}
-
-fn load_local_registry(path: &Path) -> Result<LocalRegistrySpec> {
-    let config = serde_json::from_slice::<LocalRegistrySpec>(
-        &fs::read(path).with_context(|| format!("reading {}", path.display()))?,
-    )
-    .with_context(|| format!("decoding {}", path.display()))?;
-    ensure!(
-        config.schema_version == REGISTRY_SCHEMA,
-        "local registry schemaVersion must be {REGISTRY_SCHEMA}"
-    );
-    for segment in config.name.split('.') {
-        validate_name("local registry segment", segment)?;
-    }
-    ensure!(
-        !config.image.trim().is_empty(),
-        "local registry image is empty"
-    );
-    ensure!(
-        config.image.contains("@sha256:"),
-        "local registry image must use an immutable digest"
-    );
-    ensure!(
-        config.volume.ends_with(":/var/lib/registry"),
-        "local registry volume must mount /var/lib/registry"
-    );
-    let _ = config.address()?;
-    Ok(config)
 }
 
 fn k3d_clusters() -> Result<Vec<K3dClusterSummary>> {
@@ -1011,67 +719,6 @@ fn status_checked<'a>(
         .status()
         .with_context(|| format!("running {program}"))?;
     ensure!(status.success(), "{program} failed with {status}");
-    Ok(())
-}
-
-fn validate_registry_address(address: &str) -> Result<()> {
-    ensure!(
-        !address.trim().is_empty(),
-        "registry address cannot be empty"
-    );
-    ensure!(
-        !address.contains("://"),
-        "registry address must not include a URL scheme"
-    );
-    ensure!(
-        !address.ends_with('/'),
-        "registry address must not end in /"
-    );
-    ensure!(
-        !address.chars().any(char::is_whitespace),
-        "registry address contains whitespace"
-    );
-    Ok(())
-}
-
-fn validate_name(kind: &str, name: &str) -> Result<()> {
-    ensure!(!name.is_empty(), "{kind} name cannot be empty");
-    ensure!(name.len() <= 63, "{kind} name exceeds 63 characters");
-    ensure!(
-        name.bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-            && name.as_bytes()[0].is_ascii_alphanumeric()
-            && name.as_bytes()[name.len() - 1].is_ascii_alphanumeric(),
-        "{kind} name {name} must be a lowercase DNS label"
-    );
-    Ok(())
-}
-
-fn validate_data_key(key: &str) -> Result<()> {
-    ensure!(!key.is_empty(), "Kubernetes data key cannot be empty");
-    ensure!(
-        key.bytes()
-            .all(|byte| { byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-') }),
-        "invalid Kubernetes data key {key}"
-    );
-    Ok(())
-}
-
-fn ensure_unique<'a>(kind: &str, values: impl IntoIterator<Item = &'a String>) -> Result<()> {
-    let mut unique = BTreeSet::new();
-    for value in values {
-        ensure!(unique.insert(value), "duplicate {kind}: {value}");
-    }
-    Ok(())
-}
-
-fn require_file(path: &Path, kind: &str) -> Result<()> {
-    ensure!(path.is_file(), "{kind} does not exist: {}", path.display());
-    Ok(())
-}
-
-fn require_directory(path: &Path, kind: &str) -> Result<()> {
-    ensure!(path.is_dir(), "{kind} does not exist: {}", path.display());
     Ok(())
 }
 

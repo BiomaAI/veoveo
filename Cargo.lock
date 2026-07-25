@@ -10594,6 +10594,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-deploy-contract"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "veoveo-duckdb-mcp"
 version = "0.1.0"
 dependencies = [
@@ -11239,6 +11248,7 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+ "veoveo-deploy-contract",
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-platform-store",
