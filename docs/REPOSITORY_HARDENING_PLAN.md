@@ -23,6 +23,7 @@ profiles:
 | Rust 1.97.1 and Rust Edition 2024 | canonical compiled tooling and workspace implementation, pinned by `rust-toolchain.toml` |
 | Cargo metadata format version 1 | workspace, target, dependency, and smoke-package discovery |
 | Docker BuildKit and Docker Buildx Bake | internal OCI build graph, builder-family composition, cache mounts, and image publication; the implementation verifies and pins the latest stable compatible releases before making them canonical |
+| `veoveo.io/image-build-plan/v1` | internal typed projection of one source-local Bake selection, its Cargo build units, builder families, cache identities, image coordinates, and release evidence; it is not a public extension contract |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
 | `veoveo.io/deployment/v1` | repository-owned deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
@@ -860,6 +861,165 @@ It rejects incompatible cache sharing, anonymous Rust target caches, fixed low j
 limits on consolidated builders, and more than one Cargo build action for a selected
 family. Cold-cache and warm-cache acceptance compare produced artifact identities and
 release evidence.
+
+#### Canonical Build Inputs
+
+`docker-bake.hcl` remains the image catalog. A Rust image target declares its Cargo
+package, production binaries, builder family, build mode, and optional auxiliary
+artifacts through repository-owned OCI labels:
+
+```text
+io.veoveo.build.mode
+io.veoveo.build.package
+io.veoveo.build.binaries
+io.veoveo.build.family
+io.veoveo.build.auxiliary
+```
+
+Build mode is `rust-shared` or `rust-standalone`. Binary and auxiliary collections use
+comma-separated identifiers from closed Rust enums and validated Cargo target names.
+The family name selects a typed builder contract; it does not authorize two
+incompatible environments to share compiled artifacts.
+
+Cargo metadata proves that each declared package and binary exists. Bake selects the
+intentional image targets. No checked-in shared-builder command, central image manifest,
+or `xtask` package array repeats that membership.
+
+Shared runtime targets consume a family artifact target through the named context
+`veoveo-rust-artifacts`. The artifact target receives the exact selected package and
+binary arguments through an ephemeral JSON Bake override. `xtask` first resolves the
+checked-in HCL with `docker buildx bake --print`, constructs the typed plan, merges the
+override, resolves the result again, and executes only that verified graph.
+
+#### Internal Image Commands
+
+The repository image surface is:
+
+```sh
+cargo xtask image builder status
+cargo xtask image builder ensure
+cargo xtask image builder recreate --confirm veoveo
+
+cargo xtask image plan --target <target>
+cargo xtask image plan --group <group>
+cargo xtask image build --target <target>
+cargo xtask image build --group <group>
+
+cargo xtask release images --profile <path> --revision <ref>
+cargo xtask release images --target <target> --registry <registry> --revision <ref>
+cargo xtask release images --group <group> --registry <registry> --revision <ref>
+```
+
+`image plan` and `image build` use the current checkout and record its full revision and
+dirty state. A local build loads the selected images into Docker. A release resolves one
+full commit, moves the persistent publication worktree to that commit, applies immutable
+revision tags, pushes images, and records Buildx metadata and resulting digests.
+
+Raw Docker and Bake commands remain diagnostic implementation surfaces. They are not a
+second supported route for Rust images because they cannot construct the typed family
+overlay.
+
+#### Managed Builder
+
+Image commands use a named `docker-container` Buildx builder called `veoveo`; they never
+change the operator's global builder selection. The builder uses a digest-pinned stable
+BuildKit image and a checked-in daemon configuration for the canonical loopback
+development registry. `xtask` passes `--builder veoveo` explicitly.
+
+The command creates and bootstraps a missing builder. An existing builder with the wrong
+driver, image, daemon version, or configuration fails validation. Only the explicit
+`image builder recreate --confirm veoveo` command may remove the incompatible builder
+and its cache.
+
+The implementation baseline verified Buildx 0.35.0 and BuildKit 0.31.2 on 2026-07-24.
+Execution rechecks their authoritative release pages before pinning. A newer stable
+release replaces this baseline; a pre-release does not.
+
+#### Publication Source Lifecycle
+
+The publication source lives under the main worktree:
+
+```text
+target/veoveo-xtask/publication/<source-id>/source
+```
+
+The source identity covers the normalized Git origin, canonical common Git directory,
+and object format. An adjacent file carries an exclusive advisory lock from source
+preparation through the final Bake phase.
+
+The first release creates a detached worktree. Later releases require that worktree to
+remain registered and clean, then use an ordinary detached checkout to move it to the
+resolved commit. Git updates changed paths and preserves unchanged path metadata. The
+tool never removes a healthy publication worktree after a build and never silently
+resets, cleans, or recreates corrupt state.
+
+An in-repository deployment profile is loaded from the selected revision, not from a
+different checkout. Every Bake path and Docker context resolves inside the locked
+publication source.
+
+#### Initial Builder Families
+
+The first delivery supports one explicit target platform, `linux/amd64`.
+
+| Family | Initial Rust image units |
+|---|---|
+| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, and agent kernel when selected |
+| `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
+| `rust-uav-bookworm-v1` | UAV MCP; standalone because the embedded WebRTC bundle changes its compile environment |
+| `rust-deepstream-v1` | perception MCP |
+| `rust-vllm-v1` | reason MCP |
+| `rust-sumo-bullseye-v1` | SUMO MCP |
+
+The trixie and bookworm families use one shared workspace-artifact Dockerfile. It
+bind-mounts the source read-only, invokes Cargo once for the selected packages and
+unique binaries, and exports those binaries through a scratch artifact stage. Runtime
+Dockerfiles keep their runtime bases, users, files, configuration, native downloads,
+entrypoints, and ports.
+
+Frames moves to the slim trixie contract. Its native build dependencies become part of
+that family. The UAV, DeepStream, vLLM, and SUMO families remain standalone in the first
+delivery, although their cache identities become explicit and source-aware.
+
+#### Cache Contract
+
+Cargo download caches use the fixed identities:
+
+```text
+veoveo-cargo-registry-v1
+veoveo-cargo-git-v1
+```
+
+They use shared mounts under Cargo's cache locking. Target caches use locked mounts and
+the following derived identity:
+
+```text
+veoveo-target-v1-<source-hash>-<family-hash>-linux-amd64-release
+```
+
+The source hash excludes the revision. The family hash covers the resolved builder
+image, builder Dockerfile, Rust toolchain, target triple, platform, Cargo profile,
+features, rustflags, compile-time environment, libc, SDK, and native dependency
+contract.
+
+Registry-backed cache export and import are deferred. Stable source and family
+identities allow that backend to arrive later without changing package discovery or
+mixing incompatible compiled artifacts.
+
+#### Build Performance Evidence
+
+The implementation records the old pipeline's cold, warm, and gateway-only-change
+times before replacing it. The optimized measurements use an isolated builder and a
+temporary clone; they never prune the operator's normal cache.
+
+Acceptance requires one Cargo action for each selected compatible family, identical
+image digests for cold and warm builds of the same inputs, and no unrelated workspace
+compilation after a gateway-only change. The measurement report records elapsed time,
+Cargo actions, crates compiled, BuildKit cache hits, lock waits, image digests, and
+Buildx metadata.
+
+The optimized gateway-change run must beat the recorded baseline. Shared CI runners do
+not enforce a percentage or elapsed-time threshold; graph invariants and artifact
+identity remain the durable gate.
 
 ### Planned Tool Set
 
