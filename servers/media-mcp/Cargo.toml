@@ -8,7 +8,7 @@ name = "veoveo_media_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "media-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

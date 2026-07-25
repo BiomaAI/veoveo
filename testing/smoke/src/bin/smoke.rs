@@ -171,7 +171,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built artifact-service binary path.
         #[arg(long, default_value = "target/debug/artifact-service")]
@@ -183,7 +183,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built artifact-service binary path.
         #[arg(long, default_value = "target/debug/artifact-service")]
@@ -195,7 +195,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built frames MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/frames-mcp")]
         frames_bin: PathBuf,
         /// Built artifact-service binary path.
         #[arg(long, default_value = "target/debug/artifact-service")]
@@ -288,7 +288,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
@@ -342,7 +342,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
@@ -360,7 +360,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
@@ -381,7 +381,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
@@ -406,10 +406,10 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built frames MCP server binary path.
-        #[arg(long, default_value = "target/debug/frames-mcp-smoke")]
+        #[arg(long, default_value = "target/debug/frames-mcp")]
         frames_bin: PathBuf,
         /// Built optimization MCP server binary path.
-        #[arg(long, default_value = "target/debug/optimization-mcp-smoke")]
+        #[arg(long, default_value = "target/debug/optimization-mcp")]
         optimization_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
@@ -430,7 +430,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built media MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/media-mcp")]
         media_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]
@@ -451,7 +451,7 @@ enum Cmd {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
         /// Built duckdb MCP server binary path.
-        #[arg(long, default_value = "target/debug/server")]
+        #[arg(long, default_value = "target/debug/duckdb-mcp")]
         duckdb_bin: PathBuf,
         /// Built gateway binary path.
         #[arg(long, default_value = "target/debug/gateway")]

@@ -8,7 +8,7 @@ name = "veoveo_optimization_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "optimization-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

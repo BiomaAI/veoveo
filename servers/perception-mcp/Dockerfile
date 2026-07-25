@@ -29,8 +29,8 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-perception-mcp --bin server \
-    && cp /app/target/release/server /tmp/perception-mcp
+    cargo build --release --jobs 4 -p veoveo-perception-mcp --bin perception-mcp \
+    && cp /app/target/release/perception-mcp /tmp/perception-mcp
 RUN cmake -S servers/perception-mcp/deepstream-runner \
         -B /tmp/perception-runner-build \
         -DCMAKE_BUILD_TYPE=Release \

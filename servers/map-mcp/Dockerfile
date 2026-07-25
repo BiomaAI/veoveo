@@ -21,9 +21,9 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,id=map-mcp-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=map-mcp-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=map-mcp-target-bookworm,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-map-mcp --bin server \
+    cargo build --release --jobs 4 -p veoveo-map-mcp --bin map-mcp \
     && mkdir -p /out/lib \
-    && cp /app/target/release/server /out/map-mcp \
+    && cp /app/target/release/map-mcp /out/map-mcp \
     && find /app/target -name 'libduckdb.so' -type f -exec cp {} /out/lib/libduckdb.so \; -quit \
     && test -f /out/lib/libduckdb.so
 RUN set -eux; \

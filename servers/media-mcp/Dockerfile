@@ -18,8 +18,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked \
     mkdir -p /out \
-    && cargo build --release --jobs 4 -p veoveo-media-mcp --bin server \
-    && cp /app/target/release/server /out/media-mcp
+    && cargo build --release --jobs 4 -p veoveo-media-mcp --bin media-mcp \
+    && cp /app/target/release/media-mcp /out/media-mcp
 
 FROM debian:trixie-slim
 

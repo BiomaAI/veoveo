@@ -8,7 +8,7 @@ name = "veoveo_recording_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "recording-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

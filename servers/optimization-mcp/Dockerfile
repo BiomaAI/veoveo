@@ -17,9 +17,9 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked \
-    cargo build --release --jobs 4 -p veoveo-optimization-mcp --bin server \
+    cargo build --release --jobs 4 -p veoveo-optimization-mcp --bin optimization-mcp \
     && mkdir -p /out/lib \
-    && cp /app/target/release/server /out/optimization-mcp \
+    && cp /app/target/release/optimization-mcp /out/optimization-mcp \
     && find /app/target -name 'libduckdb.so' -type f -exec cp {} /out/lib/libduckdb.so \; -quit \
     && test -f /out/lib/libduckdb.so
 

@@ -17,8 +17,8 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,id=time-mcp-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=time-mcp-cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=time-mcp-target-bookworm,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-time-mcp --bin server \
-    && cp /app/target/release/server /usr/local/bin/time-mcp
+    cargo build --release --jobs 4 -p veoveo-time-mcp --bin time-mcp \
+    && cp /app/target/release/time-mcp /usr/local/bin/time-mcp
 
 FROM debian:bookworm-slim
 

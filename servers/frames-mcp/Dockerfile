@@ -25,9 +25,9 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-frames-mcp --bin server \
+    cargo build --release --jobs 4 -p veoveo-frames-mcp --bin frames-mcp \
     && mkdir -p /out \
-    && cp /app/target/release/server /out/frames-mcp
+    && cp /app/target/release/frames-mcp /out/frames-mcp
 
 FROM debian:trixie
 

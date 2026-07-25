@@ -51,7 +51,7 @@ pub(crate) use view::*;
 pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Path) -> Result<()> {
     let conformance = Path::new("target/debug/conformance");
     let gateway = Path::new("target/debug/gateway");
-    let media = Path::new("target/debug/server");
+    let media = Path::new("target/debug/media-mcp");
     let artifact_service = Path::new("target/debug/artifact-service");
 
     suite_step("workspace contract and gateway tests");
