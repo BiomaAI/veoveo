@@ -93,7 +93,8 @@ PROFILE=showcase/sumo/deploy/deployment.json
 REVISION=$(git rev-parse HEAD)
 just profile-validate "$PROFILE"
 just profile-cluster-up "$PROFILE"
-just profile-publish "$PROFILE" "$REVISION"
+cargo xtask image builder ensure
+cargo xtask release images --profile "$PROFILE" --revision "$REVISION"
 just profile-up "$PROFILE" "$REVISION"
 just showcase-sumo-verify
 ```

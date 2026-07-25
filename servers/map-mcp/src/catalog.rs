@@ -1,10 +1,10 @@
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use veoveo_platform_store::{
-    MapAcquisitionDraft, MapAcquisitionState, MapDependencyKind, MapMobilityProfileDraft,
-    MapOperationalSnapshotDraft, MapReleaseDraft, MapReleaseState, MapRestrictionDraft,
-    MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft, MapRouteState, MapSourceDraft,
-    PlatformIdentity, PlatformStore,
+    MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,
+    MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft, MapReleaseState,
+    MapRestrictionDraft, MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft,
+    MapRouteState, MapSourceDraft, PlatformIdentity, PlatformStore,
 };
 
 use crate::contract::{
@@ -567,10 +567,10 @@ impl MapCatalog {
         acquisition_id: crate::contract::AcquisitionId,
     ) -> Result<AcquisitionJob> {
         request.requested_coverage.validate()?;
-        if let Some(digest) = &request.expected_source_digest_sha256 {
-            if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                bail!("expected_source_digest_sha256 must be a 64-character hexadecimal digest");
-            }
+        if let Some(digest) = &request.expected_source_digest_sha256
+            && (digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        {
+            bail!("expected_source_digest_sha256 must be a 64-character hexadecimal digest");
         }
         if let Some(record) = self
             .store
@@ -663,15 +663,15 @@ impl MapCatalog {
         job.record_version += 1;
         job.updated_at = Utc::now();
         self.store
-            .update_map_acquisition(
-                scope.identity.tenant_id,
-                job.acquisition_id.as_str(),
-                integer_version(expected)?,
-                acquisition_state_to_store(job.status),
-                &wire(&job.progress.phase)?,
-                job.staged_release_id.as_ref().map(ToString::to_string),
-                encode(&job)?,
-            )
+            .update_map_acquisition(MapAcquisitionUpdate {
+                tenant_id: scope.identity.tenant_id,
+                acquisition_key: job.acquisition_id.to_string(),
+                expected_record_version: integer_version(expected)?,
+                status: acquisition_state_to_store(job.status),
+                phase: wire(&job.progress.phase)?,
+                staged_release_key: job.staged_release_id.as_ref().map(ToString::to_string),
+                canonical_json: encode(&job)?,
+            })
             .await?;
         Ok(job)
     }

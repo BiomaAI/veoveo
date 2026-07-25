@@ -57,9 +57,9 @@ pub use identity::{
 };
 pub use ids::*;
 pub use map::{
-    MapAcquisitionDraft, MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft,
-    MapRestrictionDraft, MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft,
-    MapSourceDraft,
+    MapAcquisitionDraft, MapAcquisitionUpdate, MapMobilityProfileDraft,
+    MapOperationalSnapshotDraft, MapReleaseDraft, MapRestrictionDraft, MapRouteDependencyDraft,
+    MapRouteDraft, MapRouteMatrixDraft, MapSourceDraft,
 };
 pub use map_authoring::{
     MapFeatureCommitDraft, MapFeatureCommitResult, MapFeatureLayerDraft,
@@ -84,7 +84,8 @@ pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;
 pub use time::{
-    TimeAcquisitionDraft, TimeAuthorityReleaseDraft, TimeCalendarVersionDraft,
-    TimeClockPolicyDraft, TimeMissionEpochDraft, TimeSourceDraft, TimeTemporalEventDraft,
+    TimeAcquisitionDraft, TimeAcquisitionUpdate, TimeAuthorityReleaseDraft,
+    TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeMissionEpochDraft, TimeSourceDraft,
+    TimeTemporalEventDraft,
 };
 pub use usage::DomainUsageDraft;

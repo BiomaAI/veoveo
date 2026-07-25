@@ -7,7 +7,7 @@ use veoveo_mcp_contract::{
     OAuthAuthorizationCode, OAuthClientId, OAuthGrantType, OAuthRedirectUri,
     PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind, ResourceAuthorizationServer,
 };
-use veoveo_mcp_gateway::{GatewayCatalog, REFRESH_TOKEN_TTL_SECONDS};
+use veoveo_mcp_gateway::{GatewayCatalog, GatewayRefreshIssueRequest, REFRESH_TOKEN_TTL_SECONDS};
 
 use crate::{
     audit::{
@@ -433,15 +433,15 @@ pub(super) async fn token_endpoint_authorization_code(
     let refresh = if client.grant_types.contains(&OAuthGrantType::RefreshToken) {
         match state
             .gateway_state
-            .issue_refresh_token(
-                &authorization_server.id,
-                &profile.id,
-                &client_id,
-                &code_record.work_context,
-                &code_record.principal,
-                &code_record.scopes,
-                Utc::now(),
-            )
+            .issue_refresh_token(GatewayRefreshIssueRequest {
+                authorization_server: &authorization_server.id,
+                profile: &profile.id,
+                oauth_client_id: &client_id,
+                work_context: &code_record.work_context,
+                principal: &code_record.principal,
+                scopes: &code_record.scopes,
+                now: Utc::now(),
+            })
             .await
         {
             Ok(refresh) => Some(refresh),

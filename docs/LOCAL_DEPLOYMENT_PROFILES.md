@@ -19,8 +19,9 @@ The current complete profile is the SUMO development environment:
 ## Workflow
 
 Commit source before publishing. The publisher resolves the requested revision to a
-full commit SHA and builds from a detached worktree, which keeps local edits from
-changing bytes published under another revision.
+full commit SHA and moves a locked persistent publication worktree to that commit.
+Unchanged source paths retain their metadata, while local edits cannot change bytes
+published under another revision.
 
 ~~~bash
 PROFILE=showcase/sumo/deploy/deployment.json
@@ -28,7 +29,8 @@ REVISION=$(git rev-parse HEAD)
 
 just profile-validate "$PROFILE"
 just profile-cluster-up "$PROFILE"
-just profile-publish "$PROFILE" "$REVISION"
+cargo xtask image builder ensure
+cargo xtask release images --profile "$PROFILE" --revision "$REVISION"
 just profile-up "$PROFILE" "$REVISION"
 ~~~
 
@@ -37,8 +39,9 @@ release images into the host Docker image store. Ordered image groups publish a
 heavyweight shared base before targets that consume it, while independent targets in
 one group build concurrently.
 
-Compatible Rust builders share a versioned Cargo target cache. Builders with a
-different operating-system ABI or native SDK use a separate cache identity.
+Each compatible Rust family compiles its selected binaries in one Cargo invocation.
+Target caches derive from source identity, builder family, platform, and profile.
+Builders with a different operating-system ABI or native SDK use separate identities.
 
 ## Contract
 

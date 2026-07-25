@@ -466,7 +466,7 @@ operation, database, selection, task id, and row count where applicable.
 
 [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
 is a required capability of the hosted DuckDB image. The Docker build downloads
-the official extension that matches DuckDB `1.5.4` for AMD64 or ARM64, verifies
+the official extension that matches DuckDB `1.5.5` for AMD64 or ARM64, verifies
 a pinned SHA-256 digest, installs the decompressed binary at a read-only canonical
 path, and copies it into the runtime image.
 

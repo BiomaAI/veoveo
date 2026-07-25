@@ -1,35 +1,5 @@
-# syntax=docker/dockerfile:1.7
-FROM rust:1.97.1 AS builder
-
-WORKDIR /app
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        build-essential \
-        cmake \
-        curl \
-        libsqlite3-dev \
-        libtiff-dev \
-        pkg-config \
-        sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
-COPY Cargo.toml Cargo.lock ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-frames-mcp --bin frames-mcp \
-    && mkdir -p /out \
-    && cp /app/target/release/frames-mcp /out/frames-mcp
-
-FROM debian:trixie
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libsqlite3-0 libstdc++6 \
@@ -37,7 +7,7 @@ RUN apt-get update \
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
-COPY --from=builder /out/frames-mcp /usr/local/bin/frames-mcp
+COPY --from=veoveo-rust-artifacts /bin/frames-mcp /usr/local/bin/frames-mcp
 
 USER veoveo
 EXPOSE 8793

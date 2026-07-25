@@ -42,6 +42,20 @@ const INTERNAL_STREAMS_PATH: &str = "/internal/recording-ingest/v1/streams";
 const INTERNAL_TOKEN_TTL_SECONDS: i64 = 60;
 const RECORDING_HUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
+struct HttpFailure(Box<Response>);
+
+impl From<Response> for HttpFailure {
+    fn from(response: Response) -> Self {
+        Self(Box::new(response))
+    }
+}
+
+impl IntoResponse for HttpFailure {
+    fn into_response(self) -> Response {
+        *self.0
+    }
+}
+
 pub(super) fn recording_ingest_router(state: RecordingIngestGatewayState) -> Router {
     Router::new()
         .route(DISCOVERY_PATH, get(discovery))
@@ -97,14 +111,14 @@ async fn open_stream(
 ) -> Response {
     let request = match decode::<OpenRecordingStreamRequest>(&headers, &body) {
         Ok(request) => request,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     proxy_authorized(
         &state,
         &headers,
         GatewayAction::RecordingStreamOpen,
         None,
-        format!("{INTERNAL_STREAMS_PATH}"),
+        INTERNAL_STREAMS_PATH.to_owned(),
         AuthorizedOpenRecordingStreamRequest {
             producer: None,
             request: Some(request),
@@ -145,7 +159,7 @@ async fn append_batch(
     };
     let batch = match decode::<RecordingBatch>(&headers, &body) {
         Ok(batch) => batch,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     if batch.sequence != sequence {
         return ingest_error(
@@ -180,7 +194,7 @@ async fn finish_stream(
     };
     let request = match decode::<FinishRecordingStreamRequest>(&headers, &body) {
         Ok(request) => request,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     proxy_authorized(
         &state,
@@ -552,7 +566,7 @@ fn authorized_producer(producer: &RecordingProducerRegistration) -> AuthorizedRe
     }
 }
 
-fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, Response> {
+fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, HttpFailure> {
     if headers
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
@@ -562,14 +576,15 @@ fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, R
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             IngestErrorCode::InvalidRequest,
             "canonical recording ingest media type is required",
-        ));
+        )
+        .into());
     }
     T::decode(body).map_err(|_| {
-        ingest_error(
+        HttpFailure::from(ingest_error(
             StatusCode::BAD_REQUEST,
             IngestErrorCode::InvalidRequest,
             "protobuf request is invalid",
-        )
+        ))
     })
 }
 

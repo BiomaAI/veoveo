@@ -1,26 +1,5 @@
-# syntax=docker/dockerfile:1.7
-FROM rust:1.97.1-slim-bookworm AS builder
-
-WORKDIR /app
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential ca-certificates pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-COPY Cargo.toml Cargo.lock ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,id=time-mcp-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=time-mcp-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=time-mcp-target-bookworm,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-time-mcp --bin time-mcp \
-    && cp /app/target/release/time-mcp /usr/local/bin/time-mcp
-
-FROM debian:bookworm-slim
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl tzdata \
@@ -30,7 +9,7 @@ RUN apt-get update \
     && useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo/time/acquisitions /var/lib/veoveo/time/releases \
     && chown -R veoveo:veoveo /var/lib/veoveo/time
-COPY --from=builder /usr/local/bin/time-mcp /usr/local/bin/time-mcp
+COPY --from=veoveo-rust-artifacts /bin/time-mcp /usr/local/bin/time-mcp
 
 USER veoveo
 EXPOSE 8800

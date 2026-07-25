@@ -67,14 +67,13 @@ impl PlaybackSessionStore {
             return Ok(session_id.to_owned());
         }
 
-        if sessions.len() >= MAX_PLAYBACK_SESSIONS {
-            if let Some(oldest) = sessions
+        if sessions.len() >= MAX_PLAYBACK_SESSIONS
+            && let Some(oldest) = sessions
                 .iter()
                 .min_by_key(|(_, session)| session.expires_at)
                 .map(|(session_id, _)| session_id.clone())
-            {
-                sessions.remove(&oldest);
-            }
+        {
+            sessions.remove(&oldest);
         }
         let session_id = random_token()?;
         sessions.insert(

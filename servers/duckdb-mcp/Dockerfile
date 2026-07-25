@@ -1,34 +1,14 @@
-# syntax=docker/dockerfile:1.7
-FROM rust:1.97.1-slim AS builder
-
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS duckdb-spatial
 ARG TARGETARCH
-ARG DUCKDB_VERSION=1.5.4
-
-WORKDIR /app
+ARG DUCKDB_VERSION=1.5.5
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gzip \
     && rm -rf /var/lib/apt/lists/*
-COPY Cargo.toml Cargo.lock ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked \
-    cargo build --release --jobs 4 -p veoveo-duckdb-mcp --bin duckdb-mcp \
-    && mkdir -p /out/lib \
-    && cp /app/target/release/duckdb-mcp /out/duckdb-mcp \
-    && find /app/target -name 'libduckdb.so' -type f -exec cp {} /out/lib/libduckdb.so \; -quit \
-    && test -f /out/lib/libduckdb.so
 RUN set -eux; \
     case "${TARGETARCH}" in \
-      amd64) duckdb_platform=linux_amd64; spatial_sha256=be5c95a1921d5bf66dbcee450272927a93a2839cff7c1e9c2ee815e5461616ac ;; \
-      arm64) duckdb_platform=linux_arm64; spatial_sha256=38eca92a690de960e64c749f1d8e5e0cd3d8a3f1c4af647d8d0fc66cb7c4c565 ;; \
+      amd64) duckdb_platform=linux_amd64; spatial_sha256=832edb1b189d53281baf552034028a4dfe317c5381a7e7d2d9de74a4e875572e ;; \
+      arm64) duckdb_platform=linux_arm64; spatial_sha256=ccf86767b4f28471963e0950cb6a9d9bf2e38f6f9a476de32f5b59ffdacfc239 ;; \
       *) echo "unsupported DuckDB Spatial architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     mkdir -p /out/extensions; \
@@ -38,21 +18,21 @@ RUN set -eux; \
     gzip -dc /tmp/spatial.duckdb_extension.gz > /out/extensions/spatial.duckdb_extension; \
     chmod 0444 /out/extensions/spatial.duckdb_extension
 
-FROM debian:trixie-slim
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so
-COPY --from=builder /out/extensions/spatial.duckdb_extension /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
+COPY --from=veoveo-rust-artifacts /lib/libduckdb.so /usr/local/lib/libduckdb.so
+COPY --from=duckdb-spatial /out/extensions/spatial.duckdb_extension /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
 RUN ldconfig
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /var/lib/veoveo/duckdb \
     && chown -R veoveo:veoveo /var/lib/veoveo
 
-COPY --from=builder /out/duckdb-mcp /usr/local/bin/duckdb-mcp
+COPY --from=veoveo-rust-artifacts /bin/duckdb-mcp /usr/local/bin/duckdb-mcp
 
 USER veoveo
 EXPOSE 8791

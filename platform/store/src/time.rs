@@ -56,6 +56,17 @@ pub struct TimeAcquisitionDraft {
 }
 
 #[derive(Clone, Debug)]
+pub struct TimeAcquisitionUpdate {
+    pub tenant_id: TenantId,
+    pub acquisition_key: String,
+    pub expected_record_version: i64,
+    pub status: TimeAcquisitionState,
+    pub phase: String,
+    pub staged_release_key: Option<String>,
+    pub canonical_json: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct TimeCalendarVersionDraft {
     pub identity: PlatformIdentity,
     pub calendar_key: String,
@@ -523,25 +534,23 @@ impl PlatformStore {
 
     pub async fn update_time_acquisition(
         &self,
-        tenant_id: TenantId,
-        key: &str,
-        expected: i64,
-        status: TimeAcquisitionState,
-        phase: String,
-        staged_release_key: Option<String>,
-        canonical_json: String,
+        update: TimeAcquisitionUpdate,
     ) -> Result<TimeAcquisitionRecord, StoreError> {
-        validate_key("acquisition_key", key, "time-acquisition-")?;
-        validate_text("phase", &phase, 128)?;
-        validate_json(&canonical_json)?;
-        if let Some(release) = &staged_release_key {
+        validate_key(
+            "acquisition_key",
+            &update.acquisition_key,
+            "time-acquisition-",
+        )?;
+        validate_text("phase", &update.phase, 128)?;
+        validate_json(&update.canonical_json)?;
+        if let Some(release) = &update.staged_release_key {
             validate_key("staged_release_key", release, "time-release-")?;
         }
         let mut response = self.client().query("UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
-            .bind(("record", time_record("time_acquisition", key))).bind(("tenant", tenant_id.record_id())).bind(("status", status)).bind(("phase", phase)).bind(("staged", staged_release_key)).bind(("canonical_json", canonical_json)).bind(("expected", expected)).bind(("next", expected + 1)).await?.check()?;
+            .bind(("record", time_record("time_acquisition", &update.acquisition_key))).bind(("tenant", update.tenant_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged", update.staged_release_key)).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version)).bind(("next", update.expected_record_version + 1)).await?.check()?;
         response
             .take::<Option<TimeAcquisitionRecord>>(0)?
-            .ok_or_else(|| conflict("acquisition", key.to_owned()))
+            .ok_or_else(|| conflict("acquisition", update.acquisition_key))
     }
 
     pub async fn create_time_calendar_version(

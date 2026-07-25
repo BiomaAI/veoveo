@@ -768,10 +768,10 @@ impl ConsoleStreamState {
                         Ok(None)
                     }
                     PlatformTable::ArtifactOccurrence => {
-                        if let Some(artifact) = self.artifacts.remove(&key) {
-                            if let Ok(blob) = record_key(&artifact.blob) {
-                                self.blob_artifacts.remove(&blob);
-                            }
+                        if let Some(artifact) = self.artifacts.remove(&key)
+                            && let Ok(blob) = record_key(&artifact.blob)
+                        {
+                            self.blob_artifacts.remove(&blob);
                         }
                         self.grants.retain(|_, (artifact, _)| *artifact != key);
                         self.links.retain(|_, (artifact, _)| *artifact != key);

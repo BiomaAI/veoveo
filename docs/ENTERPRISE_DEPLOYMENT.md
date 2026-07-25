@@ -60,16 +60,20 @@ The command accepts plain_http=true only for the loopback k3d registry. A fielde
 registry uses TLS, authentication, immutable tags, retention policy, and vulnerability
 scanning supplied by the installation owner.
 
-Docker Bake publishes images without loading them into the host Docker store:
+The typed image release command resolves Bake and Cargo metadata, moves the persistent
+publication source to one committed revision, and publishes without loading images into
+the host Docker store:
 
 ~~~bash
 REVISION=$(git rev-parse HEAD)
-export VEOVEO_REGISTRY=registry.example.com/veoveo
-export VEOVEO_IMAGE_TAG="$REVISION"
 
-docker buildx bake platform-full --push
-docker buildx bake showcase-uav-sim-base --push
-docker buildx bake showcase-uav-sim --push
+cargo xtask image builder ensure
+cargo xtask release images --group platform-full \
+  --registry registry.example.com --revision "$REVISION"
+cargo xtask release images --group showcase-uav-sim-base \
+  --registry registry.example.com --revision "$REVISION"
+cargo xtask release images --group showcase-uav-sim \
+  --registry registry.example.com --revision "$REVISION"
 ~~~
 
 The UAV base is a separate publication phase because the runtime consumes it as a

@@ -3107,8 +3107,8 @@ dependencies = [
 
 [[package]]
 name = "duckdb"
-version = "1.10504.0"
-source = "git+https://github.com/rozgo/duckdb-rs.git?rev=e2f3d156223250827567d154035e670432d97ac9#e2f3d156223250827567d154035e670432d97ac9"
+version = "1.10505.0"
+source = "git+https://github.com/rozgo/duckdb-rs.git?rev=da17df169062515d648a13e8c1d9eb2d7a1f3859#da17df169062515d648a13e8c1d9eb2d7a1f3859"
 dependencies = [
  "arrow",
  "cast",
@@ -4461,7 +4461,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots 1.0.8",
 ]
 
 [[package]]
@@ -4557,7 +4556,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
@@ -4967,7 +4966,7 @@ dependencies = [
  "percent-encoding",
  "referencing",
  "regex",
- "reqwest 0.13.4",
+ "reqwest",
  "rustls",
  "serde",
  "serde_json",
@@ -5122,15 +5121,15 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
 name = "libduckdb-sys"
-version = "1.10504.0"
-source = "git+https://github.com/rozgo/duckdb-rs.git?rev=e2f3d156223250827567d154035e670432d97ac9#e2f3d156223250827567d154035e670432d97ac9"
+version = "1.10505.0"
+source = "git+https://github.com/rozgo/duckdb-rs.git?rev=da17df169062515d648a13e8c1d9eb2d7a1f3859#da17df169062515d648a13e8c1d9eb2d7a1f3859"
 dependencies = [
  "flate2",
  "pkg-config",
- "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tar",
+ "ureq",
  "vcpkg",
  "zip",
 ]
@@ -5942,7 +5941,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "rand 0.10.2",
- "reqwest 0.13.4",
+ "reqwest",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -6030,7 +6029,7 @@ dependencies = [
  "bytes",
  "http",
  "opentelemetry",
- "reqwest 0.13.4",
+ "reqwest",
 ]
 
 [[package]]
@@ -6045,7 +6044,7 @@ dependencies = [
  "opentelemetry-proto",
  "opentelemetry_sdk",
  "prost",
- "reqwest 0.13.4",
+ "reqwest",
  "thiserror 2.0.18",
 ]
 
@@ -6660,7 +6659,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.14.0",
  "log",
  "multimap",
@@ -7961,46 +7960,6 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
 name = "reqwest"
-version = "0.12.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "futures-channel",
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "js-sys",
- "log",
- "percent-encoding",
- "pin-project-lite",
- "quinn",
- "rustls",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper",
- "tokio",
- "tokio-rustls",
- "tower",
- "tower-http 0.6.11",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "webpki-roots 1.0.8",
-]
-
-[[package]]
-name = "reqwest"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
@@ -8139,7 +8098,7 @@ dependencies = [
  "mime_guess",
  "ordered-float",
  "pin-project-lite",
- "reqwest 0.13.4",
+ "reqwest",
  "rig-derive",
  "rmcp",
  "schemars",
@@ -8228,7 +8187,7 @@ dependencies = [
  "pin-project-lite",
  "process-wrap",
  "rand 0.10.2",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp-macros",
  "schemars",
  "serde",
@@ -8442,7 +8401,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "http",
- "reqwest 0.13.4",
+ "reqwest",
  "rustify_derive",
  "serde",
  "serde_json",
@@ -9049,7 +9008,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f103c50866b8743da9429b8a581d81a27c2d3a9c4ac7df8f8571c1dd7896eda"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.118",
@@ -9297,7 +9256,7 @@ dependencies = [
  "indexmap",
  "js-sys",
  "path-clean",
- "reqwest 0.13.4",
+ "reqwest",
  "ring",
  "rustls",
  "rustls-pki-types",
@@ -10330,6 +10289,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "ureq"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dea7109cdcd5864d4eeb1b58a1648dc9bf520360d7af16ec26d0a9354bafcfc0"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "percent-encoding",
+ "rustls",
+ "rustls-pki-types",
+ "ureq-proto",
+ "utf8-zero",
+ "webpki-roots 1.0.8",
+]
+
+[[package]]
+name = "ureq-proto"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e994ba84b0bd1b1b0cf92878b7ef898a5c1760108fe7b6010327e274917a808c"
+dependencies = [
+ "base64 0.22.1",
+ "http",
+ "httparse",
+ "log",
+]
+
+[[package]]
 name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10353,6 +10340,12 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+
+[[package]]
+name = "utf8-zero"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
 name = "utf8_iter"
@@ -10421,7 +10414,7 @@ dependencies = [
  "async-trait",
  "derive_builder",
  "http",
- "reqwest 0.13.4",
+ "reqwest",
  "rustify",
  "rustify_derive",
  "serde",
@@ -10462,7 +10455,7 @@ dependencies = [
  "re_dataframe",
  "re_sdk",
  "re_sdk_types",
- "reqwest 0.13.4",
+ "reqwest",
  "rig-core",
  "rmcp",
  "rustls",
@@ -10504,7 +10497,7 @@ name = "veoveo-artifact-client"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "reqwest 0.13.4",
+ "reqwest",
  "serde_json",
  "veoveo-mcp-contract",
 ]
@@ -10549,7 +10542,7 @@ dependencies = [
  "getrandom 0.3.4",
  "hex",
  "object_store 0.14.0",
- "reqwest 0.13.4",
+ "reqwest",
  "secrecy",
  "serde",
  "serde_json",
@@ -10566,6 +10559,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-bioma-acceptance"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "veoveo-mcp-contract",
+ "veoveo-mcp-gateway",
+]
+
+[[package]]
 name = "veoveo-console-bff"
 version = "0.1.0"
 dependencies = [
@@ -10577,7 +10579,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "getrandom 0.3.4",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "serde",
@@ -10616,7 +10618,7 @@ dependencies = [
  "futures",
  "hex",
  "object_store 0.14.0",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -10647,7 +10649,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "duckdb",
- "reqwest 0.13.4",
+ "reqwest",
  "rustls",
  "serde_json",
  "tempfile",
@@ -10667,7 +10669,7 @@ dependencies = [
  "glam 0.32.1",
  "hex",
  "rayon",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -10713,7 +10715,7 @@ dependencies = [
  "polyline",
  "proj",
  "rayon",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rstar 0.12.2",
  "rustls",
@@ -10763,7 +10765,7 @@ dependencies = [
  "jsonschema",
  "jsonwebtoken",
  "rcgen",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -10829,7 +10831,7 @@ dependencies = [
  "parking_lot",
  "prost",
  "rcgen",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "secrecy",
@@ -10913,7 +10915,7 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "jsonschema",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "secrecy",
@@ -10950,7 +10952,7 @@ dependencies = [
  "object_store 0.14.0",
  "re_sdk",
  "re_sdk_types",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -11077,7 +11079,7 @@ dependencies = [
  "re_log_types",
  "re_sdk",
  "re_sdk_types",
- "reqwest 0.13.4",
+ "reqwest",
  "rustls",
  "secrecy",
  "serde",
@@ -11236,7 +11238,7 @@ dependencies = [
  "re_log_types",
  "re_sdk",
  "re_sdk_types",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "scraper",
@@ -11326,7 +11328,7 @@ dependencies = [
  "hifitime",
  "jiff",
  "rangemap",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -11367,7 +11369,7 @@ dependencies = [
  "re_log_encoding",
  "re_sdk",
  "re_sdk_types",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -11402,7 +11404,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "hex",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -11445,7 +11447,7 @@ dependencies = [
  "image",
  "jsonschema",
  "parking_lot",
- "reqwest 0.13.4",
+ "reqwest",
  "rmcp",
  "rustls",
  "schemars",
@@ -11466,6 +11468,21 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-task-extension",
  "veoveo-task-runtime",
+]
+
+[[package]]
+name = "veoveo-xtask"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "url",
+ "veoveo-deploy-contract",
 ]
 
 [[package]]

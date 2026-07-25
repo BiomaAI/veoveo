@@ -678,7 +678,7 @@ impl FakeAdapter {
 
 #[derive(Clone)]
 pub enum Adapter {
-    Http(HttpAdapter),
+    Http(Box<HttpAdapter>),
     Fake(Arc<Mutex<FakeAdapter>>),
 }
 

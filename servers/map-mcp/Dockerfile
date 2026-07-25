@@ -1,35 +1,14 @@
-# syntax=docker/dockerfile:1.7
-FROM rust:1.97.1-slim-bookworm AS builder
-
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS duckdb-spatial
 ARG TARGETARCH
-ARG DUCKDB_VERSION=1.5.4
-
-WORKDIR /app
+ARG DUCKDB_VERSION=1.5.5
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-      build-essential ca-certificates cmake curl gzip libsqlite3-dev libtiff-dev pkg-config sqlite3 \
+    && apt-get install -y --no-install-recommends ca-certificates curl gzip \
     && rm -rf /var/lib/apt/lists/*
-COPY Cargo.toml Cargo.lock ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,id=map-mcp-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=map-mcp-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=map-mcp-target-bookworm,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-map-mcp --bin map-mcp \
-    && mkdir -p /out/lib \
-    && cp /app/target/release/map-mcp /out/map-mcp \
-    && find /app/target -name 'libduckdb.so' -type f -exec cp {} /out/lib/libduckdb.so \; -quit \
-    && test -f /out/lib/libduckdb.so
 RUN set -eux; \
     case "${TARGETARCH}" in \
-      amd64) duckdb_platform=linux_amd64; spatial_sha256=be5c95a1921d5bf66dbcee450272927a93a2839cff7c1e9c2ee815e5461616ac ;; \
-      arm64) duckdb_platform=linux_arm64; spatial_sha256=38eca92a690de960e64c749f1d8e5e0cd3d8a3f1c4af647d8d0fc66cb7c4c565 ;; \
+      amd64) duckdb_platform=linux_amd64; spatial_sha256=832edb1b189d53281baf552034028a4dfe317c5381a7e7d2d9de74a4e875572e ;; \
+      arm64) duckdb_platform=linux_arm64; spatial_sha256=ccf86767b4f28471963e0950cb6a9d9bf2e38f6f9a476de32f5b59ffdacfc239 ;; \
       *) echo "unsupported DuckDB Spatial architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     mkdir -p /out/extensions; \
@@ -39,9 +18,9 @@ RUN set -eux; \
     gzip -dc /tmp/spatial.duckdb_extension.gz > /out/extensions/spatial.duckdb_extension; \
     chmod 0444 /out/extensions/spatial.duckdb_extension
 
-FROM ghcr.io/valhalla/valhalla:3.8.2 AS valhalla-runtime
+FROM ghcr.io/valhalla/valhalla:3.8.3@sha256:70b45295d81035e3562e1bbf996a28d5fc55e1ccc5d7e3fff9f297d3b1a1359f AS valhalla-runtime
 
-FROM ghcr.io/osgeo/gdal:ubuntu-full-3.11.4
+FROM ghcr.io/osgeo/gdal:ubuntu-full-3.13.2@sha256:de280a240ef4309e6fb64b943e0472e6098099b813a6b9ff0e182bc6976a3fdb
 
 ARG GTFS_VALIDATOR_VERSION=8.0.1
 ARG GTFS_VALIDATOR_SHA256=19293ddd9b6f954f216d4f12054bd8a3232921751c4484339e339764a91000e2
@@ -63,9 +42,9 @@ COPY --from=valhalla-runtime /usr/local/bin/valhalla_build_config /usr/local/bin
 COPY --from=valhalla-runtime /usr/local/bin/valhalla_build_tiles /usr/local/bin/valhalla_build_tiles
 COPY --from=valhalla-runtime /usr/local/bin/valhalla_service /usr/local/bin/valhalla_service
 COPY --from=valhalla-runtime /usr/local/lib/libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so.0.0.0
-COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so
-COPY --from=builder /out/extensions/spatial.duckdb_extension /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
-COPY --from=builder /out/map-mcp /usr/local/bin/map-mcp
+COPY --from=veoveo-rust-artifacts /lib/libduckdb.so /usr/local/lib/libduckdb.so
+COPY --from=duckdb-spatial /out/extensions/spatial.duckdb_extension /usr/local/lib/duckdb/extensions/spatial.duckdb_extension
+COPY --from=veoveo-rust-artifacts /bin/map-mcp /usr/local/bin/map-mcp
 COPY servers/map-mcp/data/src/map_data /opt/veoveo/map-data/map_data
 RUN ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so.0 \
     && ln -s libprime_server.so.0.0.0 /usr/local/lib/libprime_server.so \

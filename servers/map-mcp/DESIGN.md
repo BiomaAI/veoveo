@@ -274,7 +274,7 @@ silently change an existing layer or product contract.
 | [MapLibre Style Specification 8](https://maplibre.org/maplibre-style-spec/) | vector source plus safe literal point, line, polygon, label, opacity, and zoom projections |
 
 The image pins [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
-to DuckDB 1.5.4. Export verification rejects a generated Parquet file unless
+to DuckDB 1.5.5. Export verification rejects a generated Parquet file unless
 its `geo` metadata declares version `1.0.0`, names `geometry` as the primary
 column, and identifies its encoding as `WKB`. GeoParquet 2.0 is not claimed.
 A future 2.0 path requires an encoder and verifier that both implement its

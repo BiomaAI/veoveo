@@ -918,13 +918,13 @@ pub(super) async fn serve() -> anyhow::Result<()> {
     .await?;
     let recovery = tasks.recover().await?;
     let adapter = match args.adapter {
-        AdapterKind::Http => Adapter::Http(HttpAdapter::new(
+        AdapterKind::Http => Adapter::Http(Box::new(HttpAdapter::new(
             args.adapter_url()?,
             args.adapter_timeout()?,
             args.adapter_operation_timeout()?,
             tasks.platform_store().clone(),
             &args.recording_tenant_key,
-        )?),
+        )?)),
         AdapterKind::Fake => Adapter::Fake(Arc::new(Mutex::new(FakeAdapter::new(fake_state()?)))),
     };
     let adapter = Arc::new(adapter);

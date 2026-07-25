@@ -4,6 +4,7 @@ members = [
     "agents/runtime",
     "apps/console/bff",
     "deploy/contract",
+    "examples/bioma/acceptance",
     "mcp/apps-extension",
     "mcp/bridges/stdio",
     "mcp/contract",
@@ -36,6 +37,7 @@ members = [
     "showcase/sumo/sumo-mcp",
     "testing/mcp-conformance",
     "testing/smoke",
+    "tools/xtask",
 ]
 resolver = "3"
 
@@ -59,7 +61,7 @@ clap = { version = "4.6.1", features = ["derive", "env"] }
 dotenvy = "0.15.7"
 draco-gltf = { version = "0.1.0", default-features = false, features = ["image"] }
 flate2 = "1.1.9"
-duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "e2f3d156223250827567d154035e670432d97ac9", features = ["chrono"] }
+duckdb = { git = "https://github.com/rozgo/duckdb-rs.git", rev = "da17df169062515d648a13e8c1d9eb2d7a1f3859", features = ["chrono"] }
 futures = "0.3.32"
 glam = { version = "0.32.0", features = ["serde"] }
 gltf = { version = "1.4.1", default-features = false, features = ["extensions", "import", "KHR_materials_unlit", "names", "utils"] }

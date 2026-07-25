@@ -27,6 +27,9 @@ struct EdgeWeight {
     cost: f64,
 }
 
+type RouteGraph = Graph<String, EdgeWeight, Directed>;
+type RouteNodeIndex = HashMap<String, NodeIndex>;
+
 impl GraphPlanner {
     pub fn new(analytics: MapAnalytics) -> Self {
         Self { analytics }
@@ -146,10 +149,7 @@ fn graph_family(profile: &MobilityProfile) -> Result<MapFamily> {
 fn build_graph(
     edges: Vec<NetworkEdge>,
     objective: RouteObjectiveKind,
-) -> Result<(
-    Graph<String, EdgeWeight, Directed>,
-    HashMap<String, NodeIndex>,
-)> {
+) -> Result<(RouteGraph, RouteNodeIndex)> {
     if !matches!(
         objective,
         RouteObjectiveKind::Fastest | RouteObjectiveKind::Shortest

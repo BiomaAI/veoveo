@@ -5,8 +5,10 @@ use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::Scalars;
 use url::Url;
 use veoveo_recording_forwarder::{
-    batch::RecordingAccumulator, client::RecordingIngestClient, config::ClientAssertionAlgorithm,
-    oauth::OAuthTokenProvider,
+    batch::RecordingAccumulator,
+    client::RecordingIngestClient,
+    config::ClientAssertionAlgorithm,
+    oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
 };
 use veoveo_recording_hub::{SegmentReadScope, collect_segments, inspect_segment};
 use veoveo_recording_protocol::v1::{
@@ -130,16 +132,16 @@ pub(crate) async fn recording_ingest(
         &gateway_transport_url,
         &protected_resource_url,
         move |token_endpoint, token_transport_endpoint| {
-            OAuthTokenProvider::new(
-                token_http,
+            OAuthTokenProvider::new(OAuthTokenProviderConfig {
+                http: token_http,
                 token_endpoint,
                 token_transport_endpoint,
-                token_resource,
-                "smoke-recording-producer".to_owned(),
-                "test-key".to_owned(),
-                ClientAssertionAlgorithm::Rs256,
-                &token_key,
-            )
+                protected_resource: token_resource,
+                client_id: "smoke-recording-producer".to_owned(),
+                key_id: "test-key".to_owned(),
+                algorithm: ClientAssertionAlgorithm::Rs256,
+                private_key_pem_file: token_key,
+            })
         },
     )
     .await?;

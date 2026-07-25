@@ -1,2 +1,5 @@
 [env]
 DUCKDB_DOWNLOAD_LIB = "1"
+
+[alias]
+xtask = "run --quiet --package veoveo-xtask --"

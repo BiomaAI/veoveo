@@ -24,15 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Install Rust toolchain
-        run: rustup toolchain install 1.96.1 --profile minimal --component clippy,rustfmt
+        run: rustup toolchain install 1.97.1 --profile minimal --component clippy,rustfmt
       - name: Select Rust toolchain
-        run: rustup default 1.96.1
-      - name: Check formatting
-        run: cargo fmt --all --check
-      - name: Lint all targets
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: Test workspace
-        run: cargo test --workspace --all-features
+        run: rustup default 1.97.1
+      - name: Run the canonical Rust gate
+        run: cargo xtask enforce rust
 
   surrealdb:
     name: SurrealDB 3.2 integration
@@ -41,9 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Install Rust toolchain
-        run: rustup toolchain install 1.96.1 --profile minimal
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Exercise migrations and durable primitives
-        run: cargo +1.96.1 run -p veoveo-smoke -- surreal-integration
+        run: cargo +1.97.1 run -p veoveo-smoke -- surreal-integration
 
   identity-keycloak:
     name: Keycloak OIDC/OAuth integration
@@ -52,9 +48,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Install Rust toolchain
-        run: rustup toolchain install 1.96.1 --profile minimal
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Select Rust toolchain
-        run: rustup default 1.96.1
+        run: rustup default 1.97.1
       - name: Build identity integration binaries
         run: |
           cargo build -p veoveo-mcp-conformance --bin conformance
@@ -89,13 +85,18 @@ jobs:
   sumo-mcp:
     name: SUMO MCP
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
-          toolchain: 1.96.1
+          toolchain: 1.97.1
           components: rustfmt, clippy
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.35.0
+          driver: docker
+          install: true
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: cargo fmt -p veoveo-sumo-mcp --check
       - run: cargo clippy -p veoveo-sumo-mcp --all-targets -- -D warnings
@@ -103,17 +104,15 @@ jobs:
       - run: cargo run -p veoveo-smoke -- sumo-push
       - name: Build and execute the pinned SUMO runtime images
         run: |
-          docker build --platform linux/amd64 \
-            -f showcase/sumo/sumo-mcp/Dockerfile -t veoveo/sumo-mcp:ci .
+          cargo xtask image builder ensure
+          cargo xtask image build --group showcase-sumo
           docker run --rm --platform linux/amd64 \
-            veoveo/sumo-mcp:ci --help >/dev/null
+            veoveo/sumo-mcp:0.1.0 --help >/dev/null
           docker run --rm --platform linux/amd64 --entrypoint sh \
-            veoveo/sumo-mcp:ci -c \
+            veoveo/sumo-mcp:0.1.0 -c \
             'test "$(id -u)" = 10001 && command -v curl && command -v netgenerate && command -v duarouter && command -v sumo'
-          docker build --platform linux/amd64 \
-            -t veoveo/sumo-sim:ci showcase/sumo/sim
           docker run --rm --platform linux/amd64 --read-only --tmpfs /tmp --entrypoint sh \
-            veoveo/sumo-sim:ci -c \
+            veoveo/sumo-sim:0.1.0 -c \
             'test "$(id -u)" = 10001 && test -r dua.actuated.sumocfg && test ! -w . && sumo --version >/dev/null'
 
   compose:
@@ -124,7 +123,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
-          toolchain: 1.96.1
+          toolchain: 1.97.1
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Exercise Compose and Caddy contracts through the Rust harness
         run: cargo run -p veoveo-smoke -- compose-config

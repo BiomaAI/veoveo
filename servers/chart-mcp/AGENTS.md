@@ -68,4 +68,5 @@ Contract revision: 2
 - C27: pending — upstream notification behavior is not yet audited
 - C28: met
 - C29: met
+- C30: met — the gateway owns pooled transport while this server retains MCP session state
 - C24: pending — no Rust crate; the server is a pinned upstream npm package
