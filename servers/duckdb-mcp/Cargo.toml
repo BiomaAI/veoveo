@@ -8,7 +8,7 @@ name = "veoveo_duckdb_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "duckdb-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

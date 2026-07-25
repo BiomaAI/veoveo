@@ -244,18 +244,18 @@ smoke-gateway-vault-secrets:
 
 # Smoke-test the media MCP HTTP boundary and internal gateway assertion requirement.
 smoke-media-mcp-auth:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
-    {{smoke}} media-mcp-auth --conformance-bin target/debug/conformance --media-bin target/debug/server
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp
+    {{smoke}} media-mcp-auth --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp
 
 # Smoke-test direct hosted media task behavior without the gateway projection layer.
 smoke-media-task-run:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server
-    {{smoke}} media-task-run --conformance-bin target/debug/conformance --media-bin target/debug/server
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp
+    {{smoke}} media-task-run --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp
 
 # Smoke-test authenticated gateway-to-media MCP forwarding.
 smoke-gateway-authenticated:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service
-    {{smoke}} gateway-authenticated --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service
+    {{smoke}} gateway-authenticated --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service
 
 # Smoke-test one gateway profile routing to two hosted MCP servers.
 smoke-gateway-two-servers:
@@ -273,32 +273,29 @@ smoke-gateway-console-stream:
 
 # Smoke-test a full gateway task run with webhook completion, artifact storage, and billing reconciliation.
 smoke-gateway-task-run:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway
-    {{smoke}} gateway-task-run --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp -p veoveo-mcp-gateway --bin gateway
+    {{smoke}} gateway-task-run --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}}
 
 # Smoke-test agent-kernel gateway prerequisites: optional-tool task calls and cross-session task continuity.
 smoke-agent-gateway:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-duckdb-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service
-    {{smoke}} agent-gateway --conformance-bin target/debug/conformance --duckdb-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-duckdb-mcp --bin duckdb-mcp -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service
+    {{smoke}} agent-gateway --conformance-bin target/debug/conformance --duckdb-bin target/debug/duckdb-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service
 
 # Smoke-test the agent kernel's durable task detach and resume across processes.
 smoke-agent-kernel:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
-    {{smoke}} agent-kernel --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-kernel --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
 # Smoke-test the agent kernel's scheduler: heartbeats, operator wakes, budgets, fail-closed manifests.
 smoke-agent-kernel-scheduler:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
-    {{smoke}} agent-kernel-scheduler --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-kernel-scheduler --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
 # Smoke-test the Pilot agent's full mission loop over frames and optimization.
 smoke-agent-pilot:
-    cargo build -p veoveo-frames-mcp --bin server
-    cp target/debug/server target/debug/frames-mcp-smoke
-    cargo build -p veoveo-optimization-mcp --bin server
-    cp target/debug/server target/debug/optimization-mcp-smoke
+    cargo build -p veoveo-frames-mcp --bin frames-mcp -p veoveo-optimization-mcp --bin optimization-mcp
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
-    {{smoke}} agent-pilot --conformance-bin target/debug/conformance --frames-bin target/debug/frames-mcp-smoke --optimization-bin target/debug/optimization-mcp-smoke --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+    {{smoke}} agent-pilot --conformance-bin target/debug/conformance --frames-bin target/debug/frames-mcp --optimization-bin target/debug/optimization-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
 # Run the real Pilot against the active local k3d stack with Cloudflare credentials from .env.
 agent-pilot-local data_dir="output/pilot-data":
@@ -307,13 +304,13 @@ agent-pilot-local data_dir="output/pilot-data":
 
 # Smoke-test a continuously-running agent sleeping on a long gateway task and waking from its completion push.
 smoke-agent-sleep-wake:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
-    {{smoke}} agent-sleep-wake --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-sleep-wake --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
 # The real deal: the sleep/wake smoke with the REAL model from CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN (override model with AGENT_LIVE_MODEL).
 smoke-agent-live:
-    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin server -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
-    {{smoke}} agent-sleep-wake --live --conformance-bin target/debug/conformance --media-bin target/debug/server --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
+    cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-media-mcp --bin media-mcp -p veoveo-mcp-gateway --bin gateway -p veoveo-artifact-service --bin artifact-service -p veoveo-agent-kernel --bin agent
+    {{smoke}} agent-sleep-wake --live --conformance-bin target/debug/conformance --media-bin target/debug/media-mcp --gateway-bin target/debug/gateway --control-plane {{gateway-smoke-control-plane}} --artifact-service-bin target/debug/artifact-service --agent-bin target/debug/agent
 
 # Build the current GPU-enabled K3s node image used by k3d.
 k3d-node-build:

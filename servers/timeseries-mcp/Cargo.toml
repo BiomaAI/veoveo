@@ -8,7 +8,7 @@ name = "veoveo_timeseries_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "timeseries-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

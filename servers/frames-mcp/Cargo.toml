@@ -8,7 +8,7 @@ name = "veoveo_frames_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "frames-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

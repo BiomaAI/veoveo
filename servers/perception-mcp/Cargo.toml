@@ -8,7 +8,7 @@ name = "veoveo_perception_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "perception-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

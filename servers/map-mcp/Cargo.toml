@@ -8,7 +8,7 @@ name = "veoveo_map_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
+name = "map-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]

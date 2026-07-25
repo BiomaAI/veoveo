@@ -17,8 +17,8 @@ COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked \
-    cargo build --release --jobs 4 -p veoveo-recording-mcp --bin server \
-    && cp /app/target/release/server /tmp/recording-mcp
+    cargo build --release --jobs 4 -p veoveo-recording-mcp --bin recording-mcp \
+    && cp /app/target/release/recording-mcp /tmp/recording-mcp
 
 FROM debian:trixie-slim
 RUN apt-get update \
