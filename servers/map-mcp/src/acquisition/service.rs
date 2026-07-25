@@ -286,10 +286,10 @@ impl AcquisitionService {
                 cancellation.clone(),
             )
             .await?;
-        if let Some(expected) = expected_source_digest_sha256 {
-            if !expected.eq_ignore_ascii_case(&normalized.source_digest_sha256) {
-                bail!("source content digest did not match the requested SHA-256 digest");
-            }
+        if let Some(expected) = expected_source_digest_sha256
+            && !expected.eq_ignore_ascii_case(&normalized.source_digest_sha256)
+        {
+            bail!("source content digest did not match the requested SHA-256 digest");
         }
         if cancellation.is_cancelled() {
             bail!("acquisition cancelled");

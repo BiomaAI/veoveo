@@ -136,26 +136,25 @@ impl AcquisitionService {
                 tracing::warn!(%acquisition_id, "time authority acquisition failed: {error}");
                 if let Ok(Some(mut job)) =
                     service.catalog.acquisition(&scope, &acquisition_id).await
-                {
-                    if !matches!(
+                    && !matches!(
                         job.status,
                         TimeAcquisitionStatus::Cancelled | TimeAcquisitionStatus::Succeeded
-                    ) {
-                        let cancelled = cancellation.is_cancelled()
-                            || job.status == TimeAcquisitionStatus::CancelRequested;
-                        job.status = if cancelled {
-                            TimeAcquisitionStatus::Cancelled
-                        } else {
-                            TimeAcquisitionStatus::Failed
-                        };
-                        job.phase = if cancelled { "cancelled" } else { "failed" }.to_owned();
-                        job.message = if cancelled {
-                            "authority acquisition cancelled".to_owned()
-                        } else {
-                            error.to_string().chars().take(1024).collect()
-                        };
-                        let _ = service.catalog.update_acquisition(&scope, job).await;
-                    }
+                    )
+                {
+                    let cancelled = cancellation.is_cancelled()
+                        || job.status == TimeAcquisitionStatus::CancelRequested;
+                    job.status = if cancelled {
+                        TimeAcquisitionStatus::Cancelled
+                    } else {
+                        TimeAcquisitionStatus::Failed
+                    };
+                    job.phase = if cancelled { "cancelled" } else { "failed" }.to_owned();
+                    job.message = if cancelled {
+                        "authority acquisition cancelled".to_owned()
+                    } else {
+                        error.to_string().chars().take(1024).collect()
+                    };
+                    let _ = service.catalog.update_acquisition(&scope, job).await;
                 }
             }
             let _ = tokio::fs::remove_dir_all(

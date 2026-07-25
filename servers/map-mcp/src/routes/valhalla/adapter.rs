@@ -110,10 +110,8 @@ impl ValhallaPlanner {
                 .trip
                 .admins
                 .iter()
-                .filter_map(|admin| {
-                    (!admin.country_code.is_empty() || !admin.state_code.is_empty())
-                        .then(|| format!("{}:{}", admin.country_code, admin.state_code))
-                })
+                .filter(|admin| !admin.country_code.is_empty() || !admin.state_code.is_empty())
+                .map(|admin| format!("{}:{}", admin.country_code, admin.state_code))
                 .collect(),
         })
     }

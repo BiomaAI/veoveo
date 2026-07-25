@@ -24,6 +24,7 @@ profiles:
 | Cargo metadata format version 1 | workspace, target, dependency, and smoke-package discovery |
 | Docker BuildKit and Docker Buildx Bake | internal OCI build graph, builder-family composition, cache mounts, and image publication; the implementation verifies and pins the latest stable compatible releases before making them canonical |
 | `veoveo.io/image-build-plan/v1` | internal typed projection of one source-local Bake selection, its Cargo build units, builder families, cache identities, image coordinates, and release evidence; it is not a public extension contract |
+| `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; the current Streamable HTTP verification uses protocol version `2025-11-25` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
 | `veoveo.io/deployment/v1` | repository-owned deployment profile schema; an internal deployment adapter contract, not a public MCP surface |
@@ -78,11 +79,36 @@ Compatible Rust build units share one Cargo invocation for each builder family a
 target platform. Runtime image targets consume those artifacts without carrying a
 second package list.
 
+The build track extends the existing stack instead of introducing a new build engine.
+Cargo remains the Rust compiler and package graph. Bake remains the declarative OCI
+graph over BuildKit. Compiled `xtask` code owns repository-specific planning, policy,
+publication source state, tool verification, and evidence. Configuration expresses the
+graph; custom Rust code validates and coordinates it.
+
+## Build Track Delivery State
+
+The repository-wide plan remains active. The following build concerns have crossed
+their hard-cut boundary:
+
+| Plan concern | Current state |
+|---|---|
+| P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
+| P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
+| P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
+| External repository flow | boundaries are preserved, but the public SDK facade, compatibility manifest, standalone conformance artifact, smoke descriptor, Helm library, and multi-source composer remain planned |
+
+The normative operating contract is
+[`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
+[`IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md) once the implementation
+revision is committed.
+
 ## Baseline Audit
 
 The initial audit on 2026-07-24 found a strong implementation base:
 
-- The workspace contains 35 Rust crates and about 176,000 lines of Rust.
+- The audited starting revision contained 35 Rust crates and about 176,000 lines of
+  Rust. The build-track implementation adds the deployment contract, `xtask`, and
+  owner-local Bioma acceptance packages, bringing the current workspace to 38 crates.
 - The Rust toolchain, shared dependencies, and GitHub Actions are pinned.
 - GitHub Actions uses read-only repository permissions by default.
 - The codebase contains about 660 Rust test functions and no ignored Rust tests.
@@ -274,6 +300,13 @@ First-party servers in this repository own workspace smoke packages. An external
 extension owns its smoke package in its repository and consumes the published
 conformance and smoke contracts. It does not join the Veoveo Cargo workspace to become
 verifiable.
+
+Static UAV registration checks now live with `servers/uav-sim-mcp`. SUMO deployment
+checks live with the SUMO crate, and Bioma control-plane and cross-surface checks live
+under `examples/bioma/acceptance`. The existing central live Bioma and UAV lifecycle
+commands remain migration inputs for the smoke-kit sequence below; they do not justify
+adding another example-specific assertion to `testing/smoke`, generic gateway tests, or
+MCP conformance.
 
 ### Consumer-Generic Helm Enforcement
 
@@ -926,12 +959,20 @@ change the operator's global builder selection. The builder uses a digest-pinned
 BuildKit image and a checked-in daemon configuration for the canonical loopback
 development registry. `xtask` passes `--builder veoveo` explicitly.
 
-The command creates and bootstraps a missing builder. An existing builder with the wrong
-driver, image, daemon version, or configuration fails validation. Only the explicit
-`image builder recreate --confirm veoveo` command may remove the incompatible builder
-and its cache.
+Buildx is exact. The command accepts an exact host plugin. On supported Linux hosts it
+can download the official release into the main worktree's ignored `target` directory
+and verify its architecture-specific SHA-256. Git's common directory makes that binary
+and its isolated Buildx state identical from every linked worktree. Docker credentials
+remain in the operator's normal configuration.
 
-The implementation baseline verified Buildx 0.35.0 and BuildKit 0.31.2 on 2026-07-24.
+The command creates and bootstraps a missing builder. An existing builder with the
+wrong driver, image, daemon version, or configuration fails validation. The checked-in
+BuildKit garbage-collection policy retains source-local and Cargo cache mounts long
+enough for the incremental workflow and applies explicit reserved, maximum, and
+free-space bounds. Only `image builder recreate --confirm veoveo` may remove an
+incompatible builder and its cache.
+
+The implementation verified Buildx 0.35.0 and BuildKit 0.31.2 on 2026-07-25.
 Execution rechecks their authoritative release pages before pinning. A newer stable
 release replaces this baseline; a pre-release does not.
 
@@ -1007,19 +1048,22 @@ mixing incompatible compiled artifacts.
 
 #### Build Performance Evidence
 
-The implementation records the old pipeline's cold, warm, and gateway-only-change
-times before replacing it. The optimized measurements use an isolated builder and a
-temporary clone; they never prune the operator's normal cache.
+The initial audit records the old graph, cache identities, lock policy, job limit, and
+source-materialization behavior. It does not invent elapsed times after that graph has
+been replaced. The optimized measurements use the named managed builder and retain
+each unique local evidence directory. Builder recreation is explicit because it
+removes the builder's cache.
 
 Acceptance requires one Cargo action for each selected compatible family, identical
 image digests for cold and warm builds of the same inputs, and no unrelated workspace
-compilation after a gateway-only change. The measurement report records elapsed time,
-Cargo actions, crates compiled, BuildKit cache hits, lock waits, image digests, and
-Buildx metadata.
+compilation after a gateway-only change. The measurement report records the available
+elapsed time, Cargo actions, crates compiled, BuildKit cache hits, image digests, source
+state, and Buildx metadata. It identifies a structural baseline when a comparable old
+timing does not exist.
 
-The optimized gateway-change run must beat the recorded baseline. Shared CI runners do
-not enforce a percentage or elapsed-time threshold; graph invariants and artifact
-identity remain the durable gate.
+Shared CI runners do not enforce a percentage or elapsed-time threshold. Graph
+invariants, cold-cache correctness, reproducible image identity, and single-crate
+invalidation remain the durable gate.
 
 ### Planned Tool Set
 

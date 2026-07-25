@@ -18,8 +18,8 @@ use veoveo_mcp_contract::{
     ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject, TraceId, WorkContextId,
 };
 use veoveo_mcp_gateway::{
-    GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshRotationRequest,
-    GatewayState, RefreshTokenDeliveryCipher,
+    GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
+    GatewayRefreshRotationRequest, GatewayState, RefreshTokenDeliveryCipher,
 };
 use veoveo_platform_store::{
     GatewayAuditKind, GatewayRefreshTokenRecord, PlatformStore, StoreConfig, StoreCredentials,
@@ -228,15 +228,15 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
 
     let principal = code.principal.clone();
     let issued_refresh = first
-        .issue_refresh_token(
-            &authorization_server,
-            &profile,
-            &client_id,
-            &WorkContextId::new("mission").unwrap(),
-            &principal,
-            &principal.scopes,
+        .issue_refresh_token(GatewayRefreshIssueRequest {
+            authorization_server: &authorization_server,
+            profile: &profile,
+            oauth_client_id: &client_id,
+            work_context: &WorkContextId::new("mission").unwrap(),
+            principal: &principal,
+            scopes: &principal.scopes,
             now,
-        )
+        })
         .await
         .unwrap();
     let presented_refresh = issued_refresh.token.clone();
@@ -470,15 +470,15 @@ async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
     let client_id = OAuthClientId::new("operator-console").unwrap();
     let principal = authorization_code(now, &profile, &client_id).principal;
     let issued = state
-        .issue_refresh_token(
-            &authorization_server,
-            &profile,
-            &client_id,
-            &WorkContextId::new("mission").unwrap(),
-            &principal,
-            &principal.scopes,
+        .issue_refresh_token(GatewayRefreshIssueRequest {
+            authorization_server: &authorization_server,
+            profile: &profile,
+            oauth_client_id: &client_id,
+            work_context: &WorkContextId::new("mission").unwrap(),
+            principal: &principal,
+            scopes: &principal.scopes,
             now,
-        )
+        })
         .await
         .unwrap();
     let duplicate_audit = auth_audit_event("duplicate-refresh-audit", now, &profile, &principal);
@@ -569,15 +569,15 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
     let client_id = OAuthClientId::new("operator-console").unwrap();
     let principal = authorization_code(now, &profile, &client_id).principal;
     let issued = state
-        .issue_refresh_token(
-            &authorization_server,
-            &profile,
-            &client_id,
-            &WorkContextId::new("mission").unwrap(),
-            &principal,
-            &principal.scopes,
+        .issue_refresh_token(GatewayRefreshIssueRequest {
+            authorization_server: &authorization_server,
+            profile: &profile,
+            oauth_client_id: &client_id,
+            work_context: &WorkContextId::new("mission").unwrap(),
+            principal: &principal,
+            scopes: &principal.scopes,
             now,
-        )
+        })
         .await
         .unwrap();
     let first_audit = auth_audit_event("eager-clear-first", now, &profile, &principal);
@@ -679,15 +679,15 @@ async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
     let client_id = OAuthClientId::new("operator-console").unwrap();
     let principal = authorization_code(now, &profile, &client_id).principal;
     let issued = state
-        .issue_refresh_token(
-            &authorization_server,
-            &profile,
-            &client_id,
-            &WorkContextId::new("mission").unwrap(),
-            &principal,
-            &principal.scopes,
+        .issue_refresh_token(GatewayRefreshIssueRequest {
+            authorization_server: &authorization_server,
+            profile: &profile,
+            oauth_client_id: &client_id,
+            work_context: &WorkContextId::new("mission").unwrap(),
+            principal: &principal,
+            scopes: &principal.scopes,
             now,
-        )
+        })
         .await
         .unwrap();
 

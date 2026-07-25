@@ -183,19 +183,19 @@ architecture-qa:
 
 # Smoke-test governed Map acquisition, activation, and spatial MCP queries in the all-in-one image.
 smoke-map-mcp:
-    docker build -f servers/map-mcp/Dockerfile -t veoveo/map-mcp:0.1.0 .
+    cargo xtask image build --target map-mcp
     cargo build -p veoveo-mcp-conformance --bin conformance -p veoveo-smoke --bin smoke -p veoveo-artifact-service --bin artifact-service
     {{smoke}} map-mcp --conformance-bin target/debug/conformance --artifact-service-bin target/debug/artifact-service --map-image veoveo/map-mcp:0.1.0
 
 # Exercise two isolated views through the production NVIDIA/Vulkan image and MCP task boundary.
 smoke-view-mcp:
-    docker build -f servers/view-mcp/Dockerfile -t veoveo/view-mcp:0.1.0 .
+    cargo xtask image build --target view-mcp
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} view-mcp --view-image veoveo/view-mcp:0.1.0
 
 # Run billed live Google 3D Tiles acceptance through the production View MCP boundary.
 smoke-view-google output='/tmp/veoveo-view-proof/statue-of-liberty.jpg':
-    docker build -f servers/view-mcp/Dockerfile -t veoveo/view-mcp:0.1.0 .
+    cargo xtask image build --target view-mcp
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} view-google-live --view-image veoveo/view-mcp:0.1.0 --output '{{output}}'
 
@@ -340,11 +340,6 @@ profile-cluster-stop profile:
 profile-cluster-delete profile:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} profile-cluster-delete --profile '{{profile}}'
-
-# Build and publish a profile's image groups from one committed revision.
-profile-publish profile revision='HEAD':
-    cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} profile-publish --profile '{{profile}}' --revision '{{revision}}'
 
 # Apply a profile's resources and Helm releases at one published revision.
 profile-up profile revision='HEAD':

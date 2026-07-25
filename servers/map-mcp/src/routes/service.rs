@@ -680,7 +680,7 @@ mod tests {
         let mut output = output();
         let restriction = restriction(RestrictionEffectKind::Penalize);
 
-        assert!(apply_restrictions(&mut output, &[restriction.clone()]).unwrap());
+        assert!(apply_restrictions(&mut output, std::slice::from_ref(&restriction)).unwrap());
 
         assert_eq!(output.legs[0].cost.risk.get(), 0.1);
         assert!(

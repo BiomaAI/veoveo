@@ -44,6 +44,7 @@ examples/bioma/
   uav-sim-values.yaml           UAV extension values
   images.lock.yaml              production image digests
   gateway.json                  MCP catalog, OAuth, policy, and routes
+  acceptance/                   owner-local compiled composition checks
   recording-producer-jwks.json  public producer key
   service-client-jwks.json      public machine-client key
 ~~~
@@ -71,12 +72,13 @@ Publish a new local release directly to the shared registry:
 REVISION=$(git rev-parse HEAD)
 CHART_VERSION=0.1.0-$(git rev-parse --short=12 HEAD)
 
-export VEOVEO_REGISTRY=localhost:5001
-export VEOVEO_IMAGE_TAG="$REVISION"
-
-docker buildx bake platform-full --push
-docker buildx bake showcase-uav-sim-base --push
-docker buildx bake showcase-uav-sim --push
+cargo xtask image builder ensure
+cargo xtask release images --group platform-full \
+  --registry localhost:5001 --revision "$REVISION"
+cargo xtask release images --group showcase-uav-sim-base \
+  --registry localhost:5001 --revision "$REVISION"
+cargo xtask release images --group showcase-uav-sim \
+  --registry localhost:5001 --revision "$REVISION"
 
 just charts-publish localhost:5001/charts   "$CHART_VERSION" "$REVISION" true
 ~~~

@@ -1,27 +1,5 @@
-# syntax=docker/dockerfile:1.7
-FROM rust:1.97.1-slim AS builder
-
-WORKDIR /app
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-COPY Cargo.toml Cargo.lock ./
-COPY .cargo ./.cargo
-COPY agents ./agents
-COPY apps/console/bff ./apps/console/bff
-COPY mcp ./mcp
-COPY platform ./platform
-COPY servers ./servers
-COPY testing ./testing
-COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked \
-    mkdir -p /out \
-    && cargo build --release --jobs 4 -p veoveo-media-mcp --bin media-mcp \
-    && cp /app/target/release/media-mcp /out/media-mcp
-
-FROM debian:trixie-slim
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
@@ -31,7 +9,7 @@ RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
     && mkdir -p /var/lib/veoveo/media \
     && chown -R veoveo:veoveo /var/lib/veoveo
 
-COPY --from=builder /out/media-mcp /usr/local/bin/media-mcp
+COPY --from=veoveo-rust-artifacts /bin/media-mcp /usr/local/bin/media-mcp
 
 USER veoveo
 EXPOSE 8787

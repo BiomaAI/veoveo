@@ -35,7 +35,8 @@ engine rather than by narrowing SQL.
 - `cargo check -p veoveo-duckdb-mcp`
 - `cargo test -p veoveo-duckdb-mcp`
 - The crate links the DuckDB C library through the pinned `duckdb-rs` fork;
-  expect a long native first build.
+  expect a long native first build. The fork tracks DuckDB 1.5.5 and removes
+  the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.35.
 - Docker is required for SurrealDB backed integration and smoke tests (root
   README, Develop And Verify).
 - The image build pins the DuckDB C API and verifies the Spatial extension
@@ -73,4 +74,5 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
+- C30: met — the gateway owns pooled transport while this server retains MCP session state
 - C24: met

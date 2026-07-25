@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 ARG TARGETPLATFORM=linux/amd64
 FROM --platform=${TARGETPLATFORM} node:26.5.0-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb AS webrtc-client
 
@@ -13,6 +13,7 @@ RUN archive="$(npm pack @nvidia/ov-web-rtc@6.6.0 \
 FROM --platform=${TARGETPLATFORM} rust:1.97.1-slim-bookworm@sha256:99e09cb2284e2ddbb73a995deee3e91783fd04d177602ccf6eab326d778ee777 AS builder
 
 WORKDIR /app
+ARG VEOVEO_TARGET_CACHE_ID
 COPY --from=webrtc-client /client/package/dist/ov-web-rtc.umd.cjs /tmp/ov-web-rtc.umd.cjs
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY .cargo ./.cargo
@@ -23,14 +24,17 @@ COPY platform ./platform
 COPY servers ./servers
 COPY testing ./testing
 COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=veoveo-uav-sim-mcp-amd64,target=/app/target \
-    UAV_SIM_WEBRTC_CLIENT_BUNDLE=/tmp/ov-web-rtc.umd.cjs \
-    cargo build --release --jobs 4 -p veoveo-uav-sim-mcp --bin uav-sim-mcp \
+RUN --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
+    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/app/target,sharing=locked \
+    toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
+    && test -n "${toolchain}" \
+    && UAV_SIM_WEBRTC_CLIENT_BUNDLE=/tmp/ov-web-rtc.umd.cjs \
+        RUSTUP_TOOLCHAIN="${toolchain}" \
+        cargo build --release --locked -p veoveo-uav-sim-mcp --bin uav-sim-mcp \
     && cp /app/target/release/uav-sim-mcp /tmp/uav-sim-mcp
 
-FROM --platform=${TARGETPLATFORM} debian:bookworm-slim@sha256:63a496b5d3b99214b39f5ed70eb71a61e590a77979c79cbee4faf991f8c0783e
+FROM --platform=${TARGETPLATFORM} debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \

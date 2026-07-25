@@ -38,7 +38,7 @@ pub use secrets::{GatewaySecretResolver, ResolvedSecretString, SecretResolverErr
 pub use state::{
     GatewayAuditCounts, GatewayAuditRetentionSummary, GatewayAuthAuditMetadataSummary,
     GatewayAuthAuditMethodSummary, GatewayAuthAuditReasonSummary, GatewayRefreshDeliveryWindow,
-    GatewayRefreshExchange, GatewayRefreshRotationRequest, GatewayState, IssuedGatewayRefreshToken,
-    REFRESH_TOKEN_TTL_SECONDS, RefreshTokenDeliveryCipher,
+    GatewayRefreshExchange, GatewayRefreshIssueRequest, GatewayRefreshRotationRequest,
+    GatewayState, IssuedGatewayRefreshToken, REFRESH_TOKEN_TTL_SECONDS, RefreshTokenDeliveryCipher,
 };
 pub use tool_name::{GatewayNameError, GatewayToolProjection};

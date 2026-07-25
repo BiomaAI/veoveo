@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, TimeAcquisitionDraft, TimeAcquisitionRecord,
-    TimeAcquisitionState as StoreAcquisitionState, TimeAuthorityReleaseDraft,
-    TimeAuthorityReleaseRecord, TimeAuthorityReleaseState as StoreReleaseState, TimeCalendarState,
-    TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft,
-    TimeSourceDraft, TimeSourceRecord, TimeTemporalEventDraft, TimeTemporalEventRecord,
+    TimeAcquisitionState as StoreAcquisitionState, TimeAcquisitionUpdate,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseRecord,
+    TimeAuthorityReleaseState as StoreReleaseState, TimeCalendarState, TimeCalendarVersionDraft,
+    TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft, TimeSourceDraft,
+    TimeSourceRecord, TimeTemporalEventDraft, TimeTemporalEventRecord,
     TimeTemporalEventState as StoreEventState,
 };
 
@@ -276,18 +277,18 @@ impl TimeCatalog {
         let canonical_json = serde_json::to_string(&acquisition)?;
         let record = self
             .store
-            .update_time_acquisition(
-                scope.identity.tenant_id,
-                acquisition.acquisition_id.as_str(),
-                expected.try_into()?,
-                acquisition_state(acquisition.status),
-                acquisition.phase.clone(),
-                acquisition
+            .update_time_acquisition(TimeAcquisitionUpdate {
+                tenant_id: scope.identity.tenant_id,
+                acquisition_key: acquisition.acquisition_id.to_string(),
+                expected_record_version: expected.try_into()?,
+                status: acquisition_state(acquisition.status),
+                phase: acquisition.phase.clone(),
+                staged_release_key: acquisition
                     .staged_release_id
                     .as_ref()
                     .map(ToString::to_string),
                 canonical_json,
-            )
+            })
             .await?;
         acquisition_from_record(record)
     }

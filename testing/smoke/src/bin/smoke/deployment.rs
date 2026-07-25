@@ -11,7 +11,6 @@ use std::{
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use serde_json::Value;
-use tempfile::TempDir;
 use veoveo_deploy_contract::{
     ConfigMapSpec, LoadedProfile, ReleaseSpec, SecretFormat, SecretSpec, load_local_registry,
 };
@@ -144,63 +143,6 @@ pub(crate) fn profile_cluster_delete(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn profile_publish(path: &Path, revision: Option<&str>) -> Result<()> {
-    let profile = load_profile(path)?;
-    if profile.definition.registry.local_config.is_some() {
-        ensure_local_registry(&profile)?;
-    }
-    let revision = resolve_revision(&profile.repository, revision)?;
-    let temporary = TempDir::new().context("creating the publication worktree directory")?;
-    let source = temporary.path().join("source");
-    status_checked(
-        "git",
-        [
-            "worktree",
-            "add",
-            "--detach",
-            path_str(&source)?,
-            revision.as_str(),
-        ],
-        &[],
-        Some(&profile.repository),
-    )?;
-    let mut worktree = PublicationWorktree {
-        repository: profile.repository.clone(),
-        source,
-        active: true,
-    };
-
-    let envs = [
-        (
-            "VEOVEO_REGISTRY",
-            profile.definition.registry.address.as_str(),
-        ),
-        ("VEOVEO_IMAGE_TAG", revision.as_str()),
-    ];
-    for (index, group) in profile.definition.image_groups.iter().enumerate() {
-        println!(
-            "Publishing image phase {}/{}: {}",
-            index + 1,
-            profile.definition.image_groups.len(),
-            group
-        );
-        status_checked(
-            "docker",
-            ["buildx", "bake", group.as_str(), "--push"],
-            &envs,
-            Some(&worktree.source),
-        )?;
-    }
-    worktree.remove()?;
-    println!(
-        "Published {} ordered image phases for immutable revision {} to {}",
-        profile.definition.image_groups.len(),
-        revision,
-        profile.definition.registry.address
-    );
-    Ok(())
-}
-
 pub(crate) fn profile_up(path: &Path, revision: Option<&str>) -> Result<()> {
     let profile = load_profile(path)?;
     let revision = resolve_revision(&profile.repository, revision)?;
@@ -312,39 +254,6 @@ fn load_profile(path: &Path) -> Result<LoadedProfile> {
         )
     })?;
     LoadedProfile::load(path, &repository)
-}
-
-struct PublicationWorktree {
-    repository: PathBuf,
-    source: PathBuf,
-    active: bool,
-}
-
-impl PublicationWorktree {
-    fn remove(&mut self) -> Result<()> {
-        if self.active {
-            status_checked(
-                "git",
-                ["worktree", "remove", "--force", path_str(&self.source)?],
-                &[],
-                Some(&self.repository),
-            )?;
-            self.active = false;
-        }
-        Ok(())
-    }
-}
-
-impl Drop for PublicationWorktree {
-    fn drop(&mut self) {
-        if self.active {
-            let _ = Command::new("git")
-                .current_dir(&self.repository)
-                .args(["worktree", "remove", "--force"])
-                .arg(&self.source)
-                .status();
-        }
-    }
 }
 
 fn ensure_local_registry(profile: &LoadedProfile) -> Result<()> {

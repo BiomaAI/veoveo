@@ -14,8 +14,9 @@ pub use audit::{
 };
 pub use auth_state::GatewayReplayRetentionSummary;
 pub use refresh_tokens::{
-    GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshRotationRequest,
-    IssuedGatewayRefreshToken, REFRESH_TOKEN_TTL_SECONDS, RefreshTokenDeliveryCipher,
+    GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
+    GatewayRefreshRotationRequest, IssuedGatewayRefreshToken, REFRESH_TOKEN_TTL_SECONDS,
+    RefreshTokenDeliveryCipher,
 };
 
 /// Shared, installation-wide gateway correctness state.

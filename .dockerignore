@@ -2,6 +2,7 @@ target
 .git
 .env
 .DS_Store
+docs
 output
 **/.venv
 **/__pycache__

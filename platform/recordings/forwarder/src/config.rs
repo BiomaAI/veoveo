@@ -18,7 +18,7 @@ pub struct ForwarderConfig {
     #[arg(long, default_value = "127.0.0.1:9876")]
     pub bind: SocketAddr,
 
-    /// Canonical gateway origin, such as https://veoveo.bioma.ai/.
+    /// Canonical gateway origin, such as <https://gateway.example/>.
     #[arg(long, env = "VEOVEO_GATEWAY_URL")]
     pub gateway_url: Url,
 

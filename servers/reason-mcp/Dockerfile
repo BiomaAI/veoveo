@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 ARG VLLM_VERSION=v0.25.1
 
 # The vLLM image is used as the build stage so the server binary links against
 # the same glibc the runtime stage ships.
-FROM vllm/vllm-openai:${VLLM_VERSION} AS builder
+FROM vllm/vllm-openai:${VLLM_VERSION}@sha256:e4f88a835143cd22aee2397a26ec6bb80b3a4a6fe0c882bcbc63822904766089 AS builder
 
 USER root
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -17,6 +17,7 @@ RUN apt-get update \
         | sh -s -- -y --profile minimal --default-toolchain 1.97.1
 
 WORKDIR /app
+ARG VEOVEO_TARGET_CACHE_ID
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY .cargo ./.cargo
 COPY agents ./agents
@@ -26,13 +27,16 @@ COPY platform ./platform
 COPY servers ./servers
 COPY testing ./testing
 COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=reason-mcp-target,target=/app/target \
-    cargo build --release --jobs 4 -p veoveo-reason-mcp --bin reason-mcp \
+RUN --mount=type=cache,id=veoveo-cargo-registry-v1,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=veoveo-cargo-git-v1,target=/usr/local/cargo/git \
+    --mount=type=cache,id=${VEOVEO_TARGET_CACHE_ID},target=/app/target,sharing=locked \
+    toolchain="$(rustup default | awk 'NR == 1 { print $1 }')" \
+    && test -n "${toolchain}" \
+    && RUSTUP_TOOLCHAIN="${toolchain}" \
+        cargo build --release --locked -p veoveo-reason-mcp --bin reason-mcp \
     && cp /app/target/release/reason-mcp /tmp/reason-mcp
 
-FROM vllm/vllm-openai:${VLLM_VERSION}
+FROM vllm/vllm-openai:${VLLM_VERSION}@sha256:e4f88a835143cd22aee2397a26ec6bb80b3a4a6fe0c882bcbc63822904766089
 
 USER root
 RUN useradd --system --uid 10001 --create-home \

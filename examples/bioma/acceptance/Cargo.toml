@@ -1,0 +1,10 @@
+[package]
+name = "veoveo-bioma-acceptance"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+serde_json.workspace = true
+veoveo-mcp-contract.workspace = true
+veoveo-mcp-gateway = { path = "../../../platform/gateway" }

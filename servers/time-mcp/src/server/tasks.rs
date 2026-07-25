@@ -42,7 +42,7 @@ pub(super) struct AuthenticatedCaller {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "request", rename_all = "snake_case")]
 enum TimeTaskRequest {
-    ExpandSchedule(ExpandScheduleRequest),
+    ExpandSchedule(Box<ExpandScheduleRequest>),
     ValidateTimeline(ValidateTimelineRequest),
 }
 
@@ -103,10 +103,10 @@ impl TaskExtensionHandler for TimeTaskExtension {
         let task = match request.name.as_str() {
             EXPAND_SCHEDULE_TASK => {
                 require_scope(&caller.identity, "time:schedule")?;
-                TimeTaskRequest::ExpandSchedule(
+                TimeTaskRequest::ExpandSchedule(Box::new(
                     serde_json::from_value(arguments)
                         .map_err(|error| AdapterError::invalid_params(error.to_string()))?,
-                )
+                ))
             }
             VALIDATE_TIMELINE_TASK => {
                 require_scope(&caller.identity, "time:timeline")?;

@@ -3,18 +3,13 @@ use serde::{Deserialize, Serialize};
 
 use super::{AuthorityReleaseId, MissionEpochId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Disambiguation {
+    #[default]
     Reject,
     Earlier,
     Later,
-}
-
-impl Default for Disambiguation {
-    fn default() -> Self {
-        Self::Reject
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -104,41 +104,6 @@ fn rust_sources(root: &std::path::Path) -> String {
     combined
 }
 
-#[test]
-fn gateway_configs_use_exact_list_change_capabilities() {
-    let root = repository_root();
-    for relative in [
-        "configs/gateway.local.json",
-        "configs/gateway.smoke.json",
-        "examples/bioma/gateway.json",
-        "showcase/sumo/deploy/gateway.json",
-    ] {
-        let text = fs::read_to_string(root.join(relative)).unwrap();
-        assert!(
-            !text.contains("\"notifications\""),
-            "{relative} still uses the generic notification capability"
-        );
-        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
-        for server in value["servers"].as_array().unwrap() {
-            let capabilities = server["capabilities"].as_object().unwrap();
-            if capabilities
-                .get("resources_list_changed")
-                .and_then(serde_json::Value::as_bool)
-                == Some(true)
-            {
-                assert_eq!(
-                    capabilities
-                        .get("resources")
-                        .and_then(serde_json::Value::as_bool),
-                    Some(true),
-                    "{} claims resource list changes without resources",
-                    server["slug"]
-                );
-            }
-        }
-    }
-}
-
 fn discovered_server_dirs() -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = fs::read_dir(servers_dir())
         .expect("servers/ directory is readable")

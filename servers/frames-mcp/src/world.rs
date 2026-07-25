@@ -227,10 +227,7 @@ pub fn ecef_from_frame(revision: &FrameWorldRevision, frame_uri: &WorldFrameUri)
         .copied()
         .ok_or_else(|| anyhow!("unknown frame `{frame_uri}`"))?;
     let mut ecef_from_current = DMat4::IDENTITY;
-    loop {
-        let Some(parent_id) = &current.parent_frame_id else {
-            break;
-        };
+    while let Some(parent_id) = &current.parent_frame_id {
         let parent_from_current = parent_from_child(current)?;
         ecef_from_current = parent_from_current * ecef_from_current;
         current = frames

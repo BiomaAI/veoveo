@@ -168,9 +168,9 @@
 <text x="1422" y="1110" class="node-id" text-anchor="start">VV-SVC-007/008/009/010</text>
 <text x="1422" y="1133" class="small" text-anchor="start">
 <tspan x="1422" dy="0">VV-CMP-002, 003, 006, 007, 033-037,</tspan>
-<tspan x="1422" dy="15">040, 042, 048</tspan>
+<tspan x="1422" dy="15">040, 042, 048, 060, 061</tspan>
 </text>
 <rect x="28" y="1165" width="1744" height="1.2" rx="0" fill="#687983" stroke="none" stroke-width="1" opacity="1"/>
 <text x="30" y="1186" class="tiny" text-anchor="start">Veoveo reference baseline - no client-specific data</text>
-<text x="1770" y="1186" class="tiny" text-anchor="end">Revision 2026-07-17 | VV-VIEW-04</text>
+<text x="1770" y="1186" class="tiny" text-anchor="end">Revision 2026-07-25 | VV-VIEW-04</text>
 </svg>

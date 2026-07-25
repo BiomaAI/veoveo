@@ -579,7 +579,7 @@ mod tests {
                 serde_json::json!({
                     "csp": {
                         "connectDomains": [
-                            "wss://veoveo.bioma.ai",
+                            "wss://stream.example",
                             "ws://127.0.0.1:49101"
                         ]
                     }
@@ -593,7 +593,7 @@ mod tests {
         let connect_domains = &resource.meta.unwrap().0["ui"]["csp"]["connectDomains"];
         assert_eq!(
             connect_domains,
-            &serde_json::json!(["wss://veoveo.bioma.ai", "ws://127.0.0.1:49101"])
+            &serde_json::json!(["wss://stream.example", "ws://127.0.0.1:49101"])
         );
     }
 }

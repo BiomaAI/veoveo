@@ -41,7 +41,8 @@ typed MCP surface, including the admin and editor MCP Apps.
 - `cargo test -p veoveo-map-mcp`
 - Native builds need a C/C++ toolchain, CMake, pkg-config, SQLite development
   files, and PROJ build dependencies (root README, Develop And Verify). The
-  DuckDB C library links through the pinned `duckdb-rs` fork.
+  DuckDB C library links through the pinned 1.5.5 `duckdb-rs` fork, which
+  removes the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.35.
 - Docker is required for SurrealDB backed tests and deployment work.
 - The image build verifies the Spatial extension digest and copies native map
   utilities from pinned sources (`servers/map-mcp/Dockerfile`).
@@ -78,4 +79,5 @@ Contract revision: 2
 - C27: met
 - C28: met
 - C29: met
+- C30: met — the gateway owns pooled transport while this server retains MCP session state
 - C24: met

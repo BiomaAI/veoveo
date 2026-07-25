@@ -64,7 +64,9 @@ material they operate:
 | [`deploy/contract/DESIGN.md`](../deploy/contract/DESIGN.md) | typed development profile and local registry declarations shared by operational tools |
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
-| [`examples/bioma/README.md`](../examples/bioma/README.md) | enterprise GitOps reference over k3d, OCI charts, Entra, and Cloudflare Tunnel |
+| [`docs/IMAGE_BUILDS.md`](IMAGE_BUILDS.md) | typed Bake planning, managed builder, cache families, and immutable image publication |
+| [`docs/IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md) | image-graph baseline, cold and warm measurements, digest equality, and incremental-build acceptance |
+| [`examples/bioma/README.md`](../examples/bioma/README.md) | enterprise GitOps reference and owner-local compiled acceptance over k3d, OCI charts, Entra, and Cloudflare Tunnel |
 | [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
 | [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Pegasus/PX4 UAV simulation integration and operations |
@@ -111,6 +113,8 @@ is the browser edition of the harness document.
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
+| `tools/image-build/` | managed BuildKit configuration and shared Rust image-builder inputs |
+| `tools/xtask/` | compiled repository command, enforcement, image planning, and release orchestration |
 
 ## Placement Rules
 

@@ -131,6 +131,16 @@ pub struct GatewayRefreshRotationRequest<'a> {
     pub duplicate_delivery_audit: &'a AuthAuditEvent,
 }
 
+pub struct GatewayRefreshIssueRequest<'a> {
+    pub authorization_server: &'a AuthorizationServerId,
+    pub profile: &'a GatewayProfileId,
+    pub oauth_client_id: &'a OAuthClientId,
+    pub work_context: &'a WorkContextId,
+    pub principal: &'a Principal,
+    pub scopes: &'a BTreeSet<ScopeName>,
+    pub now: DateTime<Utc>,
+}
+
 #[derive(Clone)]
 pub struct IssuedGatewayRefreshToken {
     pub token: OAuthRefreshToken,
@@ -209,14 +219,17 @@ impl GatewayState {
 
     pub async fn issue_refresh_token(
         &self,
-        authorization_server: &AuthorizationServerId,
-        profile: &GatewayProfileId,
-        oauth_client_id: &OAuthClientId,
-        work_context: &WorkContextId,
-        principal: &Principal,
-        scopes: &BTreeSet<ScopeName>,
-        now: DateTime<Utc>,
+        request: GatewayRefreshIssueRequest<'_>,
     ) -> Result<IssuedGatewayRefreshToken> {
+        let GatewayRefreshIssueRequest {
+            authorization_server,
+            profile,
+            oauth_client_id,
+            work_context,
+            principal,
+            scopes,
+            now,
+        } = request;
         let expires_at = now
             .checked_add_signed(TimeDelta::seconds(REFRESH_TOKEN_TTL_SECONDS))
             .context("refresh-token lifetime overflow")?;

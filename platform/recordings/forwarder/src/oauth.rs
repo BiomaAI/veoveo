@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result, ensure};
 use chrono::Utc;
@@ -53,48 +53,51 @@ struct CachedToken {
     expires_at: chrono::DateTime<Utc>,
 }
 
+pub struct OAuthTokenProviderConfig {
+    pub http: reqwest::Client,
+    pub token_endpoint: Url,
+    pub token_transport_endpoint: Url,
+    pub protected_resource: Url,
+    pub client_id: String,
+    pub key_id: String,
+    pub algorithm: ClientAssertionAlgorithm,
+    pub private_key_pem_file: PathBuf,
+}
+
 impl OAuthTokenProvider {
-    pub fn new(
-        http: reqwest::Client,
-        token_endpoint: Url,
-        token_transport_endpoint: Url,
-        protected_resource: Url,
-        client_id: String,
-        key_id: String,
-        algorithm: ClientAssertionAlgorithm,
-        private_key_pem_file: &Path,
-    ) -> Result<Self> {
+    pub fn new(config: OAuthTokenProviderConfig) -> Result<Self> {
         ensure!(
-            token_endpoint.scheme() == "https"
-                || (token_endpoint.scheme() == "http"
-                    && token_endpoint
+            config.token_endpoint.scheme() == "https"
+                || (config.token_endpoint.scheme() == "http"
+                    && config
+                        .token_endpoint
                         .host_str()
                         .is_some_and(|host| { matches!(host, "localhost" | "127.0.0.1" | "::1") })),
             "OAuth token endpoint must use HTTPS or loopback HTTP"
         );
         ensure!(
-            matches!(token_transport_endpoint.scheme(), "http" | "https")
-                && token_transport_endpoint.host_str().is_some(),
+            matches!(config.token_transport_endpoint.scheme(), "http" | "https")
+                && config.token_transport_endpoint.host_str().is_some(),
             "OAuth token transport endpoint must use HTTP(S)"
         );
-        let pem = std::fs::read(private_key_pem_file).with_context(|| {
+        let pem = std::fs::read(&config.private_key_pem_file).with_context(|| {
             format!(
                 "reading producer private key {}",
-                private_key_pem_file.display()
+                config.private_key_pem_file.display()
             )
         })?;
-        let (algorithm, encoding_key) = match algorithm {
+        let (algorithm, encoding_key) = match config.algorithm {
             ClientAssertionAlgorithm::Rs256 => (Algorithm::RS256, EncodingKey::from_rsa_pem(&pem)?),
             ClientAssertionAlgorithm::Es256 => (Algorithm::ES256, EncodingKey::from_ec_pem(&pem)?),
             ClientAssertionAlgorithm::EdDsa => (Algorithm::EdDSA, EncodingKey::from_ed_pem(&pem)?),
         };
         Ok(Self {
-            http,
-            token_endpoint,
-            token_transport_endpoint,
-            protected_resource,
-            client_id,
-            key_id,
+            http: config.http,
+            token_endpoint: config.token_endpoint,
+            token_transport_endpoint: config.token_transport_endpoint,
+            protected_resource: config.protected_resource,
+            client_id: config.client_id,
+            key_id: config.key_id,
             algorithm,
             encoding_key: Arc::new(encoding_key),
             cached: Arc::new(Mutex::new(None)),

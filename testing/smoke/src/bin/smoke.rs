@@ -97,15 +97,6 @@ enum Cmd {
         #[arg(long)]
         profile: PathBuf,
     },
-    /// Build and publish a profile's image groups from one committed revision.
-    ProfilePublish {
-        /// Deployment profile JSON.
-        #[arg(long)]
-        profile: PathBuf,
-        /// Git revision to publish. Defaults to HEAD.
-        #[arg(long)]
-        revision: Option<String>,
-    },
     /// Apply a profile's resources and Helm releases at one immutable revision.
     ProfileUp {
         /// Deployment profile JSON.
@@ -552,7 +543,6 @@ async fn main() -> Result<()> {
         Cmd::ProfileClusterUp { profile } => profile_cluster_up(&profile),
         Cmd::ProfileClusterStop { profile } => profile_cluster_stop(&profile),
         Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
-        Cmd::ProfilePublish { profile, revision } => profile_publish(&profile, revision.as_deref()),
         Cmd::ProfileUp { profile, revision } => profile_up(&profile, revision.as_deref()),
         Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::BiomaVerify {

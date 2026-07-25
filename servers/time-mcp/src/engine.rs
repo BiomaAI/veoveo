@@ -138,7 +138,6 @@ impl TemporalEngine {
         Ok(EvaluateWindowsOutput {
             windows: ranges
                 .iter()
-                .cloned()
                 .map(|range| TimeWindow {
                     start: instant_from_nanos(range.start, authority.clone()),
                     end: instant_from_nanos(range.end, authority.clone()),

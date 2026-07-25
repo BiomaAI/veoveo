@@ -33,6 +33,20 @@ struct IngestHttpState {
     verifier: GatewayInternalResourceTokenVerifier,
 }
 
+struct HttpFailure(Box<Response>);
+
+impl From<Response> for HttpFailure {
+    fn from(response: Response) -> Self {
+        Self(Box::new(response))
+    }
+}
+
+impl IntoResponse for HttpFailure {
+    fn into_response(self) -> Response {
+        *self.0
+    }
+}
+
 pub fn recording_ingest_internal_router(
     service: RecordingIngestService,
     verifier: GatewayInternalResourceTokenVerifier,
@@ -66,11 +80,11 @@ async fn open_stream(
 ) -> Response {
     let gateway = match authenticate(&state, &headers) {
         Ok(identity) => identity,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let envelope = match decode::<AuthorizedOpenRecordingStreamRequest>(&headers, &body) {
         Ok(envelope) => envelope,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let Some(producer) = envelope.producer.as_ref() else {
         return ingest_error(
@@ -112,15 +126,15 @@ async fn stream_status(
 ) -> Response {
     let gateway = match authenticate(&state, &headers) {
         Ok(identity) => identity,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let producer = match decode::<AuthorizedRecordingProducer>(&headers, &body) {
         Ok(producer) => producer,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let stream_id = match parse_stream_id(&stream_id) {
         Ok(stream_id) => stream_id,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     match state.service.status(&gateway, &producer, stream_id).await {
         Ok(stream) => protobuf_response(StatusCode::OK, &stream),
@@ -136,11 +150,11 @@ async fn append_batch(
 ) -> Response {
     let gateway = match authenticate(&state, &headers) {
         Ok(identity) => identity,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let envelope = match decode::<AuthorizedRecordingBatchRequest>(&headers, &body) {
         Ok(envelope) => envelope,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let Some(producer) = envelope.producer.as_ref() else {
         return ingest_error(
@@ -168,7 +182,7 @@ async fn append_batch(
     }
     let stream_id = match parse_stream_id(&stream_id) {
         Ok(stream_id) => stream_id,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     match state
         .service
@@ -188,11 +202,11 @@ async fn finish_stream(
 ) -> Response {
     let gateway = match authenticate(&state, &headers) {
         Ok(identity) => identity,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let envelope = match decode::<AuthorizedFinishRecordingStreamRequest>(&headers, &body) {
         Ok(envelope) => envelope,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     let Some(producer) = envelope.producer.as_ref() else {
         return ingest_error(
@@ -228,7 +242,7 @@ async fn finish_stream(
     };
     let stream_id = match parse_stream_id(&stream_id) {
         Ok(stream_id) => stream_id,
-        Err(response) => return response,
+        Err(error) => return error.into_response(),
     };
     match state
         .service
@@ -248,31 +262,31 @@ async fn finish_stream(
 fn authenticate(
     state: &IngestHttpState,
     headers: &HeaderMap,
-) -> Result<GatewayInternalResourceIdentity, Response> {
+) -> Result<GatewayInternalResourceIdentity, HttpFailure> {
     let authorization = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .filter(|value| !value.is_empty())
         .ok_or_else(|| {
-            ingest_error(
+            HttpFailure::from(ingest_error(
                 StatusCode::UNAUTHORIZED,
                 IngestErrorCode::Unauthorized,
                 "gateway bearer token is required",
                 None,
-            )
+            ))
         })?;
     state.verifier.verify(authorization).map_err(|_| {
-        ingest_error(
+        HttpFailure::from(ingest_error(
             StatusCode::UNAUTHORIZED,
             IngestErrorCode::Unauthorized,
             "gateway bearer token is invalid",
             None,
-        )
+        ))
     })
 }
 
-fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, Response> {
+fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, HttpFailure> {
     if headers
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
@@ -283,26 +297,27 @@ fn decode<T: Message + Default>(headers: &HeaderMap, body: &[u8]) -> Result<T, R
             IngestErrorCode::InvalidRequest,
             "canonical recording ingest media type is required",
             None,
-        ));
+        )
+        .into());
     }
     T::decode(body).map_err(|_| {
-        ingest_error(
+        HttpFailure::from(ingest_error(
             StatusCode::BAD_REQUEST,
             IngestErrorCode::InvalidRequest,
             "protobuf request is invalid",
             None,
-        )
+        ))
     })
 }
 
-fn parse_stream_id(value: &str) -> Result<RecordingIngestStreamId, Response> {
+fn parse_stream_id(value: &str) -> Result<RecordingIngestStreamId, HttpFailure> {
     let id = value.parse::<RecordingIngestStreamId>().map_err(|_| {
-        ingest_error(
+        HttpFailure::from(ingest_error(
             StatusCode::NOT_FOUND,
             IngestErrorCode::StreamNotFound,
             "recording ingest stream was not found",
             None,
-        )
+        ))
     })?;
     if id.as_uuid().get_version_num() != 7 {
         return Err(ingest_error(
@@ -310,7 +325,8 @@ fn parse_stream_id(value: &str) -> Result<RecordingIngestStreamId, Response> {
             IngestErrorCode::StreamNotFound,
             "recording ingest stream was not found",
             None,
-        ));
+        )
+        .into());
     }
     Ok(id)
 }

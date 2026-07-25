@@ -118,6 +118,17 @@ pub struct MapAcquisitionDraft {
     pub canonical_json: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct MapAcquisitionUpdate {
+    pub tenant_id: TenantId,
+    pub acquisition_key: String,
+    pub expected_record_version: i64,
+    pub status: MapAcquisitionState,
+    pub phase: String,
+    pub staged_release_key: Option<String>,
+    pub canonical_json: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 struct MapSourceContent {
     tenant: RecordId,
@@ -306,7 +317,7 @@ impl PlatformStore {
             .check()?;
         response
             .take::<Option<MapSourceRecord>>(0)?
-            .ok_or_else(|| StoreError::MapRecordConflict {
+            .ok_or(StoreError::MapRecordConflict {
                 entity: "source",
                 key: draft.source_key,
             })
@@ -1029,27 +1040,25 @@ impl PlatformStore {
 
     pub async fn update_map_acquisition(
         &self,
-        tenant_id: TenantId,
-        acquisition_key: &str,
-        expected_record_version: i64,
-        status: MapAcquisitionState,
-        phase: &str,
-        staged_release_key: Option<String>,
-        canonical_json: String,
+        update: MapAcquisitionUpdate,
     ) -> Result<MapAcquisitionRecord, StoreError> {
-        validate_public_key("acquisition_key", acquisition_key, "acquisition-")?;
-        validate_text("phase", phase, 128)?;
-        validate_json("canonical_json", &canonical_json, MAX_CATALOG_JSON_BYTES)?;
-        if let Some(key) = &staged_release_key {
+        validate_public_key("acquisition_key", &update.acquisition_key, "acquisition-")?;
+        validate_text("phase", &update.phase, 128)?;
+        validate_json(
+            "canonical_json",
+            &update.canonical_json,
+            MAX_CATALOG_JSON_BYTES,
+        )?;
+        if let Some(key) = &update.staged_release_key {
             validate_public_key("staged_release_key", key, "release-")?;
         }
         let mut response = self.client().query("UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged_release_key, canonical_json: $canonical_json, record_version: $next_version, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
-            .bind(("record", map_record("map_acquisition", acquisition_key))).bind(("tenant", tenant_id.record_id())).bind(("status", status)).bind(("phase", phase.to_owned())).bind(("staged_release_key", staged_release_key)).bind(("canonical_json", canonical_json)).bind(("expected", expected_record_version)).bind(("next_version", expected_record_version + 1)).await?.check()?;
+            .bind(("record", map_record("map_acquisition", &update.acquisition_key))).bind(("tenant", update.tenant_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged_release_key", update.staged_release_key)).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version)).bind(("next_version", update.expected_record_version + 1)).await?.check()?;
         response
             .take::<Option<MapAcquisitionRecord>>(0)?
-            .ok_or_else(|| StoreError::MapRecordConflict {
+            .ok_or(StoreError::MapRecordConflict {
                 entity: "acquisition",
-                key: acquisition_key.to_owned(),
+                key: update.acquisition_key,
             })
     }
 

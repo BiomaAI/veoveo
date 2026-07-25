@@ -571,7 +571,7 @@ fn validate_https_url(value: &str) -> Result<Url, SourceError> {
 /// A content location with request credentials stripped, safe to persist in
 /// tile-token registries and hash into client-visible identifiers. Session
 /// identifiers are kept (they are part of content identity, as in
-/// [`cache_key`]); only the `key` credential is removed.
+/// `cache_key`); only the `key` credential is removed.
 pub fn credential_free_location(location: &str) -> String {
     match Url::parse(location) {
         Ok(url) => cache_key(&url),

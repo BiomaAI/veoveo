@@ -523,14 +523,13 @@ pub(crate) async fn helm_config() -> Result<()> {
     )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
-    contains(&gateway_dockerfile, "find /app/target -name 'libduckdb.so'")?;
     contains(
         &gateway_dockerfile,
-        "id=veoveo-rust-1.97.1-trixie-release,target=/app/target,sharing=locked",
+        "COPY --from=veoveo-rust-artifacts /lib/libduckdb.so",
     )?;
     contains(
         &gateway_dockerfile,
-        "COPY --from=builder /out/lib/libduckdb.so /usr/local/lib/libduckdb.so",
+        "COPY --from=veoveo-rust-artifacts /bin/gateway",
     )?;
     let uav_mcp_dockerfile = fs::read_to_string("servers/uav-sim-mcp/Dockerfile")?;
     for expected in [
@@ -551,6 +550,12 @@ pub(crate) async fn helm_config() -> Result<()> {
         "group \"showcase-uav-sim\"",
         "sumo-base = \"target:sumo-base\"",
         "uav-sim-base = \"target:uav-sim-base\"",
+        "veoveo-rust-artifacts = \"target:rust-trixie-artifacts\"",
+        "veoveo-rust-artifacts = \"target:rust-bookworm-artifacts\"",
+        "\"io.veoveo.build.mode\"",
+        "\"io.veoveo.build.package\"",
+        "\"io.veoveo.build.binaries\"",
+        "\"io.veoveo.build.family\"",
         "VEOVEO_REGISTRY",
         "VEOVEO_IMAGE_TAG",
     ] {
@@ -559,14 +564,21 @@ pub(crate) async fn helm_config() -> Result<()> {
     let justfile = fs::read_to_string("Justfile")?;
     for expected in [
         "profile-validate profile:",
-        "profile-publish profile revision='HEAD':",
         "profile-up profile revision='HEAD':",
         "profile-cluster-up profile:",
         "charts-publish registry version revision='HEAD' plain_http='false':",
+        "cargo xtask image build --target map-mcp",
+        "cargo xtask image build --target view-mcp",
     ] {
         contains(&justfile, expected)?;
     }
-    for forbidden in ["k3d image import", "docker save", "bioma-build:"] {
+    for forbidden in [
+        "k3d image import",
+        "docker save",
+        "bioma-build:",
+        "profile-publish",
+        "docker build -f servers/",
+    ] {
         not_contains(&justfile, forbidden)?;
     }
     ensure!(
@@ -671,35 +683,55 @@ pub(crate) async fn helm_config() -> Result<()> {
         "mcp/bridges/stdio/Dockerfile",
         "platform/artifacts/service/Dockerfile",
         "platform/gateway/Dockerfile",
+        "platform/recordings/forwarder/Dockerfile",
         "platform/recordings/hub/Dockerfile",
         "servers/artifact-mcp/Dockerfile",
         "servers/frames-mcp/Dockerfile",
         "servers/duckdb-mcp/Dockerfile",
+        "servers/map-mcp/Dockerfile",
         "servers/media-mcp/Dockerfile",
         "servers/optimization-mcp/Dockerfile",
-        "servers/perception-mcp/Dockerfile",
         "servers/recording-mcp/Dockerfile",
         "servers/timeseries-mcp/Dockerfile",
         "servers/time-mcp/Dockerfile",
+        "servers/view-mcp/Dockerfile",
+    ] {
+        let contents = fs::read_to_string(dockerfile)?;
+        contains(&contents, "--from=veoveo-rust-artifacts")
+            .with_context(|| format!("{dockerfile} must consume the family artifact context"))?;
+        not_contains(&contents, "cargo build")
+            .with_context(|| format!("{dockerfile} must not compile Rust independently"))?;
+        not_contains(&contents, "COPY agents ./agents")
+            .with_context(|| format!("{dockerfile} must not copy the Cargo workspace"))?;
+    }
+    let workspace_builder = fs::read_to_string("tools/image-build/rust-workspace.Dockerfile")?;
+    for expected in [
+        "type=bind,source=.,target=/src,readonly",
+        "id=veoveo-cargo-registry-v1",
+        "id=veoveo-cargo-git-v1",
+        "id=${VEOVEO_TARGET_CACHE_ID}",
+        "VEOVEO_CARGO_PACKAGES",
+        "VEOVEO_CARGO_BINARIES",
+        "cargo_args=(build --release --locked)",
+    ] {
+        contains(&workspace_builder, expected)?;
+    }
+    not_contains(&workspace_builder, "--jobs 4")?;
+    for dockerfile in [
+        "servers/perception-mcp/Dockerfile",
+        "servers/reason-mcp/Dockerfile",
         "servers/uav-sim-mcp/Dockerfile",
         "showcase/sumo/sumo-mcp/Dockerfile",
     ] {
         let contents = fs::read_to_string(dockerfile)?;
-        for workspace_root in [
-            "COPY agents ./agents",
-            "COPY apps/console/bff ./apps/console/bff",
-            "COPY mcp ./mcp",
-            "COPY platform ./platform",
-            "COPY servers ./servers",
-            "COPY testing ./testing",
-            "COPY showcase/sumo/sumo-mcp ./showcase/sumo/sumo-mcp",
-        ] {
-            contains(&contents, workspace_root)
-                .with_context(|| format!("{dockerfile} must copy every Cargo workspace root"))?;
-        }
+        contains(&contents, "id=veoveo-cargo-registry-v1")?;
+        contains(&contents, "id=veoveo-cargo-git-v1")?;
+        contains(&contents, "id=${VEOVEO_TARGET_CACHE_ID}")?;
+        not_contains(&contents, "--jobs 4")?;
     }
 
     let dockerignore = fs::read_to_string(".dockerignore")?;
+    contains(&dockerignore, "docs")?;
     contains(&dockerignore, "**/.venv")?;
     contains(&dockerignore, "**/node_modules")?;
     contains(&dockerignore, "**/dist")?;

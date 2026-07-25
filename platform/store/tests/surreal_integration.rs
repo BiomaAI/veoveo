@@ -1652,7 +1652,7 @@ async fn changefeed_replay_contract_is_pinned() {
                     if record == first.principal_id.record_id() {
                         saw_first_create = true;
                         if row.get("display_name")
-                            == &surrealdb::types::Value::String("Changefeed Probe".to_owned())
+                            == surrealdb::types::Value::String("Changefeed Probe".to_owned())
                         {
                             update_versionstamp = Some(batch.versionstamp);
                         }

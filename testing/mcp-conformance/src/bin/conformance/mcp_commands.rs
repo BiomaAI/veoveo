@@ -210,46 +210,6 @@ fn schema_accepts_object(value: Option<&Value>) -> bool {
     }
 }
 
-#[cfg(test)]
-mod schema_validation_tests {
-    use super::*;
-
-    #[test]
-    fn property_type_validation_accepts_a_field_named_properties() {
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": {
-                "feature": {
-                    "type": "object",
-                    "properties": {
-                        "properties": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        });
-
-        validate_property_types("map__commit_feature_changes", &schema, "$").unwrap();
-    }
-
-    #[test]
-    fn property_type_validation_still_rejects_an_untyped_field() {
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": {
-                "untyped": {
-                    "description": "missing type"
-                }
-            }
-        });
-
-        let error = validate_property_types("bad-tool", &schema, "$").unwrap_err();
-        assert!(error.to_string().contains("does not expose the JSON type"));
-    }
-}
-
 pub(super) fn cmd_models_from_catalog(
     catalog: Value,
     query: Option<String>,
@@ -955,4 +915,44 @@ pub(super) async fn cmd_run(
         println!("unsubscribed from {uri}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod schema_validation_tests {
+    use super::*;
+
+    #[test]
+    fn property_type_validation_accepts_a_field_named_properties() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "feature": {
+                    "type": "object",
+                    "properties": {
+                        "properties": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        });
+
+        validate_property_types("map__commit_feature_changes", &schema, "$").unwrap();
+    }
+
+    #[test]
+    fn property_type_validation_still_rejects_an_untyped_field() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "untyped": {
+                    "description": "missing type"
+                }
+            }
+        });
+
+        let error = validate_property_types("bad-tool", &schema, "$").unwrap_err();
+        assert!(error.to_string().contains("does not expose the JSON type"));
+    }
 }

@@ -201,11 +201,11 @@ fn spawn_session_reaper(inner: Weak<BoundedSessionInner>, reap_interval: Duratio
                 let mut activity = inner.activity.lock();
                 let expired = activity
                     .iter()
-                    .filter_map(|(id, session)| {
-                        (session.active_streams == 0
-                            && now.duration_since(session.last_activity) >= inner.disconnect_grace)
-                            .then(|| id.clone())
+                    .filter(|(_, session)| {
+                        session.active_streams == 0
+                            && now.duration_since(session.last_activity) >= inner.disconnect_grace
                     })
+                    .map(|(id, _)| id.clone())
                     .collect::<Vec<_>>();
                 for id in &expired {
                     activity.remove(id);

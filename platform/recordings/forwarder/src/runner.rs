@@ -23,7 +23,7 @@ use crate::{
     batch::{BatchBoundary, RecordingAccumulator},
     client::{IngestRequestError, RecordingIngestClient},
     config::ForwarderConfig,
-    oauth::OAuthTokenProvider,
+    oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
     queue::{DurableQueue, QueueFull},
 };
 
@@ -50,7 +50,7 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
         config.gateway_transport_url(),
         &config.protected_resource,
         move |token_endpoint, token_transport_endpoint| {
-            OAuthTokenProvider::new(
+            OAuthTokenProvider::new(OAuthTokenProviderConfig {
                 http,
                 token_endpoint,
                 token_transport_endpoint,
@@ -58,8 +58,8 @@ pub async fn run(config: ForwarderConfig) -> Result<()> {
                 client_id,
                 key_id,
                 algorithm,
-                &private_key_pem_file,
-            )
+                private_key_pem_file,
+            })
         },
     )
     .await?;
