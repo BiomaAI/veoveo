@@ -13,6 +13,8 @@
         "publicBaseUrl",
         "production",
         "registry",
+        "sourceTag",
+        "imageDigests",
         "imagePullSecrets",
         "installationSecret",
         "surreal"
@@ -25,6 +27,14 @@
         "publicBaseUrl": {"type": "string", "pattern": "^https://"},
         "production": {"type": "boolean"},
         "registry": {"type": "string"},
+        "sourceTag": {"type": "string", "not": {"const": "latest"}},
+        "imageDigests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
         "imagePullSecrets": {
           "type": "array",
           "items": {

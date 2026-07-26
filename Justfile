@@ -323,10 +323,10 @@ profile-cluster-delete profile:
     cargo build -p veoveo-smoke --bin smoke
     {{smoke}} profile-cluster-delete --profile '{{profile}}'
 
-# Apply a profile's resources and Helm releases at one published revision.
-profile-up profile revision='HEAD':
+# Apply a profile's resources and independently resolved Helm releases.
+profile-up profile:
     cargo build -p veoveo-smoke --bin smoke
-    {{smoke}} profile-up --profile '{{profile}}' --revision '{{revision}}'
+    {{smoke}} profile-up --profile '{{profile}}'
 
 # Uninstall every Helm release selected by a deployment profile.
 profile-down profile:

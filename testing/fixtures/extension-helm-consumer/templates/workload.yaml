@@ -49,6 +49,8 @@ spec:
               "image" .Values.image
               "registry" .Values.veoveo.registry
               "production" .Values.veoveo.production
+              "sourceTag" .Values.veoveo.sourceTag
+              "imageDigests" .Values.veoveo.imageDigests
             ) }}
           imagePullPolicy: IfNotPresent
           env:

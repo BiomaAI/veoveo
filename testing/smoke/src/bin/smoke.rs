@@ -97,14 +97,11 @@ enum Cmd {
         #[arg(long)]
         profile: PathBuf,
     },
-    /// Apply a profile's resources and Helm releases at one immutable revision.
+    /// Apply a profile's resources and independently resolved Helm releases.
     ProfileUp {
         /// Deployment profile JSON.
         #[arg(long)]
         profile: PathBuf,
-        /// Published Git revision to deploy. Defaults to HEAD.
-        #[arg(long)]
-        revision: Option<String>,
     },
     /// Uninstall every Helm release selected by a deployment profile.
     ProfileDown {
@@ -543,7 +540,7 @@ async fn main() -> Result<()> {
         Cmd::ProfileClusterUp { profile } => profile_cluster_up(&profile),
         Cmd::ProfileClusterStop { profile } => profile_cluster_stop(&profile),
         Cmd::ProfileClusterDelete { profile } => profile_cluster_delete(&profile),
-        Cmd::ProfileUp { profile, revision } => profile_up(&profile, revision.as_deref()),
+        Cmd::ProfileUp { profile } => profile_up(&profile),
         Cmd::ProfileDown { profile } => profile_down(&profile),
         Cmd::BiomaVerify {
             context,

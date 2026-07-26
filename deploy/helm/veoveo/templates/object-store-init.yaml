@@ -1,4 +1,4 @@
-{{- if eq .Values.objectStore.mode "rustfs" }}
+{{- if and (include "veoveo.componentEnabled" (list . "object-store")) (eq .Values.objectStore.mode "rustfs") }}
 apiVersion: batch/v1
 kind: Job
 metadata:

@@ -18,6 +18,7 @@ It joins an installation through versioned artifacts and installation-owned comp
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server declaration |
 | `veoveo.io/gateway-binding/v1` | installation-owned exposure and authorization declaration |
 | `veoveo.io/deployment/v2` | named-source installation composition with independent revisions and locks |
+| `veoveo.io/deployment-lock/v2` | immutable combined source, image, chart, and resolved-platform lock |
 | SHA-256 | artifact identity and composition input integrity |
 
 The repository pins the exact compatible tool and dependency versions when each
@@ -69,12 +70,32 @@ contains:
 - every supported contract kind and version;
 - the exact SDK artifacts and supported language-runtime ranges;
 - the standalone conformance artifact;
+- the deterministic gateway composer artifact;
 - the extension Helm library artifact;
 - optional canonical simulation-runtime profiles;
 - the immutable digest and coordinate of every artifact.
 
 The manifest is generated from release inputs. It is not a hand-maintained version
 table and never contains credentials.
+
+After the Python, Helm, and extension-support image releases have produced immutable
+evidence, generate the compatibility bundle from the same source revision:
+
+```sh
+cargo xtask release compatibility \
+  --revision "$REVISION" \
+  --release 0.1.0 \
+  --platform-version 0.1.0 \
+  --python-evidence output/releases/python-sdk/"$REVISION"/release-evidence.json \
+  --python-artifact-base python://packages.internal.example/veoveo \
+  --helm-evidence output/releases/helm/"$REVISION"/0.1.0/release-evidence.json \
+  --image-evidence output/releases/images/"$REVISION"/extension-support.release-evidence.json
+```
+
+The command rejects mixed revisions, a Helm library without an OCI publication, and
+image evidence without both standalone tools. It emits the compatibility manifest,
+every controlled external JSON Schema, and release evidence containing SHA-256 hashes
+for the inputs and outputs.
 
 The Rust types and schema generator live in `extensions/contract`. The generated
 schema is the machine interface; consumers do not need the Rust crate.
@@ -162,10 +183,14 @@ gateway-compose \
 `extensions/examples` prove the same workflow without a source dependency or a
 customer identity.
 
-Deployment v2 accepts named sources. Each source resolves an independent revision,
-image lock, chart, fragment, compatibility manifest, and evidence set. Production
-composition consumes immutable artifacts. Local development may use one detached
-worktree per explicitly selected source.
+Deployment v2 accepts named sources. Each source owns its repository, independently
+resolved revision, Bake groups, and Helm releases. `cargo xtask release images
+--profile <path> --profile-revision <revision>` materializes persistent exact
+publication worktrees, publishes source-owned images, and writes a combined
+`veoveo.io/deployment-lock/v2`. The lock records source repositories and revisions,
+OCI manifest digests, chart-content digests, and the expanded platform graph.
+Production composition replaces source-chart coordinates with immutable private OCI
+coordinates.
 
 ## Minimal Platform
 
@@ -174,9 +199,15 @@ resolver validates dependencies and prunes disabled workloads, Services, storage
 NetworkPolicies, PodDisruptionBudgets, bootstrap inputs, gateway entries, and digest
 requirements together.
 
-The first external profile requires the platform foundation plus Artifact MCP, Frames
-MCP, and Recording MCP. This is a reusable component selection rather than a
-customer-specific preset.
+The `extension-foundation` preset contains the platform foundation plus Artifact MCP,
+Frames MCP, and Recording MCP. The chart owns each first-party workload definition;
+installations select typed component and server names instead of reproducing
+Deployments. Custom selections can add Map and Media.
+
+Gateway requirements are evaluated before Helm. `artifact`, `frames`, `map`, and
+`media` each require the corresponding MCP server. `recording` and `rrd` require the
+Recording MCP and hub. Artifact audiences declared by composition must appear in the
+installation's admitted audience set.
 
 ## Simulation Overlays
 

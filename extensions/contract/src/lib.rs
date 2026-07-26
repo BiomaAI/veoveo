@@ -1,5 +1,8 @@
 //! Typed contracts for independently owned Veoveo extension releases.
 
+/// Private extension Helm library API selected by compatibility releases.
+pub const EXTENSION_HELM_LIBRARY_API: &str = "veoveo.io/extension-helm-library/v1";
+
 mod artifact;
 mod compatibility;
 mod ids;

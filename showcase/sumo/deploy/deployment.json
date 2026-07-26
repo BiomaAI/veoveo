@@ -1,14 +1,45 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v1",
+  "schemaVersion": "veoveo.io/deployment/v2",
   "name": "sumo",
   "registry": {
     "address": "k3d-veoveo-registry.localhost:5001",
     "localConfig": "../../../deploy/local/k3d/registry.json"
   },
-  "imageGroups": [
-    "showcase-sumo-base",
-    "platform-core",
-    "showcase-sumo"
+  "sources": [
+    {
+      "name": "veoveo",
+      "repository": {
+        "kind": "local",
+        "path": "../../.."
+      },
+      "revision": "HEAD",
+      "imageGroups": [
+        "showcase-sumo-base",
+        "platform-core",
+        "showcase-sumo"
+      ],
+      "releases": [
+        {
+          "name": "veoveo",
+          "chart": "deploy/helm/veoveo",
+          "values": [
+            "deploy/local/k3d/values.yaml",
+            "showcase/sumo/deploy/platform-values.yaml"
+          ],
+          "valuesContract": "platform",
+          "createNamespace": true,
+          "timeoutSeconds": 720
+        },
+        {
+          "name": "sumo",
+          "chart": "showcase/sumo/deploy/helm",
+          "values": [],
+          "valuesContract": "veoveo-source",
+          "createNamespace": false,
+          "timeoutSeconds": 720
+        }
+      ]
+    }
   ],
   "kubernetes": {
     "context": "k3d-veoveo-sumo",
@@ -36,24 +67,34 @@
     ],
     "secrets": []
   },
-  "releases": [
-    {
-      "name": "veoveo",
-      "chart": "../../../deploy/helm/veoveo",
-      "values": [
-        "../../../deploy/local/k3d/values.yaml",
-        "platform-values.yaml"
-      ],
-      "createNamespace": true,
-      "timeoutSeconds": 720
-    },
-    {
-      "name": "sumo",
-      "chart": "helm",
-      "values": [],
-      "createNamespace": false,
-      "timeoutSeconds": 720
-    }
-  ],
+  "platform": {
+    "installationPreset": "custom",
+    "components": [
+      "gateway",
+      "platform-store",
+      "object-store",
+      "artifact-service",
+      "console",
+      "telemetry",
+      "ingress"
+    ],
+    "mcpServers": [
+      "recording"
+    ],
+    "artifactAudiences": [
+      "artifact",
+      "media",
+      "timeseries",
+      "optimization",
+      "duckdb",
+      "frames",
+      "map",
+      "recording",
+      "perception",
+      "reason",
+      "datasheet"
+    ]
+  },
+  "gatewayRequirements": [],
   "waitForDeployments": []
 }

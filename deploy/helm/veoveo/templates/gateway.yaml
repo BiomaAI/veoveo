@@ -1,3 +1,4 @@
+{{- if include "veoveo.componentEnabled" (list . "gateway") }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -140,3 +141,4 @@ spec:
             name: {{ .Values.gateway.existingControlPlaneConfigMap }}
         - name: tmp
           emptyDir: {}
+{{- end }}

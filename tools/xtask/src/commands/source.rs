@@ -204,7 +204,7 @@ fn require_clean(source: &Path) -> Result<()> {
     Ok(())
 }
 
-fn normalize_origin(origin: &str) -> Result<String> {
+pub(crate) fn normalize_origin(origin: &str) -> Result<String> {
     let origin = origin.trim().trim_end_matches('/');
     ensure!(!origin.is_empty(), "remote.origin.url cannot be empty");
     let expanded = if !origin.contains("://") {

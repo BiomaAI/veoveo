@@ -28,6 +28,7 @@ Operational commands consume these types and keep process execution in `xtask`.
 - Source revisions are full lowercase SHA-1 or SHA-256 object identifiers.
 - Compatibility contract kinds are unique.
 - SDK language and artifact pairs are unique.
+- The standalone conformance and gateway-composer distributions are immutable.
 - Runtime profiles identify one immutable base image and conformance result.
 - Extension releases contain a chart, gateway fragment, and conformance evidence.
 - Installation authorization and Secret values never enter an extension release.

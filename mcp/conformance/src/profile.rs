@@ -4,6 +4,7 @@ use anyhow::{Result, bail, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use url::Url;
+pub use veoveo_mcp_contract::HOSTED_MCP_CONTRACT_REVISION;
 
 /// Hosted-server conformance profile schema.
 pub const HOSTED_SERVER_PROFILE_SCHEMA: &str = "veoveo.io/mcp-conformance-profile/v1";

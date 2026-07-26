@@ -7,15 +7,19 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
-use serde::Deserialize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use url::Url;
 
-/// Canonical repository development deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v1";
+/// Canonical multi-source deployment profile.
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v2";
+/// Canonical immutable multi-source deployment lock.
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v2";
 /// Canonical local OCI registry declaration.
 pub const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
 
-/// A validated repository development deployment profile.
-#[derive(Debug, Deserialize)]
+/// A validated multi-source deployment profile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeploymentProfile {
     /// Profile schema identifier.
@@ -24,8 +28,8 @@ pub struct DeploymentProfile {
     pub name: String,
     /// Image publication destination.
     pub registry: RegistryReference,
-    /// Ordered Docker Bake phases.
-    pub image_groups: Vec<String>,
+    /// Independently resolved and published source repositories.
+    pub sources: Vec<DeploymentSource>,
     /// Kubernetes destination.
     pub kubernetes: KubernetesTarget,
     /// Installation namespace.
@@ -33,15 +37,18 @@ pub struct DeploymentProfile {
     /// Resources applied before Helm.
     #[serde(default)]
     pub resources: ResourceSet,
-    /// Ordered Helm releases.
-    pub releases: Vec<ReleaseSpec>,
+    /// Typed first-party platform selection.
+    pub platform: PlatformSelection,
+    /// Gateway composition requirement documents checked against `platform`.
+    #[serde(default)]
+    pub gateway_requirements: Vec<PathBuf>,
     /// Additional deployments awaited after Helm.
     #[serde(default)]
     pub wait_for_deployments: Vec<String>,
 }
 
 /// An OCI registry selected by a deployment profile.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RegistryReference {
     /// Registry host and optional port, without a URL scheme.
@@ -50,8 +57,36 @@ pub struct RegistryReference {
     pub local_config: Option<PathBuf>,
 }
 
+/// One independently versioned source and its owned build and chart surfaces.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeploymentSource {
+    /// Installation-local source identity.
+    pub name: String,
+    /// Source repository location.
+    pub repository: SourceRepository,
+    /// Independently resolved Git revision or ref.
+    pub revision: String,
+    /// Ordered Docker Bake publication phases owned by this source.
+    #[serde(default)]
+    pub image_groups: Vec<String>,
+    /// Ordered Helm releases owned by this source.
+    #[serde(default)]
+    pub releases: Vec<ReleaseSpec>,
+}
+
+/// Repository location for one deployment source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SourceRepository {
+    /// Repository path relative to the deployment profile.
+    Local { path: PathBuf },
+    /// Git repository fetched into an isolated deployment cache.
+    Git { url: String },
+}
+
 /// Repository-local OCI registry lifecycle settings.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocalRegistrySpec {
     /// Registry schema identifier.
@@ -69,7 +104,7 @@ pub struct LocalRegistrySpec {
 }
 
 /// Kubernetes destination selected by a deployment profile.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KubernetesTarget {
     /// Explicit kubeconfig context.
@@ -79,7 +114,7 @@ pub struct KubernetesTarget {
 }
 
 /// Repository-managed local k3d cluster.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocalClusterSpec {
     /// Stable k3d cluster name.
@@ -92,7 +127,7 @@ pub struct LocalClusterSpec {
 }
 
 /// Kubernetes resources applied before Helm.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResourceSet {
     /// Raw manifest paths.
@@ -107,7 +142,7 @@ pub struct ResourceSet {
 }
 
 /// A file-backed ConfigMap.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConfigMapSpec {
     /// Kubernetes object name.
@@ -117,7 +152,7 @@ pub struct ConfigMapSpec {
 }
 
 /// An environment-backed development Secret.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SecretSpec {
     /// Kubernetes object name.
@@ -127,7 +162,7 @@ pub struct SecretSpec {
 }
 
 /// One Secret data entry loaded from an environment variable.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SecretEnvironmentEntry {
     /// Kubernetes Secret data key.
@@ -140,7 +175,7 @@ pub struct SecretEnvironmentEntry {
 }
 
 /// Controlled validation applied to a Secret value.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum SecretFormat {
     /// Uninterpreted Secret text.
@@ -151,7 +186,7 @@ pub enum SecretFormat {
 }
 
 /// A Helm release selected by a deployment profile.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ReleaseSpec {
     /// Helm release name.
@@ -161,11 +196,165 @@ pub struct ReleaseSpec {
     /// Ordered values files.
     #[serde(default)]
     pub values: Vec<PathBuf>,
+    /// Typed values surface used for registry, revision, and platform injection.
+    pub values_contract: ReleaseValuesContract,
     /// Whether Helm creates the namespace.
     #[serde(default)]
     pub create_namespace: bool,
     /// Helm operation timeout.
     pub timeout_seconds: u64,
+}
+
+/// Values surface implemented by one selected chart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReleaseValuesContract {
+    /// Core Veoveo platform chart, including typed component selection.
+    Platform,
+    /// Veoveo-owned application chart using the global image source fields.
+    VeoveoSource,
+    /// External chart consuming the private extension Helm library contract.
+    Extension,
+}
+
+/// A chart-level installation preset.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum InstallationPreset {
+    /// Complete first-party platform surface.
+    Full,
+    /// Gateway, storage, Artifact, Frames, and Recording for extension installations.
+    ExtensionFoundation,
+    /// An explicit component and server selection.
+    Custom,
+}
+
+/// Independently selectable platform infrastructure.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum PlatformComponent {
+    Gateway,
+    PlatformStore,
+    ObjectStore,
+    ArtifactService,
+    Console,
+    Telemetry,
+    Ingress,
+}
+
+/// First-party hosted MCP servers selectable by an installation.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum FirstPartyMcpServer {
+    Artifact,
+    Media,
+    Timeseries,
+    Optimization,
+    Frames,
+    Map,
+    Time,
+    View,
+    Datasheet,
+    Duckdb,
+    Chart,
+    Rerun,
+    Recording,
+    Perception,
+    Reason,
+}
+
+/// Platform capability names accepted from gateway composition requirements.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum PlatformCapability {
+    Artifact,
+    Frames,
+    Map,
+    Media,
+    Recording,
+    Rrd,
+}
+
+/// Typed first-party platform selection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlatformSelection {
+    /// Predefined or explicit selection mode.
+    pub installation_preset: InstallationPreset,
+    /// Explicit components; valid only for `custom`.
+    #[serde(default)]
+    pub components: BTreeSet<PlatformComponent>,
+    /// Explicit hosted MCP servers; valid only for `custom`.
+    #[serde(default)]
+    pub mcp_servers: BTreeSet<FirstPartyMcpServer>,
+    /// Installation-admitted artifact audiences.
+    #[serde(default)]
+    pub artifact_audiences: BTreeSet<String>,
+}
+
+/// Fully expanded platform selection used by renderers and validators.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResolvedPlatformSelection {
+    pub components: BTreeSet<PlatformComponent>,
+    pub mcp_servers: BTreeSet<FirstPartyMcpServer>,
+    pub artifact_audiences: BTreeSet<String>,
+}
+
+/// Portable subset of a gateway composition requirements document.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GatewayDeploymentRequirements {
+    pub platform_capabilities: BTreeSet<PlatformCapability>,
+    pub artifact_audiences: BTreeSet<String>,
+}
+
+/// One immutable deployment lock spanning every selected source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeploymentLock {
+    pub schema_version: String,
+    pub profile: String,
+    pub registry: String,
+    pub sources: Vec<LockedSource>,
+    pub platform: ResolvedPlatformSelection,
+}
+
+/// Immutable resolution and artifact inventory for one source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LockedSource {
+    pub name: String,
+    pub repository: String,
+    pub revision: String,
+    pub images: Vec<LockedImage>,
+    pub charts: Vec<LockedChart>,
+}
+
+/// One source-owned OCI image in a deployment lock.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LockedImage {
+    pub name: String,
+    pub repository: String,
+    pub digest: String,
+}
+
+/// One source-owned Helm chart in a deployment lock.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LockedChart {
+    pub release: String,
+    pub coordinate: String,
+    pub digest: String,
 }
 
 /// A deployment profile resolved against a repository and profile directory.
@@ -219,6 +408,54 @@ impl LoadedProfile {
         }
     }
 
+    /// Resolves a local source repository selected by the profile.
+    pub fn local_source_root(&self, source: &DeploymentSource) -> Result<PathBuf> {
+        let SourceRepository::Local { path } = &source.repository else {
+            anyhow::bail!("deployment source {} is a Git source", source.name);
+        };
+        let candidate = if path.is_absolute() {
+            path.clone()
+        } else {
+            self.directory.join(path)
+        };
+        fs::canonicalize(&candidate).with_context(|| {
+            format!(
+                "resolving local repository for source {} at {}",
+                source.name,
+                candidate.display()
+            )
+        })
+    }
+
+    /// Loads and combines every gateway requirement document in profile order.
+    pub fn gateway_requirements(&self) -> Result<GatewayDeploymentRequirements> {
+        let mut requirements = GatewayDeploymentRequirements {
+            platform_capabilities: BTreeSet::new(),
+            artifact_audiences: BTreeSet::new(),
+        };
+        for path in &self.definition.gateway_requirements {
+            let resolved = self.resolve(path);
+            let document = serde_json::from_slice::<GatewayDeploymentRequirements>(
+                &fs::read(&resolved).with_context(|| format!("reading {}", resolved.display()))?,
+            )
+            .with_context(|| format!("decoding {}", resolved.display()))?;
+            requirements
+                .platform_capabilities
+                .extend(document.platform_capabilities);
+            requirements
+                .artifact_audiences
+                .extend(document.artifact_audiences);
+        }
+        Ok(requirements)
+    }
+
+    /// Expands the platform preset and validates gateway requirements.
+    pub fn resolved_platform(&self) -> Result<ResolvedPlatformSelection> {
+        let resolved = self.definition.platform.resolve()?;
+        resolved.satisfy(&self.gateway_requirements()?)?;
+        Ok(resolved)
+    }
+
     fn validate(&self) -> Result<()> {
         let profile = &self.definition;
         ensure!(
@@ -228,14 +465,46 @@ impl LoadedProfile {
         validate_name("profile", &profile.name)?;
         validate_name("namespace", &profile.namespace)?;
         validate_registry_address(&profile.registry.address)?;
-        ensure!(
-            !profile.image_groups.is_empty(),
-            "imageGroups cannot be empty"
-        );
-        ensure!(!profile.releases.is_empty(), "releases cannot be empty");
-        ensure_unique("image group", profile.image_groups.iter())?;
-        for group in &profile.image_groups {
-            validate_name("image group", group)?;
+        ensure!(!profile.sources.is_empty(), "sources cannot be empty");
+        ensure_unique(
+            "deployment source",
+            profile.sources.iter().map(|item| &item.name),
+        )?;
+        let mut release_names = BTreeSet::new();
+        for source in &profile.sources {
+            validate_name("deployment source", &source.name)?;
+            ensure!(
+                !source.revision.trim().is_empty(),
+                "deployment source {} revision cannot be empty",
+                source.name
+            );
+            ensure!(
+                !source.image_groups.is_empty() || !source.releases.is_empty(),
+                "deployment source {} owns neither images nor Helm releases",
+                source.name
+            );
+            ensure_unique("image group", source.image_groups.iter())?;
+            for group in &source.image_groups {
+                validate_name("image group", group)?;
+            }
+            match &source.repository {
+                SourceRepository::Local { .. } => {
+                    let root = self.local_source_root(source)?;
+                    ensure!(
+                        root.join(".git").exists()
+                            || root.join("docker-bake.hcl").exists()
+                            || root == self.repository,
+                        "local source {} is not a repository root: {}",
+                        source.name,
+                        root.display()
+                    );
+                    validate_releases(source, &root, &mut release_names)?;
+                }
+                SourceRepository::Git { url } => {
+                    validate_git_url(url)?;
+                    validate_release_metadata(source, &mut release_names)?;
+                }
+            }
         }
         ensure!(
             !profile.kubernetes.context.trim().is_empty(),
@@ -308,24 +577,319 @@ impl LoadedProfile {
                 );
             }
         }
-        ensure_unique(
-            "Helm release",
-            profile.releases.iter().map(|item| &item.name),
-        )?;
-        for release in &profile.releases {
-            validate_name("Helm release", &release.name)?;
-            ensure!(release.timeout_seconds > 0, "Helm timeout must be positive");
-            require_directory(&self.resolve(&release.chart), "Helm chart")?;
-            for values in &release.values {
-                require_file(&self.resolve(values), "Helm values")?;
-            }
+        for requirements in &profile.gateway_requirements {
+            require_file(
+                &self.resolve(requirements),
+                "gateway composition requirements",
+            )?;
         }
+        let _ = self.resolved_platform()?;
         ensure_unique(
             "deployment wait target",
             profile.wait_for_deployments.iter(),
         )?;
         for deployment in &profile.wait_for_deployments {
             validate_name("deployment wait target", deployment)?;
+        }
+        Ok(())
+    }
+}
+
+impl PlatformSelection {
+    /// Expands one preset into an exact, dependency-checked selection.
+    pub fn resolve(&self) -> Result<ResolvedPlatformSelection> {
+        let (components, mcp_servers) = match self.installation_preset {
+            InstallationPreset::Full => {
+                ensure!(
+                    self.components.is_empty() && self.mcp_servers.is_empty(),
+                    "full preset does not accept explicit components or mcpServers"
+                );
+                (
+                    PlatformComponent::all(),
+                    FirstPartyMcpServer::all_supported(),
+                )
+            }
+            InstallationPreset::ExtensionFoundation => {
+                ensure!(
+                    self.components.is_empty() && self.mcp_servers.is_empty(),
+                    "extension-foundation preset does not accept explicit components or mcpServers"
+                );
+                (
+                    BTreeSet::from([
+                        PlatformComponent::Gateway,
+                        PlatformComponent::PlatformStore,
+                        PlatformComponent::ObjectStore,
+                        PlatformComponent::ArtifactService,
+                    ]),
+                    BTreeSet::from([
+                        FirstPartyMcpServer::Artifact,
+                        FirstPartyMcpServer::Frames,
+                        FirstPartyMcpServer::Recording,
+                    ]),
+                )
+            }
+            InstallationPreset::Custom => {
+                ensure!(
+                    !self.components.is_empty(),
+                    "custom components cannot be empty"
+                );
+                (self.components.clone(), self.mcp_servers.clone())
+            }
+        };
+        let resolved = ResolvedPlatformSelection {
+            components,
+            mcp_servers,
+            artifact_audiences: self.artifact_audiences.clone(),
+        };
+        resolved.validate_dependencies()?;
+        Ok(resolved)
+    }
+}
+
+impl PlatformComponent {
+    fn all() -> BTreeSet<Self> {
+        BTreeSet::from([
+            Self::Gateway,
+            Self::PlatformStore,
+            Self::ObjectStore,
+            Self::ArtifactService,
+            Self::Console,
+            Self::Telemetry,
+            Self::Ingress,
+        ])
+    }
+}
+
+impl FirstPartyMcpServer {
+    fn all_supported() -> BTreeSet<Self> {
+        BTreeSet::from([
+            Self::Artifact,
+            Self::Media,
+            Self::Timeseries,
+            Self::Optimization,
+            Self::Frames,
+            Self::Map,
+            Self::Time,
+            Self::View,
+            Self::Datasheet,
+            Self::Duckdb,
+            Self::Chart,
+            Self::Rerun,
+            Self::Recording,
+            Self::Perception,
+        ])
+    }
+}
+
+impl ResolvedPlatformSelection {
+    /// Validates component dependencies without reading Helm state.
+    pub fn validate_dependencies(&self) -> Result<()> {
+        for audience in &self.artifact_audiences {
+            validate_name("artifact audience", audience)?;
+        }
+        if !self.mcp_servers.is_empty() {
+            self.require_component(
+                PlatformComponent::Gateway,
+                "hosted MCP servers require gateway",
+            )?;
+        }
+        if self
+            .components
+            .contains(&PlatformComponent::ArtifactService)
+        {
+            self.require_component(
+                PlatformComponent::PlatformStore,
+                "artifact service requires platform store",
+            )?;
+            self.require_component(
+                PlatformComponent::ObjectStore,
+                "artifact service requires object store",
+            )?;
+        }
+        if self.components.contains(&PlatformComponent::Console)
+            || self.components.contains(&PlatformComponent::Ingress)
+        {
+            self.require_component(
+                PlatformComponent::Gateway,
+                "console and ingress require gateway",
+            )?;
+        }
+
+        let platform_store_servers = [
+            FirstPartyMcpServer::Artifact,
+            FirstPartyMcpServer::Media,
+            FirstPartyMcpServer::Timeseries,
+            FirstPartyMcpServer::Optimization,
+            FirstPartyMcpServer::Frames,
+            FirstPartyMcpServer::Map,
+            FirstPartyMcpServer::Time,
+            FirstPartyMcpServer::View,
+            FirstPartyMcpServer::Datasheet,
+            FirstPartyMcpServer::Duckdb,
+            FirstPartyMcpServer::Recording,
+            FirstPartyMcpServer::Perception,
+            FirstPartyMcpServer::Reason,
+        ];
+        if platform_store_servers
+            .iter()
+            .any(|server| self.mcp_servers.contains(server))
+        {
+            self.require_component(
+                PlatformComponent::PlatformStore,
+                "selected MCP servers require platform store",
+            )?;
+        }
+
+        let artifact_servers = [
+            FirstPartyMcpServer::Artifact,
+            FirstPartyMcpServer::Media,
+            FirstPartyMcpServer::Timeseries,
+            FirstPartyMcpServer::Optimization,
+            FirstPartyMcpServer::Frames,
+            FirstPartyMcpServer::Map,
+            FirstPartyMcpServer::Datasheet,
+            FirstPartyMcpServer::Duckdb,
+            FirstPartyMcpServer::Recording,
+            FirstPartyMcpServer::Perception,
+            FirstPartyMcpServer::Reason,
+        ];
+        if artifact_servers
+            .iter()
+            .any(|server| self.mcp_servers.contains(server))
+        {
+            self.require_component(
+                PlatformComponent::ArtifactService,
+                "selected MCP servers require artifact service",
+            )?;
+            self.require_component(
+                PlatformComponent::ObjectStore,
+                "selected MCP servers require object store",
+            )?;
+        }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Perception)
+            || self.mcp_servers.contains(&FirstPartyMcpServer::Reason)
+        {
+            self.require_server(
+                FirstPartyMcpServer::Recording,
+                "perception and reason require recording",
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Checks composed extension requirements against the selected runtime.
+    pub fn satisfy(&self, requirements: &GatewayDeploymentRequirements) -> Result<()> {
+        for capability in &requirements.platform_capabilities {
+            match capability {
+                PlatformCapability::Artifact => {
+                    self.require_server(
+                        FirstPartyMcpServer::Artifact,
+                        "artifact capability requires Artifact MCP",
+                    )?;
+                }
+                PlatformCapability::Frames => {
+                    self.require_server(
+                        FirstPartyMcpServer::Frames,
+                        "frames capability requires Frames MCP",
+                    )?;
+                }
+                PlatformCapability::Map => {
+                    self.require_server(
+                        FirstPartyMcpServer::Map,
+                        "map capability requires Map MCP",
+                    )?;
+                }
+                PlatformCapability::Media => {
+                    self.require_server(
+                        FirstPartyMcpServer::Media,
+                        "media capability requires Media MCP",
+                    )?;
+                }
+                PlatformCapability::Recording | PlatformCapability::Rrd => {
+                    self.require_server(
+                        FirstPartyMcpServer::Recording,
+                        "recording and rrd capabilities require Recording MCP and hub",
+                    )?;
+                }
+            }
+        }
+        for audience in &requirements.artifact_audiences {
+            ensure!(
+                self.artifact_audiences.contains(audience),
+                "gateway composition requires artifact audience {audience}, but the platform selection does not admit it"
+            );
+        }
+        Ok(())
+    }
+
+    fn require_component(&self, component: PlatformComponent, reason: &str) -> Result<()> {
+        ensure!(
+            self.components.contains(&component),
+            "{reason}; missing component {component:?}"
+        );
+        Ok(())
+    }
+
+    fn require_server(&self, server: FirstPartyMcpServer, reason: &str) -> Result<()> {
+        ensure!(
+            self.mcp_servers.contains(&server),
+            "{reason}; missing mcpServer {server:?}"
+        );
+        Ok(())
+    }
+}
+
+impl DeploymentLock {
+    /// Validates immutable source, image, and chart identities.
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.schema_version == DEPLOYMENT_LOCK_SCHEMA,
+            "deployment lock schemaVersion must be {DEPLOYMENT_LOCK_SCHEMA}"
+        );
+        validate_name("profile", &self.profile)?;
+        validate_registry_address(&self.registry)?;
+        self.platform.validate_dependencies()?;
+        ensure!(!self.sources.is_empty(), "locked sources cannot be empty");
+        ensure_unique("locked source", self.sources.iter().map(|item| &item.name))?;
+        for source in &self.sources {
+            validate_name("locked source", &source.name)?;
+            ensure!(
+                !source.repository.trim().is_empty()
+                    && !source.repository.chars().any(char::is_whitespace),
+                "locked source repository cannot be empty or contain whitespace"
+            );
+            validate_revision(&source.revision)?;
+            ensure!(
+                !source.images.is_empty() || !source.charts.is_empty(),
+                "locked source {} contains no artifacts",
+                source.name
+            );
+            ensure_unique("locked image", source.images.iter().map(|item| &item.name))?;
+            ensure_unique(
+                "locked Helm release",
+                source.charts.iter().map(|item| &item.release),
+            )?;
+            for image in &source.images {
+                validate_name("locked image", &image.name)?;
+                ensure!(
+                    !image.repository.contains('@') && !image.repository.ends_with(":latest"),
+                    "locked image repository must not carry a mutable tag or digest"
+                );
+                validate_digest(&image.digest)?;
+            }
+            for chart in &source.charts {
+                validate_name("locked Helm release", &chart.release)?;
+                ensure!(
+                    chart.coordinate.starts_with("oci://")
+                        || chart.coordinate.starts_with("source://"),
+                    "locked chart coordinate must use oci:// or source://"
+                );
+                ensure!(
+                    !chart.coordinate.ends_with(":latest"),
+                    "locked chart coordinate must not use latest"
+                );
+                validate_digest(&chart.digest)?;
+            }
         }
         Ok(())
     }
@@ -381,6 +945,78 @@ pub fn load_local_registry(path: &Path) -> Result<LocalRegistrySpec> {
     Ok(registry)
 }
 
+/// Generates the canonical deployment profile schema.
+#[must_use]
+pub fn deployment_profile_schema() -> schemars::Schema {
+    schemars::schema_for!(DeploymentProfile)
+}
+
+/// Generates the canonical immutable deployment lock schema.
+#[must_use]
+pub fn deployment_lock_schema() -> schemars::Schema {
+    schemars::schema_for!(DeploymentLock)
+}
+
+fn validate_releases(
+    source: &DeploymentSource,
+    root: &Path,
+    release_names: &mut BTreeSet<String>,
+) -> Result<()> {
+    validate_release_metadata(source, release_names)?;
+    for release in &source.releases {
+        require_directory(&root.join(&release.chart), "Helm chart")?;
+        for values in &release.values {
+            require_file(&root.join(values), "Helm values")?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_release_metadata(
+    source: &DeploymentSource,
+    release_names: &mut BTreeSet<String>,
+) -> Result<()> {
+    for release in &source.releases {
+        validate_name("Helm release", &release.name)?;
+        ensure!(
+            release_names.insert(release.name.clone()),
+            "duplicate Helm release: {}",
+            release.name
+        );
+        ensure!(release.timeout_seconds > 0, "Helm timeout must be positive");
+        ensure!(
+            !release.chart.as_os_str().is_empty() && !release.chart.is_absolute(),
+            "Helm chart path for {} must be source-relative",
+            release.name
+        );
+        for values in &release.values {
+            ensure!(
+                !values.as_os_str().is_empty() && !values.is_absolute(),
+                "Helm values path for {} must be source-relative",
+                release.name
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_git_url(value: &str) -> Result<()> {
+    let url = Url::parse(value).with_context(|| format!("invalid Git source URL {value}"))?;
+    ensure!(
+        matches!(url.scheme(), "https" | "ssh"),
+        "Git source URL must use https or ssh"
+    );
+    ensure!(
+        url.host_str().is_some() && url.password().is_none(),
+        "Git source URL must have a host and contain no password"
+    );
+    ensure!(
+        url.query().is_none() && url.fragment().is_none(),
+        "Git source URL must not contain a query or fragment"
+    );
+    Ok(())
+}
+
 fn validate_registry_address(address: &str) -> Result<()> {
     ensure!(
         !address.trim().is_empty(),
@@ -397,6 +1033,31 @@ fn validate_registry_address(address: &str) -> Result<()> {
     ensure!(
         !address.chars().any(char::is_whitespace),
         "registry address contains whitespace"
+    );
+    Ok(())
+}
+
+fn validate_revision(revision: &str) -> Result<()> {
+    ensure!(
+        matches!(revision.len(), 40 | 64)
+            && revision
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "source revision must be a full lowercase SHA-1 or SHA-256 object id"
+    );
+    Ok(())
+}
+
+fn validate_digest(digest: &str) -> Result<()> {
+    let Some(value) = digest.strip_prefix("sha256:") else {
+        anyhow::bail!("artifact digest must start with sha256:");
+    };
+    ensure!(
+        value.len() == 64
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "artifact digest must contain 64 lowercase hexadecimal digits"
     );
     Ok(())
 }
@@ -444,9 +1105,15 @@ fn require_directory(path: &Path, kind: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{collections::BTreeSet, path::Path};
 
-    use super::LoadedProfile;
+    use jsonschema::Validator;
+
+    use super::{
+        FirstPartyMcpServer, GatewayDeploymentRequirements, InstallationPreset, LoadedProfile,
+        PlatformCapability, PlatformComponent, PlatformSelection, deployment_lock_schema,
+        deployment_profile_schema,
+    };
 
     #[test]
     fn loads_repository_profile() {
@@ -454,6 +1121,86 @@ mod tests {
         let profile = repository.join("showcase/sumo/deploy/deployment.json");
         let loaded = LoadedProfile::load(&profile, &repository).expect("load SUMO profile");
         assert_eq!(loaded.definition.name, "sumo");
-        assert_eq!(loaded.definition.image_groups.len(), 3);
+        assert_eq!(loaded.definition.sources.len(), 1);
+        assert_eq!(loaded.definition.sources[0].image_groups.len(), 3);
+        loaded.resolved_platform().expect("resolve platform");
+    }
+
+    #[test]
+    fn requirements_fail_closed_when_runtime_servers_are_absent() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+            ]),
+            mcp_servers: BTreeSet::from([
+                FirstPartyMcpServer::Artifact,
+                FirstPartyMcpServer::Frames,
+                FirstPartyMcpServer::Recording,
+            ]),
+            artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+        }
+        .resolve()
+        .expect("valid minimal selection");
+        let requirements = GatewayDeploymentRequirements {
+            platform_capabilities: BTreeSet::from([
+                PlatformCapability::Frames,
+                PlatformCapability::Map,
+                PlatformCapability::Media,
+                PlatformCapability::Rrd,
+            ]),
+            artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+        };
+        let error = selection
+            .satisfy(&requirements)
+            .expect_err("Map and Media must be selected");
+        assert!(error.to_string().contains("Map MCP"));
+    }
+
+    #[test]
+    fn requirements_accept_all_declared_runtime_servers() {
+        let selection = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+            ]),
+            mcp_servers: BTreeSet::from([
+                FirstPartyMcpServer::Artifact,
+                FirstPartyMcpServer::Frames,
+                FirstPartyMcpServer::Map,
+                FirstPartyMcpServer::Media,
+                FirstPartyMcpServer::Recording,
+            ]),
+            artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+        }
+        .resolve()
+        .expect("valid selection");
+        selection
+            .satisfy(&GatewayDeploymentRequirements {
+                platform_capabilities: BTreeSet::from([
+                    PlatformCapability::Artifact,
+                    PlatformCapability::Frames,
+                    PlatformCapability::Map,
+                    PlatformCapability::Media,
+                    PlatformCapability::Recording,
+                    PlatformCapability::Rrd,
+                ]),
+                artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+            })
+            .expect("all runtime requirements selected");
+    }
+
+    #[test]
+    fn generated_schemas_are_closed_and_compile() {
+        for schema in [deployment_profile_schema(), deployment_lock_schema()] {
+            let value = serde_json::to_value(schema).expect("serialize schema");
+            Validator::new(&value).expect("compile schema");
+        }
     }
 }

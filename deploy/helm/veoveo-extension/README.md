@@ -44,7 +44,7 @@ The exported named templates are:
 | `veoveo-extension.selectorLabels` | release-local pod selector labels |
 | `veoveo-extension.installationSelector` | cross-chart installation selector |
 | `veoveo-extension.componentSelector` | cross-chart installation and component selector |
-| `veoveo-extension.image` | registry resolution and production digest enforcement |
+| `veoveo-extension.image` | registry, source-tag, lock-digest resolution, and production digest enforcement |
 | `veoveo-extension.podSecurityContext` | restricted pod security defaults |
 | `veoveo-extension.containerSecurityContext` | restricted container security defaults |
 | `veoveo-extension.platformEnv` | typed platform-store and trust environment |
@@ -56,3 +56,8 @@ The exported named templates are:
 
 Each template accepts a dictionary. Required keys fail rendering with a direct error;
 unknown values remain owned by the consumer chart.
+
+The image helper accepts installation-owned `registry`, source-owned `sourceTag`, and
+an `imageDigests` map keyed by the image's declared repository. A literal image digest
+wins over the lock map, and either digest wins over the source tag. Production rejects
+an image absent from both digest inputs.

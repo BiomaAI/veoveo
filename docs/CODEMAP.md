@@ -98,7 +98,7 @@ is the browser edition of the harness document.
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | typed deployment profiles, local registry declarations, path resolution, and pure validation |
+| `deploy/contract/` | multi-source deployment v2 profiles and locks, typed platform selection, local registry declarations, schema generation, and pure validation |
 | `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -112,7 +112,7 @@ is the browser edition of the harness document.
 | `servers/` | independently deployed MCP servers and protocol projections |
 | `testing/` | conformance tooling and multi-process smoke harnesses |
 | `sdk/` | language SDK workspaces |
-| `deploy/helm/veoveo/` | Kubernetes installation chart |
+| `deploy/helm/veoveo/` | Kubernetes installation chart, chart-owned first-party service definitions, and typed component/server presets |
 | `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
