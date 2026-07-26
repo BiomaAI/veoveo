@@ -102,12 +102,13 @@ class RendererConfig:
         )
 
     def prepare_directories(self) -> None:
-        for directory in (
-            self.artifact_directory,
-            self.pose_directory,
-            self.cache_directory,
+        if (
+            not self.artifact_directory.is_dir()
+            or self.artifact_directory.is_symlink()
         ):
+            raise ValueError(
+                "SIMULATION_VIEW_ARTIFACT_DIRECTORY must be a materialized directory"
+            )
+        for directory in (self.pose_directory, self.cache_directory):
             directory.mkdir(parents=True, exist_ok=True)
-        self.artifact_directory.chmod(0o700)
-        self.pose_directory.chmod(0o700)
-        self.cache_directory.chmod(0o700)
+            directory.chmod(0o700)

@@ -21,6 +21,12 @@ argument, storage, and GPU definitions for every first-party server under
 `definitions/domain-services.yaml`; an installation selects server identities instead
 of reproducing internal workload records.
 
+The typed components distinguish `recording-data-plane`, `gpu-renderer`, and
+`simulation-runtime-support` from hosted MCP servers. Selecting `simulation-view`
+requires Frames MCP and both simulation components. The Rust profile resolver also
+accounts for independently owned GPU workloads and rejects two exclusive one-GPU
+requests on one ordinary GPU.
+
 The Rust deployment resolver applies the same dependency graph before rendering. A
 selected hosted server requires the gateway. Artifact-backed servers require the
 platform store, object store, and artifact service. Perception and Reason require
@@ -44,6 +50,22 @@ or Host identity.
 final message; the default is 15 seconds. Governed browser playback enters
 through the gateway and Console BFF. `recording-mcp` reads the shared PVC
 without exposing it.
+
+Simulation View uses a separate provider-neutral MCP pod and one hardware-GPU pod. The
+GPU pod contains the Isaac/RTX renderer and the mTLS pose-ingress sidecar. Those
+containers exchange complete latest-pose snapshots through a memory-backed volume;
+the renderer never gains network egress. A read-only governed-artifact volume supplies
+content-addressed USD, USDZ, GLB, glTF, and texture inputs. The renderer requests
+exactly one `nvidia.com/gpu` and starts only through `simulationView.runtimeClassName`.
+
+`simulationView.signaling`, `simulationView.media`, and
+`simulationView.poseIngress` select the installation-owned exposure. Signaling accepts
+Ingress, ClusterIP, NodePort, or LoadBalancer. Media is a bounded UDP port collection,
+while pose ingress is one TLS 1.3 port authenticated by client certificates. The
+installation supplies the exact public signaling URL, media host and IP, pose PKI
+Secret, port allocation, and any admitted producer CIDRs. In-cluster producers carry
+the `veoveo.ai/simulation-view-pose-producer: "true"` pod label. Readiness requires the
+named RTX render product, NVENC, and a visible non-stale hardware frame.
 
 Every MCP workload has one active pod and uses `Recreate`. This includes the
 gateway MCP endpoint, domain servers, GPU servers, and the stdio bridge that
@@ -101,7 +123,12 @@ The operator must create these resources before installation:
 - `surrealdb.runtimeExistingSecret`: database-level `username` and `password`.
 - `global.existingSecret`: gateway signing keys, internal JWKS, console session
   key, provider credentials, object-store credentials, and the gateway refresh
-  delivery key under `refresh-delivery-key-b64`.
+  delivery key under `refresh-delivery-key-b64`. Simulation View also reads
+  `simulation-view-renderer-control-token` and
+  `simulation-view-pose-control-token`.
+- `simulationView.poseIngress.existingTlsSecret`: DER server certificate under
+  `certificateKey`, PKCS#8 DER private key under `privateKeyKey`, and DER producer
+  trust anchor under `clientCaKey`.
 - `gateway.existingControlPlaneConfigMap`: the typed gateway JSON under
   `gateway.controlPlaneKey`, plus any file-backed JWKS or CA documents referenced
   by that JSON.

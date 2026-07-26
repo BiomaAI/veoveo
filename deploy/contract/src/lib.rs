@@ -241,6 +241,12 @@ pub enum PlatformComponent {
     PlatformStore,
     ObjectStore,
     ArtifactService,
+    /// Durable ingest, spool, and publication plane for recordings.
+    RecordingDataPlane,
+    /// Hardware-only renderer workload and its private pose/media services.
+    GpuRenderer,
+    /// Canonical simulation runtime compatibility artifacts and conformance gates.
+    SimulationRuntimeSupport,
     Console,
     Telemetry,
     Ingress,
@@ -267,6 +273,7 @@ pub enum FirstPartyMcpServer {
     Recording,
     Perception,
     Reason,
+    SimulationView,
 }
 
 /// Platform capability names accepted from gateway composition requirements.
@@ -281,6 +288,47 @@ pub enum PlatformCapability {
     Media,
     Recording,
     Rrd,
+    SimulationView,
+}
+
+/// NVIDIA GPU isolation selected for one independently scheduled workload.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuIsolation {
+    /// One ordinary Kubernetes extended resource per requested physical GPU.
+    Exclusive,
+    /// An installation-defined NVIDIA time-slicing profile backed by measurements.
+    NvidiaTimeSlicing,
+    /// An installation-defined NVIDIA MIG profile backed by measurements.
+    NvidiaMig,
+}
+
+/// One typed NVIDIA GPU workload placement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GpuWorkloadPlacement {
+    /// Stable component or external workload identifier.
+    pub workload: String,
+    /// NVIDIA extended resources requested by the workload.
+    pub devices: u16,
+    /// Isolation mechanism selected by the installation.
+    pub isolation: GpuIsolation,
+    /// Digest of measured sharing evidence. Required for every shared placement.
+    pub evidence_digest: Option<String>,
+}
+
+/// Installation GPU capacity used to reject impossible component combinations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GpuSchedulingProfile {
+    /// Kubernetes RuntimeClass used by every selected NVIDIA workload.
+    pub runtime_class_name: String,
+    /// Physical NVIDIA devices schedulable by this installation profile.
+    pub allocatable_devices: u16,
+    /// Exact selected platform and external GPU workloads.
+    pub workloads: Vec<GpuWorkloadPlacement>,
 }
 
 /// Typed first-party platform selection.
@@ -298,6 +346,11 @@ pub struct PlatformSelection {
     /// Installation-admitted artifact audiences.
     #[serde(default)]
     pub artifact_audiences: BTreeSet<String>,
+    /// Independently owned extension workloads included in the installation lock.
+    #[serde(default)]
+    pub external_workloads: BTreeSet<String>,
+    /// Optional explicit GPU placement. Production GPU selections provide this field.
+    pub gpu_scheduling: Option<GpuSchedulingProfile>,
 }
 
 /// Fully expanded platform selection used by renderers and validators.
@@ -307,6 +360,9 @@ pub struct ResolvedPlatformSelection {
     pub components: BTreeSet<PlatformComponent>,
     pub mcp_servers: BTreeSet<FirstPartyMcpServer>,
     pub artifact_audiences: BTreeSet<String>,
+    #[serde(default)]
+    pub external_workloads: BTreeSet<String>,
+    pub gpu_scheduling: Option<GpuSchedulingProfile>,
 }
 
 /// Portable subset of a gateway composition requirements document.
@@ -620,6 +676,7 @@ impl PlatformSelection {
                         PlatformComponent::PlatformStore,
                         PlatformComponent::ObjectStore,
                         PlatformComponent::ArtifactService,
+                        PlatformComponent::RecordingDataPlane,
                     ]),
                     BTreeSet::from([
                         FirstPartyMcpServer::Artifact,
@@ -640,6 +697,8 @@ impl PlatformSelection {
             components,
             mcp_servers,
             artifact_audiences: self.artifact_audiences.clone(),
+            external_workloads: self.external_workloads.clone(),
+            gpu_scheduling: self.gpu_scheduling.clone(),
         };
         resolved.validate_dependencies()?;
         Ok(resolved)
@@ -653,6 +712,9 @@ impl PlatformComponent {
             Self::PlatformStore,
             Self::ObjectStore,
             Self::ArtifactService,
+            Self::RecordingDataPlane,
+            Self::GpuRenderer,
+            Self::SimulationRuntimeSupport,
             Self::Console,
             Self::Telemetry,
             Self::Ingress,
@@ -677,6 +739,8 @@ impl FirstPartyMcpServer {
             Self::Rerun,
             Self::Recording,
             Self::Perception,
+            Self::Reason,
+            Self::SimulationView,
         ])
     }
 }
@@ -686,6 +750,9 @@ impl ResolvedPlatformSelection {
     pub fn validate_dependencies(&self) -> Result<()> {
         for audience in &self.artifact_audiences {
             validate_name("artifact audience", audience)?;
+        }
+        for workload in &self.external_workloads {
+            validate_name("external workload", workload)?;
         }
         if !self.mcp_servers.is_empty() {
             self.require_component(
@@ -712,6 +779,42 @@ impl ResolvedPlatformSelection {
             self.require_component(
                 PlatformComponent::Gateway,
                 "console and ingress require gateway",
+            )?;
+        }
+        if self
+            .components
+            .contains(&PlatformComponent::RecordingDataPlane)
+        {
+            self.require_component(
+                PlatformComponent::PlatformStore,
+                "recording data plane requires platform store",
+            )?;
+            self.require_component(
+                PlatformComponent::ArtifactService,
+                "recording data plane requires artifact service",
+            )?;
+        }
+        if self.components.contains(&PlatformComponent::GpuRenderer) {
+            self.require_component(
+                PlatformComponent::SimulationRuntimeSupport,
+                "GPU renderer requires simulation runtime support",
+            )?;
+            self.require_server(
+                FirstPartyMcpServer::SimulationView,
+                "GPU renderer requires Simulation View MCP",
+            )?;
+        }
+        if self
+            .mcp_servers
+            .contains(&FirstPartyMcpServer::SimulationView)
+        {
+            self.require_component(
+                PlatformComponent::GpuRenderer,
+                "Simulation View MCP requires the GPU renderer",
+            )?;
+            self.require_server(
+                FirstPartyMcpServer::Frames,
+                "Simulation View scene declarations require Frames MCP",
             )?;
         }
 
@@ -774,6 +877,13 @@ impl ResolvedPlatformSelection {
                 "perception and reason require recording",
             )?;
         }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Recording) {
+            self.require_component(
+                PlatformComponent::RecordingDataPlane,
+                "Recording MCP requires the recording data plane",
+            )?;
+        }
+        self.validate_gpu_scheduling()?;
         Ok(())
     }
 
@@ -811,6 +921,12 @@ impl ResolvedPlatformSelection {
                         "recording and rrd capabilities require Recording MCP and hub",
                     )?;
                 }
+                PlatformCapability::SimulationView => {
+                    self.require_server(
+                        FirstPartyMcpServer::SimulationView,
+                        "simulation_view capability requires Simulation View MCP",
+                    )?;
+                }
             }
         }
         for audience in &requirements.artifact_audiences {
@@ -819,6 +935,93 @@ impl ResolvedPlatformSelection {
                 "gateway composition requires artifact audience {audience}, but the platform selection does not admit it"
             );
         }
+        Ok(())
+    }
+
+    fn validate_gpu_scheduling(&self) -> Result<()> {
+        let mut required = BTreeSet::new();
+        if self.components.contains(&PlatformComponent::GpuRenderer) {
+            required.insert("simulation-view-renderer");
+        }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::View) {
+            required.insert("view-renderer");
+        }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Perception) {
+            required.insert("perception");
+        }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
+            required.insert("reason");
+        }
+        if required.is_empty() {
+            ensure!(
+                self.gpu_scheduling.is_none(),
+                "gpuScheduling is present but no selected first-party workload requires a GPU"
+            );
+            return Ok(());
+        }
+
+        let scheduling = self
+            .gpu_scheduling
+            .as_ref()
+            .context("selected GPU workloads require gpuScheduling")?;
+        validate_name("GPU RuntimeClass", &scheduling.runtime_class_name)?;
+        ensure!(
+            scheduling.allocatable_devices > 0,
+            "gpuScheduling allocatableDevices must be positive"
+        );
+        ensure!(
+            !scheduling.workloads.is_empty(),
+            "gpuScheduling workloads cannot be empty"
+        );
+        ensure_unique(
+            "GPU workload",
+            scheduling.workloads.iter().map(|item| &item.workload),
+        )?;
+
+        let mut exclusive_devices = 0_u32;
+        let mut shared_devices = 0_u32;
+        let mut declared = BTreeSet::new();
+        for placement in &scheduling.workloads {
+            validate_name("GPU workload", &placement.workload)?;
+            ensure!(
+                placement.devices > 0,
+                "GPU workload {} must request at least one device",
+                placement.workload
+            );
+            declared.insert(placement.workload.as_str());
+            match placement.isolation {
+                GpuIsolation::Exclusive => {
+                    ensure!(
+                        placement.evidence_digest.is_none(),
+                        "exclusive GPU workload {} must not declare sharing evidence",
+                        placement.workload
+                    );
+                    exclusive_devices += u32::from(placement.devices);
+                }
+                GpuIsolation::NvidiaTimeSlicing | GpuIsolation::NvidiaMig => {
+                    let digest = placement.evidence_digest.as_deref().with_context(|| {
+                        format!(
+                            "shared GPU workload {} requires measured evidenceDigest",
+                            placement.workload
+                        )
+                    })?;
+                    validate_digest(digest)?;
+                    shared_devices = shared_devices.max(u32::from(placement.devices));
+                }
+            }
+        }
+        for workload in required {
+            ensure!(
+                declared.contains(workload),
+                "gpuScheduling is missing selected workload {workload}"
+            );
+        }
+        ensure!(
+            exclusive_devices + shared_devices <= u32::from(scheduling.allocatable_devices),
+            "GPU workload selection requires {} physical devices but gpuScheduling exposes {}; two exclusive one-GPU workloads cannot share one ordinary GPU",
+            exclusive_devices + shared_devices,
+            scheduling.allocatable_devices
+        );
         Ok(())
     }
 
@@ -1110,9 +1313,9 @@ mod tests {
     use jsonschema::Validator;
 
     use super::{
-        FirstPartyMcpServer, GatewayDeploymentRequirements, InstallationPreset, LoadedProfile,
-        PlatformCapability, PlatformComponent, PlatformSelection, deployment_lock_schema,
-        deployment_profile_schema,
+        FirstPartyMcpServer, GatewayDeploymentRequirements, GpuIsolation, GpuSchedulingProfile,
+        GpuWorkloadPlacement, InstallationPreset, LoadedProfile, PlatformCapability,
+        PlatformComponent, PlatformSelection, deployment_lock_schema, deployment_profile_schema,
     };
 
     #[test]
@@ -1135,6 +1338,7 @@ mod tests {
                 PlatformComponent::PlatformStore,
                 PlatformComponent::ObjectStore,
                 PlatformComponent::ArtifactService,
+                PlatformComponent::RecordingDataPlane,
             ]),
             mcp_servers: BTreeSet::from([
                 FirstPartyMcpServer::Artifact,
@@ -1142,6 +1346,8 @@ mod tests {
                 FirstPartyMcpServer::Recording,
             ]),
             artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: None,
         }
         .resolve()
         .expect("valid minimal selection");
@@ -1169,6 +1375,7 @@ mod tests {
                 PlatformComponent::PlatformStore,
                 PlatformComponent::ObjectStore,
                 PlatformComponent::ArtifactService,
+                PlatformComponent::RecordingDataPlane,
             ]),
             mcp_servers: BTreeSet::from([
                 FirstPartyMcpServer::Artifact,
@@ -1178,6 +1385,8 @@ mod tests {
                 FirstPartyMcpServer::Recording,
             ]),
             artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
+            external_workloads: BTreeSet::new(),
+            gpu_scheduling: None,
         }
         .resolve()
         .expect("valid selection");
@@ -1194,6 +1403,48 @@ mod tests {
                 artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
             })
             .expect("all runtime requirements selected");
+    }
+
+    #[test]
+    fn exclusive_simulation_gpu_workloads_fail_on_one_device() {
+        let error = PlatformSelection {
+            installation_preset: InstallationPreset::Custom,
+            components: BTreeSet::from([
+                PlatformComponent::Gateway,
+                PlatformComponent::PlatformStore,
+                PlatformComponent::ObjectStore,
+                PlatformComponent::ArtifactService,
+                PlatformComponent::GpuRenderer,
+                PlatformComponent::SimulationRuntimeSupport,
+            ]),
+            mcp_servers: BTreeSet::from([
+                FirstPartyMcpServer::Frames,
+                FirstPartyMcpServer::SimulationView,
+            ]),
+            artifact_audiences: BTreeSet::new(),
+            external_workloads: BTreeSet::from(["external-simulator".to_owned()]),
+            gpu_scheduling: Some(GpuSchedulingProfile {
+                runtime_class_name: "nvidia".to_owned(),
+                allocatable_devices: 1,
+                workloads: vec![
+                    GpuWorkloadPlacement {
+                        workload: "simulation-view-renderer".to_owned(),
+                        devices: 1,
+                        isolation: GpuIsolation::Exclusive,
+                        evidence_digest: None,
+                    },
+                    GpuWorkloadPlacement {
+                        workload: "external-simulator".to_owned(),
+                        devices: 1,
+                        isolation: GpuIsolation::Exclusive,
+                        evidence_digest: None,
+                    },
+                ],
+            }),
+        }
+        .resolve()
+        .expect_err("two exclusive workloads cannot fit one GPU");
+        assert!(error.to_string().contains("cannot share one ordinary GPU"));
     }
 
     #[test]

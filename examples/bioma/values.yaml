@@ -12,13 +12,6 @@ gateway:
 consoleBff:
   oauthResource: https://veoveo.bioma.ai/mcp/admin
 
-# The UAV acceptance runs Reason over the governed camera recording, so the
-# This installation enables the workload. Load the world-model checkpoint into the
-# reason-model-cache volume before the acceptance; the pod fails closed
-# without it.
-reason:
-  enabled: true
-
 clusterInspection:
   enabled: true
 

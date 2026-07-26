@@ -15,6 +15,7 @@
     "recording",
     "perception",
     "reason",
+    "simulationView",
     "consoleBff",
     "clusterInspection",
     "telemetry",
@@ -42,6 +43,9 @@
           "platform-store",
           "object-store",
           "artifact-service",
+          "recording-data-plane",
+          "gpu-renderer",
+          "simulation-runtime-support",
           "console",
           "telemetry",
           "ingress"
@@ -67,7 +71,8 @@
           "rerun",
           "recording",
           "perception",
-          "reason"
+          "reason",
+          "simulation-view"
         ]
       }
     },
@@ -571,6 +576,419 @@
       },
       "additionalProperties": false
     },
+    "simulationView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeClassName",
+        "mcpImage",
+        "rendererImage",
+        "poseImage",
+        "publicSignalingUrl",
+        "publicMediaHost",
+        "publicMediaIp",
+        "ports",
+        "signaling",
+        "media",
+        "poseIngress",
+        "artifacts",
+        "sharedMemory",
+        "cache",
+        "capacity",
+        "placement",
+        "mcpResources",
+        "poseResources",
+        "rendererResources"
+      ],
+      "properties": {
+        "runtimeClassName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mcpImage": {
+          "$ref": "#/definitions/image"
+        },
+        "rendererImage": {
+          "$ref": "#/definitions/image"
+        },
+        "poseImage": {
+          "$ref": "#/definitions/image"
+        },
+        "publicSignalingUrl": {
+          "type": "string",
+          "pattern": "^(wss|https)://[^/?#]+/[^?#]*$"
+        },
+        "publicMediaHost": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9.-]+$"
+        },
+        "publicMediaIp": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[0-9a-fA-F:.]+$"
+        },
+        "ports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mcp",
+            "rendererControl",
+            "poseControl",
+            "poseTls",
+            "signalingBase",
+            "mediaBase"
+          ],
+          "properties": {
+            "mcp": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "rendererControl": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "poseControl": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "poseTls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "signalingBase": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "mediaBase": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
+        "signaling": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/tcpExposure"
+            },
+            {
+              "type": "object",
+              "required": [
+                "exposure",
+                "nodePort",
+                "loadBalancerIP",
+                "externalTrafficPolicy"
+              ],
+              "properties": {
+                "exposure": {
+                  "enum": [
+                    "Ingress",
+                    "ClusterIP",
+                    "NodePort",
+                    "LoadBalancer"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "media": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exposure",
+            "nodePortBase",
+            "loadBalancerIP",
+            "externalTrafficPolicy"
+          ],
+          "properties": {
+            "exposure": {
+              "enum": [
+                "ClusterIP",
+                "NodePort",
+                "LoadBalancer"
+              ]
+            },
+            "nodePortBase": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32767
+            },
+            "loadBalancerIP": {
+              "type": "string"
+            },
+            "externalTrafficPolicy": {
+              "enum": [
+                "Cluster",
+                "Local"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "exposure": {
+                    "const": "NodePort"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "nodePortBase": {
+                    "minimum": 30000
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "poseIngress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exposure",
+            "nodePort",
+            "loadBalancerIP",
+            "externalTrafficPolicy",
+            "existingTlsSecret",
+            "certificateKey",
+            "privateKeyKey",
+            "clientCaKey",
+            "allowedCidrs"
+          ],
+          "properties": {
+            "exposure": {
+              "enum": [
+                "ClusterIP",
+                "NodePort",
+                "LoadBalancer"
+              ]
+            },
+            "nodePort": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 32767
+            },
+            "loadBalancerIP": {
+              "type": "string"
+            },
+            "externalTrafficPolicy": {
+              "enum": [
+                "Cluster",
+                "Local"
+              ]
+            },
+            "existingTlsSecret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "certificateKey": {
+              "$ref": "#/definitions/dataKey"
+            },
+            "privateKeyKey": {
+              "$ref": "#/definitions/dataKey"
+            },
+            "clientCaKey": {
+              "$ref": "#/definitions/dataKey"
+            },
+            "allowedCidrs": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F:.]+/[0-9]+$"
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "exposure": {
+                    "const": "NodePort"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "nodePort": {
+                    "minimum": 30000
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingClaim",
+            "size",
+            "storageClass",
+            "accessModes"
+          ],
+          "properties": {
+            "existingClaim": {
+              "type": "string"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "accessModes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "sharedMemory": {
+          "$ref": "#/definitions/sizeLimit"
+        },
+        "cache": {
+          "$ref": "#/definitions/sizeLimit"
+        },
+        "capacity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "profile",
+            "maximumLogicalCameras",
+            "maximumRenderedCameras",
+            "maximumStreamedCameras",
+            "maximumRenderPixelsPerSecond",
+            "maximumNvencSessions",
+            "gpuMemoryBudgetBytes",
+            "maximumEntityInstances",
+            "maximumCamerasPerOwner",
+            "maximumCamerasPerWorkContext",
+            "maximumAssetBytes",
+            "maximumFrameAgeMs",
+            "leaseSeconds",
+            "maximumPoseSessions",
+            "maximumPoseConnections"
+          ],
+          "properties": {
+            "profile": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maximumLogicalCameras": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024
+            },
+            "maximumRenderedCameras": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32
+            },
+            "maximumStreamedCameras": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32
+            },
+            "maximumRenderPixelsPerSecond": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumNvencSessions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32
+            },
+            "gpuMemoryBudgetBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumEntityInstances": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumCamerasPerOwner": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumCamerasPerWorkContext": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumAssetBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumFrameAgeMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60000
+            },
+            "leaseSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "maximumPoseSessions": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maximumPoseConnections": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "placement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nodeSelector",
+            "tolerations",
+            "affinity"
+          ],
+          "properties": {
+            "nodeSelector": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "tolerations": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "affinity": {
+              "type": "object"
+            }
+          }
+        },
+        "mcpResources": {
+          "type": "object"
+        },
+        "poseResources": {
+          "type": "object"
+        },
+        "rendererResources": {
+          "type": "object"
+        }
+      }
+    },
     "consoleBff": {
       "$ref": "#/definitions/workload"
     },
@@ -690,6 +1108,71 @@
     }
   },
   "definitions": {
+    "dataKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "sizeLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sizeLimit"
+      ],
+      "properties": {
+        "sizeLimit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "tcpExposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exposure",
+        "nodePort",
+        "loadBalancerIP",
+        "externalTrafficPolicy"
+      ],
+      "properties": {
+        "exposure": {
+          "type": "string"
+        },
+        "nodePort": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767
+        },
+        "loadBalancerIP": {
+          "type": "string"
+        },
+        "externalTrafficPolicy": {
+          "enum": [
+            "Cluster",
+            "Local"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "exposure": {
+                "const": "NodePort"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "nodePort": {
+                "minimum": 30000
+              }
+            }
+          }
+        }
+      ]
+    },
     "image": {
       "type": "object",
       "required": [
