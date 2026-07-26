@@ -1,0 +1,13 @@
+{
+  "platformCapabilities": [
+    "artifact",
+    "frames",
+    "map",
+    "media",
+    "recording",
+    "rrd"
+  ],
+  "artifactAudiences": [
+    "anonymous"
+  ]
+}

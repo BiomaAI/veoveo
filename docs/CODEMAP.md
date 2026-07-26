@@ -100,8 +100,8 @@ is the browser edition of the harness document.
 | `configs/perception/` | TensorRT/DeepStream perception catalog example and deployment contract |
 | `configs/reason/` | world-model checkpoint reason catalog example and deployment contract |
 | `configs/view/` | server-side 3D scene-layer catalog without provider secret values |
-| `deploy/contract/` | multi-source deployment v2 profiles and locks, typed platform selection, local registry declarations, schema generation, and pure validation |
-| `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, and schema contracts |
+| `deploy/contract/` | multi-source deployment v2 profiles and locks, typed platform selection, required-image closure, local registry declarations, schema generation, and pure validation |
+| `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
 | `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `Justfile` | short human dispatch commands only |
@@ -124,6 +124,8 @@ is the browser edition of the harness document.
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | canonical Python server template (`datasheet`) |
 | `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
+| `testing/fixtures/external-extension-installation/` | anonymous deployment v2 platform selection and exact Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for canonical simulation-base acceptance |
 | `tools/image-build/` | managed BuildKit configuration and shared Rust image-builder inputs |
 | `tools/xtask/` | compiled repository command, enforcement, image planning, and release orchestration |
 
@@ -386,7 +388,7 @@ Current MCP crates under `servers/` are indexed here:
 
 | Path | Responsibility |
 |---|---|
-| `showcase/uav-sim/runtime/` | pinned Isaac Sim 6.0.1 dependency base, thin commit overlay, Cesium/Pegasus compatibility, PX4 lifecycle, direct low-latency RTX HydraTexture cameras, NVIDIA AOV/WebRTC/NVENC follow-camera stream, isolated local GPU AOV probe, pod-private adapter, and Rerun publication |
+| `showcase/uav-sim/runtime/` | in-place canonical Isaac Sim 6.0.1 base with the exact Isaac Lab/Warp/Newton/MuJoCo lock, authoritative module graph, hardware base probe, thin UAV overlay, Cesium/Pegasus compatibility, PX4 lifecycle, RTX HydraTexture cameras, NVIDIA AOV/WebRTC/NVENC, pod-private adapter, and Rerun publication |
 | `showcase/uav-sim/deploy/` | commit-addressed OCI publication, MCP-configured interactive Helm workload, authenticated signaling and WebRTC media services, versioned persistent cache, typed camera configuration, GPU request, and network policy |
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | Bioma reference camera configuration, public gateway origin, and recording tenant binding |
@@ -662,7 +664,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, and standalone image |
-| `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher |
+| `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
