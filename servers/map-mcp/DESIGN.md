@@ -445,7 +445,7 @@ its build.
 
 | Adapter kind | Current snapshot behavior |
 |---|---|
-| `open_street_map` | checks PBF references, writes named-point GeoParquet and GeoJSON Sequence, builds and archives Valhalla routing data |
+| `open_street_map` | checks PBF references, writes every point, line, multiline, multipolygon, and relation layer plus GeoParquet, then builds and archives Valhalla routing data |
 | `authority_vector` | uses GDAL to write GeoParquet and WGS84 GeoJSON |
 | `gtfs_schedule` | checks safe ZIP expansion and required files, optionally runs a configured validator, retains a normalized ZIP |
 | `environmental` | uses the authority-vector normalization path |
@@ -457,12 +457,26 @@ The generic maritime and aviation conversions establish the intake primitive.
 Operational reliance adds product-specific S-57 update-chain, S-100 product,
 AIXM timeslice, or NASR validation in the corresponding adapter.
 
-GeoJSON and GeoJSON Sequence products feed the analytical projection. Named
-points become locations unless `facility_kind` is present. Polygon features
-become boundaries. A LineString becomes a governed network edge when it carries
+GeoJSON and GeoJSON Sequence products feed the analytical projection. Every
+normalized point, line, polygon, and relation becomes a complete immutable
+source feature before specialized projections run. The feature retains all
+normalized properties, original names and references, source element identity
+and version, source and release digests, geometry digest, operating-area
+memberships, license, and attribution. Feature ids derive stable UUIDv5 Map ids
+from source identity, element kind, and source element identity.
+
+`query_source_features` always names one immutable release. It supports source
+and element identity, exact tag equality, tag existence, normalized text,
+representation, bounding box, intersection, containment, distance, and nearest
+predicates. Results use a deterministic identity order, or distance then
+identity for distance queries. An opaque cursor binds to the canonical query
+digest and cannot be replayed against another query.
+
+The narrower projections remain derived conveniences. Named points become
+locations unless `facility_kind` is present. Polygon features become
+boundaries. A LineString becomes a governed network edge when it carries
 `from_node`, `to_node`, `map_family`, and `nominal_duration_s`; optional fields
-include `distance_m` and `bidirectional`. Feature ids derive stable UUIDv5 Map
-ids from source identity and source feature identity.
+include `distance_m` and `bidirectional`.
 
 ### Acquisition Jobs
 
@@ -603,6 +617,7 @@ operations renew leases while running and resume after a server restart.
 | Tool | Invocation | Required scope | Result |
 |---|---|---|---|
 | `search_locations` | direct | `map:dataset:read` | bounded named locations and optional facilities |
+| `query_source_features` | direct | `map:dataset:read` | deterministic page from one immutable complete source release |
 | `inspect_location` | direct | `map:dataset:read` | location, nearby facilities, containing boundaries, lineage, gaps |
 | `transform_crs` | direct | `map:dataset:read` | bounded 2D CRS transformation |
 | `geodesic_inverse` | direct | `map:dataset:read` | WGS84 distance and azimuths |
@@ -666,6 +681,7 @@ Resource templates are:
 map://source/{source_id}
 map://dataset/{dataset_id}
 map://dataset/{dataset_id}/release/{release_id}
+map://source-feature/{release_id}/{source_feature_id}
 map://location/{location_id}
 map://facility/{facility_id}
 map://mobility-profile/{profile_id}/{profile_version}

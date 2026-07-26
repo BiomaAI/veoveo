@@ -1,15 +1,20 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use duckdb::{Connection, params};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use veoveo_duckdb_runtime::{EngineSettings, FileAccess, TrustedExtension, open_connection};
 
 use crate::contract::{
-    Facility, MapBoundary, MapBoundaryId, MapFamily, MapLocation, Meters, SearchLocationsOutput,
-    SearchLocationsRequest, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
+    Facility, MapBoundary, MapBoundaryId, MapFamily, MapLocation, Meters,
+    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, SearchLocationsOutput,
+    SearchLocationsRequest, SourceFeature, SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery,
+    Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
@@ -306,6 +311,210 @@ impl MapAnalytics {
         Ok(())
     }
 
+    pub fn put_source_feature(&self, tenant_key: &str, feature: &SourceFeature) -> Result<()> {
+        feature.validate()?;
+        let geometry = feature.geometry.to_geojson_string()?;
+        let normalized_text = source_feature_normalized_text(feature)?;
+        let mut connection = self.connection(false)?;
+        let transaction = connection.transaction()?;
+        transaction.execute(
+            "INSERT OR REPLACE INTO map_source_feature VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?), ?, ?, ?, ?)",
+            params![
+                tenant_key,
+                feature.release_id.as_str(),
+                feature.feature_id.as_str(),
+                feature.source_id.as_str(),
+                enum_wire(feature.source_element_type)?,
+                feature.source_element_id,
+                feature.source_element_version,
+                enum_wire(feature.representation)?,
+                feature.geometry_digest_sha256,
+                geometry,
+                normalized_text,
+                serde_json::to_string(&feature.normalized_tags)?,
+                serde_json::to_string(feature)?,
+                feature.source_digest_sha256,
+            ],
+        )?;
+        transaction.execute(
+            "DELETE FROM map_source_feature_tag WHERE tenant_key = ? AND release_key = ? AND feature_key = ?",
+            params![
+                tenant_key,
+                feature.release_id.as_str(),
+                feature.feature_id.as_str()
+            ],
+        )?;
+        {
+            let mut statement =
+                transaction.prepare("INSERT INTO map_source_feature_tag VALUES (?, ?, ?, ?, ?)")?;
+            for (key, value) in &feature.normalized_tags {
+                statement.execute(params![
+                    tenant_key,
+                    feature.release_id.as_str(),
+                    feature.feature_id.as_str(),
+                    key,
+                    serde_json::to_string(value)?,
+                ])?;
+            }
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn source_feature(
+        &self,
+        tenant_key: &str,
+        release_id: &crate::contract::DatasetReleaseId,
+        feature_id: &SourceFeatureId,
+    ) -> Result<Option<SourceFeature>> {
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(
+            "SELECT canonical_json FROM map_source_feature WHERE tenant_key = ? AND release_key = ? AND feature_key = ? LIMIT 1",
+        )?;
+        let mut rows = statement.query(params![
+            tenant_key,
+            release_id.as_str(),
+            feature_id.as_str()
+        ])?;
+        let Some(row) = rows.next()? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
+    }
+
+    pub fn query_source_features(
+        &self,
+        tenant_key: &str,
+        request: &QuerySourceFeaturesRequest,
+    ) -> Result<QuerySourceFeaturesOutput> {
+        request.validate()?;
+        let query_digest = source_query_digest(request)?;
+        let cursor = request
+            .cursor
+            .as_deref()
+            .map(decode_source_cursor)
+            .transpose()?;
+        if cursor
+            .as_ref()
+            .is_some_and(|cursor| cursor.query_digest_sha256 != query_digest)
+        {
+            bail!("source-feature cursor belongs to a different query");
+        }
+
+        let mut predicates = vec![
+            format!("feature.tenant_key = {}", duckdb_string_literal(tenant_key)),
+            format!(
+                "feature.release_key = {}",
+                duckdb_string_literal(request.release_id.as_str())
+            ),
+        ];
+        if let Some(source_id) = &request.source_id {
+            predicates.push(format!(
+                "feature.source_key = {}",
+                duckdb_string_literal(source_id.as_str())
+            ));
+        }
+        if let Some(source_element_id) = &request.source_element_id {
+            predicates.push(format!(
+                "feature.source_element_key = {}",
+                duckdb_string_literal(source_element_id)
+            ));
+        }
+        if let Some(representation) = request.representation {
+            let representation = enum_wire(representation)?;
+            predicates.push(format!(
+                "feature.representation = {}",
+                duckdb_string_literal(&representation)
+            ));
+        }
+        if let Some(text) = request.normalized_text.as_deref() {
+            predicates.push(format!(
+                "feature.normalized_text LIKE {}",
+                duckdb_string_literal(&format!("%{}%", text.trim().to_lowercase()))
+            ));
+        }
+        for filter in &request.tags_equal {
+            predicates.push(format!(
+                "EXISTS (SELECT 1 FROM map_source_feature_tag AS tag WHERE tag.tenant_key = feature.tenant_key AND tag.release_key = feature.release_key AND tag.feature_key = feature.feature_key AND tag.tag_key = {} AND tag.tag_json = {})",
+                duckdb_string_literal(&filter.key),
+                duckdb_string_literal(&serde_json::to_string(&filter.value)?)
+            ));
+        }
+        for key in &request.tags_exist {
+            predicates.push(format!(
+                "EXISTS (SELECT 1 FROM map_source_feature_tag AS tag WHERE tag.tenant_key = feature.tenant_key AND tag.release_key = feature.release_key AND tag.feature_key = feature.feature_key AND tag.tag_key = {})",
+                duckdb_string_literal(key)
+            ));
+        }
+
+        let distance_expression = request
+            .spatial
+            .as_ref()
+            .and_then(source_distance_expression);
+        if let Some(spatial) = &request.spatial {
+            predicates.push(source_spatial_predicate(spatial)?);
+        }
+        if let Some(cursor) = &cursor {
+            if let (Some(expression), Some(distance)) =
+                (distance_expression.as_deref(), cursor.distance_m)
+            {
+                predicates.push(format!(
+                    "(({expression}) > {distance} OR (({expression}) = {distance} AND feature.feature_key > {}))",
+                    duckdb_string_literal(&cursor.feature_id)
+                ));
+            } else {
+                predicates.push(format!(
+                    "feature.feature_key > {}",
+                    duckdb_string_literal(&cursor.feature_id)
+                ));
+            }
+        }
+
+        let distance_projection = distance_expression
+            .as_deref()
+            .map_or_else(|| "NULL::DOUBLE".to_owned(), str::to_owned);
+        let ordering = distance_expression.as_deref().map_or_else(
+            || "feature.feature_key ASC".to_owned(),
+            |expression| format!("{expression} ASC, feature.feature_key ASC"),
+        );
+        let sql = format!(
+            "SELECT feature.canonical_json, {distance_projection} AS distance_m \
+             FROM map_source_feature AS feature \
+             WHERE {} ORDER BY {ordering} LIMIT {}",
+            predicates.join(" AND "),
+            u64::from(request.limit) + 1
+        );
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(&sql)?;
+        let mut rows = statement.query([])?;
+        let mut features = Vec::new();
+        while let Some(row) = rows.next()? {
+            let feature: SourceFeature = serde_json::from_str(&row.get::<_, String>(0)?)?;
+            let distance = row.get::<_, Option<f64>>(1)?.map(Meters::new).transpose()?;
+            features.push(SourceFeatureMatch { feature, distance });
+        }
+        let has_more = features.len() > request.limit as usize;
+        features.truncate(request.limit as usize);
+        let next_cursor = if has_more {
+            features.last().map(|item| {
+                encode_source_cursor(&SourceFeatureCursor {
+                    query_digest_sha256: query_digest.clone(),
+                    distance_m: item.distance.map(Meters::get),
+                    feature_id: item.feature.feature_id.to_string(),
+                })
+            })
+        } else {
+            None
+        }
+        .transpose()?;
+        Ok(QuerySourceFeaturesOutput {
+            release_id: request.release_id.clone(),
+            query_digest_sha256: query_digest,
+            features,
+            next_cursor,
+        })
+    }
+
     pub fn containing_boundary_ids(
         &self,
         tenant_key: &str,
@@ -386,6 +595,8 @@ impl MapAnalytics {
             "map_facility",
             "map_boundary",
             "map_network_edge",
+            "map_source_feature_tag",
+            "map_source_feature",
         ] {
             transaction.execute(
                 &format!("DELETE FROM {table} WHERE tenant_key = ? AND source_release_key = ?"),
@@ -547,6 +758,35 @@ impl MapAnalytics {
                tenant_key VARCHAR NOT NULL, edge_key VARCHAR NOT NULL, map_family VARCHAR NOT NULL, from_node VARCHAR NOT NULL, to_node VARCHAR NOT NULL, geometry_json VARCHAR NOT NULL, distance_m DOUBLE NOT NULL, nominal_duration_s DOUBLE NOT NULL, bidirectional BOOLEAN NOT NULL, source_release_key VARCHAR NOT NULL, PRIMARY KEY (tenant_key, edge_key)\
              );\n\
              CREATE INDEX IF NOT EXISTS map_network_edge_family ON map_network_edge(tenant_key, map_family);
+             CREATE TABLE IF NOT EXISTS map_source_feature (
+               tenant_key VARCHAR NOT NULL,
+               release_key VARCHAR NOT NULL,
+               feature_key VARCHAR NOT NULL,
+               source_key VARCHAR NOT NULL,
+               source_element_type VARCHAR NOT NULL,
+               source_element_key VARCHAR NOT NULL,
+               source_element_version VARCHAR NOT NULL,
+               representation VARCHAR NOT NULL,
+               geometry_digest_sha256 VARCHAR NOT NULL,
+               geometry GEOMETRY NOT NULL,
+               normalized_text VARCHAR NOT NULL,
+               tags_json JSON NOT NULL,
+               canonical_json JSON NOT NULL,
+               source_digest_sha256 VARCHAR NOT NULL,
+               PRIMARY KEY (tenant_key, release_key, feature_key)
+             );
+             CREATE INDEX IF NOT EXISTS map_source_feature_geometry ON map_source_feature USING RTREE (geometry);
+             CREATE INDEX IF NOT EXISTS map_source_feature_identity ON map_source_feature(tenant_key, release_key, source_key, source_element_key, feature_key);
+             CREATE INDEX IF NOT EXISTS map_source_feature_text ON map_source_feature(tenant_key, release_key, normalized_text);
+             CREATE TABLE IF NOT EXISTS map_source_feature_tag (
+               tenant_key VARCHAR NOT NULL,
+               release_key VARCHAR NOT NULL,
+               feature_key VARCHAR NOT NULL,
+               tag_key VARCHAR NOT NULL,
+               tag_json VARCHAR NOT NULL,
+               PRIMARY KEY (tenant_key, release_key, feature_key, tag_key)
+             );
+             CREATE INDEX IF NOT EXISTS map_source_feature_tag_lookup ON map_source_feature_tag(tenant_key, release_key, tag_key, tag_json, feature_key);
              CREATE TABLE IF NOT EXISTS map_authored_feature_revision (
                tenant_key VARCHAR NOT NULL,
                work_context_key VARCHAR NOT NULL,
@@ -608,7 +848,7 @@ impl MapAnalytics {
                last_sequence BIGINT NOT NULL,
                updated_at TIMESTAMPTZ NOT NULL
              );
-             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version = 2;"
+             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version IN (2, 3);"
         ))?;
         let version: i64 =
             connection.query_row("SELECT max(version) FROM map_schema", [], |row| row.get(0))?;
@@ -674,6 +914,128 @@ fn line_geojson(line: &Wgs84LineString) -> Result<String> {
                 .collect(),
         },
     ))?)
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct SourceFeatureCursor {
+    query_digest_sha256: String,
+    distance_m: Option<f64>,
+    feature_id: String,
+}
+
+fn source_query_digest(request: &QuerySourceFeaturesRequest) -> Result<String> {
+    let mut canonical = request.clone();
+    canonical.cursor = None;
+    let bytes = serde_json::to_vec(&canonical)?;
+    Ok(hex::encode(Sha256::digest(bytes)))
+}
+
+fn encode_source_cursor(cursor: &SourceFeatureCursor) -> Result<String> {
+    Ok(URL_SAFE_NO_PAD.encode(serde_json::to_vec(cursor)?))
+}
+
+fn decode_source_cursor(value: &str) -> Result<SourceFeatureCursor> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(value)
+        .context("source-feature cursor is not canonical base64url")?;
+    let cursor: SourceFeatureCursor =
+        serde_json::from_slice(&bytes).context("source-feature cursor is invalid")?;
+    if cursor.query_digest_sha256.len() != 64
+        || !cursor
+            .query_digest_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+        || SourceFeatureId::parse(cursor.feature_id.clone()).is_err()
+        || cursor.distance_m.is_some_and(|value| !value.is_finite())
+    {
+        bail!("source-feature cursor fields are invalid");
+    }
+    Ok(cursor)
+}
+
+fn source_feature_normalized_text(feature: &SourceFeature) -> Result<String> {
+    let mut values = Vec::new();
+    values.extend(feature.original_names.values().cloned());
+    values.extend(feature.original_references.iter().cloned());
+    for (key, value) in &feature.normalized_tags {
+        values.push(key.clone());
+        values.push(match value {
+            serde_json::Value::String(value) => value.clone(),
+            value => serde_json::to_string(value)?,
+        });
+    }
+    Ok(values.join("\n").to_lowercase())
+}
+
+fn source_distance_expression(spatial: &SourceSpatialQuery) -> Option<String> {
+    let position = match spatial {
+        SourceSpatialQuery::WithinDistance { position, .. }
+        | SourceSpatialQuery::Nearest { position, .. } => position,
+        _ => return None,
+    };
+    Some(format!(
+        "ST_Distance_Sphere(ST_Centroid(feature.geometry), ST_Point({}, {}))",
+        position.longitude_deg, position.latitude_deg
+    ))
+}
+
+fn source_spatial_predicate(spatial: &SourceSpatialQuery) -> Result<String> {
+    match spatial {
+        SourceSpatialQuery::BoundingBox { bounds } => {
+            if bounds.west <= bounds.east {
+                Ok(format!(
+                    "ST_Intersects(feature.geometry, ST_MakeEnvelope({}, {}, {}, {}))",
+                    bounds.west, bounds.south, bounds.east, bounds.north
+                ))
+            } else {
+                Ok(format!(
+                    "(ST_Intersects(feature.geometry, ST_MakeEnvelope({}, {}, 180, {})) OR ST_Intersects(feature.geometry, ST_MakeEnvelope(-180, {}, {}, {})))",
+                    bounds.west,
+                    bounds.south,
+                    bounds.north,
+                    bounds.south,
+                    bounds.east,
+                    bounds.north
+                ))
+            }
+        }
+        SourceSpatialQuery::Intersects { geometry } => Ok(format!(
+            "ST_Intersects(feature.geometry, ST_GeomFromGeoJSON({}))",
+            duckdb_string_literal(&geometry.to_geojson_string()?)
+        )),
+        SourceSpatialQuery::Contains { geometry } => Ok(format!(
+            "ST_Contains(feature.geometry, ST_GeomFromGeoJSON({}))",
+            duckdb_string_literal(&geometry.to_geojson_string()?)
+        )),
+        SourceSpatialQuery::Within { geometry } => Ok(format!(
+            "ST_Within(feature.geometry, ST_GeomFromGeoJSON({}))",
+            duckdb_string_literal(&geometry.to_geojson_string()?)
+        )),
+        SourceSpatialQuery::WithinDistance { distance, .. } => Ok(format!(
+            "{} <= {}",
+            source_distance_expression(spatial).expect("distance expression"),
+            distance.get()
+        )),
+        SourceSpatialQuery::Nearest {
+            maximum_distance, ..
+        } => Ok(maximum_distance.as_ref().map_or_else(
+            || "TRUE".to_owned(),
+            |distance| {
+                format!(
+                    "{} <= {}",
+                    source_distance_expression(spatial).expect("distance expression"),
+                    distance.get()
+                )
+            },
+        )),
+    }
+}
+
+fn enum_wire<T: Serialize>(value: T) -> Result<String> {
+    serde_json::to_value(value)?
+        .as_str()
+        .map(str::to_owned)
+        .context("enum has no string wire representation")
 }
 
 fn duckdb_string_literal(value: &str) -> String {
@@ -751,6 +1113,33 @@ mod tests {
         assert_eq!(
             sql_string_list(&["release-a".to_owned(), "release-'b".to_owned()]),
             "'release-a', 'release-''b'"
+        );
+    }
+
+    #[test]
+    fn source_cursor_is_bound_to_the_query_digest() {
+        let request = QuerySourceFeaturesRequest {
+            release_id: crate::contract::DatasetReleaseId::new(),
+            source_id: None,
+            source_element_id: None,
+            representation: None,
+            tags_equal: Vec::new(),
+            tags_exist: vec!["highway".to_owned()],
+            normalized_text: None,
+            spatial: None,
+            limit: 50,
+            cursor: None,
+        };
+        let digest = source_query_digest(&request).unwrap();
+        let encoded = encode_source_cursor(&SourceFeatureCursor {
+            query_digest_sha256: digest.clone(),
+            distance_m: None,
+            feature_id: SourceFeatureId::new().to_string(),
+        })
+        .unwrap();
+        assert_eq!(
+            decode_source_cursor(&encoded).unwrap().query_digest_sha256,
+            digest
         );
     }
 }
