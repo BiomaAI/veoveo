@@ -218,6 +218,14 @@ struct BuildRunV1<'a> {
     buildx_metadata_file: Option<&'static str>,
 }
 
+#[derive(Debug, Deserialize)]
+struct BuildxTargetMetadata {
+    #[serde(rename = "containerimage.digest")]
+    digest: Option<String>,
+    #[serde(rename = "image.name")]
+    image_name: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum BuildRunResult {
@@ -609,6 +617,19 @@ impl EvidenceRun {
         &self.metadata
     }
 
+    pub(crate) fn published_image_digests(
+        &self,
+        prepared: &PreparedPlan,
+    ) -> Result<BTreeMap<String, String>> {
+        let bytes = fs::read(&self.metadata)
+            .with_context(|| format!("reading Buildx metadata {}", self.metadata.display()))?;
+        let expected = prepared
+            .image_references()
+            .into_iter()
+            .collect::<BTreeMap<_, _>>();
+        parse_published_image_digests(&bytes, &expected)
+    }
+
     fn finish(
         &self,
         plan: &BuildPlanV1,
@@ -642,6 +663,43 @@ impl EvidenceRun {
         record.write_all(b"\n")?;
         Ok(())
     }
+}
+
+fn parse_published_image_digests(
+    bytes: &[u8],
+    expected: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, String>> {
+    let metadata = serde_json::from_slice::<BTreeMap<String, BuildxTargetMetadata>>(bytes)
+        .context("decoding Buildx publication metadata")?;
+    expected
+        .iter()
+        .map(|(target, reference)| {
+            let target_metadata = metadata
+                .get(target)
+                .with_context(|| format!("Buildx metadata omitted image target {target}"))?;
+            let published_names = target_metadata
+                .image_name
+                .as_deref()
+                .with_context(|| format!("Buildx did not publish image target {target}"))?;
+            ensure!(
+                published_names
+                    .split(',')
+                    .map(str::trim)
+                    .any(|name| name == reference),
+                "Buildx metadata for target {target} does not contain expected image {reference}"
+            );
+            let digest = target_metadata.digest.as_deref().with_context(|| {
+                format!("Buildx did not report a digest for image target {target}")
+            })?;
+            ensure!(
+                digest.len() == 71
+                    && digest.starts_with("sha256:")
+                    && digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit()),
+                "Buildx reported invalid OCI digest {digest} for image target {target}"
+            );
+            Ok((target.clone(), digest.to_owned()))
+        })
+        .collect()
 }
 
 fn selected_targets(definition: &BakeDefinition, selection: &Selection) -> Result<Vec<String>> {
@@ -1013,4 +1071,53 @@ fn validate_identifier(kind: &str, value: &str) -> Result<()> {
         "{kind} contains invalid characters: {value}"
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_published_image_digests;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn reads_published_digest_from_buildx_metadata_without_registry_round_trip() {
+        let expected = BTreeMap::from([(
+            "example".to_owned(),
+            "registry.internal/veoveo/example:revision".to_owned(),
+        )]);
+        let metadata = br#"{
+          "example": {
+            "containerimage.digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "image.name": "registry.internal/veoveo/example:revision"
+          }
+        }"#;
+
+        let digests = parse_published_image_digests(metadata, &expected).unwrap();
+
+        assert_eq!(
+            digests["example"],
+            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        );
+    }
+
+    #[test]
+    fn rejects_metadata_for_an_unexpected_published_reference() {
+        let expected = BTreeMap::from([(
+            "example".to_owned(),
+            "registry.internal/veoveo/example:expected".to_owned(),
+        )]);
+        let metadata = br#"{
+          "example": {
+            "containerimage.digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "image.name": "registry.internal/veoveo/example:other"
+          }
+        }"#;
+
+        let error = parse_published_image_digests(metadata, &expected).unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("does not contain expected image")
+        );
+    }
 }
