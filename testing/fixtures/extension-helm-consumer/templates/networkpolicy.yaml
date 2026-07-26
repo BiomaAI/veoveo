@@ -1,0 +1,19 @@
+{{- include "veoveo-extension.networkPolicy" (dict
+    "name" "anonymous-mcp"
+    "installation" .Values.veoveo.installationId
+    "component" "anonymous-mcp"
+    "mcpPort" .Values.service.port
+    "dnsNamespaceSelector" .Values.networkPolicy.dnsNamespaceSelector
+    "egress" (list
+      (dict "component" "artifact-service" "port" 8790)
+      (dict "component" "recording" "port" 8796)
+    )
+    "labels" (dict
+      "name" "anonymous-extension"
+      "releaseName" .Release.Name
+      "managedBy" .Release.Service
+      "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+      "installation" .Values.veoveo.installationId
+      "component" "anonymous-mcp"
+    )
+  ) -}}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["veoveo", "image", "service", "networkPolicy"],
+  "properties": {
+    "veoveo-extension": {"type": "object"},
+    "veoveo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installationId",
+        "publicBaseUrl",
+        "production",
+        "registry",
+        "imagePullSecrets",
+        "installationSecret",
+        "surreal"
+      ],
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "publicBaseUrl": {"type": "string", "pattern": "^https://"},
+        "production": {"type": "boolean"},
+        "registry": {"type": "string"},
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {"name": {"type": "string", "minLength": 1}}
+          }
+        },
+        "installationSecret": {"type": "string", "minLength": 1},
+        "surreal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["endpoint", "namespace", "database", "existingSecret"],
+          "properties": {
+            "endpoint": {"type": "string", "pattern": "^wss?://"},
+            "namespace": {"type": "string", "minLength": 1},
+            "database": {"type": "string", "minLength": 1},
+            "existingSecret": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1, "not": {"const": "latest"}},
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port"],
+      "properties": {
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535}
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dnsNamespaceSelector"],
+      "properties": {
+        "dnsNamespaceSelector": {"type": "object", "minProperties": 1}
+      }
+    }
+  }
+}

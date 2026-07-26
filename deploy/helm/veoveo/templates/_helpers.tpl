@@ -10,12 +10,19 @@ veoveo
 app.kubernetes.io/name: {{ include "veoveo.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: veoveo
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+veoveo.ai/installation: {{ required "global.installationId is required" .Values.global.installationId | quote }}
 {{- end }}
 
 {{- define "veoveo.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "veoveo.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+veoveo.ai/installation: {{ required "global.installationId is required" .Values.global.installationId | quote }}
+{{- end }}
+
+{{- define "veoveo.installationSelectorLabels" -}}
+veoveo.ai/installation: {{ required "global.installationId is required" .Values.global.installationId | quote }}
 {{- end }}
 
 {{- define "veoveo.serviceAccountName" -}}
@@ -43,6 +50,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if $registry -}}{{- $repository = printf "%s/%s" $registry $repository -}}{{- end -}}
 {{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
 {{- $digest := $image.digest | default $lockedDigest -}}
+{{- if and $root.Values.global.production (not $digest) -}}
+{{- fail (printf "global.production requires an immutable digest for %s" $repository) -}}
+{{- end -}}
 {{- if $digest -}}
 {{- printf "%s@%s" $repository $digest -}}
 {{- else -}}

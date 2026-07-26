@@ -57,24 +57,9 @@ helm-check:
     {{helm}} template sumo showcase/sumo/deploy/helm >/dev/null
     {{helm}} template uav-sim showcase/uav-sim/deploy/helm -f examples/bioma/uav-sim-values.yaml -f examples/bioma/images.lock.yaml >/dev/null
 
-# Package and publish the platform and UAV extension charts to an OCI repository.
+# Package and publish the private platform, library, and UAV charts from an exact revision.
 charts-publish registry version revision='HEAD' plain_http='false':
-    #!/usr/bin/env bash
-    set -euo pipefail
-    resolved_revision="$(git rev-parse --verify '{{revision}}^{commit}')"
-    head_revision="$(git rev-parse HEAD)"
-    [[ "$resolved_revision" == "$head_revision" ]] || { echo "revision must resolve to the checked-out HEAD" >&2; exit 1; }
-    git diff --quiet -- deploy/helm/veoveo showcase/uav-sim/deploy/helm
-    git diff --cached --quiet -- deploy/helm/veoveo showcase/uav-sim/deploy/helm
-    [[ '{{plain_http}}' == 'true' || '{{plain_http}}' == 'false' ]] || { echo "plain_http must be true or false" >&2; exit 1; }
-    output_dir="output/charts/{{version}}"
-    mkdir -p "$output_dir"
-    {{helm}} package deploy/helm/veoveo --version '{{version}}' --app-version "$resolved_revision" --destination "$output_dir"
-    {{helm}} package showcase/uav-sim/deploy/helm --version '{{version}}' --app-version "$resolved_revision" --destination "$output_dir"
-    push_args=()
-    [[ '{{plain_http}}' == 'false' ]] || push_args+=(--plain-http)
-    {{helm}} push "$output_dir/veoveo-{{version}}.tgz" "oci://{{registry}}" "${push_args[@]}"
-    {{helm}} push "$output_dir/uav-sim-{{version}}.tgz" "oci://{{registry}}" "${push_args[@]}"
+    cargo xtask release helm-charts --revision '{{revision}}' --version '{{version}}' --registry '{{registry}}' {{if plain_http == "true" { "--plain-http" } else { "" }}}
 
 # Create a content-verified offline installation bundle.
 offline-bundle output='output/veoveo-offline-0.1.0.tar.gz' platform='linux/amd64':

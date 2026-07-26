@@ -6,6 +6,13 @@ plane. The platform store is exactly one SurrealDB 3.2.1 process backed by a
 RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 
+`global.installationId` is the stable cross-chart identity for the installation.
+Separately installed extension releases use the same
+`veoveo.ai/installation` label while retaining their own
+`app.kubernetes.io/instance`. NetworkPolicy never requires an extension release to
+impersonate this chart's Helm release. `global.production=true` requires an immutable
+digest for every rendered Veoveo-owned image.
+
 The recording workload is one pod with Recording Hub and the governed MCP
 server sharing `recording.persistence`. The `recording-hub` ClusterIP carries
 only the authenticated gateway API on port 9878. Hub's native Rerun receiver

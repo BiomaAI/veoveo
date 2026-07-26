@@ -1,5 +1,15 @@
 artifactService:
-  allowedAudiences: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,sumo
+  allowedAudiences:
+    - artifact
+    - media
+    - timeseries
+    - optimization
+    - duckdb
+    - frames
+    - map
+    - recording
+    - perception
+    - sumo
 
 perception:
   enabled: false

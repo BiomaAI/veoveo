@@ -21,9 +21,14 @@
     "podDisruptionBudget"
   ],
   "properties": {
+    "veoveo-extension": {
+      "type": "object"
+    },
     "global": {
       "type": "object",
       "required": [
+        "installationId",
+        "production",
         "veoveoRegistry",
         "veoveoTag",
         "existingSecret",
@@ -31,6 +36,13 @@
         "offline"
       ],
       "properties": {
+        "installationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "production": {
+          "type": "boolean"
+        },
         "veoveoRegistry": {
           "type": "string"
         },
@@ -303,7 +315,35 @@
       ]
     },
     "artifactService": {
-      "$ref": "#/definitions/workload"
+      "type": "object",
+      "required": [
+        "image",
+        "replicas",
+        "allowedAudiences",
+        "resources"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allowedAudiences": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          }
+        },
+        "resources": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     },
     "recording": {
       "type": "object",

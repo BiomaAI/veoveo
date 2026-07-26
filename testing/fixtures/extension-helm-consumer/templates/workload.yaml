@@ -1,0 +1,86 @@
+{{- $labels := dict
+    "name" "anonymous-extension"
+    "releaseName" .Release.Name
+    "managedBy" .Release.Service
+    "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+    "installation" .Values.veoveo.installationId
+    "component" "anonymous-mcp"
+-}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: anonymous-mcp
+  labels:
+    {{- include "veoveo-extension.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "veoveo-extension.selectorLabels" $labels | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anonymous-mcp
+  labels:
+    {{- include "veoveo-extension.labels" $labels | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo-extension.selectorLabels" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo-extension.selectorLabels" $labels | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "veoveo-extension.podSecurityContext" . | nindent 8 }}
+      imagePullSecrets:
+        {{- toYaml .Values.veoveo.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: anonymous-mcp
+          image: {{ include "veoveo-extension.image" (dict
+              "image" .Values.image
+              "registry" .Values.veoveo.registry
+              "production" .Values.veoveo.production
+            ) }}
+          imagePullPolicy: IfNotPresent
+          env:
+            {{- include "veoveo-extension.platformEnv" (dict
+                "publicBaseUrl" .Values.veoveo.publicBaseUrl
+                "surrealEndpoint" .Values.veoveo.surreal.endpoint
+                "surrealNamespace" .Values.veoveo.surreal.namespace
+                "surrealDatabase" .Values.veoveo.surreal.database
+                "surrealSecret" .Values.veoveo.surreal.existingSecret
+                "installationSecret" .Values.veoveo.installationSecret
+              ) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          {{- include "veoveo-extension.httpProbes" (dict
+              "startupPath" "/anonymous/healthz"
+              "readinessPath" "/anonymous/readyz"
+              "livenessPath" "/anonymous/healthz"
+              "host" (printf "anonymous-mcp:%d" (int .Values.service.port))
+            ) | nindent 10 }}
+          securityContext:
+            {{- include "veoveo-extension.containerSecurityContext" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

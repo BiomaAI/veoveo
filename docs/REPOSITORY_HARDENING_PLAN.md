@@ -102,7 +102,7 @@ their hard-cut boundary:
 | P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
 | P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | boundaries are preserved, but the supported SDK facade, compatibility manifest, standalone conformance artifact, smoke descriptor, privately distributable Helm library, and multi-source composer remain planned |
+| External repository flow | Python SDK distributions, a domain-neutral native/OCI conformance runner, typed artifact contracts, and the private extension Helm library are delivered; the compatibility release generator, multi-source composer, and remaining installation composition are active |
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in

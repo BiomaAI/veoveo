@@ -1,4 +1,6 @@
 global:
+  installationId: veoveo
+  production: false
   veoveoRegistry: ""
   veoveoTag: ""
   imageDigests: {}
@@ -95,7 +97,18 @@ artifactService:
     tag: 0.1.0
     digest: ""
   replicas: 2
-  allowedAudiences: artifact,media,timeseries,optimization,duckdb,frames,map,recording,perception,reason,datasheet
+  allowedAudiences:
+    - artifact
+    - media
+    - timeseries
+    - optimization
+    - duckdb
+    - frames
+    - map
+    - recording
+    - perception
+    - reason
+    - datasheet
   resources:
     requests:
       cpu: 100m
