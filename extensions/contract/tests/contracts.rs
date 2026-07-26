@@ -45,6 +45,7 @@ fn manifest() -> CompatibilityManifest {
             ArtifactKind::ConformanceImage,
             'b',
         ),
+        gateway_composer: artifact("veoveo-gateway-composer", ArtifactKind::OciImage, 'd'),
         helm_library: artifact("veoveo-extension", ArtifactKind::HelmChart, 'c'),
         simulation_runtimes: vec![],
     }

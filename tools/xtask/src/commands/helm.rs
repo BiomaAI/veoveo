@@ -8,7 +8,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
-use veoveo_extension_contract::ReleaseVersion;
+use veoveo_extension_contract::{EXTENSION_HELM_LIBRARY_API, ReleaseVersion};
 
 use crate::process;
 
@@ -74,6 +74,13 @@ pub(crate) fn build(
     ensure!(!helm_version.is_empty(), "Helm did not report a version");
 
     let workspace = TempDir::new().context("creating Helm release workspace")?;
+    let library_chart = fs::read_to_string(source.join("deploy/helm/veoveo-extension/Chart.yaml"))?;
+    ensure!(
+        library_chart.contains(&format!(
+            "veoveo.ai/library-api: {EXTENSION_HELM_LIBRARY_API}"
+        )),
+        "extension Helm chart must declare library API {EXTENSION_HELM_LIBRARY_API}"
+    );
     let mut artifacts = Vec::with_capacity(CHARTS.len());
     for (name, relative) in CHARTS {
         let chart = source.join(relative);

@@ -70,12 +70,32 @@ contains:
 - every supported contract kind and version;
 - the exact SDK artifacts and supported language-runtime ranges;
 - the standalone conformance artifact;
+- the deterministic gateway composer artifact;
 - the extension Helm library artifact;
 - optional canonical simulation-runtime profiles;
 - the immutable digest and coordinate of every artifact.
 
 The manifest is generated from release inputs. It is not a hand-maintained version
 table and never contains credentials.
+
+After the Python, Helm, and extension-support image releases have produced immutable
+evidence, generate the compatibility bundle from the same source revision:
+
+```sh
+cargo xtask release compatibility \
+  --revision "$REVISION" \
+  --release 0.1.0 \
+  --platform-version 0.1.0 \
+  --python-evidence output/releases/python-sdk/"$REVISION"/release-evidence.json \
+  --python-artifact-base python://packages.internal.example/veoveo \
+  --helm-evidence output/releases/helm/"$REVISION"/0.1.0/release-evidence.json \
+  --image-evidence output/releases/images/"$REVISION"/extension-support.release-evidence.json
+```
+
+The command rejects mixed revisions, a Helm library without an OCI publication, and
+image evidence without both standalone tools. It emits the compatibility manifest,
+every controlled external JSON Schema, and release evidence containing SHA-256 hashes
+for the inputs and outputs.
 
 The Rust types and schema generator live in `extensions/contract`. The generated
 schema is the machine interface; consumers do not need the Rust crate.

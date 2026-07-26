@@ -14,16 +14,49 @@ use veoveo_deploy_contract::{
     LockedImage, LockedSource, SourceRepository,
 };
 
+const IMAGE_RELEASE_EVIDENCE_SCHEMA: &str = "veoveo.io/image-release-evidence/v1";
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImageReleaseEvidence<'a> {
+    schema_version: &'static str,
+    source_revision: &'a str,
+    registry: &'a str,
+    images: &'a [LockedImage],
+}
+
 use crate::{
-    ReleaseHelmChartsArgs, ReleaseImagesArgs, ReleasePythonSdkArgs,
+    ReleaseCompatibilityArgs, ReleaseHelmChartsArgs, ReleaseImagesArgs, ReleasePythonSdkArgs,
     commands::{
-        builder, helm,
+        builder, compatibility as compatibility_release, helm,
         image::{self, OutputMode, Selection},
         python,
         source::PublicationSource,
     },
     context::RepositoryContext,
 };
+
+pub(crate) fn compatibility(
+    repository: &RepositoryContext,
+    args: &ReleaseCompatibilityArgs,
+) -> Result<()> {
+    let publication = PublicationSource::prepare(repository, &args.revision)?;
+    let output_root = if args.output_dir.is_absolute() {
+        args.output_dir.clone()
+    } else {
+        repository.root().join(&args.output_dir)
+    };
+    let output = output_root.join(publication.revision()).join(&args.release);
+    compatibility_release::generate(
+        repository.root(),
+        publication.path(),
+        publication.revision(),
+        args,
+        &output,
+    )?;
+    println!("Compatibility release bundle: {}", output.display());
+    Ok(())
+}
 
 pub(crate) fn helm_charts(
     repository: &RepositoryContext,
@@ -123,13 +156,39 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
         .as_deref()
         .context("a direct target or group release requires --registry")?;
     validate_registry(registry)?;
-    let _ = publish_image_selections(
+    let images = publish_image_selections(
         repository,
         &selected_repository,
         publication.revision(),
         registry,
         vec![selection],
     )?;
+    let output = args.evidence_output.clone().unwrap_or_else(|| {
+        repository
+            .root()
+            .join("output/releases/images")
+            .join(publication.revision())
+            .join(format!(
+                "{}.release-evidence.json",
+                args.group
+                    .as_deref()
+                    .or(args.target.as_deref())
+                    .expect("selection was validated")
+            ))
+    });
+    write_json(
+        &absolute_output(repository, &output),
+        &ImageReleaseEvidence {
+            schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA,
+            source_revision: publication.revision(),
+            registry,
+            images: &images,
+        },
+    )?;
+    println!(
+        "Image release evidence: {}",
+        absolute_output(repository, &output).display()
+    );
     println!(
         "Published immutable revision {} to {}",
         publication.revision(),
@@ -147,7 +206,8 @@ fn release_profile_images(
         args.target.is_none()
             && args.group.is_none()
             && args.registry.is_none()
-            && args.revision.is_none(),
+            && args.revision.is_none()
+            && args.evidence_output.is_none(),
         "--profile cannot be combined with direct image release arguments"
     );
     let profile_revision = args
@@ -220,6 +280,7 @@ fn release_profile_images(
             .join(&lock.profile)
             .join("deployment.lock.json")
     });
+    let output = absolute_output(repository, &output);
     write_json(&output, &lock)?;
     println!("Deployment lock: {}", output.display());
     Ok(())
@@ -425,6 +486,14 @@ fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
 fn path_text(path: &Path) -> Result<&str> {
     path.to_str()
         .with_context(|| format!("path is not valid UTF-8: {}", path.display()))
+}
+
+fn absolute_output(repository: &RepositoryContext, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        repository.root().join(path)
+    }
 }
 
 fn validate_registry(registry: &str) -> Result<()> {
