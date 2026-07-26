@@ -5,8 +5,10 @@ Status: approved implementation direction.
 This document consolidates the repository hardening, compiled tooling, contract
 enforcement, test ownership, smoke organization, supply-chain policy, and governance
 work planned for Veoveo. It describes a sequence of hard cuts. It does not claim that
-the target structure already exists, and it does not supersede an existing normative
-contract before the change that implements and documents that contract lands.
+every target structure already exists. Delivery-state tables identify the hard cuts
+that have landed, and normative component documents govern those delivered surfaces.
+This plan does not supersede an existing normative contract before the implementing
+change and its documentation land.
 
 The plan covers P0, P1, P2 architecture and design enforcement, and P3 governance. The
 advanced correctness program originally discussed as a separate P2 track is deferred.
@@ -18,7 +20,7 @@ test expansion.
 The hardening boundary includes the following standards, formats, and repository-owned
 profiles:
 
-| Standard or profile | Planned use |
+| Standard or profile | Boundary use |
 |---|---|
 | Rust 1.97.1 and Rust Edition 2024 | canonical compiled tooling and workspace implementation, pinned by `rust-toolchain.toml` |
 | Cargo metadata format version 1 | workspace, target, dependency, and smoke-package discovery |
@@ -35,7 +37,9 @@ profiles:
 | `veoveo.io/compatibility-manifest/v1` | generated supported release contract relating SDK artifacts, contract and schema revisions, standalone tools, Helm API, and optional simulation runtimes |
 | Veoveo extension Helm library API | delivered versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
 | OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
-| Veoveo Isaac simulation-base compatibility lock | planned exact record of the existing base lineage's Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU conformance inputs |
+| `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical-base record for Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, source archives, wheel digests, and NVIDIA runtime requirements |
+| `veoveo.io/simulation-conformance-result/v1` | hardware-backed result for one immutable first-party or anonymous external overlay against one base digest |
+| `veoveo.io/simulation-runtime-release-evidence/v1` | immutable base, runtime tuple, paired result, and private OCI conformance-bundle release record |
 | Kubernetes and Helm | deployment rendering and workload security boundary, using the versions pinned by the repository when implemented |
 | SPDX license expressions | dependency-license policy input |
 | SARIF 2.1.0 | preferred machine-readable exchange for compatible security and static-analysis results |
@@ -102,7 +106,7 @@ their hard-cut boundary:
 | P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, image planning, builder management, and image release; later smoke, deployment, bundle, documentation, and hook commands remain planned |
 | P0.4 publication inputs | delivered through a locked persistent worktree, exact commit resolution, source-local profile loading, metadata-preservation tests, and the `docs/` context exclusion |
 | P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, deployment v2, immutable deployment locks, and typed platform selection are delivered; compatibility release publication and simulation-base acceptance remain active |
+| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, deployment v2, immutable deployment locks, typed platform selection, enforced platform-image closure, and canonical simulation-overlay certification are delivered |
 
 The normative operating contract is
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
@@ -223,12 +227,12 @@ When an `xtask` command replaces a Just recipe or shell orchestration path, the 
 command is removed in that change. Documentation and CI move with it. Temporary
 migration work must not leave permanent aliases or compatibility behavior.
 
-## Future Extension Compatibility
+## External Extension Compatibility
 
-The next extension program will publish SDK artifacts and conformance tooling, provide a
-reusable Helm library, compose gateway fragments, resolve a typed minimal platform, and
-support local development across repositories. Hardening prepares those seams without
-defining their final product schemas early.
+The extension program publishes SDK artifacts and conformance tooling, provides a
+reusable Helm library, composes gateway fragments, resolves a typed minimal platform,
+and coordinates independently versioned repositories. The delivered schemas now govern
+those seams.
 
 ### Supported External Artifact Boundary
 
@@ -243,8 +247,8 @@ registry.
 The compatibility manifest is generated from typed release inputs, Cargo metadata, and
 the resolved artifact set. It is not a second hand-maintained version registry.
 
-The future curated MCP SDK controls the supported external surface. Hardening does not
-publish the current internal crate graph merely to satisfy that future.
+The curated MCP SDK controls the supported external surface. Hardening does not publish
+the internal crate graph as an external API.
 
 ### Installation-Owned Addressing And Distribution
 
@@ -313,9 +317,9 @@ its Cargo workspace, builder families, cache namespace, and release evidence in 
 repository. Installation composition consumes immutable image coordinates and digests;
 it does not combine external packages into the Veoveo workspace builder.
 
-The core build resolver may coordinate several explicit source contexts in a future
-workflow. It treats each source revision as an independent graph and never creates one
-universal package list.
+The deployment v2 release resolver coordinates several explicit source contexts. It
+treats each source revision as an independent graph and never creates one universal
+package list.
 
 ### Component-Oriented Deployment
 
@@ -331,37 +335,39 @@ schema validates values shape; Rust owns semantic relationships.
 ### Canonical Isaac Simulation Base And External Overlays
 
 Veoveo upgrades its existing Isaac Sim base lineage in place. It does not create a
-parallel `veoveo/isaac-warp-runtime` image. The current base becomes the canonical
-simulation foundation by carrying one exact compatible Isaac Sim, Isaac Lab, Warp,
-Newton, MuJoCo, Kit/Python, CUDA, driver, and GPU contract. The build emits its input
-lock, digest, SBOM, provenance, and hardware conformance result.
+parallel simulation-runtime image. Bake target `uav-sim-base`, whose Dockerfile stage is
+`runtime-base`, is the canonical simulation foundation. Its exact build contract lives
+in `showcase/uav-sim/runtime/simulation-runtime.lock.json`:
 
-An isolated external compatibility experiment derived from the current immutable
-Veoveo `uav-sim-base` and proved this candidate tuple:
-
-| Input | Provisional value |
+| Input | Canonical value |
 |---|---|
-| Isaac Sim | `6.0.1-rc.7+release.42383.32955d8d.gl` from the existing Veoveo base |
-| Python ABI | CPython 3.12 |
+| Isaac Sim | `6.0.1-rc.7+release.42383.32955d8d.gl` from the digest-pinned Isaac Sim 6.0.1 image |
+| Isaac Lab | `v3.0.0-beta2.patch1` at `ffff603eafc6b74264a5261cc0183d6a65390d78` |
+| Python | `3.12.13` |
 | Warp | `1.15.0` |
 | Newton | `1.4.0` |
 | MuJoCo | `3.10.0` |
 | MuJoCo Warp | `3.10.0.3` |
-| Isaac Lab | not yet installed; the candidate must pin the selected Isaac Sim 6.0.1-compatible release tag and full commit |
+| CUDA toolkit | `12.9` |
+| Kit | `110.1.2` |
 
-The prototype establishes an implementation constraint. Isaac Sim registers bundled
-Warp and Newton payloads through Kit, so installing newer wheels in a separate virtual
-environment leaves the bundled versions authoritative. Importing the candidate first
-creates a mixed module graph. The Veoveo implementation replaces or supersedes the Kit
-extension payloads coherently, updates their metadata and package inventory, and proves
-that every loaded Warp and Newton module resolves beneath one authoritative root.
+Isaac Lab is pinned to a pre-release because it has no stable Isaac Sim 6.0-compatible
+release. The lock records that reason, the full source revision and archive digest, the
+digest of every replacement wheel, the upstream image digest, and the minimum NVIDIA
+runtime contract.
 
-The provisional image passed Kit-first CUDA execution, a Newton tiled-camera probe, 20
-independent headless RTX views, and a 20-aircraft external fleet-simulation CUDA run. It
-also proved that host networking and host IPC are unnecessary. These results establish
-the mechanism but do not certify the shared base. Isaac Lab, the final Veoveo UAV
-overlay, and an anonymous external reference overlay remain required acceptance gaps.
-Any CPU invocation is a structural diagnostic and never GPU acceptance evidence.
+Isaac Sim registers bundled Warp and Newton payloads through Kit. Installing newer
+wheels beside them would create a mixed module graph. The base replaces the controlled
+payload coherently and establishes one authoritative Python path for Warp and Newton.
+The hardware probe rejects a loaded module outside those roots or a runtime component
+that differs from the embedded lock.
+
+The existing UAV runtime and `testing/fixtures/simulation-overlay` derive from the same
+base target. Hardware acceptance passed on an NVIDIA RTX 4090 with driver `580.173.02`.
+Each overlay proved CUDA, Vulkan, RaytracedLighting, the exact runtime tuple, 20 distinct
+Newton tiled-camera outputs, and 20 distinct RTX render products. The anonymous overlay
+also executes overlay-owned CUDA code. Host networking, host IPC, software rendering,
+and CPU simulation are not accepted substitutes.
 
 The pod contract includes an NVIDIA GPU request, a compatible runtime class, writable
 Kit cache and data paths, and a private memory-backed `/dev/shm`. The 20-camera probe
@@ -369,7 +375,7 @@ passed with a 2 GiB shared-memory limit. Shader-cache persistence remains config
 because cold RTX startup performs material compilation work.
 
 The shared base does not own one simulator domain. Cesium, Pegasus, PX4, UAV code,
-scenarios, and UAV environment conventions move into the existing UAV overlay where
+scenarios, and UAV environment conventions remain in the existing UAV overlay, where
 they can evolve without changing the shared runtime contract.
 
 An external repository may build its own simulator overlay from the exact base digest.
@@ -379,10 +385,13 @@ Python packages, but it may not silently replace the base's Isaac Sim, Isaac Lab
 Newton, MuJoCo, CUDA, or core Kit/Python versions. A conflicting dependency set fails
 the compatibility profile until Veoveo deliberately advances the canonical base.
 
-The initial acceptance pair is the existing UAV runtime and an anonymous external
-simulation overlay. Both must pass hardware-backed GPU acceptance against the same base
-digest. Neither overlay joins the other's repository or release graph. External
-prototype evidence does not establish the final supported base digest.
+`simulation-certify` accepts only digest-addressed base and overlay images. It inspects
+their SBOM and provenance attestations and writes
+`veoveo.io/simulation-conformance-result/v1`. `cargo xtask release
+simulation-runtime` accepts one first-party and one anonymous result from the same
+source revision and base digest, publishes their private OCI evidence bundle, and writes
+`veoveo.io/simulation-runtime-release-evidence/v1`. Compatibility publication consumes
+that release evidence rather than copying the runtime tuple by hand.
 
 ### Bundle And Composition Ownership
 
@@ -413,37 +422,39 @@ do not assume the core chart is the only consumer. The library chart is verified
 through a reference consumer as well as Veoveo's own charts.
 
 The extension Helm library, fragment schemas, component selection schema, and
-multi-source profile have crossed their hard-cut boundaries. The compatibility
-manifest generator and final simulation compatibility evidence remain in this
-external-extension program.
+multi-source profile have crossed their hard-cut boundaries. Compatibility generation,
+the simulation build lock, hardware result schema, paired-overlay publisher, and
+platform-image closure enforcement have crossed the same boundary.
 
-### External Extension Delivery Sequence
+### Delivered External Extension Slices
 
-The supported external workflow lands through coherent vertical slices:
+The supported external workflow was implemented through coherent vertical slices:
 
-1. Define the normative external-extension contract and create an anonymous,
+1. Defined the normative external-extension contract and created an anonymous,
    independently owned acceptance consumer.
-2. Publish the curated Python SDK, compatibility manifest, and standalone conformance
+2. Published the curated Python SDK, compatibility manifest, and standalone conformance
    binary and image through configurable private artifact sources and offline bundles.
-3. Deliver the extension Helm library, stable installation labels, private registry
+3. Delivered the extension Helm library, stable installation labels, private registry
    configuration, and a reference consumer chart.
-4. Add typed server fragments and installation bindings, canonical path collision
+4. Added typed server fragments and installation bindings, canonical path collision
    validation, deterministic composition, and composition provenance.
 5. Hard-cut deployment profiles to v2 with named sources, independent revisions,
    source-owned image and chart locks, structured rendered-image inspection, and
    source-specific status.
-6. Resolve the typed minimal platform graph, beginning with the platform foundation,
+6. Resolved the typed minimal platform graph, beginning with the platform foundation,
    Artifact MCP, Frames MCP, and Recording MCP. Disabled components disappear from
    workloads, services, storage, policy, bootstrap, gateway inventory, and digest
    requirements together.
-7. In parallel, implement the coherent Kit payload mechanism in the existing Isaac Sim
-   base, add the pinned Isaac Lab input, and certify both the Veoveo UAV overlay and an
-   anonymous external overlay against the resulting base digest.
+7. Implemented the coherent Kit payload mechanism in the existing Isaac Sim base, added
+   the pinned Isaac Lab input, and certified both the Veoveo UAV overlay and an anonymous
+   external overlay against the resulting base digest.
 
-The workflow is supported when a clean external checkout consumes released artifacts,
-builds and publishes its own image and chart, runs standalone conformance, contributes
-a server fragment, and joins an installation without editing Veoveo or hand-authoring a
-complete gateway document.
+The delivered workflow keeps a clean external checkout outside the Veoveo workspace.
+It consumes released artifacts, builds and publishes its own image and chart, runs
+standalone conformance, contributes a server fragment, and joins an installation
+without editing Veoveo or hand-authoring a complete gateway document. Deployment
+validation and image publication now reject a selected platform whose Bake groups omit
+Artifact, Frames, Map, Media, Recording, or RRD transport images.
 
 ## Enforcement Layers
 
@@ -649,7 +660,7 @@ cargo xtask deploy cluster up
 cargo xtask deploy apply
 cargo xtask deploy down
 
-cargo xtask release images --profile <path> --revision <sha>
+cargo xtask release images --profile <path> --profile-revision <sha>
 cargo xtask release charts
 cargo xtask bundle validate
 cargo xtask bundle create
@@ -671,9 +682,10 @@ environment policy, failure summaries, and command discovery. It does not reimpl
 Clippy, rustfmt, Ruff, ESLint, Cargo dependency tools, Helm, Docker, protocol
 conformance, or smoke lifecycle behavior.
 
-Process and evidence APIs receive an explicit source context. The first implementation
-uses one source, but no command assumes that repository root, current revision, image
-tag, and chart root are universal installation identities.
+Process and evidence APIs receive an explicit source context. An individual image
+command uses one source, while deployment v2 coordinates several such contexts. No
+command assumes that repository root, current revision, image tag, and chart root are
+universal installation identities.
 
 Image release uses a locked, tool-owned persistent publication worktree keyed by source
 identity. Moving that worktree to another exact revision preserves unchanged file
@@ -1021,6 +1033,14 @@ limits on consolidated builders, and more than one Cargo build action for a sele
 family. Cold-cache and warm-cache acceptance compare produced artifact identities and
 release evidence.
 
+Deployment profiles add a second graph invariant. The typed platform selection and
+gateway requirements resolve the exact Veoveo-owned OCI image closure. Validation and
+profile publication compare that closure with the selected Bake targets before building
+or pushing. `external-extension-platform` is the canonical group for Artifact, Frames,
+Map, Media, Recording, and producer-side RRD transport. These images remain separate
+services; the group coordinates their publication and never copies them into an
+extension or simulation image.
+
 #### Canonical Build Inputs
 
 `docker-bake.hcl` remains the image catalog. A Rust image target declares its Cargo
@@ -1064,7 +1084,7 @@ cargo xtask image plan --group <group>
 cargo xtask image build --target <target>
 cargo xtask image build --group <group>
 
-cargo xtask release images --profile <path> --revision <ref>
+cargo xtask release images --profile <path> --profile-revision <ref>
 cargo xtask release images --target <target> --registry <registry> --revision <ref>
 cargo xtask release images --group <group> --registry <registry> --revision <ref>
 ```
@@ -1190,6 +1210,14 @@ timing does not exist.
 Shared CI runners do not enforce a percentage or elapsed-time threshold. Graph
 invariants, cold-cache correctness, reproducible image identity, and single-crate
 invalidation remain the durable gate.
+
+The canonical simulation lineage has a separate cold-stage optimization. The first
+measured overlay build spent about 155 seconds recursively initializing PX4 submodules,
+including FlightGear and NuttX trees that are outside `px4_sitl_default`. The next
+specialized-image change narrows checkout to the exact SITL dependency closure, proves
+the resulting PX4 binary in the UAV hardware smoke, and records cold timing and source
+digests. It may not substitute an unverified shallow or partial tree merely to improve
+elapsed time.
 
 ### Planned Tool Set
 
@@ -1441,6 +1469,8 @@ The plan is complete when all of the following statements hold:
   collisions regardless of how the document was authored.
 - Deployment and gateway configuration fail typed enforcement when component, source,
   artifact, or workload relationships diverge.
+- Deployment validation and publication reject a selected platform when its Bake groups
+  omit any required platform or RRD transport image.
 - Image publication materializes one exact committed source revision without resetting
   unchanged path metadata on every run.
 - A selected image graph produces at most one Cargo build action for each compatible
