@@ -12,11 +12,11 @@ use crate::contract::{
     Facility, MapBoundary, MapBoundaryId, MapFamily, MapLocation, Meters,
     QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId,
     RasterProduct, RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature,
-    SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox, Wgs84LineString,
-    Wgs84Position,
+    SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, SpatialDerivation,
+    SpatialDerivationId, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 
 #[derive(Clone, Debug)]
 pub struct MapAnalyticsConfig {
@@ -509,6 +509,70 @@ impl MapAnalytics {
         Ok(derivations)
     }
 
+    pub fn put_spatial_derivation(
+        &self,
+        tenant_key: &str,
+        derivation: &SpatialDerivation,
+    ) -> Result<()> {
+        derivation.validate()?;
+        let connection = self.connection(false)?;
+        connection.execute(
+            "INSERT OR REPLACE INTO map_spatial_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
+            params![
+                tenant_key,
+                derivation.work_context.as_str(),
+                derivation.created_by.as_str(),
+                derivation.derivation_id.as_str(),
+                derivation.mobility_profile_id.as_str(),
+                derivation.mobility_profile_version,
+                serde_json::to_string(derivation)?,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn spatial_derivation(
+        &self,
+        tenant_key: &str,
+        work_context: &WorkContextId,
+        derivation_id: &SpatialDerivationId,
+    ) -> Result<Option<SpatialDerivation>> {
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(
+            "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
+        )?;
+        let mut rows = statement.query(params![
+            tenant_key,
+            work_context.as_str(),
+            derivation_id.as_str()
+        ])?;
+        let Some(row) = rows.next()? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
+    }
+
+    pub fn list_spatial_derivations(
+        &self,
+        tenant_key: &str,
+        work_context: &WorkContextId,
+        limit: u32,
+    ) -> Result<Vec<SpatialDerivation>> {
+        if !(1..=10_000).contains(&limit) {
+            bail!("spatial derivation limit must be within 1..=10000");
+        }
+        let connection = self.connection(true)?;
+        let mut statement = connection.prepare(
+            "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
+        )?;
+        let mut rows = statement.query(params![tenant_key, work_context.as_str(), limit])?;
+        let mut derivations = Vec::new();
+        while let Some(row) = rows.next()? {
+            derivations.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
+        }
+        Ok(derivations)
+    }
+
     pub fn query_source_features(
         &self,
         tenant_key: &str,
@@ -937,6 +1001,17 @@ impl MapAnalytics {
                PRIMARY KEY (tenant_key, work_context_key, derivation_key)
              );
              CREATE INDEX IF NOT EXISTS map_raster_derivation_source ON map_raster_derivation(tenant_key, work_context_key, raster_key, derivation_key);
+             CREATE TABLE IF NOT EXISTS map_spatial_derivation (
+               tenant_key VARCHAR NOT NULL,
+               work_context_key VARCHAR NOT NULL,
+               principal_key VARCHAR NOT NULL,
+               derivation_key VARCHAR NOT NULL,
+               mobility_profile_key VARCHAR NOT NULL,
+               mobility_profile_version BIGINT NOT NULL,
+               canonical_json JSON NOT NULL,
+               PRIMARY KEY (tenant_key, work_context_key, derivation_key)
+             );
+             CREATE INDEX IF NOT EXISTS map_spatial_derivation_profile ON map_spatial_derivation(tenant_key, work_context_key, mobility_profile_key, mobility_profile_version, derivation_key);
              CREATE TABLE IF NOT EXISTS map_authored_feature_revision (
                tenant_key VARCHAR NOT NULL,
                work_context_key VARCHAR NOT NULL,
@@ -998,7 +1073,7 @@ impl MapAnalytics {
                last_sequence BIGINT NOT NULL,
                updated_at TIMESTAMPTZ NOT NULL
              );
-             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version IN (2, 3, 4);"
+             UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version IN (2, 3, 4, 5);"
         ))?;
         let version: i64 =
             connection.query_row("SELECT max(version) FROM map_schema", [], |row| row.get(0))?;

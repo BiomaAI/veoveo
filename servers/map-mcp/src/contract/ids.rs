@@ -120,6 +120,7 @@ map_id!(MapSourceId, "source-");
 map_id!(SourceFeatureId, "source-feature-");
 map_id!(RasterProductId, "raster-");
 map_id!(RasterDerivationId, "raster-derivation-");
+map_id!(SpatialDerivationId, "spatial-derivation-");
 map_id!(SourcePolicyId, "source-policy-");
 map_id!(AcquisitionId, "acquisition-");
 map_id!(OperationalSnapshotId, "snapshot-");

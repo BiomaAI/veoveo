@@ -336,6 +336,7 @@ consoleBff:
     - map:feature:read
     - map:feature:write
     - map:raster:derive
+    - map:spatial:derive
     - time:read
     - view:read
     - view:write

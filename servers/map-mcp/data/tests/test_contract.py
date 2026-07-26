@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 from map_data.contract import ContractError, NormalizeCommand, NormalizeResult
 from map_data.adapters.gtfs import normalize_gtfs
+from map_data.adapters.osm import _OSM_CONFIG
 from map_data.adapters.raster import raster_metadata
+from map_data.terrain import corridor_sample_positions
 
 
 class NormalizeCommandTests(unittest.TestCase):
@@ -123,6 +125,14 @@ class NormalizeCommandTests(unittest.TestCase):
         self.assertEqual(payload["acquisition_id"], "acquisition-test")
         self.assertIsNone(payload["routing_build_path"])
 
+    def test_osm_profile_preserves_element_versions_and_complete_json_tags(self):
+        profile = _OSM_CONFIG.read_text(encoding="utf-8")
+        lines = profile.splitlines()
+        self.assertEqual(lines.count("osm_version=yes"), 5)
+        self.assertEqual(lines.count("all_tags=yes"), 5)
+        self.assertIn("report_all_tags=yes", profile)
+        self.assertIn("tags_format=json", profile)
+
     def test_raster_metadata_preserves_transform_bands_units_and_nodata(self):
         with tempfile.TemporaryDirectory() as root:
             raster = Path(root) / "raster.tif"
@@ -161,6 +171,20 @@ class NormalizeCommandTests(unittest.TestCase):
             self.assertEqual(metadata["bands"][0]["unit"], "m")
             self.assertEqual(metadata["bands"][0]["nodata"], -9999.0)
             self.assertEqual(len(metadata["checksum_sha256"]), 64)
+
+    def test_corridor_sampling_bounds_spacing_and_cross_track_offsets(self):
+        samples = corridor_sample_positions(
+            [(0.0, 0.0), (0.001, 0.0)],
+            spacing=50.0,
+            half_width=10.0,
+            cross_track_samples=3,
+        )
+        self.assertEqual(len(samples), 12)
+        self.assertEqual(
+            sorted({round(sample[1], 6) for sample in samples}),
+            [-10.0, 0.0, 10.0],
+        )
+        self.assertLessEqual(max(sample[0] for sample in samples), 112.0)
 
 
 if __name__ == "__main__":

@@ -32,17 +32,19 @@ use crate::{
     contract::{
         AcquisitionId, AcquisitionJob, CancelAcquisitionRequest, CorridorInspectionOutput,
         CorridorInspectionRequest, CreateAcquisitionRequest, CreateMobilityProfileRequest,
-        CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest, DisableSourceRequest,
-        FacilityId, GeodesicDirectOutput, GeodesicDirectRequest, GeodesicInverseOutput,
-        GeodesicInverseRequest, InspectLocationOutput, InspectLocationRequest, LocationId,
-        MapDatasetId, MapSourceId, MobilityProfile, MobilityProfileId, PublishRestrictionRequest,
-        QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation,
-        RasterDerivationId, RasterProductId, ReachableArea, ReachableAreaRequest, RegisteredSource,
-        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId,
-        RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
-        RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
-        SourceFeatureId, TransformCrsOutput, TransformCrsRequest, ValidateGeofenceOutput,
-        ValidateGeofenceRequest, ValidateRouteRequest, WithdrawRestrictionRequest,
+        CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest, DeriveSpatialGeometryRequest,
+        DisableSourceRequest, FacilityId, GeodesicDirectOutput, GeodesicDirectRequest,
+        GeodesicInverseOutput, GeodesicInverseRequest, InspectLocationOutput,
+        InspectLocationRequest, LocationId, MapDatasetId, MapSourceId, MobilityProfile,
+        MobilityProfileId, PublishRestrictionRequest, QuerySourceFeaturesOutput,
+        QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
+        ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
+        ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId, RestrictionMutationOutput,
+        RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest,
+        RouteValidation, SearchLocationsOutput, SearchLocationsRequest, SourceFeatureId,
+        SpatialDerivation, SpatialDerivationId, TransformCrsOutput, TransformCrsRequest,
+        ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
+        WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,
@@ -230,7 +232,7 @@ impl MapMcp {
 
     #[tool(
         title = "Derive a governed raster product",
-        description = "Run one bounded sample, window, class-mask, contour, polygonize, skeletonize, or line-derivation operation against an immutable raster product. This operation requires durable task invocation.",
+        description = "Run one bounded sample, terrain-corridor maximum, window, class-mask, contour, polygonize, skeletonize, or line-derivation operation against an immutable raster product. This operation requires durable task invocation.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RasterDerivation>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -243,6 +245,46 @@ impl MapMcp {
             "derive_raster requires task-based invocation",
             None,
         ))
+    }
+
+    #[tool(
+        title = "Derive governed spatial geometry",
+        description = "Derive bounded resampling, tours, boundaries, standoffs, corridors, parallel lanes, racetracks, stations, coverage tracks, connected components, ingress geometry, or a complete-route validation. The result is pinned to one mobility profile, exact source releases, restrictions, terrain classes, algorithm revision, principal, and Work Context.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<SpatialDerivation>(),
+        annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
+    async fn derive_spatial_geometry(
+        &self,
+        Parameters(request): Parameters<DeriveSpatialGeometryRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let identity = require_scope(&context, "map:spatial:derive")?;
+        if !identity_has_scope(&identity, "map:dataset:read") {
+            return Err(McpError::invalid_request(
+                "scope `map:dataset:read` is required",
+                None,
+            ));
+        }
+        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        let derivation = self
+            .state
+            .spatial
+            .derive(&scope, &identity, request)
+            .await
+            .map_err(invalid_params)?;
+        self.state
+            .subscriptions
+            .notify_resource_updated(uris::SPATIAL_DERIVATIONS_URI)
+            .await;
+        veoveo_mcp_contract::notify_resource_list_changed(&context.peer).await;
+        structured_result(
+            format!(
+                "derived {} spatial geometry product(s); valid: {}",
+                derivation.geometries.len(),
+                derivation.valid
+            ),
+            &derivation,
+        )
     }
 
     #[tool(
@@ -798,6 +840,29 @@ impl ServerHandler for MapMcp {
         }
         if identity_has_scope(&identity, "map:dataset:read") {
             resources.extend(root_resources());
+            if identity_has_scope(&identity, "map:spatial:derive") {
+                resources.push(json_resource_descriptor(
+                    uris::SPATIAL_DERIVATIONS_URI.to_owned(),
+                    "Spatial derivations".to_owned(),
+                    "Work Context-scoped advisory geometry and mobility validation.",
+                ));
+                for derivation in self
+                    .state
+                    .analytics
+                    .list_spatial_derivations(
+                        &scope.tenant_key(),
+                        &identity.authority.work_context,
+                        10_000,
+                    )
+                    .map_err(internal)?
+                {
+                    resources.push(json_resource_descriptor(
+                        derivation.resource_uri,
+                        format!("spatial derivation {}", derivation.derivation_id),
+                        "Immutable governed spatial derivation.",
+                    ));
+                }
+            }
             for source in self
                 .state
                 .catalog
@@ -1448,6 +1513,26 @@ impl ServerHandler for MapMcp {
                         .map_err(internal)?,
                 );
             }
+            uris::SPATIAL_DERIVATIONS_URI => {
+                if !identity_has_scope(&identity, "map:spatial:derive") {
+                    return Err(McpError::invalid_request(
+                        "scope `map:spatial:derive` is required",
+                        None,
+                    ));
+                }
+                return json_resource(
+                    uri,
+                    &self
+                        .state
+                        .analytics
+                        .list_spatial_derivations(
+                            &scope.tenant_key(),
+                            &identity.authority.work_context,
+                            10_000,
+                        )
+                        .map_err(internal)?,
+                );
+            }
             _ => {}
         }
         if let Some(value) = uris::parse_single(uri, "map://source/") {
@@ -1555,6 +1640,24 @@ impl ServerHandler for MapMcp {
                     .raster_derivation(&scope.tenant_key(), &identity.authority.work_context, &id)
                     .map_err(internal)?
                     .ok_or_else(|| not_found("raster derivation"))?,
+            );
+        }
+        if let Some(value) = uris::parse_single(uri, "map://spatial-derivation/") {
+            if !identity_has_scope(&identity, "map:spatial:derive") {
+                return Err(McpError::invalid_request(
+                    "scope `map:spatial:derive` is required",
+                    None,
+                ));
+            }
+            let id = SpatialDerivationId::parse(value).map_err(invalid_params)?;
+            return json_resource(
+                uri,
+                &self
+                    .state
+                    .analytics
+                    .spatial_derivation(&scope.tenant_key(), &identity.authority.work_context, &id)
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("spatial derivation"))?,
             );
         }
         if let Some((value, version)) = uris::parse_profile(uri) {
@@ -1775,6 +1878,11 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             uris::RASTER_DERIVATION_TEMPLATE,
             "Governed raster derivation",
             "Immutable raster operation, source, parameters, algorithm, and output artifact.",
+        ),
+        template(
+            uris::SPATIAL_DERIVATION_TEMPLATE,
+            "Governed spatial derivation",
+            "Immutable advisory geometry, mobility findings, source pins, and algorithm identity.",
         ),
         template(
             uris::LOCATION_TEMPLATE,
@@ -2024,6 +2132,7 @@ fn stable_resource_uris() -> Vec<String> {
             uris::LAYER_PRODUCTS_URI,
             uris::COMPOSITIONS_URI,
             uris::RASTER_DERIVATIONS_URI,
+            uris::SPATIAL_DERIVATIONS_URI,
         ]
         .map(str::to_owned),
     );
@@ -2179,6 +2288,16 @@ async fn completion_values(
             .await?
             .into_iter()
             .map(|value| value.matrix_id.to_string())
+            .collect(),
+        (uris::SPATIAL_DERIVATION_TEMPLATE, "spatial_derivation_id") => state
+            .analytics
+            .list_spatial_derivations(
+                &scope.tenant_key(),
+                &identity.authority.work_context,
+                10_000,
+            )?
+            .into_iter()
+            .map(|value| value.derivation_id.to_string())
             .collect(),
         (
             uris::FEATURE_LAYER_TEMPLATE

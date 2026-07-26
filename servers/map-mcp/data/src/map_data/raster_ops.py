@@ -11,6 +11,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 from map_data.contract import ContractError
+from map_data.terrain import corridor_sample_positions
 
 
 SCHEMA_VERSION = 1
@@ -33,7 +34,7 @@ def run(value: Any) -> dict[str, Any]:
     if dataset is None:
         raise ContractError("source raster cannot be opened")
     kind = operation["kind"]
-    if kind not in {"sample", "window"} and (
+    if kind not in {"sample", "window", "corridor_maximum"} and (
         dataset.RasterXSize * dataset.RasterYSize > MAX_FULL_RASTER_PIXELS
     ):
         raise ContractError("full-raster operation exceeds its source pixel limit")
@@ -45,6 +46,14 @@ def run(value: Any) -> dict[str, Any]:
     elif kind == "window":
         path = window(dataset, operation, output_dir)
         mime_type = "image/tiff; application=geotiff; profile=cloud-optimized"
+    elif kind == "corridor_maximum":
+        result = corridor_maximum(dataset, operation)
+        path = output_dir / "terrain-corridor-maximum.json"
+        path.write_text(
+            json.dumps(result, separators=(",", ":"), sort_keys=True),
+            encoding="utf-8",
+        )
+        mime_type = "application/json"
     elif kind == "class_mask":
         path = write_mask(dataset, class_mask(dataset, operation), output_dir, "class-mask.tif")
         mime_type = "image/tiff; application=geotiff; profile=cloud-optimized"
@@ -117,6 +126,95 @@ def sample(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[str, Any]:
             }
         )
     return {"schema_version": 1, "band": band_number, "samples": values}
+
+
+def corridor_maximum(dataset: gdal.Dataset, operation: dict[str, Any]) -> dict[str, Any]:
+    band_number = band_index(dataset, operation)
+    corridor = operation.get("corridor")
+    if not isinstance(corridor, dict):
+        raise ContractError("corridor geometry is invalid")
+    coordinates = corridor.get("coordinates")
+    if not isinstance(coordinates, list) or not 2 <= len(coordinates) <= MAX_SAMPLES:
+        raise ContractError("corridor coordinates exceed their bound")
+    positions = []
+    for position in coordinates:
+        if not isinstance(position, dict):
+            raise ContractError("corridor position is invalid")
+        longitude = finite_number(position.get("longitude_deg"), "longitude_deg")
+        latitude = finite_number(position.get("latitude_deg"), "latitude_deg")
+        if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
+            raise ContractError("corridor position is outside WGS84")
+        positions.append((longitude, latitude))
+    spacing = positive_number(operation.get("sample_spacing"), "sample_spacing")
+    half_width = non_negative_number(operation.get("half_width"), "half_width")
+    cross_track_samples = positive_int(
+        operation.get("cross_track_samples"), "cross_track_samples"
+    )
+    if cross_track_samples > 64 or (half_width == 0 and cross_track_samples != 1):
+        raise ContractError("corridor cross-track sampling is invalid")
+    samples = corridor_sample_positions(
+        positions, spacing, half_width, cross_track_samples
+    )
+    if len(samples) > MAX_SAMPLES:
+        raise ContractError("corridor samples exceed their bound")
+    inverse = gdal.InvGeoTransform(dataset.GetGeoTransform())
+    to_raster = coordinate_transform_from_wgs84(dataset)
+    band = dataset.GetRasterBand(band_number)
+    output_samples = []
+    valid_samples = []
+    for along_distance, cross_track_offset, longitude, latitude in samples:
+        value = sample_value(
+            dataset, band, inverse, to_raster, longitude, latitude
+        )
+        item = {
+            "along_distance_m": along_distance,
+            "cross_track_offset_m": cross_track_offset,
+            "position": {
+                "longitude_deg": longitude,
+                "latitude_deg": latitude,
+            },
+            "value": value,
+        }
+        output_samples.append(item)
+        if value is not None:
+            valid_samples.append(item)
+    if not valid_samples:
+        raise ContractError("corridor contains no valid raster samples")
+    return {
+        "schema_version": 1,
+        "band": band_number,
+        "sample_spacing_m": spacing,
+        "half_width_m": half_width,
+        "cross_track_samples": cross_track_samples,
+        "sample_count": len(output_samples),
+        "valid_sample_count": len(valid_samples),
+        "minimum": min(valid_samples, key=lambda item: item["value"]),
+        "maximum": max(valid_samples, key=lambda item: item["value"]),
+        "samples": output_samples,
+    }
+
+
+def sample_value(
+    dataset: gdal.Dataset,
+    band: gdal.Band,
+    inverse: tuple[float, ...],
+    transform: osr.CoordinateTransformation,
+    longitude: float,
+    latitude: float,
+) -> float | None:
+    x, y, _ = transform.TransformPoint(longitude, latitude)
+    pixel = int(math.floor(inverse[0] + inverse[1] * x + inverse[2] * y))
+    row = int(math.floor(inverse[3] + inverse[4] * x + inverse[5] * y))
+    if not 0 <= pixel < dataset.RasterXSize or not 0 <= row < dataset.RasterYSize:
+        return None
+    array = band.ReadAsArray(pixel, row, 1, 1)
+    if array is None:
+        return None
+    candidate = float(array[0, 0])
+    nodata = band.GetNoDataValue()
+    if not math.isfinite(candidate) or (nodata is not None and candidate == nodata):
+        return None
+    return candidate
 
 
 def window(dataset: gdal.Dataset, operation: dict[str, Any], output_dir: Path) -> Path:
@@ -464,6 +562,20 @@ def finite_number(value: Any, field: str) -> float:
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
         raise ContractError(f"{field} must be finite")
     return float(value)
+
+
+def positive_number(value: Any, field: str) -> float:
+    number = finite_number(value, field)
+    if number <= 0:
+        raise ContractError(f"{field} must be positive")
+    return number
+
+
+def non_negative_number(value: Any, field: str) -> float:
+    number = finite_number(value, field)
+    if number < 0:
+        raise ContractError(f"{field} must be non-negative")
+    return number
 
 
 def main() -> int:

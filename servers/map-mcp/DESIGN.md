@@ -19,7 +19,8 @@ The implementation includes the Map domain contract, SurrealDB records,
 tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
 governed network planner, source acquisition, release activation, MCP discovery
 surfaces, administrative MCP tools, the administration MCP App view, gateway
-proxying, Helm, and offline image registration.
+proxying, Helm, offline image registration, and governed spatial and raster
+derivations.
 
 The canonical service identity is:
 
@@ -50,10 +51,16 @@ the `map://` scheme.
 | OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
 | GeoParquet 1.0.0 | WKB primary geometry and verified `geo` metadata for immutable analytical products. |
 | OGC Cloud Optimized GeoTIFF 1.0 and GeoTIFF 1.1 | Environmental sources normalize to immutable COG products with explicit CRS, affine transform, extent, resolution, bands, units, nodata values, value interpretation, checksum, license, and attribution. |
+| Veoveo spatial derivation profile `map-spatial-local-equirectangular-wgs84-v1` | Advisory operations use a WGS84 local equirectangular plane with the exact 6,371,008.8 m mean Earth radius. Each operation is bounded to two degrees on either axis and records its origin and algorithm revision. This is a repository-owned profile, not a projected-CRS standard. |
 | Mapbox Vector Tile 2.1 and MapLibre Style 8 | Deterministic bounded XYZ tile bundles and safe literal presentation styles. |
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
 | Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. It is an internal projection, never a public Map API. |
+
+The workspace pins `geo` 0.32.0 because SurrealDB 3.2 uses the same release
+line and requires `i_overlay <4.1`. `geo` 0.33.1 requires `i_overlay >=4.5`,
+which Cargo cannot resolve in this workspace. The selected release contains
+the signed buffer operation used by the spatial profile.
 
 ## Domain Scope
 
@@ -64,6 +71,7 @@ profile can travel there. It provides:
 - locations, facilities, boundaries, map datasets, and effective restrictions;
 - versioned human and vehicle mobility profiles;
 - route feasibility, geometry, cost, provenance, matrices, and reachable areas;
+- advisory spatial geometry and complete-route mobility validation;
 - governed source acquisition and immutable release activation;
 - Work Context-owned GeoJSON and JSON-FG feature authoring, revision, query,
   tombstone, restore, and publication;
@@ -155,6 +163,13 @@ vehicles, gauge and electrification for rail, draft and under-keel clearance
 for vessels, and runway, ceiling, reserve, navigation, and airspace permissions
 for aircraft.
 
+Every family also carries one `MobilityPlanningEnvelope`. It sets the minimum
+speed, optional minimum turn radius, climb and descent bounds, lateral and
+vertical clearance, optional ceiling and range, route-point and segment limits,
+allowed terrain classes, and allowed restriction kinds. A family-specific
+physical range or aircraft service ceiling remains authoritative when it is
+more restrictive than the common envelope.
+
 ## Coordinate Contract
 
 WGS84 longitude and latitude are the canonical route exchange. Optional height
@@ -184,7 +199,8 @@ SurrealDB is the canonical operational catalog. It stores:
 
 DuckDB Spatial is the local analytical projection. Its schema is tenant keyed
 and contains active-release pointers, locations, facilities, boundaries,
-governed network edges, and authored feature revision and head projections.
+governed network edges, authored feature revision and head projections, and
+Work Context-scoped raster and spatial derivations.
 Spatial queries use `ST_Contains`, `ST_Intersects`, and `ST_Distance_Sphere`.
 The Spatial extension is copied into the image at build time and loaded only
 from its pinned local path.
@@ -461,11 +477,18 @@ AIXM timeslice, or NASR validation in the corresponding adapter.
 
 GeoJSON and GeoJSON Sequence products feed the analytical projection. Every
 normalized point, line, polygon, and relation becomes a complete immutable
-source feature before specialized projections run. The feature retains all
-normalized properties, original names and references, source element identity
-and version, source and release digests, geometry digest, operating-area
-memberships, license, and attribution. Feature ids derive stable UUIDv5 Map ids
-from source identity, element kind, and source element identity.
+source feature before specialized projections run. The governed OSM profile
+emits the source element version and every source tag as JSON. A relation
+GeometryCollection becomes one feature per bounded leaf geometry. Those
+features retain the common relation identity and a deterministic geometry
+path.
+
+Each feature retains normalized tags, original names and references, source
+element identity and version, source and release digests, geometry digest,
+operating-area memberships, license, and attribution. Feature ids derive
+stable UUIDv5 Map ids from source identity, element kind, source element
+identity, and geometry path. A line-delimited product also includes its stable
+product and record position when the source supplies no element identity.
 
 `query_source_features` always names one immutable release. It supports source
 and element identity, exact tag equality, tag existence, normalized text,
@@ -604,8 +627,11 @@ areas. The caller opts into planning-advisory output through its data policy.
 
 Effective restrictions target mobility families and carry typed effects,
 geometry, authority, and validity. Prohibitions become avoided areas during
-planning. Route validation checks geometry, release availability, profile
-availability, quarantine state, and intersections with active prohibitions.
+planning. Route validation checks every leg against the planning envelope and
+active restrictions. Lateral clearance expands the checked route corridor.
+Typed dimensional, mass, speed, depth, altitude, and reserve limits resolve
+against the selected profile. A missing or incompatible vertical reference
+fails closed.
 
 Routes pin base release ids, one operational snapshot id, planner version, cost
 model version, restriction ids, facilities, and validation identity. Release
@@ -627,6 +653,42 @@ when no pair has supported coverage.
 
 Reachable areas are Valhalla isochrones for human and road profiles. All three
 operations renew leases while running and resume after a server restart.
+
+## Spatial And Terrain Derivations
+
+`derive_spatial_geometry` performs one bounded operation and persists its
+result before returning. The supported operations are:
+
+- line resampling;
+- deterministic nearest-neighbor point ordering and closed tours;
+- polygon boundaries and inward or outward standoff perimeters;
+- line corridors and parallel lanes;
+- racetracks with explicit turn direction;
+- relay or station points;
+- alternating coverage tracks clipped to polygon interiors and holes;
+- connected components with an optional metric tolerance;
+- lead-in and ingress geometry;
+- complete-route validation.
+
+Each request names one immutable mobility-profile version and may pin immutable
+Map releases. It declares effective time and terrain classes. Output records
+include typed findings, intersected restriction identities, the exact
+projection origin, algorithm revision, request digest, geometry digest,
+principal, and Work Context.
+
+Inputs contain at most 10,000 coordinates. Connected-component requests contain
+at most 512 geometries, and parallel-lane requests contain at most 128 lanes.
+The server rejects an output above 50,000 coordinates. The local projection
+rejects polar and dateline-spanning work instead of silently reducing
+accuracy.
+
+Terrain sampling remains a durable raster derivation. `corridor_maximum`
+resamples a WGS84 line at a declared spacing, evaluates up to 64 cross-track
+positions, and records no more than 10,000 samples. Its JSON artifact includes
+every sampled position and value together with deterministic minimum and
+maximum records. The source raster, band, source transform, checksums,
+algorithm revision, caller, and Work Context use the same provenance contract
+as every other raster derivation.
 
 ## MCP Surface
 
@@ -662,7 +724,8 @@ operations renew leases while running and resume after a server restart.
 | `import_feature_layer` | task only | `map:feature:write` | atomic import changeset from an authorized artifact |
 | `export_feature_layer` | task only | `map:feature:publish` | immutable GeoJSON sequence or GeoParquet 1.0 product |
 | `build_vector_tiles` | task only | `map:feature:publish` | immutable MVT 2.1 bundle and MapLibre style |
-| `derive_raster` | task only | `map:raster:derive` | governed raster sample, window, mask, contour, polygon, skeleton, or line artifact |
+| `derive_raster` | task only | `map:raster:derive` | governed raster sample, terrain-corridor maximum, window, mask, contour, polygon, skeleton, or line artifact |
+| `derive_spatial_geometry` | direct | `map:dataset:read`, `map:spatial:derive` | persisted advisory geometry and complete mobility findings |
 
 All tool results use structured content schemas. Tool and resource lists are
 paginated. Task-only tools use the durable task extension.
@@ -694,6 +757,7 @@ map://layer-products
 map://compositions
 map://rasters
 map://raster-derivations
+map://spatial-derivations
 ```
 
 Resource templates are:
@@ -705,6 +769,7 @@ map://dataset/{dataset_id}/release/{release_id}
 map://source-feature/{release_id}/{source_feature_id}
 map://raster/{raster_id}
 map://raster-derivation/{derivation_id}
+map://spatial-derivation/{derivation_id}
 map://location/{location_id}
 map://facility/{facility_id}
 map://mobility-profile/{profile_id}/{profile_version}
@@ -730,7 +795,8 @@ scoped. Dataset, geography, profile, and restriction resources are tenant
 scoped. Authored layers, publications, products, and compositions are Work
 Context scoped and filtered by the caller's data labels. Raster derivation
 resources are confined to their creating Work Context, while the immutable
-source raster remains tenant scoped.
+source raster remains tenant scoped. Spatial derivations are also confined to
+their creating Work Context.
 
 ### Prompts And Completions
 
@@ -842,6 +908,9 @@ endpoint unavailable.
 - A raster sample accepts at most 10,000 positions. A window contains at most
   16,777,216 output pixels, class masks contain at most 256 class values, and
   a full-raster derivation reads at most 4,194,304 source pixels.
+- A spatial input contains at most 10,000 coordinates and produces at most
+  50,000. Terrain-corridor sampling produces at most 10,000 positions across
+  no more than 64 cross-track offsets.
 - Raster helpers inherit the 256 MiB artifact limit and terminate their process
   group after the configured five-minute deadline or task cancellation.
 
@@ -928,6 +997,8 @@ servers/map-mcp/
       mobility.rs
       operations.rs
       routes.rs
+      source_products.rs
+      spatial.rs
       transfers.rs
       units.rs
     authoring/
@@ -944,6 +1015,10 @@ servers/map-mcp/
         adapter.rs
         client.rs
         process.rs
+    spatial/
+      derive.rs
+      projection.rs
+      validation.rs
     server/
       auth.rs
       config.rs
@@ -956,6 +1031,7 @@ servers/map-mcp/
     geography.rs
     mcp.rs
     prompts.rs
+    raster.rs
     release_products.rs
     state.rs
     uris.rs
@@ -967,7 +1043,9 @@ servers/map-mcp/
       adapters/
       contract.py
       main.py
+      raster_ops.py
       subprocesses.py
+      terrain.py
     tests/
     pyproject.toml
     uv.lock

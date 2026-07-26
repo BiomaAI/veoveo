@@ -8,6 +8,7 @@ mod mobility;
 mod operations;
 mod routes;
 mod source_products;
+mod spatial;
 mod transfers;
 mod units;
 
@@ -21,5 +22,6 @@ pub use mobility::*;
 pub use operations::*;
 pub use routes::*;
 pub use source_products::*;
+pub use spatial::*;
 pub use transfers::*;
 pub use units::*;

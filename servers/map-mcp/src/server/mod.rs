@@ -37,6 +37,7 @@ use crate::{
             ValhallaProcessConfig,
         },
     },
+    spatial::SpatialService,
     state::MapApplication,
 };
 
@@ -157,8 +158,9 @@ async fn serve(args: Args) -> Result<()> {
         analytics: analytics.clone(),
         authoring,
         routes,
-        geography: GeographyService::new(catalog, analytics.clone()),
+        geography: GeographyService::new(catalog.clone(), analytics.clone()),
         raster,
+        spatial: SpatialService::new(catalog.clone(), analytics.clone()),
         acquisitions,
         artifacts,
         products,

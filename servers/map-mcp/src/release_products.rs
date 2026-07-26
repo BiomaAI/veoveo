@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use flate2::read::GzDecoder;
-use geojson::{Feature, GeoJson, GeometryValue};
+use geojson::{Feature, GeoJson, Geometry, GeometryValue};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -14,11 +14,11 @@ use crate::{
     analytics::{MapAnalytics, NetworkEdge},
     contract::{
         DatasetRelease, Facility, FacilityId, FeatureGeometry, GeoJsonPosition, LocationId,
-        MapBoundary, MapBoundaryId, MapFamily, MapLocation, RASTER_PRODUCT_SCHEMA_VERSION,
-        RasterBand, RasterProduct, RasterProductId, RegisteredSource,
-        SOURCE_FEATURE_SCHEMA_VERSION, SourceElementType, SourceFeature, SourceFeatureId,
-        SourceFeatureRepresentation, SourceLineage, Wgs84LineString, Wgs84Polygon, Wgs84Position,
-        representation_for_geometry,
+        MAX_SOURCE_GEOMETRY_COLLECTION_DEPTH, MAX_SOURCE_GEOMETRY_PARTS, MapBoundary,
+        MapBoundaryId, MapFamily, MapLocation, RASTER_PRODUCT_SCHEMA_VERSION, RasterBand,
+        RasterProduct, RasterProductId, RegisteredSource, SOURCE_FEATURE_SCHEMA_VERSION,
+        SourceElementType, SourceFeature, SourceFeatureId, SourceFeatureRepresentation,
+        SourceLineage, Wgs84LineString, Wgs84Polygon, Wgs84Position, representation_for_geometry,
     },
 };
 
@@ -174,31 +174,24 @@ fn ingest_directory(
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_default();
+        let context = SourceIngestContext {
+            analytics,
+            tenant_key,
+            release,
+            source,
+            source_element_hint: source_element_hint(name),
+        };
         if name.ends_with(".geojson")
             || (name.ends_with(".json") && !name.ends_with(".raster.json"))
         {
             let geojson: GeoJson = std::fs::read_to_string(path)?.parse()?;
-            ingest_geojson(
-                analytics,
-                tenant_key,
-                geojson,
-                release,
-                source,
-                source_element_hint(name),
-            )?;
+            ingest_geojson(&context, geojson, name, 0)?;
         } else if name.ends_with(".geojsonseq") || name.ends_with(".geojsonl") {
-            for line in BufReader::new(File::open(path)?).lines() {
+            for (record_index, line) in BufReader::new(File::open(path)?).lines().enumerate() {
                 let line = line?;
                 let line = line.trim().trim_start_matches('\u{1e}');
                 if !line.is_empty() {
-                    ingest_geojson(
-                        analytics,
-                        tenant_key,
-                        line.parse()?,
-                        release,
-                        source,
-                        source_element_hint(name),
-                    )?;
+                    ingest_geojson(&context, line.parse()?, name, record_index)?;
                 }
             }
         }
@@ -317,40 +310,38 @@ fn sha256_file(path: &Path) -> Result<String> {
     Ok(hex::encode(digest.finalize()))
 }
 
-fn ingest_geojson(
-    analytics: &MapAnalytics,
-    tenant_key: &str,
-    geojson: GeoJson,
-    release: &DatasetRelease,
-    source: &RegisteredSource,
+#[derive(Clone, Copy)]
+struct SourceIngestContext<'a> {
+    analytics: &'a MapAnalytics,
+    tenant_key: &'a str,
+    release: &'a DatasetRelease,
+    source: &'a RegisteredSource,
     source_element_hint: Option<SourceElementType>,
+}
+
+fn ingest_geojson(
+    context: &SourceIngestContext<'_>,
+    geojson: GeoJson,
+    product_name: &str,
+    record_index: usize,
 ) -> Result<()> {
     match geojson {
         GeoJson::FeatureCollection(collection) => {
             for (index, feature) in collection.features.into_iter().enumerate() {
                 ingest_feature(
-                    analytics,
-                    tenant_key,
+                    context,
                     feature,
-                    index,
-                    release,
-                    source,
-                    source_element_hint,
+                    &format!("{product_name}:{record_index}:{index}"),
                 )?;
             }
         }
         GeoJson::Feature(feature) => ingest_feature(
-            analytics,
-            tenant_key,
+            context,
             feature,
-            0,
-            release,
-            source,
-            source_element_hint,
+            &format!("{product_name}:{record_index}:0"),
         )?,
         GeoJson::Geometry(geometry) => ingest_feature(
-            analytics,
-            tenant_key,
+            context,
             Feature {
                 bbox: None,
                 geometry: Some(geometry),
@@ -358,31 +349,57 @@ fn ingest_geojson(
                 properties: None,
                 foreign_members: None,
             },
-            0,
-            release,
-            source,
-            source_element_hint,
+            &format!("{product_name}:{record_index}:0"),
         )?,
     }
     Ok(())
 }
 
 fn ingest_feature(
-    analytics: &MapAnalytics,
-    tenant_key: &str,
-    feature: Feature,
-    index: usize,
-    release: &DatasetRelease,
-    source: &RegisteredSource,
-    source_element_hint: Option<SourceElementType>,
+    context: &SourceIngestContext<'_>,
+    mut feature: Feature,
+    fallback_source_element_id: &str,
 ) -> Result<()> {
+    let Some(geometry) = feature.geometry.as_ref() else {
+        return Ok(());
+    };
+    let geometry_parts = source_geometry_parts(geometry)?;
+    let normalized_tags = normalized_source_tags(&mut feature)?;
+    for (source_geometry_path, geometry) in geometry_parts {
+        let mut part = feature.clone();
+        part.geometry = Some(geometry);
+        ingest_feature_part(
+            context,
+            part,
+            fallback_source_element_id,
+            &source_geometry_path,
+            &normalized_tags,
+        )?;
+    }
+    Ok(())
+}
+
+fn ingest_feature_part(
+    context: &SourceIngestContext<'_>,
+    feature: Feature,
+    fallback_source_element_id: &str,
+    source_geometry_path: &[u32],
+    normalized_tags: &std::collections::BTreeMap<String, serde_json::Value>,
+) -> Result<()> {
+    let SourceIngestContext {
+        analytics,
+        tenant_key,
+        release,
+        source,
+        ..
+    } = *context;
     let Some(geometry) = feature.geometry.as_ref() else {
         return Ok(());
     };
     let name = property_string(&feature, "name")
         .or_else(|| property_string(&feature, "ref"))
-        .unwrap_or_else(|| format!("feature {index}"));
-    let source_feature_id = feature
+        .unwrap_or_else(|| format!("feature {fallback_source_element_id}"));
+    let source_element_id = feature
         .id
         .as_ref()
         .map(|id| match id {
@@ -390,25 +407,22 @@ fn ingest_feature(
             geojson::feature::Id::Number(value) => value.to_string(),
         })
         .or_else(|| property_identity(&feature))
-        .unwrap_or_else(|| index.to_string());
-    ingest_complete_source_feature(
-        analytics,
-        tenant_key,
+        .unwrap_or_else(|| fallback_source_element_id.to_owned());
+    let source_feature_id = ingest_complete_source_feature(
+        context,
         &feature,
-        &source_feature_id,
-        release,
-        source,
-        source_element_hint,
+        &source_element_id,
+        source_geometry_path,
+        normalized_tags,
     )?;
     let lineage = SourceLineage {
         release_id: release.release_id.clone(),
-        source_feature_id: source_feature_id.clone(),
+        source_feature_id: source_feature_id.to_string(),
         authority: source.authority,
         valid_from: release.valid_from,
         valid_until: release.valid_until,
     };
-    let stable_key =
-        |kind: &str, part: usize| format!("{}:{kind}:{source_feature_id}:{part}", source.source_id);
+    let stable_key = |kind: &str, part: usize| format!("{kind}:{source_feature_id}:{part}");
     match &geometry.value {
         GeometryValue::Point {
             coordinates: position,
@@ -508,7 +522,10 @@ fn ingest_feature(
             analytics.put_network_edge(
                 tenant_key,
                 &NetworkEdge {
-                    edge_id: format!("{}:{}:{index}", source.source_id, release.release_id),
+                    edge_id: format!(
+                        "{}:{}:{}",
+                        source.source_id, release.release_id, source_feature_id
+                    ),
                     map_family,
                     from_node,
                     to_node,
@@ -526,17 +543,23 @@ fn ingest_feature(
 }
 
 fn ingest_complete_source_feature(
-    analytics: &MapAnalytics,
-    tenant_key: &str,
+    context: &SourceIngestContext<'_>,
     feature: &Feature,
     source_element_id: &str,
-    release: &DatasetRelease,
-    source: &RegisteredSource,
-    source_element_hint: Option<SourceElementType>,
-) -> Result<()> {
-    let Some(geometry) = feature.geometry.as_ref() else {
-        return Ok(());
-    };
+    source_geometry_path: &[u32],
+    normalized_tags: &std::collections::BTreeMap<String, serde_json::Value>,
+) -> Result<SourceFeatureId> {
+    let SourceIngestContext {
+        analytics,
+        tenant_key,
+        release,
+        source,
+        source_element_hint,
+    } = *context;
+    let geometry = feature
+        .geometry
+        .as_ref()
+        .context("source feature part has no geometry")?;
     let geometry = feature_geometry(&geometry.value)?;
     let source_element_type = source_element_type(feature, source_element_hint);
     let representation = if source_element_type == SourceElementType::Relation {
@@ -554,16 +577,8 @@ fn ingest_complete_source_feature(
             })
         })
         .unwrap_or_else(|| release.version_label.clone());
-    let normalized_tags = feature
-        .properties
-        .clone()
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
-    let original_names = feature
-        .properties
+    let original_names = normalized_tags
         .iter()
-        .flat_map(|properties| properties.iter())
         .filter(|(key, value)| {
             (*key == "name" || key.starts_with("name:")) && value.as_str().is_some()
         })
@@ -574,10 +589,8 @@ fn ingest_complete_source_feature(
             )
         })
         .collect();
-    let original_references = feature
-        .properties
+    let original_references = normalized_tags
         .iter()
-        .flat_map(|properties| properties.iter())
         .filter(|(key, value)| {
             (*key == "ref" || key.starts_with("ref:")) && value.as_str().is_some()
         })
@@ -585,7 +598,7 @@ fn ingest_complete_source_feature(
         .collect();
     let operating_area_ids = ["operating_area_id", "operating_area_ids"]
         .into_iter()
-        .filter_map(|key| feature.property(key))
+        .filter_map(|key| normalized_tags.get(key))
         .flat_map(|value| match value {
             serde_json::Value::String(value) => vec![value.clone()],
             serde_json::Value::Array(values) => values
@@ -597,25 +610,28 @@ fn ingest_complete_source_feature(
         })
         .collect();
     let geometry_bytes = geometry.to_geojson_string()?.into_bytes();
-    let stable_key = format!(
-        "{}:{:?}:{source_element_id}",
-        source.source_id, source_element_type
-    )
-    .to_lowercase();
+    let stable_key = serde_json::to_vec(&(
+        source.source_id.as_str(),
+        source_element_type,
+        source_element_id,
+        source_geometry_path,
+    ))?;
+    let feature_id = SourceFeatureId::from_stable_key(&stable_key);
     analytics.put_source_feature(
         tenant_key,
         &SourceFeature {
             schema_version: SOURCE_FEATURE_SCHEMA_VERSION,
-            feature_id: SourceFeatureId::from_stable_key(stable_key.as_bytes()),
+            feature_id: feature_id.clone(),
             source_id: source.source_id.clone(),
             release_id: release.release_id.clone(),
             source_element_type,
             source_element_id: source_element_id.to_owned(),
             source_element_version,
             representation,
+            source_geometry_path: source_geometry_path.to_vec(),
             geometry,
             geometry_digest_sha256: hex::encode(Sha256::digest(geometry_bytes)),
-            normalized_tags,
+            normalized_tags: normalized_tags.clone(),
             original_names,
             original_references,
             operating_area_ids,
@@ -623,13 +639,20 @@ fn ingest_complete_source_feature(
             license: release.license.clone(),
             acquired_at: release.acquired_at,
         },
-    )
+    )?;
+    Ok(feature_id)
 }
 
 fn source_element_type(
     feature: &Feature,
     source_element_hint: Option<SourceElementType>,
 ) -> SourceElementType {
+    if feature
+        .property("osm_way_id")
+        .is_some_and(|value| !value.is_null())
+    {
+        return SourceElementType::Way;
+    }
     let explicit = ["source_element_type", "osm_type", "@type"]
         .into_iter()
         .find_map(|key| feature.property(key).and_then(serde_json::Value::as_str));
@@ -642,7 +665,10 @@ fn source_element_type(
 }
 
 fn source_element_hint(name: &str) -> Option<SourceElementType> {
-    if name.contains("other_relations") {
+    if name.contains("other_relations")
+        || name.contains("multilinestrings")
+        || name.contains("multipolygons")
+    {
         Some(SourceElementType::Relation)
     } else if name.contains("points") {
         Some(SourceElementType::Node)
@@ -651,6 +677,98 @@ fn source_element_hint(name: &str) -> Option<SourceElementType> {
     } else {
         None
     }
+}
+
+fn source_geometry_parts(geometry: &Geometry) -> Result<Vec<(Vec<u32>, Geometry)>> {
+    fn collect(
+        geometry: &Geometry,
+        path: &mut Vec<u32>,
+        parts: &mut Vec<(Vec<u32>, Geometry)>,
+    ) -> Result<()> {
+        if path.len() > MAX_SOURCE_GEOMETRY_COLLECTION_DEPTH {
+            bail!("source GeometryCollection exceeds its governed depth");
+        }
+        match &geometry.value {
+            GeometryValue::GeometryCollection { geometries } => {
+                if geometries.is_empty() {
+                    bail!("source GeometryCollection is empty");
+                }
+                for (index, child) in geometries.iter().enumerate() {
+                    if parts.len() >= MAX_SOURCE_GEOMETRY_PARTS {
+                        bail!("source GeometryCollection exceeds its governed part limit");
+                    }
+                    path.push(u32::try_from(index).context("geometry part index exceeds u32")?);
+                    collect(child, path, parts)?;
+                    path.pop();
+                }
+            }
+            _ => parts.push((path.clone(), geometry.clone())),
+        }
+        Ok(())
+    }
+
+    let mut parts = Vec::new();
+    collect(geometry, &mut Vec::new(), &mut parts)?;
+    Ok(parts)
+}
+
+fn normalized_source_tags(
+    feature: &mut Feature,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>> {
+    const SOURCE_METADATA_FIELDS: &[&str] = &[
+        "osm_id",
+        "osm_way_id",
+        "osm_version",
+        "osm_timestamp",
+        "osm_uid",
+        "osm_user",
+        "osm_changeset",
+        "z_order",
+    ];
+
+    let Some(properties) = feature.properties.as_mut() else {
+        return Ok(Default::default());
+    };
+    let mut embedded = std::collections::BTreeMap::new();
+    let mut complete_tags = None;
+    for carrier in ["all_tags", "other_tags"] {
+        let Some(value) = properties.remove(carrier) else {
+            continue;
+        };
+        if value.is_null() {
+            continue;
+        }
+        let value = match value {
+            serde_json::Value::String(value) => serde_json::from_str(&value)
+                .with_context(|| format!("{carrier} is not a JSON object"))?,
+            value => value,
+        };
+        let serde_json::Value::Object(values) = value else {
+            bail!("{carrier} is not a JSON object");
+        };
+        let values = values
+            .into_iter()
+            .collect::<std::collections::BTreeMap<_, _>>();
+        if carrier == "all_tags" {
+            complete_tags = Some(values.clone());
+        }
+        embedded.extend(values);
+    }
+    for (key, value) in &embedded {
+        if properties.get(key).is_none_or(serde_json::Value::is_null) {
+            properties.insert(key.clone(), value.clone());
+        }
+    }
+    if let Some(tags) = complete_tags {
+        return Ok(tags);
+    }
+    let mut tags = embedded;
+    for (key, value) in properties.iter() {
+        if !SOURCE_METADATA_FIELDS.contains(&key.as_str()) {
+            tags.insert(key.clone(), value.clone());
+        }
+    }
+    Ok(tags)
 }
 
 fn property_identity(feature: &Feature) -> Option<String> {
@@ -955,6 +1073,77 @@ mod tests {
         assert_eq!(
             SourceFeatureId::from_stable_key(key),
             SourceFeatureId::from_stable_key(key)
+        );
+    }
+
+    #[test]
+    fn relation_geometry_collections_keep_deterministic_leaf_paths() {
+        let point = |longitude| {
+            Geometry::new(GeometryValue::Point {
+                coordinates: vec![longitude, 13.7].into(),
+            })
+        };
+        let nested = Geometry::new(GeometryValue::GeometryCollection {
+            geometries: vec![point(-89.2), point(-89.1)],
+        });
+        let collection = Geometry::new(GeometryValue::GeometryCollection {
+            geometries: vec![point(-89.3), nested],
+        });
+
+        let parts = source_geometry_parts(&collection).unwrap();
+
+        assert_eq!(
+            parts
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>(),
+            vec![vec![0], vec![1, 0], vec![1, 1]]
+        );
+    }
+
+    #[test]
+    fn osm_all_tags_are_complete_and_source_metadata_stays_separate() {
+        let mut properties = serde_json::Map::new();
+        properties.insert("osm_id".to_owned(), serde_json::json!("42"));
+        properties.insert("osm_version".to_owned(), serde_json::json!("7"));
+        properties.insert(
+            "all_tags".to_owned(),
+            serde_json::json!(r#"{"name":"Original","name:es":"Original ES","ref":"A-1"}"#),
+        );
+        let mut feature = Feature {
+            bbox: None,
+            geometry: None,
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        };
+
+        let tags = normalized_source_tags(&mut feature).unwrap();
+
+        assert_eq!(tags.len(), 3);
+        assert_eq!(tags.get("name"), Some(&serde_json::json!("Original")));
+        assert!(!tags.contains_key("osm_version"));
+        assert_eq!(
+            feature.property("name"),
+            Some(&serde_json::json!("Original"))
+        );
+    }
+
+    #[test]
+    fn osm_multipolygon_ways_override_the_relation_layer_hint() {
+        let mut properties = serde_json::Map::new();
+        properties.insert("osm_way_id".to_owned(), serde_json::json!("101"));
+        let feature = Feature {
+            bbox: None,
+            geometry: None,
+            id: None,
+            properties: Some(properties),
+            foreign_members: None,
+        };
+
+        assert_eq!(
+            source_element_type(&feature, Some(SourceElementType::Relation)),
+            SourceElementType::Way
         );
     }
 
